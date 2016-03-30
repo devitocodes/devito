@@ -338,8 +338,10 @@ class AcousticWave2D:
 
 # Set up test case
 if __name__ == "__main__":
-    import matplotlib.pyplot as plt
-    from matplotlib import animation
+    matplot = False
+    if matplot:
+        import matplotlib.pyplot as plt
+        from matplotlib import animation
 
     # Define the discrete model
     model = SubsurfaceModel2D()
@@ -390,20 +392,21 @@ if __name__ == "__main__":
     (rect, ut) = AcousticWave2D(model, data).Forward(nt)
 
     # get ready to populate this list the Line artists to be plotted
-    fig = plt.figure()
-    plts = []
-    plt.hold("off")
-    for i in range(nt):
-        # this is how you'd plot a single line...
-        r = plt.imshow(ut[i, :, :])
-        plts.append([r])
-    # run the animation
-    ani = animation.ArtistAnimation(fig, plts, interval=50,  repeat=False)
+    if matplot:
+        fig = plt.figure()
+        plts = []
+        plt.hold("off")
+        for i in range(nt):
+            # this is how you'd plot a single line...
+            r = plt.imshow(ut[i, :, :])
+            plts.append([r])
+        # run the animation
+        ani = animation.ArtistAnimation(fig, plts, interval=50,  repeat=False)
     # plt.show()
 
-    fig2 = plt.figure()
-    plt.hold("off")
-    shotrec = plt.imshow(rect)   # this is how you'd plot a single line...
+        fig2 = plt.figure()
+        plt.hold("off")
+        shotrec = plt.imshow(rect)   # this is how you'd plot a single line...
     # plt.show()
 
     # Adjoint test
@@ -428,18 +431,19 @@ if __name__ == "__main__":
     (rec0, u0) = AcousticWave2D(model0, data).Forward(nt)
     (srca, v) = AcousticWave2D(model0, data).Adjoint(nt, rec0)
 
-    # get ready to populate this list the Line artists to be plotted
-    plts = []
-    plt.hold("off")
-    for i in range(0, nt):
-        # this is how you'd plot a single line...
-        r = plt.imshow(v[i, :, :])
-        plts.append([r])
-    # run the animation
-    ani = animation.ArtistAnimation(fig, plts, interval=50,  repeat=False)
+    if matplot:
+        # get ready to populate this list the Line artists to be plotted
+        plts = []
+        plt.hold("off")
+        for i in range(0, nt):
+            # this is how you'd plot a single line...
+            r = plt.imshow(v[i, :, :])
+            plts.append([r])
+        # run the animation
+        ani = animation.ArtistAnimation(fig, plts, interval=50,  repeat=False)
 
-    # this is how you'd plot a single line...
-    shotrec = plt.plot(srca)
+        # this is how you'd plot a single line...
+        shotrec = plt.plot(srca)
     # plt.show()
 
     # Actual adjoint test
@@ -473,18 +477,18 @@ if __name__ == "__main__":
     F0 = .5 * linalg.norm(rec0 - rect)**2
 
     Im1 = AcousticWave2D(model0, data).Gradient(nt, rec0 - rect, u0)
+    if matplot:
+        # this is how you'd plot a single line...
+        shotrec = plt.imshow(rect, vmin=-1, vmax=1)
 
-    # this is how you'd plot a single line...
-    shotrec = plt.imshow(rect, vmin=-1, vmax=1)
+        # this is how you'd plot a single line...
+        shotrec = plt.imshow(rec0, vmin=-1, vmax=1)
 
-    # this is how you'd plot a single line...
-    shotrec = plt.imshow(rec0, vmin=-1, vmax=1)
+        # this is how you'd plot a single line...
+        shotrec = plt.imshow(rec0 - rect, vmin=-.1, vmax=.1)
 
-    # this is how you'd plot a single line...
-    shotrec = plt.imshow(rec0 - rect, vmin=-.1, vmax=.1)
-
-    # this is how you'd plot a single line...
-    shotrec = plt.imshow(Im1, vmin=-1, vmax=1)
+        # this is how you'd plot a single line...
+        shotrec = plt.imshow(Im1, vmin=-1, vmax=1)
 
     # Adjoint test for the gradient
     #
@@ -538,11 +542,12 @@ if __name__ == "__main__":
     for i in range(0, 7):
         hh[i] = H[i] * H[i]
     # this is how you'd plot a single line...
-    shotrec = plt.loglog(H, error1, H, H)
-    plt.show()
-    # this is howyou'd plot a single line...
-    shotrec = plt.loglog(H, error2, H, hh)
-    plt.show()
+    if matplot:
+        shotrec = plt.loglog(H, error1, H, H)
+        plt.show()
+        # this is howyou'd plot a single line...
+        shotrec = plt.loglog(H, error2, H, hh)
+        plt.show()
 
     # Gradient test
     # The last part is to check that the operators are consistent with
@@ -579,8 +584,9 @@ if __name__ == "__main__":
         error22[i] = .5*linalg.norm(Dloc - DT)**2 - F0 - H[i] * G
 
         # this is how you'd plot a single line...
-    shotrec = plt.loglog(H, error21, H, H)
-    plt.show()
-    # this is how you'd plot a single line...
-    shotrec = plt.loglog(H, error22, H, hh)
-    plt.show()
+    if matplot:
+        shotrec = plt.loglog(H, error21, H, H)
+        plt.show()
+        # this is how you'd plot a single line...
+        shotrec = plt.loglog(H, error22, H, hh)
+        plt.show()

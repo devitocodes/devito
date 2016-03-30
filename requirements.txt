@@ -1,3 +1,4 @@
 git+git://github.com/inducer/cgen
 sympy>=0.7.6
 flake8>=2.1.0
+pytest

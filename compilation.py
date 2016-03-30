@@ -56,10 +56,12 @@ class GNUCompiler(Compiler):
     :arg ldargs: A list of arguments to pass to the linker (optional)."""
     def __init__(self, cppargs=[], ldargs=[]):
         opt_flags = ['-g', '-O3', '-fno-tree-vectorize', '-fopenmp']
-        cppargs = ['-Wall', '-std=c++11', '-I%s/include' % get_package_dir()] + opt_flags + cppargs
-        ldargs = ['-lopesci', '-Wl,-rpath,%s/lib' % get_package_dir(),
+        cppargs = ['-Wall', '-g3', '-std=c++11', '-I%s/include' %
+                   get_package_dir()] + opt_flags + cppargs
+        ldargs = ['-Wl,-rpath,%s/lib' % get_package_dir(),
                   '-L%s/lib' % get_package_dir()] + ldargs
-        super(GNUCompiler, self).__init__("g++", cppargs=cppargs, ldargs=ldargs)
+        super(GNUCompiler, self).__init__("g++-4.9", cppargs=cppargs,
+                                          ldargs=ldargs)
 
     @property
     def _ivdep(self):
@@ -76,10 +78,12 @@ class ClangCompiler(Compiler):
 
     def __init__(self, cppargs=[], ldargs=[]):
         opt_flags = ['-g', '-O3', '-openmp']
-        cppargs = ['-Wall', '-g3', '-std=c++11', '-I%s/include' % get_package_dir()] + opt_flags + cppargs
+        cppargs = ['-Wall', '-g3', '-std=c++11', '-I%s/include' %
+                   get_package_dir()] + opt_flags + cppargs
         ldargs = ['-Wl,-rpath,%s/lib' % get_package_dir(),
                   '-L%s/lib' % get_package_dir()] + ldargs
-        super(ClangCompiler, self).__init__("clang-omp++", cppargs=cppargs, ldargs=ldargs)
+        super(ClangCompiler, self).__init__("clang-omp++", cppargs=cppargs,
+                                            ldargs=ldargs)
 
     @property
     def _ivdep(self):
@@ -94,10 +98,12 @@ class IntelCompiler(Compiler):
     :arg ldargs: A list of arguments to pass to the linker (optional)."""
     def __init__(self, cppargs=[], ldargs=[]):
         opt_flags = ['-g', '-O3', '-xHost', '-openmp']
-        cppargs = ['-Wall', '-std=c++11', '-I%s/include' % get_package_dir()] + opt_flags + cppargs
-        ldargs = ['-lopesci', '-Wl,-rpath,%s/lib' % get_package_dir(),
+        cppargs = ['-Wall', '-std=c++11', '-I%s/include' %
+                   get_package_dir()] + opt_flags + cppargs
+        ldargs = ['-Wl,-rpath,%s/lib' % get_package_dir(),
                   '-L%s/lib' % get_package_dir()] + ldargs
-        super(IntelCompiler, self).__init__("icpc", cppargs=cppargs, ldargs=ldargs)
+        super(IntelCompiler, self).__init__("icpc", cppargs=cppargs,
+                                            ldargs=ldargs)
 
     @property
     def _ivdep(self):
