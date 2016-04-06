@@ -2,31 +2,36 @@
 from __future__ import print_function
 
 from sympy import Function, symbols, init_printing, as_finite_diff, solve, \
-                  lambdify
+                  lambdify, IndexedBase
 from sympy.abc import x, y, t, M, Q, D, E
-
+from sympy.functions import Abs
 import numpy as np
 from numpy import linalg
 from math import floor
-
-from SubsurfaceModel2D import SubsurfaceModel2D
-from SeismicDataReader import SeismicDataReader
+from sympy_interface import Sympy_Interface
+from cgen_wrapper import Ternary
+from codeprinter import ccode
+from generator import Generator
+import cgen_wrapper as cgen
 
 init_printing()
 
 
 class AcousticWave2D:
-    def __init__(self, model, data, nbpml=10):
+    def __init__(self, model, data, xrec, nbpml=10):
         self.model = model
         self.data = data
 
         self.dt = model.get_critical_dt()
         self.h = model.get_spacing()[0]
         self.nbpml = nbpml
-
-        self._init_taylor()
-
-    def _init_taylor(self):
+        self.xrec = xrec
+    
+    def prepare(self, nt):
+        self._init_taylor(nt)
+        self.prepare_macros()
+        self.Gts.get_wrapped_function()
+    def _init_taylor(self, nt):
         # The acoustic wave equation for the square slowness m and a source q
         # is given in 3D by :
         #
@@ -41,7 +46,7 @@ class AcousticWave2D:
         q = Q(x, y, t)
         d = D(x, y, t)
         e = E(x, y)
-
+        nx, ny = self.model.get_dimensions()
         # Time and space  discretization as a Taylor expansion.
         #
         # The time discretization is define as a second order ( $ O (dt^2)) $)
@@ -90,6 +95,7 @@ class AcousticWave2D:
         # Forward wave equation
         wave_equation = m * dtt - (dxx + dyy) - q + e * dt
         stencil = solve(wave_equation, p(x, y, t+s))[0]
+        
         self.ts = lambdify((p(x, y, t-s),
                            p(x-h, y, t),
                            p(x, y, t),
@@ -97,7 +103,16 @@ class AcousticWave2D:
                            p(x, y-h, t),
                            p(x, y+h, t), q, m, s, h, e),
                            stencil, "numpy")
-
+        
+        stencil = self.__prepare_stencil((p(x, y, t-s),
+                           p(x-h, y, t),
+                           p(x, y, t),
+                           p(x+h, y, t),
+                           p(x, y-h, t),
+                           p(x, y+h, t), q, m, s, h, e),
+                           stencil)
+        
+        self.Gts = Generator((nt, nx, ny), stencil, (0,1,1))
         # Rewriting the discret PDE as part of an Inversion. Accuracy and
         # rigourousness of the dicretization
         #
@@ -137,6 +152,7 @@ class AcousticWave2D:
         # Adjoint wave equation
         wave_equationA = m * dtt - (dxx + dyy) - D(x, y, t) - e * dt
         stencilA = solve(wave_equationA, p(x, y, t-s))[0]
+        self.GtsA = Generator((nt, nx, ny), stencilA, (0,1,1))
         self.tsA = lambdify((p(x, y, t+s),
                             p(x-h, y, t),
                             p(x, y, t),
@@ -145,32 +161,37 @@ class AcousticWave2D:
                             p(x, y+h, t), d, m, s, h, e),
                             stencilA, "numpy")
 
-    def dampx(self, x):
+    def prepare_macros(self):
+        global y
+        global x
         nbpml = self.nbpml
         h = self.h
         nx, ny = self.model.get_dimensions()
 
         dampcoeff = 1.5 * np.log(1.0 / 0.001) / (5.0 * h)
-        if x < nbpml:
-            return dampcoeff * ((nbpml - x) / nbpml)**2
-        elif x > nx - nbpml - 1:
-            return dampcoeff * ((x - nx + nbpml) / nbpml)**2
-        else:
-            return 0.0
-
-    def dampy(self, y):
-        nbpml = self.nbpml
-        h = self.h
-        nx, ny = self.model.get_dimensions()
-
-        dampcoeff = 1.5 * np.log(1.0 / 0.001) / (5.0 * h)
-        if y < nbpml:
-            return dampcoeff*((nbpml-y)/nbpml)**2
-        elif y > ny - nbpml - 1:
-            return dampcoeff * ((y - ny + nbpml) / nbpml)**2
-        else:
-            return 0.0
-
+        
+        expr_damp_y = Ternary("y < "+str(nbpml), ccode(dampcoeff*((nbpml-y)/nbpml)**2), Ternary("y < "+str(ny - nbpml - 1), ccode(dampcoeff * ((y - ny + nbpml) / nbpml)**2), 0))
+        expr_damp_x = Ternary("x < "+str(nbpml), ccode(dampcoeff*((nbpml-x)/nbpml)**2), Ternary("x < "+str(nx - nbpml - 1), ccode(dampcoeff * ((x - nx + nbpml) / nbpml)**2), 0))
+        self.Gts.add_macro("dampy(y)", expr_damp_y)
+        self.Gts.add_macro("dampx(x)", expr_damp_x)
+        self.Gts.add_macro("damp(x,y)", "dampx(x)+dampy(y)")
+        expr_source = Ternary("abs(x - src_loc[0]) < h / 2 and abs(y - src_loc[1]) < h / 2", 
+                              "src[ti]", 0)
+        self.Gts.add_macro("src(x,y,t)", expr_source)
+    
+    def __prepare_stencil(self, subs, stencil):
+        U = IndexedBase("u")
+        src_fun = Function("src")
+        M = IndexedBase("m")
+        damp_fun = Function("damp")
+        stencil = stencil.subs({subs[0]:U[t-1, y, x], subs[1]:U[t,y,x-1], subs[2]:U[t,y,x], subs[3]:U[t+1,y,x],
+                                subs[4]:U[t,y-1,x], subs[5]:U[t,y+1,x], subs[6]:src_fun(t,y,x), subs[7]:M[y,x],
+                                 subs[8]:self.dt, subs[9]:self.h, subs[10]:damp_fun(y,x)})
+        i1,i2,i3 = symbols("i1 i2 i3")
+        stencil = stencil.xreplace({t:i3, y:i2, x:i1})
+        print(stencil)
+        return cgen.Statement(ccode(stencil))
+    
     # Interpolate source onto grid...
     def source_interpolate(self, x, y):
 
@@ -189,6 +210,8 @@ class AcousticWave2D:
 
         u = np.zeros((nt, nx, ny))
         rec = np.zeros((nt, ny - 2))
+        
+        
         for ti in range(0, nt):
             for a in range(1, nx-1):
                 for b in range(1, ny-1):
@@ -215,7 +238,7 @@ class AcousticWave2D:
                                               u[ti - 1, a, b - 1],
                                               u[ti - 1, a, b + 1],
                                               src, m[a, b], dt, h, damp)
-                    if a == xrec:
+                    if a == self.xrec:
                         rec[ti, b - 1] = u[ti, a, b]
         return rec, u
 
@@ -230,7 +253,7 @@ class AcousticWave2D:
         for ti in range(nt - 1, -1, -1):
             for a in range(1, nx-1):
                 for b in range(1, ny-1):
-                    if a == xrec:
+                    if a == self.xrec:
                         resid = rec[ti, b-1]
                     else:
                         resid = 0
@@ -272,7 +295,7 @@ class AcousticWave2D:
         for ti in range(nt-1, -1, -1):
             for a in range(1, nx-1):
                 for b in range(1, ny-1):
-                    if a == xrec:
+                    if a == self.xrec:
                         resid = rec[ti, b-1]
                     else:
                         resid = 0
@@ -327,7 +350,7 @@ class AcousticWave2D:
                                        U2[a, b - 1],
                                        U2[a, b + 1],
                                        src2, m[a, b], dt, h, damp)
-                    if a == xrec:
+                    if a == self.xrec:
                         rec[ti, b-1] = U3[a, b]
             u1, u2, u3 = u2, u3, u1
             U1, U2, U3 = U2, U3, U1
@@ -389,7 +412,7 @@ if __name__ == "__main__":
 
     xrec = 10 + 4
     # A Forward propagation example
-    (rect, ut) = AcousticWave2D(model, data).Forward(nt)
+    (rect, ut) = AcousticWave2D(model, data, xrec).Forward(nt)
 
     # get ready to populate this list the Line artists to be plotted
     if matplot:

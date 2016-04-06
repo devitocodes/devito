@@ -8,17 +8,25 @@ class BasicTemplate(object):
     # order as they appear here
 
     _template_methods = ['includes', 'process_function']
-
-    def __init__(self, dimensions, kernel):
+    
+    def __init__(self, dimensions, kernel, skip_elements = None):
         self.dimensions = dimensions
         self.kernel = kernel
+        if skip_elements is not None:
+            assert(len(skip_elements)==dimensions)
+        self.skip_elements = skip_elements
+        self._defines = []
+        self.add_define('M_PI', '3.14159265358979323846')
 
     def includes(self):
         statements = []
-        statements += [cgen.Define('M_PI', '3.14159265358979323846')]
+        statements += self._defines
         statements += includes.common_include()
         return cgen.Module(statements)
-
+    
+    def add_define(self, name, text):
+        self._defines.append(cgen.Define(name, text))
+    
     def generate(self):
         statements = [getattr(self, m)() for m in self._template_methods]
         return cgen.Module(statements)
@@ -70,9 +78,16 @@ class BasicTemplate(object):
         body = kernel
         for dim_ind in range(1, num_dim+1):
             dim_var = "i"+str(dim_ind)
+            if self.skip_elements is not None:
+                skip = self.skip_elements[dim_ind-1]
+            else:
+                skip = 0
+            
             dim_size = "size"+str(dim_ind)
+            if skip>0:
+                dim_size = dim_size+"-"+str(skip)
             body = cgen.For(cgen.InlineInitializer(cgen.Value("int", dim_var),
-                                                   0),
+                                                   skip),
                             dim_var + "<" + dim_size,
                             dim_var + "++",
                             body
