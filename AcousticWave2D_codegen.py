@@ -18,14 +18,13 @@ init_printing()
 
 
 class AcousticWave2D:
-    def __init__(self, model, data, xrec, nbpml=10):
+    def __init__(self, model, data, nbpml=10):
         self.model = model
         self.data = data
 
         self.dt = model.get_critical_dt()
         self.h = model.get_spacing()[0]
         self.nbpml = nbpml
-        self.xrec = xrec
     
     def prepare(self, nt):
         self._init_taylor(nt)
@@ -238,7 +237,7 @@ class AcousticWave2D:
                                               u[ti - 1, a, b - 1],
                                               u[ti - 1, a, b + 1],
                                               src, m[a, b], dt, h, damp)
-                    if a == self.xrec:
+                    if a == self.data.xrec:
                         rec[ti, b - 1] = u[ti, a, b]
         return rec, u
 
@@ -253,7 +252,7 @@ class AcousticWave2D:
         for ti in range(nt - 1, -1, -1):
             for a in range(1, nx-1):
                 for b in range(1, ny-1):
-                    if a == self.xrec:
+                    if a == self.data.xrec:
                         resid = rec[ti, b-1]
                     else:
                         resid = 0
@@ -295,7 +294,7 @@ class AcousticWave2D:
         for ti in range(nt-1, -1, -1):
             for a in range(1, nx-1):
                 for b in range(1, ny-1):
-                    if a == self.xrec:
+                    if a == self.data.xrec:
                         resid = rec[ti, b-1]
                     else:
                         resid = 0
@@ -350,7 +349,7 @@ class AcousticWave2D:
                                        U2[a, b - 1],
                                        U2[a, b + 1],
                                        src2, m[a, b], dt, h, damp)
-                    if a == self.xrec:
+                    if a == self.data.xrec:
                         rec[ti, b-1] = U3[a, b]
             u1, u2, u3 = u2, u3, u1
             U1, U2, U3 = U2, U3, U1
@@ -410,9 +409,9 @@ if __name__ == "__main__":
                 origin[1] + dimensions[1] * spacing[1] * 0.05)
     data.set_source(time_series, dt, location)
 
-    xrec = 10 + 4
+    data.xrec = 10 + 4
     # A Forward propagation example
-    (rect, ut) = AcousticWave2D(model, data, xrec).Forward(nt)
+    (rect, ut) = AcousticWave2D(model, data).Forward(nt)
 
     # get ready to populate this list the Line artists to be plotted
     if matplot:

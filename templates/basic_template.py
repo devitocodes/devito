@@ -1,6 +1,6 @@
 import includes
 import cgen
-
+from function_descriptor import FunctionDescriptor
 
 class BasicTemplate(object):
     # Order of names in the following list is important.
@@ -9,12 +9,10 @@ class BasicTemplate(object):
 
     _template_methods = ['includes', 'process_function']
     
-    def __init__(self, dimensions, kernel, skip_elements = None):
-        self.dimensions = dimensions
-        self.kernel = kernel
-        if skip_elements is not None:
-            assert(len(skip_elements)==dimensions)
-        self.skip_elements = skip_elements
+    def __init__(self, function_descriptor):
+        #assert(isinstance(function_descriptor, FunctionDescriptor))
+        assert(function_descriptor.get_looper is not None)
+        self.function_descriptor = function_descriptor
         self._defines = []
         self.add_define('M_PI', '3.14159265358979323846')
 
@@ -32,58 +30,51 @@ class BasicTemplate(object):
         return cgen.Module(statements)
 
     def process_function(self):
-        return self.generate_function("opesci_process",
-                                      self.dimensions, self.kernel)
+        return cgen.FunctionBody(self.generate_function_signature(self.function_descriptor),
+                                 self.generate_function_body(self.function_descriptor))
 
-    def generate_function(self, name, num_dim, kernel):
-        return cgen.FunctionBody(self.generate_function_signature(name,
-                                                                  num_dim),
-                                 self.generate_function_body(num_dim, kernel)
-                                 )
-
-    def generate_function_signature(self, name, num_dim):
-        sizes_arr = []
-        input_grid = cgen.Value("double", "input_grid_vec")
-        output_grid = cgen.Value("double", "output_grid_vec")
-        for dim_ind in range(num_dim, 0, -1):
-            size_label = "size"+str(dim_ind)
-            sizes_arr.append(cgen.Value("int", size_label))
-        input_grid = cgen.Pointer(input_grid)
-        output_grid = cgen.Pointer(output_grid)
-        function_params = [input_grid, output_grid]+sizes_arr
+    def generate_function_signature(self, function_descriptor):
+        function_params = []
+        for param in function_descriptor.params:
+            sizes_arr = []
+            param_vec_def = cgen.Pointer(cgen.Value("double", param['name']+"_vec"))
+            num_dim = len(param['shape'])
+            for dim_ind in range(num_dim, 0, -1):
+                size_label = param['name']+"_size"+str(dim_ind)
+                sizes_arr.append(cgen.Value("int", size_label))
+            function_params = function_params + [param_vec_def] + sizes_arr
+        
         return cgen.Extern("C",
-                           cgen.FunctionDeclaration(cgen.Value('int', name),
+                           cgen.FunctionDeclaration(cgen.Value('int', function_descriptor.name),
                                                     function_params)
                            )
 
-    def generate_function_body(self, num_dim, kernel):
+    def generate_function_body(self, function_descriptor):
         statements = []
-        arr = "".join(["[size%d]" % i for i in range(num_dim-1, 0, -1)])
-        cast_pointer_in = cgen.Initializer(cgen.Value("double",
+        for param in function_descriptor.params:
+            num_dim = len(param['shape'])
+            arr = "".join(["[%s_size%d]" % (param['name'],i) for i in range(num_dim-1, 0, -1)])
+            cast_pointer = cgen.Initializer(cgen.Value("double",
                                                       "(*%s)%s" %
-                                                      ("input_grid", arr)
+                                                      (param['name'], arr)
                                                       ),
                                            '(%s (*)%s) %s' %
-                                           ("double", arr, "input_grid_vec")
+                                           ("double", arr, param['name']+"_vec")
                                            )
-        cast_pointer_out = cgen.Initializer(cgen.Value("double",
-                                                       "(*%s)%s" %
-                                                       ("output_grid", arr)
-                                                       ),
-                                            '(%s (*)%s) %s' %
-                                            ("double", arr, "output_grid_vec")
-                                            )
-        statements.append(cast_pointer_in)
-        statements.append(cast_pointer_out)
-        body = kernel
+            statements.append(cast_pointer)
+        
+        body = function_descriptor.body
+        looper_param = function_descriptor.get_looper()
+        num_dim = len(looper_param['shape'])
+        skip_elements = function_descriptor.skip_elements
         for dim_ind in range(1, num_dim+1):
             dim_var = "i"+str(dim_ind)
-            if self.skip_elements is not None:
-                skip = self.skip_elements[dim_ind-1]
+            if skip_elements is not None:
+                skip = skip_elements[dim_ind-1]
             else:
                 skip = 0
             
-            dim_size = "size"+str(dim_ind)
+            dim_size = looper_param['name']+"_size"+str(dim_ind)
             if skip>0:
                 dim_size = dim_size+"-"+str(skip)
             body = cgen.For(cgen.InlineInitializer(cgen.Value("int", dim_var),

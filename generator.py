@@ -6,24 +6,30 @@ from random import randint
 from hashlib import sha1
 import os
 
+# This is the primary interface class for code generation. However, the code in this class is focused on interfacing with the
+# generated code. The actual code generation happens in BasicTemplate
 class Generator(object):
     src_lib = None
     src_file = None
     _hash = sha1
     _wrapped_function = None
+    # The temp directory used to store generated code
     _tmp_dir_name = "tmp"
-    def __init__(self, arg_shape, kernel, skip_elements = None):
-        self.cgen_template = BasicTemplate(len(arg_shape), kernel, skip_elements)
-        self._kernel = kernel
+    def __init__(self, function_descriptor):
+        self.cgen_template = BasicTemplate(function_descriptor)
+        self._function_descriptor = function_descriptor
         self._compiler = GNUCompiler()
-        self._arg_shape = arg_shape
+        # Generate a random salt to uniquely identify this instance of the class
         self._salt = randint(0, 100000000)
         self.__generate_filename()
+        # If the temp does not exist, create it
         if not os.path.isdir(self._tmp_dir_name):
             os.mkdir(self._tmp_dir_name)
     
     def __generate_filename(self):
-        filename = self._tmp_dir_name+"/"+self._hash(str(self._salt)+str(self._arg_shape)+str(self._kernel)).hexdigest()+".cpp"
+        # Generate a unique filename for the generated code by combining the unique salt 
+        # with the hash of the parameters for the function as well as the body of the function
+        filename = self._tmp_dir_name+"/"+self._hash(str(self._salt)+str(self._function_descriptor.params)+str(self._function_descriptor.body)).hexdigest()+".cpp"
         self._filename = filename
     
     def __load_library(self, src_lib):
@@ -51,25 +57,18 @@ class Generator(object):
             raise ValueError("Unknown compiler.")
     
     @property
-    def kernel(self):
-        return self._kernel
+    def function_descriptor(self):
+        return self._function_descriptor
     
-    @kernel.setter
-    def kernel(self, kernel):
-        self._kernel = kernel
+    # If the function descriptor is changed, invalidate the cache and regenerate and recompile the code
+    @function_descriptor.setter
+    def function_descriptor(self, function_descriptor):
+        self._function_descriptor = function_descriptor
         self.__clean()
     
-    @property
-    def arg_shape(self):
-        return self._arg_shape
-    
-    @arg_shape.setter
-    def arg_shape(self, arg_shape):
-        self._arg_shape = arg_shape
-        self.__clean()
-    
-    def add_macro(self, function_name, function_text):
-        self.cgen_template.add_define(function_name, function_text)
+    # Add a C macro to the generated code
+    def add_macro(self, name, text):
+        self.cgen_template.add_define(name, text)
     
     def generate(self, compiler=None):
         if compiler:
@@ -96,13 +95,17 @@ class Generator(object):
         if shared:
             self.src_lib = out
         return out
-
+    
+    # Wrap the function by converting the python style arguments(simply passing object references)
+    # to C style (pointer + int dimensions)
     def wrap_function(self, function):
-        def wrapped_function(x):
-            y = np.empty_like(x)
-            arg_list = [x, y] + list(x.shape)
+        def wrapped_function(*args):
+            num_params = len(self._function_descriptor.params)
+            assert(len(args)==num_params)
+            arg_list = []
+            for i, param in zip(range(num_params), self._function_descriptor.params):
+                arg_list+= [args[i]] + list(param['shape'])
             function(*arg_list)
-            return y
         return wrapped_function
 
     def _prepare_wrapped_function(self, compiler='g++'):
@@ -111,10 +114,23 @@ class Generator(object):
             self.compile(compiler=compiler, shared=True)
         # Load compiled binary
         self.__load_library(src_lib=self.src_lib)
-        array_1d_double = np.ctypeslib.ndpointer(dtype=np.double, flags='C')
-        opesci_process = self._library.opesci_process
-        opesci_process.argtypes = [array_1d_double, array_1d_double] + [c_int for i in range(1, len(self._arg_shape))]
-        self._wrapped_function = self.wrap_function(opesci_process)
+        
+        # Type: double* in C
+        array_nd_double = np.ctypeslib.ndpointer(dtype=np.double, flags='C')
+        
+        # Pointer to the function in the compiled library
+        library_function = getattr(self._library, self._function_descriptor.name)
+        
+        # Ctypes needs an array describing the function parameters, prepare that array
+        argtypes = []
+        for param in self._function_descriptor.params:
+            # Pointer to the parameter
+            argtypes.append(array_nd_double)
+            # Ints for the sizes of the parameter in each dimension
+            argtypes += [c_int for i in range(0, len(param['shape']))]
+        library_function.argtypes = argtypes
+        
+        self._wrapped_function = self.wrap_function(library_function)
         
     def get_wrapped_function(self):
         if self._wrapped_function is None:
@@ -128,4 +144,5 @@ class Generator(object):
         self.src_lib = None
         self.src_file = None
         self.src_lib = None
+        self.filename = None
         
