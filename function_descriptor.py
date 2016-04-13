@@ -10,21 +10,23 @@ class FunctionDescriptor(object):
         self.body = body
         self.skip_elements = skip_elements
         self.params = []
-    
+        self.value_params = []
     # Add a parameter to the function
     # A function may have any number of parameters but only one may be the looper
     # Each parameter has an associated name and shape
-    def add_param(self, name, shape, looper = False):
+    def add_matrix_param(self, name, shape, looper = False):
         if looper == True:
-            assert(self.get_looper() is None)
+            assert(self.get_looper_matrix() is None)
             assert((self.skip_elements is None) or (len(shape)==len(self.skip_elements)))
         self.params.append({'name':name, 'shape':shape, 'looper':looper})
     
     # Get the parameter of the function which is the looper, i.e. it defines the dimensions over which the primary loop 
     # of the function is run
-    def get_looper(self):
+    def get_looper_matrix(self):
         for param in self.params:
             if param['looper']==True:
                 return param
         return None
-                
+    
+    def add_value_param(self, type, name):
+        self.value_params.append((type, name))       

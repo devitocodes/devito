@@ -11,7 +11,7 @@ class BasicTemplate(object):
     
     def __init__(self, function_descriptor):
         #assert(isinstance(function_descriptor, FunctionDescriptor))
-        assert(function_descriptor.get_looper is not None)
+        assert(function_descriptor.get_looper_matrix() is not None)
         self.function_descriptor = function_descriptor
         self._defines = []
         self.add_define('M_PI', '3.14159265358979323846')
@@ -42,8 +42,8 @@ class BasicTemplate(object):
             for dim_ind in range(num_dim, 0, -1):
                 size_label = param['name']+"_size"+str(dim_ind)
                 sizes_arr.append(cgen.Value("int", size_label))
-            function_params = function_params + [param_vec_def] + sizes_arr
-        
+            function_params = function_params + [param_vec_def] + sizes_arr 
+        function_params += [cgen.Value(type_label, name) for type_label, name in function_descriptor.value_params]
         return cgen.Extern("C",
                            cgen.FunctionDeclaration(cgen.Value('int', function_descriptor.name),
                                                     function_params)
@@ -64,7 +64,7 @@ class BasicTemplate(object):
             statements.append(cast_pointer)
         
         body = function_descriptor.body
-        looper_param = function_descriptor.get_looper()
+        looper_param = function_descriptor.get_looper_matrix()
         num_dim = len(looper_param['shape'])
         skip_elements = function_descriptor.skip_elements
         for dim_ind in range(1, num_dim+1):

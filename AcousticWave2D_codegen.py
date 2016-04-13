@@ -13,11 +13,13 @@ from cgen_wrapper import Ternary
 from codeprinter import ccode
 from generator import Generator
 import cgen_wrapper as cgen
+from function_descriptor import FunctionDescriptor
 
 init_printing()
 
 
 class AcousticWave2D:
+    
     def __init__(self, model, data, nbpml=10):
         self.model = model
         self.data = data
@@ -25,11 +27,14 @@ class AcousticWave2D:
         self.dt = model.get_critical_dt()
         self.h = model.get_spacing()[0]
         self.nbpml = nbpml
+        i1,i2,i3 = symbols("i1 i2 i3")
+        self._loop_order = {t:i3, y:i1, x:i2}
     
     def prepare(self, nt):
         self._init_taylor(nt)
-        self.prepare_macros()
-        self.Gts.get_wrapped_function()
+        self._prepare_macros()
+        self._forwardStencil = self.Gts.get_wrapped_function()
+    
     def _init_taylor(self, nt):
         # The acoustic wave equation for the square slowness m and a source q
         # is given in 3D by :
@@ -103,15 +108,21 @@ class AcousticWave2D:
                            p(x, y+h, t), q, m, s, h, e),
                            stencil, "numpy")
         
-        stencil = self.__prepare_stencil((p(x, y, t-s),
+        kernel = self._prepare_forward_kernel((p(x, y, t-s),
                            p(x-h, y, t),
                            p(x, y, t),
                            p(x+h, y, t),
                            p(x, y-h, t),
                            p(x, y+h, t), q, m, s, h, e),
                            stencil)
-        
-        self.Gts = Generator((nt, nx, ny), stencil, (0,1,1))
+        fd = FunctionDescriptor("process", kernel)
+        fd.add_matrix_param("u", (nt, nx, ny), True)
+        fd.add_matrix_param("rec", (nt, ny-2))
+        fd.add_matrix_param("m", (nx,ny))
+        fd.add_matrix_param("src_loc", (2,))
+        fd.add_matrix_param("src", (nt,))
+        fd.add_value_param("int", "xrec")
+        self.Gts = Generator(fd)
         # Rewriting the discret PDE as part of an Inversion. Accuracy and
         # rigourousness of the dicretization
         #
@@ -151,7 +162,7 @@ class AcousticWave2D:
         # Adjoint wave equation
         wave_equationA = m * dtt - (dxx + dyy) - D(x, y, t) - e * dt
         stencilA = solve(wave_equationA, p(x, y, t-s))[0]
-        self.GtsA = Generator((nt, nx, ny), stencilA, (0,1,1))
+        self.GtsA = Generator(fd)
         self.tsA = lambdify((p(x, y, t+s),
                             p(x-h, y, t),
                             p(x, y, t),
@@ -160,7 +171,7 @@ class AcousticWave2D:
                             p(x, y+h, t), d, m, s, h, e),
                             stencilA, "numpy")
 
-    def prepare_macros(self):
+    def _prepare_macros(self):
         global y
         global x
         nbpml = self.nbpml
@@ -175,21 +186,44 @@ class AcousticWave2D:
         self.Gts.add_macro("dampx(x)", expr_damp_x)
         self.Gts.add_macro("damp(x,y)", "dampx(x)+dampy(y)")
         expr_source = Ternary("abs(x - src_loc[0]) < h / 2 and abs(y - src_loc[1]) < h / 2", 
-                              "src[ti]", 0)
-        self.Gts.add_macro("src(x,y,t)", expr_source)
+                              "src[t]", 0)
+        self.Gts.add_macro("src(t,x,y,src_loc,src,h)", expr_source)
     
-    def __prepare_stencil(self, subs, stencil):
+    def _prepare_forward_kernel(self, subs, stencil):
         U = IndexedBase("u")
         src_fun = Function("src")
         M = IndexedBase("m")
         damp_fun = Function("damp")
-        stencil = stencil.subs({subs[0]:U[t-1, y, x], subs[1]:U[t,y,x-1], subs[2]:U[t,y,x], subs[3]:U[t+1,y,x],
-                                subs[4]:U[t,y-1,x], subs[5]:U[t,y+1,x], subs[6]:src_fun(t,y,x), subs[7]:M[y,x],
-                                 subs[8]:self.dt, subs[9]:self.h, subs[10]:damp_fun(y,x)})
-        i1,i2,i3 = symbols("i1 i2 i3")
-        stencil = stencil.xreplace({t:i3, y:i2, x:i1})
-        print(stencil)
-        return cgen.Statement(ccode(stencil))
+        src_array=IndexedBase("src")
+        src_loc_array = IndexedBase("src_loc")
+        stencil1 = stencil.subs({subs[0]:0, subs[1]:0, subs[2]:0, subs[3]:0,
+                                subs[4]:0, subs[5]:0, subs[6]:src_fun(t, x, y, src_loc_array, src_array, self.h), subs[7]:M[x, y],
+                                 subs[8]:self.dt, subs[9]:self.h, subs[10]:damp_fun(x, y)})
+        
+        stencil1 = stencil1.xreplace(self._loop_order)
+        stencil1 = cgen.Assign(ccode(U[t, x, y].xreplace(self._loop_order)), ccode(stencil1))
+        
+        stencil2 = stencil.subs({subs[0]:U[t-1, x, y], subs[1]:U[t, x-1, y], subs[2]:U[t, x, y], subs[3]:U[t+1, x, y],
+                                subs[4]:U[t, x, y-1], subs[5]:U[t, x, y+1], subs[6]:src_fun(t, x, y, src_loc_array, src_array, self.h), subs[7]:M[x, y],
+                                 subs[8]:self.dt, subs[9]:self.h, subs[10]:damp_fun(x,y)})
+        
+        stencil2 = stencil2.xreplace(self._loop_order)
+        stencil2 = cgen.Assign(ccode(U[t, x, y].xreplace(self._loop_order)), ccode(stencil2))
+        
+        stencil3 = stencil.subs({subs[0]:U[t-1, x, y], subs[1]:U[t, x-1, y], subs[2]:U[t, x, y], subs[3]:U[t+1, x, y],
+                                subs[4]:U[t, x, y-1], subs[5]:U[t, x, y+1], subs[6]:src_fun(t, x, y, src_loc_array, src_array, self.h), subs[7]:M[x, y],
+                                 subs[8]:self.dt, subs[9]:self.h, subs[10]:damp_fun(x, y)})
+        
+        stencil3 = stencil3.xreplace(self._loop_order)
+        stencil3 = cgen.Assign(ccode(U[t, x, y].xreplace(self._loop_order)), ccode(stencil3))
+        copy_receiver = cgen.Assign("rec[%s][%s-1]"%(self._loop_order[t], self._loop_order[y]), "u[%s][%s][%s]"%(self._loop_order[t], self._loop_order[x], self._loop_order[y]))
+        
+        if_combinations = cgen.make_multiple_ifs([("%s == 0"%self._loop_order[t], stencil1), ("%s == 1"%self._loop_order[t], stencil2), (None, stencil3)], "last")
+        forward_kernel = []
+        forward_kernel.append(if_combinations)
+        copy_receiver_if = cgen.If("%s == xrec"%self._loop_order[x], copy_receiver)
+        forward_kernel.append(copy_receiver_if)
+        return cgen.Block(forward_kernel)
     
     # Interpolate source onto grid...
     def source_interpolate(self, x, y):
@@ -210,7 +244,7 @@ class AcousticWave2D:
         u = np.zeros((nt, nx, ny))
         rec = np.zeros((nt, ny - 2))
         
-        
+        self._forwardStencil()
         for ti in range(0, nt):
             for a in range(1, nx-1):
                 for b in range(1, ny-1):
