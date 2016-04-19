@@ -1,7 +1,6 @@
 from sympy.printing.ccode import CCodePrinter
 from sympy import Eq
 from mpmath.libmp import to_str, prec_to_dps
-from operator import isCallable
 
 
 class CodePrinter(CCodePrinter):

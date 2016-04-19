@@ -5,16 +5,21 @@ from templates.basic_template import BasicTemplate
 from random import randint
 from hashlib import sha1
 import os
+from _ctypes import ArgumentError
+import cgen_wrapper as cgen
 
-# This is the primary interface class for code generation. However, the code in this class is focused on interfacing with the
-# generated code. The actual code generation happens in BasicTemplate
+
 class Generator(object):
+    """ This is the primary interface class for code generation. However, the code in this class is focused on interfacing with the
+    generated code. The actual code generation happens in BasicTemplate
+    """
     src_lib = None
     src_file = None
     _hash = sha1
     _wrapped_function = None
     # The temp directory used to store generated code
     _tmp_dir_name = "tmp"
+
     def __init__(self, function_descriptor):
         self.cgen_template = BasicTemplate(function_descriptor)
         self._function_descriptor = function_descriptor
@@ -25,13 +30,13 @@ class Generator(object):
         # If the temp does not exist, create it
         if not os.path.isdir(self._tmp_dir_name):
             os.mkdir(self._tmp_dir_name)
-    
+
     def __generate_filename(self):
-        # Generate a unique filename for the generated code by combining the unique salt 
+        # Generate a unique filename for the generated code by combining the unique salt
         # with the hash of the parameters for the function as well as the body of the function
         filename = self._tmp_dir_name+"/"+self._hash(str(self._salt)+str(self._function_descriptor.params)+str(self._function_descriptor.body)).hexdigest()+".cpp"
         self._filename = filename
-    
+
     def __load_library(self, src_lib):
         """Load a compiled dynamic binary using ctypes.cdll"""
         libname = src_lib or self.src_lib
@@ -55,21 +60,21 @@ class Generator(object):
             self._compiler = ClangCompiler()
         else:
             raise ValueError("Unknown compiler.")
-    
+
     @property
     def function_descriptor(self):
         return self._function_descriptor
-    
+
     # If the function descriptor is changed, invalidate the cache and regenerate and recompile the code
     @function_descriptor.setter
     def function_descriptor(self, function_descriptor):
         self._function_descriptor = function_descriptor
         self.__clean()
-    
+
     # Add a C macro to the generated code
     def add_macro(self, name, text):
         self.cgen_template.add_define(name, text)
-    
+
     def generate(self, compiler=None):
         if compiler:
             self.compiler = compiler
@@ -95,17 +100,28 @@ class Generator(object):
         if shared:
             self.src_lib = out
         return out
-    
-    # Wrap the function by converting the python style arguments(simply passing object references)
-    # to C style (pointer + int dimensions)
+
+    """ Wrap the function by converting the python style arguments(simply passing object references)
+        to C style (pointer + int dimensions)
+    """
     def wrap_function(self, function):
         def wrapped_function(*args):
             num_params = len(self._function_descriptor.params)
-            assert(len(args)==num_params)
+            assert len(args) == num_params, "Expected %d parameters, got %d" % (num_params, len(args))
             arg_list = []
             for i, param in zip(range(num_params), self._function_descriptor.params):
-                arg_list+= [args[i]] + list(param['shape'])
-            function(*arg_list)
+                try:
+                    param_shape = param.get('shape')  # Assume that param is a matrix param - fail otherwise
+                    param_ref = np.asarray(args[i], dtype=np.float64)  # Force the parameter provided as argument to be ndarray (not tuple or list)
+                except:  # Param is a scalar
+                    param_ref = args[i]  # No conversion necessary for a scalar value
+                    param_shape = []
+                arg_list += [param_ref] + list(param_shape)
+            try:
+                function(*arg_list)
+            except ArgumentError as inst:
+                assert False, "Argument Error (%s), provided arguments: " % str(inst)+" ,".join([str(type(arg)) for arg in arg_list])
+
         return wrapped_function
 
     def _prepare_wrapped_function(self, compiler='g++'):
@@ -114,35 +130,40 @@ class Generator(object):
             self.compile(compiler=compiler, shared=True)
         # Load compiled binary
         self.__load_library(src_lib=self.src_lib)
-        
+
         # Type: double* in C
         array_nd_double = np.ctypeslib.ndpointer(dtype=np.double, flags='C')
-        
+
         # Pointer to the function in the compiled library
         library_function = getattr(self._library, self._function_descriptor.name)
-        
+
         # Ctypes needs an array describing the function parameters, prepare that array
         argtypes = []
         for param in self._function_descriptor.params:
-            # Pointer to the parameter
-            argtypes.append(array_nd_double)
-            # Ints for the sizes of the parameter in each dimension
-            argtypes += [c_int for i in range(0, len(param['shape']))]
+
+            try:
+                param_shape = param.get('shape')  # Assume that param is a matrix param - fail otherwise
+                # Pointer to the parameter
+                argtypes.append(array_nd_double)
+                # Ints for the sizes of the parameter in each dimension
+                argtypes += [c_int for i in range(0, len(param_shape))]
+            except:
+                # Param is a value param
+                argtypes.append(cgen.convert_dtype_to_ctype(param[0]))
         library_function.argtypes = argtypes
-        
+
         self._wrapped_function = self.wrap_function(library_function)
-        
+
     def get_wrapped_function(self):
         if self._wrapped_function is None:
             if self._filename is None:
                 self.__generate_filename()
             self._prepare_wrapped_function()
         return self._wrapped_function
-    
+
     def __clean(self):
         self._wrapped_function = None
         self.src_lib = None
         self.src_file = None
         self.src_lib = None
         self.filename = None
-        
