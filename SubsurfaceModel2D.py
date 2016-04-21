@@ -13,8 +13,6 @@ class SubsurfaceModel2D:
         self.dtype = dtype
         self.shape = shape
         self.offset = offset
-        if filename is not None:
-            self.field = self.read(filename, nshots, nrecv, dtype, shape, offset)
 
     def create_model(self, origin, spacing, vp, cfl=0.45):
         self.spacing = spacing
@@ -43,14 +41,6 @@ class SubsurfaceModel2D:
     def get_critical_dt(self):
         return self.dt_num
 
-    def read(self, filename, nshots, nrecv, dtype, shape, offset):
-        ''' Readers for raw binary, seg-y'''
-        try:
-            reader = BinaryReader(filename, nshots, nrecv, dtype, shape, offset)
-            field = np.sqrt(1./reader.read())
-        except:
-            raise NotImplementedError("Test missing")
-        return field
 
 if __name__ == "__main__":
     raise NotImplementedError("Test missing")

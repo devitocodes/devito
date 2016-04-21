@@ -3,7 +3,7 @@ import numpy as np
 from AcousticWave2D import AcousticWave2D
 from SubsurfaceModel2D import SubsurfaceModel2D
 import time
-from SeismicDataReader import SeismicDataReader
+from SeismicData import SeismicData
 from math import floor
 from terminaltables import AsciiTable
 
@@ -33,7 +33,7 @@ dv = -true_vp + initial_vp
 model.create_model(origin, spacing, true_vp)
 model0.create_model(origin, spacing, initial_vp)
 # Define seismic data.
-data = SeismicDataReader()
+data = SeismicData()
 
 f0 = .010
 dt = model.get_critical_dt()
@@ -51,7 +51,7 @@ location = (origin[0] + dimensions[0] * spacing[0] * 0.5,
             origin[1] + dimensions[1] * spacing[1] * 0.05)
 data.set_source(time_series, dt, location)
 
-data.xrec = 10 + 4
+data.receiver_coords[0,2] = 10+4
 # A Forward propagation example
 print "Forward propagation"
 print "Starting python lambdified version"

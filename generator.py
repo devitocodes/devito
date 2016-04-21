@@ -136,7 +136,7 @@ class Generator(object):
         self.__load_library(src_lib=self.src_lib)
 
         # Type: double* in C
-        array_nd_double = np.ctypeslib.ndpointer(dtype=np.double, flags='C')
+        array_nd_double = np.ctypeslib.ndpointer(dtype=self.dtype, flags='C')
 
         # Pointer to the function in the compiled library
         library_function = getattr(self._library, function_descriptor.name)
@@ -153,7 +153,7 @@ class Generator(object):
                 argtypes += [c_int for i in range(0, len(param_shape))]
             except:
                 # Param is a value param
-                argtypes.append(cgen.convert_dtype_to_ctype(param[0]))
+                argtypes.append(cgen.convert_dtype_to_ctype(param[0])) # There has to be a better way of doing this
         library_function.argtypes = argtypes
 
         return self.wrap_function(library_function, function_descriptor)

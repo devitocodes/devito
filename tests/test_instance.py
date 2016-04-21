@@ -14,10 +14,10 @@ class Test_Instance_Variable_Reset(object):
         fd.add_matrix_param("input_grid", data.shape, True)
         fd.add_matrix_param("output_grid", data.shape)
         if self.g is None:
-            self.g = Generator(fd)
+            self.g = Generator([fd])
         else:
-            self.g.function_descriptor = fd
-        f = self.g.get_wrapped_function()
+            self.g.function_descriptors = [fd]
+        f = self.g.get_wrapped_functions()[0]
         arr = np.empty_like(data)
         f(data, arr)
         assert(arr[2][1] == 8)
@@ -30,10 +30,10 @@ class Test_Instance_Variable_Reset(object):
         fd.add_matrix_param("input_grid", data.shape, True)
         fd.add_matrix_param("output_grid", data.shape)
         if self.g is None:
-            self.g = Generator(fd)
+            self.g = Generator([fd])
         else:
-            self.g.function_descriptor = fd
-        f = self.g.get_wrapped_function()
+            self.g.function_descriptors = [fd]
+        f = self.g.get_wrapped_functions()[0]
         arr = np.empty_like(data)
         f(data, arr)
         assert(arr[3][2][1] == 26)
@@ -46,10 +46,10 @@ class Test_Instance_Variable_Reset(object):
         fd.add_matrix_param("input_grid", data.shape, True)
         fd.add_matrix_param("output_grid", data.shape)
         if self.g is None:
-            self.g = Generator(fd)
+            self.g = Generator([fd])
         else:
-            self.g.function_descriptor = fd
-        f = self.g.get_wrapped_function()
+            self.g.function_descriptors = [fd]
+        f = self.g.get_wrapped_functions()[0]
         arr = np.empty_like(data)
         f(data, arr)
         assert(arr[4][3][2][1] == 122)

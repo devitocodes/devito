@@ -12,8 +12,8 @@ class Test_Numpy_Array_Transfer(object):
         fd = FunctionDescriptor("process", kernel)
         fd.add_matrix_param("input_grid", data.shape, True)
         fd.add_matrix_param("output_grid", data.shape)
-        g = Generator(fd)
-        f = g.get_wrapped_function()
+        g = Generator([fd])
+        f = g.get_wrapped_functions()[0]
         arr = np.empty_like(data)
         f(data, arr)
         assert(arr[2][1] == 8)
@@ -25,8 +25,8 @@ class Test_Numpy_Array_Transfer(object):
         fd = FunctionDescriptor("process", kernel)
         fd.add_matrix_param("input_grid", data.shape, True)
         fd.add_matrix_param("output_grid", data.shape)
-        g = Generator(fd)
-        f = g.get_wrapped_function()
+        g = Generator([fd])
+        f = g.get_wrapped_functions()[0]
         arr = np.empty_like(data)
         f(data, arr)
         assert(arr[3][2][1] == 26)
@@ -38,8 +38,8 @@ class Test_Numpy_Array_Transfer(object):
         fd = FunctionDescriptor("process", kernel)
         fd.add_matrix_param("input_grid", data.shape, True)
         fd.add_matrix_param("output_grid", data.shape)
-        g = Generator(fd)
-        f = g.get_wrapped_function()
+        g = Generator([fd])
+        f = g.get_wrapped_functions()[0]
         arr = np.empty_like(data)
         f(data, arr)
         assert(arr[4][3][2][1] == 122)

@@ -98,7 +98,7 @@ class AcousticWave2D_cg:
         wave_equation = m * dtt - (dxx + dyy) - q + e * dt
         stencil = solve(wave_equation, p(x, y, t+s))[0]
         self.nt = nt
-
+        
         kernel = self._prepare_forward_kernel((p(x, y, t-s),
                            p(x-h, y, t),
                            p(x, y, t),
@@ -232,7 +232,7 @@ class AcousticWave2D_cg:
         u = np.zeros((nt, nx, ny), dtype=self.dtype)
         rec = np.zeros((nt, ny - 2), dtype=self.dtype)
         src_grid = self.source_interpolate()
-        self._forwardStencil(u, rec, m, src_grid, self.data.get_source(), self.dampx, self.dampy, self.data.xrec)
+        self._forwardStencil(u, rec, m, src_grid, self.data.get_source(), self.dampx, self.dampy, int(self.data.receiver_coords[0,2]))
         return rec, u
 
     def damp(self, x, nx):
