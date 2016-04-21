@@ -1,36 +1,36 @@
-import includes
 import cgen_wrapper as cgen
 
 
-class BasicTemplate(object):
+class FunctionManager(object):
     # Order of names in the following list is important.
     # The resulting code blocks would be placed in the same
     # order as they appear here
 
-    _template_methods = ['includes', 'process_function']
-
-    def __init__(self, function_descriptor):
-        assert(function_descriptor.get_looper_matrix() is not None)
-        self.function_descriptor = function_descriptor
+    libraries = ['cassert', 'cstdlib', 'cmath', 'iostream',
+                 'fstream', 'vector', 'cstdio', 'string', 'inttypes.h']
+    def __init__(self, function_descriptors):
+        for function_descriptor in function_descriptors:
+            assert(function_descriptor.get_looper_matrix() is not None)
+        self.function_descriptors = function_descriptors
         self._defines = []
-        self.add_define('M_PI', '3.14159265358979323846')
 
     def includes(self):
         statements = []
         statements += self._defines
-        statements += includes.common_include()
+        statements += [cgen.Include(s) for s in self.libraries]
         return cgen.Module(statements)
 
     def add_define(self, name, text):
         self._defines.append(cgen.Define(name, text))
 
     def generate(self):
-        statements = [getattr(self, m)() for m in self._template_methods]
+        statements = [self.includes()]
+        statements += [self.process_function(m) for m in self.function_descriptors]
         return cgen.Module(statements)
 
-    def process_function(self):
-        return cgen.FunctionBody(self.generate_function_signature(self.function_descriptor),
-                                 self.generate_function_body(self.function_descriptor))
+    def process_function(self, function_descriptor):
+        return cgen.FunctionBody(self.generate_function_signature(function_descriptor),
+                                 self.generate_function_body(function_descriptor))
 
     def generate_function_signature(self, function_descriptor):
         function_params = []
@@ -47,7 +47,7 @@ class BasicTemplate(object):
             except TypeError:  # Unless it is a value parameter, in which case make sure
                 assert(len(param) == 2)
 
-        function_params += [cgen.Value(cgen.convert_dtype_to_string(type_label), name) for type_label, name in function_descriptor.value_params]
+        function_params += [cgen.POD(type_label, name) for type_label, name in function_descriptor.value_params]
         return cgen.Extern("C",
                            cgen.FunctionDeclaration(cgen.Value('int', function_descriptor.name),
                                                     function_params)
@@ -69,7 +69,6 @@ class BasicTemplate(object):
                 statements.append(cast_pointer)
             except TypeError:  # It might be a value parameter
                 pass  # Do nothing, in that case
-
         body = function_descriptor.body
         looper_param = function_descriptor.get_looper_matrix()
         num_dim = len(looper_param['shape'])

@@ -13,11 +13,6 @@ class Ternary(Generable):
         yield "(("+str(self.condition)+")?"+str(self.true_statement)+":"+str(self.false_statement)+")"
 
 
-def convert_dtype_to_string(dtype):
-    conversion_dict = {'int64': 'int64_t'}
-    return conversion_dict[str(dtype)]
-
-
 def convert_dtype_to_ctype(dtype):
     conversion_dict = {'int64': ctypes.c_int64}
     return conversion_dict[str(dtype)]

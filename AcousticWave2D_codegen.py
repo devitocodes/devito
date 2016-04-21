@@ -17,12 +17,12 @@ from function_descriptor import FunctionDescriptor
 init_printing()
 
 
-class AcousticWave2D:
+class AcousticWave2D_cg:
 
     def __init__(self, model, data, nbpml=10):
         self.model = model
         self.data = data
-
+        self.dtype = np.float64
         self.dt = model.get_critical_dt()
         self.h = model.get_spacing()[0]
         self.nbpml = nbpml
@@ -31,8 +31,7 @@ class AcousticWave2D:
 
     def prepare(self, nt):
         self._init_taylor(nt)
-        self._prepare_macros()
-        self._forwardStencil = self.gf.get_wrapped_function()
+        self._forwardStencil = self.gf.get_wrapped_functions()[0]
 
     def _init_taylor(self, nt):
         # The acoustic wave equation for the square slowness m and a source q
@@ -99,13 +98,6 @@ class AcousticWave2D:
         wave_equation = m * dtt - (dxx + dyy) - q + e * dt
         stencil = solve(wave_equation, p(x, y, t+s))[0]
         self.nt = nt
-        self.ts = lambdify((p(x, y, t-s),
-                           p(x-h, y, t),
-                           p(x, y, t),
-                           p(x+h, y, t),
-                           p(x, y-h, t),
-                           p(x, y+h, t), q, m, s, h, e),
-                           stencil, "numpy")
 
         kernel = self._prepare_forward_kernel((p(x, y, t-s),
                            p(x-h, y, t),
@@ -114,14 +106,23 @@ class AcousticWave2D:
                            p(x, y-h, t),
                            p(x, y+h, t), q, m, s, h, e),
                            stencil)
-        fd = FunctionDescriptor("process", kernel)
+        fd = FunctionDescriptor("process", kernel, (1, 1, 0))
         fd.add_matrix_param("u", (nt, nx, ny), True)
         fd.add_matrix_param("rec", (nt, ny-2))
         fd.add_matrix_param("m", (nx, ny))
-        fd.add_matrix_param("src_loc", (2,))
-        fd.add_matrix_param("src", (nt,))
+        fd.add_matrix_param("src_grid", (nx,ny))
+        fd.add_matrix_param("src_time", (nt,))
+        fd.add_matrix_param("dampx", (nx,))
+        fd.add_matrix_param("dampy", (ny,))
+        
+        
         fd.add_value_param("int", "xrec")
-        self.gf = Generator(fd)
+        self.gf = Generator([fd], dtype = self.dtype)
+        
+        # Precompute dampening
+        self.dampx = np.array([self.damp(i, nx) for i in range(nx)], dtype=self.dtype, order='C')
+        self.dampy = np.array([self.damp(i, ny) for i in range(ny)], dtype=self.dtype, order='C')
+        
         # Rewriting the discret PDE as part of an Inversion. Accuracy and
         # rigourousness of the dicretization
         #
@@ -161,7 +162,6 @@ class AcousticWave2D:
         # Adjoint wave equation
         wave_equationA = m * dtt - (dxx + dyy) - D(x, y, t) - e * dt
         stencilA = solve(wave_equationA, p(x, y, t-s))[0]
-        self.GtsA = Generator(fd)
         self.tsA = lambdify((p(x, y, t+s),
                             p(x-h, y, t),
                             p(x, y, t),
@@ -169,50 +169,54 @@ class AcousticWave2D:
                             p(x, y-h, t),
                             p(x, y+h, t), d, m, s, h, e),
                             stencilA, "numpy")
-
-    def _prepare_macros(self):
-        global y
-        global x
-        nbpml = self.nbpml
-        h = self.h
+    
+    def _prepare_stencil(self, original_stencil, subs, stencil_args, lhs):
+        stencil = original_stencil.subs(dict(zip(subs, stencil_args)))
+        stencil = stencil.xreplace(self._loop_order)
+        stencil = cgen.Assign(ccode(lhs.xreplace(self._loop_order)), ccode(stencil))
+        return stencil
+    
+    def source_interpolate(self):
+        xmin, ymin = self.model.get_origin()
         nx, ny = self.model.get_dimensions()
-        dampcoeff = 1.5 * np.log(1.0 / 0.001) / (5.0 * h)
-        expr_damp_y = Ternary("y < "+str(nbpml), ccode(dampcoeff*((nbpml-y)/nbpml)**2), Ternary("y < "+str(ny - nbpml - 1), ccode(dampcoeff * ((y - ny + nbpml) / nbpml)**2), 0))
-        expr_damp_x = Ternary("x < "+str(nbpml), ccode(dampcoeff*((nbpml-x)/nbpml)**2), Ternary("x < "+str(nx - nbpml - 1), ccode(dampcoeff * ((x - nx + nbpml) / nbpml)**2), 0))
-        self.gf.add_macro("dampy(y)", expr_damp_y)
-        self.gf.add_macro("dampx(x)", expr_damp_x)
-        self.gf.add_macro("damp(x,y)", "dampx(x)+dampy(y)")
-        expr_source = Ternary("abs(x - src_loc[0]) < h / 2 and abs(y - src_loc[1]) < h / 2",
-                              "src[t]", 0)
-        self.gf.add_macro("src(t,x,y,src_loc,src,h)", expr_source)
-
+        h=self.h
+        src_grid = np.zeros((nx, ny), dtype=self.dtype)
+        for a in range(nx):
+            for b in range(ny):
+                sa,sb=xmin+a*h, ymin+h*b
+                if (abs(sa - self.data.source_coords[0]) < self.h / 2 and
+                        abs(sb - self.data.source_coords[1]) < self.h / 2):
+                    src_grid[a,b] = 1
+                else:
+                    src_grid[a,b] = 0
+        return src_grid
+    
     def _prepare_forward_kernel(self, subs, stencil):
-        U = IndexedBase("u")
-        src_fun = Function("src")
+        u = IndexedBase("u")
         M = IndexedBase("m")
-        damp_fun = Function("damp")
-        src_array = IndexedBase("src")
-        src_loc_array = IndexedBase("src_loc")
+        src_time = IndexedBase("src_time")
+        src_grid = IndexedBase("src_grid")
+        dampx = IndexedBase("dampx")
+        dampy = IndexedBase("dampy")
 
-        stencil1 = stencil.subs({subs[0]: 0, subs[1]: 0, subs[2]: 0, subs[3]: 0,
-                                subs[4]: 0, subs[5]: 0, subs[6]: src_fun(t, x, y, src_loc_array, src_array, self.h), subs[7]: M[x, y],
-                                 subs[8]: self.dt, subs[9]: self.h, subs[10]: damp_fun(x, y)})
-        stencil1 = stencil1.xreplace(self._loop_order)
-        stencil1 = cgen.Assign(ccode(U[t, x, y].xreplace(self._loop_order)), ccode(stencil1))
-
-        stencil2 = stencil.subs({subs[0]: U[t-1, x, y], subs[1]: U[t, x-1, y], subs[2]: U[t, x, y], subs[3]: U[t+1, x, y],
-                                subs[4]: U[t, x, y-1], subs[5]: U[t, x, y+1], subs[6]: src_fun(t, x, y, src_loc_array, src_array, self.h), subs[7]: M[x, y],
-                                 subs[8]: self.dt, subs[9]: self.h, subs[10]: damp_fun(x, y)})
-        stencil2 = stencil2.xreplace(self._loop_order)
-        stencil2 = cgen.Assign(ccode(U[t, x, y].xreplace(self._loop_order)), ccode(stencil2))
-
-        stencil3 = stencil.subs({subs[0]: U[t-1, x, y], subs[1]: U[t, x-1, y], subs[2]: U[t, x, y], subs[3]: U[t+1, x, y],
-                                subs[4]: U[t, x, y-1], subs[5]: U[t, x, y+1], subs[6]: src_fun(t, x, y, src_loc_array, src_array, self.h), subs[7]: M[x, y],
-                                 subs[8]: self.dt, subs[9]: self.h, subs[10]: damp_fun(x, y)})
-
-        stencil3 = stencil3.xreplace(self._loop_order)
-        stencil3 = cgen.Assign(ccode(U[t, x, y].xreplace(self._loop_order)), ccode(stencil3))
-
+        stencil1_args = [0, 0, 0, 0, 0, 0, (src_grid[x,y]*src_time[t]), M[x, y], self.dt, self.h, dampx[x]+dampy[y]]
+        stencil2_args = [0, u[t - 1, x - 1, y],
+                                              u[t - 1, x, y],
+                                              u[t - 1, x + 1, y],
+                                              u[t - 1, x, y - 1],
+                                              u[t - 1, x, y + 1],
+                                              src_grid[x,y]*src_time[t], M[x, y], self.dt, self.h, dampx[x]+dampy[y]]
+        stencil3_args = [u[t - 2, x, y],
+                                              u[t - 1, x - 1, y],
+                                              u[t - 1, x, y],
+                                              u[t - 1, x + 1, y],
+                                              u[t - 1, x, y - 1],
+                                              u[t - 1, x, y + 1],
+                                              (src_grid[x,y]*src_time[t]), M[x, y], self.dt, self.h, dampx[x]+dampy[y]]
+        stencil1 = self._prepare_stencil(stencil, subs, stencil1_args, u[t, x, y])
+        stencil2 = self._prepare_stencil(stencil, subs, stencil2_args, u[t, x, y])
+        stencil3 = self._prepare_stencil(stencil, subs, stencil3_args, u[t, x, y])
+        
         copy_receiver = cgen.Assign("rec[%s][%s-1]" % (self._loop_order[t], self._loop_order[y]), "u[%s][%s][%s]" % (self._loop_order[t], self._loop_order[x], self._loop_order[y]))
         if_combinations = cgen.make_multiple_ifs([("%s == 0" % self._loop_order[t], stencil1), ("%s == 1" % self._loop_order[t], stencil2), (None, stencil3)], "last")
         forward_kernel = []
@@ -225,10 +229,23 @@ class AcousticWave2D:
         nx, ny = self.model.get_dimensions()
         m = self.model.get_vp()
         nt = self.nt
-        u = np.zeros((nt, nx, ny))
-        rec = np.zeros((nt, ny - 2))
-        self._forwardStencil(u, rec, m, self.data.get_source_loc(), self.data.get_source(), self.data.xrec)
+        u = np.zeros((nt, nx, ny), dtype=self.dtype)
+        rec = np.zeros((nt, ny - 2), dtype=self.dtype)
+        src_grid = self.source_interpolate()
+        self._forwardStencil(u, rec, m, src_grid, self.data.get_source(), self.dampx, self.dampy, self.data.xrec)
         return rec, u
+
+    def damp(self, x, nx):
+        nbpml = self.nbpml
+        h = self.h
+
+        dampcoeff = 1.5 * np.log(1.0 / 0.001) / (5.0 * h)
+        if x < nbpml:
+            return dampcoeff * ((nbpml - x) / nbpml)**2
+        elif x > nx - nbpml - 1:
+            return dampcoeff * ((x - nx + nbpml) / nbpml)**2
+        else:
+            return 0.0
 
     def Adjoint(self, nt, rec):
         xmin, ymin = self.model.get_origin()
