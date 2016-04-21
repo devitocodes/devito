@@ -13,6 +13,7 @@ from codeprinter import ccode
 from generator import Generator
 import cgen_wrapper as cgen
 from function_descriptor import FunctionDescriptor
+from propagator import Propagator
 
 init_printing()
 
@@ -26,8 +27,7 @@ class AcousticWave2D_cg:
         self.dt = model.get_critical_dt()
         self.h = model.get_spacing()[0]
         self.nbpml = nbpml
-        i1, i2, i3 = symbols("i1 i2 i3")
-        self._loop_order = {t: i3, y: i1, x: i2}
+        
 
     def prepare(self, nt):
         self._init_taylor(nt)
@@ -105,15 +105,15 @@ class AcousticWave2D_cg:
                            p(x+h, y, t),
                            p(x, y-h, t),
                            p(x, y+h, t), q, m, s, h, e),
-                           stencil)
-        fd = FunctionDescriptor("process", kernel, (1, 1, 0))
-        fd.add_matrix_param("u", (nt, nx, ny), True)
-        fd.add_matrix_param("rec", (nt, ny-2))
-        fd.add_matrix_param("m", (nx, ny))
-        fd.add_matrix_param("src_grid", (nx,ny))
-        fd.add_matrix_param("src_time", (nt,))
-        fd.add_matrix_param("dampx", (nx,))
-        fd.add_matrix_param("dampy", (ny,))
+                           stencil, nt)
+        fd = FunctionDescriptor("process", kernel)
+        fd.add_matrix_param("u", 3, self.dtype)
+        fd.add_matrix_param("rec", 2, self.dtype)
+        fd.add_matrix_param("m", 2, self.dtype)
+        fd.add_matrix_param("src_grid", 2, self.dtype)
+        fd.add_matrix_param("src_time", 1, self.dtype)
+        fd.add_matrix_param("dampx", 1, self.dtype)
+        fd.add_matrix_param("dampy", 1, self.dtype)
         
         
         fd.add_value_param("int", "xrec")
@@ -170,12 +170,6 @@ class AcousticWave2D_cg:
                             p(x, y+h, t), d, m, s, h, e),
                             stencilA, "numpy")
     
-    def _prepare_stencil(self, original_stencil, subs, stencil_args, lhs):
-        stencil = original_stencil.subs(dict(zip(subs, stencil_args)))
-        stencil = stencil.xreplace(self._loop_order)
-        stencil = cgen.Assign(ccode(lhs.xreplace(self._loop_order)), ccode(stencil))
-        return stencil
-    
     def source_interpolate(self):
         xmin, ymin = self.model.get_origin()
         nx, ny = self.model.get_dimensions()
@@ -191,14 +185,15 @@ class AcousticWave2D_cg:
                     src_grid[a,b] = 0
         return src_grid
     
-    def _prepare_forward_kernel(self, subs, stencil):
+    def _prepare_forward_kernel(self, subs, stencil, nt):
         u = IndexedBase("u")
         M = IndexedBase("m")
+        nx, ny = self.model.get_dimensions()
         src_time = IndexedBase("src_time")
         src_grid = IndexedBase("src_grid")
         dampx = IndexedBase("dampx")
         dampy = IndexedBase("dampy")
-
+        propagator = Propagator(nt, (nx,ny), 1)
         stencil1_args = [0, 0, 0, 0, 0, 0, (src_grid[x,y]*src_time[t]), M[x, y], self.dt, self.h, dampx[x]+dampy[y]]
         stencil2_args = [0, u[t - 1, x - 1, y],
                                               u[t - 1, x, y],
@@ -213,17 +208,11 @@ class AcousticWave2D_cg:
                                               u[t - 1, x, y - 1],
                                               u[t - 1, x, y + 1],
                                               (src_grid[x,y]*src_time[t]), M[x, y], self.dt, self.h, dampx[x]+dampy[y]]
-        stencil1 = self._prepare_stencil(stencil, subs, stencil1_args, u[t, x, y])
-        stencil2 = self._prepare_stencil(stencil, subs, stencil2_args, u[t, x, y])
-        stencil3 = self._prepare_stencil(stencil, subs, stencil3_args, u[t, x, y])
         
-        copy_receiver = cgen.Assign("rec[%s][%s-1]" % (self._loop_order[t], self._loop_order[y]), "u[%s][%s][%s]" % (self._loop_order[t], self._loop_order[x], self._loop_order[y]))
-        if_combinations = cgen.make_multiple_ifs([("%s == 0" % self._loop_order[t], stencil1), ("%s == 1" % self._loop_order[t], stencil2), (None, stencil3)], "last")
-        forward_kernel = []
-        forward_kernel.append(if_combinations)
-        copy_receiver_if = cgen.If("%s == xrec" % self._loop_order[x], copy_receiver)
-        forward_kernel.append(copy_receiver_if)
-        return cgen.Block(forward_kernel)
+        
+        loop_body = propagator.prepare(subs, stencil, stencil1_args, stencil2_args, stencil3_args, u[t,x,y])
+        forward_loop = propagator.prepare_loop(loop_body, str(u))
+        return forward_loop
 
     def Forward(self):
         nx, ny = self.model.get_dimensions()
@@ -246,7 +235,32 @@ class AcousticWave2D_cg:
             return dampcoeff * ((x - nx + nbpml) / nbpml)**2
         else:
             return 0.0
-
+    
+    def _prepare_adjoint_kernel(self, stencil, subs):
+        v = IndexedBase("v")
+        M = IndexedBase("m")
+        src_time = IndexedBase("src_time")
+        src_grid = IndexedBase("src_grid")
+        dampx = IndexedBase("dampx")
+        dampy = IndexedBase("dampy")
+        rec = IndexedBase("rec")
+        dt = self.dt
+        h = self.h
+        resid = symbols("resid")
+        
+        use_receiver = cgen.Assign(ccode(resid), ccode(rec[t, y-1]))
+        dont_use_receiver = cgen.Assign(ccode(resid), 0)
+        receiver_if = cgen.If("%s == xrec" % self._loop_order[x], use_receiver, dont_use_receiver)
+        stencil1_args = [0, 0, 0, 0, 0, 0, resid, M[x, y], dt, h, dampx[x]+dampy[y]]
+        stencil2_args = [0, v[t+1, x-1, y], v[t+1, x, y], v[t+1, x+1, y], v[t+1, x, y-1], v[t+1, x, y+1], resid, M[x, y], dt, h, dampx[x]+dampy[y]]
+        stencil3_args = [v[t + 2, x, y], v[t + 1, x - 1, y], v[t + 1, x, y], v[t + 1, x + 1, y], v[t + 1, x, y - 1], v[t + 1, x, y + 1], resid, M[x, y], dt, h, dampx[x]+dampy[y]]
+        lhs = v[t, x, y]
+        stencil1 = self._prepare_stencil(stencil, subs, stencil1_args, lhs)
+        stencil2 = self._prepare_stencil(stencil, subs, stencil2_args, lhs)
+        stencil3 = self._prepare_stencil(stencil, subs, stencil3_args, lhs)
+        if_combinations = cgen.make_multiple_ifs([("%s == 0" % self._loop_order[t], stencil1), ("%s == 1" % self._loop_order[t], stencil2), (None, stencil3)], "last")
+         
+    
     def Adjoint(self, nt, rec):
         xmin, ymin = self.model.get_origin()
         nx, ny = self.model.get_dimensions()
@@ -262,7 +276,7 @@ class AcousticWave2D_cg:
                         resid = rec[ti, b-1]
                     else:
                         resid = 0
-                        damp = self.dampx(a) + self.dampy(b)
+                    damp = self.dampx(a) + self.dampy(b)
                     if ti == nt-1:
                         v[ti, a, b] = self.tsA(0, 0, 0, 0, 0, 0,
                                                resid, m[a, b], dt, h, damp)

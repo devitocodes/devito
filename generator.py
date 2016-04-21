@@ -36,7 +36,7 @@ class Generator(object):
     def __generate_filename(self):
         # Generate a unique filename for the generated code by combining the unique salt
         # with the hash of the parameters for the function as well as the body of the function
-        hash_string = str(self._salt)+"".join([str(fd.params) for fd in self._function_descriptors])
+        hash_string = "".join([str(fd.params) for fd in self._function_descriptors])
         self._hash = self._hashing_function(hash_string).hexdigest()
         filename = self._tmp_dir_name+"/"+self._hash+".cpp"
         self._filename = filename
@@ -115,7 +115,7 @@ class Generator(object):
             arg_list = []
             for i, param in zip(range(num_params), function_descriptor.params):
                 try:
-                    param_shape = param.get('shape')  # Assume that param is a matrix param - fail otherwise
+                    param_shape = args[i].shape  # Assume that param is a matrix param - fail otherwise
                     param_ref = np.asarray(args[i], dtype=self.dtype)  # Force the parameter provided as argument to be ndarray (not tuple or list)
                 except:  # Param is a scalar
                     param_ref = args[i]  # No conversion necessary for a scalar value
@@ -146,11 +146,11 @@ class Generator(object):
         for param in function_descriptor.params:
 
             try:
-                param_shape = param.get('shape')  # Assume that param is a matrix param - fail otherwise
+                num_dim = param.get('num_dim')  # Assume that param is a matrix param - fail otherwise
                 # Pointer to the parameter
                 argtypes.append(array_nd_double)
                 # Ints for the sizes of the parameter in each dimension
-                argtypes += [c_int for i in range(0, len(param_shape))]
+                argtypes += [c_int for i in range(0, num_dim)]
             except:
                 # Param is a value param
                 argtypes.append(cgen.convert_dtype_to_ctype(param[0])) # There has to be a better way of doing this

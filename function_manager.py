@@ -9,8 +9,6 @@ class FunctionManager(object):
     libraries = ['cassert', 'cstdlib', 'cmath', 'iostream',
                  'fstream', 'vector', 'cstdio', 'string', 'inttypes.h']
     def __init__(self, function_descriptors):
-        for function_descriptor in function_descriptors:
-            assert(function_descriptor.get_looper_matrix() is not None)
         self.function_descriptors = function_descriptors
         self._defines = []
 
@@ -38,8 +36,8 @@ class FunctionManager(object):
             sizes_arr = []
             try:
                 # Assume the parameter is a matrix parameter
-                param_vec_def = cgen.Pointer(cgen.Value("double", param['name']+"_vec"))
-                num_dim = len(param['shape'])
+                param_vec_def = cgen.Pointer(cgen.POD(param['dtype'], param['name']+"_vec"))
+                num_dim = param['num_dim']
                 for dim_ind in range(num_dim, 0, -1):
                     size_label = param['name']+"_size"+str(dim_ind)
                     sizes_arr.append(cgen.Value("int", size_label))
@@ -57,7 +55,7 @@ class FunctionManager(object):
         statements = []
         for param in function_descriptor.params:
             try:
-                num_dim = len(param['shape'])
+                num_dim = param['num_dim']
                 arr = "".join(
                     ["[%s_size%d]" % (param['name'], i)
                      for i in range(num_dim-1, 0, -1)]
@@ -69,27 +67,6 @@ class FunctionManager(object):
                 statements.append(cast_pointer)
             except TypeError:  # It might be a value parameter
                 pass  # Do nothing, in that case
-        body = function_descriptor.body
-        looper_param = function_descriptor.get_looper_matrix()
-        num_dim = len(looper_param['shape'])
-        skip_elements = function_descriptor.skip_elements
-        for dim_ind in range(1, num_dim+1):
-            dim_var = "i"+str(dim_ind)
-            if skip_elements is not None:
-                skip = skip_elements[dim_ind-1]
-            else:
-                skip = 0
-
-            dim_size = looper_param['name']+"_size"+str(dim_ind)
-            if skip > 0:
-                dim_size = dim_size+"-"+str(skip)
-            body = cgen.For(cgen.InlineInitializer(cgen.Value("int", dim_var),
-                                                   skip),
-                            dim_var + "<" + dim_size,
-                            dim_var + "++",
-                            body
-                            )
-
-        statements.append(body)
+        statements.append(function_descriptor.body)
         statements.append(cgen.Statement("return 0"))
         return cgen.Block(statements)
