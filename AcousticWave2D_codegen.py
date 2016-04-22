@@ -184,35 +184,6 @@ class AcousticWave2D_cg:
                 else:
                     src_grid[a,b] = 0
         return src_grid
-    
-    def _prepare_forward_kernel(self, subs, stencil, nt):
-        u = IndexedBase("u")
-        M = IndexedBase("m")
-        nx, ny = self.model.get_dimensions()
-        src_time = IndexedBase("src_time")
-        src_grid = IndexedBase("src_grid")
-        dampx = IndexedBase("dampx")
-        dampy = IndexedBase("dampy")
-        propagator = Propagator(nt, (nx,ny), 1)
-        stencil1_args = [0, 0, 0, 0, 0, 0, (src_grid[x,y]*src_time[t]), M[x, y], self.dt, self.h, dampx[x]+dampy[y]]
-        stencil2_args = [0, u[t - 1, x - 1, y],
-                                              u[t - 1, x, y],
-                                              u[t - 1, x + 1, y],
-                                              u[t - 1, x, y - 1],
-                                              u[t - 1, x, y + 1],
-                                              src_grid[x,y]*src_time[t], M[x, y], self.dt, self.h, dampx[x]+dampy[y]]
-        stencil3_args = [u[t - 2, x, y],
-                                              u[t - 1, x - 1, y],
-                                              u[t - 1, x, y],
-                                              u[t - 1, x + 1, y],
-                                              u[t - 1, x, y - 1],
-                                              u[t - 1, x, y + 1],
-                                              (src_grid[x,y]*src_time[t]), M[x, y], self.dt, self.h, dampx[x]+dampy[y]]
-        
-        
-        loop_body = propagator.prepare(subs, stencil, stencil1_args, stencil2_args, stencil3_args, u[t,x,y])
-        forward_loop = propagator.prepare_loop(loop_body, str(u))
-        return forward_loop
 
     def Forward(self):
         nx, ny = self.model.get_dimensions()
@@ -235,31 +206,6 @@ class AcousticWave2D_cg:
             return dampcoeff * ((x - nx + nbpml) / nbpml)**2
         else:
             return 0.0
-    
-    def _prepare_adjoint_kernel(self, stencil, subs):
-        v = IndexedBase("v")
-        M = IndexedBase("m")
-        src_time = IndexedBase("src_time")
-        src_grid = IndexedBase("src_grid")
-        dampx = IndexedBase("dampx")
-        dampy = IndexedBase("dampy")
-        rec = IndexedBase("rec")
-        dt = self.dt
-        h = self.h
-        resid = symbols("resid")
-        
-        use_receiver = cgen.Assign(ccode(resid), ccode(rec[t, y-1]))
-        dont_use_receiver = cgen.Assign(ccode(resid), 0)
-        receiver_if = cgen.If("%s == xrec" % self._loop_order[x], use_receiver, dont_use_receiver)
-        stencil1_args = [0, 0, 0, 0, 0, 0, resid, M[x, y], dt, h, dampx[x]+dampy[y]]
-        stencil2_args = [0, v[t+1, x-1, y], v[t+1, x, y], v[t+1, x+1, y], v[t+1, x, y-1], v[t+1, x, y+1], resid, M[x, y], dt, h, dampx[x]+dampy[y]]
-        stencil3_args = [v[t + 2, x, y], v[t + 1, x - 1, y], v[t + 1, x, y], v[t + 1, x + 1, y], v[t + 1, x, y - 1], v[t + 1, x, y + 1], resid, M[x, y], dt, h, dampx[x]+dampy[y]]
-        lhs = v[t, x, y]
-        stencil1 = self._prepare_stencil(stencil, subs, stencil1_args, lhs)
-        stencil2 = self._prepare_stencil(stencil, subs, stencil2_args, lhs)
-        stencil3 = self._prepare_stencil(stencil, subs, stencil3_args, lhs)
-        if_combinations = cgen.make_multiple_ifs([("%s == 0" % self._loop_order[t], stencil1), ("%s == 1" % self._loop_order[t], stencil2), (None, stencil3)], "last")
-         
     
     def Adjoint(self, nt, rec):
         xmin, ymin = self.model.get_origin()
@@ -374,6 +320,58 @@ class AcousticWave2D_cg:
             u1, u2, u3 = u2, u3, u1
             U1, U2, U3 = U2, U3, U1
         return rec
+    
+    def _prepare_forward_kernel(self, subs, stencil, nt):
+        u = IndexedBase("u")
+        M = IndexedBase("m")
+        nx, ny = self.model.get_dimensions()
+        src_time = IndexedBase("src_time")
+        src_grid = IndexedBase("src_grid")
+        dampx = IndexedBase("dampx")
+        dampy = IndexedBase("dampy")
+        propagator = Propagator(nt, (nx,ny), 1)
+        stencil1_args = [0, 0, 0, 0, 0, 0, (src_grid[x,y]*src_time[t]), M[x, y], self.dt, self.h, dampx[x]+dampy[y]]
+        stencil2_args = [0, u[t - 1, x - 1, y],
+                                              u[t - 1, x, y],
+                                              u[t - 1, x + 1, y],
+                                              u[t - 1, x, y - 1],
+                                              u[t - 1, x, y + 1],
+                                              src_grid[x,y]*src_time[t], M[x, y], self.dt, self.h, dampx[x]+dampy[y]]
+        stencil3_args = [u[t - 2, x, y],
+                                              u[t - 1, x - 1, y],
+                                              u[t - 1, x, y],
+                                              u[t - 1, x + 1, y],
+                                              u[t - 1, x, y - 1],
+                                              u[t - 1, x, y + 1],
+                                              (src_grid[x,y]*src_time[t]), M[x, y], self.dt, self.h, dampx[x]+dampy[y]]
+        
+        
+        loop_body = propagator.prepare(subs, stencil, stencil1_args, stencil2_args, stencil3_args, u[t,x,y])
+        forward_loop = propagator.prepare_loop(loop_body, str(u))
+        return forward_loop
+
+    def _prepare_adjoint_kernel(self, stencil, subs):
+        v = IndexedBase("v")
+        M = IndexedBase("m")
+        src_time = IndexedBase("src_time")
+        src_grid = IndexedBase("src_grid")
+        dampx = IndexedBase("dampx")
+        dampy = IndexedBase("dampy")
+        rec = IndexedBase("rec")
+        dt = self.dt
+        h = self.h
+        resid = symbols("resid")
+        use_receiver = cgen.Assign(ccode(resid), ccode(rec[t, y-1]))
+        dont_use_receiver = cgen.Assign(ccode(resid), 0)
+        receiver_if = cgen.If("%s == xrec" % self._loop_order[x], use_receiver, dont_use_receiver)
+        stencil1_args = [0, 0, 0, 0, 0, 0, resid, M[x, y], dt, h, dampx[x]+dampy[y]]
+        stencil2_args = [0, v[t+1, x-1, y], v[t+1, x, y], v[t+1, x+1, y], v[t+1, x, y-1], v[t+1, x, y+1], resid, M[x, y], dt, h, dampx[x]+dampy[y]]
+        stencil3_args = [v[t + 2, x, y], v[t + 1, x - 1, y], v[t + 1, x, y], v[t + 1, x + 1, y], v[t + 1, x, y - 1], v[t + 1, x, y + 1], resid, M[x, y], dt, h, dampx[x]+dampy[y]]
+        lhs = v[t, x, y]
+        stencil1 = self._prepare_stencil(stencil, subs, stencil1_args, lhs)
+        stencil2 = self._prepare_stencil(stencil, subs, stencil2_args, lhs)
+        stencil3 = self._prepare_stencil(stencil, subs, stencil3_args, lhs)
+        if_combinations = cgen.make_multiple_ifs([("%s == 0" % self._loop_order[t], stencil1), ("%s == 1" % self._loop_order[t], stencil2), (None, stencil3)], "last")
 
     def compute_gradient(self, model, shot_id):
         raise NotImplementedError("compute_gradient")
