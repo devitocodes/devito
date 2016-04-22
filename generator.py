@@ -6,7 +6,6 @@ from hashlib import sha1
 import os
 from _ctypes import ArgumentError
 import cgen_wrapper as cgen
-import function_descriptor
 from codepy.toolchain import guess_toolchain
 import codepy.jit as jit
 from tempfile import gettempdir
@@ -23,7 +22,7 @@ class Generator(object):
     # The temp directory used to store generated code
     tmp_dir = os.path.join(gettempdir(), "devito-%s" % os.getuid())
 
-    def __init__(self, function_descriptors, dtype = None):
+    def __init__(self, function_descriptors, dtype=None):
         self.function_manager = FunctionManager(function_descriptors)
         self._function_descriptors = function_descriptors
         self.compiler = guess_toolchain()
@@ -121,7 +120,8 @@ class Generator(object):
                 argtypes += [c_int for i in range(0, num_dim)]
             except:
                 # Param is a value param
-                argtypes.append(cgen.convert_dtype_to_ctype(param[0])) # There has to be a better way of doing this
+                # There has to be a better way of doing this
+                argtypes.append(cgen.convert_dtype_to_ctype(param[0]))
         library_function.argtypes = argtypes
 
         return self.wrap_function(library_function, function_descriptor)

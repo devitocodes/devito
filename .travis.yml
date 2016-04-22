@@ -10,5 +10,5 @@ install:
 
 script:
   - export PYTHONPATH=$PYTHONPATH:$PWD
-  - # flake8 .
+  - flake8 .
   - py.test -vs tests/

@@ -8,6 +8,7 @@ class FunctionManager(object):
 
     libraries = ['cassert', 'cstdlib', 'cmath', 'iostream',
                  'fstream', 'vector', 'cstdio', 'string', 'inttypes.h']
+
     def __init__(self, function_descriptors):
         self.function_descriptors = function_descriptors
         self._defines = []

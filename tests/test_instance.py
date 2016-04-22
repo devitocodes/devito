@@ -4,6 +4,7 @@ import cgen
 from function_descriptor import FunctionDescriptor
 from propagator import Propagator
 
+
 class Test_Instance_Variable_Reset(object):
     g = None
 
