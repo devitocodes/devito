@@ -9,18 +9,19 @@ import cgen_wrapper as cgen
 import function_descriptor
 from codepy.toolchain import guess_toolchain
 import codepy.jit as jit
+from tempfile import gettempdir
 
 
 class Generator(object):
-    """ This is the primary interface class for code generation. However, the code in this class is focused on interfacing with the
-    generated code. The actual code generation happens in BasicTemplate
+    """ This is the primary interface class for code
+    generation. However, the code in this class is focused on
+    interfacing with the generated code. The actual code generation
+    happens in BasicTemplate
     """
-    src_lib = None
-    src_file = None
     _hashing_function = sha1
     _wrapped_functions = None
     # The temp directory used to store generated code
-    _tmp_dir_name = "tmp"
+    tmp_dir = os.path.join(gettempdir(), "devito-%s" % os.getuid())
 
     def __init__(self, function_descriptors, dtype = None):
         self.function_manager = FunctionManager(function_descriptors)
@@ -29,12 +30,12 @@ class Generator(object):
         # Generate a random salt to uniquely identify this instance of the class
         self._salt = randint(0, 100000000)
         self._basename = self.__generate_filename()
-        self.src_file = "%s.cpp" % self._basename
-        self.src_lib = "./%s.so" % self._basename
+        self.src_file = os.path.join(self.tmp_dir, "%s.cpp" % self._basename)
+        self.src_lib = os.path.join(self.tmp_dir, "%s.so" % self._basename)
         self.dtype = dtype
         # If the temp does not exist, create it
-        if not os.path.isdir(self._tmp_dir_name):
-            os.mkdir(self._tmp_dir_name)
+        if not os.path.isdir(self.tmp_dir):
+            os.mkdir(self.tmp_dir)
 
     def __generate_filename(self):
         # Generate a unique filename for the generated code by combining the unique salt
@@ -69,9 +70,9 @@ class Generator(object):
     def compile(self):
         # Generate compilable source code
         self.src_code = str(self.function_manager.generate())
-        jit.extension_file_from_string(self.compiler, self.src_lib, self.src_code,
-                                       source_name=self.src_file, debug=True)
-        # print "Generated:", self.src_file
+        print "Generated: %s" % self.src_file
+        jit.extension_file_from_string(self.compiler, self.src_lib,
+                                       self.src_code, source_name=self.src_file)
 
     """ Wrap the function by converting the python style arguments(simply passing object references)
         to C style (pointer + int dimensions)
