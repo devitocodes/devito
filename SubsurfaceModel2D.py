@@ -34,7 +34,7 @@ class SubsurfaceModel2D:
 
     def set_vp(self, vp):
         self.vp = vp
-    
+
     def get_shape(self):
         return self.vp.shape
 

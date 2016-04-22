@@ -10,10 +10,9 @@ class FunctionDescriptor(object):
         Also pass skip_elements, which is an array of the number of elements to skip in each dimension
         while looping
     """
-    def __init__(self, name, body, skip_elements=None):
+    def __init__(self, name, body):
         self.name = name
         self.body = body
-        self.skip_elements = skip_elements
         self.matrix_params = []
         self.value_params = []
 
@@ -21,21 +20,8 @@ class FunctionDescriptor(object):
         A function may have any number of parameters but only one may be the looper
         Each parameter has an associated name and shape
     """
-    def add_matrix_param(self, name, shape, looper=False):
-        if looper is True:
-            assert(self.get_looper_matrix() is None)
-            assert((self.skip_elements is None) or (len(shape) == len(self.skip_elements)))
-            self._loop_direction = (False,)*len(shape)
-        self.matrix_params.append({'name': name, 'shape': shape, 'looper': looper})
-
-    """ Get the parameter of the function which is the looper, i.e. it defines the dimensions over which the primary loop
-        of the function is run
-    """
-    def get_looper_matrix(self):
-        for param in self.matrix_params:
-            if param['looper'] is True:
-                return param
-        return None
+    def add_matrix_param(self, name, num_dim, dtype):
+        self.matrix_params.append({'name': name, 'num_dim': num_dim, 'dtype': dtype})
 
     """ Declare a new value (scalar) param for this function
         Param_type: numpy dtype
@@ -47,14 +33,3 @@ class FunctionDescriptor(object):
     @property
     def params(self):
         return self.matrix_params + self.value_params
-
-    @property
-    def loop_direction(self):
-        return self._loop_direction
-
-    @loop_direction.setter
-    def loop_direction(self, loop_direction):
-        looper = self.get_looper_matrix()
-        assert looper is not None
-        assert len(loop_direction) == len(looper['shape'])
-        self._loop_direction = loop_direction

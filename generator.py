@@ -1,4 +1,3 @@
-from compilation import GNUCompiler, ClangCompiler, IntelCompiler
 from ctypes import cdll, c_int
 import numpy as np
 from function_manager import FunctionManager
@@ -7,39 +6,42 @@ from hashlib import sha1
 import os
 from _ctypes import ArgumentError
 import cgen_wrapper as cgen
-import function_descriptor
+from codepy.toolchain import guess_toolchain
+import codepy.jit as jit
+from tempfile import gettempdir
 
 
 class Generator(object):
-    """ This is the primary interface class for code generation. However, the code in this class is focused on interfacing with the
-    generated code. The actual code generation happens in BasicTemplate
+    """ This is the primary interface class for code
+    generation. However, the code in this class is focused on
+    interfacing with the generated code. The actual code generation
+    happens in BasicTemplate
     """
-    src_lib = None
-    src_file = None
     _hashing_function = sha1
     _wrapped_functions = None
     # The temp directory used to store generated code
-    _tmp_dir_name = "tmp"
+    tmp_dir = os.path.join(gettempdir(), "devito-%s" % os.getuid())
 
-    def __init__(self, function_descriptors, dtype = None):
+    def __init__(self, function_descriptors, dtype=None):
         self.function_manager = FunctionManager(function_descriptors)
         self._function_descriptors = function_descriptors
-        self._compiler = GNUCompiler()
+        self.compiler = guess_toolchain()
         # Generate a random salt to uniquely identify this instance of the class
         self._salt = randint(0, 100000000)
-        self.__generate_filename()
+        self._basename = self.__generate_filename()
+        self.src_file = os.path.join(self.tmp_dir, "%s.cpp" % self._basename)
+        self.src_lib = os.path.join(self.tmp_dir, "%s.so" % self._basename)
         self.dtype = dtype
         # If the temp does not exist, create it
-        if not os.path.isdir(self._tmp_dir_name):
-            os.mkdir(self._tmp_dir_name)
+        if not os.path.isdir(self.tmp_dir):
+            os.mkdir(self.tmp_dir)
 
     def __generate_filename(self):
         # Generate a unique filename for the generated code by combining the unique salt
         # with the hash of the parameters for the function as well as the body of the function
-        hash_string = str(self._salt)+"".join([str(fd.params) for fd in self._function_descriptors])
+        hash_string = "".join([str(fd.params) for fd in self._function_descriptors])
         self._hash = self._hashing_function(hash_string).hexdigest()
-        filename = self._tmp_dir_name+"/"+self._hash+".cpp"
-        self._filename = filename
+        return self._hash
 
     def __load_library(self, src_lib):
         """Load a compiled dynamic binary using ctypes.cdll"""
@@ -49,21 +51,6 @@ class Generator(object):
         except OSError as e:
             print "Library load error: ", e
             raise Exception("Failed to load %s" % libname)
-
-    @property
-    def compiler(self):
-        return self._compiler
-
-    @compiler.setter
-    def compiler(self, compiler):
-        if compiler in ['g++', 'gnu']:
-            self._compiler = GNUCompiler()
-        elif compiler in ['icpc', 'intel']:
-            self._compiler = IntelCompiler()
-        elif compiler in ['clang', 'clang++']:
-            self._compiler = ClangCompiler()
-        else:
-            raise ValueError("Unknown compiler.")
 
     @property
     def function_descriptor(self):
@@ -79,31 +66,12 @@ class Generator(object):
     def add_macro(self, name, text):
         self.cgen_template.add_define(name, text)
 
-    def generate(self, compiler=None):
-        if compiler:
-            self.compiler = compiler
-
-        self.src_code = str(self.function_manager.generate())
+    def compile(self):
         # Generate compilable source code
-        self.src_file = self._filename
-        with file(self.src_file, 'w') as f:
-            f.write(self.src_code)
-
-        print "Generated:", self.src_file
-
-    def compile(self, compiler=None, shared=True):
-        if compiler:
-            self.compiler = compiler
-
-        # Generate code if this hasn't been done yet
-        if self.src_file is None:
-            self.generate()
-
-        # Compile source file
-        out = self.compiler.compile(self.src_file, shared=shared)
-        if shared:
-            self.src_lib = out
-        return out
+        self.src_code = str(self.function_manager.generate())
+        print "Generated: %s" % self.src_file
+        jit.extension_file_from_string(self.compiler, self.src_lib,
+                                       self.src_code, source_name=self.src_file)
 
     """ Wrap the function by converting the python style arguments(simply passing object references)
         to C style (pointer + int dimensions)
@@ -115,7 +83,7 @@ class Generator(object):
             arg_list = []
             for i, param in zip(range(num_params), function_descriptor.params):
                 try:
-                    param_shape = param.get('shape')  # Assume that param is a matrix param - fail otherwise
+                    param_shape = args[i].shape  # Assume that param is a matrix param - fail otherwise
                     param_ref = np.asarray(args[i], dtype=self.dtype)  # Force the parameter provided as argument to be ndarray (not tuple or list)
                 except:  # Param is a scalar
                     param_ref = args[i]  # No conversion necessary for a scalar value
@@ -130,8 +98,7 @@ class Generator(object):
 
     def _prepare_wrapped_function(self, function_descriptor, compiler='g++'):
         # Compile code if this hasn't been done yet
-        if self.src_lib is None:
-            self.compile(compiler=compiler, shared=True)
+        self.compile()
         # Load compiled binary
         self.__load_library(src_lib=self.src_lib)
 
@@ -146,22 +113,21 @@ class Generator(object):
         for param in function_descriptor.params:
 
             try:
-                param_shape = param.get('shape')  # Assume that param is a matrix param - fail otherwise
+                num_dim = param.get('num_dim')  # Assume that param is a matrix param - fail otherwise
                 # Pointer to the parameter
                 argtypes.append(array_nd_double)
                 # Ints for the sizes of the parameter in each dimension
-                argtypes += [c_int for i in range(0, len(param_shape))]
+                argtypes += [c_int for i in range(0, num_dim)]
             except:
                 # Param is a value param
-                argtypes.append(cgen.convert_dtype_to_ctype(param[0])) # There has to be a better way of doing this
+                # There has to be a better way of doing this
+                argtypes.append(cgen.convert_dtype_to_ctype(param[0]))
         library_function.argtypes = argtypes
 
         return self.wrap_function(library_function, function_descriptor)
 
     def get_wrapped_functions(self):
         if self._wrapped_functions is None:
-            if self._filename is None:
-                self.__generate_filename()
             self._wrapped_functions = [self._prepare_wrapped_function(fd) for fd in self._function_descriptors]
         return self._wrapped_functions
 
