@@ -1,4 +1,3 @@
-from compilation import GNUCompiler, ClangCompiler, IntelCompiler
 from ctypes import cdll, c_int
 import numpy as np
 from function_manager import FunctionManager
@@ -8,6 +7,8 @@ import os
 from _ctypes import ArgumentError
 import cgen_wrapper as cgen
 import function_descriptor
+from codepy.toolchain import guess_toolchain
+import codepy.jit as jit
 
 
 class Generator(object):
@@ -24,12 +25,12 @@ class Generator(object):
     def __init__(self, function_descriptors, dtype = None):
         self.function_manager = FunctionManager(function_descriptors)
         self._function_descriptors = function_descriptors
-        self._compiler = GNUCompiler()
+        self.compiler = guess_toolchain()
         # Generate a random salt to uniquely identify this instance of the class
         self._salt = randint(0, 100000000)
         self._basename = self.__generate_filename()
         self.src_file = "%s.cpp" % self._basename
-        self.src_lib = "%s.so" % self._basename
+        self.src_lib = "./%s.so" % self._basename
         self.dtype = dtype
         # If the temp does not exist, create it
         if not os.path.isdir(self._tmp_dir_name):
@@ -40,7 +41,7 @@ class Generator(object):
         # with the hash of the parameters for the function as well as the body of the function
         hash_string = "".join([str(fd.params) for fd in self._function_descriptors])
         self._hash = self._hashing_function(hash_string).hexdigest()
-        return self._tmp_dir_name + "/" + self._hash
+        return self._hash
 
     def __load_library(self, src_lib):
         """Load a compiled dynamic binary using ctypes.cdll"""
@@ -50,21 +51,6 @@ class Generator(object):
         except OSError as e:
             print "Library load error: ", e
             raise Exception("Failed to load %s" % libname)
-
-    @property
-    def compiler(self):
-        return self._compiler
-
-    @compiler.setter
-    def compiler(self, compiler):
-        if compiler in ['g++', 'gnu']:
-            self._compiler = GNUCompiler()
-        elif compiler in ['icpc', 'intel']:
-            self._compiler = IntelCompiler()
-        elif compiler in ['clang', 'clang++']:
-            self._compiler = ClangCompiler()
-        else:
-            raise ValueError("Unknown compiler.")
 
     @property
     def function_descriptor(self):
@@ -83,12 +69,9 @@ class Generator(object):
     def compile(self):
         # Generate compilable source code
         self.src_code = str(self.function_manager.generate())
-        with file(self.src_file, 'w') as f:
-            f.write(self.src_code)
-        print "Generated:", self.src_file
-
-        # Compile source file
-        self.compiler.compile(self.src_file)
+        jit.extension_file_from_string(self.compiler, self.src_lib, self.src_code,
+                                       source_name=self.src_file, debug=True)
+        # print "Generated:", self.src_file
 
     """ Wrap the function by converting the python style arguments(simply passing object references)
         to C style (pointer + int dimensions)
