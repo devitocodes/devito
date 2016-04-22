@@ -27,7 +27,9 @@ class Generator(object):
         self._compiler = GNUCompiler()
         # Generate a random salt to uniquely identify this instance of the class
         self._salt = randint(0, 100000000)
-        self.__generate_filename()
+        self._basename = self.__generate_filename()
+        self.src_file = "%s.cpp" % self._basename
+        self.src_lib = "%s.so" % self._basename
         self.dtype = dtype
         # If the temp does not exist, create it
         if not os.path.isdir(self._tmp_dir_name):
@@ -38,8 +40,7 @@ class Generator(object):
         # with the hash of the parameters for the function as well as the body of the function
         hash_string = "".join([str(fd.params) for fd in self._function_descriptors])
         self._hash = self._hashing_function(hash_string).hexdigest()
-        filename = self._tmp_dir_name+"/"+self._hash+".cpp"
-        self._filename = filename
+        return self._tmp_dir_name + "/" + self._hash
 
     def __load_library(self, src_lib):
         """Load a compiled dynamic binary using ctypes.cdll"""
@@ -79,31 +80,15 @@ class Generator(object):
     def add_macro(self, name, text):
         self.cgen_template.add_define(name, text)
 
-    def generate(self, compiler=None):
-        if compiler:
-            self.compiler = compiler
-
-        self.src_code = str(self.function_manager.generate())
+    def compile(self):
         # Generate compilable source code
-        self.src_file = self._filename
+        self.src_code = str(self.function_manager.generate())
         with file(self.src_file, 'w') as f:
             f.write(self.src_code)
-
         print "Generated:", self.src_file
 
-    def compile(self, compiler=None, shared=True):
-        if compiler:
-            self.compiler = compiler
-
-        # Generate code if this hasn't been done yet
-        if self.src_file is None:
-            self.generate()
-
         # Compile source file
-        out = self.compiler.compile(self.src_file, shared=shared)
-        if shared:
-            self.src_lib = out
-        return out
+        self.compiler.compile(self.src_file)
 
     """ Wrap the function by converting the python style arguments(simply passing object references)
         to C style (pointer + int dimensions)
@@ -130,8 +115,7 @@ class Generator(object):
 
     def _prepare_wrapped_function(self, function_descriptor, compiler='g++'):
         # Compile code if this hasn't been done yet
-        if self.src_lib is None:
-            self.compile(compiler=compiler, shared=True)
+        self.compile()
         # Load compiled binary
         self.__load_library(src_lib=self.src_lib)
 
@@ -160,8 +144,6 @@ class Generator(object):
 
     def get_wrapped_functions(self):
         if self._wrapped_functions is None:
-            if self._filename is None:
-                self.__generate_filename()
             self._wrapped_functions = [self._prepare_wrapped_function(fd) for fd in self._function_descriptors]
         return self._wrapped_functions
 
