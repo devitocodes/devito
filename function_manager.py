@@ -8,6 +8,7 @@ class FunctionManager(object):
 
     libraries = ['cassert', 'cstdlib', 'cmath', 'iostream',
                  'fstream', 'vector', 'cstdio', 'string', 'inttypes.h']
+
     def __init__(self, function_descriptors):
         self.function_descriptors = function_descriptors
         self._defines = []
@@ -52,7 +53,7 @@ class FunctionManager(object):
                            )
 
     def generate_function_body(self, function_descriptor):
-        statements = []
+        statements = [cgen.POD(var[0], var[1]) for var in function_descriptor.local_vars]
         for param in function_descriptor.params:
             try:
                 num_dim = param['num_dim']

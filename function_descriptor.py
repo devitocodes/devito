@@ -15,6 +15,7 @@ class FunctionDescriptor(object):
         self.body = body
         self.matrix_params = []
         self.value_params = []
+        self.local_vars = []
 
     """ Add a parameter to the function
         A function may have any number of parameters but only one may be the looper
@@ -27,8 +28,11 @@ class FunctionDescriptor(object):
         Param_type: numpy dtype
         name: name of the param
     """
-    def add_value_param(self, param_type, name):
-        self.value_params.append((np.dtype(param_type), name))
+    def add_value_param(self, name, dtype):
+        self.value_params.append((np.dtype(dtype), name))
+
+    def add_local_variable(self, name, dtype):
+        self.local_vars.append((np.dtype(dtype), name))
 
     @property
     def params(self):

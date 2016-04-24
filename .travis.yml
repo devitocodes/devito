@@ -9,5 +9,6 @@ install:
   - pip install -r requirements.txt
 
 script:
-  - # flake8 .
+  - export PYTHONPATH=$PYTHONPATH:$PWD
+  - flake8 .
   - py.test -vs tests/
