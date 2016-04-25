@@ -24,7 +24,7 @@ class AcousticWave2D_cg:
 
     def prepare(self, nt):
         self._init_taylor(nt)
-        self._forwardStencil, self._adjointStencil = self.g.get_wrapped_functions()
+        self._forwardStencil, self._adjointStencil, self._gradient_stencil = self.g.get_wrapped_functions()
 
     def _init_taylor(self, nt):
         # The acoustic wave equation for the square slowness m and a source q
@@ -174,13 +174,34 @@ class AcousticWave2D_cg:
         fd.add_local_variable("resid", self.dtype)
 
         fds.append(fd)
+        
+        kernelG = self._prepare_gradient_kernel((p(x, y, t+s),
+                                                p(x-h, y, t),
+                                                p(x, y, t),
+                                                p(x+h, y, t),
+                                                p(x, y-h, t),
+                                                p(x, y+h, t), d, m, s, h, e),
+                                               stencilA, nt)
+        fd = FunctionDescriptor("Gradient", kernelG)
+        fd.add_matrix_param("u", 3, self.dtype)
+        fd.add_matrix_param("rec", 2, self.dtype)
+        fd.add_matrix_param("v1", 2, self.dtype, group = "v")
+        fd.add_matrix_param("v2", 2, self.dtype, group = "v")
+        fd.add_matrix_param("v3", 2, self.dtype, group = "v")
+        fd.add_matrix_param("grad", 2, self.dtype)
+        fd.add_matrix_param("m", 2, self.dtype)
+        fd.add_matrix_param("dampx", 1, self.dtype)
+        fd.add_matrix_param("dampy", 1, self.dtype)
+        fd.add_value_param("xrec", "int")
+        fd.add_local_variable("resid", self.dtype)
+        fds.append(fd)
         self.g = Generator(fds, dtype=self.dtype)
 
     def Forward(self):
         nx, ny = self.model.get_dimensions()
         m = self.model.vp**(-2)
         nt = self.nt
-        u = np.zeros((nt, nx, ny), dtype=self.dtype)
+        u = np.zeros((nt+2, nx, ny), dtype=self.dtype)
         rec = np.zeros((nt, ny - 2), dtype=self.dtype)
         src_grid = self.source_interpolate()
         self._forwardStencil(u, rec, m, src_grid, self.data.get_source(),
@@ -190,7 +211,7 @@ class AcousticWave2D_cg:
     def Adjoint(self, nt, rec):
         nx, ny = self.model.get_dimensions()
         m = self.model.vp**(-2)
-        v = np.zeros((nt, nx, ny))
+        v = np.zeros((nt+2, nx, ny))
         srca = np.zeros((nt))
         src_grid = self.source_interpolate()
         self._adjointStencil(v, rec, m, src_grid, srca,
@@ -280,17 +301,8 @@ class AcousticWave2D_cg:
         dampy = IndexedBase("dampy")
         rec = IndexedBase("rec")
         xrec = symbols("xrec")
-        propagator = Propagator(nt, (nx, ny), 1)
-        stencil1_args = [0, 0, 0, 0, 0, 0, (src_grid[x, y]*src_time[t]),
-                         M[x, y], self.dt, self.h, dampx[x] + dampy[y]]
-        stencil2_args = [0, u[t - 1, x - 1, y],
-                         u[t - 1, x, y],
-                         u[t - 1, x + 1, y],
-                         u[t - 1, x, y - 1],
-                         u[t - 1, x, y + 1],
-                         src_grid[x, y]*src_time[t], M[x, y],
-                         self.dt, self.h, dampx[x] + dampy[y]]
-        stencil3_args = [u[t - 2, x, y],
+        propagator = Propagator(nt, (nx, ny), spc_border = 1, skip_time = 2)
+        stencil_args = [u[t - 2, x, y],
                          u[t - 1, x - 1, y],
                          u[t - 1, x, y],
                          u[t - 1, x + 1, y],
@@ -304,8 +316,8 @@ class AcousticWave2D_cg:
         # Sympy representation of assignment: rec[t, y-1] = u[t, x, y]
         record_true = Eq(rec[t, y-1], lhs)
         propagator.add_loop_step(record_condition, record_true)
-        forward_loop = propagator.prepare(subs, stencil, stencil1_args,
-                                          stencil2_args, stencil3_args, lhs)
+        main_stencil = Eq(lhs, stencil)
+        forward_loop = propagator.prepare(subs, [main_stencil], stencil_args)
         return forward_loop
 
     def _prepare_adjoint_kernel(self, subs, stencil, nt):
@@ -324,17 +336,53 @@ class AcousticWave2D_cg:
         use_receiver = Eq(resid, rec[t, y-1])
         dont_use_receiver = Eq(resid, 0)
         receiver_cond = Eq(x, xrec)
-        propagator = Propagator(nt, (nx, ny), 1, False)
+        propagator = Propagator(nt, (nx, ny), spc_border = 1, forward = False, skip_time = 2)
         propagator.add_loop_step(receiver_cond, use_receiver, dont_use_receiver, True)
         lhs = v[t, x, y]
         src_cond = Eq(src_grid[x, y], 1)
         src_cap = Eq(srca[t], lhs)
         propagator.add_loop_step(src_cond, src_cap)
-        stencil1_args = [0, 0, 0, 0, 0, 0, resid, M[x, y], dt, h, dampx[x]+dampy[y]]
-        stencil2_args = [0, v[t+1, x-1, y], v[t+1, x, y], v[t+1, x+1, y], v[t+1, x, y-1], v[t+1, x, y+1], resid, M[x, y], dt, h, dampx[x]+dampy[y]]
-        stencil3_args = [v[t + 2, x, y], v[t + 1, x - 1, y], v[t + 1, x, y], v[t + 1, x + 1, y], v[t + 1, x, y - 1], v[t + 1, x, y + 1], resid, M[x, y], dt, h, dampx[x]+dampy[y]]
-        backward_loop = propagator.prepare(subs, stencil, stencil1_args,
-                                           stencil2_args, stencil3_args, lhs)
+        main_stencil = Eq(lhs, stencil)
+        stencil_args = [v[t + 2, x, y], v[t + 1, x - 1, y], v[t + 1, x, y], v[t + 1, x + 1, y], v[t + 1, x, y - 1], v[t + 1, x, y + 1], resid, M[x, y], dt, h, dampx[x]+dampy[y]]
+        backward_loop = propagator.prepare(subs, [main_stencil], stencil_args)
+        return backward_loop
+    
+    def _prepare_gradient_kernel(self, subs, stencil, nt):
+        nx, ny = self.model.get_dimensions()
+        u = IndexedBase("u")
+        v1 = IndexedBase("v1")
+        v2 = IndexedBase("v2")
+        v3 = IndexedBase("v3")
+        grad = IndexedBase("grad")
+        M = IndexedBase("m")
+        dampx = IndexedBase("dampx")
+        dampy = IndexedBase("dampy")
+        rec = IndexedBase("rec")
+        xrec = symbols("xrec")
+        resid = symbols("resid")
+        dt = self.dt
+        h = self.h
+        
+        use_receiver = Eq(resid, rec[t, y-1])
+        dont_use_receiver = Eq(resid, 0)
+        receiver_cond = Eq(x, xrec)
+        propagator = Propagator(nt, (nx, ny), spc_border = 1, forward = False, skip_time = 2)
+        propagator.add_loop_step(receiver_cond, use_receiver, dont_use_receiver, True)
+        lhs = v3[x, y]
+        stencil_args = [v1[x, y], v2[x - 1, y],
+                            v2[x, y],
+                            v2[x + 1, y],
+                            v2[x, y - 1],
+                            v2[x, y + 1],
+                            resid, M[x, y],
+                            dt, h, dampx[x]+dampy[y]]
+        main_stencil = Eq(lhs, stencil)
+        gradient_update = Eq(grad[x, y], grad[x, y] - (v3[x, y] - 2 * v2[x, y] + v1[x, y]) * (u[t, x, y]))
+        v1, v2, v3 = v2, v3, v1
+        v_update_1 = Eq(v1, v2)
+        v_update_2 = Eq(v2, v3)
+        v_update_3 = Eq(v3, v1)
+        backward_loop = propagator.prepare(subs, [main_stencil, gradient_update, v_update_1, v_update_2, v_update_3], stencil_args)
         return backward_loop
 
     def source_interpolate(self):

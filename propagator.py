@@ -4,16 +4,17 @@ from sympy import symbols
 
 
 class Propagator:
-    def __init__(self, nt, shape, border=0, forward=True):
+    def __init__(self, nt, shape, spc_border=0, forward=True, skip_time = 0):
         num_spac_dim = len(shape)
         self.t = symbols("t")
         space_dims = symbols("x y z")
-        self.space_dims = space_dims[0:num_spac_dim]
         self.loop_counters = symbols("i1 i2 i3")
-        self._prep_loop_order()
+        self._skip_time = skip_time
         self._pre_kernel_steps = []
         self._post_kernel_steps = []
         self._forward = forward
+        self.space_dims = space_dims[0:num_spac_dim]
+        self._prep_loop_order()
         if forward:
             self._loop_limits = {self.t: (0, nt)}
             self._time_step = 1
@@ -21,7 +22,7 @@ class Propagator:
             self._loop_limits = {self.t: (nt-1, -1)}
             self._time_step = -1
         for i, dim in enumerate(reversed(self.space_dims)):
-                self._loop_limits[dim] = (border, shape[i]-border)
+                self._loop_limits[dim] = (spc_border, shape[i]-spc_border)
 
     def _prep_loop_order(self):
         """ Mapping from model variables (x, y, z, t) to loop variables (i1, i2, i3, i4) - Needs work
@@ -31,16 +32,18 @@ class Propagator:
         for dim in self.space_dims:
             loop_order[dim] = symbols("i%d" % (i + 1))
             i += 1
-        loop_order[self.t] = symbols("i%d" % (i + 1))
+        loop_order[self.t] = symbols("i%d" % (i + 1))+self._skip_time
         self._loop_order = loop_order
 
-    def prepare(self, subs, stencil, stencil1_args, stencil2_args, stencil3_args, lhs):
-        stencil1 = self.process_stencil(stencil, subs, stencil1_args, lhs)
-        stencil2 = self.process_stencil(stencil, subs, stencil2_args, lhs)
-        stencil3 = self.process_stencil(stencil, subs, stencil3_args, lhs)
+    def prepare(self, subs, stencils, stencil_args):
+        stmts = []
+        for equality in stencils:
+            equality = equality.subs(dict(zip(subs, stencil_args)))
+            equality = equality.xreplace(self._loop_order)
+            stencil = cgen.Assign(ccode(equality.lhs), ccode(equality.rhs))
+            stmts.append(stencil)
         kernel = self._pre_kernel_steps
-        if_combinations = cgen.make_multiple_ifs([("%s == %d" % (self._loop_order[self.t], self._loop_limits[self.t][0]), stencil1), ("%s == %d" % (self._loop_order[self.t], self._loop_limits[self.t][0]+self._time_step), stencil2), (None, stencil3)], "last")
-        kernel.append(if_combinations)
+        kernel += stmts
         kernel += self._post_kernel_steps
         return self.prepare_loop(cgen.Block(kernel))
 
@@ -67,9 +70,3 @@ class Propagator:
             self._pre_kernel_steps.append(statement)
         else:
             self._post_kernel_steps.append(statement)
-
-    def process_stencil(self, original_stencil, subs, stencil_args, lhs):
-        stencil = original_stencil.subs(dict(zip(subs, stencil_args)))
-        stencil = stencil.xreplace(self._loop_order)
-        stencil = cgen.Assign(ccode(lhs.xreplace(self._loop_order)), ccode(stencil))
-        return stencil
