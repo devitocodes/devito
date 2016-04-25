@@ -14,8 +14,8 @@ class Test_Instance_Variable_Reset(object):
         p = Propagator(3, (2,))
         loop = p.prepare_loop(kernel)
         fd = FunctionDescriptor("process", loop)
-        fd.add_matrix_param("input_grid", len(data.shape), data.dtype)
-        fd.add_matrix_param("output_grid", len(data.shape), data.dtype)
+        fd.add_matrix_param("input_grid", data.shape, data.dtype)
+        fd.add_matrix_param("output_grid", data.shape, data.dtype)
         if self.g is None:
             self.g = Generator([fd])
         else:
@@ -32,8 +32,8 @@ class Test_Instance_Variable_Reset(object):
         p = Propagator(4, (3, 2))
         loop = p.prepare_loop(kernel)
         fd = FunctionDescriptor("process", loop)
-        fd.add_matrix_param("input_grid", len(data.shape), data.dtype)
-        fd.add_matrix_param("output_grid", len(data.shape), data.dtype)
+        fd.add_matrix_param("input_grid", data.shape, data.dtype)
+        fd.add_matrix_param("output_grid", data.shape, data.dtype)
         if self.g is None:
             self.g = Generator([fd])
         else:
@@ -50,8 +50,8 @@ class Test_Instance_Variable_Reset(object):
         p = Propagator(5, (4, 3, 2))
         loop = p.prepare_loop(kernel)
         fd = FunctionDescriptor("process", loop)
-        fd.add_matrix_param("input_grid", len(data.shape), data.dtype)
-        fd.add_matrix_param("output_grid", len(data.shape), data.dtype)
+        fd.add_matrix_param("input_grid", data.shape, data.dtype)
+        fd.add_matrix_param("output_grid", data.shape, data.dtype)
         if self.g is None:
             self.g = Generator([fd])
         else:

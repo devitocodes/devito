@@ -16,27 +16,19 @@ class FunctionDescriptor(object):
         self.matrix_params = []
         self.value_params = []
         self.local_vars = []
-        self.var_groups = {}
 
-    """ Add a parameter to the function
-        A function may have any number of parameters but only one may be the looper
-        Each parameter has an associated name and shape
-    """
-    def add_matrix_param(self, name, num_dim, dtype, group = None):
-        if group is None:
-            self.matrix_params.append({'name': name, 'num_dim': num_dim, 'dtype': dtype})
-        else:
-            existing_group = self.var_groups.get(group, {'dtype': dtype, 'num_dim': num_dim, 'vars':[]})
-            assert(existing_group['dtype'] == dtype)
-            assert(existing_group['num_dim'] == num_dim)
-            existing_group['vars'].append(name)
-            self.var_groups[group] = existing_group
+    def add_matrix_param(self, name, shape, dtype):
+        """ Add a parameter to the function
+            A function may have any number of parameters but only one may be the looper
+            Each parameter has an associated name and shape
+        """
+        self.matrix_params.append({'name': name, 'shape': shape, 'dtype': dtype})
 
-    """ Declare a new value (scalar) param for this function
+    def add_value_param(self, name, dtype):
+        """ Declare a new value (scalar) param for this function
         Param_type: numpy dtype
         name: name of the param
-    """
-    def add_value_param(self, name, dtype):
+        """
         self.value_params.append((np.dtype(dtype), name))
 
     def add_local_variable(self, name, dtype):

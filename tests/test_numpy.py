@@ -13,8 +13,8 @@ class Test_Numpy_Array_Transfer(object):
         p = Propagator(3, (2,))
         loop = p.prepare_loop(kernel)
         fd = FunctionDescriptor("process", loop)
-        fd.add_matrix_param("input_grid", len(data.shape), data.dtype)
-        fd.add_matrix_param("output_grid", len(data.shape), data.dtype)
+        fd.add_matrix_param("input_grid", data.shape, data.dtype)
+        fd.add_matrix_param("output_grid", data.shape, data.dtype)
         g = Generator([fd])
         f = g.get_wrapped_functions()[0]
         arr = np.empty_like(data)
@@ -28,8 +28,8 @@ class Test_Numpy_Array_Transfer(object):
         p = Propagator(4, (3, 2))
         loop = p.prepare_loop(kernel)
         fd = FunctionDescriptor("process", loop)
-        fd.add_matrix_param("input_grid", len(data.shape), data.dtype)
-        fd.add_matrix_param("output_grid", len(data.shape), data.dtype)
+        fd.add_matrix_param("input_grid", data.shape, data.dtype)
+        fd.add_matrix_param("output_grid", data.shape, data.dtype)
         g = Generator([fd])
         f = g.get_wrapped_functions()[0]
         arr = np.empty_like(data)
@@ -43,8 +43,8 @@ class Test_Numpy_Array_Transfer(object):
         p = Propagator(5, (4, 3, 2))
         loop = p.prepare_loop(kernel)
         fd = FunctionDescriptor("process", loop)
-        fd.add_matrix_param("input_grid", len(data.shape), data.dtype)
-        fd.add_matrix_param("output_grid", len(data.shape), data.dtype)
+        fd.add_matrix_param("input_grid", data.shape, data.dtype)
+        fd.add_matrix_param("output_grid", data.shape, data.dtype)
         g = Generator([fd])
         f = g.get_wrapped_functions()[0]
         arr = np.empty_like(data)
