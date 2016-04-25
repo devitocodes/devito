@@ -15,10 +15,12 @@ class Generator(object):
     """ This is the primary interface class for code
     generation. However, the code in this class is focused on
     interfacing with the generated code. The actual code generation
-    happens in BasicTemplate
+    happens in FunctionManager
     """
     _hashing_function = sha1
     _wrapped_functions = None
+    COMPILER_OVERRIDE_VAR = "DEVITO_CC"
+    _incompatible_flags = ["-Wshorten-64-to-32", "-Wstrict-prototypes", ("-arch", "i386")]
     # The temp directory used to store generated code
     tmp_dir = os.path.join(gettempdir(), "devito-%s" % os.getuid())
 
@@ -26,6 +28,9 @@ class Generator(object):
         self.function_manager = FunctionManager(function_descriptors)
         self._function_descriptors = function_descriptors
         self.compiler = guess_toolchain()
+        if os.environ.get(self.COMPILER_OVERRIDE_VAR, None) is not None:
+            self.compiler.cc = os.environ.get(self.COMPILER_OVERRIDE_VAR)
+        self._clean_flags()
         # Generate a random salt to uniquely identify this instance of the class
         self._salt = randint(0, 100000000)
         self._basename = self.__generate_filename()
@@ -53,18 +58,14 @@ class Generator(object):
             raise Exception("Failed to load %s" % libname)
 
     @property
-    def function_descriptor(self):
-        return self._function_descriptor
+    def function_descriptors(self):
+        return self._function_descriptors
 
     # If the function descriptor is changed, invalidate the cache and regenerate and recompile the code
-    @function_descriptor.setter
+    @function_descriptors.setter
     def function_descriptors(self, function_descriptors):
         self._function_descriptors = function_descriptors
         self.__clean()
-
-    # Add a C macro to the generated code
-    def add_macro(self, name, text):
-        self.cgen_template.add_define(name, text)
 
     def compile(self):
         # Generate compilable source code
@@ -73,10 +74,10 @@ class Generator(object):
         jit.extension_file_from_string(self.compiler, self.src_lib,
                                        self.src_code, source_name=self.src_file)
 
-    """ Wrap the function by converting the python style arguments(simply passing object references)
-        to C style (pointer + int dimensions)
-    """
     def wrap_function(self, function, function_descriptor):
+        """ Wrap the function by converting the python style arguments(simply passing object references)
+            to C style (pointer + int dimensions)
+        """
         def wrapped_function(*args):
             num_params = len(function_descriptor.params)
             assert len(args) == num_params, "Expected %d parameters, got %d" % (num_params, len(args))
@@ -96,39 +97,38 @@ class Generator(object):
 
         return wrapped_function
 
-    def _prepare_wrapped_function(self, function_descriptor, compiler='g++'):
+    def _prepare_wrapped_functions(self):
         # Compile code if this hasn't been done yet
         self.compile()
         # Load compiled binary
         self.__load_library(src_lib=self.src_lib)
 
         # Type: double* in C
-        array_nd_double = np.ctypeslib.ndpointer(dtype=self.dtype, flags='C')
-
-        # Pointer to the function in the compiled library
-        library_function = getattr(self._library, function_descriptor.name)
-
-        # Ctypes needs an array describing the function parameters, prepare that array
-        argtypes = []
-        for param in function_descriptor.params:
-
-            try:
-                num_dim = param.get('num_dim')  # Assume that param is a matrix param - fail otherwise
-                # Pointer to the parameter
-                argtypes.append(array_nd_double)
-                # Ints for the sizes of the parameter in each dimension
-                argtypes += [c_int for i in range(0, num_dim)]
-            except:
-                # Param is a value param
-                # There has to be a better way of doing this
-                argtypes.append(cgen.convert_dtype_to_ctype(param[0]))
-        library_function.argtypes = argtypes
-
-        return self.wrap_function(library_function, function_descriptor)
+        array_nd = np.ctypeslib.ndpointer(dtype=self.dtype, flags='C')
+        wrapped_functions = []
+        for function_descriptor in self._function_descriptors:
+            # Pointer to the function in the compiled library
+            library_function = getattr(self._library, function_descriptor.name)
+            # Ctypes needs an array describing the function parameters, prepare that array
+            argtypes = []
+            for param in function_descriptor.params:
+                try:
+                    num_dim = param.get('num_dim')  # Assume that param is a matrix param - fail otherwise
+                    # Pointer to the parameter
+                    argtypes.append(array_nd)
+                    # Ints for the sizes of the parameter in each dimension
+                    argtypes += [c_int for i in range(0, num_dim)]
+                except:
+                    # Param is a value param
+                    # There has to be a better way of doing this
+                    argtypes.append(cgen.convert_dtype_to_ctype(param[0]))
+            library_function.argtypes = argtypes
+            wrapped_functions.append(self.wrap_function(library_function, function_descriptor))
+        return wrapped_functions
 
     def get_wrapped_functions(self):
         if self._wrapped_functions is None:
-            self._wrapped_functions = [self._prepare_wrapped_function(fd) for fd in self._function_descriptors]
+            self._wrapped_functions = self._prepare_wrapped_functions()
         return self._wrapped_functions
 
     def __clean(self):
@@ -137,3 +137,18 @@ class Generator(object):
         self.src_file = None
         self.src_lib = None
         self.filename = None
+
+    def _clean_flags(self):
+        for flag in self._incompatible_flags:
+            for flag_list in [self.compiler.cflags, self.compiler.ldflags]:
+                if isinstance(flag, tuple):
+                    to_delete = []
+                    for i, item in enumerate(flag_list):
+                        if flag_list[i].strip() == flag[0] and flag_list[i+1].strip() == flag[1]:
+                            to_delete.append(i)
+                            to_delete.append(i+1)
+                    for i in sorted(to_delete, reverse=True):
+                        del flag_list[i]
+                else:
+                    while flag in flag_list:
+                        flag_list.remove(flag)

@@ -1,13 +1,10 @@
 # coding: utf-8
 from __future__ import print_function
-
 from sympy import Function, symbols, init_printing, as_finite_diff
-from sympy import solve, lambdify, IndexedBase
+from sympy import solve, IndexedBase, Eq
 from sympy.abc import x, y, t, M, Q, D, E
 import numpy as np
-from codeprinter import ccode
 from generator import Generator
-import cgen_wrapper as cgen
 from function_descriptor import FunctionDescriptor
 from propagator import Propagator
 
@@ -23,10 +20,11 @@ class AcousticWave2D_cg:
         self.dt = model.get_critical_dt()
         self.h = model.get_spacing()[0]
         self.nbpml = nbpml
+        self.src_grid = None
 
     def prepare(self, nt):
         self._init_taylor(nt)
-        self._forwardStencil = self.gf.get_wrapped_functions()[0]
+        self._forwardStencil, self._adjointStencil = self.g.get_wrapped_functions()
 
     def _init_taylor(self, nt):
         # The acoustic wave equation for the square slowness m and a source q
@@ -101,7 +99,7 @@ class AcousticWave2D_cg:
                                                p(x, y-h, t),
                                                p(x, y+h, t), q, m, s, h, e),
                                               stencil, nt)
-        fd = FunctionDescriptor("process", kernel)
+        fd = FunctionDescriptor("Forward", kernel)
         fd.add_matrix_param("u", 3, self.dtype)
         fd.add_matrix_param("rec", 2, self.dtype)
         fd.add_matrix_param("m", 2, self.dtype)
@@ -110,8 +108,8 @@ class AcousticWave2D_cg:
         fd.add_matrix_param("dampx", 1, self.dtype)
         fd.add_matrix_param("dampy", 1, self.dtype)
 
-        fd.add_value_param("int", "xrec")
-        self.gf = Generator([fd], dtype=self.dtype)
+        fd.add_value_param("xrec", "int")
+        fds = [fd]
 
         # Precompute dampening
         self.dampx = np.array([self.damp(i, nx) for i in range(nx)], dtype=self.dtype, order='C')
@@ -156,64 +154,31 @@ class AcousticWave2D_cg:
         # Adjoint wave equation
         wave_equationA = m * dtt - (dxx + dyy) - D(x, y, t) - e * dt
         stencilA = solve(wave_equationA, p(x, y, t-s))[0]
-        self.tsA = lambdify((p(x, y, t+s),
-                            p(x-h, y, t),
-                            p(x, y, t),
-                            p(x+h, y, t),
-                            p(x, y-h, t),
-                            p(x, y+h, t), d, m, s, h, e),
-                            stencilA, "numpy")
+        kernelA = self._prepare_adjoint_kernel((p(x, y, t+s),
+                                                p(x-h, y, t),
+                                                p(x, y, t),
+                                                p(x+h, y, t),
+                                                p(x, y-h, t),
+                                                p(x, y+h, t), d, m, s, h, e),
+                                               stencilA, nt)
 
-    def source_interpolate(self):
-        xmin, ymin = self.model.get_origin()
-        nx, ny = self.model.get_dimensions()
-        h = self.h
-        src_grid = np.zeros((nx, ny), dtype=self.dtype)
-        for a in range(nx):
-            for b in range(ny):
-                sa, sb = xmin + a * h, ymin + h * b
-                if (abs(sa - self.data.source_coords[0]) < self.h / 2 and
-                        abs(sb - self.data.source_coords[1]) < self.h / 2):
-                    src_grid[a, b] = 1
-                else:
-                    src_grid[a, b] = 0
-        return src_grid
+        fd = FunctionDescriptor("Adjoint", kernelA)
+        fd.add_matrix_param("v", 3, self.dtype)
+        fd.add_matrix_param("rec", 2, self.dtype)
+        fd.add_matrix_param("m", 2, self.dtype)
+        fd.add_matrix_param("src_grid", 2, self.dtype)
+        fd.add_matrix_param("srca", 1, self.dtype)
+        fd.add_matrix_param("dampx", 1, self.dtype)
+        fd.add_matrix_param("dampy", 1, self.dtype)
+        fd.add_value_param("xrec", "int")
+        fd.add_local_variable("resid", self.dtype)
 
-    def _prepare_forward_kernel(self, subs, stencil, nt):
-        u = IndexedBase("u")
-        M = IndexedBase("m")
-        nx, ny = self.model.get_dimensions()
-        src_time = IndexedBase("src_time")
-        src_grid = IndexedBase("src_grid")
-        dampx = IndexedBase("dampx")
-        dampy = IndexedBase("dampy")
-        propagator = Propagator(nt, (nx, ny), 1)
-        stencil1_args = [0, 0, 0, 0, 0, 0, (src_grid[x, y]*src_time[t]),
-                         M[x, y], self.dt, self.h, dampx[x] + dampy[y]]
-        stencil2_args = [0, u[t - 1, x - 1, y],
-                         u[t - 1, x, y],
-                         u[t - 1, x + 1, y],
-                         u[t - 1, x, y - 1],
-                         u[t - 1, x, y + 1],
-                         src_grid[x, y]*src_time[t], M[x, y],
-                         self.dt, self.h, dampx[x] + dampy[y]]
-        stencil3_args = [u[t - 2, x, y],
-                         u[t - 1, x - 1, y],
-                         u[t - 1, x, y],
-                         u[t - 1, x + 1, y],
-                         u[t - 1, x, y - 1],
-                         u[t - 1, x, y + 1],
-                         (src_grid[x, y]*src_time[t]), M[x, y],
-                         self.dt, self.h, dampx[x] + dampy[y]]
-
-        loop_body = propagator.prepare(subs, stencil, stencil1_args,
-                                       stencil2_args, stencil3_args, u[t, x, y])
-        forward_loop = propagator.prepare_loop(loop_body, str(u))
-        return forward_loop
+        fds.append(fd)
+        self.g = Generator(fds, dtype=self.dtype)
 
     def Forward(self):
         nx, ny = self.model.get_dimensions()
-        m = self.model.get_vp()
+        m = self.model.vp**(-2)
         nt = self.nt
         u = np.zeros((nt, nx, ny), dtype=self.dtype)
         rec = np.zeros((nt, ny - 2), dtype=self.dtype)
@@ -222,84 +187,17 @@ class AcousticWave2D_cg:
                              self.dampx, self.dampy, int(self.data.receiver_coords[0, 2]))
         return rec, u
 
-    def damp(self, x, nx):
-        nbpml = self.nbpml
-        h = self.h
-
-        dampcoeff = 1.5 * np.log(1.0 / 0.001) / (5.0 * h)
-        if x < nbpml:
-            return dampcoeff * ((nbpml - x) / nbpml)**2
-        elif x > nx - nbpml - 1:
-            return dampcoeff * ((x - nx + nbpml) / nbpml)**2
-        else:
-            return 0.0
-
-    def _prepare_adjoint_kernel(self, stencil, subs):
-        v = IndexedBase("v")
-        M = IndexedBase("m")
-        dampx = IndexedBase("dampx")
-        dampy = IndexedBase("dampy")
-        rec = IndexedBase("rec")
-        dt = self.dt
-        h = self.h
-        resid = symbols("resid")
-
-        use_receiver = cgen.Assign(ccode(resid), ccode(rec[t, y-1]))
-        dont_use_receiver = cgen.Assign(ccode(resid), 0)
-        receiver_if = cgen.If("%s == xrec" % self._loop_order[x], use_receiver, dont_use_receiver)
-        stencil1_args = [0, 0, 0, 0, 0, 0, resid, M[x, y], dt, h, dampx[x]+dampy[y]]
-        stencil2_args = [0, v[t+1, x-1, y], v[t+1, x, y], v[t+1, x+1, y], v[t+1, x, y-1], v[t+1, x, y+1], resid, M[x, y], dt, h, dampx[x]+dampy[y]]
-        stencil3_args = [v[t + 2, x, y], v[t + 1, x - 1, y], v[t + 1, x, y], v[t + 1, x + 1, y], v[t + 1, x, y - 1], v[t + 1, x, y + 1], resid, M[x, y], dt, h, dampx[x]+dampy[y]]
-        lhs = v[t, x, y]
-        stencil1 = self._prepare_stencil(stencil, subs, stencil1_args, lhs)
-        stencil2 = self._prepare_stencil(stencil, subs, stencil2_args, lhs)
-        stencil3 = self._prepare_stencil(stencil, subs, stencil3_args, lhs)
-        if_combinations = cgen.make_multiple_ifs([("%s == 0" % self._loop_order[t], stencil1), ("%s == 1" % self._loop_order[t], stencil2), (None, stencil3)], "last")
-        # temporary hack to get past flake8 checks
-        return if_combinations, receiver_if
-
     def Adjoint(self, nt, rec):
-        xmin, ymin = self.model.get_origin()
         nx, ny = self.model.get_dimensions()
-        dt = self.dt
-        h = self.h
-        m = self.model.get_vp()
+        m = self.model.vp**(-2)
         v = np.zeros((nt, nx, ny))
         srca = np.zeros((nt))
-        for ti in range(nt - 1, -1, -1):
-            for a in range(1, nx-1):
-                for b in range(1, ny-1):
-                    if a == self.data.xrec:
-                        resid = rec[ti, b-1]
-                    else:
-                        resid = 0
-                    damp = self.dampx(a) + self.dampy(b)
-                    if ti == nt-1:
-                        v[ti, a, b] = self.tsA(0, 0, 0, 0, 0, 0,
-                                               resid, m[a, b], dt, h, damp)
-                    elif ti == nt-2:
-                        v[ti, a, b] = self.tsA(0,
-                                               v[ti+1, a-1, b],
-                                               v[ti+1, a, b],
-                                               v[ti+1, a+1, b],
-                                               v[ti+1, a, b-1],
-                                               v[ti+1, a, b+1],
-                                               resid, m[a, b],
-                                               dt, h, damp)
-                    else:
-                        v[ti, a, b] = self.tsA(v[ti + 2, a, b],
-                                               v[ti + 1, a - 1, b],
-                                               v[ti + 1, a, b],
-                                               v[ti + 1, a + 1, b],
-                                               v[ti + 1, a, b - 1],
-                                               v[ti + 1, a, b + 1],
-                                               resid, m[a, b], dt, h, damp)
-                    if self.source_interpolate(xmin+a*h, ymin+h*b):
-                        srca[ti] = v[ti, a, b]
+        src_grid = self.source_interpolate()
+        self._adjointStencil(v, rec, m, src_grid, srca,
+                             self.dampx, self.dampy, int(self.data.receiver_coords[0, 2]))
         return srca, v
 
     def Gradient(self, nt, rec, u):
-        xmin, ymin = self.model.get_origin()
         nx, ny = self.model.get_dimensions()
         dt = self.dt
         h = self.h
@@ -371,6 +269,103 @@ class AcousticWave2D_cg:
             u1, u2, u3 = u2, u3, u1
             U1, U2, U3 = U2, U3, U1
         return rec
+
+    def _prepare_forward_kernel(self, subs, stencil, nt):
+        u = IndexedBase("u")
+        M = IndexedBase("m")
+        nx, ny = self.model.get_dimensions()
+        src_time = IndexedBase("src_time")
+        src_grid = IndexedBase("src_grid")
+        dampx = IndexedBase("dampx")
+        dampy = IndexedBase("dampy")
+        rec = IndexedBase("rec")
+        xrec = symbols("xrec")
+        propagator = Propagator(nt, (nx, ny), 1)
+        stencil1_args = [0, 0, 0, 0, 0, 0, (src_grid[x, y]*src_time[t]),
+                         M[x, y], self.dt, self.h, dampx[x] + dampy[y]]
+        stencil2_args = [0, u[t - 1, x - 1, y],
+                         u[t - 1, x, y],
+                         u[t - 1, x + 1, y],
+                         u[t - 1, x, y - 1],
+                         u[t - 1, x, y + 1],
+                         src_grid[x, y]*src_time[t], M[x, y],
+                         self.dt, self.h, dampx[x] + dampy[y]]
+        stencil3_args = [u[t - 2, x, y],
+                         u[t - 1, x - 1, y],
+                         u[t - 1, x, y],
+                         u[t - 1, x + 1, y],
+                         u[t - 1, x, y - 1],
+                         u[t - 1, x, y + 1],
+                         (src_grid[x, y]*src_time[t]), M[x, y],
+                         self.dt, self.h, dampx[x] + dampy[y]]
+        lhs = u[t, x, y]
+        # Sympy representation of if condition: x == xrec
+        record_condition = Eq(x, xrec)
+        # Sympy representation of assignment: rec[t, y-1] = u[t, x, y]
+        record_true = Eq(rec[t, y-1], lhs)
+        propagator.add_loop_step(record_condition, record_true)
+        forward_loop = propagator.prepare(subs, stencil, stencil1_args,
+                                          stencil2_args, stencil3_args, lhs)
+        return forward_loop
+
+    def _prepare_adjoint_kernel(self, subs, stencil, nt):
+        nx, ny = self.model.get_dimensions()
+        v = IndexedBase("v")
+        M = IndexedBase("m")
+        src_grid = IndexedBase("src_grid")
+        srca = IndexedBase("srca")
+        dampx = IndexedBase("dampx")
+        dampy = IndexedBase("dampy")
+        rec = IndexedBase("rec")
+        xrec = symbols("xrec")
+        resid = symbols("resid")
+        dt = self.dt
+        h = self.h
+        use_receiver = Eq(resid, rec[t, y-1])
+        dont_use_receiver = Eq(resid, 0)
+        receiver_cond = Eq(x, xrec)
+        propagator = Propagator(nt, (nx, ny), 1, False)
+        propagator.add_loop_step(receiver_cond, use_receiver, dont_use_receiver, True)
+        lhs = v[t, x, y]
+        src_cond = Eq(src_grid[x, y], 1)
+        src_cap = Eq(srca[t], lhs)
+        propagator.add_loop_step(src_cond, src_cap)
+        stencil1_args = [0, 0, 0, 0, 0, 0, resid, M[x, y], dt, h, dampx[x]+dampy[y]]
+        stencil2_args = [0, v[t+1, x-1, y], v[t+1, x, y], v[t+1, x+1, y], v[t+1, x, y-1], v[t+1, x, y+1], resid, M[x, y], dt, h, dampx[x]+dampy[y]]
+        stencil3_args = [v[t + 2, x, y], v[t + 1, x - 1, y], v[t + 1, x, y], v[t + 1, x + 1, y], v[t + 1, x, y - 1], v[t + 1, x, y + 1], resid, M[x, y], dt, h, dampx[x]+dampy[y]]
+        backward_loop = propagator.prepare(subs, stencil, stencil1_args,
+                                           stencil2_args, stencil3_args, lhs)
+        return backward_loop
+
+    def source_interpolate(self):
+        if self.src_grid is not None:
+            return self.src_grid
+        xmin, ymin = self.model.get_origin()
+        nx, ny = self.model.get_dimensions()
+        h = self.h
+        src_grid = np.zeros((nx, ny), dtype=self.dtype)
+        for a in range(nx):
+            for b in range(ny):
+                sa, sb = xmin + a * h, ymin + h * b
+                if (abs(sa - self.data.source_coords[0]) < self.h / 2 and
+                        abs(sb - self.data.source_coords[1]) < self.h / 2):
+                    src_grid[a, b] = 1
+                else:
+                    src_grid[a, b] = 0
+        self.src_grid = src_grid
+        return src_grid
+
+    def damp(self, x, nx):
+        nbpml = self.nbpml
+        h = self.h
+
+        dampcoeff = 1.5 * np.log(1.0 / 0.001) / (5.0 * h)
+        if x < nbpml:
+            return dampcoeff * ((nbpml - x) / nbpml)**2
+        elif x > nx - nbpml - 1:
+            return dampcoeff * ((x - nx + nbpml) / nbpml)**2
+        else:
+            return 0.0
 
     def compute_gradient(self, model, shot_id):
         raise NotImplementedError("compute_gradient")
