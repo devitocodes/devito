@@ -16,7 +16,7 @@ class Propagator:
         self.space_dims = space_dims[0:num_spac_dim]
         self._prep_loop_order()
         if forward:
-            self._loop_limits = {self.t: (0, nt)}
+            self._loop_limits = {self.t: (0+skip_time, nt)}
             self._time_step = 1
         else:
             self._loop_limits = {self.t: (nt-1, -1)}
@@ -32,7 +32,7 @@ class Propagator:
         for dim in self.space_dims:
             loop_order[dim] = symbols("i%d" % (i + 1))
             i += 1
-        loop_order[self.t] = symbols("i%d" % (i + 1))+self._skip_time
+        loop_order[self.t] = symbols("i%d" % (i + 1))
         self._loop_order = loop_order
 
     def prepare(self, subs, stencils, stencil_args):
