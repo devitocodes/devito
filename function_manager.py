@@ -1,11 +1,11 @@
 import cgen_wrapper as cgen
+import function_descriptor
 
 
 class FunctionManager(object):
-    # Order of names in the following list is important.
-    # The resulting code blocks would be placed in the same
-    # order as they appear here
-
+    """Class that accepts a list of FunctionDescriptor objects and generates the C 
+        function represented by it
+    """
     libraries = ['cassert', 'cstdlib', 'cmath', 'iostream',
                  'fstream', 'vector', 'cstdio', 'string', 'inttypes.h']
 
@@ -33,19 +33,16 @@ class FunctionManager(object):
 
     def generate_function_signature(self, function_descriptor):
         function_params = []
-        for param in function_descriptor.params:
-            sizes_arr = []
-            try:
-                # Assume the parameter is a matrix parameter
-                param_vec_def = cgen.Pointer(cgen.POD(param['dtype'], param['name']+"_vec"))
-                num_dim = param['num_dim']
-                for dim_ind in range(num_dim, 0, -1):
-                    size_label = param['name']+"_size"+str(dim_ind)
-                    sizes_arr.append(cgen.Value("int", size_label))
-                function_params = function_params + [param_vec_def] + sizes_arr
-            except TypeError:  # Unless it is a value parameter, in which case make sure
-                assert(len(param) == 2)
-
+        for param in function_descriptor.matrix_params:
+            param_vec_def = cgen.Pointer(cgen.POD(param['dtype'], param['name']+"_vec"))
+            sizes_arr = [cgen.Value("int", param['name']+"_size"+str(dim_ind+1)) for dim_ind in range(param['num_dim'])]
+            function_params += [param_vec_def] + sizes_arr
+        
+        for group_name, group_info in function_descriptor.var_groups.iteritems():
+            var_defs = [cgen.Pointer(cgen.POD(group_info['dtype'], name+"_vec")) for name in group_info['vars']]
+            sizes = [cgen.Value("int", group_name+"_size"+str(dim_ind+1)) for dim_ind in range(group_info['num_dim'])]
+            function_params += var_defs + sizes    
+            
         function_params += [cgen.POD(type_label, name) for type_label, name in function_descriptor.value_params]
         return cgen.Extern("C",
                            cgen.FunctionDeclaration(cgen.Value('int', function_descriptor.name),
@@ -54,20 +51,30 @@ class FunctionManager(object):
 
     def generate_function_body(self, function_descriptor):
         statements = [cgen.POD(var[0], var[1]) for var in function_descriptor.local_vars]
-        for param in function_descriptor.params:
-            try:
+        for param in function_descriptor.matrix_params:
                 num_dim = param['num_dim']
                 arr = "".join(
                     ["[%s_size%d]" % (param['name'], i)
                      for i in range(num_dim-1, 0, -1)]
                 )
                 cast_pointer = cgen.Initializer(
-                    cgen.Value("double", "(*%s)%s" % (param['name'], arr)),
-                    '(%s (*)%s) %s' % ("double", arr, param['name']+"_vec")
+                    cgen.POD(param['dtype'], "(*%s)%s" % (param['name'], arr)),
+                    '(%s (*)%s) %s' % (cgen.dtype_to_ctype(param['dtype']), arr, param['name']+"_vec")
                 )
                 statements.append(cast_pointer)
-            except TypeError:  # It might be a value parameter
-                pass  # Do nothing, in that case
+
+        for group_name, group_info in function_descriptor.var_groups.iteritems():
+                num_dim = group_info['num_dim']
+                arr = "".join(
+                    ["[%s_size%d]" % (group_name, i)
+                     for i in range(num_dim-1, 0, -1)]
+                )
+                for var in group_info['vars']:
+                    cast_pointer = cgen.Initializer(
+                        cgen.POD(group_info['dtype'], "(*%s)%s" % (var, arr)),
+                        '(%s (*)%s) %s' % (cgen.dtype_to_ctype(group_info['dtype']), arr, var+"_vec")
+                    )
+                    statements.append(cast_pointer)
         statements.append(function_descriptor.body)
         statements.append(cgen.Statement("return 0"))
         return cgen.Block(statements)
