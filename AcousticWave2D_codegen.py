@@ -24,7 +24,7 @@ class AcousticWave2D_cg:
 
     def prepare(self, nt):
         self._init_taylor(nt)
-        self._forwardStencil, self._adjointStencil, self._gradient_stencil = self.g.get_wrapped_functions()
+        self._forward_stencil, self._adjoint_stencil, self._gradient_stencil = self.g.get_wrapped_functions()
 
     def _init_taylor(self, nt):
         # The acoustic wave equation for the square slowness m and a source q
@@ -204,7 +204,7 @@ class AcousticWave2D_cg:
         u = np.zeros((nt+2, nx, ny), dtype=self.dtype)
         rec = np.zeros((nt, ny - 2), dtype=self.dtype)
         src_grid = self.source_interpolate()
-        self._forwardStencil(u, rec, m, src_grid, self.data.get_source(),
+        self._forward_stencil(u, rec, m, src_grid, self.data.get_source(),
                              self.dampx, self.dampy, int(self.data.receiver_coords[0, 2]))
         return rec, u
 
@@ -214,38 +214,19 @@ class AcousticWave2D_cg:
         v = np.zeros((nt+2, nx, ny))
         srca = np.zeros((nt))
         src_grid = self.source_interpolate()
-        self._adjointStencil(v, rec, m, src_grid, srca,
+        self._adjoint_stencil(v, rec, m, src_grid, srca,
                              self.dampx, self.dampy, int(self.data.receiver_coords[0, 2]))
         return srca, v
 
     def Gradient(self, nt, rec, u):
-        nx, ny = self.model.get_dimensions()
+        nx, ny = self.model.shape
         dt = self.dt
-        h = self.h
-        m = self.model.get_vp()
+        m = self.model.vp**(-2)
         v1 = np.zeros((nx, ny))
         v2 = np.zeros((nx, ny))
         v3 = np.zeros((nx, ny))
         grad = np.zeros((nx, ny))
-        for ti in range(nt-1, -1, -1):
-            for a in range(1, nx-1):
-                for b in range(1, ny-1):
-                    if a == self.data.xrec:
-                        resid = rec[ti, b-1]
-                    else:
-                        resid = 0
-                    damp = self.dampx(a) + self.dampy(b)
-                    v3[a, b] = self.tsA(v1[a, b],
-                                        v2[a - 1, b],
-                                        v2[a, b],
-                                        v2[a + 1, b],
-                                        v2[a, b - 1],
-                                        v2[a, b + 1],
-                                        resid, m[a, b],
-                                        dt, h, damp)
-                    grad[a, b] = grad[a, b] - \
-                        (v3[a, b] - 2 * v2[a, b] + v1[a, b]) * (u[ti, a, b])
-                    v1, v2, v3 = v2, v3, v1
+        self._gradient_stencil(u, rec, v1, v2, v3, grad, m, self.dampx, self.dampy, int(self.data.receiver_coords[0, 2]))
         return dt*dt*grad
 
     def Born(self, nt, dm):
@@ -362,27 +343,23 @@ class AcousticWave2D_cg:
         resid = symbols("resid")
         dt = self.dt
         h = self.h
-        
         use_receiver = Eq(resid, rec[t, y-1])
         dont_use_receiver = Eq(resid, 0)
         receiver_cond = Eq(x, xrec)
         propagator = Propagator(nt, (nx, ny), spc_border = 1, forward = False, skip_time = 2)
         propagator.add_loop_step(receiver_cond, use_receiver, dont_use_receiver, True)
         lhs = v3[x, y]
-        stencil_args = [v1[x, y], v2[x - 1, y],
-                            v2[x, y],
-                            v2[x + 1, y],
-                            v2[x, y - 1],
-                            v2[x, y + 1],
-                            resid, M[x, y],
-                            dt, h, dampx[x]+dampy[y]]
+        stencil_args = [v1[x, y], v2[x - 1, y], v2[x, y], v2[x + 1, y],
+                        v2[x, y - 1], v2[x, y + 1], resid, M[x, y], dt, h,
+                        dampx[x]+dampy[y]]
         main_stencil = Eq(lhs, stencil)
-        gradient_update = Eq(grad[x, y], grad[x, y] - (v3[x, y] - 2 * v2[x, y] + v1[x, y]) * (u[t, x, y]))
-        v1, v2, v3 = v2, v3, v1
+        gradient_update = Eq(grad[x, y],
+                             grad[x, y] - (v3[x, y] - 2 * v2[x, y] + v1[x, y]) * (u[t, x, y]))
         v_update_1 = Eq(v1, v2)
         v_update_2 = Eq(v2, v3)
         v_update_3 = Eq(v3, v1)
-        backward_loop = propagator.prepare(subs, [main_stencil, gradient_update, v_update_1, v_update_2, v_update_3], stencil_args)
+        propagator.add_time_loop([v_update_1, v_update_2, v_update_3])
+        backward_loop = propagator.prepare(subs, [main_stencil, gradient_update], stencil_args)
         return backward_loop
 
     def source_interpolate(self):
