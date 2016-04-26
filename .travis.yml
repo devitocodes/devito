@@ -12,3 +12,4 @@ script:
   - export PYTHONPATH=$PYTHONPATH:$PWD
   - flake8 .
   - py.test -vs tests/
+  - python benchmark.py

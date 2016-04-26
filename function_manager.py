@@ -34,15 +34,10 @@ class FunctionManager(object):
     def generate_function_signature(self, function_descriptor):
         function_params = []
         for param in function_descriptor.params:
-            sizes_arr = []
             try:
                 # Assume the parameter is a matrix parameter
                 param_vec_def = cgen.Pointer(cgen.POD(param['dtype'], param['name']+"_vec"))
-                num_dim = param['num_dim']
-                for dim_ind in range(num_dim, 0, -1):
-                    size_label = param['name']+"_size"+str(dim_ind)
-                    sizes_arr.append(cgen.Value("int", size_label))
-                function_params = function_params + [param_vec_def] + sizes_arr
+                function_params = function_params + [param_vec_def]
             except TypeError:  # Unless it is a value parameter, in which case make sure
                 assert(len(param) == 2)
 
@@ -56,10 +51,10 @@ class FunctionManager(object):
         statements = [cgen.POD(var[0], var[1]) for var in function_descriptor.local_vars]
         for param in function_descriptor.params:
             try:
-                num_dim = param['num_dim']
+                num_dim = len(param['shape'])
                 arr = "".join(
-                    ["[%s_size%d]" % (param['name'], i)
-                     for i in range(num_dim-1, 0, -1)]
+                    ["[%d]" % (param['shape'][i])
+                     for i in range(1, num_dim)]
                 )
                 cast_pointer = cgen.Initializer(
                     cgen.Value("double", "(*%s)%s" % (param['name'], arr)),

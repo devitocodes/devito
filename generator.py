@@ -1,4 +1,4 @@
-from ctypes import cdll, c_int
+from ctypes import cdll
 import numpy as np
 from function_manager import FunctionManager
 from random import randint
@@ -82,14 +82,13 @@ class Generator(object):
             num_params = len(function_descriptor.params)
             assert len(args) == num_params, "Expected %d parameters, got %d" % (num_params, len(args))
             arg_list = []
-            for i, param in zip(range(num_params), function_descriptor.params):
-                try:
-                    param_shape = args[i].shape  # Assume that param is a matrix param - fail otherwise
+            num_matrix_params = len(function_descriptor.matrix_params)
+            for i in range(num_params):
+                if i < num_matrix_params:
                     param_ref = np.asarray(args[i], dtype=self.dtype)  # Force the parameter provided as argument to be ndarray (not tuple or list)
-                except:  # Param is a scalar
+                else:
                     param_ref = args[i]  # No conversion necessary for a scalar value
-                    param_shape = []
-                arg_list += [param_ref] + list(param_shape)
+                arg_list += [param_ref]
             try:
                 function(*arg_list)
             except ArgumentError as inst:
@@ -110,18 +109,8 @@ class Generator(object):
             # Pointer to the function in the compiled library
             library_function = getattr(self._library, function_descriptor.name)
             # Ctypes needs an array describing the function parameters, prepare that array
-            argtypes = []
-            for param in function_descriptor.params:
-                try:
-                    num_dim = param.get('num_dim')  # Assume that param is a matrix param - fail otherwise
-                    # Pointer to the parameter
-                    argtypes.append(array_nd)
-                    # Ints for the sizes of the parameter in each dimension
-                    argtypes += [c_int for i in range(0, num_dim)]
-                except:
-                    # Param is a value param
-                    # There has to be a better way of doing this
-                    argtypes.append(cgen.convert_dtype_to_ctype(param[0]))
+            argtypes = [array_nd for i in function_descriptor.matrix_params]
+            argtypes += [cgen.convert_dtype_to_ctype(param[0]) for param in function_descriptor.value_params]
             library_function.argtypes = argtypes
             wrapped_functions.append(self.wrap_function(library_function, function_descriptor))
         return wrapped_functions
