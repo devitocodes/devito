@@ -185,9 +185,7 @@ class AcousticWave2D_cg:
         fd = FunctionDescriptor("Gradient", kernelG)
         fd.add_matrix_param("u", (nt, nx, ny), self.dtype)
         fd.add_matrix_param("rec", (nt, ny - 2), self.dtype)
-        fd.add_matrix_param("v1", (nx, ny), self.dtype)
-        fd.add_matrix_param("v2", (nx, ny), self.dtype)
-        fd.add_matrix_param("v3", (nx, ny), self.dtype)
+        fd.add_matrix_param("v", (3, nx, ny), self.dtype)
         fd.add_matrix_param("grad", (nx, ny), self.dtype)
         fd.add_matrix_param("m", (nx, ny), self.dtype)
         fd.add_matrix_param("dampx", (nx,), self.dtype)
@@ -222,11 +220,9 @@ class AcousticWave2D_cg:
         nx, ny = self.model.shape
         dt = self.dt
         m = self.model.vp**(-2)
-        v1 = np.zeros((nx, ny))
-        v2 = np.zeros((nx, ny))
-        v3 = np.zeros((nx, ny))
+        v = np.zeros((3, nx, ny))
         grad = np.zeros((nx, ny))
-        self._gradient_stencil(u, rec, v1, v2, v3, grad, m, self.dampx, self.dampy, int(self.data.receiver_coords[0, 2]))
+        self._gradient_stencil(u, rec, v, grad, m, self.dampx, self.dampy, int(self.data.receiver_coords[0, 2]))
         return dt*dt*grad
 
     def Born(self, nt, dm):
@@ -331,9 +327,7 @@ class AcousticWave2D_cg:
     def _prepare_gradient_kernel(self, subs, stencil, nt):
         nx, ny = self.model.get_dimensions()
         u = IndexedBase("u")
-        v1 = IndexedBase("v1")
-        v2 = IndexedBase("v2")
-        v3 = IndexedBase("v3")
+        v = IndexedBase("v")
         grad = IndexedBase("grad")
         M = IndexedBase("m")
         dampx = IndexedBase("dampx")
@@ -346,20 +340,14 @@ class AcousticWave2D_cg:
         use_receiver = Eq(resid, rec[t, y-1])
         dont_use_receiver = Eq(resid, 0)
         receiver_cond = Eq(x, xrec)
-        propagator = Propagator(nt, (nx, ny), spc_border = 1, forward = False, skip_time = 2)
+        propagator = Propagator(nt, (nx, ny), spc_border = 1, forward = False, skip_time = 2, save = False)
         propagator.add_loop_step(receiver_cond, use_receiver, dont_use_receiver, True)
-        lhs = v3[x, y]
-        stencil_args = [v1[x, y], v2[x - 1, y], v2[x, y], v2[x + 1, y],
-                        v2[x, y - 1], v2[x, y + 1], resid, M[x, y], dt, h,
-                        dampx[x]+dampy[y]]
+        lhs = v[t, x, y]
+        stencil_args = [v[t + 2, x, y], v[t + 1, x - 1, y], v[t + 1, x, y], v[t + 1, x + 1, y], v[t + 1, x, y - 1], v[t + 1, x, y + 1], resid, M[x, y], dt, h, dampx[x]+dampy[y]]
         main_stencil = Eq(lhs, stencil)
         gradient_update = Eq(grad[x, y],
-                             grad[x, y] - (v3[x, y] - 2 * v2[x, y] + v1[x, y]) * (u[t+2, x, y]))
-        v_update_1 = Eq(v1, v2)
-        v_update_2 = Eq(v2, v3)
-        v_update_3 = Eq(v3, v1)
-        propagator.add_time_loop([v_update_1, v_update_2, v_update_3])
-        backward_loop = propagator.prepare(subs, [main_stencil, gradient_update], stencil_args)
+                             grad[x, y] - (v[t, x, y] - 2 * v[t + 1, x, y] + v[t + 2, x, y]) * (u[t+2, x, y]))
+        backward_loop = propagator.prepare(subs, [main_stencil, gradient_update], stencil_args, debug = False)
         return backward_loop
 
     def source_interpolate(self):
