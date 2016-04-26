@@ -16,7 +16,7 @@ class Propagator:
         self.space_dims = space_dims[0:num_spac_dim]
         self._prep_loop_order()
         if forward:
-            self._loop_limits = {self.t: (0+skip_time, nt)}
+            self._loop_limits = {self.t: (0+skip_time, nt+skip_time)}
             self._time_step = 1
         else:
             self._loop_limits = {self.t: (nt-1, -1)}

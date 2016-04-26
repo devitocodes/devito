@@ -115,7 +115,7 @@ print table.table
 print "Gradient propagation"
 print "Starting python lambdified version"
 start = time.clock()
-grad_t = python_obj.Gradient(nt, recg, ug)
+grad_t = python_obj.Gradient(nt, rect, ut)
 end = time.clock()
 python_time = end-start
 norm_gradt = np.linalg.norm(grad_t)

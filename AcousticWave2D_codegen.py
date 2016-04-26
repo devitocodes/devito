@@ -289,13 +289,13 @@ class AcousticWave2D_cg:
                          u[t - 1, x + 1, y],
                          u[t - 1, x, y - 1],
                          u[t - 1, x, y + 1],
-                         (src_grid[x, y]*src_time[t]), M[x, y],
+                         (src_grid[x, y]*src_time[t-2]), M[x, y],
                          self.dt, self.h, dampx[x] + dampy[y]]
         lhs = u[t, x, y]
         # Sympy representation of if condition: x == xrec
         record_condition = Eq(x, xrec)
         # Sympy representation of assignment: rec[t, y-1] = u[t, x, y]
-        record_true = Eq(rec[t, y-1], lhs)
+        record_true = Eq(rec[t-2, y-1], lhs)
         propagator.add_loop_step(record_condition, record_true)
         main_stencil = Eq(lhs, stencil)
         forward_loop = propagator.prepare(subs, [main_stencil], stencil_args)
@@ -354,7 +354,7 @@ class AcousticWave2D_cg:
                         dampx[x]+dampy[y]]
         main_stencil = Eq(lhs, stencil)
         gradient_update = Eq(grad[x, y],
-                             grad[x, y] - (v3[x, y] - 2 * v2[x, y] + v1[x, y]) * (u[t, x, y]))
+                             grad[x, y] - (v3[x, y] - 2 * v2[x, y] + v1[x, y]) * (u[t+2, x, y]))
         v_update_1 = Eq(v1, v2)
         v_update_2 = Eq(v2, v3)
         v_update_3 = Eq(v3, v1)
