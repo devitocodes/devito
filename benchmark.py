@@ -61,11 +61,11 @@ python_obj = AcousticWave2D(model0, data)
 print "Forward propagation"
 print "Starting python lambdified version"
 start = time.clock()
-#(rect, ut) = python_obj.Forward(nt)
+(rect, ut) = python_obj.Forward(nt)
 end = time.clock()
 python_time = end-start
-#norm_rect = np.linalg.norm(rect)
-#norm_ut = np.linalg.norm(ut)
+norm_rect = np.linalg.norm(rect)
+norm_ut = np.linalg.norm(ut)
 
 print "Starting codegen version"
 
@@ -78,22 +78,22 @@ cg_time = end-start
 norm_recg = np.linalg.norm(recg)
 norm_ug = np.linalg.norm(ug)
 
-#table_data = [
-#    ['', 'Time', 'L2Norm(u)', 'L2Norm(rec)'],
-#    ['Python lambdified', str(python_time), str(norm_ut), str(norm_rect)],
-#    ['Codegen', str(cg_time), str(norm_ug), str(norm_recg)]
-#]
-#table = AsciiTable(table_data)
-#print table.table
+table_data = [
+    ['', 'Time', 'L2Norm(u)', 'L2Norm(rec)'],
+    ['Python lambdified', str(python_time), str(norm_ut), str(norm_rect)],
+    ['Codegen', str(cg_time), str(norm_ug), str(norm_recg)]
+]
+table = AsciiTable(table_data)
+print table.table
 
 print "Adjoint propagation"
 print "Starting python lambdified version"
 start = time.clock()
-#(srca_t, v_t) = python_obj.Adjoint(nt, rect)
+(srca_t, v_t) = python_obj.Adjoint(nt, recg)
 end = time.clock()
 python_time = end-start
-#norm_srct = np.linalg.norm(srca_t)
-#norm_vt = np.linalg.norm(v_t)
+norm_srct = np.linalg.norm(srca_t)
+norm_vt = np.linalg.norm(v_t)
 
 print "Starting codegen version"
 
@@ -104,10 +104,34 @@ cg_time = end-start
 norm_srcg = np.linalg.norm(srca_g)
 norm_vg = np.linalg.norm(v_g)
 
-#table_data = [
-#    ['', 'Time', 'L2Norm(v)', 'L2Norm(src)'],
-#    ['Python lambdified', str(python_time), str(norm_vt), str(norm_srct)],
-#    ['Codegen', str(cg_time), str(norm_vg), str(norm_srcg)]
-#]
-#table = AsciiTable(table_data)
-#print table.table
+table_data = [
+    ['', 'Time', 'L2Norm(v)', 'L2Norm(src)'],
+    ['Python lambdified', str(python_time), str(norm_vt), str(norm_srct)],
+    ['Codegen', str(cg_time), str(norm_vg), str(norm_srcg)]
+]
+table = AsciiTable(table_data)
+print table.table
+
+print "Gradient propagation"
+print "Starting python lambdified version"
+start = time.clock()
+grad_t = python_obj.Gradient(nt, recg, ug)
+end = time.clock()
+python_time = end-start
+norm_gradt = np.linalg.norm(grad_t)
+
+print "Starting codegen version"
+
+start = time.clock()
+grad_g = jit_obj.Gradient(nt, recg, ug)
+end = time.clock()
+cg_time = end-start
+norm_gradg = np.linalg.norm(grad_g)
+
+table_data = [
+    ['', 'Time', 'L2Norm(grad)'],
+    ['Python lambdified', str(python_time), str(norm_gradt)],
+    ['Codegen', str(cg_time), str(norm_gradg)]
+]
+table = AsciiTable(table_data)
+print table.table
