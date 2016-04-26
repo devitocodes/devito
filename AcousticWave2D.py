@@ -259,7 +259,7 @@ class AcousticWave2D:
         nx, ny = self.model.shape
         dt = self.dt
         h = self.h
-        m = self.model.vp
+        m = self.model.vp**-2
         v1 = np.zeros((nx, ny))
         v2 = np.zeros((nx, ny))
         v3 = np.zeros((nx, ny))
@@ -282,7 +282,7 @@ class AcousticWave2D:
                                         dt, h, damp)
                     grad[a, b] = grad[a, b] - \
                         (v3[a, b] - 2 * v2[a, b] + v1[a, b]) * (u[ti, a, b])
-                    v1, v2, v3 = v2, v3, v1
+            v1, v2, v3 = v2, v3, v1
         return dt*dt*grad
 
     def Born(self, nt, dm):
