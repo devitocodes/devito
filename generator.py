@@ -21,6 +21,7 @@ class Generator(object):
     _wrapped_functions = None
     COMPILER_OVERRIDE_VAR = "DEVITO_CC"
     _incompatible_flags = ["-Wshorten-64-to-32", "-Wstrict-prototypes", ("-arch", "i386")]
+    
     # The temp directory used to store generated code
     tmp_dir = os.path.join(gettempdir(), "devito-%s" % os.getuid())
 
@@ -28,7 +29,7 @@ class Generator(object):
         self.function_manager = FunctionManager(function_descriptors)
         self._function_descriptors = function_descriptors
         self.compiler = guess_toolchain()
-        if os.environ.get(self.COMPILER_OVERRIDE_VAR, None) is not None:
+        if os.environ.get(self.COMPILER_OVERRIDE_VAR, "") != "":
             self.compiler.cc = os.environ.get(self.COMPILER_OVERRIDE_VAR)
         self._clean_flags()
         # Generate a random salt to uniquely identify this instance of the class
