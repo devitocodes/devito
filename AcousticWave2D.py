@@ -281,7 +281,7 @@ class AcousticWave2D:
                                         resid, m[a, b],
                                         dt, h, damp)
                     grad[a, b] = grad[a, b] - \
-                        (v3[a, b] - 2 * v2[a, b] + v1[a, b]) * (u[ti, a, b])
+                        (v3[a, b] - 2 * v2[a, b] + v1[a, b]) * (u[ti+2, a, b])
             v1, v2, v3 = v2, v3, v1
         return dt*dt*grad
 
