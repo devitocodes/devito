@@ -9,9 +9,9 @@ class Propagator:
         self.t = symbols("t")
         space_dims = symbols("x y z")
         self.loop_counters = symbols("i1 i2 i3")
-        self._skip_time = skip_time
         self._pre_kernel_steps = []
         self._post_kernel_steps = []
+        self._time_loop_extras = []
         self._forward = forward
         self.space_dims = space_dims[0:num_spac_dim]
         self._prep_loop_order()
@@ -58,6 +58,7 @@ class Propagator:
         t_loop_limits = self._loop_limits[self.t]
         t_var = str(self._loop_order[self.t])
         cond_op = "<" if self._forward else ">"
+        loop_body = cgen.Block([loop_body] + self._time_loop_extras)
         loop_body = cgen.For(cgen.InlineInitializer(cgen.Value("int", t_var), str(t_loop_limits[0])), t_var + cond_op + str(t_loop_limits[1]), t_var + "+=" + str(self._time_step), loop_body)
         return loop_body
 
@@ -70,3 +71,6 @@ class Propagator:
             self._pre_kernel_steps.append(statement)
         else:
             self._post_kernel_steps.append(statement)
+
+    def add_time_loop(self, time_steps):
+        self._time_loop_extras += [cgen.Assign(ccode(step.lhs.xreplace(self._loop_order)), ccode(step.rhs.xreplace(self._loop_order))) for step in time_steps]
