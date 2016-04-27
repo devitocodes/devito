@@ -92,12 +92,12 @@ class AcousticWave2D_cg:
         self.nt = nt
 
         prop_fw = self._prepare_forward_prop((p(x, y, t-s),
-                                               p(x-h, y, t),
-                                               p(x, y, t),
-                                               p(x+h, y, t),
-                                               p(x, y-h, t),
-                                               p(x, y+h, t), q, m, s, h, e),
-                                              stencil, nt)
+                                              p(x-h, y, t),
+                                              p(x, y, t),
+                                              p(x+h, y, t),
+                                              p(x, y-h, t),
+                                              p(x, y+h, t), q, m, s, h, e),
+                                             stencil, nt)
         fds = [prop_fw]
 
         # Precompute dampening
@@ -144,22 +144,22 @@ class AcousticWave2D_cg:
         wave_equationA = m * dtt - (dxx + dyy) - D(x, y, t) - e * dt
         stencilA = solve(wave_equationA, p(x, y, t-s))[0]
         prop_adj = self._prepare_adjoint_prop((p(x, y, t+s),
-                                                p(x-h, y, t),
-                                                p(x, y, t),
-                                                p(x+h, y, t),
-                                                p(x, y-h, t),
-                                                p(x, y+h, t), d, m, s, h, e),
-                                               stencilA, nt)
- 
+                                               p(x-h, y, t),
+                                               p(x, y, t),
+                                               p(x+h, y, t),
+                                               p(x, y-h, t),
+                                               p(x, y+h, t), d, m, s, h, e),
+                                              stencilA, nt)
+
         fds.append(prop_adj)
-         
+
         prop_grad = self._prepare_gradient_prop((p(x, y, t+s),
                                                 p(x-h, y, t),
                                                 p(x, y, t),
                                                 p(x+h, y, t),
                                                 p(x, y-h, t),
                                                 p(x, y+h, t), d, m, s, h, e),
-                                               stencilA, nt)
+                                                stencilA, nt)
         fds.append(prop_grad)
         self.jit_manager = JitManager(fds, dtype=self.dtype)
 
@@ -171,7 +171,7 @@ class AcousticWave2D_cg:
         rec = np.zeros((nt, ny - 2), dtype=self.dtype)
         src_grid = self.source_interpolate()
         self._forward_stencil(u, rec, m, src_grid, self.data.get_source(),
-                             self.dampx, self.dampy, int(self.data.receiver_coords[0, 2]))
+                              self.dampx, self.dampy, int(self.data.receiver_coords[0, 2]))
         return rec, u
 
     def Adjoint(self, nt, rec):
@@ -181,7 +181,7 @@ class AcousticWave2D_cg:
         srca = np.zeros((nt))
         src_grid = self.source_interpolate()
         self._adjoint_stencil(v, rec, m, src_grid, srca,
-                             self.dampx, self.dampy, int(self.data.receiver_coords[0, 2]))
+                              self.dampx, self.dampy, int(self.data.receiver_coords[0, 2]))
         return srca, v
 
     def Gradient(self, nt, rec, u):
@@ -238,7 +238,7 @@ class AcousticWave2D_cg:
 
     def _prepare_forward_prop(self, subs, stencil, nt):
         nx, ny = self.model.get_dimensions()
-        propagator = Propagator("Forward", nt, (nx, ny), spc_border = 1, time_order = 2)
+        propagator = Propagator("Forward", nt, (nx, ny), spc_border=1, time_order=2)
         u = propagator.add_param("u", (nt, nx, ny), self.dtype)
         rec = propagator.add_param("rec", (nt, ny - 2), self.dtype)
         M = propagator.add_param("m", (nx, ny), self.dtype)
@@ -249,13 +249,13 @@ class AcousticWave2D_cg:
         xrec = propagator.add_scalar_param("xrec", "int")
 
         stencil_args = [u[t - 2, x, y],
-                         u[t - 1, x - 1, y],
-                         u[t - 1, x, y],
-                         u[t - 1, x + 1, y],
-                         u[t - 1, x, y - 1],
-                         u[t - 1, x, y + 1],
-                         (src_grid[x, y]*src_time[t-2]), M[x, y],
-                         self.dt, self.h, dampx[x] + dampy[y]]
+                        u[t - 1, x - 1, y],
+                        u[t - 1, x, y],
+                        u[t - 1, x + 1, y],
+                        u[t - 1, x, y - 1],
+                        u[t - 1, x, y + 1],
+                        (src_grid[x, y]*src_time[t-2]), M[x, y],
+                        self.dt, self.h, dampx[x] + dampy[y]]
         lhs = u[t, x, y]
         # Sympy representation of if condition: x == xrec
         record_condition = Eq(x, xrec)
@@ -268,7 +268,7 @@ class AcousticWave2D_cg:
 
     def _prepare_adjoint_prop(self, subs, stencil, nt):
         nx, ny = self.model.get_dimensions()
-        propagator = Propagator("Adjoint", nt, (nx, ny), spc_border = 1, forward = False, time_order = 2)
+        propagator = Propagator("Adjoint", nt, (nx, ny), spc_border=1, forward=False, time_order=2)
         v = propagator.add_param("v", (nt, nx, ny), self.dtype)
         rec = propagator.add_param("rec", (nt, ny - 2), self.dtype)
         M = propagator.add_param("m", (nx, ny), self.dtype)
@@ -295,10 +295,10 @@ class AcousticWave2D_cg:
 
     def _prepare_gradient_prop(self, subs, stencil, nt):
         nx, ny = self.model.get_dimensions()
-        propagator = Propagator("Gradient", nt, (nx, ny), spc_border = 1, forward = False, time_order = 2)
+        propagator = Propagator("Gradient", nt, (nx, ny), spc_border=1, forward=False, time_order=2)
         u = propagator.add_param("u", (nt, nx, ny), self.dtype)
         rec = propagator.add_param("rec", (nt, ny - 2), self.dtype)
-        v = propagator.add_param("v", (nt, nx, ny), self.dtype, save = False)
+        v = propagator.add_param("v", (nt, nx, ny), self.dtype, save=False)
         grad = propagator.add_param("grad", (nx, ny), self.dtype)
         M = propagator.add_param("m", (nx, ny), self.dtype)
         dampx = propagator.add_param("dampx", (nx,), self.dtype)

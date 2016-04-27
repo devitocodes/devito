@@ -21,7 +21,7 @@ class JitManager(object):
     _wrapped_functions = None
     COMPILER_OVERRIDE_VAR = "DEVITO_CC"
     _incompatible_flags = ["-Wshorten-64-to-32", "-Wstrict-prototypes", ("-arch", "i386")]
-    
+
     # The temp directory used to store generated code
     tmp_dir = os.path.join(gettempdir(), "devito-%s" % os.getuid())
 

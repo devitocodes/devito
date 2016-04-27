@@ -3,7 +3,7 @@ import numpy as np
 
 
 class FunctionManager(object):
-    """Class that accepts a list of FunctionDescriptor objects and generates the C 
+    """Class that accepts a list of FunctionDescriptor objects and generates the C
         function represented by it
     """
     libraries = ['cassert', 'cstdlib', 'cmath', 'iostream',
@@ -92,7 +92,7 @@ class FunctionDescriptor(object):
 
     def add_local_variable(self, name, dtype):
         self.local_vars.append((np.dtype(dtype), name))
-    
+
     def set_body(self, body):
         self.body = body
 

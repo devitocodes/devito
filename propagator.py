@@ -1,10 +1,11 @@
 import cgen_wrapper as cgen
 from codeprinter import ccode
-from sympy import symbols, IndexedBase, Wild, Indexed
+from sympy import symbols, IndexedBase, Indexed
 from function_manager import FunctionDescriptor
 
+
 class Propagator(object):
-    def __init__(self, name, nt, shape, spc_border=0, forward=True, time_order = 0):
+    def __init__(self, name, nt, shape, spc_border=0, forward=True, time_order=0):
         num_spac_dim = len(shape)
         self.t = symbols("t")
         space_dims = symbols("x y z")
@@ -17,11 +18,11 @@ class Propagator(object):
         self.t_replace = {}
         self.time_steppers = []
         self.time_order = time_order
-        
+
         # Start with the assumption that the propagator needs to save the field in memory at every time step
         self._save = True
         # This might be changed later when parameters are being set
-        
+
         # Which function parameters need special (non-save) time stepping and which don't
         self.save_vars = {}
         self.fd = FunctionDescriptor(name)
@@ -33,11 +34,11 @@ class Propagator(object):
             self._time_step = -1
         for i, dim in enumerate(reversed(self.space_dims)):
                 self._loop_limits[dim] = (spc_border, shape[i]-spc_border)
-    
+
     @property
     def save(self):
         return self._save
-    
+
     @save.setter
     def save(self, save):
         if save is not True:
@@ -85,9 +86,9 @@ class Propagator(object):
             time_stepping = self.get_time_stepping()
         else:
             time_stepping = []
-        loop_body = cgen.Block(time_stepping+ [loop_body])
+        loop_body = cgen.Block(time_stepping + [loop_body])
         loop_body = cgen.For(cgen.InlineInitializer(cgen.Value("int", t_var), str(t_loop_limits[0])), t_var + cond_op + str(t_loop_limits[1]), t_var + "+=" + str(self._time_step), loop_body)
-        def_time_step = [cgen.Value("int", t_var.name) for t_var in self.time_steppers]
+        def_time_step = [cgen.Value("int", t_var_def.name) for t_var_def in self.time_steppers]
         body = def_time_step + [loop_body]
         return cgen.Block(body)
 
@@ -100,37 +101,37 @@ class Propagator(object):
             self._pre_kernel_steps.append(statement)
         else:
             self._post_kernel_steps.append(statement)
-    
+
     def set_jit_params(self, subs, stencils, stencil_args):
         self.subs = subs
         self.stencils = stencils
         self.stencil_args = stencil_args
-    
+
     def set_jit_simple(self, loop_body):
         self.loop_body = loop_body
-    
-    def add_param(self, name, shape, dtype, save = True):
+
+    def add_param(self, name, shape, dtype, save=True):
         self.fd.add_matrix_param(name, shape, dtype)
         self.save = save
         self.save_vars[name] = save
         return IndexedBase(name)
-    
+
     def add_scalar_param(self, name, dtype):
         self.fd.add_value_param(name, dtype)
         return symbols(name)
-    
+
     def add_local_var(self, name, dtype):
         self.fd.add_local_variable(name, dtype)
         return symbols(name)
-    
+
     def get_fd(self):
         """Get a FunctionDescriptor that describes the code represented by this Propagator
         in the format that FunctionManager and JitManager can deal with it. Before calling,
-        make sure you have either called set_jit_params or set_jit_simple already. 
+        make sure you have either called set_jit_params or set_jit_simple already.
         """
-        try: # Assume we have been given a a loop body in cgen types
+        try:  # Assume we have been given a a loop body in cgen types
             self.fd.set_body(self.prepare_loop(self.loop_body))
-        except: # We might have been given Sympy expression to evaluate
+        except:  # We might have been given Sympy expression to evaluate
             # This is the more common use case so this will show up in error messages
             self.fd.set_body(self.prepare(self.subs, self.stencils, self.stencil_args))
         return self.fd

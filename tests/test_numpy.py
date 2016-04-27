@@ -46,6 +46,3 @@ class Test_Numpy_Array_Transfer(object):
         arr = np.empty_like(data)
         f(data, arr)
         assert(arr[4][3][2][1] == 122)
-
-t = Test_Numpy_Array_Transfer()
-t.test_2d()
