@@ -23,7 +23,7 @@ class Propagator(object):
         # This might be changed later when parameters are being set
         
         # Which function parameters need special (non-save) time stepping and which don't
-        self.save_vars = []
+        self.save_vars = {}
         self.fd = FunctionDescriptor(name)
         if forward:
             self._loop_limits = {self.t: (0+time_order, nt+time_order)}
@@ -112,7 +112,7 @@ class Propagator(object):
     def add_param(self, name, shape, dtype, save = True):
         self.fd.add_matrix_param(name, shape, dtype)
         self.save = save
-        self.save_vars.append(save)
+        self.save_vars[name] = save
         return IndexedBase(name)
     
     def add_scalar_param(self, name, dtype):
@@ -134,29 +134,30 @@ class Propagator(object):
             # This is the more common use case so this will show up in error messages
             self.fd.set_body(self.prepare(self.subs, self.stencils, self.stencil_args))
         return self.fd
-    
-    def get_fd_simple(self, loop_body):
-        self.fd.set_body(self.prepare_loop(loop_body))
-    
+
     def get_time_stepping(self):
         ti = self._var_map[self.t]
         body = []
-        for i in range(self.time_order+1):
+        for i in reversed(range(self.time_order+1)):
             lhs = self.time_steppers[i].name
-            if i == 0:
+            if i == self.time_order:
                 rhs = ccode(ti % (self.time_order+1))
             else:
-                rhs = ccode((self.time_steppers[i-1]+1) % (self.time_order+1))
+                rhs = ccode((self.time_steppers[i+1]+1) % (self.time_order+1))
             body.append(cgen.Assign(lhs, rhs))
 
         return body
-    
+
     def time_substitutions(self, sympy_expr):
-        spc_vars = [Wild("x%i"%i) for i in range(len(self.space_dims))]
-        args = [self.t]+spc_vars
-        
-        wild_expr = IndexedBase("v")[tuple(args)]
-        print wild_expr
-        print sympy_expr
-        print sympy_expr.has(wild_expr)
+        """This method checks through the sympy_expr to replace the time index with a cyclic index
+        but only for variables which are not being saved in the time domain
+        """
+        if isinstance(sympy_expr, Indexed):
+            array_term = sympy_expr
+            if not self.save_vars[str(array_term.base.label)]:
+                array_term = array_term.xreplace(self.t_replace)
+            return array_term
+        else:
+            for arg in sympy_expr.args:
+                sympy_expr = sympy_expr.subs(arg, self.time_substitutions(arg))
         return sympy_expr
