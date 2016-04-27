@@ -191,7 +191,7 @@ class AcousticWave2D_cg:
         v = np.zeros((3, nx, ny))
         grad = np.zeros((nx, ny))
         self._gradient_stencil(u, rec, v, grad, m, self.dampx, self.dampy, int(self.data.receiver_coords[0, 2]))
-        return dt*dt*grad
+        return (dt*dt)**(-1)*grad
 
     def Born(self, nt, dm):
         xmin, ymin = self.model.get_origin()
@@ -222,7 +222,7 @@ class AcousticWave2D_cg:
                                        u2[a, b - 1],
                                        u2[a, b + 1],
                                        src, m[a, b], dt, h, damp)
-                    src2 = -dt*dt*(u3[a, b]-2*u2[a, b]+u1[a, b])*dm[a, b]
+                    src2 = -(dt*dt)**(-1)*(u3[a, b]-2*u2[a, b]+u1[a, b])*dm[a, b]
                     U3[a, b] = self.ts(U1[a, b],
                                        U2[a - 1, b],
                                        U2[a, b],

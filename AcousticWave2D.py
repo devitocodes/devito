@@ -283,7 +283,7 @@ class AcousticWave2D:
                     grad[a, b] = grad[a, b] - \
                         (v3[a, b] - 2 * v2[a, b] + v1[a, b]) * (u[ti+2, a, b])
             v1, v2, v3 = v2, v3, v1
-        return dt*dt*grad
+        return (dt*dt)**(-1)*grad
 
     def Born(self, nt, dm):
         xmin, ymin = self.model.origin
@@ -314,7 +314,7 @@ class AcousticWave2D:
                                        u2[a, b - 1],
                                        u2[a, b + 1],
                                        src, m[a, b], dt, h, damp)
-                    src2 = -dt*dt*(u3[a, b]-2*u2[a, b]+u1[a, b])*dm[a, b]
+                    src2 = -(dt*dt)**(-1)*(u3[a, b]-2*u2[a, b]+u1[a, b])*dm[a, b]
                     U3[a, b] = self.ts(U1[a, b],
                                        U2[a - 1, b],
                                        U2[a, b],
