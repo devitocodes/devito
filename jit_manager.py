@@ -11,7 +11,7 @@ import codepy.jit as jit
 from tempfile import gettempdir
 
 
-class Generator(object):
+class JitManager(object):
     """ This is the primary interface class for code
     generation. However, the code in this class is focused on
     interfacing with the generated code. The actual code generation
@@ -25,7 +25,8 @@ class Generator(object):
     # The temp directory used to store generated code
     tmp_dir = os.path.join(gettempdir(), "devito-%s" % os.getuid())
 
-    def __init__(self, function_descriptors, dtype=None):
+    def __init__(self, propagators, dtype=None):
+        function_descriptors = [prop.get_fd() for prop in propagators]
         self.function_manager = FunctionManager(function_descriptors)
         self._function_descriptors = function_descriptors
         self.compiler = guess_toolchain()
