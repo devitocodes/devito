@@ -58,6 +58,10 @@ data.set_source(time_series, dt, location)
 data.receiver_coords[0, 2] = 10 + 4
 # A Forward propagation example
 python_obj = AcousticWave2D(model0, data)
+
+jit_obj = AcousticWave2D_cg(model0, data)
+jit_obj.prepare(nt)
+
 print "Forward propagation"
 print "Starting python lambdified version"
 start = time.clock()
@@ -69,8 +73,7 @@ norm_ut = np.linalg.norm(ut)
 
 print "Starting codegen version"
 
-jit_obj = AcousticWave2D_cg(model0, data)
-jit_obj.prepare(nt)
+
 start = time.clock()
 (recg, ug) = jit_obj.Forward()
 end = time.clock()
@@ -115,7 +118,7 @@ print table.table
 print "Gradient propagation"
 print "Starting python lambdified version"
 start = time.clock()
-grad_t = python_obj.Gradient(nt, rect, ut)
+grad_t = python_obj.Gradient(nt, recg, ug)
 end = time.clock()
 python_time = end-start
 norm_gradt = np.linalg.norm(grad_t)
