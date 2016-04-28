@@ -154,7 +154,6 @@ rec_g = jit_obj.Born(nt, dm)
 end = time.clock()
 cg_time = end-start
 norm_recg = np.linalg.norm(rec_g)
-
 table_data = [
     ['', 'Time', 'L2Norm(rec)'],
     ['Python lambdified', str(python_time), str(norm_rect)],
