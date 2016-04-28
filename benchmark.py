@@ -138,3 +138,27 @@ table_data = [
 ]
 table = AsciiTable(table_data)
 print table.table
+
+print "Born"
+print "Starting python lambdified version"
+start = time.clock()
+rec_t = python_obj.Born(nt, dm)
+end = time.clock()
+python_time = end-start
+norm_rect = np.linalg.norm(rec_t)
+
+print "Starting codegen version"
+
+start = time.clock()
+rec_g = jit_obj.Born(nt, dm)
+end = time.clock()
+cg_time = end-start
+norm_recg = np.linalg.norm(rec_g)
+
+table_data = [
+    ['', 'Time', 'L2Norm(rec)'],
+    ['Python lambdified', str(python_time), str(norm_rect)],
+    ['Codegen', str(cg_time), str(norm_recg)]
+]
+table = AsciiTable(table_data)
+print table.table
