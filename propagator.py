@@ -47,16 +47,17 @@ class Propagator(object):
             else:
                 self.t_replace = {(self.t): self.time_steppers[2], (self.t-1): self.time_steppers[1], (self.t-2): self.time_steppers[0]}
         self._save = self._save and save
-    
+
     @property
     def time_loop_limits(self):
-        num_save_vars = sum([1 for x in self.save_vars if x is True])
-        skip_time = self.time_order if num_save_vars>0 else 0
+        num_save_vars = sum([1 for x in self.save_vars.values() if x is True])
+        skip_time = self.time_order if num_save_vars > 0 else 0
         if self._forward:
             loop_limits = (0+skip_time, self.nt+skip_time)
         else:
             loop_limits = (self.nt-1, -1)
         return loop_limits
+
     def prep_variable_map(self):
         """ Mapping from model variables (x, y, z, t) to loop variables (i1, i2, i3, i4) - Needs work
         """
@@ -104,8 +105,8 @@ class Propagator(object):
 
     def add_loop_step(self, sympy_condition, true_assign, false_assign=None, before=False):
         condition = ccode(sympy_condition.lhs.xreplace(self._var_map)) + " == " + ccode(sympy_condition.rhs.xreplace(self._var_map))
-        true_str = cgen.Assign(ccode(true_assign.lhs.xreplace(self._var_map)), ccode(true_assign.rhs.xreplace(self._var_map)))
-        false_str = cgen.Assign(ccode(false_assign.lhs.xreplace(self._var_map)), ccode(false_assign.rhs.xreplace(self._var_map))) if false_assign is not None else None
+        true_str = cgen.Assign(ccode(self.time_substitutions(true_assign.lhs).xreplace(self._var_map)), ccode(self.time_substitutions(true_assign.rhs).xreplace(self._var_map)))
+        false_str = cgen.Assign(ccode(self.time_substitutions(false_assign.lhs).xreplace(self._var_map)), ccode(self.time_substitutions(false_assign.rhs).xreplace(self._var_map))) if false_assign is not None else None
         statement = cgen.If(condition, true_str, false_str)
         if before:
             self._pre_kernel_steps.append(statement)
@@ -149,12 +150,19 @@ class Propagator(object):
     def get_time_stepping(self):
         ti = self._var_map[self.t]
         body = []
-        for i in reversed(range(self.time_order+1)):
+        time_stepper_indices = range(self.time_order+1)
+        first_time_index = 0
+        step_backwards = -1
+        if self._forward is not True:
+            time_stepper_indices = reversed(time_stepper_indices)
+            first_time_index = self.time_order
+            step_backwards = 1
+        for i in time_stepper_indices:
             lhs = self.time_steppers[i].name
-            if i == self.time_order:
+            if i == first_time_index:
                 rhs = ccode(ti % (self.time_order+1))
             else:
-                rhs = ccode((self.time_steppers[i+1]+1) % (self.time_order+1))
+                rhs = ccode((self.time_steppers[i+step_backwards]+1) % (self.time_order+1))
             body.append(cgen.Assign(lhs, rhs))
 
         return body
