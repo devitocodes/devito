@@ -58,6 +58,10 @@ data.set_source(time_series, dt, location)
 data.receiver_coords[0, 2] = 10 + 4
 # A Forward propagation example
 python_obj = AcousticWave2D(model0, data)
+
+jit_obj = AcousticWave2D_cg(model0, data)
+jit_obj.prepare(nt)
+
 print "Forward propagation"
 print "Starting python lambdified version"
 start = time.clock()
@@ -69,8 +73,7 @@ norm_ut = np.linalg.norm(ut)
 
 print "Starting codegen version"
 
-jit_obj = AcousticWave2D_cg(model0, data)
-jit_obj.prepare(nt)
+
 start = time.clock()
 (recg, ug) = jit_obj.Forward()
 end = time.clock()
@@ -89,7 +92,7 @@ print table.table
 print "Adjoint propagation"
 print "Starting python lambdified version"
 start = time.clock()
-(srca_t, v_t) = python_obj.Adjoint(nt, rect)
+(srca_t, v_t) = python_obj.Adjoint(nt, recg)
 end = time.clock()
 python_time = end-start
 norm_srct = np.linalg.norm(srca_t)
@@ -98,16 +101,40 @@ norm_vt = np.linalg.norm(v_t)
 print "Starting codegen version"
 
 start = time.clock()
-(srca_g, v_g) = jit_obj.Adjoint(nt, rect)
+(srca_g, v_g) = jit_obj.Adjoint(nt, recg)
 end = time.clock()
 cg_time = end-start
 norm_srcg = np.linalg.norm(srca_g)
 norm_vg = np.linalg.norm(v_g)
 
 table_data = [
-    ['', 'Time', 'L2Norm(u)', 'L2Norm(rec)'],
+    ['', 'Time', 'L2Norm(v)', 'L2Norm(src)'],
     ['Python lambdified', str(python_time), str(norm_vt), str(norm_srct)],
     ['Codegen', str(cg_time), str(norm_vg), str(norm_srcg)]
+]
+table = AsciiTable(table_data)
+print table.table
+
+print "Gradient propagation"
+print "Starting python lambdified version"
+start = time.clock()
+grad_t = python_obj.Gradient(nt, recg, ug)
+end = time.clock()
+python_time = end-start
+norm_gradt = np.linalg.norm(grad_t)
+
+print "Starting codegen version"
+
+start = time.clock()
+grad_g = jit_obj.Gradient(nt, recg, ug)
+end = time.clock()
+cg_time = end-start
+norm_gradg = np.linalg.norm(grad_g)
+
+table_data = [
+    ['', 'Time', 'L2Norm(grad)'],
+    ['Python lambdified', str(python_time), str(norm_gradt)],
+    ['Codegen', str(cg_time), str(norm_gradg)]
 ]
 table = AsciiTable(table_data)
 print table.table

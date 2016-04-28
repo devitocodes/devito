@@ -1,46 +1,73 @@
 import cgen_wrapper as cgen
 from codeprinter import ccode
-from sympy import symbols
+from sympy import symbols, IndexedBase, Indexed
+from function_manager import FunctionDescriptor
 
 
-class Propagator:
-    def __init__(self, nt, shape, border=0, forward=True):
+class Propagator(object):
+    def __init__(self, name, nt, shape, spc_border=0, forward=True, time_order=0):
         num_spac_dim = len(shape)
         self.t = symbols("t")
         space_dims = symbols("x y z")
-        self.space_dims = space_dims[0:num_spac_dim]
-        self.loop_counters = symbols("i1 i2 i3")
-        self._prep_loop_order()
+        self.loop_counters = symbols("i1 i2 i3 i4")
         self._pre_kernel_steps = []
         self._post_kernel_steps = []
         self._forward = forward
+        self.space_dims = space_dims[0:num_spac_dim]
+        self.prep_variable_map()
+        self.t_replace = {}
+        self.time_steppers = []
+        self.time_order = time_order
+
+        # Start with the assumption that the propagator needs to save the field in memory at every time step
+        self._save = True
+        # This might be changed later when parameters are being set
+
+        # Which function parameters need special (non-save) time stepping and which don't
+        self.save_vars = {}
+        self.fd = FunctionDescriptor(name)
         if forward:
-            self._loop_limits = {self.t: (0, nt)}
+            self._loop_limits = {self.t: (0+time_order, nt+time_order)}
             self._time_step = 1
         else:
             self._loop_limits = {self.t: (nt-1, -1)}
             self._time_step = -1
         for i, dim in enumerate(reversed(self.space_dims)):
-                self._loop_limits[dim] = (border, shape[i]-border)
+                self._loop_limits[dim] = (spc_border, shape[i]-spc_border)
 
-    def _prep_loop_order(self):
+    @property
+    def save(self):
+        return self._save
+
+    @save.setter
+    def save(self, save):
+        if save is not True:
+            if self._forward is not True:
+                self.time_steppers = [symbols("t%d" % i) for i in range(self.time_order+1)]
+                self.t_replace = {(self.t): self.time_steppers[2], (self.t+1): self.time_steppers[1], (self.t+2): self.time_steppers[0]}
+        self._save = self._save and save
+
+    def prep_variable_map(self):
         """ Mapping from model variables (x, y, z, t) to loop variables (i1, i2, i3, i4) - Needs work
         """
-        loop_order = {}
+        var_map = {}
         i = 0
         for dim in self.space_dims:
-            loop_order[dim] = symbols("i%d" % (i + 1))
+            var_map[dim] = symbols("i%d" % (i + 1))
             i += 1
-        loop_order[self.t] = symbols("i%d" % (i + 1))
-        self._loop_order = loop_order
+        var_map[self.t] = symbols("i%d" % (i + 1))
+        self._var_map = var_map
 
-    def prepare(self, subs, stencil, stencil1_args, stencil2_args, stencil3_args, lhs):
-        stencil1 = self.process_stencil(stencil, subs, stencil1_args, lhs)
-        stencil2 = self.process_stencil(stencil, subs, stencil2_args, lhs)
-        stencil3 = self.process_stencil(stencil, subs, stencil3_args, lhs)
+    def prepare(self, subs, stencils, stencil_args):
+        stmts = []
+        for equality in stencils:
+            equality = equality.subs(dict(zip(subs, stencil_args)))
+            equality = self.time_substitutions(equality)
+            equality = equality.xreplace(self._var_map)
+            stencil = cgen.Assign(ccode(equality.lhs), ccode(equality.rhs))
+            stmts.append(stencil)
         kernel = self._pre_kernel_steps
-        if_combinations = cgen.make_multiple_ifs([("%s == %d" % (self._loop_order[self.t], self._loop_limits[self.t][0]), stencil1), ("%s == %d" % (self._loop_order[self.t], self._loop_limits[self.t][0]+self._time_step), stencil2), (None, stencil3)], "last")
-        kernel.append(if_combinations)
+        kernel += stmts
         kernel += self._post_kernel_steps
         return self.prepare_loop(cgen.Block(kernel))
 
@@ -53,23 +80,85 @@ class Propagator:
                                                         str(loop_limits[0])),
                                  dim_var + "<" + str(loop_limits[1]), dim_var + "++", loop_body)
         t_loop_limits = self._loop_limits[self.t]
-        t_var = str(self._loop_order[self.t])
+        t_var = str(self._var_map[self.t])
         cond_op = "<" if self._forward else ">"
+        if self.save is not True:
+            time_stepping = self.get_time_stepping()
+        else:
+            time_stepping = []
+        loop_body = cgen.Block(time_stepping + [loop_body])
         loop_body = cgen.For(cgen.InlineInitializer(cgen.Value("int", t_var), str(t_loop_limits[0])), t_var + cond_op + str(t_loop_limits[1]), t_var + "+=" + str(self._time_step), loop_body)
-        return loop_body
+        def_time_step = [cgen.Value("int", t_var_def.name) for t_var_def in self.time_steppers]
+        body = def_time_step + [loop_body]
+        return cgen.Block(body)
 
     def add_loop_step(self, sympy_condition, true_assign, false_assign=None, before=False):
-        condition = ccode(sympy_condition.lhs.xreplace(self._loop_order)) + " == " + ccode(sympy_condition.rhs.xreplace(self._loop_order))
-        true_str = cgen.Assign(ccode(true_assign.lhs.xreplace(self._loop_order)), ccode(true_assign.rhs.xreplace(self._loop_order)))
-        false_str = cgen.Assign(ccode(false_assign.lhs.xreplace(self._loop_order)), ccode(false_assign.rhs.xreplace(self._loop_order))) if false_assign is not None else None
+        condition = ccode(sympy_condition.lhs.xreplace(self._var_map)) + " == " + ccode(sympy_condition.rhs.xreplace(self._var_map))
+        true_str = cgen.Assign(ccode(true_assign.lhs.xreplace(self._var_map)), ccode(true_assign.rhs.xreplace(self._var_map)))
+        false_str = cgen.Assign(ccode(false_assign.lhs.xreplace(self._var_map)), ccode(false_assign.rhs.xreplace(self._var_map))) if false_assign is not None else None
         statement = cgen.If(condition, true_str, false_str)
         if before:
             self._pre_kernel_steps.append(statement)
         else:
             self._post_kernel_steps.append(statement)
 
-    def process_stencil(self, original_stencil, subs, stencil_args, lhs):
-        stencil = original_stencil.subs(dict(zip(subs, stencil_args)))
-        stencil = stencil.xreplace(self._loop_order)
-        stencil = cgen.Assign(ccode(lhs.xreplace(self._loop_order)), ccode(stencil))
-        return stencil
+    def set_jit_params(self, subs, stencils, stencil_args):
+        self.subs = subs
+        self.stencils = stencils
+        self.stencil_args = stencil_args
+
+    def set_jit_simple(self, loop_body):
+        self.loop_body = loop_body
+
+    def add_param(self, name, shape, dtype, save=True):
+        self.fd.add_matrix_param(name, shape, dtype)
+        self.save = save
+        self.save_vars[name] = save
+        return IndexedBase(name)
+
+    def add_scalar_param(self, name, dtype):
+        self.fd.add_value_param(name, dtype)
+        return symbols(name)
+
+    def add_local_var(self, name, dtype):
+        self.fd.add_local_variable(name, dtype)
+        return symbols(name)
+
+    def get_fd(self):
+        """Get a FunctionDescriptor that describes the code represented by this Propagator
+        in the format that FunctionManager and JitManager can deal with it. Before calling,
+        make sure you have either called set_jit_params or set_jit_simple already.
+        """
+        try:  # Assume we have been given a a loop body in cgen types
+            self.fd.set_body(self.prepare_loop(self.loop_body))
+        except:  # We might have been given Sympy expression to evaluate
+            # This is the more common use case so this will show up in error messages
+            self.fd.set_body(self.prepare(self.subs, self.stencils, self.stencil_args))
+        return self.fd
+
+    def get_time_stepping(self):
+        ti = self._var_map[self.t]
+        body = []
+        for i in reversed(range(self.time_order+1)):
+            lhs = self.time_steppers[i].name
+            if i == self.time_order:
+                rhs = ccode(ti % (self.time_order+1))
+            else:
+                rhs = ccode((self.time_steppers[i+1]+1) % (self.time_order+1))
+            body.append(cgen.Assign(lhs, rhs))
+
+        return body
+
+    def time_substitutions(self, sympy_expr):
+        """This method checks through the sympy_expr to replace the time index with a cyclic index
+        but only for variables which are not being saved in the time domain
+        """
+        if isinstance(sympy_expr, Indexed):
+            array_term = sympy_expr
+            if not self.save_vars[str(array_term.base.label)]:
+                array_term = array_term.xreplace(self.t_replace)
+            return array_term
+        else:
+            for arg in sympy_expr.args:
+                sympy_expr = sympy_expr.subs(arg, self.time_substitutions(arg))
+        return sympy_expr

@@ -1,11 +1,11 @@
 import cgen_wrapper as cgen
+import numpy as np
 
 
 class FunctionManager(object):
-    # Order of names in the following list is important.
-    # The resulting code blocks would be placed in the same
-    # order as they appear here
-
+    """Class that accepts a list of FunctionDescriptor objects and generates the C
+        function represented by it
+    """
     libraries = ['cassert', 'cstdlib', 'cmath', 'iostream',
                  'fstream', 'vector', 'cstdio', 'string', 'inttypes.h']
 
@@ -33,14 +33,9 @@ class FunctionManager(object):
 
     def generate_function_signature(self, function_descriptor):
         function_params = []
-        for param in function_descriptor.params:
-            try:
-                # Assume the parameter is a matrix parameter
-                param_vec_def = cgen.Pointer(cgen.POD(param['dtype'], param['name']+"_vec"))
-                function_params = function_params + [param_vec_def]
-            except TypeError:  # Unless it is a value parameter, in which case make sure
-                assert(len(param) == 2)
-
+        for param in function_descriptor.matrix_params:
+            param_vec_def = cgen.Pointer(cgen.POD(param['dtype'], param['name']+"_vec"))
+            function_params = function_params + [param_vec_def]
         function_params += [cgen.POD(type_label, name) for type_label, name in function_descriptor.value_params]
         return cgen.Extern("C",
                            cgen.FunctionDeclaration(cgen.Value('int', function_descriptor.name),
@@ -49,20 +44,58 @@ class FunctionManager(object):
 
     def generate_function_body(self, function_descriptor):
         statements = [cgen.POD(var[0], var[1]) for var in function_descriptor.local_vars]
-        for param in function_descriptor.params:
-            try:
-                num_dim = len(param['shape'])
-                arr = "".join(
-                    ["[%d]" % (param['shape'][i])
-                     for i in range(1, num_dim)]
-                )
-                cast_pointer = cgen.Initializer(
-                    cgen.Value("double", "(*%s)%s" % (param['name'], arr)),
-                    '(%s (*)%s) %s' % ("double", arr, param['name']+"_vec")
-                )
-                statements.append(cast_pointer)
-            except TypeError:  # It might be a value parameter
-                pass  # Do nothing, in that case
+
+        for param in function_descriptor.matrix_params:
+            num_dim = len(param['shape'])
+            arr = "".join(
+                ["[%d]" % (param['shape'][i])
+                 for i in range(1, num_dim)]
+            )
+            cast_pointer = cgen.Initializer(
+                cgen.POD(param['dtype'], "(*%s)%s" % (param['name'], arr)),
+                '(%s (*)%s) %s' % (cgen.dtype_to_ctype(param['dtype']), arr, param['name']+"_vec")
+            )
+            statements.append(cast_pointer)
         statements.append(function_descriptor.body)
         statements.append(cgen.Statement("return 0"))
         return cgen.Block(statements)
+
+
+class FunctionDescriptor(object):
+    """ This class can be used to describe a general C function which receives multiple parameters
+    and loops over one of the parameters, executing a given body of statements inside the loop
+    """
+
+    """ Pass the name and the body of the function
+        Also pass skip_elements, which is an array of the number of elements to skip in each dimension
+        while looping
+    """
+    def __init__(self, name):
+        self.name = name
+        self.matrix_params = []
+        self.value_params = []
+        self.local_vars = []
+
+    def add_matrix_param(self, name, shape, dtype):
+        """ Add a parameter to the function
+            A function may have any number of parameters but only one may be the looper
+            Each parameter has an associated name and shape
+        """
+        self.matrix_params.append({'name': name, 'shape': shape, 'dtype': dtype})
+
+    def add_value_param(self, name, dtype):
+        """ Declare a new value (scalar) param for this function
+        Param_type: numpy dtype
+        name: name of the param
+        """
+        self.value_params.append((np.dtype(dtype), name))
+
+    def add_local_variable(self, name, dtype):
+        self.local_vars.append((np.dtype(dtype), name))
+
+    def set_body(self, body):
+        self.body = body
+
+    @property
+    def params(self):
+        return self.matrix_params + self.value_params

@@ -11,7 +11,7 @@ import codepy.jit as jit
 from tempfile import gettempdir
 
 
-class Generator(object):
+class JitManager(object):
     """ This is the primary interface class for code
     generation. However, the code in this class is focused on
     interfacing with the generated code. The actual code generation
@@ -21,14 +21,16 @@ class Generator(object):
     _wrapped_functions = None
     COMPILER_OVERRIDE_VAR = "DEVITO_CC"
     _incompatible_flags = ["-Wshorten-64-to-32", "-Wstrict-prototypes", ("-arch", "i386")]
+
     # The temp directory used to store generated code
     tmp_dir = os.path.join(gettempdir(), "devito-%s" % os.getuid())
 
-    def __init__(self, function_descriptors, dtype=None):
+    def __init__(self, propagators, dtype=None):
+        function_descriptors = [prop.get_fd() for prop in propagators]
         self.function_manager = FunctionManager(function_descriptors)
         self._function_descriptors = function_descriptors
         self.compiler = guess_toolchain()
-        if os.environ.get(self.COMPILER_OVERRIDE_VAR, None) is not None:
+        if os.environ.get(self.COMPILER_OVERRIDE_VAR, "") != "":
             self.compiler.cc = os.environ.get(self.COMPILER_OVERRIDE_VAR)
         self._clean_flags()
         # Generate a random salt to uniquely identify this instance of the class
