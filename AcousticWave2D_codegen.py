@@ -161,16 +161,15 @@ class AcousticWave2D_cg:
                                                 p(x, y+h, t), d, m, s, h, e),
                                                 stencilA, nt)
         fds.append(prop_grad)
-        
-        prop_born = self._prepare_born_prop((p(x, y, t+s),
-                                                p(x-h, y, t),
-                                                p(x, y, t),
-                                                p(x+h, y, t),
-                                                p(x, y-h, t),
-                                                p(x, y+h, t), d, m, s, h, e),
-                                                stencilA, nt)
+
+        prop_born = self._prepare_born_prop((p(x, y, t-s),
+                                             p(x-h, y, t),
+                                             p(x, y, t),
+                                             p(x+h, y, t),
+                                             p(x, y-h, t),
+                                             p(x, y+h, t), q, m, s, h, e),
+                                            stencil, nt)
         fds.append(prop_born)
-        
         self.jit_manager = JitManager(fds, dtype=self.dtype)
 
     def Forward(self):
@@ -204,10 +203,7 @@ class AcousticWave2D_cg:
         return (dt*dt)**(-1)*grad
 
     def Born(self, nt, dm):
-        xmin, ymin = self.model.get_origin()
         nx, ny = self.model.get_dimensions()
-        dt = self.dt
-        h = self.h
         m = self.model.get_vp()
         u = np.zeros((3, nx, ny))
         U = np.zeros((3, nx, ny))
@@ -215,12 +211,12 @@ class AcousticWave2D_cg:
         src_grid = self.source_interpolate()
         self._born_stencil(u, U, rec, dm, m, self.dampx, self.dampy, src_grid, self.data.get_source(), int(self.data.receiver_coords[0, 2]))
         return rec
-    
+
     def _prepare_born_prop(self, subs, stencil, nt):
         nx, ny = self.model.get_dimensions()
         propagator = Propagator("Born", nt, (nx, ny), spc_border=1, time_order=2)
-        u = propagator.add_param("u", (nt, nx, ny), self.dtype, save = False)
-        U = propagator.add_param("U", (nt, nx, ny), self.dtype, save = False)
+        u = propagator.add_param("u", (nt, nx, ny), self.dtype, save=False)
+        U = propagator.add_param("U", (nt, nx, ny), self.dtype, save=False)
         rec = propagator.add_param("rec", (nt, ny - 2), self.dtype)
         dm = propagator.add_param("dm", (nx, ny), self.dtype)
         M = propagator.add_param("m", (nx, ny), self.dtype)
@@ -236,14 +232,14 @@ class AcousticWave2D_cg:
         record_true = Eq(rec[t-2, y-1], U[t, x, y])
         propagator.add_loop_step(record_condition, record_true)
         first_stencil_args = [u[t-2, x, y],
-                        u[t-1, x - 1, y],
-                        u[t-1, x, y],
-                        u[t-1, x + 1, y],
-                        u[t-1, x, y - 1],
-                        u[t-1, x, y + 1],
-                        (src_grid[x, y]*src_time[t]), M[x, y], dt, h, dampx[x] + dampy[y]]
+                              u[t-1, x - 1, y],
+                              u[t-1, x, y],
+                              u[t-1, x + 1, y],
+                              u[t-1, x, y - 1],
+                              u[t-1, x, y + 1],
+                              (src_grid[x, y]*src_time[t-2]), M[x, y], dt, h, dampx[x] + dampy[y]]
         first_update = Eq(u[t, x, y], stencil)
-        calc_src = Eq(src2, -(dt*dt)**(-1)*(u[t, x, y]-2*u[t-1, x, y]+u[t-2, x, y])*dm[x, y])
+        calc_src = Eq(src2, -((dt*dt)**(-1))*(u[t, x, y]-2*u[t-1, x, y]+u[t-2, x, y])*dm[x, y])
         second_stencil_args = [U[t-2, x, y],
                                U[t-1, x - 1, y],
                                U[t-1, x, y],
@@ -337,8 +333,6 @@ class AcousticWave2D_cg:
                              grad[x, y] - (v[t, x, y] - 2 * v[t + 1, x, y] + v[t + 2, x, y]) * (u[t+2, x, y]))
         propagator.set_jit_params(subs, [main_stencil, gradient_update], [stencil_args, []])
         return propagator
-    
-    
 
     def source_interpolate(self):
         if self.src_grid is not None:
