@@ -290,7 +290,7 @@ class AcousticWave2D:
         nx, ny = self.model.shape
         dt = self.dt
         h = self.h
-        m = self.model.vp
+        m = self.model.vp**(-2)
         u1 = np.zeros((nx, ny))
         U1 = np.zeros((nx, ny))
         u2 = np.zeros((nx, ny))

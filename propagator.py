@@ -18,7 +18,7 @@ class Propagator(object):
         self.t_replace = {}
         self.time_steppers = []
         self.time_order = time_order
-
+        self.nt = nt
         # Start with the assumption that the propagator needs to save the field in memory at every time step
         self._save = True
         # This might be changed later when parameters are being set
@@ -27,13 +27,12 @@ class Propagator(object):
         self.save_vars = {}
         self.fd = FunctionDescriptor(name)
         if forward:
-            self._loop_limits = {self.t: (0+time_order, nt+time_order)}
             self._time_step = 1
         else:
-            self._loop_limits = {self.t: (nt-1, -1)}
             self._time_step = -1
+        self._space_loop_limits = {}
         for i, dim in enumerate(reversed(self.space_dims)):
-                self._loop_limits[dim] = (spc_border, shape[i]-spc_border)
+                self._space_loop_limits[dim] = (spc_border, shape[i]-spc_border)
 
     @property
     def save(self):
@@ -42,10 +41,22 @@ class Propagator(object):
     @save.setter
     def save(self, save):
         if save is not True:
+            self.time_steppers = [symbols("t%d" % i) for i in range(self.time_order+1)]
             if self._forward is not True:
-                self.time_steppers = [symbols("t%d" % i) for i in range(self.time_order+1)]
                 self.t_replace = {(self.t): self.time_steppers[2], (self.t+1): self.time_steppers[1], (self.t+2): self.time_steppers[0]}
+            else:
+                self.t_replace = {(self.t): self.time_steppers[2], (self.t-1): self.time_steppers[1], (self.t-2): self.time_steppers[0]}
         self._save = self._save and save
+
+    @property
+    def time_loop_limits(self):
+        num_save_vars = sum([1 for x in self.save_vars.values() if x is True])
+        skip_time = self.time_order if num_save_vars > 0 else 0
+        if self._forward:
+            loop_limits = (0+skip_time, self.nt+skip_time)
+        else:
+            loop_limits = (self.nt-1, -1)
+        return loop_limits
 
     def prep_variable_map(self):
         """ Mapping from model variables (x, y, z, t) to loop variables (i1, i2, i3, i4) - Needs work
@@ -60,8 +71,8 @@ class Propagator(object):
 
     def prepare(self, subs, stencils, stencil_args):
         stmts = []
-        for equality in stencils:
-            equality = equality.subs(dict(zip(subs, stencil_args)))
+        for equality, args in zip(stencils, stencil_args):
+            equality = equality.subs(dict(zip(subs, args)))
             equality = self.time_substitutions(equality)
             equality = equality.xreplace(self._var_map)
             stencil = cgen.Assign(ccode(equality.lhs), ccode(equality.rhs))
@@ -75,11 +86,11 @@ class Propagator(object):
         num_spac_dim = len(self.space_dims)
         for dim_ind in range(1, num_spac_dim+1):
             dim_var = "i"+str(dim_ind)
-            loop_limits = self._loop_limits[self.space_dims[dim_ind-1]]
+            loop_limits = self._space_loop_limits[self.space_dims[dim_ind-1]]
             loop_body = cgen.For(cgen.InlineInitializer(cgen.Value("int", dim_var),
                                                         str(loop_limits[0])),
                                  dim_var + "<" + str(loop_limits[1]), dim_var + "++", loop_body)
-        t_loop_limits = self._loop_limits[self.t]
+        t_loop_limits = self.time_loop_limits
         t_var = str(self._var_map[self.t])
         cond_op = "<" if self._forward else ">"
         if self.save is not True:
@@ -94,8 +105,8 @@ class Propagator(object):
 
     def add_loop_step(self, sympy_condition, true_assign, false_assign=None, before=False):
         condition = ccode(sympy_condition.lhs.xreplace(self._var_map)) + " == " + ccode(sympy_condition.rhs.xreplace(self._var_map))
-        true_str = cgen.Assign(ccode(true_assign.lhs.xreplace(self._var_map)), ccode(true_assign.rhs.xreplace(self._var_map)))
-        false_str = cgen.Assign(ccode(false_assign.lhs.xreplace(self._var_map)), ccode(false_assign.rhs.xreplace(self._var_map))) if false_assign is not None else None
+        true_str = cgen.Assign(ccode(self.time_substitutions(true_assign.lhs).xreplace(self._var_map)), ccode(self.time_substitutions(true_assign.rhs).xreplace(self._var_map)))
+        false_str = cgen.Assign(ccode(self.time_substitutions(false_assign.lhs).xreplace(self._var_map)), ccode(self.time_substitutions(false_assign.rhs).xreplace(self._var_map))) if false_assign is not None else None
         statement = cgen.If(condition, true_str, false_str)
         if before:
             self._pre_kernel_steps.append(statement)
@@ -139,12 +150,19 @@ class Propagator(object):
     def get_time_stepping(self):
         ti = self._var_map[self.t]
         body = []
-        for i in reversed(range(self.time_order+1)):
+        time_stepper_indices = range(self.time_order+1)
+        first_time_index = 0
+        step_backwards = -1
+        if self._forward is not True:
+            time_stepper_indices = reversed(time_stepper_indices)
+            first_time_index = self.time_order
+            step_backwards = 1
+        for i in time_stepper_indices:
             lhs = self.time_steppers[i].name
-            if i == self.time_order:
+            if i == first_time_index:
                 rhs = ccode(ti % (self.time_order+1))
             else:
-                rhs = ccode((self.time_steppers[i+1]+1) % (self.time_order+1))
+                rhs = ccode((self.time_steppers[i+step_backwards]+1) % (self.time_order+1))
             body.append(cgen.Assign(lhs, rhs))
 
         return body
