@@ -1,16 +1,18 @@
 from AcousticWave2D_codegen import AcousticWave2D_cg
 import numpy as np
 from AcousticWave2D import AcousticWave2D
-from SubsurfaceModel2D import SubsurfaceModel2D
 import time
-from SeismicData import SeismicData
 from math import floor
 from terminaltables import AsciiTable
+from interfaces import IShot
+from interfaces import ISource
+from interfaces import IGrid
 
 dimensions = (100, 100)
-model = SubsurfaceModel2D(shape=dimensions)
-model0 = SubsurfaceModel2D(shape=dimensions)
-
+model = IGrid()
+model0 = IGrid()
+model.shape = dimensions
+model0.shape = dimensions
 origin = (0., 0.)
 spacing = (25., 25)
 
@@ -35,7 +37,7 @@ dv = -true_vp + initial_vp
 model.create_model(origin, spacing, true_vp)
 model0.create_model(origin, spacing, initial_vp)
 # Define seismic data.
-data = SeismicData()
+data = IShot()
 
 f0 = .010
 dt = model.get_critical_dt()
@@ -51,21 +53,26 @@ def source(t, f0):
 
 
 time_series = source(np.linspace(t0, tn, nt), f0)
-location = (origin[0] + dimensions[0] * spacing[0] * 0.5,
-            origin[1] + dimensions[1] * spacing[1] * 0.05)
+location = (origin[0] + dimensions[0] * spacing[0] * 0.5, 0,
+                    origin[1] + 2 * spacing[1])
 data.set_source(time_series, dt, location)
 
-data.receiver_coords[0, 2] = 10 + 4
+receiver_coords = np.zeros((30, 3))
+receiver_coords[:, 0] = np.linspace(50, 950, num=30)
+receiver_coords[:, 1] = 0.0
+receiver_coords[:, 2] = location[2]
+data.set_receiver_pos(receiver_coords)
+data.set_shape(nt, 30)
 # A Forward propagation example
 python_obj = AcousticWave2D(model0, data)
-
+python_obj.prepare()
 jit_obj = AcousticWave2D_cg(model0, data)
-jit_obj.prepare(nt)
+jit_obj.prepare()
 
 print "Forward propagation"
 print "Starting python lambdified version"
 start = time.clock()
-(rect, ut) = python_obj.Forward(nt)
+(rect, ut) = python_obj.Forward()
 end = time.clock()
 python_time = end-start
 norm_rect = np.linalg.norm(rect)
@@ -92,7 +99,7 @@ print table.table
 print "Adjoint propagation"
 print "Starting python lambdified version"
 start = time.clock()
-(srca_t, v_t) = python_obj.Adjoint(nt, recg)
+(srca_t, v_t) = python_obj.Adjoint(recg)
 end = time.clock()
 python_time = end-start
 norm_srct = np.linalg.norm(srca_t)
@@ -101,7 +108,7 @@ norm_vt = np.linalg.norm(v_t)
 print "Starting codegen version"
 
 start = time.clock()
-(srca_g, v_g) = jit_obj.Adjoint(nt, recg)
+(srca_g, v_g) = jit_obj.Adjoint(recg)
 end = time.clock()
 cg_time = end-start
 norm_srcg = np.linalg.norm(srca_g)
@@ -118,7 +125,7 @@ print table.table
 print "Gradient propagation"
 print "Starting python lambdified version"
 start = time.clock()
-grad_t = python_obj.Gradient(nt, recg, ug)
+grad_t = python_obj.Gradient(recg, ug)
 end = time.clock()
 python_time = end-start
 norm_gradt = np.linalg.norm(grad_t)
@@ -126,7 +133,7 @@ norm_gradt = np.linalg.norm(grad_t)
 print "Starting codegen version"
 
 start = time.clock()
-grad_g = jit_obj.Gradient(nt, recg, ug)
+grad_g = jit_obj.Gradient(recg, ug)
 end = time.clock()
 cg_time = end-start
 norm_gradg = np.linalg.norm(grad_g)
@@ -142,7 +149,7 @@ print table.table
 print "Born"
 print "Starting python lambdified version"
 start = time.clock()
-rec_t = python_obj.Born(nt, dm)
+rec_t = python_obj.Born(dm)
 end = time.clock()
 python_time = end-start
 norm_rect = np.linalg.norm(rec_t)
@@ -150,7 +157,7 @@ norm_rect = np.linalg.norm(rec_t)
 print "Starting codegen version"
 
 start = time.clock()
-rec_g = jit_obj.Born(nt, dm)
+rec_g = jit_obj.Born(dm)
 end = time.clock()
 cg_time = end-start
 norm_recg = np.linalg.norm(rec_g)
