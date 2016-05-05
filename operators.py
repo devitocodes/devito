@@ -214,6 +214,8 @@ class BornOperator(ForwardOperator):
         propagator.add_loop_step(Eq(u[t-2, x, y], 0), False)
         src = self.add_source(src_time, M, self.dt, u)
         for sten in src: propagator.add_time_loop_stencil(sten, before=True)
+        rec = self.read_rec(rec, U)
+        for sten in rec: propagator.add_time_loop_stencil(sten, before=False)
         first_stencil_args = [u[t-2, x, y],
                               u[t-1, x - 1, y],
                               u[t-1, x, y],
@@ -222,7 +224,7 @@ class BornOperator(ForwardOperator):
                               u[t-1, x, y + 1],
                               M[x, y], dt, h, dampx[x] + dampy[y]]
         first_update = Eq(u[t, x, y], u[t, x, y]+stencil)
-        calc_src = Eq(src2, -((dt*dt)**(-1))*(u[t, x, y]-2*u[t-1, x, y]+u[t-2, x, y])*dm[x, y])
+        calc_src = Eq(src2, -(dt**-2)*(u[t, x, y]-2*u[t-1, x, y]+u[t-2, x, y])*dm[x, y])
         second_stencil_args = [U[t-2, x, y],
                                U[t-1, x - 1, y],
                                U[t-1, x, y],
@@ -231,5 +233,6 @@ class BornOperator(ForwardOperator):
                                U[t-1, x, y + 1],
                                M[x, y], dt, h, dampx[x] + dampy[y]]
         second_update = Eq(U[t, x, y], stencil)
-        propagator.set_jit_params(subs, [first_update, calc_src, second_update], [first_stencil_args, [], second_stencil_args])
+        insert_second_source = Eq(U[t, x, y], U[t, x, y]+(dt*dt)/M[x, y]*src2)
+        propagator.set_jit_params(subs, [first_update, calc_src, second_update, insert_second_source], [first_stencil_args, [], second_stencil_args, []])
         return propagator
