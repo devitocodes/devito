@@ -108,10 +108,10 @@ class ForwardOperator(Operator):
         (i, k) = src_add[0]
         weights = src_add[1]
         assignments = []
-        assignments.append(Eq(u[t, i, k], u[t, i, k]+src[t]*dt*dt/m[i, k]*weights[0]))
-        assignments.append(Eq(u[t, i, k+1], u[t, i, k+1]+src[t]*dt*dt/m[i, k]*weights[1]))
-        assignments.append(Eq(u[t, i+1, k], u[t, i+1, k]+src[t]*dt*dt/m[i, k]*weights[2]))
-        assignments.append(Eq(u[t, i+1, k+1], u[t, i+1, k+1]+src[t]*dt*dt/m[i, k]*weights[3]))
+        assignments.append(Eq(u[t, i, k], u[t, i, k]+src[t-2]*dt*dt/m[i, k]*weights[0]))
+        assignments.append(Eq(u[t, i, k+1], u[t, i, k+1]+src[t-2]*dt*dt/m[i, k]*weights[1]))
+        assignments.append(Eq(u[t, i+1, k], u[t, i+1, k]+src[t-2]*dt*dt/m[i, k]*weights[2]))
+        assignments.append(Eq(u[t, i+1, k+1], u[t, i+1, k+1]+src[t-2]*dt*dt/m[i, k]*weights[3]))
         filtered = [x for x in assignments if isinstance(x, Eq)]
         return filtered
     
@@ -119,7 +119,7 @@ class ForwardOperator(Operator):
         ntraces, nsamples = self.data.traces.shape
         eqs = []
         for i in range(ntraces):
-            eqs.append(Eq(rec[t, i], self.grid2point(u, self.data.receiver_coords[i, 0],
+            eqs.append(Eq(rec[t-2, i], self.grid2point(u, self.data.receiver_coords[i, 0],
                                      self.data.receiver_coords[i, 2])))
         return eqs
     
@@ -171,7 +171,7 @@ class AdjointOperator(Operator):
         return [Eq(src[t], self.grid2point(u, self.data.source_coords[0],
                                self.data.source_coords[2]))]
 
-class GradientOperator(Operator):
+class GradientOperator(AdjointOperator):
     def _prepare(self, subs, stencil, nt, shape):
         nx, ny = shape
         propagator = Propagator("Gradient", nt, (nx, ny), spc_border=1, forward=False, time_order=2)
@@ -186,10 +186,13 @@ class GradientOperator(Operator):
         h = self.h
         lhs = v[t, x, y]
         stencil_args = [v[t + 2, x, y], v[t + 1, x - 1, y], v[t + 1, x, y], v[t + 1, x + 1, y], v[t + 1, x, y - 1], v[t + 1, x, y + 1], M[x, y], dt, h, dampx[x]+dampy[y]]
-        main_stencil = Eq(lhs, stencil)
+        main_stencil = Eq(lhs, lhs + stencil)
         gradient_update = Eq(grad[x, y],
-                             grad[x, y] - (v[t, x, y] - 2 * v[t + 1, x, y] + v[t + 2, x, y]) * (u[t+2, x, y]))
+                             grad[x, y] - (v[t, x, y] - 2 * v[t + 1, x, y] + v[t + 2, x, y]) * (u[t, x, y]))
         propagator.set_jit_params(subs, [main_stencil, gradient_update], [stencil_args, []])
+        propagator.add_loop_step(Eq(v[t+2, x, y], 0), False)
+        rec = self.add_rec(rec, M, self.dt, v)
+        for sten in rec: propagator.add_time_loop_stencil(sten, before=True)
         return propagator
 
 
@@ -204,23 +207,21 @@ class BornOperator(ForwardOperator):
         M = propagator.add_param("m", (nx, ny), self.dtype)
         dampx = propagator.add_param("dampx", (nx,), self.dtype)
         dampy = propagator.add_param("dampy", (nx,), self.dtype)
-        src_grid = propagator.add_param("src_grid", (nx, ny), self.dtype)
         src_time = propagator.add_param("src_time", (nt,), self.dtype)
-        xrec = propagator.add_scalar_param("xrec", "int")
         src2 = propagator.add_local_var("src2", self.dtype)
         dt = self.dt
         h = self.h
-        record_condition = Eq(x, xrec)
-        record_true = Eq(rec[t-2, y-1], U[t, x, y])
-        propagator.add_loop_step(record_condition, record_true)
+        propagator.add_loop_step(Eq(u[t-2, x, y], 0), False)
+        src = self.add_source(src_time, M, self.dt, u)
+        for sten in src: propagator.add_time_loop_stencil(sten, before=True)
         first_stencil_args = [u[t-2, x, y],
                               u[t-1, x - 1, y],
                               u[t-1, x, y],
                               u[t-1, x + 1, y],
                               u[t-1, x, y - 1],
                               u[t-1, x, y + 1],
-                              (src_grid[x, y]*src_time[t-2]), M[x, y], dt, h, dampx[x] + dampy[y]]
-        first_update = Eq(u[t, x, y], stencil)
+                              M[x, y], dt, h, dampx[x] + dampy[y]]
+        first_update = Eq(u[t, x, y], u[t, x, y]+stencil)
         calc_src = Eq(src2, -((dt*dt)**(-1))*(u[t, x, y]-2*u[t-1, x, y]+u[t-2, x, y])*dm[x, y])
         second_stencil_args = [U[t-2, x, y],
                                U[t-1, x - 1, y],
@@ -228,7 +229,7 @@ class BornOperator(ForwardOperator):
                                U[t-1, x + 1, y],
                                U[t-1, x, y - 1],
                                U[t-1, x, y + 1],
-                               src2, M[x, y], dt, h, dampx[x] + dampy[y]]
+                               M[x, y], dt, h, dampx[x] + dampy[y]]
         second_update = Eq(U[t, x, y], stencil)
         propagator.set_jit_params(subs, [first_update, calc_src, second_update], [first_stencil_args, [], second_stencil_args])
         return propagator
