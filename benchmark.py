@@ -33,6 +33,8 @@ true_vp[floor(dimensions[0] / 2):floor(dimensions[0]), :] = 4.5
 # Smooth velocity
 initial_vp = smooth10(true_vp, dimensions[0], dimensions[1])
 dm = true_vp**-2 - initial_vp**-2
+nbpml = 10
+dm = np.pad(dm, ((nbpml, nbpml), (nbpml, nbpml)), 'edge')
 dv = -true_vp + initial_vp
 model.create_model(origin, spacing, true_vp)
 model0.create_model(origin, spacing, initial_vp)
