@@ -32,7 +32,7 @@ true_vp[floor(dimensions[0] / 2):floor(dimensions[0]), :] = 4.5
 # Smooth velocity
 initial_vp = smooth10(true_vp, dimensions[0], dimensions[1])
 dm = true_vp**-2 - initial_vp**-2
-nbpml = 10
+nbpml = 40
 dm = np.pad(dm, ((nbpml, nbpml), (nbpml, nbpml)), 'edge')
 dv = -true_vp + initial_vp
 model.create_model(origin, spacing, true_vp)
@@ -65,9 +65,9 @@ receiver_coords[:, 2] = location[2]
 data.set_receiver_pos(receiver_coords)
 data.set_shape(nt, 30)
 # A Forward propagation example
-python_obj = AcousticWave2D(model0, data)
+python_obj = AcousticWave2D(model0, data, nbpml=nbpml)
 python_obj.prepare()
-jit_obj = AcousticWave2D_cg(model0, data)
+jit_obj = AcousticWave2D_cg(model0, data, nbpml=nbpml)
 jit_obj.prepare()
 
 print "Forward propagation"

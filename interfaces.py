@@ -18,8 +18,12 @@ class IGrid:
         self.spacing = spacing
         self.origin = origin
 
-    def set_origin(self, origin):
-        self.origin = origin
+    def set_origin(self, shift):
+        norig = len(self.origin)
+        aux = []
+        for i in range(0, norig):
+            aux.append(self.origin[i] - shift * self.spacing[i])
+        self.origin = aux
 
     def get_origin(self):
         return self.origin
@@ -57,8 +61,6 @@ class IShot:
         self.receiver_coords = pos
 
     def set_shape(self, nt, nrec):
-        self.nt = nt
-        self.nrec = nrec
         self.traces = np.zeros((nrec, nt))
 
     def get_source(self, ti=None):
@@ -67,4 +69,8 @@ class IShot:
         return self.source_sign[ti]
 
     def get_nrec(self):
-        return self.nrec
+        ntraces, nsamples = self.traces.shape
+        return ntraces
+
+    def reinterpolate(self, dt):
+        pass

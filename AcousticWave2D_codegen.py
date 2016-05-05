@@ -20,7 +20,7 @@ class AcousticWave2D_cg:
         self.h = model.get_spacing()
         self.nbpml = nbpml
         self.src_grid = None
-        self.nt = self.data.nt
+        rec, self.nt = self.data.traces.shape
 
     def prepare(self):
         self._init_taylor(self.nt)

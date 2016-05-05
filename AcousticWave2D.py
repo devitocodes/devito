@@ -1,3 +1,4 @@
+# coding: utf-8
 from __future__ import print_function
 
 from sympy import Function, symbols, init_printing, as_finite_diff, solve, \
@@ -7,28 +8,30 @@ from sympy.abc import x, y, t, M, E
 import sympy
 import numpy as np
 from numpy import linalg
-from math import floor
 
 init_printing()
 
 
 class AcousticWave2D:
-    def __init__(self, model, data, source=None, nbpml=10):
+    def __init__(self, model, data, source=None, nbpml=40):
         self.model = model
         self.data = data
         self.nbpml = nbpml
         self.dt = model.get_critical_dt()
         self.h = model.get_spacing()
-        self.nt = self.data.nt
+
         pad = ((nbpml, nbpml), (nbpml, nbpml))
         self.model.vp = np.pad(self.model.vp, pad, 'edge')
+        self.data.reinterpolate(self.dt)
+        rec, self.nt = self.data.traces.shape
         self.nrec = self.data.get_nrec()
+        self.model.set_origin(nbpml)
         self._init_taylor()
-        
+
         if source is not None:
             self.source = source.read()
             self.source.reinterpolate(self.dt)
-            source_time = self.source.traces[0,:]
+            source_time = self.source.traces[0, :]
             if len(source_time) < self.data.nsamples:
                 source_time = np.append(source_time, [0.0])
             self.data.set_source(source_time, self.dt, self.data.source_coords)
@@ -45,25 +48,21 @@ class AcousticWave2D:
                           (x2, self.h),
                           (z2, self.h)]
         A = A.subs(reference_cell)
-        
+
         # Form expression for interpolant weights on reference cell.
-        self.rs = sympy.symbols('rx, rz')
-        rx, rz = self.rs
+        global rx, rz
+        rx, rz = sympy.symbols('rx, rz')
+
         p = sympy.Matrix([[1],
                           [rx],
                           [rz],
                           [rx*rz]])
 
+        global b11, b12, b21, b22
         b11, b12, b21, b22 = A.inv().T.dot(p)
-        self.bs = b11, b12, b21, b22
-        self.nt = self.data.nt
-    
-    def prepare(self):
-        pass
 
+    # Interpolate onto receiver point.
     def grid2point(self, u, x, z):
-        rx, rz = self.rs
-        b11, b12, b21, b22 = self.bs
         i = int(x/self.h)
         j = int(z/self.h)
 
@@ -77,8 +76,6 @@ class AcousticWave2D:
 
     # Interpolate source onto grid.
     def point2grid(self, x, z):
-        rx, rz = self.rs
-        b11, b12, b21, b22 = self.bs
         # In: s - Magnitude of the source
         #     x, z - Position of the source
         # Returns: (i, k) - Grid coordinate at top left of grid cell.
@@ -95,6 +92,9 @@ class AcousticWave2D:
         s21 = b21.subs(((rx, x), (rz, z))).evalf()
         s22 = b22.subs(((rx, x), (rz, z))).evalf()
         return (i, k), (s11, s12, s21, s22)
+
+    def prepare(self):
+        pass
 
     def _init_taylor(self, h=None, s=None):
         # The acoustic wave equation for the square slowness m and a source q
@@ -217,30 +217,25 @@ class AcousticWave2D:
                             p(x, y+h, t), m, s, h, e),
                             stencilA, "numpy")
 
-    def dampx(self, x):
-        nbpml = self.nbpml
+    def damp_boundary(self):
         h = self.h
-        nx, ny = self.model.get_shape()
-        dampcoeff = 1.5 * np.log(1.0 / 0.001) / (5.0 * h)
-        if x < nbpml:
-            return dampcoeff * ((nbpml - x) / nbpml)**2
-        elif x > nx - nbpml - 1:
-            return dampcoeff * ((x - nx + nbpml) / nbpml)**2
-        else:
-            return 0.0
+        dampcoeff = 1.5 * np.log(1.0 / 0.001) / (40 * h)
 
-    def dampy(self, y):
+        nx, ny = self.model.get_shape()
+        damp = np.zeros((nx, ny), dtype=np.float)
+
         nbpml = self.nbpml
-        h = self.h
-        nx, ny = self.model.get_shape()
+        for i in range(nbpml):
+            pos = np.abs((nbpml-i)/nbpml)
+            val = dampcoeff * (pos - np.sin(2*np.pi*pos)/(2*np.pi))
 
-        dampcoeff = 1.5 * np.log(1.0 / 0.001) / (5.0 * h)
-        if y < nbpml:
-            return dampcoeff*((nbpml-y)/nbpml)**2
-        elif y > ny - nbpml - 1:
-            return dampcoeff * ((y - ny + nbpml) / nbpml)**2
-        else:
-            return 0.0
+            damp[i, :] += val
+            damp[-i, :] += val
+
+            damp[:, i] += val
+            damp[:, -i] += val
+
+        return damp
 
     # Interpolate source onto grid...
     def add_source(self, s, m, dt, u):
@@ -274,6 +269,7 @@ class AcousticWave2D:
                                      self.data.receiver_coords[i, 2])
 
     def Forward(self):
+        xmin, ymin = self.model.origin
         nt = self.nt
         nx, ny = self.model.get_shape()
         m = self.model.vp**(-2)
@@ -281,21 +277,22 @@ class AcousticWave2D:
         h = self.h
 
         u = np.zeros((nt, nx, ny))
+        damp = self.damp_boundary()
+
         rec = np.zeros((nt, self.nrec))
         for ti in range(0, nt):
             for a in range(1, nx-1):
                 for b in range(1, ny-1):
-                    damp = self.dampx(a) + self.dampy(b)
                     if ti == 0:
                         u[ti, a, b] = self.ts(0, 0, 0, 0, 0, 0,
-                                              m[a, b], dt, h, damp)
+                                              m[a, b], dt, h, damp[a, b])
                     elif ti == 1:
                         u[ti, a, b] = self.ts(0, u[ti - 1, a - 1, b],
                                               u[ti - 1, a, b],
                                               u[ti - 1, a + 1, b],
                                               u[ti - 1, a, b - 1],
                                               u[ti - 1, a, b + 1],
-                                              m[a, b], dt, h, damp)
+                                              m[a, b], dt, h, damp[a, b])
                     else:
                         u[ti, a, b] = self.ts(u[ti - 2, a, b],
                                               u[ti - 1, a - 1, b],
@@ -303,26 +300,28 @@ class AcousticWave2D:
                                               u[ti - 1, a + 1, b],
                                               u[ti - 1, a, b - 1],
                                               u[ti - 1, a, b + 1],
-                                              m[a, b], dt, h, damp)
+                                              m[a, b], dt, h, damp[a, b])
             self.add_source(self.data.get_source(ti), m, dt, u[ti, :, :])
             self.read_rec(rec[ti, :], u[ti, :, :])
         return rec, u
 
     def Adjoint(self, rec):
         nt = self.nt
+        xmin, ymin = self.model.origin
         nx, ny = self.model.get_shape()
         dt = self.dt
         h = self.h
         m = self.model.vp**(-2)
         v = np.zeros((nt, nx, ny))
         srca = np.zeros((nt))
+        damp = self.damp_boundary()
+
         for ti in range(nt - 1, -1, -1):
             for a in range(1, nx-1):
                 for b in range(1, ny-1):
-                    damp = self.dampx(a) + self.dampy(b)
                     if ti == nt-1:
                         v[ti, a, b] = self.tsA(0, 0, 0, 0, 0, 0,
-                                               m[a, b], dt, h, damp)
+                                               m[a, b], dt, h, damp[a, b])
                     elif ti == nt-2:
                         v[ti, a, b] = self.tsA(0,
                                                v[ti+1, a-1, b],
@@ -331,7 +330,7 @@ class AcousticWave2D:
                                                v[ti+1, a, b-1],
                                                v[ti+1, a, b+1],
                                                m[a, b],
-                                               dt, h, damp)
+                                               dt, h, damp[a, b])
                     else:
                         v[ti, a, b] = self.tsA(v[ti + 2, a, b],
                                                v[ti + 1, a - 1, b],
@@ -339,35 +338,36 @@ class AcousticWave2D:
                                                v[ti + 1, a + 1, b],
                                                v[ti + 1, a, b - 1],
                                                v[ti + 1, a, b + 1],
-                                               m[a, b], dt, h, damp)
+                                               m[a, b], dt, h, damp[a, b])
             self.add_rec(rec[ti, :], m, dt, v[ti, :, :])
             srca[ti] = self.read_source(v[ti, :, :])
         return srca, v
 
     def Gradient(self, rec, u):
+        nt = self.nt
+        xmin, ymin = self.model.origin
         nx, ny = self.model.get_shape()
         dt = self.dt
         h = self.h
-        nt = self.nt
         m = self.model.vp**(-2)
         v1 = np.zeros((nx, ny))
         v2 = np.zeros((nx, ny))
         v3 = np.zeros((nx, ny))
         grad = np.zeros((nx, ny))
+        damp = self.damp_boundary()
 
         for ti in range(nt-1, -1, -1):
             v3[:, :] = 0.0
             self.add_rec(rec[ti, :], m, dt, v3[:, :])
             for a in range(1, nx-1):
                 for b in range(1, ny-1):
-                    damp = self.dampx(a) + self.dampy(b)
                     v3[a, b] = v3[a, b] + self.tsA(v1[a, b],
                                                    v2[a - 1, b],
                                                    v2[a, b],
                                                    v2[a + 1, b],
                                                    v2[a, b - 1],
                                                    v2[a, b + 1],
-                                                   m[a, b], dt, h, damp)
+                                                   m[a, b], dt, h, damp[a, b])
                     grad[a, b] = grad[a, b] - \
                         (v3[a, b] - 2 * v2[a, b] + v1[a, b]) * (u[ti, a, b])
             v1, v2, v3 = v2, v3, v1
@@ -375,6 +375,7 @@ class AcousticWave2D:
 
     def Born(self, dm):
         nt = self.nt
+        xmin, ymin = self.model.origin
         nx, ny = self.model.get_shape()
         dt = self.dt
         h = self.h
@@ -386,22 +387,21 @@ class AcousticWave2D:
         u3 = np.zeros((nx, ny))
         U3 = np.zeros((nx, ny))
         rec = np.zeros((nt, self.nrec))
+        damp = self.damp_boundary()
         src2 = 0
         for ti in range(0, nt):
             for a in range(1, nx-1):
                 for b in range(1, ny-1):
-                    damp = self.dampx(a) + self.dampy(b)
                     u3[a, b] = self.ts(u1[a, b],
                                        u2[a - 1, b],
                                        u2[a, b],
                                        u2[a + 1, b],
                                        u2[a, b - 1],
                                        u2[a, b + 1],
-                                       m[a, b], dt, h, damp)
+                                       m[a, b], dt, h, damp[a, b])
             self.add_source(self.data.get_source(ti), m, dt, u3)
             for a in range(1, nx-1):
                 for b in range(1, ny-1):
-                    damp = self.dampx(a) + self.dampy(b)
                     src2 = -(dt**-2)*(u3[a, b]-2*u2[a, b]+u1[a, b])*dm[a, b]
                     U3[a, b] = self.ts(U1[a, b],
                                        U2[a - 1, b],
@@ -409,7 +409,7 @@ class AcousticWave2D:
                                        U2[a + 1, b],
                                        U2[a, b - 1],
                                        U2[a, b + 1],
-                                       m[a, b], dt, h, damp)
+                                       m[a, b], dt, h, damp[a, b])
                     U3[a, b] = U3[a, b] + dt*dt/m[a, b] * src2
             self.read_rec(rec[ti, :], U3)
             u1, u2, u3 = u2, u3, u1
@@ -424,4 +424,4 @@ class AcousticWave2D:
         f = 0.5*linalg.norm(res)**2
         print('Residual is ', f, 'starting gradient')
         g = self.Gradient(nt, res, u)
-        return f, g
+        return f, g[40:-40, 40:-40]
