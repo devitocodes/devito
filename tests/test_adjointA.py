@@ -1,4 +1,4 @@
-from AcousticWave2D_codegen import AcousticWave2D_cg
+from AcousticWave2D import AcousticWave2D
 import numpy as np
 from numpy import linalg
 from math import floor
@@ -45,7 +45,7 @@ class Test_AdjointA(object):
         data.set_shape(nt, 30)
         
         # Adjoint test
-        wave_true = AcousticWave2D_cg(model, data)
+        wave_true = AcousticWave2D(model, data)
         wave_true.prepare()
         return wave_true
 
