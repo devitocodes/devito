@@ -9,7 +9,7 @@ class IGrid:
 
     def get_critical_dt(self):
         return 0.5 * self.spacing[0] / (np.max(self.vp))
-    
+
     def get_spacing(self):
         return self.spacing[0]
 
@@ -17,25 +17,25 @@ class IGrid:
         self.vp = vp
         self.spacing = spacing
         self.origin = origin
-    
+
     def set_origin(self, origin):
-        assert(1==2)
         self.origin = origin
-    
+
     def get_origin(self):
         return self.origin
+
 
 class ISource:
     def get_source(self):
         """ List of size nt
         """
         return self._source
-    
+
     def get_corner(self):
         """ Tuple of (x, y) or (x, y, z)
         """
         return self._corner
-    
+
     def get_weights(self):
         """ List of [w1, w2, w3, w4] or [w1, w2, w3, w4, w5, w6, w7, w8]
         """
@@ -60,11 +60,11 @@ class IShot:
         self.nt = nt
         self.nrec = nrec
         self.traces = np.zeros((nrec, nt))
-    
-    def get_source(self, ti = None):
+
+    def get_source(self, ti=None):
         if ti is None:
             return self.source_sign
         return self.source_sign[ti]
-    
+
     def get_nrec(self):
         return self.nrec

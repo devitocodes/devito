@@ -26,12 +26,12 @@ class AcousticWave2D:
         self._init_taylor()
         
         if source is not None:
-           self.source = source.read()
-           self.source.reinterpolate(self.dt)
-           source_time = self.source.traces[0,:]
-           if len(source_time) < self.data.nsamples:
-               source_time = np.append(source_time, [0.0])
-           self.data.set_source(source_time, self.dt, self.data.source_coords)
+            self.source = source.read()
+            self.source.reinterpolate(self.dt)
+            source_time = self.source.traces[0,:]
+            if len(source_time) < self.data.nsamples:
+                source_time = np.append(source_time, [0.0])
+            self.data.set_source(source_time, self.dt, self.data.source_coords)
         # Set up interpolation from grid to receiver position.
         x1, z1, x2, z2, d = symbols('x1, z1, x2, z2, d')
         A = Matrix([[1, x1, z1, x1*z1],

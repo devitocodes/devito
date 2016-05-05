@@ -1,8 +1,8 @@
 # coding: utf-8
 from __future__ import print_function
 from sympy import Function, symbols, init_printing, as_finite_diff
-from sympy import solve, Eq, Matrix
-from sympy.abc import x, y, t, M, Q, D, E
+from sympy import solve
+from sympy.abc import x, y, t, M, E
 import numpy as np
 from jit_manager import JitManager
 from operators import *
@@ -21,9 +21,7 @@ class AcousticWave2D_cg:
         self.nbpml = nbpml
         self.src_grid = None
         self.nt = self.data.nt
-        
-         # Set up interpolation from grid to receiver position.
-        
+
     def prepare(self):
         self._init_taylor(self.nt)
         self._forward_stencil, self._adjoint_stencil, self._gradient_stencil, self._born_stencil = self.jit_manager.get_wrapped_functions()
@@ -40,8 +38,6 @@ class AcousticWave2D_cg:
         p = Function('p')
         s, h = symbols('s h')
         m = M(x, y)
-        q = Q(x, y, t)
-        d = D(x, y, t)
         e = E(x, y)
         nx, ny = self.model.get_shape()
         # Time and space  discretization as a Taylor expansion.
@@ -95,12 +91,12 @@ class AcousticWave2D_cg:
         self.nt = nt
 
         prop_fw = ForwardOperator((p(x, y, t-s),
-                           p(x-h, y, t),
-                           p(x, y, t),
-                           p(x+h, y, t),
-                           p(x, y-h, t),
-                           p(x, y+h, t), m, s, h, e),
-                           stencil, self).get_propagator()
+                                   p(x-h, y, t),
+                                   p(x, y, t),
+                                   p(x+h, y, t),
+                                   p(x, y-h, t),
+                                   p(x, y+h, t), m, s, h, e),
+                                  stencil, self).get_propagator()
         fds = [prop_fw]
 
         # Precompute dampening
@@ -147,31 +143,31 @@ class AcousticWave2D_cg:
         wave_equationA = m * dtt - (dxx + dyy) - e * dt
         stencilA = solve(wave_equationA, p(x, y, t-s))[0]
         prop_adj = AdjointOperator((p(x, y, t+s),
-                            p(x-h, y, t),
-                            p(x, y, t),
-                            p(x+h, y, t),
-                            p(x, y-h, t),
-                            p(x, y+h, t), m, s, h, e),
-                            stencilA, self).get_propagator()
+                                    p(x-h, y, t),
+                                    p(x, y, t),
+                                    p(x+h, y, t),
+                                    p(x, y-h, t),
+                                    p(x, y+h, t), m, s, h, e),
+                                   stencilA, self).get_propagator()
 
         fds.append(prop_adj)
 
         prop_grad = GradientOperator((p(x, y, t+s),
-                            p(x-h, y, t),
-                            p(x, y, t),
-                            p(x+h, y, t),
-                            p(x, y-h, t),
-                            p(x, y+h, t), m, s, h, e),
-                            stencilA, self).get_propagator()
+                                      p(x-h, y, t),
+                                      p(x, y, t),
+                                      p(x+h, y, t),
+                                      p(x, y-h, t),
+                                      p(x, y+h, t), m, s, h, e),
+                                     stencilA, self).get_propagator()
         fds.append(prop_grad)
 
         prop_born = BornOperator((p(x, y, t-s),
-                                             p(x-h, y, t),
-                                             p(x, y, t),
-                                             p(x+h, y, t),
-                                             p(x, y-h, t),
-                                             p(x, y+h, t), m, s, h, e),
-                                            stencil, self).get_propagator()
+                                  p(x-h, y, t),
+                                  p(x, y, t),
+                                  p(x+h, y, t),
+                                  p(x, y-h, t),
+                                  p(x, y+h, t), m, s, h, e),
+                                 stencil, self).get_propagator()
         fds.append(prop_born)
         self.jit_manager = JitManager(fds, dtype=self.dtype)
 
@@ -243,9 +239,6 @@ class AcousticWave2D_cg:
             return dampcoeff * ((x - nx + nbpml) / nbpml)**2
         else:
             return 0.0
-
-    # Interpolate source onto grid.
-    
 
     def compute_gradient(self, model, shot_id):
         raise NotImplementedError("compute_gradient")

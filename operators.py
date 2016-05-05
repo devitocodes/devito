@@ -1,5 +1,5 @@
 from propagator import Propagator
-from sympy.abc import x, y ,t
+from sympy.abc import x, y, t
 from sympy import Eq, symbols, Matrix
 
 
@@ -26,20 +26,20 @@ class Operator(object):
                           (x2, self.h),
                           (z2, self.h)]
         A = A.subs(reference_cell)
-        
+
         # Form expression for interpolant weights on reference cell.
         self.rs = symbols('rx, rz')
         rx, rz = self.rs
         p = Matrix([[1],
-                          [rx],
-                          [rz],
-                          [rx*rz]])
+                    [rx],
+                    [rz],
+                    [rx*rz]])
 
         self.bs = A.inv().T.dot(p)
 
     def get_propagator(self):
         return self._prepare(self.subs, self.stencil, self.nt, self.shape)
-    
+
     def point2grid(self, x, z):
         # In: s - Magnitude of the source
         #     x, z - Position of the source
@@ -60,7 +60,7 @@ class Operator(object):
         s22 = b22.subs(((rx, x), (rz, z))).evalf()
         return (i, k), (s11, s12, s21, s22)
 
-     # Interpolate onto receiver point.
+    # Interpolate onto receiver point.
     def grid2point(self, u, x, z):
         rx, rz = self.rs
         b11, b12, b21, b22 = self.bs
@@ -75,6 +75,7 @@ class Operator(object):
                 b21.subs(((rx, x), (rz, z))) * u[t, i+1, j] +
                 b22.subs(((rx, x), (rz, z))) * u[t, i+1, j+1])
 
+
 class ForwardOperator(Operator):
     def _prepare(self, subs, stencil, nt, shape):
         nx, ny = shape
@@ -87,21 +88,23 @@ class ForwardOperator(Operator):
         dampy = propagator.add_param("dampy", (nx,), self.dtype)
 
         stencil_args = [u[t - 2, x, y],
-                          u[t - 1, x - 1, y],
-                          u[t - 1, x, y],
-                          u[t - 1, x + 1, y],
-                          u[t - 1, x, y - 1],
-                          u[t - 1, x, y + 1],
-                          M[x, y], self.dt, self.h, dampx[x]+dampy[y]]
+                        u[t - 1, x - 1, y],
+                        u[t - 1, x, y],
+                        u[t - 1, x + 1, y],
+                        u[t - 1, x, y - 1],
+                        u[t - 1, x, y + 1],
+                        M[x, y], self.dt, self.h, dampx[x]+dampy[y]]
         lhs = u[t, x, y]
         main_stencil = Eq(lhs, stencil)
         propagator.set_jit_params(subs, [main_stencil], [stencil_args])
         src = self.add_source(src_time, M, self.dt, u)
-        for sten in src: propagator.add_time_loop_stencil(sten)
+        for sten in src:
+            propagator.add_time_loop_stencil(sten)
         rec = self.read_rec(rec, u)
-        for sten in rec: propagator.add_time_loop_stencil(sten)
+        for sten in rec:
+            propagator.add_time_loop_stencil(sten)
         return propagator
-    
+
     def add_source(self, src, m, dt, u):
         src_add = self.point2grid(self.data.source_coords[0],
                                   self.data.source_coords[2])
@@ -114,15 +117,15 @@ class ForwardOperator(Operator):
         assignments.append(Eq(u[t, i+1, k+1], u[t, i+1, k+1]+src[t-2]*dt*dt/m[i, k]*weights[3]))
         filtered = [x for x in assignments if isinstance(x, Eq)]
         return filtered
-    
+
     def read_rec(self, rec, u):
         ntraces, nsamples = self.data.traces.shape
         eqs = []
         for i in range(ntraces):
             eqs.append(Eq(rec[t-2, i], self.grid2point(u, self.data.receiver_coords[i, 0],
-                                     self.data.receiver_coords[i, 2])))
+                                                       self.data.receiver_coords[i, 2])))
         return eqs
-    
+
 
 class AdjointOperator(Operator):
     def _prepare(self, subs, stencil, nt, shape):
@@ -139,19 +142,21 @@ class AdjointOperator(Operator):
         lhs = v[t, x, y]
         main_stencil = Eq(lhs, stencil)
         stencil_args = [v[t + 2, x, y],
-                       v[t + 1, x - 1, y],
-                       v[t + 1, x, y],
-                       v[t + 1, x + 1, y],
-                       v[t + 1, x, y - 1],
-                       v[t + 1, x, y + 1],
-                       M[x, y], dt, h, dampx[x]+dampy[y]]
+                        v[t + 1, x - 1, y],
+                        v[t + 1, x, y],
+                        v[t + 1, x + 1, y],
+                        v[t + 1, x, y - 1],
+                        v[t + 1, x, y + 1],
+                        M[x, y], dt, h, dampx[x]+dampy[y]]
         propagator.set_jit_params(subs, [main_stencil], [stencil_args])
         rec = self.add_rec(rec, M, self.dt, v)
-        for sten in rec: propagator.add_time_loop_stencil(sten)
+        for sten in rec:
+            propagator.add_time_loop_stencil(sten)
         src = self.read_source(srca, v)
-        for sten in src: propagator.add_time_loop_stencil(sten)
+        for sten in src:
+            propagator.add_time_loop_stencil(sten)
         return propagator
-    
+
     def add_rec(self, rec, m, dt, u):
         ntraces, nsamples = self.data.traces.shape
         assignments = []
@@ -159,17 +164,17 @@ class AdjointOperator(Operator):
             rec_add = self.point2grid(self.data.receiver_coords[j, 0],
                                       self.data.receiver_coords[j, 2])
             (i, k) = rec_add[0]
-            
             assignments.append(Eq(u[t, i, k], u[t, i, k]+rec[t, j]*dt*dt/m[i, k]*rec_add[1][0]))
             assignments.append(Eq(u[t, i, k+1], u[t, i, k+1]+rec[t, j]*dt*dt/m[i, k]*rec_add[1][1]))
             assignments.append(Eq(u[t, i+1, k], u[t, i+1, k]+rec[t, j]*dt*dt/m[i, k]*rec_add[1][2]))
             assignments.append(Eq(u[t, i+1, k+1], u[t, i+1, k+1]+rec[t, j]*dt*dt/m[i, k]*rec_add[1][3]))
         filtered = [x for x in assignments if isinstance(x, Eq)]
         return filtered
-    
+
     def read_source(self, src, u):
         return [Eq(src[t], self.grid2point(u, self.data.source_coords[0],
-                               self.data.source_coords[2]))]
+                self.data.source_coords[2]))]
+
 
 class GradientOperator(AdjointOperator):
     def _prepare(self, subs, stencil, nt, shape):
@@ -192,7 +197,8 @@ class GradientOperator(AdjointOperator):
         propagator.set_jit_params(subs, [main_stencil, gradient_update], [stencil_args, []])
         propagator.add_loop_step(Eq(v[t+2, x, y], 0), False)
         rec = self.add_rec(rec, M, self.dt, v)
-        for sten in rec: propagator.add_time_loop_stencil(sten, before=True)
+        for sten in rec:
+            propagator.add_time_loop_stencil(sten, before=True)
         return propagator
 
 
@@ -213,9 +219,11 @@ class BornOperator(ForwardOperator):
         h = self.h
         propagator.add_loop_step(Eq(u[t-2, x, y], 0), False)
         src = self.add_source(src_time, M, self.dt, u)
-        for sten in src: propagator.add_time_loop_stencil(sten, before=True)
+        for sten in src:
+            propagator.add_time_loop_stencil(sten, before=True)
         rec = self.read_rec(rec, U)
-        for sten in rec: propagator.add_time_loop_stencil(sten, before=False)
+        for sten in rec:
+            propagator.add_time_loop_stencil(sten, before=False)
         first_stencil_args = [u[t-2, x, y],
                               u[t-1, x - 1, y],
                               u[t-1, x, y],

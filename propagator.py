@@ -81,10 +81,10 @@ class Propagator(object):
         kernel += stmts
         kernel += self._post_kernel_steps
         return self.prepare_loop(cgen.Block(kernel))
-    
+
     def convert_equality_to_cgen(self, equality):
         return cgen.Assign(ccode(self.time_substitutions(equality.lhs).xreplace(self._var_map)), ccode(self.time_substitutions(equality.rhs).xreplace(self._var_map)))
-    
+
     def prepare_loop(self, loop_body):
         num_spac_dim = len(self.space_dims)
         for dim_ind in range(1, num_spac_dim+1):
@@ -114,7 +114,6 @@ class Propagator(object):
             self._pre_kernel_steps.append(stm)
         else:
             self._post_kernel_steps.append(stm)
-    
 
     def set_jit_params(self, subs, stencils, stencil_args):
         self.subs = subs
@@ -183,7 +182,7 @@ class Propagator(object):
             for arg in sympy_expr.args:
                 sympy_expr = sympy_expr.subs(arg, self.time_substitutions(arg))
         return sympy_expr
-    
+
     def add_time_loop_stencil(self, stencil, before=False):
         if before:
             self.time_loop_stencils_b.append(stencil)

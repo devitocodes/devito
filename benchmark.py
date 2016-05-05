@@ -5,7 +5,6 @@ import time
 from math import floor
 from terminaltables import AsciiTable
 from interfaces import IShot
-from interfaces import ISource
 from interfaces import IGrid
 
 dimensions = (100, 100)
@@ -56,7 +55,7 @@ def source(t, f0):
 
 time_series = source(np.linspace(t0, tn, nt), f0)
 location = (origin[0] + dimensions[0] * spacing[0] * 0.5, 0,
-                    origin[1] + 2 * spacing[1])
+            origin[1] + 2 * spacing[1])
 data.set_source(time_series, dt, location)
 
 receiver_coords = np.zeros((30, 3))
