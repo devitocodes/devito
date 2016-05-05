@@ -202,17 +202,16 @@ class AcousticWave2D_cg:
         v = np.zeros((3, nx, ny))
         grad = np.zeros((nx, ny))
         self._gradient_stencil(u, rec, v, grad, m, self.dampx, self.dampy)
-        return (dt*dt)**(-1)*grad
+        return (dt**-2)*grad
 
     def Born(self, dm):
         nt = self.nt
         nx, ny = self.model.get_shape()
-        m = self.model.get_vp()
+        m = self.model.vp**(-2)
         u = np.zeros((3, nx, ny))
         U = np.zeros((3, nx, ny))
         rec = np.zeros((nt, ny-2))
-        src_grid = self.source_interpolate()
-        self._born_stencil(u, U, rec, dm, m, self.dampx, self.dampy, src_grid, self.data.get_source())
+        self._born_stencil(u, U, rec, dm, m, self.dampx, self.dampy, self.data.get_source())
         return rec
 
     def source_interpolate(self):
@@ -244,20 +243,6 @@ class AcousticWave2D_cg:
             return dampcoeff * ((x - nx + nbpml) / nbpml)**2
         else:
             return 0.0
-
-    def grid2point(self, u, x, z):
-        rx, rz = self.rs
-        b11, b12, b21, b22 = self.bs
-        i = int(x/self.h)
-        j = int(z/self.h)
-
-        x = x - i*self.h
-        z = z - j*self.h
-
-        return (b11.subs(((rx, x), (rz, z))) * u[i, j] +
-                b12.subs(((rx, x), (rz, z))) * u[i, j+1] +
-                b21.subs(((rx, x), (rz, z))) * u[i+1, j] +
-                b22.subs(((rx, x), (rz, z))) * u[i+1, j+1])
 
     # Interpolate source onto grid.
     
