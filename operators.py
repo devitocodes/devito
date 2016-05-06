@@ -103,6 +103,7 @@ class ForwardOperator(Operator):
         rec = self.read_rec(rec, u)
         for sten in rec:
             propagator.add_time_loop_stencil(sten)
+        propagator.enable_ai(True,self.dtype)
         return propagator
 
     def add_source(self, src, m, dt, u):
@@ -155,6 +156,7 @@ class AdjointOperator(Operator):
         src = self.read_source(srca, v)
         for sten in src:
             propagator.add_time_loop_stencil(sten)
+        propagator.enable_ai(True,self.dtype)
         return propagator
 
     def add_rec(self, rec, m, dt, u):
@@ -199,6 +201,7 @@ class GradientOperator(AdjointOperator):
         rec = self.add_rec(rec, M, self.dt, v)
         for sten in rec:
             propagator.add_time_loop_stencil(sten, before=True)
+        propagator.enable_ai(True,self.dtype)
         return propagator
 
 
@@ -243,4 +246,5 @@ class BornOperator(ForwardOperator):
         second_update = Eq(U[t, x, y], stencil)
         insert_second_source = Eq(U[t, x, y], U[t, x, y]+(dt*dt)/M[x, y]*src2)
         propagator.set_jit_params(subs, [first_update, calc_src, second_update, insert_second_source], [first_stencil_args, [], second_stencil_args, []])
+        propagator.enable_ai(True,self.dtype)
         return propagator
