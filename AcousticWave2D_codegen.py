@@ -1,11 +1,11 @@
 # coding: utf-8
 from __future__ import print_function
 from sympy import Function, symbols, init_printing, as_finite_diff
-from sympy import solve, Eq
-from sympy.abc import x, y, t, M, Q, D, E
+from sympy import solve
+from sympy.abc import x, y, t, M, E
 import numpy as np
 from jit_manager import JitManager
-from propagator import Propagator
+from operators import *
 
 init_printing()
 
@@ -17,12 +17,13 @@ class AcousticWave2D_cg:
         self.data = data
         self.dtype = np.float64
         self.dt = model.get_critical_dt()
-        self.h = model.get_spacing()[0]
+        self.h = model.get_spacing()
         self.nbpml = nbpml
         self.src_grid = None
+        rec, self.nt = self.data.traces.shape
 
-    def prepare(self, nt):
-        self._init_taylor(nt)
+    def prepare(self):
+        self._init_taylor(self.nt)
         self._forward_stencil, self._adjoint_stencil, self._gradient_stencil, self._born_stencil = self.jit_manager.get_wrapped_functions()
 
     def _init_taylor(self, nt):
@@ -37,10 +38,8 @@ class AcousticWave2D_cg:
         p = Function('p')
         s, h = symbols('s h')
         m = M(x, y)
-        q = Q(x, y, t)
-        d = D(x, y, t)
         e = E(x, y)
-        nx, ny = self.model.get_dimensions()
+        nx, ny = self.model.get_shape()
         # Time and space  discretization as a Taylor expansion.
         #
         # The time discretization is define as a second order ( $ O (dt^2)) $)
@@ -87,17 +86,17 @@ class AcousticWave2D_cg:
         # domain to the border
 
         # Forward wave equation
-        wave_equation = m * dtt - (dxx + dyy) - q + e * dt
+        wave_equation = m * dtt - (dxx + dyy) + e * dt
         stencil = solve(wave_equation, p(x, y, t+s))[0]
         self.nt = nt
 
-        prop_fw = self._prepare_forward_prop((p(x, y, t-s),
-                                              p(x-h, y, t),
-                                              p(x, y, t),
-                                              p(x+h, y, t),
-                                              p(x, y-h, t),
-                                              p(x, y+h, t), q, m, s, h, e),
-                                             stencil, nt)
+        prop_fw = ForwardOperator((p(x, y, t-s),
+                                   p(x-h, y, t),
+                                   p(x, y, t),
+                                   p(x+h, y, t),
+                                   p(x, y-h, t),
+                                   p(x, y+h, t), m, s, h, e),
+                                  stencil, self).get_propagator()
         fds = [prop_fw]
 
         # Precompute dampening
@@ -141,204 +140,81 @@ class AcousticWave2D_cg:
         # should be implemented.
 
         # Adjoint wave equation
-        wave_equationA = m * dtt - (dxx + dyy) - D(x, y, t) - e * dt
+        wave_equationA = m * dtt - (dxx + dyy) - e * dt
         stencilA = solve(wave_equationA, p(x, y, t-s))[0]
-        prop_adj = self._prepare_adjoint_prop((p(x, y, t+s),
-                                               p(x-h, y, t),
-                                               p(x, y, t),
-                                               p(x+h, y, t),
-                                               p(x, y-h, t),
-                                               p(x, y+h, t), d, m, s, h, e),
-                                              stencilA, nt)
+        prop_adj = AdjointOperator((p(x, y, t+s),
+                                    p(x-h, y, t),
+                                    p(x, y, t),
+                                    p(x+h, y, t),
+                                    p(x, y-h, t),
+                                    p(x, y+h, t), m, s, h, e),
+                                   stencilA, self).get_propagator()
 
         fds.append(prop_adj)
 
-        prop_grad = self._prepare_gradient_prop((p(x, y, t+s),
-                                                p(x-h, y, t),
-                                                p(x, y, t),
-                                                p(x+h, y, t),
-                                                p(x, y-h, t),
-                                                p(x, y+h, t), d, m, s, h, e),
-                                                stencilA, nt)
+        prop_grad = GradientOperator((p(x, y, t+s),
+                                      p(x-h, y, t),
+                                      p(x, y, t),
+                                      p(x+h, y, t),
+                                      p(x, y-h, t),
+                                      p(x, y+h, t), m, s, h, e),
+                                     stencilA, self).get_propagator()
         fds.append(prop_grad)
 
-        prop_born = self._prepare_born_prop((p(x, y, t-s),
-                                             p(x-h, y, t),
-                                             p(x, y, t),
-                                             p(x+h, y, t),
-                                             p(x, y-h, t),
-                                             p(x, y+h, t), q, m, s, h, e),
-                                            stencil, nt)
+        prop_born = BornOperator((p(x, y, t-s),
+                                  p(x-h, y, t),
+                                  p(x, y, t),
+                                  p(x+h, y, t),
+                                  p(x, y-h, t),
+                                  p(x, y+h, t), m, s, h, e),
+                                 stencil, self).get_propagator()
         fds.append(prop_born)
         self.jit_manager = JitManager(fds, dtype=self.dtype)
 
     def Forward(self):
-        nx, ny = self.model.get_dimensions()
+        nx, ny = self.model.get_shape()
         m = self.model.vp**(-2)
         nt = self.nt
         u = np.zeros((nt+2, nx, ny), dtype=self.dtype)
         rec = np.zeros((nt, ny - 2), dtype=self.dtype)
-        src_grid = self.source_interpolate()
-        self._forward_stencil(u, rec, m, src_grid, self.data.get_source(),
-                              self.dampx, self.dampy, int(self.data.receiver_coords[0, 2]))
+        self._forward_stencil(u, rec, m, self.data.get_source(),
+                              self.dampx, self.dampy)
         return rec, u
 
-    def Adjoint(self, nt, rec):
-        nx, ny = self.model.get_dimensions()
+    def Adjoint(self, rec):
+        nt = self.nt
+        nx, ny = self.model.get_shape()
         m = self.model.vp**(-2)
         v = np.zeros((nt+2, nx, ny))
         srca = np.zeros((nt))
-        src_grid = self.source_interpolate()
-        self._adjoint_stencil(v, rec, m, src_grid, srca,
-                              self.dampx, self.dampy, int(self.data.receiver_coords[0, 2]))
+        self._adjoint_stencil(v, rec, m, srca,
+                              self.dampx, self.dampy)
         return srca, v
 
-    def Gradient(self, nt, rec, u):
-        nx, ny = self.model.shape
+    def Gradient(self, rec, u):
+        nx, ny = self.model.get_shape()
         dt = self.dt
         m = self.model.vp**(-2)
         v = np.zeros((3, nx, ny))
         grad = np.zeros((nx, ny))
-        self._gradient_stencil(u, rec, v, grad, m, self.dampx, self.dampy, int(self.data.receiver_coords[0, 2]))
-        return (dt*dt)**(-1)*grad
+        self._gradient_stencil(u, rec, v, grad, m, self.dampx, self.dampy)
+        return (dt**-2)*grad
 
-    def Born(self, nt, dm):
-        nx, ny = self.model.get_dimensions()
-        m = self.model.get_vp()
+    def Born(self, dm):
+        nt = self.nt
+        nx, ny = self.model.get_shape()
+        m = self.model.vp**(-2)
         u = np.zeros((3, nx, ny))
         U = np.zeros((3, nx, ny))
         rec = np.zeros((nt, ny-2))
-        src_grid = self.source_interpolate()
-        self._born_stencil(u, U, rec, dm, m, self.dampx, self.dampy, src_grid, self.data.get_source(), int(self.data.receiver_coords[0, 2]))
+        self._born_stencil(u, U, rec, dm, m, self.dampx, self.dampy, self.data.get_source())
         return rec
-
-    def _prepare_born_prop(self, subs, stencil, nt):
-        nx, ny = self.model.get_dimensions()
-        propagator = Propagator("Born", nt, (nx, ny), spc_border=1, time_order=2)
-        u = propagator.add_param("u", (nt, nx, ny), self.dtype, save=False)
-        U = propagator.add_param("U", (nt, nx, ny), self.dtype, save=False)
-        rec = propagator.add_param("rec", (nt, ny - 2), self.dtype)
-        dm = propagator.add_param("dm", (nx, ny), self.dtype)
-        M = propagator.add_param("m", (nx, ny), self.dtype)
-        dampx = propagator.add_param("dampx", (nx,), self.dtype)
-        dampy = propagator.add_param("dampy", (nx,), self.dtype)
-        src_grid = propagator.add_param("src_grid", (nx, ny), self.dtype)
-        src_time = propagator.add_param("src_time", (nt,), self.dtype)
-        xrec = propagator.add_scalar_param("xrec", "int")
-        src2 = propagator.add_local_var("src2", self.dtype)
-        dt = self.dt
-        h = self.h
-        record_condition = Eq(x, xrec)
-        record_true = Eq(rec[t-2, y-1], U[t, x, y])
-        propagator.add_loop_step(record_condition, record_true)
-        first_stencil_args = [u[t-2, x, y],
-                              u[t-1, x - 1, y],
-                              u[t-1, x, y],
-                              u[t-1, x + 1, y],
-                              u[t-1, x, y - 1],
-                              u[t-1, x, y + 1],
-                              (src_grid[x, y]*src_time[t-2]), M[x, y], dt, h, dampx[x] + dampy[y]]
-        first_update = Eq(u[t, x, y], stencil)
-        calc_src = Eq(src2, -((dt*dt)**(-1))*(u[t, x, y]-2*u[t-1, x, y]+u[t-2, x, y])*dm[x, y])
-        second_stencil_args = [U[t-2, x, y],
-                               U[t-1, x - 1, y],
-                               U[t-1, x, y],
-                               U[t-1, x + 1, y],
-                               U[t-1, x, y - 1],
-                               U[t-1, x, y + 1],
-                               src2, M[x, y], dt, h, dampx[x] + dampy[y]]
-        second_update = Eq(U[t, x, y], stencil)
-        propagator.set_jit_params(subs, [first_update, calc_src, second_update], [first_stencil_args, [], second_stencil_args])
-        return propagator
-
-    def _prepare_forward_prop(self, subs, stencil, nt):
-        nx, ny = self.model.get_dimensions()
-        propagator = Propagator("Forward", nt, (nx, ny), spc_border=1, time_order=2)
-        u = propagator.add_param("u", (nt, nx, ny), self.dtype)
-        rec = propagator.add_param("rec", (nt, ny - 2), self.dtype)
-        M = propagator.add_param("m", (nx, ny), self.dtype)
-        src_grid = propagator.add_param("src_grid", (nx, ny), self.dtype)
-        src_time = propagator.add_param("src_time", (nt,), self.dtype)
-        dampx = propagator.add_param("dampx", (nx,), self.dtype)
-        dampy = propagator.add_param("dampy", (nx,), self.dtype)
-        xrec = propagator.add_scalar_param("xrec", "int")
-
-        stencil_args = [u[t - 2, x, y],
-                        u[t - 1, x - 1, y],
-                        u[t - 1, x, y],
-                        u[t - 1, x + 1, y],
-                        u[t - 1, x, y - 1],
-                        u[t - 1, x, y + 1],
-                        (src_grid[x, y]*src_time[t-2]), M[x, y],
-                        self.dt, self.h, dampx[x] + dampy[y]]
-        lhs = u[t, x, y]
-        # Sympy representation of if condition: x == xrec
-        record_condition = Eq(x, xrec)
-        # Sympy representation of assignment: rec[t, y-1] = u[t, x, y]
-        record_true = Eq(rec[t-2, y-1], lhs)
-        propagator.add_loop_step(record_condition, record_true)
-        main_stencil = Eq(lhs, stencil)
-        propagator.set_jit_params(subs, [main_stencil], [stencil_args])
-        return propagator
-
-    def _prepare_adjoint_prop(self, subs, stencil, nt):
-        nx, ny = self.model.get_dimensions()
-        propagator = Propagator("Adjoint", nt, (nx, ny), spc_border=1, forward=False, time_order=2)
-        v = propagator.add_param("v", (nt, nx, ny), self.dtype)
-        rec = propagator.add_param("rec", (nt, ny - 2), self.dtype)
-        M = propagator.add_param("m", (nx, ny), self.dtype)
-        src_grid = propagator.add_param("src_grid", (nx, ny), self.dtype)
-        srca = propagator.add_param("srca", (nt,), self.dtype)
-        dampx = propagator.add_param("dampx", (nx,), self.dtype)
-        dampy = propagator.add_param("dampy", (nx,), self.dtype)
-        xrec = propagator.add_scalar_param("xrec", "int")
-        resid = propagator.add_local_var("resid", self.dtype)
-        dt = self.dt
-        h = self.h
-        use_receiver = Eq(resid, rec[t, y-1])
-        dont_use_receiver = Eq(resid, 0)
-        receiver_cond = Eq(x, xrec)
-        propagator.add_loop_step(receiver_cond, use_receiver, dont_use_receiver, True)
-        lhs = v[t, x, y]
-        src_cond = Eq(src_grid[x, y], 1)
-        src_cap = Eq(srca[t], lhs)
-        propagator.add_loop_step(src_cond, src_cap)
-        main_stencil = Eq(lhs, stencil)
-        stencil_args = [v[t + 2, x, y], v[t + 1, x - 1, y], v[t + 1, x, y], v[t + 1, x + 1, y], v[t + 1, x, y - 1], v[t + 1, x, y + 1], resid, M[x, y], dt, h, dampx[x]+dampy[y]]
-        propagator.set_jit_params(subs, [main_stencil], [stencil_args])
-        return propagator
-
-    def _prepare_gradient_prop(self, subs, stencil, nt):
-        nx, ny = self.model.get_dimensions()
-        propagator = Propagator("Gradient", nt, (nx, ny), spc_border=1, forward=False, time_order=2)
-        u = propagator.add_param("u", (nt, nx, ny), self.dtype)
-        rec = propagator.add_param("rec", (nt, ny - 2), self.dtype)
-        v = propagator.add_param("v", (nt, nx, ny), self.dtype, save=False)
-        grad = propagator.add_param("grad", (nx, ny), self.dtype)
-        M = propagator.add_param("m", (nx, ny), self.dtype)
-        dampx = propagator.add_param("dampx", (nx,), self.dtype)
-        dampy = propagator.add_param("dampy", (nx,), self.dtype)
-        xrec = propagator.add_scalar_param("xrec", "int")
-        resid = propagator.add_local_var("resid", self.dtype)
-        dt = self.dt
-        h = self.h
-        use_receiver = Eq(resid, rec[t, y-1])
-        dont_use_receiver = Eq(resid, 0)
-        receiver_cond = Eq(x, xrec)
-        propagator.add_loop_step(receiver_cond, use_receiver, dont_use_receiver, True)
-        lhs = v[t, x, y]
-        stencil_args = [v[t + 2, x, y], v[t + 1, x - 1, y], v[t + 1, x, y], v[t + 1, x + 1, y], v[t + 1, x, y - 1], v[t + 1, x, y + 1], resid, M[x, y], dt, h, dampx[x]+dampy[y]]
-        main_stencil = Eq(lhs, stencil)
-        gradient_update = Eq(grad[x, y],
-                             grad[x, y] - (v[t, x, y] - 2 * v[t + 1, x, y] + v[t + 2, x, y]) * (u[t+2, x, y]))
-        propagator.set_jit_params(subs, [main_stencil, gradient_update], [stencil_args, []])
-        return propagator
 
     def source_interpolate(self):
         if self.src_grid is not None:
             return self.src_grid
         xmin, ymin = self.model.get_origin()
-        nx, ny = self.model.get_dimensions()
+        nx, ny = self.model.get_shape()
         h = self.h
         src_grid = np.zeros((nx, ny), dtype=self.dtype)
         for a in range(nx):

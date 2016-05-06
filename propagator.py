@@ -19,6 +19,8 @@ class Propagator(object):
         self.time_steppers = []
         self.time_order = time_order
         self.nt = nt
+        self.time_loop_stencils_b = []
+        self.time_loop_stencils_a = []
         # Start with the assumption that the propagator needs to save the field in memory at every time step
         self._save = True
         # This might be changed later when parameters are being set
@@ -73,14 +75,15 @@ class Propagator(object):
         stmts = []
         for equality, args in zip(stencils, stencil_args):
             equality = equality.subs(dict(zip(subs, args)))
-            equality = self.time_substitutions(equality)
-            equality = equality.xreplace(self._var_map)
-            stencil = cgen.Assign(ccode(equality.lhs), ccode(equality.rhs))
+            stencil = self.convert_equality_to_cgen(equality)
             stmts.append(stencil)
         kernel = self._pre_kernel_steps
         kernel += stmts
         kernel += self._post_kernel_steps
         return self.prepare_loop(cgen.Block(kernel))
+
+    def convert_equality_to_cgen(self, equality):
+        return cgen.Assign(ccode(self.time_substitutions(equality.lhs).xreplace(self._var_map)), ccode(self.time_substitutions(equality.rhs).xreplace(self._var_map)))
 
     def prepare_loop(self, loop_body):
         num_spac_dim = len(self.space_dims)
@@ -97,21 +100,20 @@ class Propagator(object):
             time_stepping = self.get_time_stepping()
         else:
             time_stepping = []
-        loop_body = cgen.Block(time_stepping + [loop_body])
+        time_loop_stencils_b = [self.convert_equality_to_cgen(x) for x in self.time_loop_stencils_b]
+        time_loop_stencils_a = [self.convert_equality_to_cgen(x) for x in self.time_loop_stencils_a]
+        loop_body = cgen.Block(time_stepping + time_loop_stencils_b + [loop_body] + time_loop_stencils_a)
         loop_body = cgen.For(cgen.InlineInitializer(cgen.Value("int", t_var), str(t_loop_limits[0])), t_var + cond_op + str(t_loop_limits[1]), t_var + "+=" + str(self._time_step), loop_body)
         def_time_step = [cgen.Value("int", t_var_def.name) for t_var_def in self.time_steppers]
         body = def_time_step + [loop_body]
         return cgen.Block(body)
 
-    def add_loop_step(self, sympy_condition, true_assign, false_assign=None, before=False):
-        condition = ccode(sympy_condition.lhs.xreplace(self._var_map)) + " == " + ccode(sympy_condition.rhs.xreplace(self._var_map))
-        true_str = cgen.Assign(ccode(self.time_substitutions(true_assign.lhs).xreplace(self._var_map)), ccode(self.time_substitutions(true_assign.rhs).xreplace(self._var_map)))
-        false_str = cgen.Assign(ccode(self.time_substitutions(false_assign.lhs).xreplace(self._var_map)), ccode(self.time_substitutions(false_assign.rhs).xreplace(self._var_map))) if false_assign is not None else None
-        statement = cgen.If(condition, true_str, false_str)
+    def add_loop_step(self, assign, before=False):
+        stm = self.convert_equality_to_cgen(assign)
         if before:
-            self._pre_kernel_steps.append(statement)
+            self._pre_kernel_steps.append(stm)
         else:
-            self._post_kernel_steps.append(statement)
+            self._post_kernel_steps.append(stm)
 
     def set_jit_params(self, subs, stencils, stencil_args):
         self.subs = subs
@@ -125,7 +127,7 @@ class Propagator(object):
         self.fd.add_matrix_param(name, shape, dtype)
         self.save = save
         self.save_vars[name] = save
-        return IndexedBase(name)
+        return IndexedBase(name, shape=shape)
 
     def add_scalar_param(self, name, dtype):
         self.fd.add_value_param(name, dtype)
@@ -180,3 +182,9 @@ class Propagator(object):
             for arg in sympy_expr.args:
                 sympy_expr = sympy_expr.subs(arg, self.time_substitutions(arg))
         return sympy_expr
+
+    def add_time_loop_stencil(self, stencil, before=False):
+        if before:
+            self.time_loop_stencils_b.append(stencil)
+        else:
+            self.time_loop_stencils_a.append(stencil)
