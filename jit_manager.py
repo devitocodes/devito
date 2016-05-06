@@ -20,7 +20,15 @@ class JitManager(object):
     _hashing_function = sha1
     _wrapped_functions = None
     COMPILER_OVERRIDE_VAR = "DEVITO_CC"
-    _incompatible_flags = ["-Wshorten-64-to-32", "-Wstrict-prototypes", ("-arch", "i386")]
+    _incompatible_flags = ["-Wshorten-64-to-32", "-Wstrict-prototypes", ("-arch", "i386"), "Python.framework/Versions/2.7/Python"]
+    _mic_flag = False
+    # To enable mic process: 1:True 0:False;
+    COMPILER_ENABLE_MIC = "DEVITO_MIC"
+    _intel_compiler = ('icc', 'icpc')
+    _device = None
+    _stream = None
+    _mic = None
+>>>>>>> Stashed changes
 
     # The temp directory used to store generated code
     tmp_dir = os.path.join(gettempdir(), "devito-%s" % os.getuid())
