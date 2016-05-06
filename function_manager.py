@@ -87,12 +87,11 @@ class FunctionDescriptor(object):
         self.value_params = []
         self.local_vars = []
 
-    def add_matrix_param(self, name, shape, dtype):
+    def add_matrix_param(self, name, shape, dtype, input):
         """ Add a parameter to the function
-            A function may have any number of parameters but only one may be the looper
-            Each parameter has an associated name and shape
+            Each parameter has an associated name, shape, dtype
         """
-        self.matrix_params.append({'name': name, 'shape': shape, 'dtype': dtype})
+        self.matrix_params.append({'name': name, 'shape': shape, 'dtype': dtype, 'input': input})
 
     def add_value_param(self, name, dtype):
         """ Declare a new value (scalar) param for this function

@@ -123,8 +123,8 @@ class Propagator(object):
     def set_jit_simple(self, loop_body):
         self.loop_body = loop_body
 
-    def add_param(self, name, shape, dtype, save=True):
-        self.fd.add_matrix_param(name, shape, dtype)
+    def add_param(self, name, shape, dtype, save=True, input=True):
+        self.fd.add_matrix_param(name, shape, dtype, input)
         self.save = save
         self.save_vars[name] = save
         return IndexedBase(name, shape=shape)
