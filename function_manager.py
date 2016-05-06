@@ -9,14 +9,19 @@ class FunctionManager(object):
     libraries = ['cassert', 'cstdlib', 'cmath', 'iostream',
                  'fstream', 'vector', 'cstdio', 'string', 'inttypes.h']
 
-    def __init__(self, function_descriptors):
+    _pymic_attribute = 'PYMIC_KERNEL'
+
+    def __init__(self, function_descriptors, mic_flag=False):
         self.function_descriptors = function_descriptors
         self._defines = []
+        self.mic_flag = mic_flag
 
     def includes(self):
         statements = []
         statements += self._defines
         statements += [cgen.Include(s) for s in self.libraries]
+        if self.mic_flag:
+                statements += [cgen.Include('pymic_kernel.h')]
         return cgen.Module(statements)
 
     def add_define(self, name, text):
@@ -36,11 +41,13 @@ class FunctionManager(object):
         for param in function_descriptor.matrix_params:
             param_vec_def = cgen.Pointer(cgen.POD(param['dtype'], param['name']+"_vec"))
             function_params = function_params + [param_vec_def]
-        function_params += [cgen.POD(type_label, name) for type_label, name in function_descriptor.value_params]
-        return cgen.Extern("C",
-                           cgen.FunctionDeclaration(cgen.Value('int', function_descriptor.name),
-                                                    function_params)
-                           )
+        if self.mic_flag:
+                function_params += [cgen.Pointer(cgen.POD(type_label, name+"_pointer")) for type_label, name in function_descriptor.value_params]
+                return cgen.FunctionDeclaration(cgen.Value(self._pymic_attribute + '\nint', function_descriptor.name),
+                                                function_params)
+        else:
+                function_params += [cgen.POD(type_label, name) for type_label, name in function_descriptor.value_params]
+                return cgen.Extern("C", cgen.FunctionDeclaration(cgen.Value('int', function_descriptor.name), function_params))
 
     def generate_function_body(self, function_descriptor):
         statements = [cgen.POD(var[0], var[1]) for var in function_descriptor.local_vars]
@@ -56,6 +63,10 @@ class FunctionManager(object):
                 '(%s (*)%s) %s' % (cgen.dtype_to_ctype(param['dtype']), arr, param['name']+"_vec")
             )
             statements.append(cast_pointer)
+        if self.mic_flag:
+                for param in function_descriptor.value_params:
+                        cast_pointer = cgen.Initializer(cgen.POD(param[0], "(%s)" % (param[1])), '*%s' % (param[1]+"_pointer"))
+                        statements.append(cast_pointer)
         statements.append(function_descriptor.body)
         statements.append(cgen.Statement("return 0"))
         return cgen.Block(statements)

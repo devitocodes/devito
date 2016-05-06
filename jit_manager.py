@@ -21,17 +21,29 @@ class JitManager(object):
     _wrapped_functions = None
     COMPILER_OVERRIDE_VAR = "DEVITO_CC"
     _incompatible_flags = ["-Wshorten-64-to-32", "-Wstrict-prototypes", ("-arch", "i386")]
+    _mic_flag = False
+    # To enable mic process: 1:True 0:False;
+    COMPILER_ENABLE_MIC = "DEVITO_MIC"
+    _intel_compiler = ('icc', 'icpc')
+    _device = None
+    _stream = None
+    _mic = None
 
     # The temp directory used to store generated code
     tmp_dir = os.path.join(gettempdir(), "devito-%s" % os.getuid())
 
     def __init__(self, propagators, dtype=None):
-        function_descriptors = [prop.get_fd() for prop in propagators]
-        self.function_manager = FunctionManager(function_descriptors)
-        self._function_descriptors = function_descriptors
         self.compiler = guess_toolchain()
-        if os.environ.get(self.COMPILER_OVERRIDE_VAR, "") != "":
+        override_var = os.environ.get(self.COMPILER_OVERRIDE_VAR, "")
+        if override_var != "" and not override_var.isspace():
             self.compiler.cc = os.environ.get(self.COMPILER_OVERRIDE_VAR)
+            enable_mic = os.environ.get(self.COMPILER_ENABLE_MIC)
+            if self.compiler.cc in self._intel_compiler and enable_mic == "1":
+                self._mic = __import__('pymic')
+                self._mic_flag = True
+        function_descriptors = [prop.get_fd() for prop in propagators]
+        self.function_manager = FunctionManager(function_descriptors, self._mic_flag)
+        self._function_descriptors = function_descriptors
         self._clean_flags()
         # Generate a random salt to uniquely identify this instance of the class
         self._salt = randint(0, 100000000)
@@ -54,7 +66,13 @@ class JitManager(object):
         """Load a compiled dynamic binary using ctypes.cdll"""
         libname = src_lib or self.src_lib
         try:
-            self._library = cdll.LoadLibrary(libname)
+            if self._mic_flag:
+                # Load pymic objects to perform offload process
+                self._device = self._mic.devices[0]
+                self._stream = self._device.get_default_stream()
+                self._library = self._device.load_library(libname)
+            else:
+                self._library = cdll.LoadLibrary(libname)
         except OSError as e:
             print "Library load error: ", e
             raise Exception("Failed to load %s" % libname)
@@ -73,6 +91,8 @@ class JitManager(object):
         # Generate compilable source code
         self.src_code = str(self.function_manager.generate())
         print "Generated: %s" % self.src_file
+        if self._mic_flag:
+                self.compiler.ldflags.append("-mmic")
         jit.extension_file_from_string(self.compiler, self.src_lib,
                                        self.src_code, source_name=self.src_file)
 
@@ -110,12 +130,22 @@ class JitManager(object):
         for function_descriptor in self._function_descriptors:
             # Pointer to the function in the compiled library
             library_function = getattr(self._library, function_descriptor.name)
-            # Ctypes needs an array describing the function parameters, prepare that array
-            argtypes = [array_nd for i in function_descriptor.matrix_params]
-            argtypes += [cgen.convert_dtype_to_ctype(param[0]) for param in function_descriptor.value_params]
-            library_function.argtypes = argtypes
-            wrapped_functions.append(self.wrap_function(library_function, function_descriptor))
+            if self._mic_flag:
+                wrapped_functions.append(self.create_a_function(self._stream, library_function))
+            else:
+                # Ctypes needs an array describing the function parameters, prepare that array
+                argtypes = [array_nd for i in function_descriptor.matrix_params]
+                argtypes += [cgen.convert_dtype_to_ctype(param[0]) for param in function_descriptor.value_params]
+                library_function.argtypes = argtypes
+                wrapped_functions.append(self.wrap_function(library_function, function_descriptor))
         return wrapped_functions
+
+    def create_a_function(self, mic_stream, mic_library):
+        # Create function dynamically to execute mic offload using pymic
+        def function_template(*args, **kwargs):
+            mic_stream.invoke(mic_library, args)
+            mic_stream.sync()
+        return function_template
 
     def get_wrapped_functions(self):
         if self._wrapped_functions is None:
