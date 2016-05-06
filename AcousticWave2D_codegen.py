@@ -181,7 +181,7 @@ class AcousticWave2D_cg:
         m = self.model.vp**(-2)
         nt = self.nt
         u = np.zeros((nt+2, nx, ny), dtype=self.dtype)
-        rec = np.zeros((nt, ny - 2), dtype=self.dtype)
+        rec = np.zeros((nt, self.nrec), dtype=self.dtype)
         self._forward_stencil(u, rec, m, self.data.get_source(),
                               self.dampx, self.dampy)
         return rec, u
@@ -190,8 +190,8 @@ class AcousticWave2D_cg:
         nt = self.nt
         nx, ny = self.model.get_shape()
         m = self.model.vp**(-2)
-        v = np.zeros((nt+2, nx, ny))
-        srca = np.zeros((nt))
+        v = np.zeros((nt+2, nx, ny), dtype=self.dtype)
+        srca = np.zeros((nt), dtype=self.dtype)
         self._adjoint_stencil(v, rec, m, srca,
                               self.dampx, self.dampy)
         return srca, v
@@ -200,8 +200,8 @@ class AcousticWave2D_cg:
         nx, ny = self.model.get_shape()
         dt = self.dt
         m = self.model.vp**(-2)
-        v = np.zeros((3, nx, ny))
-        grad = np.zeros((nx, ny))
+        v = np.zeros((3, nx, ny), dtype=self.dtype)
+        grad = np.zeros((nx, ny), dtype=self.dtype)
         self._gradient_stencil(u, rec, v, grad, m, self.dampx, self.dampy)
         return (dt**-2)*grad
 
@@ -209,9 +209,9 @@ class AcousticWave2D_cg:
         nt = self.nt
         nx, ny = self.model.get_shape()
         m = self.model.vp**(-2)
-        u = np.zeros((3, nx, ny))
-        U = np.zeros((3, nx, ny))
-        rec = np.zeros((nt, ny-2))
+        u = np.zeros((3, nx, ny), dtype=self.dtype)
+        U = np.zeros((3, nx, ny), dtype=self.dtype)
+        rec = np.zeros((nt, self.nrec))
         self._born_stencil(u, U, rec, dm, m, self.dampx, self.dampy, self.data.get_source())
         return rec
 
