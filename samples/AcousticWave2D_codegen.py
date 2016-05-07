@@ -4,7 +4,7 @@ from sympy import Function, symbols, init_printing, as_finite_diff
 from sympy import solve
 from sympy.abc import x, y, t, M, E
 import numpy as np
-from operators import *
+from devito.operators import *
 
 init_printing()
 

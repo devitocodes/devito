@@ -1,8 +1,8 @@
-from AcousticWave2D import AcousticWave2D
+from samples.AcousticWave2D import AcousticWave2D
 import numpy as np
 from numpy import linalg
 from math import floor
-from interfaces import IGrid, IShot
+from devito.interfaces import IGrid, IShot
 import pytest
 
 
@@ -45,7 +45,6 @@ class Test_AdjointA(object):
         data.set_shape(nt, 30)
         # Adjoint test
         wave_true = AcousticWave2D(model, data)
-        wave_true.prepare()
         return wave_true
 
     @pytest.fixture
