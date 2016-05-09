@@ -4,7 +4,7 @@ from sympy import Function, symbols, init_printing, as_finite_diff
 from sympy import solve
 from sympy.abc import x, y, t, M, E
 import numpy as np
-from devito.operators import *
+from operators import *
 
 init_printing()
 
@@ -19,7 +19,6 @@ class AcousticWave2D_cg:
         self.h = model.get_spacing()
         self.nbpml = nbpml
         self.src_grid = None
-        
         pad = ((nbpml, nbpml), (nbpml, nbpml))
         self.model.vp = np.pad(self.model.vp, pad, 'edge')
         self.data.reinterpolate(self.dt)
@@ -33,7 +32,7 @@ class AcousticWave2D_cg:
             if len(source_time) < self.data.nsamples:
                 source_time = np.append(source_time, [0.0])
             self.data.set_source(source_time, self.dt, self.data.source_coords)
-        
+
         self._init_taylor(self.nt)
 
     def _init_taylor(self, nt):
@@ -101,12 +100,12 @@ class AcousticWave2D_cg:
         self.nt = nt
 
         self._forward_stencil = ForwardOperator((p(x, y, t-s),
-                                   p(x-h, y, t),
-                                   p(x, y, t),
-                                   p(x+h, y, t),
-                                   p(x, y-h, t),
-                                   p(x, y+h, t), m, s, h, e),
-                                  stencil, self).get_callable()
+                                                 p(x-h, y, t),
+                                                 p(x, y, t),
+                                                 p(x+h, y, t),
+                                                 p(x, y-h, t),
+                                                 p(x, y+h, t), m, s, h, e),
+                                                stencil, self).get_callable()
 
         # Precompute dampening
         self.dampx = np.array([self.damp(i, nx) for i in range(nx)], dtype=self.dtype, order='C')
@@ -152,29 +151,28 @@ class AcousticWave2D_cg:
         wave_equationA = m * dtt - (dxx + dyy) - e * dt
         stencilA = solve(wave_equationA, p(x, y, t-s))[0]
         self._adjoint_stencil = AdjointOperator((p(x, y, t+s),
-                                    p(x-h, y, t),
-                                    p(x, y, t),
-                                    p(x+h, y, t),
-                                    p(x, y-h, t),
-                                    p(x, y+h, t), m, s, h, e),
-                                   stencilA, self).get_callable()
-
+                                                 p(x-h, y, t),
+                                                 p(x, y, t),
+                                                 p(x+h, y, t),
+                                                 p(x, y-h, t),
+                                                 p(x, y+h, t), m, s, h, e),
+                                                stencilA, self).get_callable()
 
         self._gradient_stencil = GradientOperator((p(x, y, t+s),
-                                      p(x-h, y, t),
-                                      p(x, y, t),
-                                      p(x+h, y, t),
-                                      p(x, y-h, t),
-                                      p(x, y+h, t), m, s, h, e),
-                                     stencilA, self).get_callable()
+                                                   p(x-h, y, t),
+                                                   p(x, y, t),
+                                                   p(x+h, y, t),
+                                                   p(x, y-h, t),
+                                                   p(x, y+h, t), m, s, h, e),
+                                                  stencilA, self).get_callable()
 
         self._born_stencil = BornOperator((p(x, y, t-s),
-                                  p(x-h, y, t),
-                                  p(x, y, t),
-                                  p(x+h, y, t),
-                                  p(x, y-h, t),
-                                  p(x, y+h, t), m, s, h, e),
-                                 stencil, self).get_callable()
+                                           p(x-h, y, t),
+                                           p(x, y, t),
+                                           p(x+h, y, t),
+                                           p(x, y-h, t),
+                                           p(x, y+h, t), m, s, h, e),
+                                          stencil, self).get_callable()
 
     def Forward(self):
         nx, ny = self.model.get_shape()
