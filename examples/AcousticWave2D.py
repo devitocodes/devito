@@ -374,8 +374,6 @@ class AcousticWave2D:
         nt = self.nt
         xmin, ymin = self.model.origin
         nx, ny = self.model.get_shape()
-        print(nx, ny)
-        print(dm.shape)
         dt = self.dt
         h = self.h
         m = self.model.vp**(-2)

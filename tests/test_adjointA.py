@@ -1,4 +1,4 @@
-from samples.AcousticWave2D import AcousticWave2D
+from examples.AcousticWave2D import AcousticWave2D
 import numpy as np
 from numpy import linalg
 from math import floor
