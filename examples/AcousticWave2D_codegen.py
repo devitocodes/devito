@@ -244,7 +244,6 @@ class AcousticWave2D_cg:
             return 0.0
 
     def run(self):
-        nt = self.data.nsamples
         print('Starting forward')
         rec, u = self.Forward()
         res = rec - np.transpose(self.data.traces)

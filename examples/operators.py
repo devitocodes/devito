@@ -1,7 +1,6 @@
 from devito.operators import *
 from sympy.abc import x, y, t
 from sympy import Eq, symbols, Matrix
-from devito.interfaces import MatrixData, TimeData
 
 
 class FWIOperator(Operator):

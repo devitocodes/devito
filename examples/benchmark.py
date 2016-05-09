@@ -4,8 +4,8 @@ from AcousticWave2D import AcousticWave2D
 import time
 from math import floor
 from terminaltables import AsciiTable
-from devito.interfaces import IShot
-from devito.interfaces import IGrid
+from containers import IShot, IGrid
+
 
 dimensions = (100, 100)
 model = IGrid()
