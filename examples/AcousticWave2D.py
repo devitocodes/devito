@@ -93,9 +93,6 @@ class AcousticWave2D:
         s22 = b22.subs(((rx, x), (rz, z))).evalf()
         return (i, k), (s11, s12, s21, s22)
 
-    def prepare(self):
-        pass
-
     def _init_taylor(self, h=None, s=None):
         # The acoustic wave equation for the square slowness m and a source q
         # is given in 3D by :

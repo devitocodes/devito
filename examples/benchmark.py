@@ -4,8 +4,8 @@ from AcousticWave2D import AcousticWave2D
 import time
 from math import floor
 from terminaltables import AsciiTable
-from interfaces import IShot
-from interfaces import IGrid
+from containers import IShot, IGrid
+
 
 dimensions = (100, 100)
 model = IGrid()
@@ -66,9 +66,7 @@ data.set_receiver_pos(receiver_coords)
 data.set_shape(nt, 30)
 # A Forward propagation example
 python_obj = AcousticWave2D(model0, data, nbpml=nbpml)
-python_obj.prepare()
 jit_obj = AcousticWave2D_cg(model0, data, nbpml=nbpml)
-jit_obj.prepare()
 
 print "Forward propagation"
 print "Starting python lambdified version"

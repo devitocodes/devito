@@ -1,10 +1,11 @@
-from propagator import Propagator
+from devito.operators import *
 from sympy.abc import x, y, t
 from sympy import Eq, symbols, Matrix
 
 
-class Operator(object):
+class FWIOperator(Operator):
     def __init__(self, subs, stencil, problem):
+        super(FWIOperator, self).__init__(problem.nt, problem.model.get_shape())
         self.subs = subs
         self.stencil = stencil
         self.problem = problem
@@ -14,6 +15,7 @@ class Operator(object):
         self.dt = problem.dt
         self.h = problem.h
         self.data = problem.data
+        self.nrec = problem.nrec
         x1, z1, x2, z2, d = symbols('x1, z1, x2, z2, d')
         A = Matrix([[1, x1, z1, x1*z1],
                     [1, x1, z2, x1*z2],
@@ -36,9 +38,6 @@ class Operator(object):
                     [rx*rz]])
 
         self.bs = A.inv().T.dot(p)
-
-    def get_propagator(self):
-        return self._prepare(self.subs, self.stencil, self.nt, self.shape)
 
     def point2grid(self, x, z):
         # In: s - Magnitude of the source
@@ -76,16 +75,20 @@ class Operator(object):
                 b22.subs(((rx, x), (rz, z))) * u[t, i+1, j+1])
 
 
-class ForwardOperator(Operator):
-    def _prepare(self, subs, stencil, nt, shape):
-        nx, ny = shape
-        propagator = Propagator("Forward", nt, (nx, ny), spc_border=1, time_order=2)
+class ForwardOperator(FWIOperator):
+    def _prepare(self):
+        nt = self.nt
+        nx, ny = self.shape
+        nrec = self.nrec
+        stencil = self.stencil
+        subs = self.subs
+        propagator = self.propagator
         u = propagator.add_param("u", (nt, nx, ny), self.dtype)
-        rec = propagator.add_param("rec", (nt, ny - 2), self.dtype)
+        rec = propagator.add_param("rec", (nt, nrec), self.dtype)
         M = propagator.add_param("m", (nx, ny), self.dtype)
         src_time = propagator.add_param("src_time", (nt,), self.dtype)
         dampx = propagator.add_param("dampx", (nx,), self.dtype)
-        dampy = propagator.add_param("dampy", (nx,), self.dtype)
+        dampy = propagator.add_param("dampy", (ny,), self.dtype)
 
         stencil_args = [u[t - 2, x, y],
                         u[t - 1, x - 1, y],
@@ -127,12 +130,16 @@ class ForwardOperator(Operator):
         return eqs
 
 
-class AdjointOperator(Operator):
-    def _prepare(self, subs, stencil, nt, shape):
-        nx, ny = shape
+class AdjointOperator(FWIOperator):
+    def _prepare(self):
+        nt = self.nt
+        subs = self.subs
+        stencil = self.stencil
+        nx, ny = self.shape
+        nrec = self.nrec
         propagator = Propagator("Adjoint", nt, (nx, ny), spc_border=1, forward=False, time_order=2)
         v = propagator.add_param("v", (nt, nx, ny), self.dtype)
-        rec = propagator.add_param("rec", (nt, ny - 2), self.dtype)
+        rec = propagator.add_param("rec", (nt, nrec), self.dtype)
         M = propagator.add_param("m", (nx, ny), self.dtype)
         srca = propagator.add_param("srca", (nt,), self.dtype)
         dampx = propagator.add_param("dampx", (nx,), self.dtype)
@@ -177,11 +184,15 @@ class AdjointOperator(Operator):
 
 
 class GradientOperator(AdjointOperator):
-    def _prepare(self, subs, stencil, nt, shape):
-        nx, ny = shape
+    def _prepare(self):
+        stencil = self.stencil
+        subs = self.subs
+        nx, ny = self.shape
+        nt = self.nt
+        nrec = self.nrec
         propagator = Propagator("Gradient", nt, (nx, ny), spc_border=1, forward=False, time_order=2)
         u = propagator.add_param("u", (nt, nx, ny), self.dtype)
-        rec = propagator.add_param("rec", (nt, ny - 2), self.dtype)
+        rec = propagator.add_param("rec", (nt, nrec), self.dtype)
         v = propagator.add_param("v", (nt, nx, ny), self.dtype, save=False)
         grad = propagator.add_param("grad", (nx, ny), self.dtype)
         M = propagator.add_param("m", (nx, ny), self.dtype)
@@ -193,7 +204,7 @@ class GradientOperator(AdjointOperator):
         stencil_args = [v[t + 2, x, y], v[t + 1, x - 1, y], v[t + 1, x, y], v[t + 1, x + 1, y], v[t + 1, x, y - 1], v[t + 1, x, y + 1], M[x, y], dt, h, dampx[x]+dampy[y]]
         main_stencil = Eq(lhs, lhs + stencil)
         gradient_update = Eq(grad[x, y],
-                             grad[x, y] - (v[t, x, y] - 2 * v[t + 1, x, y] + v[t + 2, x, y]) * (u[t, x, y]))
+                             grad[x, y] - (v[t, x, y] - 2 * v[t + 1, x, y] + v[t + 2, x, y]) * (u[t+2, x, y]))
         propagator.set_jit_params(subs, [main_stencil, gradient_update], [stencil_args, []])
         propagator.add_loop_step(Eq(v[t+2, x, y], 0), False)
         rec = self.add_rec(rec, M, self.dt, v)
@@ -203,12 +214,16 @@ class GradientOperator(AdjointOperator):
 
 
 class BornOperator(ForwardOperator):
-    def _prepare(self, subs, stencil, nt, shape):
-        nx, ny = shape
+    def _prepare(self):
+        stencil = self.stencil
+        subs = self.subs
+        nt = self.nt
+        nx, ny = self.shape
+        nrec = self.nrec
         propagator = Propagator("Born", nt, (nx, ny), spc_border=1, time_order=2)
         u = propagator.add_param("u", (nt, nx, ny), self.dtype, save=False)
         U = propagator.add_param("U", (nt, nx, ny), self.dtype, save=False)
-        rec = propagator.add_param("rec", (nt, ny - 2), self.dtype)
+        rec = propagator.add_param("rec", (nt, nrec), self.dtype)
         dm = propagator.add_param("dm", (nx, ny), self.dtype)
         M = propagator.add_param("m", (nx, ny), self.dtype)
         dampx = propagator.add_param("dampx", (nx,), self.dtype)
