@@ -5,6 +5,7 @@ from sympy import solve
 from sympy.abc import x, y, t, M, E
 import numpy as np
 from operators import *
+from devito.interfaces import DenseData, PointData
 
 init_printing()
 
@@ -95,21 +96,47 @@ class AcousticWave2D_cg:
         # domain to the border
 
         # Forward wave equation
+        
+        def damp_boundary(damp):
+            h = self.h
+            dampcoeff = 1.5 * np.log(1.0 / 0.001) / (40 * h)
+    
+            nx, ny = self.model.get_shape()
+    
+            nbpml = self.nbpml
+            for i in range(nbpml):
+                pos = np.abs((nbpml-i)/nbpml)
+                val = dampcoeff * (pos - np.sin(2*np.pi*pos)/(2*np.pi))
+    
+                damp[i, :] += val
+                damp[-i, :] += val
+    
+                damp[:, i] += val
+                damp[:, -i] += val
+        
         wave_equation = m * dtt - (dxx + dyy) + e * dt
         stencil = solve(wave_equation, p(x, y, t+s))[0]
         self.nt = nt
-
+        m_sub = DenseData("m", self.model.vp.shape, self.dtype)
+        m_sub.initializer = lambda ref: np.copyto(ref , self.model.vp**(-2))
+        self.m = m_sub
+        damp = DenseData("damp", self.model.vp.shape, self.dtype)
+        damp.initializer = damp_boundary
+        self.damp = damp
+        src = SourceLike("src", 1, self.nt, self.dt, self.h, np.array(self.data.source_coords, dtype=self.dtype)[np.newaxis, :], self.dtype)
+        rec = SourceLike("rec", self.nrec, self.nt, self.dt, self.h, self.data.receiver_coords, self.dtype)
+        src.initializer = lambda ref: np.copyto(ref, self.data.get_source()[:, np.newaxis])
+        rec.initializer = lambda ref: None
+        self.src = src
+        self.rec = rec
         self._forward_stencil = ForwardOperator((p(x, y, t-s),
                                                  p(x-h, y, t),
                                                  p(x, y, t),
                                                  p(x+h, y, t),
                                                  p(x, y-h, t),
                                                  p(x, y+h, t), m, s, h, e),
-                                                stencil, self).get_callable()
+                                                stencil, m_sub, src, damp, rec)
 
-        # Precompute dampening
-        self.dampx = np.array([self.damp(i, nx) for i in range(nx)], dtype=self.dtype, order='C')
-        self.dampy = np.array([self.damp(i, ny) for i in range(ny)], dtype=self.dtype, order='C')
 
         # Rewriting the discret PDE as part of an Inversion. Accuracy and
         # rigourousness of the dicretization
@@ -148,6 +175,9 @@ class AcousticWave2D_cg:
         # should be implemented.
 
         # Adjoint wave equation
+        srca = SourceLike("srca", 1, self.nt, self.dt, self.h, np.array(self.data.source_coords, dtype=self.dtype)[np.newaxis, :], self.dtype)
+        srca.initializer = lambda ref: None
+        self.srca = srca
         wave_equationA = m * dtt - (dxx + dyy) - e * dt
         stencilA = solve(wave_equationA, p(x, y, t-s))[0]
         self._adjoint_stencil = AdjointOperator((p(x, y, t+s),
@@ -156,43 +186,31 @@ class AcousticWave2D_cg:
                                                  p(x+h, y, t),
                                                  p(x, y-h, t),
                                                  p(x, y+h, t), m, s, h, e),
-                                                stencilA, self).get_callable()
+                                                stencilA, m_sub, rec, damp, srca)
 
-        self._gradient_stencil = GradientOperator((p(x, y, t+s),
-                                                   p(x-h, y, t),
-                                                   p(x, y, t),
-                                                   p(x+h, y, t),
-                                                   p(x, y-h, t),
-                                                   p(x, y+h, t), m, s, h, e),
-                                                  stencilA, self).get_callable()
-
-        self._born_stencil = BornOperator((p(x, y, t-s),
-                                           p(x-h, y, t),
-                                           p(x, y, t),
-                                           p(x+h, y, t),
-                                           p(x, y-h, t),
-                                           p(x, y+h, t), m, s, h, e),
-                                          stencil, self).get_callable()
+#         self._gradient_stencil = GradientOperator((p(x, y, t+s),
+#                                                    p(x-h, y, t),
+#                                                    p(x, y, t),
+#                                                    p(x+h, y, t),
+#                                                    p(x, y-h, t),
+#                                                    p(x, y+h, t), m, s, h, e),
+#                                                   stencilA, self).get_callable()
+# 
+#         self._born_stencil = BornOperator((p(x, y, t-s),
+#                                            p(x-h, y, t),
+#                                            p(x, y, t),
+#                                            p(x+h, y, t),
+#                                            p(x, y-h, t),
+#                                            p(x, y+h, t), m, s, h, e),
+#                                           stencil, self).get_callable()
 
     def Forward(self):
-        nx, ny = self.model.get_shape()
-        m = self.model.vp**(-2)
-        nt = self.nt
-        u = np.zeros((nt+2, nx, ny), dtype=self.dtype)
-        rec = np.zeros((nt, self.nrec), dtype=self.dtype)
-        self._forward_stencil(u, rec, m, self.data.get_source(),
-                              self.dampx, self.dampy)
-        return rec, u
+        u = self._forward_stencil.apply()
+        return (self.rec.data, u)
 
     def Adjoint(self, rec):
-        nt = self.nt
-        nx, ny = self.model.get_shape()
-        m = self.model.vp**(-2)
-        v = np.zeros((nt+2, nx, ny), dtype=self.dtype)
-        srca = np.zeros((nt), dtype=self.dtype)
-        self._adjoint_stencil(v, rec, m, srca,
-                              self.dampx, self.dampy)
-        return srca, v
+        v = self._adjoint_stencil.apply(self.m, self.rec, self.damp, self.srca)
+        return (self.srca, v)
 
     def Gradient(self, rec, u):
         nx, ny = self.model.get_shape()
@@ -213,36 +231,6 @@ class AcousticWave2D_cg:
         self._born_stencil(u, U, rec, dm, m, self.dampx, self.dampy, self.data.get_source())
         return rec
 
-    def source_interpolate(self):
-        if self.src_grid is not None:
-            return self.src_grid
-        xmin, ymin = self.model.get_origin()
-        nx, ny = self.model.get_shape()
-        h = self.h
-        src_grid = np.zeros((nx, ny), dtype=self.dtype)
-        for a in range(nx):
-            for b in range(ny):
-                sa, sb = xmin + a * h, ymin + h * b
-                if (abs(sa - self.data.source_coords[0]) < self.h / 2 and
-                        abs(sb - self.data.source_coords[1]) < self.h / 2):
-                    src_grid[a, b] = 1
-                else:
-                    src_grid[a, b] = 0
-        self.src_grid = src_grid
-        return src_grid
-
-    def damp(self, x, nx):
-        nbpml = self.nbpml
-        h = self.h
-
-        dampcoeff = 1.5 * np.log(1.0 / 0.001) / (5.0 * h)
-        if x < nbpml:
-            return dampcoeff * ((nbpml - x) / nbpml)**2
-        elif x > nx - nbpml - 1:
-            return dampcoeff * ((x - nx + nbpml) / nbpml)**2
-        else:
-            return 0.0
-
     def run(self):
         print('Starting forward')
         rec, u = self.Forward()
@@ -251,3 +239,89 @@ class AcousticWave2D_cg:
         print('Residual is ', f, 'starting gradient')
         g = self.Gradient(res, u)
         return f, g[self.nbpml:-self.nbpml, self.nbpml:-self.nbpml]
+
+
+class SourceLike(PointData):
+    def __init__(self, name, npoint, nt, dt, h, data, dtype):
+        self.orig_data = data
+        self.dt = dt
+        self.h = h
+        super(SourceLike, self).__init__(name, npoint, nt, dtype)
+        x1, z1, x2, z2 = symbols('x1, z1, x2, z2')
+        A = Matrix([[1, x1, z1, x1*z1],
+                    [1, x1, z2, x1*z2],
+                    [1, x2, z1, x2*z1],
+                    [1, x2, z2, x2*z2]])
+
+        # Map to reference cell
+        reference_cell = [(x1, 0),
+                          (z1, 0),
+                          (x2, self.h),
+                          (z2, self.h)]
+        A = A.subs(reference_cell)
+
+        # Form expression for interpolant weights on reference cell.
+        self.rs = symbols('rx, rz')
+        rx, rz = self.rs
+        p = Matrix([[1],
+                    [rx],
+                    [rz],
+                    [rx*rz]])
+
+        self.bs = A.inv().T.dot(p)
+
+    def point2grid(self, x, z):
+        # In: s - Magnitude of the source
+        #     x, z - Position of the source
+        # Returns: (i, k) - Grid coordinate at top left of grid cell.
+        #          (s11, s12, s21, s22) - source values at coordinates
+        #          (i, k), (i, k+1), (i+1, k), (i+1, k+1)
+        rx, rz = self.rs
+        b11, b12, b21, b22 = self.bs
+        i = int(x/self.h)
+        k = int(z/self.h)
+
+        x = x - i*self.h
+        z = z - k*self.h
+
+        s11 = b11.subs(((rx, x), (rz, z))).evalf()
+        s12 = b12.subs(((rx, x), (rz, z))).evalf()
+        s21 = b21.subs(((rx, x), (rz, z))).evalf()
+        s22 = b22.subs(((rx, x), (rz, z))).evalf()
+        return (i, k), (s11, s12, s21, s22)
+
+    # Interpolate onto receiver point.
+    def grid2point(self, u, x, z):
+        rx, rz = self.rs
+        b11, b12, b21, b22 = self.bs
+        i = int(x/self.h)
+        j = int(z/self.h)
+
+        x = x - i*self.h
+        z = z - j*self.h
+
+        return (b11.subs(((rx, x), (rz, z))) * u[t, i, j] +
+                b12.subs(((rx, x), (rz, z))) * u[t, i, j+1] +
+                b21.subs(((rx, x), (rz, z))) * u[t, i+1, j] +
+                b22.subs(((rx, x), (rz, z))) * u[t, i+1, j+1])
+
+    def read(self, u):
+        eqs = []
+        for i in range(self.npoints):
+            eqs.append(Eq(self[t, i], self.grid2point(u, self.orig_data[i, 0],
+                                                       self.orig_data[i, 2])))
+        return eqs
+
+    def add(self, m, u):
+        assignments = []
+        dt = self.dt
+        for j in range(self.npoints):
+            add = self.point2grid(self.orig_data[j, 0],
+                                      self.orig_data[j, 2])
+            (i, k) = add[0]
+            assignments.append(Eq(u[t, i, k], u[t, i, k]+self[t, j]*dt*dt/m[i, k]*add[1][0]))
+            assignments.append(Eq(u[t, i, k+1], u[t, i, k+1]+self[t, j]*dt*dt/m[i, k]*add[1][1]))
+            assignments.append(Eq(u[t, i+1, k], u[t, i+1, k]+self[t, j]*dt*dt/m[i, k]*add[1][2]))
+            assignments.append(Eq(u[t, i+1, k+1], u[t, i+1, k+1]+self[t, j]*dt*dt/m[i, k]*add[1][3]))
+        filtered = [x for x in assignments if isinstance(x, Eq)]
+        return filtered
