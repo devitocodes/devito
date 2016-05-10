@@ -5,10 +5,14 @@ from sympy import IndexedBase
 class DenseData(IndexedBase):
     def __init__(self, name, shape, dtype):
         self.name = name
-        self.shape = shape
+        self.var_shape = shape
         self.dtype = dtype
         self.pointer = None
         self.initializer = None
+        super(DenseData, self).__init__(name)
+    
+    def __new__(cls, *args, **kwargs):
+        return IndexedBase.__new__(cls, args[0])
 
     def set_initializer(self, lambda_initializer):
         assert(callable(lambda_initializer))
@@ -19,13 +23,17 @@ class DenseData(IndexedBase):
         self.initializer(self.data)
 
     def _allocate_memory(self):
-        self.pointer = np.zeros(self.shape, self.dtype, order='C')
+        self.pointer = np.zeros(self.var_shape, self.dtype, order='C')
 
     @property
     def data(self):
         if self.pointer is None:
             self._allocate_memory()
         return self.pointer
+    
+    @property
+    def shape(self):
+        return self.var_shape
 
 
 class TimeData(DenseData):
@@ -40,6 +48,17 @@ class TimeData(DenseData):
         self.time_order = time_order
 
     def _allocate_memory(self):
-        super(TimeData, self)._allocate_memory(self)
-        if self.pad_time:
+        super(TimeData, self)._allocate_memory()
+        if hasattr(self, "pad_time") and self.pad_time is True:
             self.pointer = self.pointer[self.time_order]
+
+class PointData(DenseData):
+    """This class is expected to eventually evolve into a full-fledged
+    sparse data container. For now, the naming follows the use in the
+    current problem.
+    """
+    def __init__(self, name, npoints, nt, dtype):
+        self.npoints = npoints
+        self.nt = nt
+        super(PointData, self).__init__(name, (nt, npoints), dtype)
+        
