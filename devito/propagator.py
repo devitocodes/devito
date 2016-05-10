@@ -171,6 +171,8 @@ class Propagator(object):
         """
         if isinstance(sympy_expr, Indexed):
             array_term = sympy_expr
+            if not self.save_vars.has_key(str(array_term.base.label)):
+                raise ValueError, "Invalid variable '%s' in sympy expression. Did you add it to the operator's params?" % str(array_term.base.label)
             if not self.save_vars[str(array_term.base.label)]:
                 array_term = array_term.xreplace(self.t_replace)
             return array_term
