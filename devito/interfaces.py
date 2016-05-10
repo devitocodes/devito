@@ -50,7 +50,7 @@ class TimeData(DenseData):
     def _allocate_memory(self):
         super(TimeData, self)._allocate_memory()
         if hasattr(self, "pad_time") and self.pad_time is True:
-            self.pointer = self.pointer[self.time_order]
+            self.pointer = self.pointer[self.time_order:, :, :]
 
 class PointData(DenseData):
     """This class is expected to eventually evolve into a full-fledged
