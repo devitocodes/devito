@@ -20,6 +20,7 @@ class JitManager(object):
     _hashing_function = sha1
     _wrapped_functions = None
     COMPILER_OVERRIDE_VAR = "DEVITO_CC"
+    REMOVE_FLAG_VAR = "DEVITO_REMOVE_FLAG"
     _incompatible_flags = ["-Wshorten-64-to-32", "-Wstrict-prototypes", ("-arch", "i386")]
     _mic_flag = False
     # To enable mic process: 1:True 0:False;
@@ -41,6 +42,12 @@ class JitManager(object):
             if self.compiler.cc in self._intel_compiler and enable_mic == "1":
                 self._mic = __import__('pymic')
                 self._mic_flag = True
+
+        remove_flags = os.environ.get(self.REMOVE_FLAG_VAR, "")
+        if remove_flags != "" and not remove_flags.isspace():
+            flags = remove_flags.split(":")
+            self._incompatible_flags = self._incompatible_flags + flags
+
         function_descriptors = [prop.get_fd() for prop in propagators]
         self.function_manager = FunctionManager(function_descriptors, self._mic_flag)
         self._function_descriptors = function_descriptors

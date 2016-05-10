@@ -1,7 +1,7 @@
-from jit_manager import JitManager
+from devito.jit_manager import JitManager
 import numpy as np
-import cgen
-from propagator import Propagator
+import devito.cgen_wrapper as cgen
+from devito.propagator import Propagator
 
 
 class Test_Numpy_Array_Transfer(object):
