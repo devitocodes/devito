@@ -69,6 +69,14 @@ python_obj = AcousticWave2D(model0, data, nbpml=nbpml)
 jit_obj = AcousticWave2D_cg(model0, data, nbpml=nbpml)
 
 print "Forward propagation"
+print "Starting codegen version"
+start = time.clock()
+(recg, ug) = jit_obj.Forward()
+end = time.clock()
+cg_time = end-start
+norm_recg = np.linalg.norm(recg)
+norm_ug = np.linalg.norm(ug)
+print (norm_recg, norm_ug)
 print "Starting python lambdified version"
 start = time.clock()
 (rect, ut) = python_obj.Forward()
@@ -77,15 +85,7 @@ python_time = end-start
 norm_rect = np.linalg.norm(rect)
 norm_ut = np.linalg.norm(ut)
 
-print "Starting codegen version"
 
-
-start = time.clock()
-(recg, ug) = jit_obj.Forward()
-end = time.clock()
-cg_time = end-start
-norm_recg = np.linalg.norm(recg)
-norm_ug = np.linalg.norm(ug)
 
 table_data = [
     ['', 'Time', 'L2Norm(u)', 'L2Norm(rec)'],
