@@ -2,7 +2,7 @@ import numpy as np
 from sympy import IndexedBase
 
 
-class MatrixData(IndexedBase):
+class DenseData(IndexedBase):
     def __init__(self, name, shape, dtype):
         self.name = name
         self.shape = shape
@@ -28,7 +28,7 @@ class MatrixData(IndexedBase):
         return self.pointer
 
 
-class TimeData(MatrixData):
+class TimeData(DenseData):
     def __init__(self, name, spc_shape, time_dim, time_order, save, dtype):
         if save:
             time_dim = time_dim + time_order
@@ -40,6 +40,6 @@ class TimeData(MatrixData):
         self.time_order = time_order
 
     def _allocate_memory(self):
-        MatrixData._allocate_memory(self)
+        super(TimeData, self)._allocate_memory(self)
         if self.pad_time:
             self.pointer = self.pointer[self.time_order]

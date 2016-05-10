@@ -1,9 +1,8 @@
 from jit_manager import JitManager
-from devito import NamedObject
 from propagator import Propagator
 
 
-class Operator(NamedObject):
+class Operator(object):
     def __init__(self, nt, shape):
         self.propagator = Propagator(self.getName(), nt, shape, spc_border=1, time_order=2)
 
@@ -14,3 +13,6 @@ class Operator(NamedObject):
 
     def get_propagator(self):
         return self._prepare()
+
+    def getName(self):
+        return self.__class__.__name__
