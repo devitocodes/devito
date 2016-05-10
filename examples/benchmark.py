@@ -76,7 +76,6 @@ end = time.clock()
 cg_time = end-start
 norm_recg = np.linalg.norm(recg)
 norm_ug = np.linalg.norm(ug)
-print (norm_recg, norm_ug)
 print "Starting python lambdified version"
 start = time.clock()
 (rect, ut) = python_obj.Forward()

@@ -205,12 +205,12 @@ class AcousticWave2D_cg:
 #                                           stencil, self).get_callable()
 
     def Forward(self):
-        u = self._forward_stencil.apply()
+        u = self._forward_stencil.apply()[0]
         return (self.rec.data, u)
 
     def Adjoint(self, rec):
-        v = self._adjoint_stencil.apply(self.m, self.rec, self.damp, self.srca)
-        return (self.srca, v)
+        v = self._adjoint_stencil.apply()[0]
+        return (self.srca.data, v)
 
     def Gradient(self, rec, u):
         nx, ny = self.model.get_shape()
