@@ -1,151 +1,37 @@
 from devito.operators import *
 from sympy.abc import x, y, t
 from sympy import Eq, symbols, Matrix
+from devito.interfaces import TimeData
 
 
-class FWIOperator(Operator):
-    def __init__(self, subs, stencil, problem):
-        super(FWIOperator, self).__init__(problem.nt, problem.model.get_shape())
-        self.subs = subs
-        self.stencil = stencil
-        self.problem = problem
-        self.nt = problem.nt
-        self.shape = problem.model.get_shape()
-        self.dtype = problem.dtype
-        self.dt = problem.dt
-        self.h = problem.h
-        self.data = problem.data
-        self.nrec = problem.nrec
-        x1, z1, x2, z2, d = symbols('x1, z1, x2, z2, d')
-        A = Matrix([[1, x1, z1, x1*z1],
-                    [1, x1, z2, x1*z2],
-                    [1, x2, z1, x2*z1],
-                    [1, x2, z2, x2*z2]])
-
-        # Map to reference cell
-        reference_cell = [(x1, 0),
-                          (z1, 0),
-                          (x2, self.h),
-                          (z2, self.h)]
-        A = A.subs(reference_cell)
-
-        # Form expression for interpolant weights on reference cell.
-        self.rs = symbols('rx, rz')
-        rx, rz = self.rs
-        p = Matrix([[1],
-                    [rx],
-                    [rz],
-                    [rx*rz]])
-
-        self.bs = A.inv().T.dot(p)
-
-    def point2grid(self, x, z):
-        # In: s - Magnitude of the source
-        #     x, z - Position of the source
-        # Returns: (i, k) - Grid coordinate at top left of grid cell.
-        #          (s11, s12, s21, s22) - source values at coordinates
-        #          (i, k), (i, k+1), (i+1, k), (i+1, k+1)
-        rx, rz = self.rs
-        b11, b12, b21, b22 = self.bs
-        i = int(x/self.h)
-        k = int(z/self.h)
-
-        x = x - i*self.h
-        z = z - k*self.h
-
-        s11 = b11.subs(((rx, x), (rz, z))).evalf()
-        s12 = b12.subs(((rx, x), (rz, z))).evalf()
-        s21 = b21.subs(((rx, x), (rz, z))).evalf()
-        s22 = b22.subs(((rx, x), (rz, z))).evalf()
-        return (i, k), (s11, s12, s21, s22)
-
-    # Interpolate onto receiver point.
-    def grid2point(self, u, x, z):
-        rx, rz = self.rs
-        b11, b12, b21, b22 = self.bs
-        i = int(x/self.h)
-        j = int(z/self.h)
-
-        x = x - i*self.h
-        z = z - j*self.h
-
-        return (b11.subs(((rx, x), (rz, z))) * u[t, i, j] +
-                b12.subs(((rx, x), (rz, z))) * u[t, i, j+1] +
-                b21.subs(((rx, x), (rz, z))) * u[t, i+1, j] +
-                b22.subs(((rx, x), (rz, z))) * u[t, i+1, j+1])
-
-
-class ForwardOperator(FWIOperator):
-    def _prepare(self):
-        nt = self.nt
-        nx, ny = self.shape
-        nrec = self.nrec
-        stencil = self.stencil
-        subs = self.subs
-        propagator = self.propagator
-        u = propagator.add_param("u", (nt, nx, ny), self.dtype)
-        rec = propagator.add_param("rec", (nt, nrec), self.dtype)
-        M = propagator.add_param("m", (nx, ny), self.dtype)
-        src_time = propagator.add_param("src_time", (nt,), self.dtype)
-        dampx = propagator.add_param("dampx", (nx,), self.dtype)
-        dampy = propagator.add_param("dampy", (ny,), self.dtype)
-
+class ForwardOperator(Operator):
+    def __init__(self, subs, stencil, m, src, damp, rec):
+        assert(m.shape==damp.shape)
+        self.input_params = [m, src, damp, rec]
+        u = TimeData("u", m.shape, src.nt, time_order=2, save=True, dtype=m.dtype)
+        u.pad_time = True
+        self.output_params = [u]
         stencil_args = [u[t - 2, x, y],
                         u[t - 1, x - 1, y],
                         u[t - 1, x, y],
                         u[t - 1, x + 1, y],
                         u[t - 1, x, y - 1],
                         u[t - 1, x, y + 1],
-                        M[x, y], self.dt, self.h, dampx[x]+dampy[y]]
-        lhs = u[t, x, y]
-        main_stencil = Eq(lhs, stencil)
-        propagator.set_jit_params(subs, [main_stencil], [stencil_args])
-        src = self.add_source(src_time, M, self.dt, u)
-        for sten in src:
-            propagator.add_time_loop_stencil(sten)
-        rec = self.read_rec(rec, u)
-        for sten in rec:
-            propagator.add_time_loop_stencil(sten)
-        return propagator
-
-    def add_source(self, src, m, dt, u):
-        src_add = self.point2grid(self.data.source_coords[0],
-                                  self.data.source_coords[2])
-        (i, k) = src_add[0]
-        weights = src_add[1]
-        assignments = []
-        assignments.append(Eq(u[t, i, k], u[t, i, k]+src[t-2]*dt*dt/m[i, k]*weights[0]))
-        assignments.append(Eq(u[t, i, k+1], u[t, i, k+1]+src[t-2]*dt*dt/m[i, k]*weights[1]))
-        assignments.append(Eq(u[t, i+1, k], u[t, i+1, k]+src[t-2]*dt*dt/m[i, k]*weights[2]))
-        assignments.append(Eq(u[t, i+1, k+1], u[t, i+1, k+1]+src[t-2]*dt*dt/m[i, k]*weights[3]))
-        filtered = [x for x in assignments if isinstance(x, Eq)]
-        return filtered
-
-    def read_rec(self, rec, u):
-        ntraces, nsamples = self.data.traces.shape
-        eqs = []
-        for i in range(ntraces):
-            eqs.append(Eq(rec[t-2, i], self.grid2point(u, self.data.receiver_coords[i, 0],
-                                                       self.data.receiver_coords[i, 2])))
-        return eqs
+                        m[x, y], src.dt, src.h, damp[x, y]]
+        main_stencil = Eq(u[t, x, y], stencil)
+        self.stencils = [(main_stencil, stencil_args)]
+        src_list = src.add(m, u)
+        rec = rec.read(u)
+        self.time_loop_stencils_post = src_list+rec
+        super(ForwardOperator, self).__init__(subs, src.nt, m.shape, spc_border=1, time_order=2, forward=True, dtype=m.dtype)
 
 
-class AdjointOperator(FWIOperator):
-    def _prepare(self):
-        nt = self.nt
-        subs = self.subs
-        stencil = self.stencil
-        nx, ny = self.shape
-        nrec = self.nrec
-        propagator = Propagator("Adjoint", nt, (nx, ny), spc_border=1, forward=False, time_order=2)
-        v = propagator.add_param("v", (nt, nx, ny), self.dtype)
-        rec = propagator.add_param("rec", (nt, nrec), self.dtype)
-        M = propagator.add_param("m", (nx, ny), self.dtype)
-        srca = propagator.add_param("srca", (nt,), self.dtype)
-        dampx = propagator.add_param("dampx", (nx,), self.dtype)
-        dampy = propagator.add_param("dampy", (nx,), self.dtype)
-        dt = self.dt
-        h = self.h
+class AdjointOperator(Operator):
+    def __init__(self, subs, stencil, m, rec, damp, srca):
+        assert(m.shape==damp.shape)
+        self.input_params = [m, rec, damp, srca]
+        v = TimeData("v", m.shape, rec.nt, time_order=2, save=True, dtype=m.dtype)
+        self.output_params = [v]
         lhs = v[t, x, y]
         main_stencil = Eq(lhs, stencil)
         stencil_args = [v[t + 2, x, y],
@@ -154,36 +40,14 @@ class AdjointOperator(FWIOperator):
                         v[t + 1, x + 1, y],
                         v[t + 1, x, y - 1],
                         v[t + 1, x, y + 1],
-                        M[x, y], dt, h, dampx[x]+dampy[y]]
-        propagator.set_jit_params(subs, [main_stencil], [stencil_args])
-        rec = self.add_rec(rec, M, self.dt, v)
-        for sten in rec:
-            propagator.add_time_loop_stencil(sten)
-        src = self.read_source(srca, v)
-        for sten in src:
-            propagator.add_time_loop_stencil(sten)
-        return propagator
+                        m[x, y], rec.dt, rec.h, damp[x,y]]
+        self.stencils = [(main_stencil, stencil_args)]
+        rec_list = rec.add(m, v)
+        src_list = srca.read(v)
+        self.time_loop_stencils_post = rec_list + src_list
+        super(AdjointOperator, self).__init__(subs, rec.nt, m.shape, spc_border=1, time_order=2, forward=False, dtype=m.dtype)
 
-    def add_rec(self, rec, m, dt, u):
-        ntraces, nsamples = self.data.traces.shape
-        assignments = []
-        for j in range(ntraces):
-            rec_add = self.point2grid(self.data.receiver_coords[j, 0],
-                                      self.data.receiver_coords[j, 2])
-            (i, k) = rec_add[0]
-            assignments.append(Eq(u[t, i, k], u[t, i, k]+rec[t, j]*dt*dt/m[i, k]*rec_add[1][0]))
-            assignments.append(Eq(u[t, i, k+1], u[t, i, k+1]+rec[t, j]*dt*dt/m[i, k]*rec_add[1][1]))
-            assignments.append(Eq(u[t, i+1, k], u[t, i+1, k]+rec[t, j]*dt*dt/m[i, k]*rec_add[1][2]))
-            assignments.append(Eq(u[t, i+1, k+1], u[t, i+1, k+1]+rec[t, j]*dt*dt/m[i, k]*rec_add[1][3]))
-        filtered = [x for x in assignments if isinstance(x, Eq)]
-        return filtered
-
-    def read_source(self, src, u):
-        return [Eq(src[t], self.grid2point(u, self.data.source_coords[0],
-                self.data.source_coords[2]))]
-
-
-class GradientOperator(AdjointOperator):
+class GradientOperator(Operator):
     def _prepare(self):
         stencil = self.stencil
         subs = self.subs
@@ -213,7 +77,7 @@ class GradientOperator(AdjointOperator):
         return propagator
 
 
-class BornOperator(ForwardOperator):
+class BornOperator(Operator):
     def _prepare(self):
         stencil = self.stencil
         subs = self.subs
@@ -247,7 +111,7 @@ class BornOperator(ForwardOperator):
                               u[t-1, x, y + 1],
                               M[x, y], dt, h, dampx[x] + dampy[y]]
         first_update = Eq(u[t, x, y], u[t, x, y]+stencil)
-        calc_src = Eq(src2, -(dt**-2)*(u[t, x, y]-2*u[t-1, x, y]+u[t-2, x, y])*dm[x, y])
+        src2 = -(dt**-2)*(u[t, x, y]-2*u[t-1, x, y]+u[t-2, x, y])*dm[x, y]
         second_stencil_args = [U[t-2, x, y],
                                U[t-1, x - 1, y],
                                U[t-1, x, y],
@@ -257,5 +121,5 @@ class BornOperator(ForwardOperator):
                                M[x, y], dt, h, dampx[x] + dampy[y]]
         second_update = Eq(U[t, x, y], stencil)
         insert_second_source = Eq(U[t, x, y], U[t, x, y]+(dt*dt)/M[x, y]*src2)
-        propagator.set_jit_params(subs, [first_update, calc_src, second_update, insert_second_source], [first_stencil_args, [], second_stencil_args, []])
+        propagator.set_jit_params(subs, [first_update, second_update, insert_second_source], [first_stencil_args, [], second_stencil_args, []])
         return propagator
