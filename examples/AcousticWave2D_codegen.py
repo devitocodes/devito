@@ -29,7 +29,7 @@ class AcousticWave2D_cg:
             self.source = source.read()
             self.source.reinterpolate(self.dt)
             source_time = self.source.traces[0, :]
-            if len(source_time) < self.data.nsamples:
+            while len(source_time) < self.data.nsamples:
                 source_time = np.append(source_time, [0.0])
             self.data.set_source(source_time, self.dt, self.data.source_coords)
 
