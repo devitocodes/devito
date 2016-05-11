@@ -37,6 +37,8 @@ initial_vp = smooth10(true_vp, dimensions[0], dimensions[1])
 nbpml = 40
 dm_orig = true_vp**-2 - initial_vp**-2
 dm_orig = np.pad(dm_orig, ((nbpml, nbpml), (nbpml, nbpml)), 'edge')
+
+
 def create_dm(dm):
     np.copyto(dm, dm_orig)
 
@@ -92,9 +94,7 @@ end = time.clock()
 python_time = end-start
 norm_rect = np.linalg.norm(rect)
 norm_ut = np.linalg.norm(ut)
- 
- 
- 
+
 table_data = [
     ['', 'Time', 'L2Norm(u)', 'L2Norm(rec)'],
     ['Python lambdified', str(python_time), str(norm_ut), str(norm_rect)],

@@ -112,13 +112,13 @@ class Propagator(object):
             self._pre_kernel_steps.append(stm)
         else:
             self._post_kernel_steps.append(stm)
-    
+
     def add_devito_param(self, param):
         save = True
         if hasattr(param, "save"):
             save = param.save
         self.add_param(param.name, param.shape, param.dtype, save)
-    
+
     def add_param(self, name, shape, dtype, save=True):
         self.fd.add_matrix_param(name, shape, dtype)
         self.save = save
@@ -171,8 +171,8 @@ class Propagator(object):
         """
         if isinstance(sympy_expr, Indexed):
             array_term = sympy_expr
-            if not self.save_vars.has_key(str(array_term.base.label)):
-                raise ValueError, "Invalid variable '%s' in sympy expression. Did you add it to the operator's params?" % str(array_term.base.label)
+            if not str(array_term.base.label) in self.save_vars:
+                raise(ValueError, "Invalid variable '%s' in sympy expression. Did you add it to the operator's params?" % str(array_term.base.label))
             if not self.save_vars[str(array_term.base.label)]:
                 array_term = array_term.xreplace(self.t_replace)
             return array_term

@@ -44,7 +44,7 @@ class Test_AdjointA(object):
         data.set_receiver_pos(receiver_coords)
         data.set_shape(nt, 30)
         # Adjoint test
-        wave_true = AcousticWave2D_cg(model, data)
+        wave_true = AcousticWave2D_cg(model, data, None)
         return wave_true
 
     @pytest.fixture

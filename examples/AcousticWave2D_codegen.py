@@ -19,7 +19,6 @@ class AcousticWave2D_cg:
         self.dt = model.get_critical_dt()
         self.h = model.get_spacing()
         self.nbpml = nbpml
-        
         pad = ((nbpml, nbpml), (nbpml, nbpml))
         self.model.vp = np.pad(self.model.vp, pad, 'edge')
         self.data.reinterpolate(self.dt)
@@ -96,28 +95,25 @@ class AcousticWave2D_cg:
         # domain to the border
 
         # Forward wave equation
-        
+
         def damp_boundary(damp):
             h = self.h
             dampcoeff = 1.5 * np.log(1.0 / 0.001) / (40 * h)
-    
             nx, ny = self.model.get_shape()
-    
             nbpml = self.nbpml
             for i in range(nbpml):
                 pos = np.abs((nbpml-i)/nbpml)
                 val = dampcoeff * (pos - np.sin(2*np.pi*pos)/(2*np.pi))
-    
                 damp[i, :] += val
                 damp[-i, :] += val
-    
                 damp[:, i] += val
                 damp[:, -i] += val
+
         wave_equation = m * dtt - (dxx + dyy) + e * dt
         stencil = solve(wave_equation, p(x, y, t+s))[0]
         self.nt = nt
         m_sub = DenseData("m", self.model.vp.shape, self.dtype)
-        m_sub.initializer = lambda ref: np.copyto(ref , self.model.vp**(-2))
+        m_sub.initializer = lambda ref: np.copyto(ref, self.model.vp**(-2))
         self.m = m_sub
         damp = DenseData("damp", self.model.vp.shape, self.dtype)
         damp.initializer = damp_boundary
@@ -136,7 +132,6 @@ class AcousticWave2D_cg:
                                                  p(x, y-h, t),
                                                  p(x, y+h, t), m, s, h, e),
                                                 stencil, m_sub, src, damp, rec, u)
-
 
         # Rewriting the discret PDE as part of an Inversion. Accuracy and
         # rigourousness of the dicretization
@@ -301,7 +296,7 @@ class SourceLike(PointData):
         eqs = []
         for i in range(self.npoints):
             eqs.append(Eq(self[t, i], self.grid2point(u, self.orig_data[i, 0],
-                                                       self.orig_data[i, 2])))
+                                                      self.orig_data[i, 2])))
         return eqs
 
     def add(self, m, u):
@@ -309,7 +304,7 @@ class SourceLike(PointData):
         dt = self.dt
         for j in range(self.npoints):
             add = self.point2grid(self.orig_data[j, 0],
-                                      self.orig_data[j, 2])
+                                  self.orig_data[j, 2])
             (i, k) = add[0]
             assignments.append(Eq(u[t, i, k], u[t, i, k]+self[t, j]*dt*dt/m[i, k]*add[1][0]))
             assignments.append(Eq(u[t, i, k+1], u[t, i, k+1]+self[t, j]*dt*dt/m[i, k]*add[1][1]))

@@ -26,11 +26,10 @@ class Operator(object):
         args = [param.data for param in self.input_params + self.output_params]
         f(*args)
         return tuple([param.data for param in self.output_params])
-    
+
     def get_callable(self):
         self.jit_manager = JitManager([self.propagator], dtype=self.dtype)
         return self.jit_manager.get_wrapped_functions()[0]
 
     def getName(self):
         return self.__class__.__name__
-

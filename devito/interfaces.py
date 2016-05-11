@@ -10,7 +10,7 @@ class DenseData(IndexedBase):
         self.pointer = None
         self.initializer = None
         super(DenseData, self).__init__(name)
-    
+
     def __new__(cls, *args, **kwargs):
         return IndexedBase.__new__(cls, args[0])
 
@@ -31,7 +31,7 @@ class DenseData(IndexedBase):
         if self.pointer is None:
             self._allocate_memory()
         return self.pointer
-    
+
     @property
     def shape(self):
         return self.var_shape
@@ -50,10 +50,10 @@ class TimeData(DenseData):
         self.pad_time = pad_time
 
     def _allocate_memory(self):
-        
         super(TimeData, self)._allocate_memory()
         if self.pad_time is True:
-            self.pointer = self.pointer[self.time_order:,:,:]
+            self.pointer = self.pointer[self.time_order:, :, :]
+
 
 class PointData(DenseData):
     """This class is expected to eventually evolve into a full-fledged
@@ -64,4 +64,3 @@ class PointData(DenseData):
         self.npoints = npoints
         self.nt = nt
         super(PointData, self).__init__(name, (nt, npoints), dtype)
-        
