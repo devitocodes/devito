@@ -33,7 +33,7 @@ class Propagator(object):
         # Start with the assumption that the propagator needs to save the field in memory at every time step
         self._save = True
         # This might be changed later when parameters are being set
-        self.profile = os.environ.get(self._ENV_VAR_PROFILE)=="1"
+        self.profile = os.environ.get(self._ENV_VAR_PROFILE) == "1"
         # Which function parameters need special (non-save) time stepping and which don't
         self.save_vars = {}
         self.fd = FunctionDescriptor(name)
@@ -55,9 +55,9 @@ class Propagator(object):
         for i, dim in enumerate(self.space_dims):
                 self._space_loop_limits[dim] = (spc_border, shape[i]-spc_border)
 
-        # Kernel ai dictionary
-        self._kernel_dic_ai = {'add': 0, 'mul': 0, 'load': 0, 'store': 0, 'load_list': [], 'load_all_list': [], 'ai_high': 0, 'ai_high_weighted': 0, 'ai_low': 0, 'ai_low_weighted': 0}
-        self._print_ai = False
+        # Kernel operation intensity dictionary
+        self._kernel_dic_oi = {'add': 0, 'mul': 0, 'load': 0, 'store': 0, 'load_list': [], 'load_all_list': [], 'oi_high': 0, 'oi_high_weighted': 0, 'oi_low': 0, 'oi_low_weighted': 0}
+        self._print_oi = False
         self._dtype = False
 
     @property
@@ -97,15 +97,15 @@ class Propagator(object):
         stmts = []
         for equality, args in zip(stencils, stencil_args):
             equality = equality.subs(dict(zip(subs, args)))
-            self._kernel_dic_ai = self._get_ops_expr(equality.rhs, self._kernel_dic_ai, False)
-            self._kernel_dic_ai = self._get_ops_expr(equality.lhs, self._kernel_dic_ai, True)
+            self._kernel_dic_oi = self._get_ops_expr(equality.rhs, self._kernel_dic_oi, False)
+            self._kernel_dic_oi = self._get_ops_expr(equality.lhs, self._kernel_dic_oi, True)
             stencil = self.convert_equality_to_cgen(equality)
             stmts.append(stencil)
         kernel = self._pre_kernel_steps
         kernel += stmts
         kernel += self._post_kernel_steps
-        if self._print_ai:
-                print(self._get_kernel_ai(self._dtype))
+        if self._print_oi:
+                print(self._get_kernel_oi(self._dtype))
         return cgen.Block(kernel)
 
     def convert_equality_to_cgen(self, equality):
@@ -132,7 +132,6 @@ class Propagator(object):
         t_loop_limits = self.time_loop_limits
         t_var = str(self._var_map[self.t])
         cond_op = "<" if self._forward else ">"
-
         if self.save is not True:
             # To cycle between array elements when we are not saving time history
             time_stepping = self.get_time_stepping()
@@ -150,9 +149,6 @@ class Propagator(object):
         return cgen.Block(body)
 
     def add_loop_step(self, assign, before=False):
-        self._kernel_dic_ai = self._get_ops_expr((self.time_substitutions(assign.lhs).xreplace(self._var_map)), self._kernel_dic_ai, True)
-        if isinstance(assign.rhs, Indexed):
-                self._kernel_dic_ai = self._get_ops_expr((self.time_substitutions(assign.rhs).xreplace(self._var_map)), self._kernel_dic_ai, False)
         stm = self.convert_equality_to_cgen(assign)
         if before:
             self._pre_kernel_steps.append(stm)
@@ -228,18 +224,16 @@ class Propagator(object):
         return sympy_expr
 
     def add_time_loop_stencil(self, stencil, before=False):
-        self._kernel_dic_ai = self._get_ops_expr(stencil.lhs, self._kernel_dic_ai, True)
-        self._kernel_dic_ai = self._get_ops_expr(stencil.rhs, self._kernel_dic_ai, False)
         if before:
             self.time_loop_stencils_b.append(stencil)
         else:
             self.time_loop_stencils_a.append(stencil)
 
-    def enable_ai(self, is_enable=False, dtype=None):
+    def enable_oi(self, is_enable=False, dtype=None):
         """Update variable to enable propagation print its kernel ai
         with its proper type.
         """
-        self._print_ai = is_enable
+        self._print_oi = is_enable
         self._dtype = dtype
 
     def _get_ops_expr(self, expr, dict1, is_lhs=False):
@@ -279,27 +273,27 @@ class Propagator(object):
         # return zero and unchanged array if execution gets here
         return result
 
-    def _get_kernel_ai(self, dtype=None):
+    def _get_kernel_oi(self, dtype=None):
         """
-        - get the arithmetic intensity of the kernel
+        - get the operation intensity of the kernel
         - types of operations are ADD (inc -), MUL (inc /), LOAD, STORE
         - #LOAD = number of unique fields in the kernel
         - return tuple (#ADD, #MUL, #LOAD, #STORE)
-        - arithmetic intensity AI = (ADD+MUL)/[(LOAD+STORE)*word size]
+        - operation intensity AI = (ADD+MUL)/[(LOAD+STORE)*word size]
         - weighted AI, AI_w = (ADD+MUL)/(2*Max(ADD,MUL)) * AI
         """
         load = 0
         load_all = 0
         word_size = np.dtype(dtype).itemsize if dtype is not None else 8
-        load += len(self._kernel_dic_ai['load_list'])
-        store = self._kernel_dic_ai['store']
-        load_all += len(self._kernel_dic_ai['load_all_list'])
-        self._kernel_dic_ai['load'] = load
-        add = self._kernel_dic_ai['add']
-        mul = self._kernel_dic_ai['mul']
-        self._kernel_dic_ai['ai_high'] = float(add+mul)/(load+store)/word_size
-        self._kernel_dic_ai['ai_high_weighted'] = self._kernel_dic_ai['ai_high']*(add+mul)/max(add, mul)/2.0
-        self._kernel_dic_ai['ai_low'] = float(add+mul)/(load_all+store)/word_size
-        self._kernel_dic_ai['ai_low_weighted'] = self._kernel_dic_ai['ai_low']*(add+mul)/max(add, mul)/2.0
+        load += len(self._kernel_dic_oi['load_list'])
+        store = self._kernel_dic_oi['store']
+        load_all += len(self._kernel_dic_oi['load_all_list'])
+        self._kernel_dic_oi['load'] = load_all
+        add = self._kernel_dic_oi['add']
+        mul = self._kernel_dic_oi['mul']
+        self._kernel_dic_oi['oi_high'] = float(add+mul)/(load+store)/word_size
+        self._kernel_dic_oi['oi_high_weighted'] = self._kernel_dic_oi['oi_high']*(add+mul)/max(add, mul)/2.0
+        self._kernel_dic_oi['oi_low'] = float(add+mul)/(load_all+store)/word_size
+        self._kernel_dic_oi['oi_low_weighted'] = self._kernel_dic_oi['oi_low']*(add+mul)/max(add, mul)/2.0
 
-        return self._kernel_dic_ai
+        return self._kernel_dic_oi
