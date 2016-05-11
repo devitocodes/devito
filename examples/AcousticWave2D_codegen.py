@@ -12,7 +12,7 @@ init_printing()
 
 class AcousticWave2D_cg:
 
-    def __init__(self, model, data, dm_initializer, source=None, nbpml=40):
+    def __init__(self, model, data, dm_initializer=None, source=None, nbpml=40):
         self.model = model
         self.data = data
         self.dtype = np.float64
