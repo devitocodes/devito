@@ -102,7 +102,10 @@ class FunctionDescriptor(object):
         self.value_params.append((np.dtype(dtype), name))
 
     def add_local_variable(self, name, dtype):
-        self.local_vars.append((np.dtype(dtype), name))
+        try:
+            self.local_vars.append((np.dtype(dtype), name))
+        except:
+            self.local_vars.append((dtype, name))
 
     def set_body(self, body):
         self.body = body

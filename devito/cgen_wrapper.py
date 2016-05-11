@@ -8,6 +8,8 @@ def convert_dtype_to_ctype(dtype):
 
 class PrintStatement(Statement):
     def __init__(self, *args):
+        args = list(args)
+        args[0] = args[0].replace("\n", "\\n")
         args[0] = "\"%s\"" % args[0]
         arglist = ", ".join(args)
         super(PrintStatement, self).__init__("printf(%s)" % arglist)
