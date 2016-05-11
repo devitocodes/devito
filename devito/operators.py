@@ -11,7 +11,6 @@ class Operator(object):
         self.params = {}
         self.dtype = dtype
         for param in self.input_params:
-            assert(param.initializer is not None)
             self.params[param.name] = param
             self.propagator.add_devito_param(param)
         for param in self.output_params:
@@ -29,8 +28,7 @@ class Operator(object):
         return tuple([param.data for param in self.output_params])
     
     def get_callable(self):
-        prop = self.propagator
-        self.jit_manager = JitManager([prop], dtype=self.dtype)
+        self.jit_manager = JitManager([self.propagator], dtype=self.dtype)
         return self.jit_manager.get_wrapped_functions()[0]
 
     def getName(self):

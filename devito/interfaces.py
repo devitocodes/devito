@@ -19,8 +19,9 @@ class DenseData(IndexedBase):
         self.initializer = lambda_initializer
 
     def initialize(self):
-        assert(self.initializer is not None)
-        self.initializer(self.data)
+        if self.initializer is not None:
+            self.initializer(self.data)
+        # Ignore if no initializer exists - assume no initialisation necessary
 
     def _allocate_memory(self):
         self.pointer = np.zeros(self.var_shape, self.dtype, order='C')
@@ -37,7 +38,7 @@ class DenseData(IndexedBase):
 
 
 class TimeData(DenseData):
-    def __init__(self, name, spc_shape, time_dim, time_order, save, dtype):
+    def __init__(self, name, spc_shape, time_dim, time_order, save, dtype, pad_time=False):
         if save:
             time_dim = time_dim + time_order
         else:
@@ -46,11 +47,13 @@ class TimeData(DenseData):
         super(TimeData, self).__init__(name, shape, dtype)
         self.save = save
         self.time_order = time_order
+        self.pad_time = pad_time
 
     def _allocate_memory(self):
+        
         super(TimeData, self)._allocate_memory()
-        if hasattr(self, "pad_time") and self.pad_time is True:
-            self.pointer = self.pointer[self.time_order:, :, :]
+        if self.pad_time is True:
+            self.pointer = self.pointer[self.time_order:,:,:]
 
 class PointData(DenseData):
     """This class is expected to eventually evolve into a full-fledged
