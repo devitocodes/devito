@@ -8,7 +8,6 @@ class ForwardOperator(Operator):
     def __init__(self, subs, stencil, m, src, damp, rec, u):
         assert(m.shape==damp.shape)
         self.input_params = [m, src, damp, rec, u]
-        u = TimeData("u", m.shape, src.nt, time_order=2, save=True, dtype=m.dtype)
         u.pad_time = True
         self.output_params = []
         stencil_args = [u[t - 2, x, y],
@@ -59,12 +58,12 @@ class GradientOperator(Operator):
                         m[x, y], rec.dt, rec.h, damp[x,y]]
         main_stencil = Eq(lhs, lhs + stencil)
         gradient_update = Eq(grad[x, y],
-                             grad[x, y] - (v[t, x, y] - 2 * v[t + 1, x, y] + v[t + 2, x, y]) * (u[t+2, x, y]))
+                             grad[x, y] - (v[t, x, y] - 2 * v[t + 1, x, y] + v[t + 2, x, y]) * (u[t, x, y]))
         reset_v = Eq(v[t+2, x, y], 0)
         self.stencils = [(main_stencil, stencil_args), (gradient_update, []),  (reset_v, [])]
 
         rec_list = rec.add(m, v)
-        self.time_loop_stencils_post = rec_list
+        self.time_loop_stencils_pre = rec_list
         super(GradientOperator, self).__init__(subs, rec.nt, m.shape, spc_border=1, time_order=2, forward=False, dtype=m.dtype)
 
 
@@ -78,8 +77,9 @@ class BornOperator(Operator):
         dt = src.dt
         h = src.h
         src_list = src.add(m, u)
-        rec = rec.read(u)
-        self.time_loop_stencils_post = src_list+rec
+        rec = rec.read(U)
+        self.time_loop_stencils_pre = src_list
+        self.time_loop_stencils_post = rec
         first_stencil_args = [u[t-2, x, y],
                               u[t-1, x - 1, y],
                               u[t-1, x, y],
