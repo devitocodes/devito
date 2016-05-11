@@ -31,7 +31,7 @@ class JitManager(object):
         self.compiler = guess_toolchain()
         override_var = os.environ.get(self.COMPILER_OVERRIDE_VAR, "")
         if override_var != "" and not override_var.isspace():
-            self.compiler.cc = os.environ.get(self.COMPILER_OVERRIDE_VAR)
+            self.compiler.cc = override_var
             enable_mic = os.environ.get(self.COMPILER_ENABLE_MIC)
             if self.compiler.cc in self._intel_compiler and enable_mic == "1":
                 self._mic = __import__('pymic')
