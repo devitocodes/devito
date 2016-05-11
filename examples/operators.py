@@ -1,6 +1,6 @@
 from devito.operators import *
 from sympy.abc import x, y, t
-from sympy import Eq, symbols, Matrix
+from sympy import Eq
 from devito.interfaces import TimeData, DenseData
 
 

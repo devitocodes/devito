@@ -7,6 +7,7 @@ from codepy.toolchain import guess_toolchain
 import codepy.jit as jit
 from tempfile import gettempdir
 import numpy as np
+import cgen_wrapper as cgen
 
 
 class JitManager(object):

@@ -1,7 +1,7 @@
 # coding: utf-8
 from __future__ import print_function
 from sympy import Function, symbols, init_printing, as_finite_diff
-from sympy import solve
+from sympy import solve, Matrix
 from sympy.abc import x, y, t, M, E
 import numpy as np
 from operators import *
