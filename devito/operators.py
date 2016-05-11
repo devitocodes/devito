@@ -6,8 +6,8 @@ class Operator(object):
     def __init__(self, subs, nt, shape, spc_border, time_order, forward, dtype):
         self.subs = subs
         self.propagator = Propagator(self.getName(), nt, shape, spc_border, forward, time_order)
-        self.propagator.time_loop_stencils_b = getattr(self, "time_loop_stencils_pre", [])
-        self.propagator.time_loop_stencils_a = getattr(self, "time_loop_stencils_post", [])
+        self.propagator.time_loop_stencils_b = self.propagator.time_loop_stencils_b + getattr(self, "time_loop_stencils_pre", [])
+        self.propagator.time_loop_stencils_a = self.propagator.time_loop_stencils_a + getattr(self, "time_loop_stencils_post", [])
         self.params = {}
         self.dtype = dtype
         for param in self.input_params:

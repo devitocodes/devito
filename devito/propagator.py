@@ -33,16 +33,20 @@ class Propagator(object):
         # Start with the assumption that the propagator needs to save the field in memory at every time step
         self._save = True
         # This might be changed later when parameters are being set
-        self.profile = os.environ.get(self._ENV_VAR_PROFILE)==1
-        if self.profile:
-            self.add_local_var("start", "struct timeval")
-            self.add_local_var("end", "struct timeval")
-            self.add_local_var("time", "double")
-            self.pre_loop.append(cgen.Assign("time", 0))
-            self.post_loop.append(cgen.PrintStatement("time: %d", "time"))
+        self.profile = os.environ.get(self._ENV_VAR_PROFILE)=="1"
         # Which function parameters need special (non-save) time stepping and which don't
         self.save_vars = {}
         self.fd = FunctionDescriptor(name)
+        self.pre_loop = []
+        self.post_loop = []
+        if self.profile:
+            self.add_local_var("time", "double")
+            self.pre_loop.append(cgen.Statement("struct timeval start, end"))
+            self.pre_loop.append(cgen.Assign("time", 0))
+            self.post_loop.append(cgen.PrintStatement("time: %f\n", "time"))
+            self.time_loop_stencils_b.append(cgen.Statement("gettimeofday(&start, NULL)"))
+            self.time_loop_stencils_a.append(cgen.Statement("gettimeofday(&end, NULL)"))
+            self.time_loop_stencils_a.append(cgen.Statement("time += ((end.tv_sec  - start.tv_sec) * 1000000u + end.tv_usec - start.tv_usec) / 1.e6"))
         if forward:
             self._time_step = 1
         else:
@@ -105,7 +109,10 @@ class Propagator(object):
         return cgen.Block(kernel)
 
     def convert_equality_to_cgen(self, equality):
-        return cgen.Assign(ccode(self.time_substitutions(equality.lhs).xreplace(self._var_map)), ccode(self.time_substitutions(equality.rhs).xreplace(self._var_map)))
+        try:
+            return cgen.Assign(ccode(self.time_substitutions(equality.lhs).xreplace(self._var_map)), ccode(self.time_substitutions(equality.rhs).xreplace(self._var_map)))
+        except:
+            return equality
 
     def generate_loops(self, loop_body):
         """ Assuming that the variable order defined in init (#var_order) is the
@@ -139,7 +146,7 @@ class Propagator(object):
         loop_body = cgen.For(cgen.InlineInitializer(cgen.Value("int", t_var), str(t_loop_limits[0])), t_var + cond_op + str(t_loop_limits[1]), t_var + "+=" + str(self._time_step), loop_body)
         # Code to declare the time stepping variables (outside the time loop)
         def_time_step = [cgen.Value("int", t_var_def.name) for t_var_def in self.time_steppers]
-        body = def_time_step + [loop_body]
+        body = def_time_step + self.pre_loop + [loop_body] + self.post_loop
         return cgen.Block(body)
 
     def add_loop_step(self, assign, before=False):
