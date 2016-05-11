@@ -12,20 +12,20 @@ init_printing()
 
 class AcousticWave2D_cg:
 
-    def __init__(self, model, data, source=None, nbpml=40):
+    def __init__(self, model, data, dm_initializer, source=None, nbpml=40):
         self.model = model
         self.data = data
         self.dtype = np.float64
         self.dt = model.get_critical_dt()
         self.h = model.get_spacing()
         self.nbpml = nbpml
-        self.src_grid = None
+        
         pad = ((nbpml, nbpml), (nbpml, nbpml))
         self.model.vp = np.pad(self.model.vp, pad, 'edge')
         self.data.reinterpolate(self.dt)
         self.nrec, self.nt = self.data.traces.shape
         self.model.set_origin(nbpml)
-
+        self.dm_initializer = dm_initializer
         if source is not None:
             self.source = source.read()
             self.source.reinterpolate(self.dt)
@@ -113,7 +113,6 @@ class AcousticWave2D_cg:
     
                 damp[:, i] += val
                 damp[:, -i] += val
-        
         wave_equation = m * dtt - (dxx + dyy) + e * dt
         stencil = solve(wave_equation, p(x, y, t+s))[0]
         self.nt = nt
@@ -124,18 +123,19 @@ class AcousticWave2D_cg:
         damp.initializer = damp_boundary
         self.damp = damp
         src = SourceLike("src", 1, self.nt, self.dt, self.h, np.array(self.data.source_coords, dtype=self.dtype)[np.newaxis, :], self.dtype)
+        self.src = src
         rec = SourceLike("rec", self.nrec, self.nt, self.dt, self.h, self.data.receiver_coords, self.dtype)
         src.initializer = lambda ref: np.copyto(ref, self.data.get_source()[:, np.newaxis])
-        rec.initializer = lambda ref: None
-        self.src = src
         self.rec = rec
+        u = TimeData("u", m_sub.shape, src.nt, time_order=2, save=True, dtype=m_sub.dtype)
+        self.u = u
         self._forward_stencil = ForwardOperator((p(x, y, t-s),
                                                  p(x-h, y, t),
                                                  p(x, y, t),
                                                  p(x+h, y, t),
                                                  p(x, y-h, t),
                                                  p(x, y+h, t), m, s, h, e),
-                                                stencil, m_sub, src, damp, rec)
+                                                stencil, m_sub, src, damp, rec, u)
 
 
         # Rewriting the discret PDE as part of an Inversion. Accuracy and
@@ -176,7 +176,6 @@ class AcousticWave2D_cg:
 
         # Adjoint wave equation
         srca = SourceLike("srca", 1, self.nt, self.dt, self.h, np.array(self.data.source_coords, dtype=self.dtype)[np.newaxis, :], self.dtype)
-        srca.initializer = lambda ref: None
         self.srca = srca
         wave_equationA = m * dtt - (dxx + dyy) - e * dt
         stencilA = solve(wave_equationA, p(x, y, t-s))[0]
@@ -188,48 +187,39 @@ class AcousticWave2D_cg:
                                                  p(x, y+h, t), m, s, h, e),
                                                 stencilA, m_sub, rec, damp, srca)
 
-#         self._gradient_stencil = GradientOperator((p(x, y, t+s),
-#                                                    p(x-h, y, t),
-#                                                    p(x, y, t),
-#                                                    p(x+h, y, t),
-#                                                    p(x, y-h, t),
-#                                                    p(x, y+h, t), m, s, h, e),
-#                                                   stencilA, self).get_callable()
-# 
-#         self._born_stencil = BornOperator((p(x, y, t-s),
-#                                            p(x-h, y, t),
-#                                            p(x, y, t),
-#                                            p(x+h, y, t),
-#                                            p(x, y-h, t),
-#                                            p(x, y+h, t), m, s, h, e),
-#                                           stencil, self).get_callable()
+        self._gradient_stencil = GradientOperator((p(x, y, t+s),
+                                                   p(x-h, y, t),
+                                                   p(x, y, t),
+                                                   p(x+h, y, t),
+                                                   p(x, y-h, t),
+                                                   p(x, y+h, t), m, s, h, e),
+                                                  stencilA, u, m_sub, rec, damp)
+        dm = DenseData("dm", self.model.vp.shape, self.dtype)
+        dm.initializer = self.dm_initializer
+        self._born_stencil = BornOperator((p(x, y, t-s),
+                                           p(x-h, y, t),
+                                           p(x, y, t),
+                                           p(x+h, y, t),
+                                           p(x, y-h, t),
+                                           p(x, y+h, t), m, s, h, e),
+                                          stencil, dm, m_sub, src, damp, rec)
 
     def Forward(self):
-        u = self._forward_stencil.apply()[0]
-        return (self.rec.data, u)
+        self._forward_stencil.apply()
+        return (self.rec.data, self.u.data)
 
     def Adjoint(self, rec):
         v = self._adjoint_stencil.apply()[0]
         return (self.srca.data, v)
 
     def Gradient(self, rec, u):
-        nx, ny = self.model.get_shape()
         dt = self.dt
-        m = self.model.vp**(-2)
-        v = np.zeros((3, nx, ny), dtype=self.dtype)
-        grad = np.zeros((nx, ny), dtype=self.dtype)
-        self._gradient_stencil(u, rec, v, grad, m, self.dampx, self.dampy)
+        grad = self._gradient_stencil.apply()[0]
         return (dt**-2)*grad
 
-    def Born(self, dm):
-        nt = self.nt
-        nx, ny = self.model.get_shape()
-        m = self.model.vp**(-2)
-        u = np.zeros((3, nx, ny), dtype=self.dtype)
-        U = np.zeros((3, nx, ny), dtype=self.dtype)
-        rec = np.zeros((nt, self.nrec))
-        self._born_stencil(u, U, rec, dm, m, self.dampx, self.dampy, self.data.get_source())
-        return rec
+    def Born(self):
+        self._born_stencil.apply()
+        return self.rec.data
 
     def run(self):
         print('Starting forward')
@@ -242,6 +232,8 @@ class AcousticWave2D_cg:
 
 
 class SourceLike(PointData):
+    """Defines the behaviour of sources and receivers.
+    """
     def __init__(self, name, npoint, nt, dt, h, data, dtype):
         self.orig_data = data
         self.dt = dt

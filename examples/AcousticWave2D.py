@@ -275,7 +275,6 @@ class AcousticWave2D:
 
         u = np.zeros((nt, nx, ny))
         damp = self.damp_boundary()
-
         rec = np.zeros((nt, self.nrec))
         for ti in range(0, nt):
             for a in range(1, nx-1):
