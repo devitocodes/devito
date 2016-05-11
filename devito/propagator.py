@@ -3,9 +3,12 @@ from codeprinter import ccode
 import numpy as np
 from sympy import symbols, IndexedBase, Indexed
 from function_manager import FunctionDescriptor
+import os
 
 
 class Propagator(object):
+    _ENV_VAR_PROFILE = "DEVITO_PROFILE"
+
     def __init__(self, name, nt, shape, spc_border=0, forward=True, time_order=0):
         num_spac_dim = len(shape)
         self.t = symbols("t")
@@ -30,7 +33,13 @@ class Propagator(object):
         # Start with the assumption that the propagator needs to save the field in memory at every time step
         self._save = True
         # This might be changed later when parameters are being set
-
+        self.profile = os.environ.get(self._ENV_VAR_PROFILE)==1
+        if self.profile:
+            self.add_local_var("start", "struct timeval")
+            self.add_local_var("end", "struct timeval")
+            self.add_local_var("time", "double")
+            self.pre_loop.append(cgen.Assign("time", 0))
+            self.post_loop.append(cgen.PrintStatement("time: %d", "time"))
         # Which function parameters need special (non-save) time stepping and which don't
         self.save_vars = {}
         self.fd = FunctionDescriptor(name)

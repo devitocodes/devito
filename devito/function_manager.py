@@ -7,7 +7,8 @@ class FunctionManager(object):
         function represented by it
     """
     libraries = ['cassert', 'cstdlib', 'cmath', 'iostream',
-                 'fstream', 'vector', 'cstdio', 'string', 'inttypes.h']
+                 'fstream', 'vector', 'cstdio', 'string', 'inttypes.h', 
+                 'sys/time.h']
 
     _pymic_attribute = 'PYMIC_KERNEL'
 
