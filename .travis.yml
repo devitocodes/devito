@@ -24,6 +24,5 @@ install:
 
 script:
   - export PYTHONPATH=$PYTHONPATH:$PWD
-  - flake8 .
+  - flake8 --builtins=ArgumentError .
   - py.test -vs tests/
-  - python benchmark.py

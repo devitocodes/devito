@@ -1,7 +1,7 @@
-from jit_manager import JitManager
+from devito.jit_manager import JitManager
 import numpy as np
-import cgen
-from propagator import Propagator
+import devito.cgen_wrapper as cgen
+from devito.propagator import Propagator
 
 
 class Test_Numpy_Array_Transfer(object):
@@ -12,7 +12,7 @@ class Test_Numpy_Array_Transfer(object):
         propagator.add_param("input_grid", data.shape, data.dtype)
         propagator.add_param("output_grid", data.shape, data.dtype)
         kernel = cgen.Assign("output_grid[i2][i1]", "input_grid[i2][i1] + 3")
-        propagator.set_jit_simple(kernel)
+        propagator.loop_body = kernel
         g = JitManager([propagator])
         f = g.get_wrapped_functions()[0]
         arr = np.empty_like(data)
@@ -26,7 +26,7 @@ class Test_Numpy_Array_Transfer(object):
         propagator = Propagator("process", 4, (3, 2))
         propagator.add_param("input_grid", data.shape, data.dtype)
         propagator.add_param("output_grid", data.shape, data.dtype)
-        propagator.set_jit_simple(kernel)
+        propagator.loop_body = kernel
         g = JitManager([propagator])
         f = g.get_wrapped_functions()[0]
         arr = np.empty_like(data)
@@ -40,7 +40,7 @@ class Test_Numpy_Array_Transfer(object):
         propagator = Propagator("process", 5, (4, 3, 2))
         propagator.add_param("input_grid", data.shape, data.dtype)
         propagator.add_param("output_grid", data.shape, data.dtype)
-        propagator.set_jit_simple(kernel)
+        propagator.loop_body = kernel
         g = JitManager([propagator])
         f = g.get_wrapped_functions()[0]
         arr = np.empty_like(data)

@@ -1,7 +1,7 @@
-from jit_manager import JitManager
+from devito.jit_manager import JitManager
 import numpy as np
-import cgen
-from propagator import Propagator
+import devito.cgen_wrapper as cgen
+from devito.propagator import Propagator
 
 
 class Test_Instance_Variable_Reset(object):
@@ -13,7 +13,7 @@ class Test_Instance_Variable_Reset(object):
         propagator = Propagator("process", 3, (2,))
         propagator.add_param("input_grid", data.shape, data.dtype)
         propagator.add_param("output_grid", data.shape, data.dtype)
-        propagator.set_jit_simple(kernel)
+        propagator.loop_body = kernel
         if self.g is None:
             self.g = JitManager([propagator])
         else:
@@ -30,7 +30,7 @@ class Test_Instance_Variable_Reset(object):
         propagator = Propagator("process", 4, (3, 2))
         propagator.add_param("input_grid", data.shape, data.dtype)
         propagator.add_param("output_grid", data.shape, data.dtype)
-        propagator.set_jit_simple(kernel)
+        propagator.loop_body = kernel
         if self.g is None:
             self.g = JitManager([propagator])
         else:
@@ -47,7 +47,7 @@ class Test_Instance_Variable_Reset(object):
         propagator = Propagator("process", 5, (4, 3, 2))
         propagator.add_param("input_grid", data.shape, data.dtype)
         propagator.add_param("output_grid", data.shape, data.dtype)
-        propagator.set_jit_simple(kernel)
+        propagator.loop_body = kernel
         if self.g is None:
             self.g = JitManager([propagator])
         else:
