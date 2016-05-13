@@ -20,8 +20,6 @@ class Operator(object):
         self.propagator.stencils, self.propagator.stencil_args = zip(*self.stencils)
 
     def apply(self):
-        for param in self.input_params:
-            param.initialize()
         f = self.get_callable()
         args = [param.data for param in self.input_params + self.output_params]
         f(*args)
