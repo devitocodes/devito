@@ -115,23 +115,33 @@ class AcousticWave2D_cg:
             dt=as_finite_diff(p(x,y,z,t).diff(t), indt)
             lap = dxx + dyy + dzz
 
-        # Solve forward in time
-        #
-        # The wave equation with absorbing boundary conditions writes
-        #
-        # $ \eta \frac{d u(x,t)}{dt} + \frac{d^2 u(x,t)}{dt^2} - \nabla^2
-        # u(x,t) =q  $
-        #
-        # and the adjont wave equation
-        #
-        # $ -\eta \frac{d u(x,t)}{dt} + \frac{d^2 u(x,t)}{dt^2} - \nabla^2
-        # u(x,t) =q  $
-        #
-        # where $ \eta$  is a damping factor equal to zero inside the physical
-        # domain and decreasing inside the absorbing layer from the pysical
-        # domain to the border
-
-        # Forward wave equation
+        # Argument list
+        arglamb=[]
+        arglamba=[]
+        if dim==2:
+            for i in range(-width_t,width_t):
+                arglamb.append( p(x,z,indt[i+width_t]))
+                arglamba.append( p(x,z,indt[i+width_t+1]))
+                
+            for i in range(-width_h,width_h+1):
+                for j in range(-width_h,width_h+1):
+                    arglamb.append( p(indx[i+width_h],indz[j+width_h],t))
+                    arglamba.append( p(indx[i+width_h],indz[j+width_h],t))
+        else:
+            for i in range(-width_t,width_t):
+                arglamb.append( p(x,y,z,indt[i+width_t]))
+                arglamba.append( p(x,y,z,indt[i+width_t+1]))
+                
+            for i in range(-width_h,width_h+1):
+                for j in range(-width_h,width_h+1):
+                    for k in range(-width_h,width_h+1):
+                        arglamb.append( p(indx[i+width_h],indy[i+width_h],indz[j+width_h],t))
+                        arglamba.append( p(indx[i+width_h],indy[i+width_h],indz[j+width_h],t))
+                
+        arglamb.extend((q , m, s, h, e))
+        arglamb=tuple(arglamb)
+        arglamba.extend((q , m, s, h, e))
+        arglamba=tuple(arglamba)
 
         def damp_boundary(damp):
             h = self.h
