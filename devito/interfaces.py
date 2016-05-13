@@ -18,11 +18,6 @@ class DenseData(IndexedBase):
         assert(callable(lambda_initializer))
         self.initializer = lambda_initializer
 
-    def initialize(self):
-        if self.initializer is not None:
-            self.initializer(self.data)
-        # Ignore if no initializer exists - assume no initialisation necessary
-
     def _allocate_memory(self):
         self.pointer = np.zeros(self.var_shape, self.dtype, order='C')
 
@@ -31,6 +26,11 @@ class DenseData(IndexedBase):
         if self.pointer is None:
             self._allocate_memory()
         return self.pointer
+    
+    def initialize(self):
+        if self.initializer is not None:
+            self.initializer(self.data)
+        # Ignore if no initializer exists - assume no initialisation necessary
 
     @property
     def shape(self):
