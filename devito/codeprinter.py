@@ -26,6 +26,10 @@ class CodePrinter(CCodePrinter):
         print fractional number as float/float
         (default was long double/long double)
         """
+        # This method and _print_Float below forcefully add a F to any
+        # literals generated in code. This forces all float literals
+        # to be 32-bit floats. 
+        # http://en.cppreference.com/w/cpp/language/floating_literal
         p, q = int(expr.p), int(expr.q)
         return '%d.0F/%d.0F' % (p, q)  # float precision by default
 
