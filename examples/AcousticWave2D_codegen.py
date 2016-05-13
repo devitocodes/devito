@@ -2,7 +2,7 @@
 from __future__ import print_function
 from sympy import Function, symbols, init_printing, as_finite_diff
 from sympy import solve, Matrix
-from sympy.abc import x, y, t, M, E
+from sympy.abc import x, y, t, M, E, z, Q, D
 import numpy as np
 from operators import *
 from devito.interfaces import DenseData, PointData
@@ -43,12 +43,44 @@ class AcousticWave2D_cg:
         # &u(.,0) = 0 \\ &\frac{d u(x,t)}{dt}|_{t=0} = 0 \end{cases}
         #
         # with the zero initial conditons to guarantee unicity of the solution
-
+        # Choose dimension (2 or 3)
+        dim = 2
+        # Choose order
+        time_order = 6
+        space_order = 12
+        
+        # half width for indexes, goes from -half to half
+        width_t = int(time_order/2)
+        width_h = int(space_order/2)
         p = Function('p')
         s, h = symbols('s h')
-        m = M(x, y)
-        e = E(x, y)
+        if dim==2:
+            m=M(x,z)
+            q=Q(x,z,t)
+            d=D(x,z,t)
+            solvep = p(x,z,t+width_t*s)
+            solvepa = p(x,z,t-width_t*s)
+        else :
+            m=M(x,y,z)
+            q=Q(x,y,z,t)
+            d=D(x,y,z,t)
+            solvep = p(x,y,z,t+width_t*s)
+            solvepa = p(x,y,z,t-width_t*s)
         nx, ny = self.model.get_shape()
+        
+        # Indexes for finite differences
+        indx = []
+        indy = []
+        indz = []
+        indt = []
+        for i in range(-width_h,width_h+1):
+            indx.append(x + i * h)
+            indy.append(y + i * h)
+            indz.append(z + i* h)
+            
+        for i in range(-width_t,width_t+1):
+            indt.append(t + i * s)
+        
         # Time and space  discretization as a Taylor expansion.
         #
         # The time discretization is define as a second order ( $ O (dt^2)) $)
@@ -68,15 +100,20 @@ class AcousticWave2D_cg:
         # $ \frac{d^2 u(x,t)}{dt^2} \simeq \frac{1}{dx^2} \sum_k \alpha_k
         # (u(x+k dx,t)+u(x-k dx,t)) + O(dx^k) $
 
-        dtt = as_finite_diff(p(x, y, t).diff(t, t), [t-s, t, t+s])
-        dt = as_finite_diff(p(x, y, t).diff(t), [t-s, t+s])
-
-        # Spacial finite differences can easily be extended to higher order by
-        # increasing the list of sampling point in the next expression.  Be
-        # sure to keep this stencil symmetric and everything else in the
-        # notebook will follow.
-        dxx = as_finite_diff(p(x, y, t).diff(x, x), [x-h, x, x+h])
-        dyy = as_finite_diff(p(x, y, t).diff(y, y), [y-h, y, y+h])
+        # Finite differences
+        if dim==2:
+            dtt=as_finite_diff(p(x,z,t).diff(t,t),indt)
+            dxx=as_finite_diff(p(x,z,t).diff(x,x), indx) 
+            dzz=as_finite_diff(p(x,z,t).diff(z,z), indz)
+            dt=as_finite_diff(p(x,z,t).diff(t), indt)
+            lap = dxx + dzz
+        else:
+            dtt=as_finite_diff(p(x,y,z,t).diff(t,t),indt)
+            dxx=as_finite_diff(p(x,y,z,t).diff(x,x), indx) 
+            dyy=as_finite_diff(p(x,y,z,t).diff(y,y), indy) 
+            dzz=as_finite_diff(p(x,y,z,t).diff(z,z), indz)
+            dt=as_finite_diff(p(x,y,z,t).diff(t), indt)
+            lap = dxx + dyy + dzz
 
         # Solve forward in time
         #
