@@ -25,7 +25,7 @@ class DenseData(IndexedBase):
         if self.pointer is None:
             self._allocate_memory()
         return self.pointer
-    
+
     def initialize(self):
         if self.initializer is not None:
             self.initializer(self.data)
@@ -34,7 +34,7 @@ class DenseData(IndexedBase):
 
 class TimeData(DenseData):
     # The code here is getting increasingly messy because python wants two types
-    # of constructors for everything. Since the parent class is Immutable, some 
+    # of constructors for everything. Since the parent class is Immutable, some
     # constructor work needs to be moved into the __new__ method while some is in
     # __init__. This makes it important to override both __new__ and __init__ in
     # every child class.
@@ -72,6 +72,6 @@ class PointData(DenseData):
         self.npoints = npoints
         self.nt = nt
         super(PointData, self).__init__(name, (nt, npoints), dtype)
-    
+
     def __new__(cls, name, npoints, nt, *args):
         return IndexedBase.__new__(cls, name, shape=(nt, npoints))

@@ -8,14 +8,14 @@ from devito.interfaces import DenseData, PointData
 
 class AcousticWave2D_cg:
 
-    def __init__(self, model, data, dm_initializer, source=None, nbpml=40, spc_dim=2, t_order=2, s_order=2):
+    def __init__(self, model, data, dm_initializer, source=None, nbpml=40, t_order=2, s_order=2):
         self.model = model
         self.data = data
         self.dtype = np.float64
         self.dt = model.get_critical_dt()
         self.h = model.get_spacing()
         self.nbpml = nbpml
-        dimensions = self.model.shape
+        dimensions = self.model.get_shape()
         pad_list = []
         for dim_index in range(len(dimensions)):
             pad_list.append((nbpml, nbpml))
@@ -45,7 +45,7 @@ class AcousticWave2D_cg:
                 damp[:, -i] += val
 
         m = DenseData("m", self.model.vp.shape, self.dtype)
-        m.initializer = lambda ref: np.copyto(ref, self.model.vp**(-2))
+        m.data[:] = self.model.vp**(-2)
         self.m = m
         damp = DenseData("damp", self.model.vp.shape, self.dtype)
         damp.initializer = damp_boundary
@@ -53,7 +53,7 @@ class AcousticWave2D_cg:
         src = SourceLike("src", 1, self.nt, self.dt, self.h, np.array(self.data.source_coords, dtype=self.dtype)[np.newaxis, :], self.dtype)
         self.src = src
         rec = SourceLike("rec", self.nrec, self.nt, self.dt, self.h, self.data.receiver_coords, self.dtype)
-        src.initializer = lambda ref: np.copyto(ref, self.data.get_source()[:, np.newaxis])
+        src.data[:] = self.data.get_source()[:, np.newaxis]
         self.rec = rec
         u = TimeData("u", m.shape, src.nt, time_order=t_order, save=True, dtype=m.dtype)
         self.u = u
@@ -61,11 +61,11 @@ class AcousticWave2D_cg:
         self.srca = srca
         dm = DenseData("dm", self.model.vp.shape, self.dtype)
         dm.initializer = self.dm_initializer
-        
-        self._forward_stencil = ForwardOperator(m, src, damp, rec, u)
-#         self._adjoint_stencil = AdjointOperator(m, rec, damp, srca)
-#         self._gradient_stencil = GradientOperator(u, m, rec, damp)
-#         self._born_stencil = BornOperator(dm, m, src, damp, rec)
+        self.dm = dm
+        self._forward_stencil = ForwardOperator(m, src, damp, rec, u, time_order=t_order, spc_order=s_order)
+        self._adjoint_stencil = AdjointOperator(m, rec, damp, srca, time_order=t_order, spc_order=s_order)
+        self._gradient_stencil = GradientOperator(u, m, rec, damp, time_order=t_order, spc_order=s_order)
+        self._born_stencil = BornOperator(dm, m, src, damp, rec, time_order=t_order, spc_order=s_order)
 
     def Forward(self):
         self._forward_stencil.apply()
