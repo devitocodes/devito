@@ -8,7 +8,7 @@ class Propagator(object):
     def __init__(self, name, nt, shape, spc_border=0, forward=True, time_order=0):
         num_spac_dim = len(shape)
         self.t = symbols("t")
-        space_dims = symbols("x y z")
+        space_dims = symbols("x z y")
         self.loop_counters = symbols("i1 i2 i3 i4")
         self._pre_kernel_steps = []
         self._post_kernel_steps = []
