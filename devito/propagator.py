@@ -142,7 +142,8 @@ class Propagator(object):
         # Statements to be inserted into the time loop after the spatial loop
         time_loop_stencils_a = [self.convert_equality_to_cgen(x) for x in self.time_loop_stencils_a]
         initial_block = [cgen.Pragma("omp single")] + [cgen.Block(time_stepping + time_loop_stencils_b)] if time_stepping or time_loop_stencils_b else []
-        end_block = [cgen.Pragma("omp single")] + [cgen.Block(time_loop_stencils_a)] if time_loop_stencils_a else []
+        initial_block = initial_block + start_time_stmt
+        end_block = end_time_stmt + [cgen.Pragma("omp single")] + [cgen.Block(time_loop_stencils_a)] if time_loop_stencils_a else end_time_stmt
         loop_body = cgen.Block(initial_block + loop_body + end_block)
         loop_body = cgen.For(cgen.InlineInitializer(cgen.Value("int", t_var), str(t_loop_limits[0])), t_var + cond_op + str(t_loop_limits[1]), t_var + "+=" + str(self._time_step), loop_body)
         # Code to declare the time stepping variables (outside the time loop)
