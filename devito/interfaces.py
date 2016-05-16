@@ -26,7 +26,7 @@ class DenseData(IndexedBase):
         if self.pointer is None:
             self._allocate_memory()
         return self.pointer
-    
+
     def initialize(self):
         if self.initializer is not None:
             self.initializer(self.data)

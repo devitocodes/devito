@@ -99,7 +99,6 @@ class AcousticWave2D_cg:
         def damp_boundary(damp):
             h = self.h
             dampcoeff = 1.5 * np.log(1.0 / 0.001) / (40 * h)
-            nx, ny = self.model.get_shape()
             nbpml = self.nbpml
             for i in range(nbpml):
                 pos = np.abs((nbpml-i)/nbpml)
@@ -113,15 +112,16 @@ class AcousticWave2D_cg:
         stencil = solve(wave_equation, p(x, y, t+s))[0]
         self.nt = nt
         m_sub = DenseData("m", self.model.vp.shape, self.dtype)
-        m_sub.initializer = lambda ref: np.copyto(ref, self.model.vp**(-2))
+        m_sub.data[:] = self.model.vp**(-2)
         self.m = m_sub
         damp = DenseData("damp", self.model.vp.shape, self.dtype)
-        damp.initializer = damp_boundary
+        # Initialize damp by calling the function that can precompute damping
+        damp_boundary(damp.data)
         self.damp = damp
         src = SourceLike("src", 1, self.nt, self.dt, self.h, np.array(self.data.source_coords, dtype=self.dtype)[np.newaxis, :], self.dtype)
         self.src = src
         rec = SourceLike("rec", self.nrec, self.nt, self.dt, self.h, self.data.receiver_coords, self.dtype)
-        src.initializer = lambda ref: np.copyto(ref, self.data.get_source()[:, np.newaxis])
+        src.data[:] = self.data.get_source()[:, np.newaxis]
         self.rec = rec
         u = TimeData("u", m_sub.shape, src.nt, time_order=2, save=True, dtype=m_sub.dtype)
         self.u = u
@@ -190,7 +190,8 @@ class AcousticWave2D_cg:
                                                    p(x, y+h, t), m, s, h, e),
                                                   stencilA, u, m_sub, rec, damp)
         dm = DenseData("dm", self.model.vp.shape, self.dtype)
-        dm.initializer = self.dm_initializer
+        if self.dm_initializer is not None:
+            self.dm_initializer(dm.data)
         self._born_stencil = BornOperator((p(x, y, t-s),
                                            p(x-h, y, t),
                                            p(x, y, t),
