@@ -21,6 +21,8 @@ class Operator(object):
 
     def apply(self):
         f = self.get_callable()
+        for param in self.input_params:
+            param.initialize()
         args = [param.data for param in self.input_params + self.output_params]
         f(*args)
         return tuple([param.data for param in self.output_params])
