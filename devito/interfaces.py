@@ -18,7 +18,7 @@ class DenseData(IndexedBase):
         self.initializer = lambda_initializer
 
     def _allocate_memory(self):
-        self.pointer = np.zeros(self.var_shape, self.dtype, order='C')
+        self.pointer = np.zeros(self.shape, self.dtype, order='C')
 
     @property
     def data(self):
@@ -33,6 +33,11 @@ class DenseData(IndexedBase):
 
 
 class TimeData(DenseData):
+    # The code here is getting increasingly messy because python wants two types
+    # of constructors for everything. Since the parent class is Immutable, some 
+    # constructor work needs to be moved into the __new__ method while some is in
+    # __init__. This makes it important to override both __new__ and __init__ in
+    # every child class.
     def __init__(self, name, spc_shape, time_dim, time_order, save, dtype, pad_time=False):
         if save:
             time_dim = time_dim + time_order
@@ -50,6 +55,10 @@ class TimeData(DenseData):
             self.pointer = self.pointer[self.time_order:, :, :]
 
     def __new__(cls, name, spc_shape, time_dim, time_order, save, dtype, pad_time=False):
+        if save:
+            time_dim = time_dim + time_order
+        else:
+            time_dim = time_order + 1
         shape = tuple((time_dim,) + spc_shape)
         return IndexedBase.__new__(cls, name, shape=shape)
 
