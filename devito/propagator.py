@@ -52,10 +52,8 @@ class Propagator(object):
 
     @property
     def time_loop_limits(self):
-        num_save_vars = sum([1 for x in self.save_vars.values() if x is True])
-        skip_time = self.time_order if num_save_vars > 0 else 0
         if self._forward:
-            loop_limits = (0+skip_time, self.nt+skip_time)
+            loop_limits = (0, self.nt)
         else:
             loop_limits = (self.nt-1, -1)
         return loop_limits
@@ -115,13 +113,11 @@ class Propagator(object):
         else:
             self._post_kernel_steps.append(stm)
 
-    def set_jit_params(self, subs, stencils, stencil_args):
-        self.subs = subs
-        self.stencils = stencils
-        self.stencil_args = stencil_args
-
-    def set_jit_simple(self, loop_body):
-        self.loop_body = loop_body
+    def add_devito_param(self, param):
+        save = True
+        if hasattr(param, "save"):
+            save = param.save
+        self.add_param(param.name, param.shape, param.dtype, save)
 
     def add_param(self, name, shape, dtype, save=True):
         self.fd.add_matrix_param(name, shape, dtype)
@@ -175,6 +171,8 @@ class Propagator(object):
         """
         if isinstance(sympy_expr, Indexed):
             array_term = sympy_expr
+            if not str(array_term.base.label) in self.save_vars:
+                raise(ValueError, "Invalid variable '%s' in sympy expression. Did you add it to the operator's params?" % str(array_term.base.label))
             if not self.save_vars[str(array_term.base.label)]:
                 array_term = array_term.xreplace(self.t_replace)
             return array_term

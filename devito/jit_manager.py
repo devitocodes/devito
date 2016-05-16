@@ -1,22 +1,16 @@
 from ctypes import cdll
-import numpy as np
 from function_manager import FunctionManager
 from random import randint
 from hashlib import sha1
 import os
-from _ctypes import ArgumentError
-import cgen_wrapper as cgen
 from codepy.toolchain import guess_toolchain
 import codepy.jit as jit
 from tempfile import gettempdir
+import numpy as np
+import cgen_wrapper as cgen
 
 
 class JitManager(object):
-    """ This is the primary interface class for code
-    generation. However, the code in this class is focused on
-    interfacing with the generated code. The actual code generation
-    happens in FunctionManager
-    """
     _hashing_function = sha1
     _wrapped_functions = None
     COMPILER_OVERRIDE_VAR = "DEVITO_CC"
@@ -77,9 +71,9 @@ class JitManager(object):
                 # Load pymic objects to perform offload process
                 self._device = self._mic.devices[0]
                 self._stream = self._device.get_default_stream()
-                self._library = self._device.load_library(libname)
+                self.library = self._device.load_library(libname)
             else:
-                self._library = cdll.LoadLibrary(libname)
+                self.library = cdll.LoadLibrary(libname)
         except OSError as e:
             print "Library load error: ", e
             raise Exception("Failed to load %s" % libname)
@@ -103,6 +97,28 @@ class JitManager(object):
         jit.extension_file_from_string(self.compiler, self.src_lib,
                                        self.src_code, source_name=self.src_file)
 
+    def __clean(self):
+        self._wrapped_functions = None
+        self.src_lib = None
+        self.src_file = None
+        self.src_lib = None
+        self.filename = None
+
+    def _clean_flags(self):
+        for flag in self._incompatible_flags:
+            for flag_list in [self.compiler.cflags, self.compiler.ldflags]:
+                if isinstance(flag, tuple):
+                    to_delete = []
+                    for i, item in enumerate(flag_list):
+                        if flag_list[i].strip() == flag[0] and flag_list[i+1].strip() == flag[1]:
+                            to_delete.append(i)
+                            to_delete.append(i+1)
+                    for i in sorted(to_delete, reverse=True):
+                        del flag_list[i]
+                else:
+                    while flag in flag_list:
+                        flag_list.remove(flag)
+
     def wrap_function(self, function, function_descriptor):
         """ Wrap the function by converting the python style arguments(simply passing object references)
             to C style (pointer + int dimensions)
@@ -125,7 +141,7 @@ class JitManager(object):
 
         return wrapped_function
 
-    def _prepare_wrapped_functions(self):
+    def prepare_wrapped_function(self):
         # Compile code if this hasn't been done yet
         self.compile()
         # Load compiled binary
@@ -136,7 +152,7 @@ class JitManager(object):
         wrapped_functions = []
         for function_descriptor in self._function_descriptors:
             # Pointer to the function in the compiled library
-            library_function = getattr(self._library, function_descriptor.name)
+            library_function = getattr(self.library, function_descriptor.name)
             if self._mic_flag:
                 wrapped_functions.append(self.create_a_function(self._stream, library_function))
             else:
@@ -156,27 +172,5 @@ class JitManager(object):
 
     def get_wrapped_functions(self):
         if self._wrapped_functions is None:
-            self._wrapped_functions = self._prepare_wrapped_functions()
+            self._wrapped_functions = self.prepare_wrapped_function()
         return self._wrapped_functions
-
-    def __clean(self):
-        self._wrapped_functions = None
-        self.src_lib = None
-        self.src_file = None
-        self.src_lib = None
-        self.filename = None
-
-    def _clean_flags(self):
-        for flag in self._incompatible_flags:
-            for flag_list in [self.compiler.cflags, self.compiler.ldflags]:
-                if isinstance(flag, tuple):
-                    to_delete = []
-                    for i, item in enumerate(flag_list):
-                        if flag_list[i].strip() == flag[0] and flag_list[i+1].strip() == flag[1]:
-                            to_delete.append(i)
-                            to_delete.append(i+1)
-                    for i in sorted(to_delete, reverse=True):
-                        del flag_list[i]
-                else:
-                    while flag in flag_list:
-                        flag_list.remove(flag)

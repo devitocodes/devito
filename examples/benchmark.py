@@ -10,8 +10,10 @@ from containers import IShot, IGrid
 dimensions = (100, 100)
 model = IGrid()
 model0 = IGrid()
+model1 = IGrid()
 model.shape = dimensions
 model0.shape = dimensions
+model1.shape = dimensions
 origin = (0., 0.)
 spacing = (25., 25)
 
@@ -31,12 +33,21 @@ true_vp[floor(dimensions[0] / 2):floor(dimensions[0]), :] = 4.5
 
 # Smooth velocity
 initial_vp = smooth10(true_vp, dimensions[0], dimensions[1])
-dm = true_vp**-2 - initial_vp**-2
+
 nbpml = 40
-dm = np.pad(dm, ((nbpml, nbpml), (nbpml, nbpml)), 'edge')
+dm_orig = true_vp**-2 - initial_vp**-2
+dm_orig = np.pad(dm_orig, ((nbpml, nbpml), (nbpml, nbpml)), 'edge')
+
+
+def create_dm(dm):
+    np.copyto(dm, dm_orig)
+
 dv = -true_vp + initial_vp
+
 model.create_model(origin, spacing, true_vp)
 model0.create_model(origin, spacing, initial_vp)
+model1.create_model(origin, spacing, initial_vp)
+
 # Define seismic data.
 data = IShot()
 
@@ -66,9 +77,16 @@ data.set_receiver_pos(receiver_coords)
 data.set_shape(nt, 30)
 # A Forward propagation example
 python_obj = AcousticWave2D(model0, data, nbpml=nbpml)
-jit_obj = AcousticWave2D_cg(model0, data, nbpml=nbpml)
+jit_obj = AcousticWave2D_cg(model1, data, create_dm, nbpml=nbpml)
 
 print "Forward propagation"
+print "Starting codegen version"
+start = time.clock()
+(recg, ug) = jit_obj.Forward()
+end = time.clock()
+cg_time = end-start
+norm_recg = np.linalg.norm(recg)
+norm_ug = np.linalg.norm(ug)
 print "Starting python lambdified version"
 start = time.clock()
 (rect, ut) = python_obj.Forward()
@@ -76,16 +94,6 @@ end = time.clock()
 python_time = end-start
 norm_rect = np.linalg.norm(rect)
 norm_ut = np.linalg.norm(ut)
-
-print "Starting codegen version"
-
-
-start = time.clock()
-(recg, ug) = jit_obj.Forward()
-end = time.clock()
-cg_time = end-start
-norm_recg = np.linalg.norm(recg)
-norm_ug = np.linalg.norm(ug)
 
 table_data = [
     ['', 'Time', 'L2Norm(u)', 'L2Norm(rec)'],
@@ -148,7 +156,7 @@ print table.table
 print "Born"
 print "Starting python lambdified version"
 start = time.clock()
-rec_t = python_obj.Born(dm)
+rec_t = python_obj.Born(dm_orig)
 end = time.clock()
 python_time = end-start
 norm_rect = np.linalg.norm(rec_t)
@@ -156,7 +164,7 @@ norm_rect = np.linalg.norm(rec_t)
 print "Starting codegen version"
 
 start = time.clock()
-rec_g = jit_obj.Born(dm)
+rec_g = jit_obj.Born()
 end = time.clock()
 cg_time = end-start
 norm_recg = np.linalg.norm(rec_g)
