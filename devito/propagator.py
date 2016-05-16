@@ -40,7 +40,6 @@ class Propagator(object):
             self.pre_loop.append(cgen.Assign("time", 0))
             self.pre_loop.append(cgen.Assign("start", 0))
             self.post_loop.append(cgen.PrintStatement("time: %f\n", "time"))
-            self.time_loop_stencils_a.append(cgen.Statement("time += omp_get_wtime() - start"))
         if forward:
             self._time_step = 1
         else:
@@ -128,9 +127,14 @@ class Propagator(object):
         time_loop_stencils_b = [self.convert_equality_to_cgen(x) for x in self.time_loop_stencils_b]
         time_loop_stencils_a = [self.convert_equality_to_cgen(x) for x in self.time_loop_stencils_a]
         if self.profile:
-            time_loop_stencils_b.append(cgen.Statement("start = omp_get_wtime()"))
+            start_time_stmt = [cgen.Pragma("omp master")] + [cgen.Block([cgen.Statement("start = omp_get_wtime()")])]
+            end_time_stmt = [cgen.Pragma("omp master")] + [cgen.Block([cgen.Statement("time += omp_get_wtime() - start")])]
+        else:
+            start_time_stmt = []
+            end_time_stmt = []
         initial_block = [cgen.Pragma("omp single")] + [cgen.Block(time_stepping + time_loop_stencils_b)] if time_stepping or time_loop_stencils_b else []
-        end_block = [cgen.Pragma("omp single")] + [cgen.Block(time_loop_stencils_a)] if time_loop_stencils_a else []
+        initial_block = initial_block + start_time_stmt
+        end_block = end_time_stmt + [cgen.Pragma("omp single")] + [cgen.Block(time_loop_stencils_a)] if time_loop_stencils_a else end_time_stmt
         loop_body = cgen.Block(initial_block + loop_body + end_block)
         loop_body = cgen.For(cgen.InlineInitializer(cgen.Value("int", t_var), str(t_loop_limits[0])), t_var + cond_op + str(t_loop_limits[1]), t_var + "+=" + str(self._time_step), loop_body)
         def_time_step = [cgen.Value("int", t_var_def.name) for t_var_def in self.time_steppers]
