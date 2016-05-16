@@ -1,26 +1,25 @@
 # coding: utf-8
 from __future__ import print_function
-from sympy import Function, symbols, init_printing, as_finite_diff
-from sympy import solve, Matrix
-from sympy.abc import x, y, t, M, E, z, Q, D
+from sympy import Matrix
 import numpy as np
-from operators import *
+from examples.fwi_operators import *
 from devito.interfaces import DenseData, PointData
-
-init_printing()
 
 
 class AcousticWave2D_cg:
 
-    def __init__(self, model, data, dm_initializer, source=None, nbpml=40):
+    def __init__(self, model, data, dm_initializer, source=None, nbpml=40, spc_dim=2, t_order=2, s_order=2):
         self.model = model
         self.data = data
         self.dtype = np.float64
         self.dt = model.get_critical_dt()
         self.h = model.get_spacing()
         self.nbpml = nbpml
-        pad = ((nbpml, nbpml), (nbpml, nbpml))
-        self.model.vp = np.pad(self.model.vp, pad, 'edge')
+        dimensions = self.model.shape
+        pad_list = []
+        for dim_index in range(len(dimensions)):
+            pad_list.append((nbpml, nbpml))
+        self.model.vp = np.pad(self.model.vp, tuple(pad_list), 'edge')
         self.data.reinterpolate(self.dt)
         self.nrec, self.nt = self.data.traces.shape
         self.model.set_origin(nbpml)
@@ -33,120 +32,9 @@ class AcousticWave2D_cg:
                 source_time = np.append(source_time, [0.0])
             self.data.set_source(source_time, self.dt, self.data.source_coords)
 
-        self._init_taylor(self.nt)
-
-    def _init_taylor(self, nt):
-        # The acoustic wave equation for the square slowness m and a source q
-        # is given in 3D by :
-        #
-        # \begin{cases} &m \frac{d^2 u(x,t)}{dt^2} - \nabla^2 u(x,t) =q  \\
-        # &u(.,0) = 0 \\ &\frac{d u(x,t)}{dt}|_{t=0} = 0 \end{cases}
-        #
-        # with the zero initial conditons to guarantee unicity of the solution
-        # Choose dimension (2 or 3)
-        dim = 2
-        # Choose order
-        time_order = 6
-        space_order = 12
-        
-        # half width for indexes, goes from -half to half
-        width_t = int(time_order/2)
-        width_h = int(space_order/2)
-        p = Function('p')
-        s, h = symbols('s h')
-        if dim==2:
-            m=M(x,z)
-            q=Q(x,z,t)
-            d=D(x,z,t)
-            solvep = p(x,z,t+width_t*s)
-            solvepa = p(x,z,t-width_t*s)
-        else :
-            m=M(x,y,z)
-            q=Q(x,y,z,t)
-            d=D(x,y,z,t)
-            solvep = p(x,y,z,t+width_t*s)
-            solvepa = p(x,y,z,t-width_t*s)
-        nx, ny = self.model.get_shape()
-        
-        # Indexes for finite differences
-        indx = []
-        indy = []
-        indz = []
-        indt = []
-        for i in range(-width_h,width_h+1):
-            indx.append(x + i * h)
-            indy.append(y + i * h)
-            indz.append(z + i* h)
-            
-        for i in range(-width_t,width_t+1):
-            indt.append(t + i * s)
-        
-        # Time and space  discretization as a Taylor expansion.
-        #
-        # The time discretization is define as a second order ( $ O (dt^2)) $)
-        # centered finite difference to get an explicit Euler scheme easy to
-        # solve by steping in time.
-        #
-        # $ \frac{d^2 u(x,t)}{dt^2} \simeq \frac{u(x,t+dt) - 2 u(x,t) +
-        # u(x,t-dt)}{dt^2} + O(dt^2) $
-        #
-        # And we define the space discretization also as a Taylor serie, with
-        # oder chosen by the user. This can either be a direct expansion of the
-        # second derivative bulding the laplacian, or a combination of first
-        # oder space derivative. The second option can be a better choice in
-        # case you would want to extand the method to more complex wave
-        # equations involving first order derivatives in chain only.
-        #
-        # $ \frac{d^2 u(x,t)}{dt^2} \simeq \frac{1}{dx^2} \sum_k \alpha_k
-        # (u(x+k dx,t)+u(x-k dx,t)) + O(dx^k) $
-
-        # Finite differences
-        if dim==2:
-            dtt=as_finite_diff(p(x,z,t).diff(t,t),indt)
-            dxx=as_finite_diff(p(x,z,t).diff(x,x), indx) 
-            dzz=as_finite_diff(p(x,z,t).diff(z,z), indz)
-            dt=as_finite_diff(p(x,z,t).diff(t), indt)
-            lap = dxx + dzz
-        else:
-            dtt=as_finite_diff(p(x,y,z,t).diff(t,t),indt)
-            dxx=as_finite_diff(p(x,y,z,t).diff(x,x), indx) 
-            dyy=as_finite_diff(p(x,y,z,t).diff(y,y), indy) 
-            dzz=as_finite_diff(p(x,y,z,t).diff(z,z), indz)
-            dt=as_finite_diff(p(x,y,z,t).diff(t), indt)
-            lap = dxx + dyy + dzz
-
-        # Argument list
-        arglamb=[]
-        arglamba=[]
-        if dim==2:
-            for i in range(-width_t,width_t):
-                arglamb.append( p(x,z,indt[i+width_t]))
-                arglamba.append( p(x,z,indt[i+width_t+1]))
-                
-            for i in range(-width_h,width_h+1):
-                for j in range(-width_h,width_h+1):
-                    arglamb.append( p(indx[i+width_h],indz[j+width_h],t))
-                    arglamba.append( p(indx[i+width_h],indz[j+width_h],t))
-        else:
-            for i in range(-width_t,width_t):
-                arglamb.append( p(x,y,z,indt[i+width_t]))
-                arglamba.append( p(x,y,z,indt[i+width_t+1]))
-                
-            for i in range(-width_h,width_h+1):
-                for j in range(-width_h,width_h+1):
-                    for k in range(-width_h,width_h+1):
-                        arglamb.append( p(indx[i+width_h],indy[i+width_h],indz[j+width_h],t))
-                        arglamba.append( p(indx[i+width_h],indy[i+width_h],indz[j+width_h],t))
-                
-        arglamb.extend((q , m, s, h, e))
-        arglamb=tuple(arglamb)
-        arglamba.extend((q , m, s, h, e))
-        arglamba=tuple(arglamba)
-
         def damp_boundary(damp):
             h = self.h
             dampcoeff = 1.5 * np.log(1.0 / 0.001) / (40 * h)
-            nx, ny = self.model.get_shape()
             nbpml = self.nbpml
             for i in range(nbpml):
                 pos = np.abs((nbpml-i)/nbpml)
@@ -156,12 +44,9 @@ class AcousticWave2D_cg:
                 damp[:, i] += val
                 damp[:, -i] += val
 
-        wave_equation = m * dtt - (dxx + dyy) + e * dt
-        stencil = solve(wave_equation, p(x, y, t+s))[0]
-        self.nt = nt
-        m_sub = DenseData("m", self.model.vp.shape, self.dtype)
-        m_sub.initializer = lambda ref: np.copyto(ref, self.model.vp**(-2))
-        self.m = m_sub
+        m = DenseData("m", self.model.vp.shape, self.dtype)
+        m.initializer = lambda ref: np.copyto(ref, self.model.vp**(-2))
+        self.m = m
         damp = DenseData("damp", self.model.vp.shape, self.dtype)
         damp.initializer = damp_boundary
         self.damp = damp
@@ -170,81 +55,17 @@ class AcousticWave2D_cg:
         rec = SourceLike("rec", self.nrec, self.nt, self.dt, self.h, self.data.receiver_coords, self.dtype)
         src.initializer = lambda ref: np.copyto(ref, self.data.get_source()[:, np.newaxis])
         self.rec = rec
-        u = TimeData("u", m_sub.shape, src.nt, time_order=2, save=True, dtype=m_sub.dtype)
+        u = TimeData("u", m.shape, src.nt, time_order=t_order, save=True, dtype=m.dtype)
         self.u = u
-        self._forward_stencil = ForwardOperator((p(x, y, t-s),
-                                                 p(x-h, y, t),
-                                                 p(x, y, t),
-                                                 p(x+h, y, t),
-                                                 p(x, y-h, t),
-                                                 p(x, y+h, t), m, s, h, e),
-                                                stencil, m_sub, src, damp, rec, u)
-
-        # Rewriting the discret PDE as part of an Inversion. Accuracy and
-        # rigourousness of the dicretization
-        #
-        # The above axpression are good for modelling. However, if you want to
-        # include a wave equation solver into an Inversion workflow, a more
-        # rigourous study of the discretization must be done. We can rewrite a
-        # single time step as follows
-        #
-        # $ A_3  u(x,t+dt)  = A_1 u(x,t) + A_2 u(x,t-dt) +q(x,t)$
-        #
-        # where $ A_1,A_2,A_3 $ are square, invertible matrices, and symetric
-        # without any boundary conditions. In more details we have :
-        #
-        # \begin{align} & A_1 = \frac{2}{dt^2 m} + \Delta \\ & A_2 =
-        # \frac{-1}{dt^2 m} \\ & A_3 = \frac{1}{dt^2 m} \end{align}
-        #
-        # We can the write the action of the adjoint wave equation operator.
-        # The adjoint wave equation is defined by \begin{cases} &m \frac{d^2
-        # v(x,t)}{dt^2} - \nabla^2 v(x,t) = \delta d  \\ &v(.,T) = 0 \\
-        # &\frac{d v(x,t)}{dt}|_{t=T} = 0 \end{cases}
-        #
-        # but by choosing to discretize first we will not discretize this
-        # equation. Instead we will take the adjoint of the forward wave
-        # equation operator and by testing that the operator is the true
-        # adjoint, we will guaranty solving the adjoint wave equation. We have
-        # the the single time step for the adjoint wavefield going backward in
-        # time in order to keep an explicit Euler scheme
-        #
-        # $  A_2^T v(x,t-dt)  = A_1^T v(x,t) + A_3^T v(x,t+dt) + \delta d(x,t)$
-        #
-        # and as $A_2$ and $A_3$ are diagonal matrices  there is no issue in
-        # inverting it. We can also see that choosing a asymetric stencil for
-        # the spacial derivative may lead to erro has the Laplacian would stop
-        # to be self-adjoint, and the actual adjoint finite difference scheme
-        # should be implemented.
-
-        # Adjoint wave equation
         srca = SourceLike("srca", 1, self.nt, self.dt, self.h, np.array(self.data.source_coords, dtype=self.dtype)[np.newaxis, :], self.dtype)
         self.srca = srca
-        wave_equationA = m * dtt - (dxx + dyy) - e * dt
-        stencilA = solve(wave_equationA, p(x, y, t-s))[0]
-        self._adjoint_stencil = AdjointOperator((p(x, y, t+s),
-                                                 p(x-h, y, t),
-                                                 p(x, y, t),
-                                                 p(x+h, y, t),
-                                                 p(x, y-h, t),
-                                                 p(x, y+h, t), m, s, h, e),
-                                                stencilA, m_sub, rec, damp, srca)
-
-        self._gradient_stencil = GradientOperator((p(x, y, t+s),
-                                                   p(x-h, y, t),
-                                                   p(x, y, t),
-                                                   p(x+h, y, t),
-                                                   p(x, y-h, t),
-                                                   p(x, y+h, t), m, s, h, e),
-                                                  stencilA, u, m_sub, rec, damp)
         dm = DenseData("dm", self.model.vp.shape, self.dtype)
         dm.initializer = self.dm_initializer
-        self._born_stencil = BornOperator((p(x, y, t-s),
-                                           p(x-h, y, t),
-                                           p(x, y, t),
-                                           p(x+h, y, t),
-                                           p(x, y-h, t),
-                                           p(x, y+h, t), m, s, h, e),
-                                          stencil, dm, m_sub, src, damp, rec)
+        
+        self._forward_stencil = ForwardOperator(m, src, damp, rec, u)
+#         self._adjoint_stencil = AdjointOperator(m, rec, damp, srca)
+#         self._gradient_stencil = GradientOperator(u, m, rec, damp)
+#         self._born_stencil = BornOperator(dm, m, src, damp, rec)
 
     def Forward(self):
         self._forward_stencil.apply()
