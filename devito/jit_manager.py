@@ -59,7 +59,7 @@ class JitManager(object):
     def __generate_filename(self):
         # Generate a unique filename for the generated code by combining the unique salt
         # with the hash of the parameters for the function as well as the body of the function
-        hash_string = "".join([str(fd.params) for fd in self._function_descriptors])
+        hash_string = "".join([str(fd.params) for fd in self._function_descriptors]) + str(self._salt)
         self._hash = self._hashing_function(hash_string).hexdigest()
         return self._hash
 

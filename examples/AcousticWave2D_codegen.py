@@ -12,7 +12,7 @@ init_printing()
 
 class AcousticWave2D_cg:
 
-    def __init__(self, model, data, dm_initializer, source=None, nbpml=40):
+    def __init__(self, model, data, dm_initializer=None, source=None, nbpml=40):
         self.model = model
         self.data = data
         self.dtype = np.float64
@@ -29,7 +29,7 @@ class AcousticWave2D_cg:
             self.source = source.read()
             self.source.reinterpolate(self.dt)
             source_time = self.source.traces[0, :]
-            if len(source_time) < self.data.nsamples:
+            while len(source_time) < self.data.nsamples:
                 source_time = np.append(source_time, [0.0])
             self.data.set_source(source_time, self.dt, self.data.source_coords)
 
@@ -123,7 +123,7 @@ class AcousticWave2D_cg:
         rec = SourceLike("rec", self.nrec, self.nt, self.dt, self.h, self.data.receiver_coords, self.dtype)
         src.data[:] = self.data.get_source()[:, np.newaxis]
         self.rec = rec
-        u = TimeData("u", m_sub.shape, src.nt, time_order=2, save=True, dtype=m_sub.dtype)
+        u = TimeData("u", m_sub.shape, src.nt, time_order=2, save=True, dtype=self.dtype)
         self.u = u
         self._forward_stencil = ForwardOperator((p(x, y, t-s),
                                                  p(x-h, y, t),
