@@ -18,7 +18,6 @@ class Operator(object):
             self.propagator.add_devito_param(param)
         self.propagator.subs = self.subs
         self.propagator.stencils, self.propagator.stencil_args = zip(*self.stencils)
-        self.propagator.enable_oi(True, dtype)
 
     def apply(self):
         f = self.get_callable()

@@ -15,7 +15,8 @@ class JitManager(object):
     _wrapped_functions = None
     COMPILER_OVERRIDE_VAR = "DEVITO_CC"
     REMOVE_FLAG_VAR = "DEVITO_REMOVE_FLAG"
-    _incompatible_flags = ["-Wshorten-64-to-32", "-Wstrict-prototypes", ("-arch", "i386")]
+    _incompatible_flags = ["-O2", "-Wshorten-64-to-32", "-Wstrict-prototypes", ("-arch", "i386")]
+    _compatible_flags = ["-O3", "-g"]
     _mic_flag = False
     # To enable mic process: 1:True 0:False;
     COMPILER_ENABLE_MIC = "DEVITO_MIC"
@@ -46,6 +47,7 @@ class JitManager(object):
         self.function_manager = FunctionManager(function_descriptors, self._mic_flag)
         self._function_descriptors = function_descriptors
         self._clean_flags()
+        self._add_flags()
         # Generate a random salt to uniquely identify this instance of the class
         self._salt = randint(0, 100000000)
         self._basename = self.__generate_filename()
@@ -92,8 +94,6 @@ class JitManager(object):
         # Generate compilable source code
         self.src_code = str(self.function_manager.generate())
         print "Generated: %s" % self.src_file
-        if self._mic_flag:
-                self.compiler.ldflags.append("-mmic")
         jit.extension_file_from_string(self.compiler, self.src_lib,
                                        self.src_code, source_name=self.src_file)
 
@@ -118,6 +118,20 @@ class JitManager(object):
                 else:
                     while flag in flag_list:
                         flag_list.remove(flag)
+
+    def _add_flags(self):
+        if self.compiler.cc in self._intel_compiler:
+            if self._mic_flag:
+                self.compiler.ldflags.append("-mmic")
+                self.compiler.ldflags.append("-opt-prefetch-distance=64,8")
+                self.compiler.ldflags.append("-opt-streaming-cache-evict=0")
+            else:
+                self.compiler.ldflags.append("-mavx")
+        else:
+            self.compiler.cflags.append("-mavx")
+        for flag in self._compatible_flags:
+            self.compiler.ldflags.append(flag)
+            self.compiler.cflags.append(flag)
 
     def wrap_function(self, function, function_descriptor):
         """ Wrap the function by converting the python style arguments(simply passing object references)

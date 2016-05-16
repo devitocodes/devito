@@ -57,8 +57,6 @@ class Propagator(object):
 
         # Kernel operation intensity dictionary
         self._kernel_dic_oi = {'add': 0, 'mul': 0, 'load': 0, 'store': 0, 'load_list': [], 'load_all_list': [], 'oi_high': 0, 'oi_high_weighted': 0, 'oi_low': 0, 'oi_low_weighted': 0}
-        self._print_oi = False
-        self._dtype = False
 
     @property
     def save(self):
@@ -104,8 +102,6 @@ class Propagator(object):
         kernel = self._pre_kernel_steps
         kernel += stmts
         kernel += self._post_kernel_steps
-        if self._print_oi:
-                print(self._get_kernel_oi(self._dtype))
         return cgen.Block(kernel)
 
     def convert_equality_to_cgen(self, equality):
@@ -229,20 +225,10 @@ class Propagator(object):
         else:
             self.time_loop_stencils_a.append(stencil)
 
-    def enable_oi(self, is_enable=False, dtype=None):
-        """Update variable to enable propagation print its kernel ai
-        with its proper type.
-        """
-        self._print_oi = is_enable
-        self._dtype = dtype
-
     def _get_ops_expr(self, expr, dict1, is_lhs=False):
-        """
-        - get number of different operations in expression expr
-        - types of operations are ADD (inc -) and MUL (inc /)
-        - arrays (IndexedBase objects) in expr that are not in list arrays
-        are added to the list
-        - return dictionary of (#ADD, #MUL, list of unique names of fields, list of unique field elements)
+        """Get number of different operations in expression expr.
+        Types of operations are ADD (inc -) and MUL (inc /), arrays (IndexedBase objects) in expr that are not in list arrays
+        are added to the list. Return dictionary of (#ADD, #MUL, list of unique names of fields, list of unique field elements)
         """
         result = dict1  # dictionary to return
         # add array to list arrays if it is not in it
@@ -273,18 +259,16 @@ class Propagator(object):
         # return zero and unchanged array if execution gets here
         return result
 
-    def _get_kernel_oi(self, dtype=None):
-        """
-        - get the operation intensity of the kernel
-        - types of operations are ADD (inc -), MUL (inc /), LOAD, STORE
-        - #LOAD = number of unique fields in the kernel
-        - return tuple (#ADD, #MUL, #LOAD, #STORE)
-        - operation intensity AI = (ADD+MUL)/[(LOAD+STORE)*word size]
-        - weighted AI, AI_w = (ADD+MUL)/(2*Max(ADD,MUL)) * AI
+    def get_kernel_oi(self, dtype=np.float32):
+        """Get the operation intensity of the kernel. The types of operations are ADD (inc -), MUL (inc /), LOAD, STORE.
+        #LOAD = number of unique fields in the kernel. The function returns tuple (#ADD, #MUL, #LOAD, #STORE)
+        Wold_size is given by dtype
+        Operation intensity OI = (ADD+MUL)/[(LOAD+STORE)*word_size]
+        Weighted OI, OI_w = (ADD+MUL)/(2*Max(ADD,MUL)) * OI
         """
         load = 0
         load_all = 0
-        word_size = np.dtype(dtype).itemsize if dtype is not None else 8
+        word_size = np.dtype(dtype).itemsize
         load += len(self._kernel_dic_oi['load_list'])
         store = self._kernel_dic_oi['store']
         load_all += len(self._kernel_dic_oi['load_all_list'])
@@ -296,4 +280,4 @@ class Propagator(object):
         self._kernel_dic_oi['oi_low'] = float(add+mul)/(load_all+store)/word_size
         self._kernel_dic_oi['oi_low_weighted'] = self._kernel_dic_oi['oi_low']*(add+mul)/max(add, mul)/2.0
 
-        return self._kernel_dic_oi
+        return self._kernel_dic_oi['oi_low']
