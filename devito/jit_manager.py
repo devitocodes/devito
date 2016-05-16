@@ -121,6 +121,7 @@ class JitManager(object):
 
     def _add_flags(self):
         if self.compiler.cc in self._intel_compiler:
+            self.compiler.ldflags.append("-openmp")
             if self._mic_flag:
                 self.compiler.ldflags.append("-mmic")
                 self.compiler.ldflags.append("-opt-prefetch-distance=64,8")
@@ -128,6 +129,7 @@ class JitManager(object):
             else:
                 self.compiler.ldflags.append("-mavx")
         else:
+            self.compiler.cflags.append("-fopenmp")
             self.compiler.cflags.append("-mavx")
         for flag in self._compatible_flags:
             self.compiler.ldflags.append(flag)

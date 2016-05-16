@@ -36,12 +36,11 @@ class Propagator(object):
         self.post_loop = []
         if self.profile:
             self.add_local_var("time", "double")
-            self.pre_loop.append(cgen.Statement("struct timeval start, end"))
+            self.add_local_var("start", "double")
             self.pre_loop.append(cgen.Assign("time", 0))
+            self.pre_loop.append(cgen.Assign("start", 0))
             self.post_loop.append(cgen.PrintStatement("time: %f\n", "time"))
-            self.time_loop_stencils_b.append(cgen.Statement("gettimeofday(&start, NULL)"))
-            self.time_loop_stencils_a.append(cgen.Statement("gettimeofday(&end, NULL)"))
-            self.time_loop_stencils_a.append(cgen.Statement("time += ((end.tv_sec  - start.tv_sec) * 1000000u + end.tv_usec - start.tv_usec) / 1.e6"))
+            self.time_loop_stencils_a.append(cgen.Statement("time += omp_get_wtime() - start"))
         if forward:
             self._time_step = 1
         else:
@@ -79,11 +78,11 @@ class Propagator(object):
         """ Mapping from model variables (x, y, z, t) to loop variables (i1, i2, i3, i4) - Needs work
         """
         var_map = {}
-        i = 0
+        i = len(self.space_dims)
         for dim in self.space_dims:
-            var_map[dim] = symbols("i%d" % (i + 1))
-            i += 1
-        var_map[self.t] = symbols("i%d" % (i + 1))
+            var_map[dim] = symbols("i%d" % i)
+            i -= 1
+        var_map[self.t] = symbols("i%d" % (len(self.space_dims) + 1))
         self._var_map = var_map
 
     def prepare(self, subs, stencils, stencil_args):
@@ -108,12 +107,16 @@ class Propagator(object):
 
     def prepare_loop(self, loop_body):
         num_spac_dim = len(self.space_dims)
+        ivdep = True
         for dim_ind in range(1, num_spac_dim+1):
             dim_var = "i"+str(dim_ind)
             loop_limits = self._space_loop_limits[self.space_dims[dim_ind-1]]
             loop_body = cgen.For(cgen.InlineInitializer(cgen.Value("int", dim_var),
                                                         str(loop_limits[0])),
                                  dim_var + "<" + str(loop_limits[1]), dim_var + "++", loop_body)
+            if ivdep and len(self.space_dims) > 1:
+                loop_body = cgen.Block([cgen.Pragma("ivdep")] + [loop_body])
+            ivdep = False
         t_loop_limits = self.time_loop_limits
         t_var = str(self._var_map[self.t])
         cond_op = "<" if self._forward else ">"
@@ -121,12 +124,17 @@ class Propagator(object):
             time_stepping = self.get_time_stepping()
         else:
             time_stepping = []
+        loop_body = [cgen.Pragma("omp for")] + [loop_body]
         time_loop_stencils_b = [self.convert_equality_to_cgen(x) for x in self.time_loop_stencils_b]
         time_loop_stencils_a = [self.convert_equality_to_cgen(x) for x in self.time_loop_stencils_a]
-        loop_body = cgen.Block(time_stepping + time_loop_stencils_b + [loop_body] + time_loop_stencils_a)
+        if self.profile:
+            time_loop_stencils_b.append(cgen.Statement("start = omp_get_wtime()"))
+        initial_block = [cgen.Pragma("omp single")] + [cgen.Block(time_stepping + time_loop_stencils_b)] if time_stepping or time_loop_stencils_b else []
+        end_block = [cgen.Pragma("omp single")] + [cgen.Block(time_loop_stencils_a)] if time_loop_stencils_a else []
+        loop_body = cgen.Block(initial_block + loop_body + end_block)
         loop_body = cgen.For(cgen.InlineInitializer(cgen.Value("int", t_var), str(t_loop_limits[0])), t_var + cond_op + str(t_loop_limits[1]), t_var + "+=" + str(self._time_step), loop_body)
         def_time_step = [cgen.Value("int", t_var_def.name) for t_var_def in self.time_steppers]
-        body = def_time_step + self.pre_loop + [loop_body] + self.post_loop
+        body = def_time_step + self.pre_loop + [cgen.Pragma("omp parallel")] + [loop_body] + self.post_loop
         return cgen.Block(body)
 
     def add_loop_step(self, assign, before=False):
