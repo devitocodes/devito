@@ -1,6 +1,6 @@
 # coding: utf-8
 from __future__ import print_function
-from sympy import Matrix
+from sympy import Matrix, symbols
 import numpy as np
 from examples.fwi_operators import *
 from devito.interfaces import DenseData, PointData
@@ -50,14 +50,14 @@ class AcousticWave2D_cg:
         damp = DenseData("damp", self.model.vp.shape, self.dtype)
         damp.initializer = damp_boundary
         self.damp = damp
-        src = SourceLike("src", 1, self.nt, self.dt, self.h, np.array(self.data.source_coords, dtype=self.dtype)[np.newaxis, :], self.dtype)
+        src = SourceLike("src", 1, self.nt, self.dt, self.h, np.array(self.data.source_coords, dtype=self.dtype)[np.newaxis, :], len(dimensions), self.dtype)
         self.src = src
-        rec = SourceLike("rec", self.nrec, self.nt, self.dt, self.h, self.data.receiver_coords, self.dtype)
+        rec = SourceLike("rec", self.nrec, self.nt, self.dt, self.h, self.data.receiver_coords, len(dimensions), self.dtype)
         src.data[:] = self.data.get_source()[:, np.newaxis]
         self.rec = rec
         u = TimeData("u", m.shape, src.nt, time_order=t_order, save=True, dtype=m.dtype)
         self.u = u
-        srca = SourceLike("srca", 1, self.nt, self.dt, self.h, np.array(self.data.source_coords, dtype=self.dtype)[np.newaxis, :], self.dtype)
+        srca = SourceLike("srca", 1, self.nt, self.dt, self.h, np.array(self.data.source_coords, dtype=self.dtype)[np.newaxis, :], len(dimensions), self.dtype)
         self.srca = srca
         dm = DenseData("dm", self.model.vp.shape, self.dtype)
         dm.initializer = self.dm_initializer
@@ -97,86 +97,127 @@ class AcousticWave2D_cg:
 class SourceLike(PointData):
     """Defines the behaviour of sources and receivers.
     """
-    def __init__(self, name, npoint, nt, dt, h, data, dtype):
+    def __init__(self, name, npoint, nt, dt, h, data, ndim, dtype):
         self.orig_data = data
         self.dt = dt
         self.h = h
+        self.ndim = ndim
         super(SourceLike, self).__init__(name, npoint, nt, dtype)
-        x1, z1, x2, z2 = symbols('x1, z1, x2, z2')
-        A = Matrix([[1, x1, z1, x1*z1],
-                    [1, x1, z2, x1*z2],
-                    [1, x2, z1, x2*z1],
-                    [1, x2, z2, x2*z2]])
-
-        # Map to reference cell
-        reference_cell = [(x1, 0),
-                          (z1, 0),
-                          (x2, self.h),
-                          (z2, self.h)]
-        A = A.subs(reference_cell)
-
-        # Form expression for interpolant weights on reference cell.
-        self.rs = symbols('rx, rz')
-        rx, rz = self.rs
-        p = Matrix([[1],
+        x1, y1, z1, x2, y2, z2 = symbols('x1, y1, z1, x2, y2, z2')
+        if ndim == 2:
+            A = Matrix([[1, x1, z1, x1*z1],
+                        [1, x1, z2, x1*z2],
+                        [1, x2, z1, x2*z1],
+                        [1, x2, z2, x2*z2]])
+            self.increments = (0,0), (0, 1), (1, 0), (1, 1)
+            self.rs = symbols('rx, rz')
+            rx, rz = self.rs
+            p = Matrix([[1],
                     [rx],
                     [rz],
                     [rx*rz]])
-
+        else:
+            A = Matrix([[1, x1, y1, z1, x1*y1, x1*z1, y1*z1, x1*y1*z1],
+                  [1, x1, y2, z1, x1*y2, x1*z1, y2*z1, x1*y2*z1],
+                  [1, x2, y1, z1, x2*y1, x2*z1, y2*z1, x2*y1*z1],
+                  [1, x1, y1, z2, x1*y1, x1*z2, y1*z2, x1*y1*z2],
+                  [1, x2, y2, z1, x2*y2, x2*z1, y2*z1, x2*y2*z1],
+                  [1, x1, y2, z2, x1*y2, x1*z2, y2*z2, x1*y2*z2],
+                  [1, x2, y1, z2, x2*y1, x2*z2, y1*z2, x2*y1*z2],
+                  [1, x2, y2, z2, x2*y2, x2*z2, y2*z2, x2*y2*z2]])
+            self.increments = (0, 0, 0), (0, 1, 0), (1, 0, 0), (0, 0, 1), (1, 1, 0), (0, 1, 1), (1, 0, 1), (1, 1, 1)
+            self.rs = symbols('rx, ry, rz')
+            rx, ry, rz = self.rs
+            p = Matrix([[1],
+                    [rx],
+                    [ry],
+                    [rz],
+                    [rx*ry],
+                    [rx*rz],
+                    [ry*rz],
+                    [rx*ry*rz]])
+        
+        
+        # Map to reference cell
+        reference_cell = [(x1, 0),
+                          (y1, 0),
+                          (z1, 0),
+                          (x2, self.h),
+                          (y2, self.h),
+                          (z2, self.h)]
+        A = A.subs(reference_cell)
         self.bs = A.inv().T.dot(p)
 
-    def point2grid(self, x, z):
+    def point2grid(self, pt_coords):
         # In: s - Magnitude of the source
         #     x, z - Position of the source
         # Returns: (i, k) - Grid coordinate at top left of grid cell.
         #          (s11, s12, s21, s22) - source values at coordinates
         #          (i, k), (i, k+1), (i+1, k), (i+1, k+1)
-        rx, rz = self.rs
-        b11, b12, b21, b22 = self.bs
+        if self.ndim == 2:
+            rx, rz = self.rs
+        else:
+            rx, ry, rz = self.rs
+        x, y, z = pt_coords
+        i = int(x/self.h)
+        k = int(z/self.h)
+        coords = (i, k)
+        subs = []
+        if self.ndim == 3:
+            j = int(y/self.h)
+            y = y - j*self.h
+            subs.append((ry, y))
+            coords = (i, j, k)
+
+        x = x - i*self.h
+        z = z - k*self.h
+        subs.append((rx, x))
+        subs.append((rz, z))
+        s = [b.subs(subs).evalf() for b in self.bs]
+        return coords, tuple(s)
+
+    # Interpolate onto receiver point.
+    def grid2point(self, u, pt_coords):
+        if self.ndim == 2:
+            rx, rz = self.rs
+        else:
+            rx, ry, rz = self.rs
+        x, y, z = pt_coords
         i = int(x/self.h)
         k = int(z/self.h)
 
         x = x - i*self.h
         z = z - k*self.h
 
-        s11 = b11.subs(((rx, x), (rz, z))).evalf()
-        s12 = b12.subs(((rx, x), (rz, z))).evalf()
-        s21 = b21.subs(((rx, x), (rz, z))).evalf()
-        s22 = b22.subs(((rx, x), (rz, z))).evalf()
-        return (i, k), (s11, s12, s21, s22)
-
-    # Interpolate onto receiver point.
-    def grid2point(self, u, x, z):
-        rx, rz = self.rs
-        b11, b12, b21, b22 = self.bs
-        i = int(x/self.h)
-        j = int(z/self.h)
-
-        x = x - i*self.h
-        z = z - j*self.h
-
-        return (b11.subs(((rx, x), (rz, z))) * u[t, i, j] +
-                b12.subs(((rx, x), (rz, z))) * u[t, i, j+1] +
-                b21.subs(((rx, x), (rz, z))) * u[t, i+1, j] +
-                b22.subs(((rx, x), (rz, z))) * u[t, i+1, j+1])
+        coords = (i, k)
+        subs = []
+        subs.append((rx, x))
+        subs.append((rz, z))
+        if self.ndim == 3:
+            j = int(y/self.h)
+            y = y - j*self.h
+            subs.append((ry, y))
+            coords = (i, j, k)
+        
+        if self.ndim == 2:
+            return sum([b.subs(subs) * u[t, i+inc[0], k+inc[1]] for inc, b in zip(self.increments, self.bs)])
+        else:
+            return sum([b.subs(subs) * u[t, i+inc[0], j+inc[1], k+inc[2]] for inc, b in zip(self.increments, self.bs)])
 
     def read(self, u):
         eqs = []
         for i in range(self.npoints):
-            eqs.append(Eq(self[t, i], self.grid2point(u, self.orig_data[i, 0],
-                                                      self.orig_data[i, 2])))
+            eqs.append(Eq(self[t, i], self.grid2point(u, self.orig_data[i, :])))
         return eqs
 
     def add(self, m, u):
         assignments = []
         dt = self.dt
         for j in range(self.npoints):
-            add = self.point2grid(self.orig_data[j, 0],
-                                  self.orig_data[j, 2])
-            (i, k) = add[0]
-            assignments.append(Eq(u[t, i, k], u[t, i, k]+self[t, j]*dt*dt/m[i, k]*add[1][0]))
-            assignments.append(Eq(u[t, i, k+1], u[t, i, k+1]+self[t, j]*dt*dt/m[i, k]*add[1][1]))
-            assignments.append(Eq(u[t, i+1, k], u[t, i+1, k]+self[t, j]*dt*dt/m[i, k]*add[1][2]))
-            assignments.append(Eq(u[t, i+1, k+1], u[t, i+1, k+1]+self[t, j]*dt*dt/m[i, k]*add[1][3]))
+            add = self.point2grid(self.orig_data[j, :])
+            coords = add[0]
+            s = add[1]
+            assignments += [Eq(u[tuple([t] + [coords[i] + inc[i] for i in range(self.ndim)])], 
+               u[tuple([t] + [coords[i] + inc[i] for i in range(self.ndim)])] + self[t, j]*dt*dt/m[coords]*w) for w, inc in zip(s, self.increments)]
         filtered = [x for x in assignments if isinstance(x, Eq)]
         return filtered
