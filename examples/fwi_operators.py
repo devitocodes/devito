@@ -35,17 +35,12 @@ class FWIOperator(Operator):
             solvepa = p(x, y, z, t - width_t*s)
 
         # Indexes for finite differences
-        indx = []
-        indy = []
-        indz = []
-        indt = []
-        for i in range(-width_h, width_h + 1):
-            indx.append(x + i * h)
-            indy.append(y + i * h)
-            indz.append(z + i * h)
-
-        for i in range(-width_t, width_t + 1):
-            indt.append(t + i * s)
+        # Could the next three list comprehensions be merged into one?
+        indx = [(x + i * h) for i in range(-width_h, width_h + 1)]
+        indy = [(y + i * h) for i in range(-width_h, width_h + 1)]
+        indz = [(z + i * h) for i in range(-width_h, width_h + 1)]
+        indt = [(t + i * s) for i in range(-width_t, width_t + 1)]
+        
         # Time and space  discretization as a Taylor expansion.
         #
         # The time discretization is define as a second order ( $ O (dt^2)) $)
@@ -79,34 +74,6 @@ class FWIOperator(Operator):
             dzz = as_finite_diff(p(x, y, z, t).diff(z, z), indz)
             dt = as_finite_diff(p(x, y, z, t).diff(t), indt)
             lap = dxx + dyy + dzz
-
-        # Argument list
-        arglamb = []
-        arglamba = []
-        if dim == 2:
-            for i in range(-width_t, width_t):
-                arglamb.append(p(x, z, indt[i + width_t]))
-                arglamba.append(p(x, z, indt[i + width_t + 1]))
-
-            for i in range(-width_h, width_h + 1):
-                for j in range(-width_h, width_h + 1):
-                    arglamb.append(p(indx[i + width_h], indz[j + width_h], t))
-                    arglamba.append(p(indx[i + width_h], indz[j + width_h], t))
-        else:
-            for i in range(-width_t, width_t):
-                arglamb.append(p(x, y, z, indt[i + width_t]))
-                arglamba.append(p(x, y, z, indt[i + width_t + 1]))
-
-            for i in range(-width_h, width_h+1):
-                for j in range(-width_h, width_h+1):
-                    for k in range(-width_h, width_h+1):
-                        arglamb.append(p(indx[i + width_h], indy[i + width_h], indz[j + width_h], t))
-                        arglamba.append(p(indx[i + width_h], indy[i + width_h], indz[j + width_h], t))
-
-        arglamb.extend((m, s, h, e))
-        arglamb = tuple(arglamb)
-        arglamba.extend((m, s, h, e))
-        arglamba = tuple(arglamba)
 
         wave_equation = m*dtt - lap + e*dt
         stencil = solve(wave_equation, solvep)[0]
