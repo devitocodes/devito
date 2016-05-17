@@ -191,7 +191,6 @@ class SourceLike(PointData):
         x = x - i*self.h
         z = z - k*self.h
 
-        coords = (i, k)
         subs = []
         subs.append((rx, x))
         subs.append((rz, z))
@@ -199,7 +198,6 @@ class SourceLike(PointData):
             j = int(y/self.h)
             y = y - j*self.h
             subs.append((ry, y))
-            coords = (i, j, k)
 
         if self.ndim == 2:
             return sum([b.subs(subs) * u[t, i+inc[0], k+inc[1]] for inc, b in zip(self.increments, self.bs)])
