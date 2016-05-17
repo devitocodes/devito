@@ -82,7 +82,7 @@ class FWIOperator(Operator):
         stencilA = solve(wave_equationA, solvepa)[0]
         return ((stencil, (m, s, h, e)), (stencilA, (m, s, h, e)))
 
-    def smart_sympy_replace(self, num_dim, expr, fun, arr, fw):
+    def smart_sympy_replace(self, num_dim, time_order, expr, fun, arr, fw):
         a = Wild('a')
         b = Wild('b')
         c = Wild('c')
@@ -92,6 +92,7 @@ class FWIOperator(Operator):
         q = Wild('q')
         x, y, z = symbols("x y z")
         h, s, t = symbols("h s t")
+        width_t = int(time_order/2)
         if num_dim == 2:
             # Replace function notation with array notation
             res = expr.replace(fun(a, b, c), arr[a, b, c])
@@ -106,9 +107,9 @@ class FWIOperator(Operator):
         # Replace t+s with t+1
         res = res.replace(t+c*s, t+c)
         if fw:
-            res = res.subs({t: t-1})
+            res = res.subs({t: t-width_t})
         else:
-            res = res.subs({t: t+1})
+            res = res.subs({t: t+width_t})
         return res
 
     def total_dim(self, ndim):
@@ -134,7 +135,7 @@ class ForwardOperator(FWIOperator):
         total_dim = self.total_dim(dim)
         space_dim = self.space_dim(dim)
         stencil, subs = self._init_taylor(dim, time_order, spc_order)[0]
-        stencil = self.smart_sympy_replace(dim, stencil, Function('p'), u, fw=True)
+        stencil = self.smart_sympy_replace(dim, time_order, stencil, Function('p'), u, fw=True)
         stencil_args = [m[space_dim], src.dt, src.h, damp[space_dim]]
         main_stencil = Eq(u[total_dim], stencil)
         self.stencils = [(main_stencil, stencil_args)]
@@ -148,14 +149,14 @@ class AdjointOperator(FWIOperator):
     def __init__(self, m, rec, damp, srca, time_order=4, spc_order=12):
         assert(m.shape == damp.shape)
         self.input_params = [m, rec, damp, srca]
-        v = TimeData("v", m.shape, rec.nt, time_order=2, save=True, dtype=m.dtype)
+        v = TimeData("v", m.shape, rec.nt, time_order=time_order, save=True, dtype=m.dtype)
         self.output_params = [v]
         dim = len(m.shape)
         total_dim = self.total_dim(dim)
         space_dim = self.space_dim(dim)
         lhs = v[total_dim]
         stencil, subs = self._init_taylor(dim, time_order, spc_order)[1]
-        stencil = self.smart_sympy_replace(dim, stencil, Function('p'), v, fw=False)
+        stencil = self.smart_sympy_replace(dim, time_order, stencil, Function('p'), v, fw=False)
         main_stencil = Eq(lhs, stencil)
         stencil_args = [m[space_dim], rec.dt, rec.h, damp[space_dim]]
         self.stencils = [(main_stencil, stencil_args)]
@@ -169,7 +170,7 @@ class GradientOperator(FWIOperator):
     def __init__(self, u, m, rec, damp, time_order=4, spc_order=12):
         assert(m.shape == damp.shape)
         self.input_params = [u, m, rec, damp]
-        v = TimeData("v", m.shape, rec.nt, time_order=2, save=False, dtype=m.dtype)
+        v = TimeData("v", m.shape, rec.nt, time_order=time_order, save=False, dtype=m.dtype)
         grad = DenseData("grad", m.shape, dtype=m.dtype)
         self.output_params = [grad, v]
         dim = len(m.shape)
@@ -177,7 +178,7 @@ class GradientOperator(FWIOperator):
         space_dim = self.space_dim(dim)
         lhs = v[total_dim]
         stencil, subs = self._init_taylor(dim, time_order, spc_order)[1]
-        stencil = self.smart_sympy_replace(dim, stencil, Function('p'), v, fw=False)
+        stencil = self.smart_sympy_replace(dim, time_order, stencil, Function('p'), v, fw=False)
         stencil_args = [m[space_dim], rec.dt, rec.h, damp[space_dim]]
         main_stencil = Eq(lhs, lhs + stencil)
         gradient_update = Eq(grad[space_dim], grad[space_dim] - (v[total_dim] - 2 * v[tuple((t + 1,) + space_dim)] + v[tuple((t + 2,) + space_dim)]) * u[total_dim])
@@ -193,8 +194,8 @@ class BornOperator(FWIOperator):
     def __init__(self, dm, m, src, damp, rec, time_order=4, spc_order=12):
         assert(m.shape == damp.shape)
         self.input_params = [dm, m, src, damp, rec]
-        u = TimeData("u", m.shape, src.nt, time_order=2, save=False, dtype=m.dtype)
-        U = TimeData("U", m.shape, src.nt, time_order=2, save=False, dtype=m.dtype)
+        u = TimeData("u", m.shape, src.nt, time_order=time_order, save=False, dtype=m.dtype)
+        U = TimeData("U", m.shape, src.nt, time_order=time_order, save=False, dtype=m.dtype)
         self.output_params = [u, U]
         dim = len(m.shape)
         total_dim = self.total_dim(dim)
@@ -206,8 +207,8 @@ class BornOperator(FWIOperator):
         self.time_loop_stencils_pre = src_list
         self.time_loop_stencils_post = rec
         stencil, subs = self._init_taylor(dim, time_order, spc_order)[0]
-        first_stencil = self.smart_sympy_replace(dim, stencil, Function('p'), u, fw=True)
-        second_stencil = self.smart_sympy_replace(dim, stencil, Function('p'), U, fw=True)
+        first_stencil = self.smart_sympy_replace(dim, time_order, stencil, Function('p'), u, fw=True)
+        second_stencil = self.smart_sympy_replace(dim, time_order, stencil, Function('p'), U, fw=True)
         first_stencil_args = [m[space_dim], dt, h, damp[space_dim]]
         first_update = Eq(u[total_dim], u[total_dim]+first_stencil)
         src2 = -(dt**-2)*(u[total_dim]-2*u[tuple((t - 1,) + space_dim)]+u[tuple((t - 2,) + space_dim)])*dm[space_dim]
