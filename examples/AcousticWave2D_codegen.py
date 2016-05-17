@@ -30,7 +30,7 @@ class AcousticWave2D_cg:
             self.source = source.read()
             self.source.reinterpolate(self.dt)
             source_time = self.source.traces[0, :]
-            if len(source_time) < self.data.nsamples:
+            while len(source_time) < self.data.nsamples:
                 source_time = np.append(source_time, [0.0])
             self.data.set_source(source_time, self.dt, self.data.source_coords)
 
@@ -50,7 +50,8 @@ class AcousticWave2D_cg:
         m.data[:] = self.model.vp**(-2)
         self.m = m
         damp = DenseData("damp", self.model.vp.shape, self.dtype)
-        damp.initializer = damp_boundary
+        # Initialize damp by calling the function that can precompute damping
+        damp_boundary(damp.data)
         self.damp = damp
         src = SourceLike("src", 1, self.nt, self.dt, self.h, np.array(self.data.source_coords, dtype=self.dtype)[np.newaxis, :], len(dimensions), self.dtype)
         self.src = src
