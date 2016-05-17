@@ -46,7 +46,7 @@ class Test_AdjointA(object):
         # Adjoint test
         wave_true = AcousticWave2D_cg(model, data, None, t_order=time_order, s_order=space_order)
         return wave_true
-    
+
     @pytest.fixture(params=[2, 4])
     def time_order(self, request):
         return request.param

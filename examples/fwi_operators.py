@@ -40,7 +40,7 @@ class FWIOperator(Operator):
         indy = [(y + i * h) for i in range(-width_h, width_h + 1)]
         indz = [(z + i * h) for i in range(-width_h, width_h + 1)]
         indt = [(t + i * s) for i in range(-width_t, width_t + 1)]
-        
+
         # Time and space  discretization as a Taylor expansion.
         #
         # The time discretization is define as a second order ( $ O (dt^2)) $)

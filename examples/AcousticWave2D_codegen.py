@@ -7,7 +7,9 @@ from devito.interfaces import DenseData, PointData
 
 
 class AcousticWave2D_cg:
-
+    """ Class to setup the problem for the Acoustic Wave
+        Note: s_order must always be greater than t_order
+    """
     def __init__(self, model, data, dm_initializer, source=None, nbpml=40, t_order=2, s_order=2):
         self.model = model
         self.data = data
@@ -109,35 +111,34 @@ class SourceLike(PointData):
                         [1, x1, z2, x1*z2],
                         [1, x2, z1, x2*z1],
                         [1, x2, z2, x2*z2]])
-            self.increments = (0,0), (0, 1), (1, 0), (1, 1)
+            self.increments = (0, 0), (0, 1), (1, 0), (1, 1)
             self.rs = symbols('rx, rz')
             rx, rz = self.rs
             p = Matrix([[1],
-                    [rx],
-                    [rz],
-                    [rx*rz]])
+                        [rx],
+                        [rz],
+                        [rx*rz]])
         else:
             A = Matrix([[1, x1, y1, z1, x1*y1, x1*z1, y1*z1, x1*y1*z1],
-                  [1, x1, y2, z1, x1*y2, x1*z1, y2*z1, x1*y2*z1],
-                  [1, x2, y1, z1, x2*y1, x2*z1, y2*z1, x2*y1*z1],
-                  [1, x1, y1, z2, x1*y1, x1*z2, y1*z2, x1*y1*z2],
-                  [1, x2, y2, z1, x2*y2, x2*z1, y2*z1, x2*y2*z1],
-                  [1, x1, y2, z2, x1*y2, x1*z2, y2*z2, x1*y2*z2],
-                  [1, x2, y1, z2, x2*y1, x2*z2, y1*z2, x2*y1*z2],
-                  [1, x2, y2, z2, x2*y2, x2*z2, y2*z2, x2*y2*z2]])
+                        [1, x1, y2, z1, x1*y2, x1*z1, y2*z1, x1*y2*z1],
+                        [1, x2, y1, z1, x2*y1, x2*z1, y2*z1, x2*y1*z1],
+                        [1, x1, y1, z2, x1*y1, x1*z2, y1*z2, x1*y1*z2],
+                        [1, x2, y2, z1, x2*y2, x2*z1, y2*z1, x2*y2*z1],
+                        [1, x1, y2, z2, x1*y2, x1*z2, y2*z2, x1*y2*z2],
+                        [1, x2, y1, z2, x2*y1, x2*z2, y1*z2, x2*y1*z2],
+                        [1, x2, y2, z2, x2*y2, x2*z2, y2*z2, x2*y2*z2]])
             self.increments = (0, 0, 0), (0, 1, 0), (1, 0, 0), (0, 0, 1), (1, 1, 0), (0, 1, 1), (1, 0, 1), (1, 1, 1)
             self.rs = symbols('rx, ry, rz')
             rx, ry, rz = self.rs
             p = Matrix([[1],
-                    [rx],
-                    [ry],
-                    [rz],
-                    [rx*ry],
-                    [rx*rz],
-                    [ry*rz],
-                    [rx*ry*rz]])
-        
-        
+                        [rx],
+                        [ry],
+                        [rz],
+                        [rx*ry],
+                        [rx*rz],
+                        [ry*rz],
+                        [rx*ry*rz]])
+
         # Map to reference cell
         reference_cell = [(x1, 0),
                           (y1, 0),
@@ -198,7 +199,7 @@ class SourceLike(PointData):
             y = y - j*self.h
             subs.append((ry, y))
             coords = (i, j, k)
-        
+
         if self.ndim == 2:
             return sum([b.subs(subs) * u[t, i+inc[0], k+inc[1]] for inc, b in zip(self.increments, self.bs)])
         else:
@@ -217,7 +218,7 @@ class SourceLike(PointData):
             add = self.point2grid(self.orig_data[j, :])
             coords = add[0]
             s = add[1]
-            assignments += [Eq(u[tuple([t] + [coords[i] + inc[i] for i in range(self.ndim)])], 
-               u[tuple([t] + [coords[i] + inc[i] for i in range(self.ndim)])] + self[t, j]*dt*dt/m[coords]*w) for w, inc in zip(s, self.increments)]
+            assignments += [Eq(u[tuple([t] + [coords[i] + inc[i] for i in range(self.ndim)])],
+                               u[tuple([t] + [coords[i] + inc[i] for i in range(self.ndim)])] + self[t, j]*dt*dt/m[coords]*w) for w, inc in zip(s, self.increments)]
         filtered = [x for x in assignments if isinstance(x, Eq)]
         return filtered
