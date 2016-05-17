@@ -8,11 +8,11 @@ import pytest
 
 class Test_AdjointA(object):
     @pytest.fixture(params=[(70, 70), (70, 70, 70)])
-    def Acoustic(self, request):
+    def Acoustic(self, request, time_order, space_order):
         model = IGrid()
         dimensions = request.param
         origin = (0., 0.)
-        spacing = (25., 25)
+        spacing = (25, 25)
 
         # True velocity
         true_vp = np.ones(dimensions) + 2.0
@@ -44,8 +44,16 @@ class Test_AdjointA(object):
         data.set_receiver_pos(receiver_coords)
         data.set_shape(nt, 30)
         # Adjoint test
-        wave_true = AcousticWave2D_cg(model, data, None)
+        wave_true = AcousticWave2D_cg(model, data, None, t_order=time_order, s_order=space_order)
         return wave_true
+    
+    @pytest.fixture(params=[2, 4])
+    def time_order(self, request):
+        return request.param
+
+    @pytest.fixture(params=[2, 4, 6, 8, 10, 12])
+    def space_order(self, request):
+        return request.param
 
     @pytest.fixture
     def forward(self, Acoustic):
@@ -56,7 +64,6 @@ class Test_AdjointA(object):
         rec = forward[0]
         srca, v = Acoustic.Adjoint(rec)
         nt = Acoustic.nt
-        print nt
         # Actual adjoint test
         term1 = 0
         for ti in range(0, nt):
