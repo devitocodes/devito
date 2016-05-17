@@ -7,10 +7,10 @@ import pytest
 
 
 class Test_AdjointA(object):
-    @pytest.fixture
-    def Acoustic2D(self):
+    @pytest.fixture(params=[(70, 70), (70, 70, 70)])
+    def Acoustic(self, request):
         model = IGrid()
-        dimensions = (70, 70)
+        dimensions = request.param
         origin = (0., 0.)
         spacing = (25., 25)
 
@@ -48,19 +48,19 @@ class Test_AdjointA(object):
         return wave_true
 
     @pytest.fixture
-    def forward(self, Acoustic2D):
-        return Acoustic2D.Forward()
+    def forward(self, Acoustic):
+        return Acoustic.Forward()
         # (rec, u)
 
-    def test_adjoint(self, Acoustic2D, forward):
+    def test_adjoint(self, Acoustic, forward):
         rec = forward[0]
-        srca, v = Acoustic2D.Adjoint(rec)
-        nt = Acoustic2D.nt
+        srca, v = Acoustic.Adjoint(rec)
+        nt = Acoustic.nt
         print nt
         # Actual adjoint test
         term1 = 0
         for ti in range(0, nt):
-            term1 = term1 + srca[ti] * Acoustic2D.data.get_source(ti)
+            term1 = term1 + srca[ti] * Acoustic.data.get_source(ti)
         term2 = linalg.norm(rec)**2
         print(term1, term2, term1 - term2, term1 / term2)
         assert np.isclose(term1 / term2, 1.0)
