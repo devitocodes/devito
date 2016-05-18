@@ -4,9 +4,10 @@ from devito.interfaces import TimeData, DenseData
 from sympy import Function, symbols, as_finite_diff, Wild, IndexedBase
 from sympy.abc import x, y, t, z
 from sympy import solve
+from sympy import *
+from sympy.abc import *
 
-
-class FWIOperator(Operator):
+class TTIOperator(Operator):
     def _init_taylor(self, dim=2, time_order=2, space_order=2):
         # Only dim=2 and dim=3 are supported
         # The acoustic wave equation for the square slowness m and a source q
@@ -19,84 +20,76 @@ class FWIOperator(Operator):
         # Choose dimension (2 or 3)
 
         # half width for indexes, goes from -half to half
-        width_t = int(time_order/2)
-        width_h = int(space_order/2)
-        p = Function('p')
-        s, h = symbols('s h')
-        if dim == 2:
-            m = IndexedBase("M")[x, z]
-            e = IndexedBase("E")[x, z]
-            solvep = p(x, z, t + width_t*s)
-            solvepa = p(x, z, t - width_t*s)
-        else:
-            m = IndexedBase("M")[x, y, z]
-            e = IndexedBase("E")[x, y, z]
-            solvep = p(x, y, z, t + width_t*s)
-            solvepa = p(x, y, z, t - width_t*s)
-
-        # Indexes for finite differences
-        # Could the next three list comprehensions be merged into one?
-        indx = [(x + i * h) for i in range(-width_h, width_h + 1)]
-        indy = [(y + i * h) for i in range(-width_h, width_h + 1)]
-        indz = [(z + i * h) for i in range(-width_h, width_h + 1)]
-        indt = [(t + i * s) for i in range(-width_t, width_t + 1)]
-
-        # Time and space  discretization as a Taylor expansion.
-        #
-        # The time discretization is define as a second order ( $ O (dt^2)) $)
-        # centered finite difference to get an explicit Euler scheme easy to
-        # solve by steping in time.
-        #
-        # $ \frac{d^2 u(x,t)}{dt^2} \simeq \frac{u(x,t+dt) - 2 u(x,t) +
-        # u(x,t-dt)}{dt^2} + O(dt^2) $
-        #
-        # And we define the space discretization also as a Taylor serie, with
-        # oder chosen by the user. This can either be a direct expansion of the
-        # second derivative bulding the laplacian, or a combination of first
-        # oder space derivative. The second option can be a better choice in
-        # case you would want to extand the method to more complex wave
-        # equations involving first order derivatives in chain only.
-        #
-        # $ \frac{d^2 u(x,t)}{dt^2} \simeq \frac{1}{dx^2} \sum_k \alpha_k
-        # (u(x+k dx,t)+u(x-k dx,t)) + O(dx^k)
-        # Finite differences
-        if dim == 2:
-            dtt = as_finite_diff(p(x, z, t).diff(t, t), indt)
-            dxx = as_finite_diff(p(x, z, t).diff(x, x), indx)
-            dzz = as_finite_diff(p(x, z, t).diff(z, z), indz)
-            dt = as_finite_diff(p(x, z, t).diff(t), indt)
-            lap = dxx + dzz
-        else:
-            dtt = as_finite_diff(p(x, y, z, t).diff(t, t), indt)
-            dxx = as_finite_diff(p(x, y, z, t).diff(x, x), indx)
-            dyy = as_finite_diff(p(x, y, z, t).diff(y, y), indy)
-            dzz = as_finite_diff(p(x, y, z, t).diff(z, z), indz)
-            dt = as_finite_diff(p(x, y, z, t).diff(t), indt)
-            lap = dxx + dyy + dzz
-
-        wave_equation = m*dtt - lap + e*dt
-        stencil = solve(wave_equation, solvep)[0]
-        wave_equationA = m*dtt - lap - e*dt
-        stencilA = solve(wave_equationA, solvepa)[0]
-        return ((stencil, (m, s, h, e)), (stencilA, (m, s, h, e)))
+        p=Function('p')
+        r=Function('r')
+        
+        s,h,x,y,z = symbols('s h x y z')
+        m=M(x,y,z)
+        q=Q(x,y,z,t)
+        d=D(x,y,z,t)
+        e=E(x,y,z)
+        
+        A=epsilon(x,y,z)  # (1 + 2epsilon) but make the symbolic simpler
+        B=delta(x,y,z) # sqrt(1 + 2epsilon) but make the symbolic simpler
+        Th=theta(x,y,z)
+        Ph=phi(x,y,z)
+        # Weights to sum the two fields
+        w1=.5
+        w2=.5
+        dttp=as_finite_diff(p(x,y,z,t).diff(t,t), [t-s,t, t+s])
+        dttr=as_finite_diff(r(x,y,z,t).diff(t,t), [t-s,t, t+s])
+        dtp=as_finite_diff(p(x,y,z,t).diff(t), [t-s,t])
+        dtr=as_finite_diff(r(x,y,z,t).diff(t), [t-s,t])
+        # Spacial finite differences can easily be extended to higher order by increasing the list of sampling point in the next expression. 
+        # Be sure to keep this stencil symmetric and everything else in the notebook will follow.
+        dxxp=as_finite_diff(p(x,y,z,t).diff(x,x), [x-h, x, x+h]) 
+        dyyp=as_finite_diff(p(x,y,z,t).diff(y,y), [y-h, y, y+h]) 
+        dzzp=as_finite_diff(p(x,y,z,t).diff(z,z), [z-h, z, z+h])
+        dxxr=as_finite_diff(r(x,y,z,t).diff(x,x), [x-h, x, x+h]) 
+        dyyr=as_finite_diff(r(x,y,z,t).diff(y,y), [y-h, y, y+h]) 
+        dzzr=as_finite_diff(r(x,y,z,t).diff(z,z), [z-h, z, z+h])
+        
+        
+        # My 4th order stencil for cross derivatives
+        dxzp = .5/(h**2)*(-2*p(x,y,z,t) + p(x,y,z+h,t) + p(x,y,z-h,t) - p(x+h,y,z-h,t) + p(x-h,y,z,t) - p(x-h,y,z+h,t) + p(x+h,y,z,t))
+        dxzr = .5/(h**2)*(-2*r(x,y,z,t) + r(x,y,z+h,t) + r(x,y,z-h,t) - r(x+h,y,z-h,t) + r(x-h,y,z,t) - r(x-h,y,z+h,t) + r(x+h,y,z,t))
+        
+        dxyp = .5/(h**2)*(-2*p(x,y,z,t) + p(x,y+h,z,t) + p(x,y-h,z,t) - p(x+h,y-h,z,t) + p(x-h,y,z,t) - p(x-h,y+h,z,t) + p(x+h,y,z,t))
+        dxyr = .5/(h**2)*(-2*r(x,y,z,t) + r(x,y+h,z,t) + r(x,y-h,z,t) - r(x+h,y-h,z,t) + r(x-h,y,z,t) - r(x-h,y+h,z,t) + r(x+h,y,z,t))
+        
+        dyzp = .5/(h**2)*(-2*p(x,y,z,t) + p(x,y,z+h,t) + p(x,y,z-h,t) - p(x,y+h,z-h,t) + p(x,y-h,z,t) - p(x,y-h,z+h,t) + p(x,y+h,z,t))
+        dyzr = .5/(h**2)*(-2*r(x,y,z,t) + r(x,y,z+h,t) + r(x,y,z-h,t) - r(x,y+h,z-h,t) + r(x,y-h,z,t) - r(x,y-h,z+h,t) + r(x,y+h,z,t))
+        
+        Gxxp = cos(Ph)**2 * cos(Th)**2 * dxxp + sin(Ph)**2 * cos(Th)**2 * dyyp + sin(Th)**2 * dzzp + sin(2*Ph) * cos(Th)**2 * dxyp - sin(Ph) * sin(2*Th) * dyzp - cos(Ph) * sin(2*Th) * dxzp
+        
+        Gyyp = sin(Th)**2 * dxxp + cos(Ph)**2 * dyyp - sin(2*Ph)**2 * dxyp
+        
+        Gzzr = cos(Ph)**2 * sin(Th)**2 * dxxr + sin(Ph)**2 * sin(Th)**2 * dyyr + cos(Th)**2 * dzzr +\
+        sin(2*Ph) * sin(Th)**2 * dxyr + sin(Ph) * sin(2*Th) * dyzr + cos(Ph) * sin(2*Th) * dxzr
+        wavep = m * dttp - A * (Gxxp + Gyyp) - B * Gzzr - q 
+        waver = m * dttr - B *  (Gxxp + Gyyp)  - Gzzr - q  
+        stencilp =solve(wavep,p(x,y,z,t+s),simplify=False)[0]
+        stencilr = solve(waver,r(x,y,z,t+s),simplify=False)[0]
+        return (stencilp, stencilr, ( q , m,A,B,Th,Ph,s, h,e))
 
     def smart_sympy_replace(self, num_dim, time_order, expr, fun, arr, fw):
         a = Wild('a')
         b = Wild('b')
         c = Wild('c')
         d = Wild('d')
+        e = Wild('e')
         f = Wild('f')
         q = Wild('q')
         x, y, z = symbols("x y z")
         h, s, t = symbols("h s t")
         width_t = int(time_order/2)
-        # Replace function notation with array notation
-        # Reorder indices so time comes first
         if num_dim == 2:
             # Replace function notation with array notation
+            print(expr)
             res = expr.replace(fun(a, b, c), arr[a, b, c])
+            print(res)
             # Reorder indices so time comes first
-            res = res.replace(arr[x+b, z+d, t+f], arr[t+f, x+b, z+d])
+            res = res.replace(arr[a*x+b, c*z+d, e*t+f], arr[e*t+f, a*x+b, c*z+d])
         if num_dim == 3:
             res = expr.replace(fun(a, b, c, d), arr[a, b, c, d])
             res = res.replace(arr[x+b, y+q, z+d, t+f], arr[t+f, x+b, y+q, z+d])
@@ -124,27 +117,40 @@ class FWIOperator(Operator):
             return (x, y, z)
 
 
-class ForwardOperator(FWIOperator):
+class ForwardOperator(TTIOperator):
     def __init__(self, m, src, damp, rec, u, time_order=4, spc_order=12):
         assert(m.shape == damp.shape)
         self.input_params = [m, src, damp, rec, u]
         u.pad_time = False
-        self.output_params = []
+        dt = src.dt
+        h = src.h
+        old_src = src
+        src = DenseData("src", m.shape, dtype=m.dtype)
+        v = TimeData("v", m.shape, rec.nt, time_order=time_order, save=False, dtype=m.dtype)
+        a = DenseData("a", m.shape, dtype=m.dtype)
+        b = DenseData("b", m.shape, dtype=m.dtype)
+        th = DenseData("th", m.shape, dtype=m.dtype)
+        ph = DenseData("ph", m.shape, dtype=m.dtype)
+        self.output_params = [v, a, b, th, ph]
         dim = len(m.shape)
         total_dim = self.total_dim(dim)
         space_dim = self.space_dim(dim)
-        stencil, subs = self._init_taylor(dim, time_order, spc_order)[0]
-        stencil = self.smart_sympy_replace(dim, time_order, stencil, Function('p'), u, fw=True)
-        stencil_args = [m[space_dim], src.dt, src.h, damp[space_dim]]
-        main_stencil = Eq(u[total_dim], stencil)
-        self.stencils = [(main_stencil, stencil_args)]
-        src_list = src.add(m, u)
+        stencilp, stencilr, subs = self._init_taylor(dim, time_order, spc_order)
+        stencilp = self.smart_sympy_replace(dim, time_order, stencilp, Function('p'), u, fw=True)
+        stencilr = self.smart_sympy_replace(dim, time_order, stencilr, Function('r'), v, fw=True)
+        stencilp = self.smart_sympy_replace(dim, time_order, stencilp, Function('r'), v, fw=True)
+        stencilr = self.smart_sympy_replace(dim, time_order, stencilr, Function('p'), u, fw=True)
+        stencil_args = [src[space_dim], m[space_dim], a[space_dim], b[space_dim], th[space_dim], ph[space_dim], dt, h, damp[space_dim]]
+        first_stencil = Eq(u[total_dim], stencilp)
+        second_stencil = Eq(v[total_dim], stencilr)
+        self.stencils = [(first_stencil, stencil_args), (second_stencil, stencil_args)]
+        src_list = old_src.add(m, u)
         rec = rec.read(u)
         self.time_loop_stencils_post = src_list+rec
-        super(ForwardOperator, self).__init__(subs, src.nt, m.shape, spc_border=spc_order/2, time_order=time_order, forward=True, dtype=m.dtype)
+        super(ForwardOperator, self).__init__(subs, old_src.nt, m.shape, spc_border=spc_order/2, time_order=time_order, forward=True, dtype=m.dtype)
 
 
-class AdjointOperator(FWIOperator):
+class AdjointOperator(TTIOperator):
     def __init__(self, m, rec, damp, srca, time_order=4, spc_order=12):
         assert(m.shape == damp.shape)
         self.input_params = [m, rec, damp, srca]
@@ -165,7 +171,7 @@ class AdjointOperator(FWIOperator):
         super(AdjointOperator, self).__init__(subs, rec.nt, m.shape, spc_border=spc_order/2, time_order=time_order, forward=False, dtype=m.dtype)
 
 
-class GradientOperator(FWIOperator):
+class GradientOperator(TTIOperator):
     def __init__(self, u, m, rec, damp, time_order=4, spc_order=12):
         assert(m.shape == damp.shape)
         self.input_params = [u, m, rec, damp]
@@ -189,7 +195,7 @@ class GradientOperator(FWIOperator):
         super(GradientOperator, self).__init__(subs, rec.nt, m.shape, spc_border=spc_order/2, time_order=time_order, forward=False, dtype=m.dtype)
 
 
-class BornOperator(FWIOperator):
+class BornOperator(TTIOperator):
     def __init__(self, dm, m, src, damp, rec, time_order=4, spc_order=12):
         assert(m.shape == damp.shape)
         self.input_params = [dm, m, src, damp, rec]

@@ -7,7 +7,7 @@ from terminaltables import AsciiTable
 from containers import IShot, IGrid
 
 
-dimensions = (100, 100)
+dimensions = (100, 100, 100)
 model = IGrid()
 model0 = IGrid()
 model1 = IGrid()
@@ -82,7 +82,7 @@ data.set_receiver_pos(receiver_coords)
 data.set_shape(nt, 30)
 # A Forward propagation example
 jit_obj = AcousticWave2D_cg(model1, data, create_dm, nbpml=nbpml, t_order=2, s_order=2)
-python_obj = AcousticWave2D(model0, data, nbpml=nbpml)
+#python_obj = AcousticWave2D(model0, data, nbpml=nbpml)
 
 
 print "Forward propagation"
@@ -93,22 +93,22 @@ end = time.clock()
 cg_time = end-start
 norm_recg = np.linalg.norm(recg)
 norm_ug = np.linalg.norm(ug)
-print "Starting python lambdified version"
-start = time.clock()
-(rect, ut) = python_obj.Forward()
-end = time.clock()
-python_time = end-start
-norm_rect = np.linalg.norm(rect)
-norm_ut = np.linalg.norm(ut)
-
-
-table_data = [
-    ['', 'Time', 'L2Norm(u)', 'L2Norm(rec)'],
-    ['Python lambdified', str(python_time), str(norm_ut), str(norm_rect)],
-    ['Codegen', str(cg_time), str(norm_ug), str(norm_recg)]
-]
-table = AsciiTable(table_data)
-print table.table
+# print "Starting python lambdified version"
+# start = time.clock()
+# (rect, ut) = python_obj.Forward()
+# end = time.clock()
+# python_time = end-start
+# norm_rect = np.linalg.norm(rect)
+# norm_ut = np.linalg.norm(ut)
+# 
+# 
+# table_data = [
+#     ['', 'Time', 'L2Norm(u)', 'L2Norm(rec)'],
+#     ['Python lambdified', str(python_time), str(norm_ut), str(norm_rect)],
+#     ['Codegen', str(cg_time), str(norm_ug), str(norm_recg)]
+# ]
+# table = AsciiTable(table_data)
+# print table.table
 
 print "Adjoint propagation"
 print "Starting python lambdified version"
