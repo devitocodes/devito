@@ -12,6 +12,8 @@ class AcousticWave2D_cg:
     """
     def __init__(self, model, data, dm_initializer, source=None, nbpml=40, t_order=2, s_order=2):
         self.model = model
+        self.t_order = t_order
+        self.s_order = s_order
         self.data = data
         self.dtype = np.float64
         self.dt = model.get_critical_dt()
@@ -65,26 +67,26 @@ class AcousticWave2D_cg:
         dm = DenseData("dm", self.model.vp.shape, self.dtype)
         dm.initializer = self.dm_initializer
         self.dm = dm
-        self._forward_stencil = ForwardOperator(m, src, damp, rec, u, time_order=t_order, spc_order=s_order)
-        self._adjoint_stencil = AdjointOperator(m, rec, damp, srca, time_order=t_order, spc_order=s_order)
-        self._gradient_stencil = GradientOperator(u, m, rec, damp, time_order=t_order, spc_order=s_order)
-        self._born_stencil = BornOperator(dm, m, src, damp, rec, time_order=t_order, spc_order=s_order)
 
     def Forward(self):
-        self._forward_stencil.apply()
+        fw = ForwardOperator(self.m, self.src, self.damp, self.rec, self.u, time_order=self.t_order, spc_order=self.s_order)
+        fw.apply()
         return (self.rec.data, self.u.data)
 
     def Adjoint(self, rec):
-        v = self._adjoint_stencil.apply()[0]
+        adj = AdjointOperator(self.m, self.rec, self.damp, self.srca, time_order=self.t_order, spc_order=self.s_order)
+        v = adj.apply()[0]
         return (self.srca.data, v)
 
     def Gradient(self, rec, u):
+        grad_op = GradientOperator(self.u, self.m, self.rec, self.damp, time_order=self.t_order, spc_order=self.s_order)
         dt = self.dt
-        grad = self._gradient_stencil.apply()[0]
+        grad = grad_op.apply()[0]
         return (dt**-2)*grad
 
     def Born(self):
-        self._born_stencil.apply()
+        born_op = BornOperator(self.dm, self.m, self.src, self.damp, self.rec, time_order=self.t_order, spc_order=self.s_order)
+        born_op.apply()
         return self.rec.data
 
     def run(self):
