@@ -7,7 +7,7 @@ import pytest
 
 
 class Test_AdjointA(object):
-    @pytest.fixture(params=[(70, 70), (70, 70, 70)])
+    @pytest.fixture(params=[(60, 60), (60, 60, 60)])
     def Acoustic(self, request, time_order, space_order):
         model = IGrid()
         dimensions = request.param
@@ -25,7 +25,7 @@ class Test_AdjointA(object):
         f0 = .010
         dt = model.get_critical_dt()
         t0 = 0.0
-        tn = 300.0
+        tn = 100.0
         nt = int(1+(tn-t0)/dt)
 
         # Set up the source as Ricker wavelet for f0
@@ -44,7 +44,7 @@ class Test_AdjointA(object):
         data.set_receiver_pos(receiver_coords)
         data.set_shape(nt, 30)
         # Adjoint test
-        wave_true = AcousticWave2D_cg(model, data, None, t_order=time_order, s_order=space_order)
+        wave_true = AcousticWave2D_cg(model, data, None, t_order=time_order, s_order=space_order, nbpml=10)
         return wave_true
 
     @pytest.fixture(params=[2, 4])
