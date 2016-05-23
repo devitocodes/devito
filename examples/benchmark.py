@@ -7,7 +7,7 @@ from terminaltables import AsciiTable
 from containers import IShot, IGrid
 
 
-dimensions = (100, 100, 100)
+dimensions = (100, 100)
 model = IGrid()
 model0 = IGrid()
 model1 = IGrid()
