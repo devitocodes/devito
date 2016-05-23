@@ -7,7 +7,7 @@ from terminaltables import AsciiTable
 from containers import IShot, IGrid
 
 
-dimensions = (100, 100)
+dimensions = (100, 100, 100)
 model = IGrid()
 model0 = IGrid()
 model1 = IGrid()
@@ -81,8 +81,8 @@ receiver_coords[:, 2] = location[2]
 data.set_receiver_pos(receiver_coords)
 data.set_shape(nt, 30)
 # A Forward propagation example
-jit_obj = AcousticWave2D_cg(model1, data, create_dm, nbpml=nbpml)
-python_obj = AcousticWave2D(model0, data, nbpml=nbpml)
+jit_obj = AcousticWave2D_cg(model1, data, create_dm, nbpml=nbpml, t_order=2, s_order=2)
+# python_obj = AcousticWave2D(model0, data, nbpml=nbpml)
 
 
 print "Forward propagation"
