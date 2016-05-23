@@ -1,5 +1,6 @@
 import numpy as np
 from sympy import IndexedBase
+from tools import aligned
 
 
 class DenseData(IndexedBase):
@@ -19,7 +20,7 @@ class DenseData(IndexedBase):
         self.initializer = lambda_initializer
 
     def _allocate_memory(self):
-        self.pointer = np.zeros(self.var_shape, self.dtype, order='C')
+        self.pointer = aligned(np.zeros(self.var_shape, self.dtype, order='C'), alignment=64)
 
     @property
     def data(self):
