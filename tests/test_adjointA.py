@@ -7,12 +7,13 @@ import pytest
 
 
 class Test_AdjointA(object):
-    @pytest.fixture(params=[(60, 60), (60, 60, 60)])
+    @pytest.fixture(params=[(60, 70), (60, 70, 80)])
     def Acoustic(self, request, time_order, space_order):
         model = IGrid()
         dimensions = request.param
-        origin = (0., 0.)
-        spacing = (25, 25)
+        # dimensions are (x,y) and (x, y, z)
+        origin = tuple([0]*len(dimensions))
+        spacing = tuple([25]*len(dimensions))
 
         # True velocity
         true_vp = np.ones(dimensions) + 2.0
@@ -35,10 +36,10 @@ class Test_AdjointA(object):
 
         time_series = source(np.linspace(t0, tn, nt), f0)
         location = (origin[0] + dimensions[0] * spacing[0] * 0.5, 0,
-                    origin[1] + 2 * spacing[1])
+                    origin[2] + 2 * spacing[2])
         data.set_source(time_series, dt, location)
         receiver_coords = np.zeros((30, 3))
-        receiver_coords[:, 0] = np.linspace(50, 950, num=30)
+        receiver_coords[:, 0] = np.linspace(50, origin[0] + dimensions[0] *spacing[0] -50, num=30)
         receiver_coords[:, 1] = 0.0
         receiver_coords[:, 2] = location[2]
         data.set_receiver_pos(receiver_coords)
@@ -71,3 +72,11 @@ class Test_AdjointA(object):
         term2 = linalg.norm(rec)**2
         print(term1, term2, term1 - term2, term1 / term2)
         assert np.isclose(term1 / term2, 1.0)
+        
+if __name__ == "__main__":
+    t = Test_AdjointA()
+    request = type('', (), {})()
+    request.param = (60, 70, 80)
+    ac = t.Acoustic(request, 2, 4)
+    fw = t.forward(ac)
+    t.test_adjoint(ac, fw)
