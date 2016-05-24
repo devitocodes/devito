@@ -123,12 +123,8 @@ class JitManager(object):
         if self.compiler.cc in self._intel_compiler:
             if self._mic_flag:
                 self.compiler.ldflags.append("-mmic")
-                self.compiler.ldflags.append("-opt-prefetch-distance=64,8")
-                self.compiler.ldflags.append("-opt-streaming-cache-evict=0")
             else:
                 self.compiler.ldflags.append("-mavx")
-        else:
-            self.compiler.cflags.append("-mavx")
         for flag in self._compatible_flags:
             self.compiler.ldflags.append(flag)
             self.compiler.cflags.append(flag)
