@@ -20,7 +20,7 @@ install:
   - if [[ $TRAVIS_OS_NAME == 'osx' ]]; then brew update; brew install python; brew link --overwrite python ; fi
   - pip install --user -U pip
   - pip install --user -r requirements.txt
-  - if [[ $TRAVIS_OS_NAME == 'osx' ]]; then export PATH=$PATH:$HOME/Library/Python/2.7/bin; fi
+  - if [[ $TRAVIS_OS_NAME == 'osx' ]]; then export PATH=$PATH:$HOME/Library/Python/2.7/bin; export DEVITO_OPENMP=0; fi
 
 script:
   - export PYTHONPATH=$PYTHONPATH:$PWD
