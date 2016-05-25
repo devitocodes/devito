@@ -64,14 +64,14 @@ class AcousticWave2D_cg:
         # Initialize damp by calling the function that can precompute damping
         damp_boundary(damp.data)
         self.damp = damp
-        src = SourceLike("src", 1, self.nt, self.dt, self.h, np.array(self.data.source_coords, dtype=self.dtype)[np.newaxis, :], len(dimensions), self.dtype)
+        src = SourceLike("src", 1, self.nt, self.dt, self.h, np.array(self.data.source_coords, dtype=self.dtype)[np.newaxis, :], len(dimensions), self.dtype, nbpml)
         self.src = src
-        rec = SourceLike("rec", self.nrec, self.nt, self.dt, self.h, self.data.receiver_coords, len(dimensions), self.dtype)
+        rec = SourceLike("rec", self.nrec, self.nt, self.dt, self.h, self.data.receiver_coords, len(dimensions), self.dtype, nbpml)
         src.data[:] = self.data.get_source()[:, np.newaxis]
         self.rec = rec
         u = TimeData("u", m.shape, src.nt, time_order=t_order, save=True, dtype=m.dtype)
         self.u = u
-        srca = SourceLike("srca", 1, self.nt, self.dt, self.h, np.array(self.data.source_coords, dtype=self.dtype)[np.newaxis, :], len(dimensions), self.dtype)
+        srca = SourceLike("srca", 1, self.nt, self.dt, self.h, np.array(self.data.source_coords, dtype=self.dtype)[np.newaxis, :], len(dimensions), self.dtype, nbpml)
         self.srca = srca
         dm = DenseData("dm", self.model.vp.shape, self.dtype)
         dm.initializer = self.dm_initializer
@@ -111,11 +111,12 @@ class AcousticWave2D_cg:
 class SourceLike(PointData):
     """Defines the behaviour of sources and receivers.
     """
-    def __init__(self, name, npoint, nt, dt, h, data, ndim, dtype):
+    def __init__(self, name, npoint, nt, dt, h, data, ndim, dtype, nbpml):
         self.orig_data = data
         self.dt = dt
         self.h = h
         self.ndim = ndim
+        self.nbpml = nbpml
         super(SourceLike, self).__init__(name, npoint, nt, dtype)
         x1, y1, z1, x2, y2, z2 = symbols('x1, y1, z1, x2, y2, z2')
         if ndim == 2:
@@ -174,13 +175,13 @@ class SourceLike(PointData):
         x, y, z = pt_coords
         i = int(x/self.h)
         k = int(z/self.h)
-        coords = (i, k)
+        coords = (i + self.nbpml, k + self.nbpml)
         subs = []
         if self.ndim == 3:
             j = int(y/self.h)
             y = y - j*self.h
             subs.append((ry, y))
-            coords = (i, j, k)
+            coords = (i + self.nbpml, j + self.nbpml, k + self.nbpml)
 
         x = x - i*self.h
         z = z - k*self.h
@@ -211,9 +212,9 @@ class SourceLike(PointData):
             subs.append((ry, y))
 
         if self.ndim == 2:
-            return sum([b.subs(subs) * u[t, i+inc[0], k+inc[1]] for inc, b in zip(self.increments, self.bs)])
+            return sum([b.subs(subs) * u[t, i+inc[0]+self.nbpml, k+inc[1]+self.nbpml] for inc, b in zip(self.increments, self.bs)])
         else:
-            return sum([b.subs(subs) * u[t, i+inc[0], j+inc[1], k+inc[2]] for inc, b in zip(self.increments, self.bs)])
+            return sum([b.subs(subs) * u[t, i+inc[0]+self.nbpml, j+inc[1]+self.nbpml, k+inc[2]+self.nbpml] for inc, b in zip(self.increments, self.bs)])
 
     def read(self, u):
         eqs = []
