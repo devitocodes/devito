@@ -158,7 +158,6 @@ class AcousticWave2D:
         # Forward wave equation
         wave_equation = m * dtt - (dxx + dyy) + e * dt
         stencil = solve(wave_equation, p(x, y, t+s))[0]
-
         self.ts = lambdify((p(x, y, t-s),
                            p(x-h, y, t),
                            p(x, y, t),

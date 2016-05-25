@@ -19,9 +19,10 @@ spacing = (25., 25)
 
 
 # Velocity models
-def smooth10(vel, nx, ny):
-    out = np.ones((nx, ny))
+def smooth10(vel, shape):
+    out = np.ones(shape)
     out[:, :] = vel[:, :]
+    nx = shape[0]
     for a in range(5, nx-6):
         out[a, :] = np.sum(vel[a - 5:a + 5, :], axis=0) / 10
     return out
@@ -32,11 +33,15 @@ true_vp = np.ones(dimensions) + 2.0
 true_vp[floor(dimensions[0] / 2):floor(dimensions[0]), :] = 4.5
 
 # Smooth velocity
-initial_vp = smooth10(true_vp, dimensions[0], dimensions[1])
+initial_vp = smooth10(true_vp, dimensions)
 
 nbpml = 40
 dm_orig = true_vp**-2 - initial_vp**-2
-dm_orig = np.pad(dm_orig, ((nbpml, nbpml), (nbpml, nbpml)), 'edge')
+pad_list = []
+for dim_index in range(len(dimensions)):
+    pad_list.append((nbpml, nbpml))
+
+dm_orig = np.pad(dm_orig, tuple(pad_list), 'edge')
 
 
 def create_dm(dm):
@@ -76,8 +81,9 @@ receiver_coords[:, 2] = location[2]
 data.set_receiver_pos(receiver_coords)
 data.set_shape(nt, 30)
 # A Forward propagation example
-python_obj = AcousticWave2D(model0, data, nbpml=nbpml)
 jit_obj = AcousticWave2D_cg(model1, data, create_dm, nbpml=nbpml)
+python_obj = AcousticWave2D(model0, data, nbpml=nbpml)
+
 
 print "Forward propagation"
 print "Starting codegen version"
@@ -94,6 +100,7 @@ end = time.clock()
 python_time = end-start
 norm_rect = np.linalg.norm(rect)
 norm_ut = np.linalg.norm(ut)
+
 
 table_data = [
     ['', 'Time', 'L2Norm(u)', 'L2Norm(rec)'],
