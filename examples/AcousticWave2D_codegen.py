@@ -42,7 +42,7 @@ class AcousticWave2D_cg:
             nbpml = self.nbpml
             num_dim = len(damp.shape)
             for i in range(nbpml):
-                pos = np.abs((nbpml-i)/nbpml)
+                pos = np.abs((nbpml-i)/float(nbpml))
                 val = dampcoeff * (pos - np.sin(2*np.pi*pos)/(2*np.pi))
                 if num_dim == 2:
                     damp[i, :] += val
