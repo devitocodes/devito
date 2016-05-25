@@ -226,10 +226,9 @@ class AcousticWave2D:
             val = dampcoeff * (pos - np.sin(2*np.pi*pos)/(2*np.pi))
 
             damp[i, :] += val
-            damp[-i, :] += val
-
+            damp[-(i + 1), :] += val
             damp[:, i] += val
-            damp[:, -i] += val
+            damp[:, -(i + 1)] += val
 
         return damp
 
