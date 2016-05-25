@@ -1,7 +1,6 @@
 from examples.AcousticWave2D_codegen import AcousticWave2D_cg
 import numpy as np
 from numpy import linalg
-from math import floor
 from examples.containers import IGrid, IShot
 import pytest
 
@@ -17,8 +16,10 @@ class Test_AdjointA(object):
 
         # True velocity
         true_vp = np.ones(dimensions) + 2.0
-        true_vp[floor(dimensions[0] / 2):dimensions[0], :] = 4.5
-
+        if len(dimensions) == 2:
+            true_vp[:, int(dimensions[0] / 2):dimensions[0]] = 4.5
+        else:
+            true_vp[:, :, int(dimensions[0] / 2):dimensions[0]] = 4.5
         model.create_model(origin, spacing, true_vp)
         # Define seismic data.
         data = IShot()
@@ -58,8 +59,8 @@ class Test_AdjointA(object):
 
     @pytest.fixture
     def forward(self, Acoustic):
-        return Acoustic.Forward()
-        # (rec, u)
+        (rec, u) = Acoustic.Forward()
+        return (rec, u)
 
     def test_adjoint(self, Acoustic, forward):
         rec = forward[0]
@@ -77,6 +78,6 @@ if __name__ == "__main__":
     t = Test_AdjointA()
     request = type('', (), {})()
     request.param = (60, 70, 80)
-    ac = t.Acoustic(request, 4, 4)
+    ac = t.Acoustic(request, 2, 12)
     fw = t.forward(ac)
     t.test_adjoint(ac, fw)

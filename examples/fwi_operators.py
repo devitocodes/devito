@@ -58,8 +58,7 @@ class FWIOperator(Operator):
         # equations involving first order derivatives in chain only.
         #
         # $ \frac{d^2 u(x,t)}{dt^2} \simeq \frac{1}{dx^2} \sum_k \alpha_k
-        # (u(x+k dx,t)+u(x-k dx,t)) + O(dx^k) $
-
+        # (u(x+k dx,t)+u(x-k dx,t)) + O(dx^k)
         # Finite differences
         if dim == 2:
             dtt = as_finite_diff(p(x, z, t).diff(t, t), indt)
@@ -77,7 +76,6 @@ class FWIOperator(Operator):
 
         wave_equation = m*dtt - lap + e*dt
         stencil = solve(wave_equation, solvep)[0]
-
         wave_equationA = m*dtt - lap - e*dt
         stencilA = solve(wave_equationA, solvepa)[0]
         return ((stencil, (m, s, h, e)), (stencilA, (m, s, h, e)))
@@ -87,7 +85,6 @@ class FWIOperator(Operator):
         b = Wild('b')
         c = Wild('c')
         d = Wild('d')
-        e = Wild('e')
         f = Wild('f')
         q = Wild('q')
         x, y, z = symbols("x y z")
@@ -99,7 +96,7 @@ class FWIOperator(Operator):
             # Replace function notation with array notation
             res = expr.replace(fun(a, b, c), arr[a, b, c])
             # Reorder indices so time comes first
-            res = res.replace(arr[a*x+b, c*z+d, e*t+f], arr[e*t+f, a*x+b, c*z+d])
+            res = res.replace(arr[x+b, z+d, t+f], arr[t+f, x+b, z+d])
         if num_dim == 3:
             res = expr.replace(fun(a, b, c, d), arr[a, b, c, d])
             res = res.replace(arr[x+b, y+q, z+d, t+f], arr[t+f, x+b, y+q, z+d])
