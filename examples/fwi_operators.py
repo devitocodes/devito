@@ -4,7 +4,6 @@ from devito.interfaces import TimeData, DenseData
 from sympy import Function, symbols, as_finite_diff, Wild, IndexedBase
 from sympy.abc import x, y, t, z
 from sympy import solve
-from devito.tools import sympy_find
 
 
 class FWIOperator(Operator):

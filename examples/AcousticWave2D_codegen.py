@@ -40,13 +40,22 @@ class AcousticWave2D_cg:
             h = self.h
             dampcoeff = 1.5 * np.log(1.0 / 0.001) / (40 * h)
             nbpml = self.nbpml
+            num_dim = len(damp.shape)
             for i in range(nbpml):
                 pos = np.abs((nbpml-i)/nbpml)
                 val = dampcoeff * (pos - np.sin(2*np.pi*pos)/(2*np.pi))
-                damp[i, :] += val
-                damp[-i, :] += val
-                damp[:, i] += val
-                damp[:, -i] += val
+                if num_dim == 2:
+                    damp[i, :] += val
+                    damp[-(i + 1), :] += val
+                    damp[:, i] += val
+                    damp[:, -(i + 1)] += val
+                else:
+                    damp[i, :, :] += val
+                    damp[-(i + 1), :, :] += val
+                    damp[:, i, :] += val
+                    damp[:, -(i + 1), :] += val
+                    damp[:, :, i] += val
+                    damp[:, :, -(i + 1)] += val
 
         m = DenseData("m", self.model.vp.shape, self.dtype)
         m.data[:] = self.model.vp**(-2)
