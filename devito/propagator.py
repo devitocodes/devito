@@ -105,23 +105,30 @@ class Propagator(object):
         Therefore reverse the list of dimensions, making the last variable in
         #var_order (z in the 3D case) vary in the inner-most loop
         """
+        # Space loops
         for spc_var in reversed(list(self.space_dims)):
             dim_var = self._var_map[spc_var]
             loop_limits = self._space_loop_limits[spc_var]
             loop_body = cgen.For(cgen.InlineInitializer(cgen.Value("int", dim_var),
                                                         str(loop_limits[0])),
                                  str(dim_var) + "<" + str(loop_limits[1]), str(dim_var) + "++", loop_body)
+
         t_loop_limits = self.time_loop_limits
         t_var = str(self._var_map[self.t])
         cond_op = "<" if self._forward else ">"
+
         if self.save is not True:
+            # To cycle between array elements when we are not saving time history
             time_stepping = self.get_time_stepping()
         else:
             time_stepping = []
+        # Statements to be inserted into the time loop before the spatial loop
         time_loop_stencils_b = [self.convert_equality_to_cgen(x) for x in self.time_loop_stencils_b]
+        # Statements to be inserted into the time loop after the spatial loop
         time_loop_stencils_a = [self.convert_equality_to_cgen(x) for x in self.time_loop_stencils_a]
         loop_body = cgen.Block(time_stepping + time_loop_stencils_b + [loop_body] + time_loop_stencils_a)
         loop_body = cgen.For(cgen.InlineInitializer(cgen.Value("int", t_var), str(t_loop_limits[0])), t_var + cond_op + str(t_loop_limits[1]), t_var + "+=" + str(self._time_step), loop_body)
+        # Code to declare the time stepping variables (outside the time loop)
         def_time_step = [cgen.Value("int", t_var_def.name) for t_var_def in self.time_steppers]
         body = def_time_step + [loop_body]
         return cgen.Block(body)
