@@ -84,13 +84,26 @@ class FWIOperator(Operator):
         return ((stencil, (m, s, h, e)), (stencilA, (m, s, h, e)))
 
     def smart_sympy_replace(self, num_dim, time_order, expr, fun, arr, fw):
+        a = Wild('a')
+        b = Wild('b')
         c = Wild('c')
+        d = Wild('d')
+        e = Wild('e')
+        f = Wild('f')
+        q = Wild('q')
         x, y, z = symbols("x y z")
         h, s, t = symbols("h s t")
         width_t = int(time_order/2)
         # Replace function notation with array notation
         # Reorder indices so time comes first
-        res = sympy_find(expr, fun, arr)
+        if num_dim == 2:
+            # Replace function notation with array notation
+            res = expr.replace(fun(a, b, c), arr[a, b, c])
+            # Reorder indices so time comes first
+            res = res.replace(arr[a*x+b, c*z+d, e*t+f], arr[e*t+f, a*x+b, c*z+d])
+        if num_dim == 3:
+            res = expr.replace(fun(a, b, c, d), arr[a, b, c, d])
+            res = res.replace(arr[x+b, y+q, z+d, t+f], arr[t+f, x+b, y+q, z+d])
         # Replace x+h in indices with x+1
         for dim_var in [x, y, z]:
             res = res.replace(dim_var+c*h, dim_var+c)
