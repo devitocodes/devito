@@ -10,10 +10,12 @@ class Propagator(object):
         num_spac_dim = len(shape)
         self.t = symbols("t")
         # We assume the dimensions are passed to us in the following order
+        # var_order
         if num_spac_dim == 2:
             self.space_dims = symbols("x z")
         else:
             self.space_dims = symbols("x y z")
+        self.space_dims = self.space_dims[0:len(shape)]
         self.loop_counters = symbols("i1 i2 i3 i4")
         self._pre_kernel_steps = []
         self._post_kernel_steps = []
@@ -53,10 +55,9 @@ class Propagator(object):
     def save(self, save):
         if save is not True:
             self.time_steppers = [symbols("t%d" % i) for i in range(self.time_order+1)]
-            if self._forward is not True:
-                self.t_replace = {(self.t): self.time_steppers[2], (self.t+1): self.time_steppers[1], (self.t+2): self.time_steppers[0]}
-            else:
-                self.t_replace = {(self.t): self.time_steppers[2], (self.t-1): self.time_steppers[1], (self.t-2): self.time_steppers[0]}
+            self.t_replace = {}
+            for i, t_var in enumerate(reversed(self.time_steppers)):
+                self.t_replace[self.t - i*self._time_step] = t_var
         self._save = self._save and save
 
     @property
@@ -68,7 +69,8 @@ class Propagator(object):
         return loop_limits
 
     def prep_variable_map(self):
-        """ Mapping from model variables (x, y, z, t) to loop variables (i1, i2, i3, i4) - Needs work
+        """ Mapping from model variables (x, y, z, t) to loop variables (i1, i2, i3, i4)
+        For now, i1 i2 i3 are assigned in the order the variables were defined in init( #var_order)
         """
         var_map = {}
         i = 0
@@ -76,7 +78,6 @@ class Propagator(object):
             var_map[dim] = symbols("i%d" % (i + 1))
             i += 1
         var_map[self.t] = symbols("i%d" % (i + 1))
-        print(var_map)
         self._var_map = var_map
 
     def sympy_to_cgen(self, subs, stencils, stencil_args):
@@ -98,6 +99,12 @@ class Propagator(object):
         return cgen.Assign(ccode(self.time_substitutions(equality.lhs).xreplace(self._var_map)), ccode(self.time_substitutions(equality.rhs).xreplace(self._var_map)))
 
     def generate_loops(self, loop_body):
+        """ Assuming that the variable order defined in init (#var_order) is the
+        order the corresponding dimensions are layout in memory, the last variable
+        in that definition should be the fastest varying dimension in the arrays.
+        Therefore reverse the list of dimensions, making the last variable in
+        #var_order (z in the 3D case) vary in the inner-most loop
+        """
         for spc_var in reversed(list(self.space_dims)):
             dim_var = self._var_map[spc_var]
             loop_limits = self._space_loop_limits[spc_var]
