@@ -177,15 +177,14 @@ class SourceLike(PointData):
         k = int(z/self.h)
         coords = (i + self.nbpml, k + self.nbpml)
         subs = []
+        x = x - i*self.h
+        subs.append((rx, x))
         if self.ndim == 3:
             j = int(y/self.h)
             y = y - j*self.h
             subs.append((ry, y))
             coords = (i + self.nbpml, j + self.nbpml, k + self.nbpml)
-
-        x = x - i*self.h
         z = z - k*self.h
-        subs.append((rx, x))
         subs.append((rz, z))
         s = [b.subs(subs).evalf() for b in self.bs]
         return coords, tuple(s)
@@ -205,12 +204,12 @@ class SourceLike(PointData):
 
         subs = []
         subs.append((rx, x))
-        subs.append((rz, z))
+
         if self.ndim == 3:
             j = int(y/self.h)
             y = y - j*self.h
             subs.append((ry, y))
-
+        subs.append((rz, z))
         if self.ndim == 2:
             return sum([b.subs(subs) * u[t, i+inc[0]+self.nbpml, k+inc[1]+self.nbpml] for inc, b in zip(self.increments, self.bs)])
         else:
