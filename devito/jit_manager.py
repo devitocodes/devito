@@ -7,7 +7,7 @@ from codepy.toolchain import guess_toolchain
 import codepy.jit as jit
 from tempfile import gettempdir
 import numpy as np
-import cgen_wrapper as cgen
+from tools import convert_dtype_to_ctype
 
 
 class JitManager(object):
@@ -158,7 +158,7 @@ class JitManager(object):
             else:
                 # Ctypes needs an array describing the function parameters, prepare that array
                 argtypes = [array_nd for i in function_descriptor.matrix_params]
-                argtypes += [cgen.convert_dtype_to_ctype(param[0]) for param in function_descriptor.value_params]
+                argtypes += [convert_dtype_to_ctype(param[0]) for param in function_descriptor.value_params]
                 library_function.argtypes = argtypes
                 wrapped_functions.append(self.wrap_function(library_function, function_descriptor))
         return wrapped_functions

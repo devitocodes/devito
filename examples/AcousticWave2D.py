@@ -158,7 +158,6 @@ class AcousticWave2D:
         # Forward wave equation
         wave_equation = m * dtt - (dxx + dyy) + e * dt
         stencil = solve(wave_equation, p(x, y, t+s))[0]
-
         self.ts = lambdify((p(x, y, t-s),
                            p(x-h, y, t),
                            p(x, y, t),
@@ -227,10 +226,9 @@ class AcousticWave2D:
             val = dampcoeff * (pos - np.sin(2*np.pi*pos)/(2*np.pi))
 
             damp[i, :] += val
-            damp[-i, :] += val
-
+            damp[-(i + 1), :] += val
             damp[:, i] += val
-            damp[:, -i] += val
+            damp[:, -(i + 1)] += val
 
         return damp
 

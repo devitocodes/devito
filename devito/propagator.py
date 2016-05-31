@@ -9,12 +9,17 @@ class Propagator(object):
     def __init__(self, name, nt, shape, spc_border=0, forward=True, time_order=0):
         num_spac_dim = len(shape)
         self.t = symbols("t")
-        space_dims = symbols("x y z")
+        # We assume the dimensions are passed to us in the following order
+        # var_order
+        if num_spac_dim == 2:
+            self.space_dims = symbols("x z")
+        else:
+            self.space_dims = symbols("x y z")
+        self.space_dims = self.space_dims[0:len(shape)]
         self.loop_counters = symbols("i1 i2 i3 i4")
         self._pre_kernel_steps = []
         self._post_kernel_steps = []
         self._forward = forward
-        self.space_dims = space_dims[0:num_spac_dim]
         self.prep_variable_map()
         self.t_replace = {}
         self.time_steppers = []
@@ -34,7 +39,7 @@ class Propagator(object):
         else:
             self._time_step = -1
         self._space_loop_limits = {}
-        for i, dim in enumerate(reversed(self.space_dims)):
+        for i, dim in enumerate(self.space_dims):
                 self._space_loop_limits[dim] = (spc_border, shape[i]-spc_border)
 
         # Kernel ai dictionary
@@ -50,10 +55,9 @@ class Propagator(object):
     def save(self, save):
         if save is not True:
             self.time_steppers = [symbols("t%d" % i) for i in range(self.time_order+1)]
-            if self._forward is not True:
-                self.t_replace = {(self.t): self.time_steppers[2], (self.t+1): self.time_steppers[1], (self.t+2): self.time_steppers[0]}
-            else:
-                self.t_replace = {(self.t): self.time_steppers[2], (self.t-1): self.time_steppers[1], (self.t-2): self.time_steppers[0]}
+            self.t_replace = {}
+            for i, t_var in enumerate(reversed(self.time_steppers)):
+                self.t_replace[self.t - i*self._time_step] = t_var
         self._save = self._save and save
 
     @property
@@ -65,7 +69,8 @@ class Propagator(object):
         return loop_limits
 
     def prep_variable_map(self):
-        """ Mapping from model variables (x, y, z, t) to loop variables (i1, i2, i3, i4) - Needs work
+        """ Mapping from model variables (x, y, z, t) to loop variables (i1, i2, i3, i4)
+        For now, i1 i2 i3 are assigned in the order the variables were defined in init( #var_order)
         """
         var_map = {}
         i = 0
@@ -75,7 +80,7 @@ class Propagator(object):
         var_map[self.t] = symbols("i%d" % (i + 1))
         self._var_map = var_map
 
-    def prepare(self, subs, stencils, stencil_args):
+    def sympy_to_cgen(self, subs, stencils, stencil_args):
         stmts = []
         for equality, args in zip(stencils, stencil_args):
             equality = equality.subs(dict(zip(subs, args)))
@@ -88,30 +93,42 @@ class Propagator(object):
         kernel += self._post_kernel_steps
         if self._print_ai:
                 print(self._get_kernel_ai(self._dtype))
-        return self.prepare_loop(cgen.Block(kernel))
+        return cgen.Block(kernel)
 
     def convert_equality_to_cgen(self, equality):
         return cgen.Assign(ccode(self.time_substitutions(equality.lhs).xreplace(self._var_map)), ccode(self.time_substitutions(equality.rhs).xreplace(self._var_map)))
 
-    def prepare_loop(self, loop_body):
-        num_spac_dim = len(self.space_dims)
-        for dim_ind in range(1, num_spac_dim+1):
-            dim_var = "i"+str(dim_ind)
-            loop_limits = self._space_loop_limits[self.space_dims[dim_ind-1]]
+    def generate_loops(self, loop_body):
+        """ Assuming that the variable order defined in init (#var_order) is the
+        order the corresponding dimensions are layout in memory, the last variable
+        in that definition should be the fastest varying dimension in the arrays.
+        Therefore reverse the list of dimensions, making the last variable in
+        #var_order (z in the 3D case) vary in the inner-most loop
+        """
+        # Space loops
+        for spc_var in reversed(list(self.space_dims)):
+            dim_var = self._var_map[spc_var]
+            loop_limits = self._space_loop_limits[spc_var]
             loop_body = cgen.For(cgen.InlineInitializer(cgen.Value("int", dim_var),
                                                         str(loop_limits[0])),
-                                 dim_var + "<" + str(loop_limits[1]), dim_var + "++", loop_body)
+                                 str(dim_var) + "<" + str(loop_limits[1]), str(dim_var) + "++", loop_body)
+
         t_loop_limits = self.time_loop_limits
         t_var = str(self._var_map[self.t])
         cond_op = "<" if self._forward else ">"
+
         if self.save is not True:
+            # To cycle between array elements when we are not saving time history
             time_stepping = self.get_time_stepping()
         else:
             time_stepping = []
+        # Statements to be inserted into the time loop before the spatial loop
         time_loop_stencils_b = [self.convert_equality_to_cgen(x) for x in self.time_loop_stencils_b]
+        # Statements to be inserted into the time loop after the spatial loop
         time_loop_stencils_a = [self.convert_equality_to_cgen(x) for x in self.time_loop_stencils_a]
         loop_body = cgen.Block(time_stepping + time_loop_stencils_b + [loop_body] + time_loop_stencils_a)
         loop_body = cgen.For(cgen.InlineInitializer(cgen.Value("int", t_var), str(t_loop_limits[0])), t_var + cond_op + str(t_loop_limits[1]), t_var + "+=" + str(self._time_step), loop_body)
+        # Code to declare the time stepping variables (outside the time loop)
         def_time_step = [cgen.Value("int", t_var_def.name) for t_var_def in self.time_steppers]
         body = def_time_step + [loop_body]
         return cgen.Block(body)
@@ -152,10 +169,10 @@ class Propagator(object):
         make sure you have either called set_jit_params or set_jit_simple already.
         """
         try:  # Assume we have been given a a loop body in cgen types
-            self.fd.set_body(self.prepare_loop(self.loop_body))
+            self.fd.set_body(self.generate_loops(self.loop_body))
         except:  # We might have been given Sympy expression to evaluate
             # This is the more common use case so this will show up in error messages
-            self.fd.set_body(self.prepare(self.subs, self.stencils, self.stencil_args))
+            self.fd.set_body(self.generate_loops(self.sympy_to_cgen(self.subs, self.stencils, self.stencil_args)))
         return self.fd
 
     def get_time_stepping(self):
