@@ -280,4 +280,4 @@ class Propagator(object):
         self._kernel_dic_oi['oi_low'] = float(add+mul)/(load_all+store)/word_size
         self._kernel_dic_oi['oi_low_weighted'] = self._kernel_dic_oi['oi_low']*(add+mul)/max(add, mul)/2.0
 
-        return self._kernel_dic_oi['oi_low']
+        return self._kernel_dic_oi['oi_high']

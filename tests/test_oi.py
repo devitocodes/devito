@@ -88,7 +88,7 @@ class Test_OI_Calculation(object):
 	'''OI = (ADD+MUL)/[(LOAD+STORE)*word_size]; word_size=8(double),4(float)
         Equation = v1[i2][i1] = (v2[i2][i1] + 2.5F*v2[i2][i1 - 2] + 5*v2[i2][i1 - 1])/(v3[i2][i1] + (1.0F/4.0F)*v3[i2][i1 - 2] + (1.0F/2.0F)*v3[i2][i1 - 1] + 7.0e-1F*v4[i2][i1] - 1.5e-1F*v4[i2][i1 - 2] - 3.33e-1F*v4[i2][i1 - 1]);
         '''
-        load = 10.0
+        load = 4.0
         store = 1.0
         add = 7.0
         mul = 8.0
