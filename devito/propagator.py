@@ -3,9 +3,12 @@ from codeprinter import ccode
 import numpy as np
 from sympy import symbols, IndexedBase, Indexed
 from function_manager import FunctionDescriptor
+import os
 
 
 class Propagator(object):
+    _ENV_VAR_PROFILE = "DEVITO_PROFILE"
+
     def __init__(self, name, nt, shape, spc_border=0, forward=True, time_order=0):
         num_spac_dim = len(shape)
         self.t = symbols("t")
@@ -30,10 +33,20 @@ class Propagator(object):
         # Start with the assumption that the propagator needs to save the field in memory at every time step
         self._save = True
         # This might be changed later when parameters are being set
-
+        self.profile = os.environ.get(self._ENV_VAR_PROFILE) == "1"
         # Which function parameters need special (non-save) time stepping and which don't
         self.save_vars = {}
         self.fd = FunctionDescriptor(name)
+        self.pre_loop = []
+        self.post_loop = []
+        if self.profile:
+            self.add_local_var("time", "double")
+            self.pre_loop.append(cgen.Statement("struct timeval start, end"))
+            self.pre_loop.append(cgen.Assign("time", 0))
+            self.post_loop.append(cgen.PrintStatement("time: %f\n", "time"))
+            self.time_loop_stencils_b.append(cgen.Statement("gettimeofday(&start, NULL)"))
+            self.time_loop_stencils_a.append(cgen.Statement("gettimeofday(&end, NULL)"))
+            self.time_loop_stencils_a.append(cgen.Statement("time += ((end.tv_sec  - start.tv_sec) * 1000000u + end.tv_usec - start.tv_usec) / 1.e6"))
         if forward:
             self._time_step = 1
         else:
@@ -42,10 +55,8 @@ class Propagator(object):
         for i, dim in enumerate(self.space_dims):
                 self._space_loop_limits[dim] = (spc_border, shape[i]-spc_border)
 
-        # Kernel ai dictionary
-        self._kernel_dic_ai = {'add': 0, 'mul': 0, 'load': 0, 'store': 0, 'load_list': [], 'load_all_list': [], 'ai_high': 0, 'ai_high_weighted': 0, 'ai_low': 0, 'ai_low_weighted': 0}
-        self._print_ai = False
-        self._dtype = False
+        # Kernel operation intensity dictionary
+        self._kernel_dic_oi = {'add': 0, 'mul': 0, 'load': 0, 'store': 0, 'load_list': [], 'load_all_list': [], 'oi_high': 0, 'oi_high_weighted': 0, 'oi_low': 0, 'oi_low_weighted': 0}
 
     @property
     def save(self):
@@ -84,19 +95,20 @@ class Propagator(object):
         stmts = []
         for equality, args in zip(stencils, stencil_args):
             equality = equality.subs(dict(zip(subs, args)))
-            self._kernel_dic_ai = self._get_ops_expr(equality.rhs, self._kernel_dic_ai, False)
-            self._kernel_dic_ai = self._get_ops_expr(equality.lhs, self._kernel_dic_ai, True)
+            self._kernel_dic_oi = self._get_ops_expr(equality.rhs, self._kernel_dic_oi, False)
+            self._kernel_dic_oi = self._get_ops_expr(equality.lhs, self._kernel_dic_oi, True)
             stencil = self.convert_equality_to_cgen(equality)
             stmts.append(stencil)
         kernel = self._pre_kernel_steps
         kernel += stmts
         kernel += self._post_kernel_steps
-        if self._print_ai:
-                print(self._get_kernel_ai(self._dtype))
         return cgen.Block(kernel)
 
     def convert_equality_to_cgen(self, equality):
-        return cgen.Assign(ccode(self.time_substitutions(equality.lhs).xreplace(self._var_map)), ccode(self.time_substitutions(equality.rhs).xreplace(self._var_map)))
+        try:
+            return cgen.Assign(ccode(self.time_substitutions(equality.lhs).xreplace(self._var_map)), ccode(self.time_substitutions(equality.rhs).xreplace(self._var_map)))
+        except:
+            return equality
 
     def generate_loops(self, loop_body):
         """ Assuming that the variable order defined in init (#var_order) is the
@@ -116,7 +128,6 @@ class Propagator(object):
         t_loop_limits = self.time_loop_limits
         t_var = str(self._var_map[self.t])
         cond_op = "<" if self._forward else ">"
-
         if self.save is not True:
             # To cycle between array elements when we are not saving time history
             time_stepping = self.get_time_stepping()
@@ -130,13 +141,10 @@ class Propagator(object):
         loop_body = cgen.For(cgen.InlineInitializer(cgen.Value("int", t_var), str(t_loop_limits[0])), t_var + cond_op + str(t_loop_limits[1]), t_var + "+=" + str(self._time_step), loop_body)
         # Code to declare the time stepping variables (outside the time loop)
         def_time_step = [cgen.Value("int", t_var_def.name) for t_var_def in self.time_steppers]
-        body = def_time_step + [loop_body]
+        body = def_time_step + self.pre_loop + [loop_body] + self.post_loop
         return cgen.Block(body)
 
     def add_loop_step(self, assign, before=False):
-        self._kernel_dic_ai = self._get_ops_expr((self.time_substitutions(assign.lhs).xreplace(self._var_map)), self._kernel_dic_ai, True)
-        if isinstance(assign.rhs, Indexed):
-                self._kernel_dic_ai = self._get_ops_expr((self.time_substitutions(assign.rhs).xreplace(self._var_map)), self._kernel_dic_ai, False)
         stm = self.convert_equality_to_cgen(assign)
         if before:
             self._pre_kernel_steps.append(stm)
@@ -212,27 +220,15 @@ class Propagator(object):
         return sympy_expr
 
     def add_time_loop_stencil(self, stencil, before=False):
-        self._kernel_dic_ai = self._get_ops_expr(stencil.lhs, self._kernel_dic_ai, True)
-        self._kernel_dic_ai = self._get_ops_expr(stencil.rhs, self._kernel_dic_ai, False)
         if before:
             self.time_loop_stencils_b.append(stencil)
         else:
             self.time_loop_stencils_a.append(stencil)
 
-    def enable_ai(self, is_enable=False, dtype=None):
-        """Update variable to enable propagation print its kernel ai
-        with its proper type.
-        """
-        self._print_ai = is_enable
-        self._dtype = dtype
-
     def _get_ops_expr(self, expr, dict1, is_lhs=False):
-        """
-        - get number of different operations in expression expr
-        - types of operations are ADD (inc -) and MUL (inc /)
-        - arrays (IndexedBase objects) in expr that are not in list arrays
-        are added to the list
-        - return dictionary of (#ADD, #MUL, list of unique names of fields, list of unique field elements)
+        """Get number of different operations in expression expr.
+        Types of operations are ADD (inc -) and MUL (inc /), arrays (IndexedBase objects) in expr that are not in list arrays
+        are added to the list. Return dictionary of (#ADD, #MUL, list of unique names of fields, list of unique field elements)
         """
         result = dict1  # dictionary to return
         # add array to list arrays if it is not in it
@@ -263,27 +259,25 @@ class Propagator(object):
         # return zero and unchanged array if execution gets here
         return result
 
-    def _get_kernel_ai(self, dtype=None):
-        """
-        - get the arithmetic intensity of the kernel
-        - types of operations are ADD (inc -), MUL (inc /), LOAD, STORE
-        - #LOAD = number of unique fields in the kernel
-        - return tuple (#ADD, #MUL, #LOAD, #STORE)
-        - arithmetic intensity AI = (ADD+MUL)/[(LOAD+STORE)*word size]
-        - weighted AI, AI_w = (ADD+MUL)/(2*Max(ADD,MUL)) * AI
+    def get_kernel_oi(self, dtype=np.float32):
+        """Get the operation intensity of the kernel. The types of operations are ADD (inc -), MUL (inc /), LOAD, STORE.
+        #LOAD = number of unique fields in the kernel. The function returns tuple (#ADD, #MUL, #LOAD, #STORE)
+        Wold_size is given by dtype
+        Operation intensity OI = (ADD+MUL)/[(LOAD+STORE)*word_size]
+        Weighted OI, OI_w = (ADD+MUL)/(2*Max(ADD,MUL)) * OI
         """
         load = 0
         load_all = 0
-        word_size = np.dtype(dtype).itemsize if dtype is not None else 8
-        load += len(self._kernel_dic_ai['load_list'])
-        store = self._kernel_dic_ai['store']
-        load_all += len(self._kernel_dic_ai['load_all_list'])
-        self._kernel_dic_ai['load'] = load
-        add = self._kernel_dic_ai['add']
-        mul = self._kernel_dic_ai['mul']
-        self._kernel_dic_ai['ai_high'] = float(add+mul)/(load+store)/word_size
-        self._kernel_dic_ai['ai_high_weighted'] = self._kernel_dic_ai['ai_high']*(add+mul)/max(add, mul)/2.0
-        self._kernel_dic_ai['ai_low'] = float(add+mul)/(load_all+store)/word_size
-        self._kernel_dic_ai['ai_low_weighted'] = self._kernel_dic_ai['ai_low']*(add+mul)/max(add, mul)/2.0
+        word_size = np.dtype(dtype).itemsize
+        load += len(self._kernel_dic_oi['load_list'])
+        store = self._kernel_dic_oi['store']
+        load_all += len(self._kernel_dic_oi['load_all_list'])
+        self._kernel_dic_oi['load'] = load_all
+        add = self._kernel_dic_oi['add']
+        mul = self._kernel_dic_oi['mul']
+        self._kernel_dic_oi['oi_high'] = float(add+mul)/(load+store)/word_size
+        self._kernel_dic_oi['oi_high_weighted'] = self._kernel_dic_oi['oi_high']*(add+mul)/max(add, mul)/2.0
+        self._kernel_dic_oi['oi_low'] = float(add+mul)/(load_all+store)/word_size
+        self._kernel_dic_oi['oi_low_weighted'] = self._kernel_dic_oi['oi_low']*(add+mul)/max(add, mul)/2.0
 
-        return self._kernel_dic_ai
+        return self._kernel_dic_oi['oi_high']
