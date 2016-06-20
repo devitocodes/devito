@@ -11,10 +11,12 @@ class FunctionManager(object):
 
     _pymic_attribute = 'PYMIC_KERNEL'
 
-    def __init__(self, function_descriptors, mic_flag=False):
+    def __init__(self, function_descriptors, mic_flag=False, openmp=False):
         self.function_descriptors = function_descriptors
         self._defines = []
         self.mic_flag = mic_flag
+        if openmp:
+            self.libraries = self.libraries + ['omp.h']
 
     def includes(self):
         statements = []

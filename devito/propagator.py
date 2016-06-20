@@ -9,12 +9,11 @@ import os
 class Propagator(object):
     _ENV_VAR_PROFILE = "DEVITO_PROFILE"
 
-    def __init__(self, name, nt, shape, spc_border=0, forward=True, time_order=0):
-        num_spac_dim = len(shape)
+    def __init__(self, name, nt, shape, spc_border=0, forward=True, time_order=0, openmp=False):
         self.t = symbols("t")
         # We assume the dimensions are passed to us in the following order
         # var_order
-        if num_spac_dim == 2:
+        if len(shape) == 2:
             self.space_dims = symbols("x z")
         else:
             self.space_dims = symbols("x y z")
@@ -34,6 +33,7 @@ class Propagator(object):
         self._save = True
         # This might be changed later when parameters are being set
         self.profile = os.environ.get(self._ENV_VAR_PROFILE) == "1"
+        self._openmp = openmp
         # Which function parameters need special (non-save) time stepping and which don't
         self.save_vars = {}
         self.fd = FunctionDescriptor(name)
@@ -44,9 +44,6 @@ class Propagator(object):
             self.pre_loop.append(cgen.Statement("struct timeval start, end"))
             self.pre_loop.append(cgen.Assign("time", 0))
             self.post_loop.append(cgen.PrintStatement("time: %f\n", "time"))
-            self.time_loop_stencils_b.append(cgen.Statement("gettimeofday(&start, NULL)"))
-            self.time_loop_stencils_a.append(cgen.Statement("gettimeofday(&end, NULL)"))
-            self.time_loop_stencils_a.append(cgen.Statement("time += ((end.tv_sec  - start.tv_sec) * 1000000u + end.tv_usec - start.tv_usec) / 1.e6"))
         if forward:
             self._time_step = 1
         else:
@@ -118,13 +115,20 @@ class Propagator(object):
         #var_order (z in the 3D case) vary in the inner-most loop
         """
         # Space loops
+        ivdep = True
+        omp_master = [cgen.Pragma("omp master")] if self._openmp else []
+        omp_single = [cgen.Pragma("omp single")] if self._openmp else []
+        omp_parallel = [cgen.Pragma("omp parallel")] if self._openmp else []
+        omp_for = [cgen.Pragma("omp for")] if self._openmp else []
         for spc_var in reversed(list(self.space_dims)):
             dim_var = self._var_map[spc_var]
             loop_limits = self._space_loop_limits[spc_var]
             loop_body = cgen.For(cgen.InlineInitializer(cgen.Value("int", dim_var),
                                                         str(loop_limits[0])),
                                  str(dim_var) + "<" + str(loop_limits[1]), str(dim_var) + "++", loop_body)
-
+            if ivdep and len(self.space_dims) > 1:
+                loop_body = cgen.Block([cgen.Pragma("ivdep")] + [loop_body])
+            ivdep = False
         t_loop_limits = self.time_loop_limits
         t_var = str(self._var_map[self.t])
         cond_op = "<" if self._forward else ">"
@@ -133,15 +137,25 @@ class Propagator(object):
             time_stepping = self.get_time_stepping()
         else:
             time_stepping = []
+        loop_body = omp_for + [loop_body] if self._openmp else [loop_body]
         # Statements to be inserted into the time loop before the spatial loop
         time_loop_stencils_b = [self.convert_equality_to_cgen(x) for x in self.time_loop_stencils_b]
         # Statements to be inserted into the time loop after the spatial loop
         time_loop_stencils_a = [self.convert_equality_to_cgen(x) for x in self.time_loop_stencils_a]
-        loop_body = cgen.Block(time_stepping + time_loop_stencils_b + [loop_body] + time_loop_stencils_a)
+        if self.profile:
+            start_time_stmt = omp_master + [cgen.Block([cgen.Statement("gettimeofday(&start, NULL)")])]
+            end_time_stmt = omp_master + [cgen.Block([cgen.Statement("gettimeofday(&end, NULL)")] + [cgen.Statement("time += ((end.tv_sec  - start.tv_sec) * 1000000u + end.tv_usec - start.tv_usec) / 1.e6")])]
+        else:
+            start_time_stmt = []
+            end_time_stmt = []
+        initial_block = omp_single + [cgen.Block(time_stepping + time_loop_stencils_b)] if time_stepping or time_loop_stencils_b else []
+        initial_block = initial_block + start_time_stmt
+        end_block = end_time_stmt + omp_single + [cgen.Block(time_loop_stencils_a)] if time_loop_stencils_a else end_time_stmt
+        loop_body = cgen.Block(initial_block + loop_body + end_block)
         loop_body = cgen.For(cgen.InlineInitializer(cgen.Value("int", t_var), str(t_loop_limits[0])), t_var + cond_op + str(t_loop_limits[1]), t_var + "+=" + str(self._time_step), loop_body)
         # Code to declare the time stepping variables (outside the time loop)
         def_time_step = [cgen.Value("int", t_var_def.name) for t_var_def in self.time_steppers]
-        body = def_time_step + self.pre_loop + [loop_body] + self.post_loop
+        body = def_time_step + self.pre_loop + omp_parallel + [loop_body] + self.post_loop
         return cgen.Block(body)
 
     def add_loop_step(self, assign, before=False):
