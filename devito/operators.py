@@ -37,3 +37,13 @@ class Operator(object):
 
     def getName(self):
         return self.__class__.__name__
+
+class SimpleOperator(Operator):
+    def __init__(self, input_grid, output_grid, kernel, **kwargs):
+        assert(input_grid.shape == output_grid.shape)
+        nt = input_grid.shape[0]
+        shape = input_grid.shape[1:]
+        self.input_params = [input_grid, output_grid]
+        self.output_params = []
+        self.stencils = zip(kernel, [[]]*len(kernel))
+        super(SimpleOperator, self).__init__([], nt, shape, input_grid.dtype, **kwargs)

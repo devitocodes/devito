@@ -17,7 +17,7 @@ class Propagator(object):
                 raise ArgumentError, "Block size should either be a single number or an array of the same size as the spatial domain"
         except TypeError:
             # A single block size has been passed. Broadcast it to a list of the size of shape
-            self.block_size = [block_size]*len(shape)
+            self.block_sizes = [block_size]*len(shape)
         # We assume the dimensions are passed to us in the following order
         # var_order
         if len(shape) == 2:
@@ -214,9 +214,9 @@ class Propagator(object):
                 if ivdep and len(self.space_dims) > 1:
                     loop_body = cgen.Block([cgen.Pragma("ivdep")] + [loop_body])
                 ivdep = False
-        else:
-            remainder_loop = None
-        return cgen.Block([loop_body, remainder_loop])
+            loop_body = cgen.Block([loop_body, remainder_loop])
+
+        return loop_body
 
     def add_loop_step(self, assign, before=False):
         stm = self.convert_equality_to_cgen(assign)
