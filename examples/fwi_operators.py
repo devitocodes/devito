@@ -125,7 +125,7 @@ class FWIOperator(Operator):
 
 
 class ForwardOperator(FWIOperator):
-    def __init__(self, m, src, damp, rec, u, time_order=4, spc_order=12):
+    def __init__(self, m, src, damp, rec, u, time_order=4, spc_order=12, **kwargs):
         assert(m.shape == damp.shape)
         self.input_params = [m, src, damp, rec, u]
         u.pad_time = True
@@ -141,11 +141,11 @@ class ForwardOperator(FWIOperator):
         src_list = src.add(m, u)
         rec = rec.read(u)
         self.time_loop_stencils_post = src_list+rec
-        super(ForwardOperator, self).__init__(subs, src.nt, m.shape, spc_border=spc_order/2, time_order=time_order, forward=True, dtype=m.dtype)
+        super(ForwardOperator, self).__init__(subs, src.nt, m.shape, spc_border=spc_order/2, time_order=time_order, forward=True, dtype=m.dtype, **kwargs)
 
 
 class AdjointOperator(FWIOperator):
-    def __init__(self, m, rec, damp, srca, time_order=4, spc_order=12):
+    def __init__(self, m, rec, damp, srca, time_order=4, spc_order=12, **kwargs):
         assert(m.shape == damp.shape)
         self.input_params = [m, rec, damp, srca]
         v = TimeData("v", m.shape, rec.nt, time_order=time_order, save=True, dtype=m.dtype)
@@ -162,11 +162,11 @@ class AdjointOperator(FWIOperator):
         rec_list = rec.add(m, v)
         src_list = srca.read(v)
         self.time_loop_stencils_post = rec_list + src_list
-        super(AdjointOperator, self).__init__(subs, rec.nt, m.shape, spc_border=spc_order/2, time_order=time_order, forward=False, dtype=m.dtype)
+        super(AdjointOperator, self).__init__(subs, rec.nt, m.shape, spc_border=spc_order/2, time_order=time_order, forward=False, dtype=m.dtype, **kwargs)
 
 
 class GradientOperator(FWIOperator):
-    def __init__(self, u, m, rec, damp, time_order=4, spc_order=12):
+    def __init__(self, u, m, rec, damp, time_order=4, spc_order=12, **kwargs):
         assert(m.shape == damp.shape)
         self.input_params = [u, m, rec, damp]
         v = TimeData("v", m.shape, rec.nt, time_order=time_order, save=False, dtype=m.dtype)
@@ -186,11 +186,11 @@ class GradientOperator(FWIOperator):
 
         rec_list = rec.add(m, v)
         self.time_loop_stencils_pre = rec_list
-        super(GradientOperator, self).__init__(subs, rec.nt, m.shape, spc_border=spc_order/2, time_order=time_order, forward=False, dtype=m.dtype)
+        super(GradientOperator, self).__init__(subs, rec.nt, m.shape, spc_border=spc_order/2, time_order=time_order, forward=False, dtype=m.dtype, **kwargs)
 
 
 class BornOperator(FWIOperator):
-    def __init__(self, dm, m, src, damp, rec, time_order=4, spc_order=12):
+    def __init__(self, dm, m, src, damp, rec, time_order=4, spc_order=12, **kwargs):
         assert(m.shape == damp.shape)
         self.input_params = [dm, m, src, damp, rec]
         u = TimeData("u", m.shape, src.nt, time_order=time_order, save=False, dtype=m.dtype)
@@ -216,4 +216,4 @@ class BornOperator(FWIOperator):
         insert_second_source = Eq(U[total_dim], U[total_dim]+(dt*dt)/m[space_dim]*src2)
         reset_u = Eq(u[tuple((t - 2,) + space_dim)], 0)
         self.stencils = [(first_update, first_stencil_args), (second_update, second_stencil_args), (insert_second_source, []), (reset_u, [])]
-        super(BornOperator, self).__init__(subs, src.nt, m.shape, spc_border=spc_order/2, time_order=time_order, forward=True, dtype=m.dtype)
+        super(BornOperator, self).__init__(subs, src.nt, m.shape, spc_border=spc_order/2, time_order=time_order, forward=True, dtype=m.dtype, **kwargs)
