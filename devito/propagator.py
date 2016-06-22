@@ -7,9 +7,8 @@ import os
 
 
 class Propagator(object):
-    _ENV_VAR_PROFILE = "DEVITO_PROFILE"
 
-    def __init__(self, name, nt, shape, spc_border=0, forward=True, time_order=0, openmp=False):
+    def __init__(self, name, nt, shape, spc_border=0, forward=True, time_order=0, openmp=False, profile=False):
         self.t = symbols("t")
         self.cache_blocking = True
         self.block_sizes = [10]*len(shape)
@@ -34,7 +33,7 @@ class Propagator(object):
         # Start with the assumption that the propagator needs to save the field in memory at every time step
         self._save = True
         # This might be changed later when parameters are being set
-        self.profile = os.environ.get(self._ENV_VAR_PROFILE) == "1"
+        self.profile = profile
         self._openmp = openmp
         # Which function parameters need special (non-save) time stepping and which don't
         self.save_vars = {}
