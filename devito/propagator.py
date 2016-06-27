@@ -3,7 +3,6 @@ from codeprinter import ccode
 import numpy as np
 from sympy import symbols, IndexedBase, Indexed
 from function_manager import FunctionDescriptor
-import os
 
 
 class Propagator(object):
@@ -11,10 +10,10 @@ class Propagator(object):
         self.t = symbols("t")
         self.cache_blocking = cache_blocking
         try:
-            if(len(block_size)==len(shape)):
+            if(len(block_size) == len(shape)):
                 self.block_sizes = block_size
             else:
-                raise ArgumentError, "Block size should either be a single number or an array of the same size as the spatial domain"
+                raise ArgumentError("Block size should either be a single number or an array of the same size as the spatial domain")
         except TypeError:
             # A single block size has been passed. Broadcast it to a list of the size of shape
             self.block_sizes = [block_size]*len(shape)

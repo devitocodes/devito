@@ -38,6 +38,7 @@ class Operator(object):
     def getName(self):
         return self.__class__.__name__
 
+
 class SimpleOperator(Operator):
     def __init__(self, input_grid, output_grid, kernel, **kwargs):
         assert(input_grid.shape == output_grid.shape)
