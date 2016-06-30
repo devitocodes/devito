@@ -66,13 +66,13 @@ class TTIOperator(Operator):
         
         Gzzr = cos(Ph)**2 * sin(Th)**2 * dxxr + sin(Ph)**2 * sin(Th)**2 * dyyr + cos(Th)**2 * dzzr +\
         sin(2*Ph) * sin(Th)**2 * dxyr + sin(Ph) * sin(2*Th) * dyzr + cos(Ph) * sin(2*Th) * dxzr
-        wavep = m * dttp - A * (Gxxp + Gyyp) - B * Gzzr - q 
-        waver = m * dttr - B *  (Gxxp + Gyyp)  - Gzzr - q  
+        wavep = m * dttp - A * (Gxxp + Gyyp) - B * Gzzr
+        waver = m * dttr - B *  (Gxxp + Gyyp)  - Gzzr 
         stencilp =solve(wavep,p(x,y,z,t+s),simplify=False)[0]
         stencilr = solve(waver,r(x,y,z,t+s),simplify=False)[0]
-        return (stencilp, stencilr, ( q , m,A,B,Th,Ph,s, h,e))
+        return (stencilp, stencilr, (m,A,B,Th,Ph,s, h,e))
 
-    def smart_sympy_replace(self, num_dim, time_order, expr, fun, arr, fw):
+    def smart_sympy_replace(self, num_dim, time_order, res, funs, arrs, fw):
         a = Wild('a')
         b = Wild('b')
         c = Wild('c')
@@ -83,15 +83,17 @@ class TTIOperator(Operator):
         x, y, z = symbols("x y z")
         h, s, t = symbols("h s t")
         width_t = int(time_order/2)
+        assert(len(funs) == len(arrs))
+        for fun, arr in zip(funs, arrs):
+            if num_dim == 2:
+                # Replace function notation with array notation
+                res = res.replace(fun(a, b, c), arr[a, b, c])
+            else: # num_dim == 3
+                res = res.replace(fun(a, b, c, d), arr[a, b, c, d])
         if num_dim == 2:
-            # Replace function notation with array notation
-            print(expr)
-            res = expr.replace(fun(a, b, c), arr[a, b, c])
-            print(res)
             # Reorder indices so time comes first
             res = res.replace(arr[a*x+b, c*z+d, e*t+f], arr[e*t+f, a*x+b, c*z+d])
-        if num_dim == 3:
-            res = expr.replace(fun(a, b, c, d), arr[a, b, c, d])
+        else:
             res = res.replace(arr[x+b, y+q, z+d, t+f], arr[t+f, x+b, y+q, z+d])
         # Replace x+h in indices with x+1
         for dim_var in [x, y, z]:
@@ -136,11 +138,12 @@ class ForwardOperator(TTIOperator):
         total_dim = self.total_dim(dim)
         space_dim = self.space_dim(dim)
         stencilp, stencilr, subs = self._init_taylor(dim, time_order, spc_order)
-        stencilp = self.smart_sympy_replace(dim, time_order, stencilp, Function('p'), u, fw=True)
-        stencilr = self.smart_sympy_replace(dim, time_order, stencilr, Function('r'), v, fw=True)
-        stencilp = self.smart_sympy_replace(dim, time_order, stencilp, Function('r'), v, fw=True)
-        stencilr = self.smart_sympy_replace(dim, time_order, stencilr, Function('p'), u, fw=True)
-        stencil_args = [src[space_dim], m[space_dim], a[space_dim], b[space_dim], th[space_dim], ph[space_dim], dt, h, damp[space_dim]]
+        stencilp = self.smart_sympy_replace(dim, time_order, stencilp, [Function('p'), Function('r')], [u, v], fw=True)
+        stencilr = self.smart_sympy_replace(dim, time_order, stencilr, [Function('p'), Function('r')], [u, v], fw=True)
+        stencil_args = [m[space_dim], a[space_dim], b[space_dim], th[space_dim], ph[space_dim], dt, h, damp[space_dim]]
+        print(stencil_args)
+        print("****")
+        print(subs)
         first_stencil = Eq(u[total_dim], stencilp)
         second_stencil = Eq(v[total_dim], stencilr)
         self.stencils = [(first_stencil, stencil_args), (second_stencil, stencil_args)]
