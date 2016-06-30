@@ -88,13 +88,10 @@ class TTIOperator(Operator):
             if num_dim == 2:
                 # Replace function notation with array notation
                 res = res.replace(fun(a, b, c), arr[a, b, c])
+                res = res.replace(arr[a*x+b, c*z+d, e*t+f], arr[e*t+f, a*x+b, c*z+d])
             else: # num_dim == 3
                 res = res.replace(fun(a, b, c, d), arr[a, b, c, d])
-        if num_dim == 2:
-            # Reorder indices so time comes first
-            res = res.replace(arr[a*x+b, c*z+d, e*t+f], arr[e*t+f, a*x+b, c*z+d])
-        else:
-            res = res.replace(arr[x+b, y+q, z+d, t+f], arr[t+f, x+b, y+q, z+d])
+                res = res.replace(arr[x+b, y+q, z+d, t+f], arr[t+f, x+b, y+q, z+d])
         # Replace x+h in indices with x+1
         for dim_var in [x, y, z]:
             res = res.replace(dim_var+c*h, dim_var+c)
