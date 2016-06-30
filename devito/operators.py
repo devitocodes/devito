@@ -6,10 +6,13 @@ import os
 class Operator(object):
     _ENV_VAR_OPENMP = "DEVITO_OPENMP"
 
-    def __init__(self, subs, nt, shape, dtype, spc_border=0, time_order=0, forward=True, profile=False, cache_blocking=False, block_size=5):
+    def __init__(self, subs, nt, shape, dtype, spc_border=0, time_order=0, forward=True, profile=False,
+                 cache_blocking=False, block_size=5, auto_tune=False):
         self.subs = subs
+        self.auto_tune = auto_tune
         self.openmp = os.environ.get(self._ENV_VAR_OPENMP) == "1"
-        self.propagator = Propagator(self.getName(), nt, shape, spc_border, forward, time_order, self.openmp, profile, cache_blocking, block_size)
+        self.propagator = Propagator(self.getName(), nt, shape, spc_border, forward, time_order, self.openmp, profile,
+                                     cache_blocking, block_size, auto_tune)
         self.propagator.time_loop_stencils_b = self.propagator.time_loop_stencils_b + getattr(self, "time_loop_stencils_pre", [])
         self.propagator.time_loop_stencils_a = self.propagator.time_loop_stencils_a + getattr(self, "time_loop_stencils_post", [])
         self.params = {}
@@ -31,7 +34,7 @@ class Operator(object):
         f(*args)
         return tuple([param.data for param in self.output_params])
 
-    def get_callable(self):
+    def get_callable(self):           # each propagator passed here will add a function to generated cpp script
         self.jit_manager = JitManager([self.propagator], dtype=self.dtype, openmp=self.openmp)
         return self.jit_manager.get_wrapped_functions()[0]
 

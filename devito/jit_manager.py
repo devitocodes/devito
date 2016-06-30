@@ -1,5 +1,5 @@
 from ctypes import cdll
-from function_manager import FunctionManager
+from function_manager import FunctionManager, FunctionDescriptor
 from random import randint
 from hashlib import sha1
 import os
@@ -8,6 +8,7 @@ import codepy.jit as jit
 from tempfile import gettempdir
 import numpy as np
 from tools import convert_dtype_to_ctype
+import cgen_wrapper as cgen
 
 
 class JitManager(object):
@@ -45,6 +46,11 @@ class JitManager(object):
             self._incompatible_flags = self._incompatible_flags + flags
 
         function_descriptors = [prop.get_fd() for prop in propagators]
+
+        # add main method if auto tuning to produce executable
+        if propagators[0].auto_tune and propagators[0].cache_blocking:
+            self._append_main_function(function_descriptors, propagators)
+
         self.function_manager = FunctionManager(function_descriptors, self._mic_flag, self._openmp)
         self._function_descriptors = function_descriptors
         self._clean_flags()
@@ -104,6 +110,43 @@ class JitManager(object):
         self.src_file = None
         self.src_lib = None
         self.filename = None
+
+    # adds main function to function desc for auto tuning.
+    def _append_main_function(self, function_descriptors, propagators):
+        statements = []  # statements for cgen.block
+        pnames = []
+        main_fd = FunctionDescriptor("main")
+        main_fd.return_type = "int"
+
+        main_fd.add_value_param("argc", "int")
+        main_fd.add_value_param("argv", "int")
+
+        # allocates the space for matrix'es
+        # Note currently auto tunes only the first function in function descriptors. If scope is larger. Extend
+        for param in function_descriptors[0].matrix_params:
+            array_size_str = ""
+            for shape in param["shape"]:
+                array_size_str += "%s * " % shape
+
+            ptype = cgen.dtype_to_ctype(param['dtype'])
+            pname = param["name"] + "_vec"
+            pnames.append(pname)
+
+            # Produces similar str: double* m_vec =(double*)malloc(336*336*336*sizeof(double))
+            all_str = "%s* %s = (%s*)malloc(%ssizeof(%s))" % (ptype, pname, ptype, array_size_str, ptype)
+            statements.append(cgen.Statement(all_str))
+
+        statements.append(cgen.Pragma(propagators[0].at_markers[1][0]))  # tells at measure start
+
+        #                      cuts the [    removes ]        removes ' symbol
+        function_args_str = str(pnames)[1:].replace(']', '').replace('\'', '')
+        statements.append(cgen.Statement("%s(%s)" % (function_descriptors[0].name, function_args_str)))
+
+        statements.append(cgen.Pragma(propagators[0].at_markers[1][1]))  # tells at measure end
+
+        main_fd.set_body(cgen.Block(statements))
+        function_descriptors.append(main_fd)
+
 
     def _clean_flags(self):
         for flag in self._incompatible_flags:
