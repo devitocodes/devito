@@ -206,7 +206,8 @@ class FWIOperator(Operator):
         stencilA = solve(wave_equationA, solvepa)[0]
         return ((stencil, (m, s, h, e)), (stencilA, (m, s, h, e)))
 
-    def smart_sympy_replace(self, num_dim, time_order, expr, fun, arr, fw):
+    @classmethod
+    def smart_sympy_replace(cls, num_dim, time_order, expr, fun, arr, fw):
         a = Wild('a')
         b = Wild('b')
         c = Wild('c')

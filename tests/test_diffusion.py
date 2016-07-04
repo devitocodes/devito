@@ -8,8 +8,9 @@ and a given initial value for the density.
 """
 import numpy as np
 import time
-from sympy import Function, symbols, as_finite_diff, solve, lambdify
-from sympy.abc import x, y, t
+from sympy import Function, Eq, symbols, as_finite_diff, solve, lambdify
+from sympy.abc import x, y, z, t
+from devito import TimeData, Operator
 
 
 def ring_initial(dx=0.01, dy=0.01):
@@ -115,6 +116,46 @@ def execute_lambdify(ui, dx=0.01, dy=0.01, a=0.5, timesteps=500):
     return u if ti % 2 == 0 else ui
 
 
+def execute_devito(ui, dx=0.01, dy=0.01, a=0.5, timesteps=500):
+    """Execute diffusion stencil using the devito Operator API."""
+    nx, ny = int(1 / dx), int(1 / dy)
+    dx2, dy2 = dx**2, dy**2
+    dt = dx2 * dy2 / (2 * a * (dx2 + dy2))
+    # Allocate the grid and set initial condition
+    # Note: This should be made simpler through the use of defaults
+    u = TimeData(name='u', spc_shape=(nx, ny), time_dim=-666, time_order=1,
+                 save=False, dtype=np.float32)
+    u.data[0, :] = ui[:]
+
+    # Derive the stencil according to devito conventions
+    def diffusion_stencil_devito():
+        # Note: Apparently 2D grid indexing is assumed to be (x, z)
+        p = Function('p')
+        s, h, a = symbols('s h a')
+        dxx = as_finite_diff(p(x, z, t-s).diff(x, x), [x - h, x, x + h])
+        dzz = as_finite_diff(p(x, z, t-s).diff(z, z), [z - h, z, z + h])
+        dt = as_finite_diff(p(x, z, t).diff(t), [t - s, t])
+        equation = a * (dxx + dzz) - dt
+        stencil = solve(equation, p(x, z, t))
+        return stencil[0], [a, h, s]
+
+    # Prepare the stencil to make it devito conformant
+    # Note: The setup step needs some serious cleaning up
+    from examples.fwi_operators import FWIOperator
+    stencil, subs = diffusion_stencil_devito()
+    stencil = FWIOperator.smart_sympy_replace(num_dim=2, time_order=1, expr=stencil,
+                                              fun=Function('p'), arr=u, fw=True)
+    op = Operator(subs, timesteps, (nx, ny), spc_border=1, time_order=1,
+                  stencils=[(Eq(u[t, x, z], stencil), [a, dx, dt])],
+                  input_params=[u], output_params=[])
+    tstart = time.time()
+    op.apply()
+    tfinish = time.time()
+    print "Devito: Diffusion with dx=%0.4f, dy=%0.4f, executed %d timesteps in %f seconds"\
+        % (dx, dy, timesteps, tfinish - tstart)
+    return u.data[1, :]
+
+
 def animate(field):
     """Animate solution field"""
     import matplotlib.pyplot as plt
@@ -129,6 +170,12 @@ def animate(field):
 if __name__ == "__main__":
     dx, dy = 0.01, 0.01
     timesteps = 20
+
+    # Execute diffusion via devito
+    ui = ring_initial(dx=dx, dy=dy)
+    animate(ui)
+    u = execute_devito(ui, dx=dx, dy=dy, timesteps=timesteps)
+    animate(u)
 
     # Execute diffusion with vectorised numpy arrays
     ui = ring_initial(dx=dx, dy=dy)
