@@ -43,10 +43,10 @@ class AtController(object):
             os.mkdir(self._at_work_dir)
 
         # Uncomment if contents of isat files changes
-        shutil.rmtree(self.at_file_dir)
+        # shutil.rmtree(at_file_dir)
 
-        if not os.path.exists(self.at_file_dir):  # creates directory where all necessary files for at will be kept
-            os.mkdir(self.at_file_dir)
+        if not os.path.exists(at_file_dir):  # creates directory where all necessary files for at will be kept
+            os.mkdir(at_file_dir)
 
             with open(self._build_f_path, 'w') as f:  # creates isat-build
                 f.writelines([shell_ref_str, "\nmake build"])
@@ -76,10 +76,12 @@ class AtController(object):
     # param - int space_order - space order of kernel. Used for naming ref
     def auto_tune(self, file_path, time_order, space_order):
         try:
+            print "Starting Auto tuning for %s" % file_path
             # these functions have to run in this order
             self._prep_file_for_at(file_path, time_order, space_order)
             self._run_at()
             self._collect_at_data()
+            print "Auto tuning  complete for %s" % file_path
         except ValueError:
             print "Auto tuning for %s failed" % file_path
 
@@ -125,7 +127,7 @@ class AtController(object):
                                   os.path.join(self._at_parent_folder, self._at_dst_dir))
         process = subprocess.Popen(cmd, shell=True, universal_newlines=True,
                                    stdout=log, stdin=subprocess.PIPE, stderr=subprocess.STDOUT)
-        process.stdin.write('y')
+        process.stdin.write('y')  # isat asks whether we want to continue
         process.communicate()[0]
 
         log.close()
@@ -170,6 +172,7 @@ class AtController(object):
                     os.unlink(file_path)
                 elif os.path.isdir(file_path):  # removes all dirs
                     shutil.rmtree(file_path)
+
         except Exception as e:
             print "Failed to clean %s\n%s" % (folder_path, e)
 
@@ -178,17 +181,3 @@ class AtController(object):
     def _set_x_permission(self, file_path):
         st = os.stat(file_path)
         os.chmod(file_path, st.st_mode | stat.S_IEXEC)
-
-
-
-
-lol = AtController()
-
-pathas = os.path.join(lol.at_base_path, "Optimizing/src/testRef2.cpp")
-lol.auto_tune(pathas, 3, 4)
-
-
-
-
-
-

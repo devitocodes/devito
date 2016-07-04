@@ -118,9 +118,6 @@ class JitManager(object):
         main_fd = FunctionDescriptor("main")
         main_fd.return_type = "int"
 
-        main_fd.add_value_param("argc", "int")
-        main_fd.add_value_param("argv", "int")
-
         # allocates the space for matrix'es
         # Note currently auto tunes only the first function in function descriptors. If scope is larger. Extend
         for param in function_descriptors[0].matrix_params:
@@ -136,17 +133,16 @@ class JitManager(object):
             all_str = "%s* %s = (%s*)malloc(%ssizeof(%s))" % (ptype, pname, ptype, array_size_str, ptype)
             statements.append(cgen.Statement(all_str))
 
-        statements.append(cgen.Pragma(propagators[0].at_markers[1][0]))  # tells at measure start
+        statements.append(cgen.Pragma("isat marker %s" % propagators[0].at_markers[1][0]))  # tells at measure start
 
         #                      cuts the [    removes ]        removes ' symbol
         function_args_str = str(pnames)[1:].replace(']', '').replace('\'', '')
         statements.append(cgen.Statement("%s(%s)" % (function_descriptors[0].name, function_args_str)))
 
-        statements.append(cgen.Pragma(propagators[0].at_markers[1][1]))  # tells at measure end
+        statements.append(cgen.Pragma("isat marker %s" % propagators[0].at_markers[1][1]))  # tells at measure end
 
         main_fd.set_body(cgen.Block(statements))
         function_descriptors.append(main_fd)
-
 
     def _clean_flags(self):
         for flag in self._incompatible_flags:
