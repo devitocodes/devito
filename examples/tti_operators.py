@@ -1,4 +1,4 @@
-from devito.operators import *
+from devito.operator import *
 from sympy import Eq
 from devito.interfaces import TimeData, DenseData
 from sympy import Function, symbols, as_finite_diff, Wild
