@@ -2,6 +2,10 @@ from jit_manager import JitManager
 from propagator import Propagator
 from sympy import Indexed, lambdify, symbols
 import os
+import numpy as np
+
+
+__all__ = ['Operator']
 
 
 class Operator(object):
