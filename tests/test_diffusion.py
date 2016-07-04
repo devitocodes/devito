@@ -8,6 +8,8 @@ and a given initial value for the density.
 """
 import numpy as np
 import time
+from sympy import Function, symbols, as_finite_diff, solve, lambdify
+from sympy.abc import x, y, t
 
 
 def ring_initial(dx=0.01, dy=0.01):
@@ -19,6 +21,19 @@ def ring_initial(dx=0.01, dy=0.01):
     r = (xx - .5)**2. + (yy - .5)**2.
     ui[np.logical_and(.05 <= r, r <= .1)] = 1.
     return ui
+
+
+def diffusion_stencil():
+    """Create stencil and substitutions for the diffusion equation"""
+    p = Function('p')
+    s, h, a = symbols('s h a')
+    dxx = as_finite_diff(p(x, y, t).diff(x, x), [x - h, x, x + h])
+    dyy = as_finite_diff(p(x, y, t).diff(y, y), [y - h, y, y + h])
+    dt = as_finite_diff(p(x, y, t).diff(t), [t, t + s])
+    equation = a * (dxx + dyy) - dt
+    stencil = solve(equation, p(x, y, t + s))[0]
+    return stencil, (p(x, y, t), p(x + h, y, t), p(x - h, y, t),
+                     p(x, y + h, t), p(x, y - h, t), s, h, a)
 
 
 def execute_python(ui, dx=0.01, dy=0.01, a=0.5, timesteps=500):
@@ -72,6 +87,34 @@ def execute_numpy(ui, dx=0.01, dy=0.01, a=0.5, timesteps=500):
     return u if ti % 2 == 0 else ui
 
 
+def execute_lambdify(ui, dx=0.01, dy=0.01, a=0.5, timesteps=500):
+    """Execute diffusion stencil using vectorised numpy array accesses."""
+    nx, ny = int(1 / dx), int(1 / dy)
+    dx2, dy2 = dx**2, dy**2
+    dt = dx2 * dy2 / (2 * a * (dx2 + dy2))
+    u = np.zeros_like(ui)
+    stencil, subs = diffusion_stencil()
+    kernel = lambdify(subs, stencil, 'numpy')
+
+    def single_step(u, ui):
+        for i in range(1, nx-1):
+            for j in range(1, ny-1):
+                u[i, j] = kernel(ui[i, j], ui[i+1, j], ui[i-1, j],
+                                 ui[i, j+1], ui[i, j-1], dt, dx, a)
+
+    # Execute timestepping loop with alternating buffers
+    tstart = time.time()
+    for ti in range(timesteps):
+        if ti % 2 == 0:
+            single_step(u, ui)
+        else:
+            single_step(ui, u)
+    tfinish = time.time()
+    print "Lambdify: Diffusion with dx=%0.4f, dy=%0.4f, executed %d timesteps in %f seconds"\
+        % (dx, dy, timesteps, tfinish - tstart)
+    return u if ti % 2 == 0 else ui
+
+
 def animate(field):
     """Animate solution field"""
     import matplotlib.pyplot as plt
@@ -97,4 +140,10 @@ if __name__ == "__main__":
     ui = ring_initial(dx=dx, dy=dy)
     animate(ui)
     u = execute_python(ui, dx=dx, dy=dy, timesteps=timesteps)
+    animate(u)
+
+    # Execute diffusion from labdified SymPy expression
+    ui = ring_initial(dx=dx, dy=dy)
+    animate(ui)
+    u = execute_lambdify(ui, dx=dx, dy=dy, timesteps=timesteps)
     animate(u)
