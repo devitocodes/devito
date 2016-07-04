@@ -167,7 +167,16 @@ def animate(field):
     plt.show()
 
 
+def test_diffusion2d(dx=0.01, dy=0.01, timesteps=1000):
+    ui = ring_initial(dx=dx, dy=dy)
+    u = execute_devito(ui, dx=dx, dy=dy, timesteps=timesteps)
+    assert(u.max() < 2.4)
+    assert(np.linalg.norm(u, ord=2) < 13)
+
 if __name__ == "__main__":
+    # Below is a demonstration of various techniques to solve
+    # the simple 2D diffusion equation, including simple Python,
+    # vectorized numpy, a lambdified SymPy equation and the Devito API.
     dx, dy = 0.01, 0.01
     timesteps = 20
 
