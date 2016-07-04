@@ -1,6 +1,6 @@
 from devito.interfaces import DenseData
 import numpy as np
-from devito.operators import SimpleOperator
+from devito.operator import SimpleOperator
 from sympy import Eq
 from sympy.abc import t, x
 
