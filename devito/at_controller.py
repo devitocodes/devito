@@ -19,7 +19,7 @@ final_report_path = os.path.join(reports_folder_path, "final_report.txt")
 # param - int space_order - space order of kernel.
 # returns - list - best block size. Starting from outer most dimension
 # returns - None - if report does not exist or does not contain required block sizes
-def get_best_best_block_size(time_order, space_order):
+def get_at_block_size(time_order, space_order):
     global final_report_path
 
     if not os.path.isfile(final_report_path):
@@ -48,14 +48,15 @@ def get_best_best_block_size(time_order, space_order):
 def get_optimal_block_size(shape, time_order, space_order):
     # list [time_order][space_order] hardcoded number of loads from the roof line at (change if necessary):
     # https://docs.google.com/spreadsheets/d/1OmvsTftH3uCfYZj-1Lb-5Ji7edrURf0UzzywYaw0-FY/edit?ts=5745964f#gid=0
-    number_of_loads = [[11, 17, 23, 29, 35, 41, 47, 53], [19, 25, 31, 37, 43, 49, 55]]
+    number_of_loads = [[11, 17, 23, 29, 35, 41, 47, 53], [19, 25, 31, 37, 43, 49, 55]]  # works only till space order 16
 
     # find the cache size in KB
     process = subprocess.Popen("cat /proc/cpuinfo", shell=True, stdout=subprocess.PIPE, universal_newlines=True)
     out = process.communicate()[0]
+
     for line in out.split('\n'):
         if "cache size" in line:
-            cache_s = int(re.findall('\d+', line)[0])
+            cache_s = int(re.findall('\d+', line)[0])  # gets the first decimal value
             break
 
     core_c = multiprocessing.cpu_count()  # number of cores
@@ -234,12 +235,7 @@ class AtController(object):
     def _extract_best_block_size(self, at_report_path):
         global final_report_path
         try:
-            if not os.path.isfile(final_report_path):  # initialises report file if it does not exist
-                final_report = open(final_report_path, 'w')
-                final_report.write("time o,space o,best block size")
-            else:
-                final_report = open(self.final_report_path, 'a')
-
+            # Gets the required info from  at report
             with open(at_report_path, 'r') as at_report:
                 # if all these keywords are in the line then next line is the one we want
                 keyword_lst = ["Rank", "Value", "Time(secs)"]
@@ -252,10 +248,31 @@ class AtController(object):
                         best_block = best_block.replace(" ", '')
 
                         # writes the best block size for dimensions starting from outer most
-                        final_report.write("\n%d %d %s" % (self.time_order, self.space_order, best_block))
+                        str_to_write = "\n%d %d %s" % (self.time_order, self.space_order, best_block)
                         break
 
-            final_report.close()
+            if not os.path.isfile(final_report_path):  # initialises report file if it does not exist
+                with open(final_report_path, 'w') as final_report:
+                    final_report.write("time o,space o,best block size")
+                    final_report.write(str_to_write)  # writes the string
+            else:
+                with open(final_report_path, 'r') as final_report:  # reads all the contents
+                    lines = final_report.readlines()
+
+                # checks whether entry already exist and updates it. Otherwise appends to the end of the file
+                entry_found = False
+                str_to_check = "%d %d " % (self.time_order, self.space_order)
+                for i in range(1, len(lines)):
+                    if str_to_check in lines[i]:  # remove the newline from beginning of the string
+                        lines[i] = str_to_write.replace('\n', '')  # replace line if matching found
+                        entry_found = True
+                        break
+
+                if not entry_found:  # if entry not found append string to the end of file
+                    lines.append(str_to_write)
+
+                with open(final_report_path, 'w') as final_report:  # writes all the contents
+                    final_report.writelines(lines)
 
         except Exception:
             print "Failed to extract best block size from %s" % at_report_path
