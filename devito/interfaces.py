@@ -1,5 +1,6 @@
 import numpy as np
-from sympy import IndexedBase, Function
+from sympy import IndexedBase, Function, as_finite_diff
+from sympy.abc import x, y, z, t, h, s
 from tools import aligned
 
 
@@ -128,6 +129,16 @@ class DenseData(SymbolicData):
             self.initializer(self.data)
         # Ignore if no initializer exists - assume no initialisation necessary
 
+    @property
+    def dx2(self):
+        """Symbol for the second derivative wrt the x dimension"""
+        return as_finite_diff(self.diff(x, x), [x - h, x, x + h])
+
+    @property
+    def dy2(self):
+        """Symbol for the second derivative wrt the y dimension"""
+        return as_finite_diff(self.diff(y, y), [y - h, y, y + h])
+
 
 class TimeData(DenseData):
     """Data object for time-varying data that acts as a Function symbol
@@ -181,6 +192,16 @@ class TimeData(DenseData):
         super(TimeData, self)._allocate_memory()
         if self.pad_time:
             self._data = self._data[self.time_order:, :, :]
+
+    @property
+    def forward(self):
+        """Symbol for the time-forward state of the function"""
+        return self.subs(t, t + s)
+
+    @property
+    def dt(self):
+        """Symbol for the first derivative wrt the time dimension"""
+        return as_finite_diff(self.diff(t), [t, t + s])
 
 
 class PointData(DenseData):
