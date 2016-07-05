@@ -146,7 +146,7 @@ def execute_devito(ui, dx=0.01, dy=0.01, a=0.5, timesteps=500):
     stencil = FWIOperator.smart_sympy_replace(num_dim=2, time_order=1, expr=stencil,
                                               fun=Function('p'), arr=u, fw=True)
     op = Operator(subs, timesteps, (nx, ny), spc_border=1, time_order=1,
-                  stencils=[(Eq(u[t, x, z], stencil), [a, dx, dt])],
+                  stencils=[(Eq(u.indexed[t, x, z], stencil), [a, dx, dt])],
                   input_params=[u], output_params=[])
     tstart = time.time()
     op.apply()

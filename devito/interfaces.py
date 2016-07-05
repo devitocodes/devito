@@ -1,21 +1,26 @@
 import numpy as np
-from sympy import IndexedBase
+from sympy import IndexedBase, Symbol
 from tools import aligned
 
 
 __all__ = ['DenseData', 'TimeData', 'PointData']
 
 
-class DenseData(IndexedBase):
+class DenseData(Symbol):
     def __init__(self, name, shape, dtype):
         self.name = name
+        self.shape = shape
         self.dtype = dtype
         self.pointer = None
         self.initializer = None
         super(DenseData, self).__init__(name)
 
-    def __new__(cls, *args, **kwargs):
-        return IndexedBase.__new__(cls, args[0], shape=args[1])
+    def __new__(cls, name, shape, dtype):
+        return Symbol.__new__(cls, name)
+
+    @property
+    def indexed(self):
+        return IndexedBase(self.name, shape=self.shape)
 
     def set_initializer(self, lambda_initializer):
         assert(callable(lambda_initializer))
@@ -64,7 +69,7 @@ class TimeData(DenseData):
         else:
             time_dim = time_order + 1
         shape = tuple((time_dim,) + spc_shape)
-        return IndexedBase.__new__(cls, name, shape=shape)
+        return DenseData.__new__(cls, name, shape, dtype)
 
 
 class PointData(DenseData):
