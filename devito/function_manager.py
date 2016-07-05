@@ -84,6 +84,43 @@ class FunctionManager(object):
         statements.append(cgen.Statement("return 0"))
         return cgen.Block(statements)
 
+    # appends main at function to the list function desc. Works with assumption that we are auto tuning first function.
+    # param - list<FunctionDescriptor> function_descriptors - list to which main function is appended
+    # param - Propagator propagator - propagator. Used for retrieving at markers
+    def append_main_at_function(self, function_descriptors, propagator):
+        statements = []  # statements for cgen.block
+        pnames = []  # parameter names
+        main_fd = FunctionDescriptor("main")
+        main_fd.return_type = "int"
+
+        # allocates the space for matrix'es
+        # Note currently auto tunes only the first function in function descriptors. If scope is larger. Extend
+        for param in function_descriptors[0].matrix_params:
+            array_size_str = ""
+            for shape in param["shape"]:
+                array_size_str += "%s * " % shape
+
+            ptype = cgen.dtype_to_ctype(param['dtype'])
+            pname = param["name"] + "_vec"
+            pnames.append(pname)
+
+            # Produces similar str: double* m_vec =(double*)malloc(336*336*336*sizeof(double))
+            allocation_str = "%s* %s = (%s*)malloc(%ssizeof(%s))" % (ptype, pname, ptype, array_size_str, ptype)
+            statements.append(cgen.Statement(allocation_str))
+
+        statements.append(cgen.Pragma("isat marker %s" % propagator.at_markers[1][0]))  # tells at measure start
+
+        #                      cuts the [    removes ]        removes ' symbol
+        function_args_str = str(pnames)[1:].replace(']', '').replace('\'', '')
+
+        # call to function that we are auto tuning
+        statements.append(cgen.Statement("%s(%s)" % (function_descriptors[0].name, function_args_str)))
+
+        statements.append(cgen.Pragma("isat marker %s" % propagator.at_markers[1][1]))  # tells at measure end
+
+        main_fd.set_body(cgen.Block(statements))  # set whole function body
+        function_descriptors.append(main_fd)  # append function descriptor
+
 
 class FunctionDescriptor(object):
     """ This class can be used to describe a general C function which receives multiple parameters
