@@ -26,3 +26,5 @@ script:
   - export PYTHONPATH=$PYTHONPATH:$PWD
   - flake8 --builtins=ArgumentError .
   - py.test -vs tests/
+  - python examples/acoustic_example.py
+  - python examples/tti_example.py

@@ -105,6 +105,7 @@ class Propagator(object):
         try:
             return cgen.Assign(ccode(self.time_substitutions(equality.lhs).xreplace(self._var_map)), ccode(self.time_substitutions(equality.rhs).xreplace(self._var_map)))
         except:
+            raise
             return equality
 
     def generate_loops(self, loop_body):
