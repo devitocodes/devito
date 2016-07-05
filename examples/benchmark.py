@@ -80,19 +80,45 @@ receiver_coords[:, 1] = 0.0
 receiver_coords[:, 2] = location[2]
 data.set_receiver_pos(receiver_coords)
 data.set_shape(nt, 30)
-# A Forward propagation example
-jit_obj = AcousticWave2D_cg(model1, data, create_dm, nbpml=nbpml, t_order=2, s_order=2)
-#python_obj = AcousticWave2D(model0, data, nbpml=nbpml)
 
+# A Forward trying to find best block sizes
+for time_order in xrange(2, 6, 2):
+    for space_order in xrange(2, 18, 2):
+        new_model = IGrid()
+        new_model.shape = dimensions
+        new_model.create_model(origin, spacing, initial_vp)
 
-print "Forward propagation"
-print "Starting codegen version"
-start = time.clock()
-(recg, ug) = jit_obj.Forward()
-end = time.clock()
-cg_time = end-start
-norm_recg = np.linalg.norm(recg)
-norm_ug = np.linalg.norm(ug)
+        jit_obj = AcousticWave2D_cg(new_model, data, create_dm, nbpml=nbpml, t_order=time_order, s_order=space_order)
+        # python_obj = AcousticWave2D(model0, data, nbpml=nbpml)
+
+        print "Forward propagation with auto tuning "
+        print "Starting codegen version"
+        start = time.clock()
+        (recg, ug) = jit_obj.Forward_auto_tune()
+        end = time.clock()
+        cg_time = end-start
+        norm_recg = np.linalg.norm(recg)
+        norm_ug = np.linalg.norm(ug)
+
+# A Forward using at block sizes
+for time_order in xrange(2, 6, 2):
+    for space_order in xrange(2, 18, 2):
+        new_model = IGrid()
+        new_model.shape = dimensions
+        new_model.create_model(origin, spacing, initial_vp)
+
+        jit_obj = AcousticWave2D_cg(new_model, data, create_dm, nbpml=nbpml, t_order=time_order,
+                                    s_order=space_order)
+        # python_obj = AcousticWave2D(model0, data, nbpml=nbpml)
+
+        print "Forward propagation"
+        print "Starting codegen version"
+        start = time.clock()
+        (recg, ug) = jit_obj.Forward()
+        end = time.clock()
+        cg_time = end - start
+        norm_recg = np.linalg.norm(recg)
+        norm_ug = np.linalg.norm(ug)
 
 
 # print "Starting python lambdified version"

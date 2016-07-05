@@ -78,14 +78,21 @@ class AcousticWave2D_cg:
         self.dm = dm
 
     def Forward(self):
-        fw = ForwardOperator(self.m, self.src, self.damp, self.rec, self.u, time_order=self.t_order, spc_order=self.s_order, cache_blocking=True, profile=True, auto_tune=True)
+        fw = ForwardOperator(self.m, self.src, self.damp, self.rec, self.u, time_order=self.t_order, spc_order=self.s_order, cache_blocking=True, profile=True)
         fw.apply()
-        return (self.rec.data, self.u.data)
+        return self.rec.data, self.u.data
+
+    # Forward with auto tuning enabled
+    def Forward_auto_tune(self):
+        fw = ForwardOperator(self.m, self.src, self.damp, self.rec, self.u, time_order=self.t_order,
+                             spc_order=self.s_order, cache_blocking=True, profile=True, auto_tune=True)
+        fw.apply()
+        return self.rec.data, self.u.data
 
     def Adjoint(self, rec):
         adj = AdjointOperator(self.m, self.rec, self.damp, self.srca, time_order=self.t_order, spc_order=self.s_order)
         v = adj.apply()[0]
-        return (self.srca.data, v)
+        return self.srca.data, v
 
     def Gradient(self, rec, u):
         grad_op = GradientOperator(self.u, self.m, self.rec, self.damp, time_order=self.t_order, spc_order=self.s_order)
