@@ -3,7 +3,7 @@ from codeprinter import ccode
 import numpy as np
 from sympy import symbols, IndexedBase, Indexed
 from function_manager import FunctionDescriptor
-from at_controller import get_best_best_block_size, get_optimal_block_size
+from at_controller import get_at_block_size, get_optimal_block_size
 
 
 class Propagator(object):
@@ -28,7 +28,7 @@ class Propagator(object):
                 block_size = self.tune_b_size
             else:  # else check if there is best block_size from at report else use optimal one
                 optimal_block_size = get_optimal_block_size(shape, self.time_order, self.spc_order)
-                block_size = get_best_best_block_size(self.time_order, self.spc_order)
+                block_size = get_at_block_size(self.time_order, self.spc_order)
 
                 if block_size:
                     block_size.append(optimal_block_size)  # append outer most dimension as it is not auto tuned
