@@ -33,7 +33,9 @@ def get_best_best_block_size(time_order, space_order):
 
             split = line.split(' ')
             if int(split[0]) == time_order and int(split[1]) == space_order:  # finds the one we are looking for
-                return split[2].split(',')  # return best block size as a list
+
+                # Splits, converts all block sizes into int and returns
+                return [int(element) for element in split[2].split(',')]
 
     return None  # returns none if no matching time/space order was found
 

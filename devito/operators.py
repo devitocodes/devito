@@ -12,10 +12,10 @@ class Operator(object):
         self.subs = subs
         self.cache_blocking = cache_blocking
         self.auto_tune = auto_tune
-        self.spc_order = spc_border
+        self.spc_border = spc_border
         self.time_order = time_order
         self.openmp = os.environ.get(self._ENV_VAR_OPENMP) == "1"
-        self.propagator = Propagator(self.getName(), nt, shape, self.spc_order, forward, self.time_order, self.openmp,
+        self.propagator = Propagator(self.getName(), nt, shape, self.spc_border, forward, self.time_order, self.openmp,
                                      profile, self.cache_blocking, block_size, self.auto_tune)
         self.propagator.time_loop_stencils_b = self.propagator.time_loop_stencils_b + getattr(self, "time_loop_stencils_pre", [])
         self.propagator.time_loop_stencils_a = self.propagator.time_loop_stencils_a + getattr(self, "time_loop_stencils_post", [])
@@ -43,8 +43,8 @@ class Operator(object):
         wrapped_function = self.jit_manager.get_wrapped_functions()[0]
 
         if self.auto_tune and self.cache_blocking:
-            at_controller = AtController()
-            at_controller.auto_tune(self.jit_manager.src_file, self.time_order, self.spc_order)
+            at_controller = AtController()                                      # = space order
+            at_controller.auto_tune(self.jit_manager.src_file, self.time_order, self.spc_border * 2)
 
         return wrapped_function
 
