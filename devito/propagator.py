@@ -5,6 +5,8 @@ import cgen_wrapper as cgen
 from codeprinter import ccode
 import numpy as np
 from sympy import symbols, IndexedBase, Indexed
+from function_manager import FunctionDescriptor
+from at_controller import get_best_best_block_size, get_optimal_block_size
 from collections import Iterable
 from os import path
 from random import randint
@@ -30,13 +32,37 @@ class Propagator(object):
     """
     def __init__(self, name, nt, shape, spc_border=0, time_order=0,
                  forward=True, compiler=None, profile=False,
-                 cache_blocking=False, block_size=5):
+                 cache_blocking=False, block_size=5, auto_tune=False):
         # Derive JIT compilation infrastructure
         self.compiler = compiler or get_compiler_from_env()
         self.mic_flag = isinstance(self.compiler, IntelMICCompiler)
 
         self.t = symbols("t")
+
         self.cache_blocking = cache_blocking
+        self.auto_tune = auto_tune
+
+        self.spc_order = spc_border * 2  # setting space order
+        self.time_order = time_order
+
+        if self.cache_blocking:
+            if self.auto_tune:  # if auto tuning get block optimal block sizes and tune around that
+                self.tune_b_size = get_optimal_block_size(shape, self.time_order, self.spc_order)
+
+                self.tune_range = 8  # range of tuning around tune_b_size
+                if self.tune_b_size - self.tune_range <= 0:  # making sure that tune_b - tune_range > 0
+                    self.tune_range -= - (self.tune_b_size - self.tune_range) + 1
+
+                block_size = self.tune_b_size
+            else:  # else check if there is best block_size from at report else use optimal one
+                optimal_block_size = get_optimal_block_size(shape, self.time_order, self.spc_order)
+                block_size = get_best_best_block_size(self.time_order, self.spc_order)
+
+                if block_size:
+                    block_size.append(optimal_block_size)  # append outer most dimension as it is not auto tuned
+                else:
+                    block_size = optimal_block_size  # use optimal block size
+        try:
         if(isinstance(block_size, Iterable)):
             if(len(block_size) == len(shape)):
                 self.block_sizes = block_size
@@ -59,7 +85,6 @@ class Propagator(object):
         self.prep_variable_map()
         self.t_replace = {}
         self.time_steppers = []
-        self.time_order = time_order
         self.nt = nt
         self.time_loop_stencils_b = []
         self.time_loop_stencils_a = []
@@ -72,7 +97,6 @@ class Propagator(object):
         self.fd = FunctionDescriptor(name)
         self.pre_loop = []
         self.post_loop = []
-        self.spc_order = spc_order
 
         if self.profile:
             self.add_local_var("time", "double")
@@ -91,7 +115,7 @@ class Propagator(object):
             self._time_step = -1
         self._space_loop_limits = {}
         for i, dim in enumerate(self.space_dims):
-                self._space_loop_limits[dim] = (spc_order, shape[i] - spc_order)
+                self._space_loop_limits[dim] = (spc_border, shape[i] - spc_border)
 
         # Kernel operation intensity dictionary
         self._kernel_dic_oi = {'add': 0, 'mul': 0, 'load': 0, 'store': 0, 'load_list': [], 'load_all_list': [], 'oi_high': 0, 'oi_high_weighted': 0, 'oi_low': 0, 'oi_low_weighted': 0}
