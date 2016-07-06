@@ -10,10 +10,12 @@ class AcousticWave2D_cg:
     """ Class to setup the problem for the Acoustic Wave
         Note: s_order must always be greater than t_order
     """
-    def __init__(self, model, data, dm_initializer=None, source=None, nbpml=40, t_order=2, s_order=2):
+    def __init__(self, model, data, dm_initializer=None, source=None, nbpml=40, t_order=2, s_order=2,
+                 auto_tune=False):
         self.model = model
         self.t_order = t_order
         self.s_order = s_order
+        self.auto_tune = auto_tune
         self.data = data
         self.dtype = np.float64
         self.dt = model.get_critical_dt()
@@ -78,14 +80,8 @@ class AcousticWave2D_cg:
         self.dm = dm
 
     def Forward(self):
-        fw = ForwardOperator(self.m, self.src, self.damp, self.rec, self.u, time_order=self.t_order, spc_order=self.s_order, cache_blocking=True, profile=True)
-        fw.apply()
-        return self.rec.data, self.u.data
-
-    # Forward with auto tuning enabled
-    def Forward_auto_tune(self):
         fw = ForwardOperator(self.m, self.src, self.damp, self.rec, self.u, time_order=self.t_order,
-                             spc_order=self.s_order, cache_blocking=True, profile=True, auto_tune=True)
+                             spc_order=self.s_order, cache_blocking=True, profile=True, auto_tune=self.auto_tune)
         fw.apply()
         return self.rec.data, self.u.data
 
