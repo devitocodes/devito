@@ -71,7 +71,7 @@ class AcousticWave2D_cg:
         rec = SourceLike("rec", self.nrec, self.nt, self.dt, self.h, self.data.receiver_coords, len(dimensions), self.dtype, nbpml)
         src.data[:] = self.data.get_source()[:, np.newaxis]
         self.rec = rec
-        u = TimeData("u", m.shape, src.nt, time_order=t_order, save=False, dtype=m.dtype)
+        u = TimeData("u", m.shape, src.nt, time_order=t_order, save=True, dtype=m.dtype)
         self.u = u
         srca = SourceLike("srca", 1, self.nt, self.dt, self.h, np.array(self.data.source_coords, dtype=self.dtype)[np.newaxis, :], len(dimensions), self.dtype, nbpml)
         self.srca = srca

@@ -128,7 +128,7 @@ class ForwardOperator(FWIOperator):
     def __init__(self, m, src, damp, rec, u, time_order=4, spc_order=12, **kwargs):
         assert(m.shape == damp.shape)
         self.input_params = [m, src, damp, rec, u]
-        u.pad_time = False
+        u.pad_time = True
         self.output_params = []
         dim = len(m.shape)
         total_dim = self.total_dim(dim)
