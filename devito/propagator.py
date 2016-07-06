@@ -349,6 +349,8 @@ class Propagator(object):
             # initialises block sizes as variables and adds auto tuning pragmas
 
     def _at_init_block_vars(self):
+        """Initialises block sizes as variables in order to at them later"""
+
         block_vars = []  # Blocking var names
 
         for i in range(0, len(self.space_dims) - 1):  # generate block size vars. We want to ignore inner most dimension

@@ -83,10 +83,14 @@ class FunctionManager(object):
         statements.append(cgen.Statement("return 0"))
         return cgen.Block(statements)
 
-    # appends main at function to the list function desc. Works with assumption that we are auto tuning first function.
-    # param - list<FunctionDescriptor> function_descriptors - list to which main function is appended
-    # param - Propagator propagator - propagator. Used for retrieving at markers
     def append_main_at_function(self, function_descriptors, propagator):
+        """Appends main at function to the list function desc. Works with assumption that we are tuning first function.
+
+        Args:
+            function_descriptors (list<FunctionDescriptor>): list to which main function is appended
+            propagator (Propagator): Used for retrieving at markers
+        """
+
         statements = []  # statements for cgen.block
         pnames = []  # parameter names
         main_fd = FunctionDescriptor("main")
@@ -137,12 +141,12 @@ class FunctionDescriptor(object):
         self.local_vars = []
         self.return_type = None
 
-    # adds parameter in function call/assigns values to it in form(dtype (*name)[shape]=(dtype (*)[shape]) name+_vec;)
-    # ex function_name(double *m){
-    #    double (*m)[180][180] = (double (*)[180][180]) m_vec;
     def add_matrix_param(self, name, shape, dtype):
         """ Add a parameter to the function
             Each parameter has an associated name, shape, dtype
+
+           ex result function_name(double *m){
+           double (*m)[180][180] = (double (*)[180][180]) m_vec;
         """
         self.matrix_params.append({'name': name, 'shape': shape, 'dtype': dtype})
 
@@ -159,9 +163,12 @@ class FunctionDescriptor(object):
         except:
             self.local_vars.append((dtype, name))
 
-    # Body has to be a single cgen.Statement or block of statements as cgen.Block.
-    # otherwise function manager complains
     def set_body(self, body):
+        """ Sets body.
+
+        Args:
+            body (cgen.Statement|cgen.Block): body of function. If not required type function manager complains
+        """
         self.body = body
 
     @property

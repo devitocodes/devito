@@ -14,12 +14,17 @@ reports_folder_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), 
 final_report_path = os.path.join(reports_folder_path, "final_report.txt")
 
 
-# Gets the best block sizes for given kernel if they are in the final_report_path
-# param - int time order - time order of kernel.
-# param - int space_order - space order of kernel.
-# returns - list - best block size. Starting from outer most dimension
-# returns - None - if report does not exist or does not contain required block sizes
 def get_at_block_size(time_order, space_order):
+    """Gets the best block sizes for given kernel if they are in the final_report_path
+
+    Args:
+        time_order (int): time order of kernel
+        space_order (int): space order of kernel
+
+    Returns:
+        list: best block size. Starting from outer most dimension
+        None: if report does not exist or does not contain required block sizes
+    """
     global final_report_path
 
     if not os.path.isfile(final_report_path):
@@ -40,13 +45,19 @@ def get_at_block_size(time_order, space_order):
     return None  # returns none if no matching time/space order was found
 
 
-# Gets optimal block size. Currently works only on linux
-# param - tuple|list shape - shape of kernel
-# param - int time order - time order of kernel
-# param - int space_order - space order of kernel
-# returns - int - most optimal size  for the block
 def get_optimal_block_size(shape, time_order, space_order):
-    # list [time_order][space_order] hardcoded number of loads from the roof line at (change if necessary):
+    """Gets optimal block size. Based on architecture Currently works only on linux
+
+    Args:
+        shape (tuple|list): shape of kernel
+        time_order (int): time order of kernel
+        space_order (int): space order of kernel
+
+    Returns:
+        int: most optimal size  for the block
+    """
+
+    # list [time_order][space_order] hardcoded number of loads from the roof line at: (change if necessary)
     # https://docs.google.com/spreadsheets/d/1OmvsTftH3uCfYZj-1Lb-5Ji7edrURf0UzzywYaw0-FY/edit?ts=5745964f#gid=0
     number_of_loads = [[11, 17, 23, 29, 35, 41, 47, 53], [19, 25, 31, 37, 43, 49, 55]]  # works only till space order 16
 
@@ -67,10 +78,15 @@ def get_optimal_block_size(shape, time_order, space_order):
     return int(round(optimal_b_size))  # rounds to the nearest integer
 
 
-# Class responsible for controlling auto tuning process, copying relevant files and collecting data
 class AtController(object):
+    """Class responsible for controlling auto tuning process, copying relevant files and collecting data"""
 
     def __init__(self):
+        """Initialises at controller. Creates at working dir. Creates all isat-files
+
+        Raises:
+            BaseException: if isat installation directory does not exist
+            """
         self.time_order = None
         self.space_order = None
 
@@ -136,11 +152,15 @@ class AtController(object):
                 f.writelines(make_file_contents)
                 self._set_x_permission(self._make_f_path)
 
-    # Does the auto tuning for selected file
-    # param - string file_path - full path to the file that we want to auto tune
-    # param - int time order - time order of kernel. Used for naming ref
-    # param - int space_order - space order of kernel. Used for naming ref
     def auto_tune(self, file_path, time_order, space_order):
+        """Does the auto tuning for selected file and collects relevant data
+
+        Args:
+            file_path (str): full path to the file that we want to auto tune
+            time_order (int): time order of kernel.
+            space_order (int): space order of kernel.
+        """
+
         try:
             print "Starting Auto tuning for %s" % file_path
             self.time_order = time_order
@@ -156,10 +176,17 @@ class AtController(object):
 
         self._at_parent_folder = ""  # reset parent folder name
 
-    # Copies file to work dir and copies all at isat-files there
-    # param - string file_path - full path to the file that we want to auto tune
     def _prep_file_for_at(self, file_path):
-        if not os.path.isfile(file_path):  # if necessary change to throw the exception
+        """Copies file to work dir and copies all at isat-files there
+
+        Args:
+            file_path (str): full path to the file that we want to auto tune
+
+        Raises:
+            ValueError: if file at file_path is not found
+        """
+
+        if not os.path.isfile(file_path):
             print "%s not found"
             raise ValueError()
 
@@ -185,8 +212,13 @@ class AtController(object):
         shutil.copy2(self._test_f_path, os.path.join(src_dir_path, self._isat_test_f))
         shutil.copy2(self._make_f_path, os.path.join(src_dir_path, self._make_f))
 
-    # runs isat.py which does the auto tuning
     def _run_at(self):
+        """Runs isat.py which does the auto tuning
+
+        Raises:
+            ValueError: If isat.py return code != 0
+        """
+
         log_file_path = os.path.join(self._at_parent_folder, "log.txt")  # Writes STDOUT in here
         log = open(log_file_path, 'w')
 
@@ -204,9 +236,13 @@ class AtController(object):
             print("Isat.py return code != 0. Check %s for errors" % log_file_path)
             raise ValueError()
 
-    # collects  at report file after completion and copies it to report dir
-    # returns - string - copied report path
     def _extract_report_info(self):
+        """Copies report over to auto-tune-reports dir and extracts best block size from it
+
+        Raises:
+            ValueError: If auto tuning report is not found
+        """
+
         global reports_folder_path
 
         # prep report dir if does not exist
@@ -229,10 +265,15 @@ class AtController(object):
         # copy file for ref
         shutil.copyfile(at_report_path, os.path.join(reports_folder_path, "%s-at-report.txt" % report_name_ref))
 
-    # extracts the best best block size from at report and appends it to final report file
-    # param - string at_report_path - full path to a at report
-    # param - string final_report_path - full path to a final report
     def _extract_best_block_size(self, at_report_path):
+        """Extracts the best best block size from at report and writes it to  the final report file
+
+        Args:
+            at_report_path (str): full path to a at report
+
+        Raises:
+            ValueError: If failed to extract block size. Can't open report files, can't write to them. etc
+        """
         global final_report_path
         try:
             # Gets the required info from  at report
@@ -278,9 +319,13 @@ class AtController(object):
             print "Failed to extract best block size from %s" % at_report_path
             raise ValueError()
 
-    # Helper method. Deletes all files and folders in the specified directory
-    # param - string folder_path - full path to the folder where we want to delete everything (use with care)
     def _clean_folder(self, folder_path):
+        """Helper method. Deletes all files and folders in the specified directory
+
+        Args:
+            folder_path(str): full path to the folder where we want to delete everything (use with care)
+        """
+
         if not os.path.isdir(folder_path):  # returns if folder does not exist
             return
 
@@ -296,8 +341,12 @@ class AtController(object):
         except Exception as e:
             print "Failed to clean %s\n%s" % (folder_path, e)
 
-    # Helper method. Sets os executable permission for a given file
-    # param - string file_path - full path to the file that we want to auto tune
     def _set_x_permission(self, file_path):
+        """Helper method. Sets os executable permission for a given file
+        file_path(str): full path to the file that we want to set x permission
+        """
+        if not os.path.isfile(file_path):
+            return
+
         st = os.stat(file_path)
         os.chmod(file_path, st.st_mode | stat.S_IEXEC)
