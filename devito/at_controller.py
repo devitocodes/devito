@@ -1,10 +1,11 @@
 import os
-import re
 import stat
 import math
 import shutil
+import cpuinfo
 import subprocess
 import multiprocessing
+
 
 # global vars.
 # report folder will be created in current dir. Change if necessary
@@ -61,15 +62,7 @@ def get_optimal_block_size(shape, time_order, space_order):
     # https://docs.google.com/spreadsheets/d/1OmvsTftH3uCfYZj-1Lb-5Ji7edrURf0UzzywYaw0-FY/edit?ts=5745964f#gid=0
     number_of_loads = [[11, 17, 23, 29, 35, 41, 47, 53], [19, 25, 31, 37, 43, 49, 55]]  # works only till space order 16
 
-    # find the cache size in KB
-    process = subprocess.Popen("cat /proc/cpuinfo", shell=True, stdout=subprocess.PIPE, universal_newlines=True)
-    out = process.communicate()[0]
-
-    for line in out.split('\n'):
-        if "cache size" in line:
-            cache_s = int(re.findall('\d+', line)[0])  # gets the first decimal value
-            break
-
+    cache_s = int(cpuinfo.get_cpu_info()['l2_cache_size'].split(' ')[0])  # cache size
     core_c = multiprocessing.cpu_count()  # number of cores
     loads_c = number_of_loads[time_order / 2][space_order / 2]  # number of loads
 
