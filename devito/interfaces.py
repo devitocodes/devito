@@ -210,14 +210,42 @@ class TimeData(DenseData):
 
 
 class PointData(DenseData):
-    """This class is expected to eventually evolve into a full-fledged
-    sparse data container. For now, the naming follows the use in the
-    current problem.
-    """
-    def __init__(self, name, npoints, nt, dtype):
-        self.npoints = npoints
-        self.nt = nt
-        super(PointData, self).__init__(name, (nt, npoints), dtype)
+    """Data object for sparse point data that acts as a Function symbol
 
-    def __new__(cls, name, npoints, nt, *args):
-        return IndexedBase.__new__(cls, name, shape=(nt, npoints))
+    :param name: Name of the resulting :class sympy.Function: symbol
+    :param point: Number of points to sample
+    :param nt: Size of the time dimension for point data
+    :param dtype: Data type of the buffered data
+
+    Note: This class is expected to eventually evolve into a
+    full-fledged sparse data container. For now, the naming and
+    symbolic behaviour follows the use in the current problem.
+    """
+
+    def __init__(self, *args, **kwargs):
+        if self._cached():
+            # Initialise instance from symbol cache
+            SymbolicData.__init__(self)
+            return
+        else:
+            self.nt = kwargs.get('nt')
+            self.npoint = kwargs.get('npoint')
+            kwargs['shape'] = (self.nt, self.npoint)
+            DenseData.__init__(self, *args, **kwargs)
+            # Store final instance in symbol cache
+            self._cache_put(self)
+
+    def __new__(cls, *args, **kwargs):
+        nt = kwargs.get('nt')
+        npoint = kwargs.get('npoint')
+        kwargs['shape'] = (nt, npoint)
+        return DenseData.__new__(cls, *args, **kwargs)
+
+    @classmethod
+    def indices(cls, shape):
+        """Return the default dimension indices for a given data shape
+
+        :param shape: Shape of the spatial data
+        """
+        _indices = [t, x, y, z]
+        return _indices[:len(shape) + 1]

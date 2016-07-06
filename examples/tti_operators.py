@@ -12,7 +12,7 @@ from fwi_operators import SourceLike
 class SourceLikeTTI(SourceLike):
     def read(self, u, v):
         eqs = []
-        for i in range(self.npoints):
+        for i in range(self.npoint):
             eqs.append(Eq(self.indexed[t, i], (self.grid2point(u, self.orig_data[i, :]) + self.grid2point(v, self.orig_data[i, :]))/2))
         return eqs
 
