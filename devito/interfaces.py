@@ -1,22 +1,110 @@
 import numpy as np
-from sympy import IndexedBase, Symbol
+from sympy import IndexedBase, Function
 from tools import aligned
 
 
 __all__ = ['DenseData', 'TimeData', 'PointData']
 
 
-class DenseData(Symbol):
-    def __init__(self, name, shape, dtype):
-        self.name = name
-        self.shape = shape
-        self.dtype = dtype
-        self.pointer = None
-        self.initializer = None
-        super(DenseData, self).__init__(name)
+# This cache stores a reference to each created data object
+# so that we may re-create equivalent symbols during symbolic
+# manipulation with the correct shapes, pointers, etc.
+_SymbolCache = {}
 
-    def __new__(cls, name, shape, dtype):
-        return Symbol.__new__(cls, name)
+
+class SymbolicData(Function):
+    """Base class for data classes that provides symbolic behaviour.
+
+    :param name: Symbolic name to give to the resulting function. Must
+                 be given as keyword argument.
+    :param shape: Shape of the underlying spatial data. Must be given
+                  as keyword argument.
+
+    This class implements the symbolic behaviour of Devito's data
+    objects by inheriting from and mimicking the behaviour of :class
+    sympy.Function:. In order to maintain meta information across the
+    numerous re-instantiation SymPy performs during symbolic
+    manipulation, we inject the symbol name as the class name and
+    cache all created objects on that name. This entails that data
+    object should implement `__init__` in the following format:
+
+    def __init__(self, *args, **kwargs):
+        if self._cached():
+            SymbolicData.__init__(self)
+            return
+        else:
+            ... # Initialise object properties from kwargs
+
+            self._cache_put(self)
+
+    Note: The parameters :param name: and :param shape: must always be
+    present and given as keyword arguments, since SymPy uses `*args`
+    to (re-)create the dimension arguments of the symbolic function.
+    """
+
+    def __new__(cls, *args, **kwargs):
+        if cls not in _SymbolCache:
+            name = kwargs.get('name')
+            shape = kwargs.get('shape')
+            if len(args) < 1:
+                args = cls.indices(shape)
+            cls.__name__ = name  # Inject the given variable name
+        return Function.__new__(cls, *args)
+
+    def __init__(self):
+        """Initialise from a cached instance by shallow copying __dict__"""
+        original = _SymbolCache[self.__class__]
+        self.__dict__ = original.__dict__.copy()
+
+    @classmethod
+    def _cached(cls):
+        """Test if current class is already in the symbol cache"""
+        return cls in _SymbolCache
+
+    @classmethod
+    def _cache_put(cls, obj):
+        """Store given object instance in symbol cache"""
+        _SymbolCache[cls] = obj
+
+    @classmethod
+    def indices(cls, shape):
+        """Abstract class method to determine the default dimension indices."""
+        raise NotImplementedError('Abstract class `SymbolicData` does not have default indices')
+
+
+class DenseData(SymbolicData):
+    """Data object for spatially varying data that acts as a Function symbol
+
+    :param name: Name of the resulting :class sympy.Function: symbol
+    :param shape: Shape of the spatial data grid
+    :param dtype: Data type of the buffered data
+
+    Note: :class DenseData: objects are assumed to be constant in time and
+    therefore do not support time derivatives. Use :class TimeData: for
+    time-varying griad data.
+    """
+    def __init__(self, *args, **kwargs):
+        if self._cached():
+            # Initialise instance from symbol cache
+            SymbolicData.__init__(self)
+            return
+        else:
+            self.name = kwargs.get('name')
+            self.shape = kwargs.get('shape')
+            self.dtype = kwargs.get('dtype', np.float32)
+            self._data = kwargs.get('_data', None)
+            self.initializer = None
+            # Store new instance in symbol cache
+            self._cache_put(self)
+
+    @classmethod
+    def indices(cls, shape):
+        """Return the default dimension indices for a given data shape
+
+        :param shape: Shape of the spatial data
+        """
+        _indices = [x, y, z]
+        return _indices[:len(shape)]
 
     @property
     def indexed(self):
@@ -27,13 +115,13 @@ class DenseData(Symbol):
         self.initializer = lambda_initializer
 
     def _allocate_memory(self):
-        self.pointer = aligned(np.zeros(self.shape, self.dtype, order='C'), alignment=64)
+        self._data = aligned(np.zeros(self.shape, self.dtype, order='C'), alignment=64)
 
     @property
     def data(self):
-        if self.pointer is None:
+        if self._data is None:
             self._allocate_memory()
-        return self.pointer
+        return self._data
 
     def initialize(self):
         if self.initializer is not None:
@@ -42,34 +130,57 @@ class DenseData(Symbol):
 
 
 class TimeData(DenseData):
-    # The code here is getting increasingly messy because python wants two types
-    # of constructors for everything. Since the parent class is Immutable, some
-    # constructor work needs to be moved into the __new__ method while some is in
-    # __init__. This makes it important to override both __new__ and __init__ in
-    # every child class.
-    def __init__(self, name, spc_shape, time_dim, time_order, save, dtype, pad_time=False):
-        if save:
-            time_dim = time_dim + time_order
+    """Data object for time-varying data that acts as a Function symbol
+
+    :param name: Name of the resulting :class sympy.Function: symbol
+    :param shape: Shape of the spatial data grid
+    :param dtype: Data type of the buffered data
+    :param save: Save the intermediate results to the data buffer. Defaults
+                 to `False`, indicating the use of alternating buffers.
+    :param time_dim: Size of the time dimension that dictates the leading
+                     dimension of the data buffer if :param save: is True.
+    :param time_order: Order of the time discretization which affects the
+                       final size of the leading time dimension of the
+                       data buffer.
+
+    Note: The parameter :shape: should only define the spatial shape of the
+    grid. The temporal dimension will be inserted automatically as the
+    leading dimension, according to the :param time_dim:, :param time_order:
+    and whether we want to write intermediate timesteps in the buffer.
+    """
+
+    def __init__(self, *args, **kwargs):
+        if self._cached():
+            # Initialise instance from symbol cache
+            SymbolicData.__init__(self)
+            return
         else:
-            time_dim = time_order + 1
-        shape = tuple((time_dim,) + spc_shape)
-        super(TimeData, self).__init__(name, shape, dtype)
-        self.save = save
-        self.time_order = time_order
-        self.pad_time = pad_time
+            super(TimeData, self).__init__(*args, **kwargs)
+            time_dim = kwargs.get('time_dim')
+            self.time_order = kwargs.get('time_order', 1)
+            self.save = kwargs.get('save', False)
+            self.pad_time = kwargs.get('pad_time', False)
+            if self.save:
+                time_dim += self.time_order
+            else:
+                time_dim = self.time_order + 1
+            self.shape = (time_dim,) + self.shape
+            # Store final instance in symbol cache
+            self._cache_put(self)
+
+    @classmethod
+    def indices(cls, shape):
+        """Return the default dimension indices for a given data shape
+
+        :param shape: Shape of the spatial data
+        """
+        _indices = [t, x, y, z]
+        return _indices[:len(shape) + 1]
 
     def _allocate_memory(self):
         super(TimeData, self)._allocate_memory()
-        if self.pad_time is True:
-            self.pointer = self.pointer[self.time_order:, :, :]
-
-    def __new__(cls, name, spc_shape, time_dim, time_order, save, dtype, pad_time=False):
-        if save:
-            time_dim = time_dim + time_order
-        else:
-            time_dim = time_order + 1
-        shape = tuple((time_dim,) + spc_shape)
-        return DenseData.__new__(cls, name, shape, dtype)
+        if self.pad_time:
+            self._data = self._data[self.time_order:, :, :]
 
 
 class PointData(DenseData):
