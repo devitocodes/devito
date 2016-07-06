@@ -5,7 +5,7 @@ from devito.interfaces import DenseData, TimeData
 from tti_operators import SourceLikeTTI, ForwardOperator
 
 
-dimensions = (100, 100, 100)
+dimensions = (50, 50, 50)
 model = IGrid()
 model0 = IGrid()
 model1 = IGrid()
@@ -60,7 +60,7 @@ data = IShot()
 f0 = .010
 dt = model.get_critical_dt()
 t0 = 0.0
-tn = 1000.0
+tn = 100.0
 nt = int(1+(tn-t0)/dt)
 h = model.get_spacing()
 model.vp = np.pad(model.vp, tuple(pad_list), 'edge')
