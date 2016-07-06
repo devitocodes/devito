@@ -43,7 +43,8 @@ class Operator(object):
         wrapped_function = self.jit_manager.get_wrapped_functions()[0]
 
         if self.auto_tune and self.cache_blocking:
-            at_controller = AtController()                                      # = space order
+            #                               current isat insall dir. Change based on your environment
+            at_controller = AtController("%s/isat" % os.getenv("HOME"))         # = space order
             at_controller.auto_tune(self.jit_manager.src_file, self.time_order, self.spc_border * 2)
 
         return wrapped_function

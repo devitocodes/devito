@@ -81,19 +81,23 @@ def get_optimal_block_size(shape, time_order, space_order):
 class AtController(object):
     """Class responsible for controlling auto tuning process, copying relevant files and collecting data"""
 
-    def __init__(self):
+    def __init__(self, isat_dir_path):
         """Initialises at controller. Creates at working dir. Creates all isat-files
 
+        Args:
+            isat_dir_path (str): full path to isat installation directory
+
         Raises:
-            BaseException: if isat installation directory does not exist
-            """
+            ValueError: if isat installation directory does not exist
+        """
+        if not os.path.exists(isat_dir_path):
+            raise ValueError("isat installation directory does not exits")
+
         self.time_order = None
         self.space_order = None
 
-        at_base_path = "%s/isat" % os.getenv("HOME")  # path to base directory of ISAT auto tuning tool
-
-        self._isat_py_path = os.path.join(at_base_path, "Source/Python/isat.py")  # path to isat script that does at
-        self._at_work_dir = os.path.join(at_base_path, "Auto-tuning")  # working dir for at
+        self._isat_py_path = os.path.join(isat_dir_path, "Source/Python/isat.py")  # path to isat script that does at
+        self._at_work_dir = os.path.join(isat_dir_path, "Auto-tuning")  # working dir for at
 
         at_file_dir = os.path.join(self._at_work_dir, "Isat-files")  # dir for keeping files necessary for at
 
@@ -117,9 +121,6 @@ class AtController(object):
         # their parent dir will contain the time and space order in cpp file kernel
         self._at_f_name = "tune_me"
         shell_ref_str = "#!/bin/sh"
-
-        if not os.path.exists(at_base_path):
-            raise BaseException("isat installation directory does not exits")
 
         if not os.path.exists(self._at_work_dir):  # creates main working directory
             os.mkdir(self._at_work_dir)
