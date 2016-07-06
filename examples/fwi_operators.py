@@ -278,7 +278,8 @@ class AdjointOperator(FWIOperator):
     def __init__(self, m, rec, damp, srca, time_order=4, spc_order=12, **kwargs):
         assert(m.shape == damp.shape)
         input_params = [m, rec, damp, srca]
-        v = TimeData("v", m.shape, rec.nt, time_order=time_order, save=True, dtype=m.dtype)
+        v = TimeData(name="v", shape=m.shape, time_dim=rec.nt, time_order=time_order,
+                     save=True, dtype=m.dtype)
         output_params = [v]
         dim = len(m.shape)
         total_dim = self.total_dim(dim)
@@ -302,8 +303,9 @@ class GradientOperator(FWIOperator):
     def __init__(self, u, m, rec, damp, time_order=4, spc_order=12, **kwargs):
         assert(m.shape == damp.shape)
         input_params = [u, m, rec, damp]
-        v = TimeData("v", m.shape, rec.nt, time_order=time_order, save=False, dtype=m.dtype)
-        grad = DenseData("grad", m.shape, dtype=m.dtype)
+        v = TimeData(name="v", shape=m.shape, time_dim=rec.nt, time_order=time_order,
+                     save=False, dtype=m.dtype)
+        grad = DenseData(name="grad", shape=m.shape, dtype=m.dtype)
         output_params = [grad, v]
         dim = len(m.shape)
         total_dim = self.total_dim(dim)
@@ -331,8 +333,10 @@ class BornOperator(FWIOperator):
     def __init__(self, dm, m, src, damp, rec, time_order=4, spc_order=12, **kwargs):
         assert(m.shape == damp.shape)
         input_params = [dm, m, src, damp, rec]
-        u = TimeData("u", m.shape, src.nt, time_order=time_order, save=False, dtype=m.dtype)
-        U = TimeData("U", m.shape, src.nt, time_order=time_order, save=False, dtype=m.dtype)
+        u = TimeData(name="u", shape=m.shape, time_dim=src.nt, time_order=time_order,
+                     save=False, dtype=m.dtype)
+        U = TimeData(name="U", shape=m.shape, time_dim=src.nt, time_order=time_order,
+                     save=False, dtype=m.dtype)
         output_params = [u, U]
         dim = len(m.shape)
         total_dim = self.total_dim(dim)
