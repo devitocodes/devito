@@ -79,7 +79,7 @@ for time_order in xrange(2, 6, 2):
         new_model.create_model(origin, spacing, initial_vp)
 
         jit_obj = AcousticWave2D_cg(new_model, data, create_dm, nbpml=nbpml, t_order=time_order,
-                                    s_order=space_order, auto_tune=True)
+                                    s_order=space_order, cache_blocking=True, auto_tune=True)
 
         print "Forward propagation with auto tuning "
         print "Starting codegen version"
@@ -97,7 +97,8 @@ for time_order in xrange(2, 6, 2):
         new_model.shape = dimensions
         new_model.create_model(origin, spacing, initial_vp)
 
-        jit_obj = AcousticWave2D_cg(new_model, data, create_dm, nbpml=nbpml, t_order=time_order, s_order=space_order)
+        jit_obj = AcousticWave2D_cg(new_model, data, create_dm, nbpml=nbpml, t_order=time_order, s_order=space_order,
+                                    cache_blocking=True)
 
         print "Forward propagation"
         print "Starting codegen version"
