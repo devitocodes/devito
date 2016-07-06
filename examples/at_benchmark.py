@@ -71,19 +71,20 @@ receiver_coords[:, 2] = location[2]
 data.set_receiver_pos(receiver_coords)
 data.set_shape(nt, 30)
 
-# A Forward trying to find best block sizes
+# A Forward trying to find best block sizes using auto tuning
 for time_order in xrange(2, 6, 2):
     for space_order in xrange(2, 18, 2):
         new_model = IGrid()
         new_model.shape = dimensions
         new_model.create_model(origin, spacing, initial_vp)
 
-        jit_obj = AcousticWave2D_cg(new_model, data, create_dm, nbpml=nbpml, t_order=time_order, s_order=space_order)
+        jit_obj = AcousticWave2D_cg(new_model, data, create_dm, nbpml=nbpml, t_order=time_order,
+                                    s_order=space_order, cache_blocking=True, auto_tune=True)
 
         print "Forward propagation with auto tuning "
         print "Starting codegen version"
         start = time.clock()
-        (recg, ug) = jit_obj.Forward_auto_tune()
+        (recg, ug) = jit_obj.Forward()
         end = time.clock()
         cg_time = end-start
         norm_recg = np.linalg.norm(recg)
@@ -96,7 +97,8 @@ for time_order in xrange(2, 6, 2):
         new_model.shape = dimensions
         new_model.create_model(origin, spacing, initial_vp)
 
-        jit_obj = AcousticWave2D_cg(new_model, data, create_dm, nbpml=nbpml, t_order=time_order, s_order=space_order)
+        jit_obj = AcousticWave2D_cg(new_model, data, create_dm, nbpml=nbpml, t_order=time_order, s_order=space_order,
+                                    cache_blocking=True)
 
         print "Forward propagation"
         print "Starting codegen version"

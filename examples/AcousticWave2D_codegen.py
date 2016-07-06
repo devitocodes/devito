@@ -9,10 +9,13 @@ class AcousticWave2D_cg:
     """ Class to setup the problem for the Acoustic Wave
         Note: s_order must always be greater than t_order
     """
-    def __init__(self, model, data, dm_initializer=None, source=None, nbpml=40, t_order=2, s_order=2):
+    def __init__(self, model, data, dm_initializer=None, source=None, nbpml=40, t_order=2, s_order=2,
+                 cache_blocking=False, auto_tune=False):
         self.model = model
         self.t_order = t_order
         self.s_order = s_order
+        self.auto_tune = auto_tune
+        self.cache_blocking = cache_blocking
         self.data = data
         self.dtype = np.float64
         self.dt = model.get_critical_dt()
@@ -67,7 +70,7 @@ class AcousticWave2D_cg:
         rec = SourceLike("rec", self.nrec, self.nt, self.dt, self.h, self.data.receiver_coords, len(dimensions), self.dtype, nbpml)
         src.data[:] = self.data.get_source()[:, np.newaxis]
         self.rec = rec
-        u = TimeData("u", m.shape, src.nt, time_order=t_order, save=False, dtype=m.dtype)
+        u = TimeData("u", m.shape, src.nt, time_order=t_order, save=True, dtype=m.dtype)
         self.u = u
         srca = SourceLike("srca", 1, self.nt, self.dt, self.h, np.array(self.data.source_coords, dtype=self.dtype)[np.newaxis, :], len(dimensions), self.dtype, nbpml)
         self.srca = srca
@@ -76,14 +79,8 @@ class AcousticWave2D_cg:
         self.dm = dm
 
     def Forward(self):
-        fw = ForwardOperator(self.m, self.src, self.damp, self.rec, self.u, time_order=self.t_order, spc_order=self.s_order, cache_blocking=True, profile=True)
-        fw.apply()
-        return self.rec.data, self.u.data
-
-    # Forward with auto tuning enabled
-    def Forward_auto_tune(self):
-        fw = ForwardOperator(self.m, self.src, self.damp, self.rec, self.u, time_order=self.t_order,
-                             spc_order=self.s_order, cache_blocking=True, profile=True, auto_tune=True)
+        fw = ForwardOperator(self.m, self.src, self.damp, self.rec, self.u, time_order=self.t_order, profile=True,
+                             spc_order=self.s_order, auto_tune=self.auto_tune, cache_blocking=self.cache_blocking)
         fw.apply()
         return self.rec.data, self.u.data
 
