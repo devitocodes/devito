@@ -12,7 +12,6 @@ from os import path
 from random import randint
 from hashlib import sha1
 
-
 class Propagator(object):
     """Propagator objects derive and encode C kernel code according
     to a given set of stencils, variables and time-stepping options.
@@ -32,7 +31,7 @@ class Propagator(object):
     """
     def __init__(self, name, nt, shape, spc_border=0, time_order=0,
                  forward=True, compiler=None, profile=False,
-                 cache_blocking=False, block_size=5, auto_tune=False):
+                 cache_blocking=False, block_size=None, auto_tune=False):
         # Derive JIT compilation infrastructure
         self.compiler = compiler or get_compiler_from_env()
         self.mic_flag = isinstance(self.compiler, IntelMICCompiler)
@@ -54,7 +53,8 @@ class Propagator(object):
                     self.tune_range -= - (self.tune_b_size - self.tune_range) + 1
 
                 block_size = self.tune_b_size
-            else:  # else check if there is best block_size from at report else use optimal one
+            elif not block_size:
+                # else if block_size not set check if there is best block_size from at report else use optimal on
                 optimal_block_size = get_optimal_block_size(shape, self.time_order, self.spc_order)
                 block_size = get_at_block_size(self.time_order, self.spc_order)
 
