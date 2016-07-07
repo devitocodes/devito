@@ -114,7 +114,13 @@ class DenseData(SymbolicData):
 
     @property
     def indexed(self):
+        """Returns base symbol as sympy.IndexedBase"""
         return IndexedBase(self.name, shape=self.shape)
+
+    def indexify(self):
+        """Convert base symbol and dimensions to indexed data accesses"""
+        indices = [a.subs({h: 1, s: 1}) for a in self.args]
+        return self.indexed[indices]
 
     def set_initializer(self, lambda_initializer):
         assert(callable(lambda_initializer))
