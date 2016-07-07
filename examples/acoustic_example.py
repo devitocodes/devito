@@ -12,7 +12,7 @@ model.shape = dimensions
 model0.shape = dimensions
 model1.shape = dimensions
 origin = (0., 0.)
-spacing = (25., 25)
+spacing = (25., 25.)
 dtype = np.float32
 t_order = 2
 spc_order = 2
@@ -64,6 +64,7 @@ nt = int(1+(tn-t0)/dt)
 h = model.get_spacing()
 model.vp = np.pad(model.vp, tuple(pad_list), 'edge')
 data.reinterpolate(dt)
+model.set_origin(nbpml)
 
 
 # Set up the source as Ricker wavelet for f0
@@ -73,16 +74,16 @@ def source(t, f0):
 
 
 time_series = source(np.linspace(t0, tn, nt), f0)
-location = (origin[0] + dimensions[0] * spacing[0] * 0.5, 0,
+location = (origin[0] + dimensions[0] * spacing[0] * 0.5, 500,
             origin[1] + 2 * spacing[1])
 data.set_source(time_series, dt, location)
 
-receiver_coords = np.zeros((30, 3))
-receiver_coords[:, 0] = np.linspace(50, 950, num=30)
-receiver_coords[:, 1] = 0.0
+receiver_coords = np.zeros((101, 3))
+receiver_coords[:, 0] = np.linspace(50, 950, num=101)
+receiver_coords[:, 1] = 500
 receiver_coords[:, 2] = location[2]
 data.set_receiver_pos(receiver_coords)
-data.set_shape(nt, 30)
+data.set_shape(nt, 101)
 
 
 def damp_boundary(damp, h, nbpml):

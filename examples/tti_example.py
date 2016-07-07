@@ -1,11 +1,10 @@
 from containers import IShot, IGrid
 import numpy as np
-from math import floor
 from devito.interfaces import DenseData, TimeData
 from tti_operators import SourceLikeTTI, ForwardOperator
 
 
-dimensions = (100, 100, 75)
+dimensions = (50, 50, 50)
 model = IGrid()
 model0 = IGrid()
 model1 = IGrid()
@@ -13,7 +12,7 @@ model.shape = dimensions
 model0.shape = dimensions
 model1.shape = dimensions
 origin = (0., 0.)
-spacing = (10., 10)
+spacing = (25., 25.)
 dtype = np.float32
 t_order = 2
 spc_order = 2
@@ -65,6 +64,7 @@ nt = int(1+(tn-t0)/dt)
 h = model.get_spacing()
 model.vp = np.pad(model.vp, tuple(pad_list), 'edge')
 data.reinterpolate(dt)
+model.set_origin(nbpml)
 # Set up the source as Ricker wavelet for f0
 
 
@@ -123,9 +123,9 @@ src.data[:] = data.get_source()[:, np.newaxis]
 forward_op = ForwardOperator(m, src, damp, rec, u, v, a, b, th, ph, t_order, spc_order)
 forward_op.apply()
 
-ft = open('RecTTI','w')
+ft = open('RecTTI', 'w')
 ft.write(rec.data)
 ft.close()
-ft2 = open('Wftti','w')
+ft2 = open('Wftti', 'w')
 ft2.write(u.data)
 ft2.close()

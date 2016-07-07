@@ -70,7 +70,7 @@ class TTIOperator(Operator):
         Gzzr = cos(Ph)**2 * sin(Th)**2 * dxxr + sin(Ph)**2 * sin(Th)**2 * dyyr + cos(Th)**2 * dzzr +\
             sin(2*Ph) * sin(Th)**2 * dxyr + sin(Ph) * sin(2*Th) * dyzr + cos(Ph) * sin(2*Th) * dxzr
         wavep = m * dttp - A * (Gxxp + Gyyp) - B * Gzzr + e * dtp
-        waver = m * dttr - B * (Gxxp + Gyyp) - Gzzr + e* dtr
+        waver = m * dttr - B * (Gxxp + Gyyp) - Gzzr + e * dtr
         stencilp = solve(wavep, p(x, y, z, t+s), simplify=False)[0]
         stencilr = solve(waver, r(x, y, z, t+s), simplify=False)[0]
         return (stencilp, stencilr, (m, A, B, Th, Ph, s, h, e))

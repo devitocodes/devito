@@ -95,3 +95,6 @@ class IShot:
 
     def reinterpolate(self, dt):
         pass
+
+    def __str__(self):
+        return "Source: "+str(self.source_coords)+", Receiver:"+str(self.receiver_coords)
