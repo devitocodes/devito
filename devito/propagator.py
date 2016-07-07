@@ -3,20 +3,21 @@ from codeprinter import ccode
 import numpy as np
 from sympy import symbols, IndexedBase, Indexed
 from function_manager import FunctionDescriptor
+from collections import Iterable
 
 
 class Propagator(object):
     def __init__(self, name, nt, shape, spc_border=0, forward=True, time_order=0, openmp=False, profile=False, cache_blocking=False, block_size=5):
         self.t = symbols("t")
         self.cache_blocking = cache_blocking
-        try:
+        if(isinstance(block_size, Iterable)):
             if(len(block_size) == len(shape)):
                 self.block_sizes = block_size
             else:
                 raise ArgumentError("Block size should either be a single number or an array of the same size as the spatial domain")
-        except TypeError:
+        else:
             # A single block size has been passed. Broadcast it to a list of the size of shape
-            self.block_sizes = [block_size]*len(shape)
+            self.block_sizes = [int(block_size)]*len(shape)
         # We assume the dimensions are passed to us in the following order
         # var_order
         if len(shape) == 2:

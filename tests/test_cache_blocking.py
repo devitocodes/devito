@@ -16,7 +16,7 @@ class Test_Cache_Blocking(object):
         output_grid_block = DenseData("output_grid", (300, 300), np.float64)
         op_block = SimpleOperator(input_grid, output_grid_block, [eq], cache_blocking=True)
         op_block.apply()
-        assert(np.linalg.norm(output_grid_block.data) == np.linalg.norm(output_grid_noblock.data))
+        assert(np.equal(output_grid_block.data, output_grid_noblock.data).all())
 
     def test_cache_blocking_remainder(self):
         input_grid = DenseData("input_grid", (302, 302), np.float64)
@@ -29,4 +29,4 @@ class Test_Cache_Blocking(object):
         output_grid_block = DenseData("output_grid", (302, 302), np.float64)
         op_block = SimpleOperator(input_grid, output_grid_block, [eq], cache_blocking=True)
         op_block.apply()
-        assert(np.linalg.norm(output_grid_block.data) == np.linalg.norm(output_grid_noblock.data))
+        assert(np.equal(output_grid_block.data, output_grid_noblock.data).all())
