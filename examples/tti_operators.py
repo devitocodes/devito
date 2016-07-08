@@ -65,12 +65,12 @@ class TTIOperator(Operator):
         dxyr = .5/(h**2)*(-2*r(x, y, z, t) + r(x, y+h, z, t) + r(x, y-h, z, t) - r(x+h, y-h, z, t) + r(x-h, y, z, t) - r(x-h, y+h, z, t) + r(x+h, y, z, t))
         dyzp = .5/(h**2)*(-2*p(x, y, z, t) + p(x, y, z+h, t) + p(x, y, z-h, t) - p(x, y+h, z-h, t) + p(x, y-h, z, t) - p(x, y-h, z+h, t) + p(x, y+h, z, t))
         dyzr = .5/(h**2)*(-2*r(x, y, z, t) + r(x, y, z+h, t) + r(x, y, z-h, t) - r(x, y+h, z-h, t) + r(x, y-h, z, t) - r(x, y-h, z+h, t) + r(x, y+h, z, t))
+ 
+        def mysin(angle):
+            return 16*angle*(3.14-abs(angle))/(49.34- 4*abs(angle)*(3.14-abs(angle)))
 
         def mycos(angle):
-            return 16*(angle + 1.5708)*(3.1416-abs(angle+ 1.5708))/(49.3480- 4*abs(angle+ 1.5708)*(3.1416-abs(angle+ 1.5708)))
-    
-        def mysin(angle):
-            return 16*angle*(3.1416-abs(angle))/(49.3480- 4*abs(angle)*(3.1416-abs(angle)))
+            return mysin(angle + 1.57)
 
         Gxxp = mycos(Ph)**2 * mycos(Th)**2 * dxxp + mysin(Ph)**2 * mycos(Th)**2 * dyyp + mysin(Th)**2 * dzzp + 2*mysin(Ph)*mycos(Ph) * mycos(Th)**2 * dxyp - mysin(Ph) * 2*mysin(Th)*mycos(Th)* dyzp - mycos(Ph) * 2*mysin(Th)*mycos(Th)* dxzp
         Gyyp = mysin(Th)**2 * dxxp + mycos(Ph)**2 * dyyp - (2*mysin(Ph)*mycos(Ph))**2 * dxyp
