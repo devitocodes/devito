@@ -4,8 +4,6 @@ import math
 import shutil
 import cpuinfo
 import subprocess
-import multiprocessing
-
 
 # global vars.
 # report folder will be created in current dir. Change if necessary
@@ -63,7 +61,7 @@ def get_optimal_block_size(shape, time_order, space_order):
     number_of_loads = [[11, 17, 23, 29, 35, 41, 47, 53], [19, 25, 31, 37, 43, 49, 55]]  # works only till space order 16
 
     cache_s = int(cpuinfo.get_cpu_info()['l2_cache_size'].split(' ')[0])  # cache size
-    core_c = multiprocessing.cpu_count()  # number of cores
+    core_c = cpuinfo.get_cpu_info()['count']  # number of cores
     loads_c = number_of_loads[time_order / 2][space_order / 2]  # number of loads
 
     # ((C size / cores) / (4 * length inner most * kernel loads)
@@ -276,7 +274,7 @@ class AtController(object):
                 keyword_lst = ["Rank", "Value", "Time(secs)"]
 
                 lines = at_report.readlines()
-                for i in range(0, len(lines)): # loops through all the lines trying to find the best
+                for i in range(0, len(lines)):  # loops through all the lines trying to find the best
                     if all(keyword in lines[i] for keyword in keyword_lst):
                         #                                   finds text between parenthesis
                         best_block = lines[i + 1][lines[i + 1].find("(") + 1:lines[i + 1].find(")")]

@@ -1,5 +1,5 @@
 from ctypes import cdll
-from function_manager import FunctionManager, FunctionDescriptor
+from function_manager import FunctionManager
 from random import randint
 from hashlib import sha1
 import os
@@ -8,7 +8,6 @@ import codepy.jit as jit
 from tempfile import gettempdir
 import numpy as np
 from tools import convert_dtype_to_ctype
-import cgen_wrapper as cgen
 
 
 class JitManager(object):
