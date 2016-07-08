@@ -8,7 +8,7 @@ class Operator(object):
     _ENV_VAR_OPENMP = "DEVITO_OPENMP"
 
     def __init__(self, subs, nt, shape, dtype, spc_border=0, time_order=0, forward=True, profile=False,
-                 cache_blocking=False, block_size=5, auto_tune=False):
+                 cache_blocking=False, block_size=None, auto_tune=False):
         self.subs = subs
         self.cache_blocking = cache_blocking
         self.auto_tune = auto_tune

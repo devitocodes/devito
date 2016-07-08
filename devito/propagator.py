@@ -7,10 +7,9 @@ from collections import Iterable
 from at_controller import get_at_block_size, get_optimal_block_size
 
 
-
 class Propagator(object):
     def __init__(self, name, nt, shape, spc_border=0, forward=True, time_order=0, openmp=False, profile=False,
-                 cache_blocking=False, block_size=5, auto_tune=False):
+                 cache_blocking=False, block_size=None, auto_tune=False):
         self.t = symbols("t")
 
         self.cache_blocking = cache_blocking
@@ -28,7 +27,8 @@ class Propagator(object):
                     self.tune_range -= - (self.tune_b_size - self.tune_range) + 1
 
                 block_size = self.tune_b_size
-            else:  # else check if there is best block_size from at report else use optimal one
+            elif not block_size:
+                # else if block_size not set check if there is best block_size from at report else use optimal on
                 optimal_block_size = get_optimal_block_size(shape, self.time_order, self.spc_order)
                 block_size = get_at_block_size(self.time_order, self.spc_order)
 
@@ -36,8 +36,9 @@ class Propagator(object):
                     block_size.append(optimal_block_size)  # append outer most dimension as it is not auto tuned
                 else:
                     block_size = optimal_block_size  # use optimal block size
-        if (isinstance(block_size, Iterable)):
-            if(len(block_size) == len(shape)):
+
+        if isinstance(block_size, Iterable):
+            if len(block_size) == len(shape):
                 self.block_sizes = block_size
             else:
                 raise ArgumentError("Block size should either be a single number or an array of the same size as the spatial domain")
