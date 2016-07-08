@@ -4,7 +4,7 @@ from devito.interfaces import DenseData, TimeData
 from tti_operators import SourceLikeTTI, ForwardOperator
 
 
-dimensions = (50, 50, 50)
+dimensions = (100, 100, 100)
 model = IGrid()
 model0 = IGrid()
 model1 = IGrid()
@@ -59,7 +59,7 @@ data = IShot()
 f0 = .010
 dt = model.get_critical_dt()
 t0 = 0.0
-tn = 750.0
+tn = 1000.0
 nt = int(1+(tn-t0)/dt)
 h = model.get_spacing()
 model.vp = np.pad(model.vp, tuple(pad_list), 'edge')
@@ -72,12 +72,12 @@ def source(t, f0):
     r = (np.pi * f0 * (t - 1./f0))
     return (1-2.*r**2)*np.exp(-r**2)
 time_series = source(np.linspace(t0, tn, nt), f0)
-location = (origin[0] + dimensions[0] * spacing[0] * 0.5, 500,
+location = (origin[0] + dimensions[0] * spacing[0] * 0.5, origin[1] + dimensions[1] * spacing[1] * 0.5,
             origin[1] + 2 * spacing[1])
 data.set_source(time_series, dt, location)
 receiver_coords = np.zeros((101, 3))
-receiver_coords[:, 0] = np.linspace(50, 950, num=101)
-receiver_coords[:, 1] = 500
+receiver_coords[:, 0] = np.linspace(50, 2450, num=101)
+receiver_coords[:, 1] = 1250
 receiver_coords[:, 2] = location[2]
 data.set_receiver_pos(receiver_coords)
 data.set_shape(nt, 101)
@@ -114,7 +114,7 @@ b.data[:] = np.sqrt(1.2)
 th = DenseData("th", m.shape, dtype=m.dtype)
 ph = DenseData("ph", m.shape, dtype=m.dtype)
 th.data[:] = np.pi/5
-ph.data[:] = np.pi/4
+ph.data[:] = np.pi/6
 damp = DenseData("damp", model.vp.shape, m.dtype)
 damp_boundary(damp.data, h, nbpml)
 src = SourceLikeTTI("src", 1, nt, dt, h, np.array(data.source_coords, dtype=dtype)[np.newaxis, :], len(dimensions), dtype, nbpml)
