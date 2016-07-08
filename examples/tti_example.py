@@ -4,7 +4,7 @@ from devito.interfaces import DenseData, TimeData
 from tti_operators import SourceLikeTTI, ForwardOperator
 
 
-dimensions = (100, 100, 100)
+dimensions = (50, 50, 50)
 model = IGrid()
 model0 = IGrid()
 model1 = IGrid()
@@ -59,7 +59,7 @@ data = IShot()
 f0 = .010
 dt = model.get_critical_dt()
 t0 = 0.0
-tn = 1000.0
+tn = 200.0
 nt = int(1+(tn-t0)/dt)
 h = model.get_spacing()
 model.vp = np.pad(model.vp, tuple(pad_list), 'edge')
@@ -76,8 +76,8 @@ location = (origin[0] + dimensions[0] * spacing[0] * 0.5, origin[1] + dimensions
             origin[1] + 2 * spacing[1])
 data.set_source(time_series, dt, location)
 receiver_coords = np.zeros((101, 3))
-receiver_coords[:, 0] = np.linspace(50, 2450, num=101)
-receiver_coords[:, 1] = 1250
+receiver_coords[:, 0] = np.linspace(50, 1200, num=101)
+receiver_coords[:, 1] = 625
 receiver_coords[:, 2] = location[2]
 data.set_receiver_pos(receiver_coords)
 data.set_shape(nt, 101)
@@ -123,9 +123,9 @@ src.data[:] = data.get_source()[:, np.newaxis]
 forward_op = ForwardOperator(m, src, damp, rec, u, v, a, b, th, ph, t_order, spc_order)
 forward_op.apply()
 
-ft = open('RecTTI', 'w')
-ft.write(rec.data)
-ft.close()
-ft2 = open('Wftti', 'w')
-ft2.write(u.data)
-ft2.close()
+#ft = open('RecTTI', 'w')
+#ft.write(rec.data)
+#ft.close()
+#ft2 = open('Wftti', 'w')
+#ft2.write(u.data)
+#ft2.close()
