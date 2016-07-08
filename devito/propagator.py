@@ -109,10 +109,10 @@ class Propagator(object):
         return cgen.Block(kernel)
 
     def convert_equality_to_cgen(self, equality):
-        try:
-            return cgen.Assign(ccode(self.time_substitutions(equality.lhs).xreplace(self._var_map)), ccode(self.time_substitutions(equality.rhs).xreplace(self._var_map)))
-        except:
+        if isinstance(equality, cgen.Generable):
             return equality
+        else:
+            return cgen.Assign(ccode(self.time_substitutions(equality.lhs).xreplace(self._var_map)), ccode(self.time_substitutions(equality.rhs).xreplace(self._var_map)))
 
     def generate_loops(self, loop_body):
         """ Assuming that the variable order defined in init (#var_order) is the
