@@ -3,7 +3,9 @@ from codeprinter import ccode
 import numpy as np
 from sympy import symbols, IndexedBase, Indexed
 from function_manager import FunctionDescriptor
+from collections import Iterable
 from at_controller import get_at_block_size, get_optimal_block_size
+
 
 
 class Propagator(object):
@@ -34,14 +36,14 @@ class Propagator(object):
                     block_size.append(optimal_block_size)  # append outer most dimension as it is not auto tuned
                 else:
                     block_size = optimal_block_size  # use optimal block size
-        try:
+        if (isinstance(block_size, Iterable)):
             if(len(block_size) == len(shape)):
                 self.block_sizes = block_size
             else:
                 raise ArgumentError("Block size should either be a single number or an array of the same size as the spatial domain")
-        except TypeError:
+        else:
             # A single block size has been passed. Broadcast it to a list of the size of shape
-            self.block_sizes = [block_size]*len(shape)
+            self.block_sizes = [int(block_size)]*len(shape)
         # We assume the dimensions are passed to us in the following order
         # var_order
         if len(shape) == 2:
