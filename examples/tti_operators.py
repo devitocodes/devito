@@ -65,14 +65,24 @@ class TTIOperator(Operator):
         dxyr = .5/(h**2)*(-2*r(x, y, z, t) + r(x, y+h, z, t) + r(x, y-h, z, t) - r(x+h, y-h, z, t) + r(x-h, y, z, t) - r(x-h, y+h, z, t) + r(x+h, y, z, t))
         dyzp = .5/(h**2)*(-2*p(x, y, z, t) + p(x, y, z+h, t) + p(x, y, z-h, t) - p(x, y+h, z-h, t) + p(x, y-h, z, t) - p(x, y-h, z+h, t) + p(x, y+h, z, t))
         dyzr = .5/(h**2)*(-2*r(x, y, z, t) + r(x, y, z+h, t) + r(x, y, z-h, t) - r(x, y+h, z-h, t) + r(x, y-h, z, t) - r(x, y-h, z+h, t) + r(x, y+h, z, t))
-        Gxxp = cos(Ph)**2 * cos(Th)**2 * dxxp + sin(Ph)**2 * cos(Th)**2 * dyyp + sin(Th)**2 * dzzp + sin(2*Ph) * cos(Th)**2 * dxyp - sin(Ph) * sin(2*Th) * dyzp - cos(Ph) * sin(2*Th) * dxzp
-        Gyyp = sin(Th)**2 * dxxp + cos(Ph)**2 * dyyp - sin(2*Ph)**2 * dxyp
-        Gzzr = cos(Ph)**2 * sin(Th)**2 * dxxr + sin(Ph)**2 * sin(Th)**2 * dyyr + cos(Th)**2 * dzzr +\
-            sin(2*Ph) * sin(Th)**2 * dxyr + sin(Ph) * sin(2*Th) * dyzr + cos(Ph) * sin(2*Th) * dxzr
+
+        def mycos(angle):
+            return 16*(angle + 1.5708)*(3.1416-abs(angle+ 1.5708))/(49.3480- 4*abs(angle+ 1.5708)*(3.1416-abs(angle+ 1.5708)))
+    
+        def mysin(angle):
+            return 16*angle*(3.1416-abs(angle))/(49.3480- 4*abs(angle)*(3.1416-abs(angle)))
+
+        Gxxp = mycos(Ph)**2 * mycos(Th)**2 * dxxp + mysin(Ph)**2 * mycos(Th)**2 * dyyp + mysin(Th)**2 * dzzp + 2*mysin(Ph)*mycos(Ph) * mycos(Th)**2 * dxyp - mysin(Ph) * 2*mysin(Th)*mycos(Th)* dyzp - mycos(Ph) * 2*mysin(Th)*mycos(Th)* dxzp
+        Gyyp = mysin(Th)**2 * dxxp + mycos(Ph)**2 * dyyp - (2*mysin(Ph)*mycos(Ph))**2 * dxyp
+        Gzzr = mycos(Ph)**2 * mysin(Th)**2 * dxxr + mysin(Ph)**2 * mysin(Th)**2 * dyyr + mycos(Th)**2 * dzzr +\
+            2*mysin(Ph)*mycos(Ph) * mysin(Th)**2 * dxyr + mysin(Ph) * 2*mysin(Th)*mycos(Th)* dyzr + mycos(Ph) * 2*mysin(Th)*mycos(Th)* dxzr
         wavep = m * dttp - A * (Gxxp + Gyyp) - B * Gzzr + e * dtp
         waver = m * dttr - B * (Gxxp + Gyyp) - Gzzr + e * dtr
-        stencilp = solve(wavep, p(x, y, z, t+s), simplify=False)[0]
-        stencilr = solve(waver, r(x, y, z, t+s), simplify=False)[0]
+
+        stencilp = s**2/m*( (2 - e/s) * p(x, y, z, t) - (m/s**2 + e/s)*p(x, y, z, t-s) + A * (Gxxp + Gyyp) + B * Gzzr)
+        stencilr = s**2/m*( (2 - e/s) * r(x, y, z, t) - (m/s**2 + e/s)*r(x, y, z, t-s) + A * (Gxxp + Gyyp) + B * Gzzr)
+        # stencilp = solve(wavep, p(x, y, z, t+s), simplify=False)[0]
+        # stencilr = solve(waver, r(x, y, z, t+s), simplify=False)[0]
         return (stencilp, stencilr, (m, A, B, Th, Ph, s, h, e))
 
     def smart_sympy_replace(self, num_dim, time_order, res, funs, arrs, fw):
