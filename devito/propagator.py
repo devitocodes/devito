@@ -3,14 +3,21 @@ from codeprinter import ccode
 import numpy as np
 from sympy import symbols, IndexedBase, Indexed
 from function_manager import FunctionDescriptor
-import os
+from collections import Iterable
 
 
 class Propagator(object):
-    _ENV_VAR_PROFILE = "DEVITO_PROFILE"
-
-    def __init__(self, name, nt, shape, spc_border=0, forward=True, time_order=0, openmp=False):
+    def __init__(self, name, nt, shape, spc_border=0, forward=True, time_order=0, openmp=False, profile=False, cache_blocking=False, block_size=5):
         self.t = symbols("t")
+        self.cache_blocking = cache_blocking
+        if(isinstance(block_size, Iterable)):
+            if(len(block_size) == len(shape)):
+                self.block_sizes = block_size
+            else:
+                raise ArgumentError("Block size should either be a single number or an array of the same size as the spatial domain")
+        else:
+            # A single block size has been passed. Broadcast it to a list of the size of shape
+            self.block_sizes = [int(block_size)]*len(shape)
         # We assume the dimensions are passed to us in the following order
         # var_order
         if len(shape) == 2:
@@ -32,7 +39,7 @@ class Propagator(object):
         # Start with the assumption that the propagator needs to save the field in memory at every time step
         self._save = True
         # This might be changed later when parameters are being set
-        self.profile = os.environ.get(self._ENV_VAR_PROFILE) == "1"
+        self.profile = profile
         self._openmp = openmp
         # Which function parameters need special (non-save) time stepping and which don't
         self.save_vars = {}
@@ -115,23 +122,19 @@ class Propagator(object):
         #var_order (z in the 3D case) vary in the inner-most loop
         """
         # Space loops
-        ivdep = True
+        if self.cache_blocking:
+            loop_body = self.generate_space_loops_blocking(loop_body)
+        else:
+            loop_body = self.generate_space_loops(loop_body)
+
         omp_master = [cgen.Pragma("omp master")] if self._openmp else []
         omp_single = [cgen.Pragma("omp single")] if self._openmp else []
         omp_parallel = [cgen.Pragma("omp parallel")] if self._openmp else []
         omp_for = [cgen.Pragma("omp for")] if self._openmp else []
-        for spc_var in reversed(list(self.space_dims)):
-            dim_var = self._var_map[spc_var]
-            loop_limits = self._space_loop_limits[spc_var]
-            loop_body = cgen.For(cgen.InlineInitializer(cgen.Value("int", dim_var),
-                                                        str(loop_limits[0])),
-                                 str(dim_var) + "<" + str(loop_limits[1]), str(dim_var) + "++", loop_body)
-            if ivdep and len(self.space_dims) > 1:
-                loop_body = cgen.Block([cgen.Pragma("ivdep")] + [loop_body])
-            ivdep = False
         t_loop_limits = self.time_loop_limits
         t_var = str(self._var_map[self.t])
         cond_op = "<" if self._forward else ">"
+
         if self.save is not True:
             # To cycle between array elements when we are not saving time history
             time_stepping = self.get_time_stepping()
@@ -157,6 +160,63 @@ class Propagator(object):
         def_time_step = [cgen.Value("int", t_var_def.name) for t_var_def in self.time_steppers]
         body = def_time_step + self.pre_loop + omp_parallel + [loop_body] + self.post_loop
         return cgen.Block(body)
+
+    def generate_space_loops(self, loop_body):
+        ivdep = True
+        for spc_var in reversed(list(self.space_dims)):
+            dim_var = self._var_map[spc_var]
+            loop_limits = self._space_loop_limits[spc_var]
+            loop_body = cgen.For(cgen.InlineInitializer(cgen.Value("int", dim_var),
+                                                        str(loop_limits[0])),
+                                 str(dim_var) + "<" + str(loop_limits[1]), str(dim_var) + "++", loop_body)
+            if ivdep and len(self.space_dims) > 1:
+                loop_body = cgen.Block([cgen.Pragma("ivdep")] + [loop_body])
+            ivdep = False
+        return loop_body
+
+    def generate_space_loops_blocking(self, loop_body):
+        ivdep = True
+        remainder = False
+        orig_loop_body = loop_body
+        for spc_var, block_size in reversed(zip(list(self.space_dims), self.block_sizes)):
+            dim_var = str(self._var_map[spc_var])
+            block_var = dim_var + "b"
+            loop_limits = self._space_loop_limits[spc_var]
+            loop_body = cgen.For(cgen.InlineInitializer(cgen.Value("int", dim_var),
+                                                        block_var),
+                                 dim_var + "<" + block_var+"+"+str(block_size), dim_var + "++", loop_body)
+            if ivdep and len(self.space_dims) > 1:
+                loop_body = cgen.Block([cgen.Pragma("ivdep")] + [loop_body])
+            ivdep = False
+
+        for spc_var, block_size in reversed(zip(list(self.space_dims), self.block_sizes)):
+            orig_var = str(self._var_map[spc_var])
+            dim_var = orig_var + "b"
+            loop_limits = self._space_loop_limits[spc_var]
+            old_upper_limit = loop_limits[1]
+            new_upper_limit = old_upper_limit-old_upper_limit % block_size
+            if old_upper_limit - new_upper_limit > 0:
+                remainder = True
+            loop_limits = (loop_limits[0], new_upper_limit)
+            loop_body = cgen.For(cgen.InlineInitializer(cgen.Value("int", dim_var),
+                                                        str(loop_limits[0])),
+                                 str(dim_var) + "<" + str(loop_limits[1]), str(dim_var) + "+=" + str(block_size), loop_body)
+        if remainder:
+            remainder_loop = orig_loop_body
+            for spc_var, block_size in reversed(zip(list(self.space_dims), self.block_sizes)):
+                dim_var = str(self._var_map[spc_var])
+                loop_limits = self._space_loop_limits[spc_var]
+                old_upper_limit = loop_limits[1]
+                new_upper_limit = old_upper_limit-old_upper_limit % block_size
+                loop_limits = (new_upper_limit, old_upper_limit)
+                remainder_loop = cgen.For(cgen.InlineInitializer(cgen.Value("int", dim_var), str(loop_limits[0])),
+                                          str(dim_var) + "<" + str(loop_limits[1]), str(dim_var) + "++", remainder_loop)
+                if ivdep and len(self.space_dims) > 1:
+                    loop_body = cgen.Block([cgen.Pragma("ivdep")] + [loop_body])
+                ivdep = False
+            loop_body = cgen.Block([loop_body, remainder_loop])
+
+        return loop_body
 
     def add_loop_step(self, assign, before=False):
         stm = self.convert_equality_to_cgen(assign)
