@@ -59,9 +59,6 @@ class JitManager(object):
         if not os.path.isdir(self.tmp_dir):
             os.mkdir(self.tmp_dir)
 
-    def get_basename(self):
-        return self._basename
-
     def __generate_filename(self):
         # Generate a unique filename for the generated code by combining the unique salt
         # with the hash of the parameters for the function as well as the body of the function

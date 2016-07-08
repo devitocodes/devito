@@ -1,13 +1,139 @@
 from devito.operators import *
 from sympy import Eq
-from devito.interfaces import TimeData, DenseData
+from devito.interfaces import TimeData, DenseData, PointData
 from sympy import Function, symbols, as_finite_diff, Wild, IndexedBase
 from sympy.abc import x, y, t, z
-from sympy import solve
+from sympy import solve, Matrix
+
+
+class SourceLike(PointData):
+    """Defines the behaviour of sources and receivers.
+    """
+    def __init__(self, name, npoint, nt, dt, h, data, ndim, dtype, nbpml):
+        self.orig_data = data
+        self.dt = dt
+        self.h = h
+        self.ndim = ndim
+        self.nbpml = nbpml
+        super(SourceLike, self).__init__(name, npoint, nt, dtype)
+        x1, y1, z1, x2, y2, z2 = symbols('x1, y1, z1, x2, y2, z2')
+        if ndim == 2:
+            A = Matrix([[1, x1, z1, x1*z1],
+                        [1, x1, z2, x1*z2],
+                        [1, x2, z1, x2*z1],
+                        [1, x2, z2, x2*z2]])
+            self.increments = (0, 0), (0, 1), (1, 0), (1, 1)
+            self.rs = symbols('rx, rz')
+            rx, rz = self.rs
+            p = Matrix([[1],
+                        [rx],
+                        [rz],
+                        [rx*rz]])
+        else:
+            A = Matrix([[1, x1, y1, z1, x1*y1, x1*z1, y1*z1, x1*y1*z1],
+                        [1, x1, y2, z1, x1*y2, x1*z1, y2*z1, x1*y2*z1],
+                        [1, x2, y1, z1, x2*y1, x2*z1, y2*z1, x2*y1*z1],
+                        [1, x1, y1, z2, x1*y1, x1*z2, y1*z2, x1*y1*z2],
+                        [1, x2, y2, z1, x2*y2, x2*z1, y2*z1, x2*y2*z1],
+                        [1, x1, y2, z2, x1*y2, x1*z2, y2*z2, x1*y2*z2],
+                        [1, x2, y1, z2, x2*y1, x2*z2, y1*z2, x2*y1*z2],
+                        [1, x2, y2, z2, x2*y2, x2*z2, y2*z2, x2*y2*z2]])
+            self.increments = (0, 0, 0), (0, 1, 0), (1, 0, 0), (0, 0, 1), (1, 1, 0), (0, 1, 1), (1, 0, 1), (1, 1, 1)
+            self.rs = symbols('rx, ry, rz')
+            rx, ry, rz = self.rs
+            p = Matrix([[1],
+                        [rx],
+                        [ry],
+                        [rz],
+                        [rx*ry],
+                        [rx*rz],
+                        [ry*rz],
+                        [rx*ry*rz]])
+
+        # Map to reference cell
+        reference_cell = [(x1, 0),
+                          (y1, 0),
+                          (z1, 0),
+                          (x2, self.h),
+                          (y2, self.h),
+                          (z2, self.h)]
+        A = A.subs(reference_cell)
+        self.bs = A.inv().T.dot(p)
+
+    def point2grid(self, pt_coords):
+        # In: s - Magnitude of the source
+        #     x, z - Position of the source
+        # Returns: (i, k) - Grid coordinate at top left of grid cell.
+        #          (s11, s12, s21, s22) - source values at coordinates
+        #          (i, k), (i, k+1), (i+1, k), (i+1, k+1)
+        if self.ndim == 2:
+            rx, rz = self.rs
+        else:
+            rx, ry, rz = self.rs
+        x, y, z = pt_coords
+        i = int(x/self.h)
+        k = int(z/self.h)
+        coords = (i + self.nbpml, k + self.nbpml)
+        subs = []
+        x = x - i*self.h
+        subs.append((rx, x))
+        if self.ndim == 3:
+            j = int(y/self.h)
+            y = y - j*self.h
+            subs.append((ry, y))
+            coords = (i + self.nbpml, j + self.nbpml, k + self.nbpml)
+        z = z - k*self.h
+        subs.append((rz, z))
+        s = [b.subs(subs).evalf() for b in self.bs]
+        return coords, tuple(s)
+
+    # Interpolate onto receiver point.
+    def grid2point(self, u, pt_coords):
+        if self.ndim == 2:
+            rx, rz = self.rs
+        else:
+            rx, ry, rz = self.rs
+        x, y, z = pt_coords
+        i = int(x/self.h)
+        k = int(z/self.h)
+
+        x = x - i*self.h
+        z = z - k*self.h
+
+        subs = []
+        subs.append((rx, x))
+
+        if self.ndim == 3:
+            j = int(y/self.h)
+            y = y - j*self.h
+            subs.append((ry, y))
+        subs.append((rz, z))
+        if self.ndim == 2:
+            return sum([b.subs(subs) * u[t, i+inc[0]+self.nbpml, k+inc[1]+self.nbpml] for inc, b in zip(self.increments, self.bs)])
+        else:
+            return sum([b.subs(subs) * u[t, i+inc[0]+self.nbpml, j+inc[1]+self.nbpml, k+inc[2]+self.nbpml] for inc, b in zip(self.increments, self.bs)])
+
+    def read(self, u):
+        eqs = []
+        for i in range(self.npoints):
+            eqs.append(Eq(self[t, i], self.grid2point(u, self.orig_data[i, :])))
+        return eqs
+
+    def add(self, m, u):
+        assignments = []
+        dt = self.dt
+        for j in range(self.npoints):
+            add = self.point2grid(self.orig_data[j, :])
+            coords = add[0]
+            s = add[1]
+            assignments += [Eq(u[tuple([t] + [coords[i] + inc[i] for i in range(self.ndim)])],
+                               u[tuple([t] + [coords[i] + inc[i] for i in range(self.ndim)])] + self[t, j]*dt*dt/m[coords]*w) for w, inc in zip(s, self.increments)]
+        filtered = [x for x in assignments if isinstance(x, Eq)]
+        return filtered
 
 
 class FWIOperator(Operator):
-    def _init_taylor(self, dim=2, time_order=2, space_order=2, disk_path=None):
+    def _init_taylor(self, dim=2, time_order=2, space_order=2):
         # Only dim=2 and dim=3 are supported
         # The acoustic wave equation for the square slowness m and a source q
         # is given in 3D by :
@@ -125,12 +251,10 @@ class FWIOperator(Operator):
 
 
 class ForwardOperator(FWIOperator):
-    def __init__(self, m, src, damp, rec, u, time_order=4, spc_order=12, disk_path=None):
+    def __init__(self, m, src, damp, rec, u, time_order=4, spc_order=12, **kwargs):
         assert(m.shape == damp.shape)
         self.input_params = [m, src, damp, rec, u]
-        # saving disk path
-        self.disk_path = disk_path
-        u.pad_time = True
+        u.pad_time = False
         self.output_params = []
         dim = len(m.shape)
         total_dim = self.total_dim(dim)
@@ -143,17 +267,14 @@ class ForwardOperator(FWIOperator):
         src_list = src.add(m, u)
         rec = rec.read(u)
         self.time_loop_stencils_post = src_list+rec
-        # propagate disk path to parent class
-        super(ForwardOperator, self).__init__(subs, src.nt, m.shape, spc_border=spc_order/2, time_order=time_order, forward=True, dtype=m.dtype, disk_path=self.disk_path)
+        super(ForwardOperator, self).__init__(subs, src.nt, m.shape, spc_border=spc_order/2, time_order=time_order, forward=True, dtype=m.dtype, **kwargs)
 
 
 class AdjointOperator(FWIOperator):
-    def __init__(self, m, rec, damp, srca, time_order=4, spc_order=12, disk_path=None):
+    def __init__(self, m, rec, damp, srca, time_order=4, spc_order=12, **kwargs):
         assert(m.shape == damp.shape)
         self.input_params = [m, rec, damp, srca]
-        # saving disk path
-        self.disk_path = disk_path
-        v = TimeData("v", m.shape, rec.nt, time_order=time_order, save=True, dtype=m.dtype, disk_path=self.disk_path)
+        v = TimeData("v", m.shape, rec.nt, time_order=time_order, save=True, dtype=m.dtype)
         self.output_params = [v]
         dim = len(m.shape)
         total_dim = self.total_dim(dim)
@@ -167,17 +288,14 @@ class AdjointOperator(FWIOperator):
         rec_list = rec.add(m, v)
         src_list = srca.read(v)
         self.time_loop_stencils_post = rec_list + src_list
-        # propagate disk path to parent class
-        super(AdjointOperator, self).__init__(subs, rec.nt, m.shape, spc_border=spc_order/2, time_order=time_order, forward=False, dtype=m.dtype, disk_path=self.disk_path)
+        super(AdjointOperator, self).__init__(subs, rec.nt, m.shape, spc_border=spc_order/2, time_order=time_order, forward=False, dtype=m.dtype, **kwargs)
 
 
 class GradientOperator(FWIOperator):
-    def __init__(self, u, m, rec, damp, time_order=4, spc_order=12, disk_path=None):
+    def __init__(self, u, m, rec, damp, time_order=4, spc_order=12, **kwargs):
         assert(m.shape == damp.shape)
         self.input_params = [u, m, rec, damp]
-        # saving disk path
-        self.disk_path = disk_path
-        v = TimeData("v", m.shape, rec.nt, time_order=time_order, save=False, dtype=m.dtype, disk_path=self.disk_path)
+        v = TimeData("v", m.shape, rec.nt, time_order=time_order, save=False, dtype=m.dtype)
         grad = DenseData("grad", m.shape, dtype=m.dtype)
         self.output_params = [grad, v]
         dim = len(m.shape)
@@ -194,18 +312,15 @@ class GradientOperator(FWIOperator):
 
         rec_list = rec.add(m, v)
         self.time_loop_stencils_pre = rec_list
-        # propagate disk path to parent class
-        super(GradientOperator, self).__init__(subs, rec.nt, m.shape, spc_border=spc_order/2, time_order=time_order, forward=False, dtype=m.dtype, disk_path=self.disk_path)
+        super(GradientOperator, self).__init__(subs, rec.nt, m.shape, spc_border=spc_order/2, time_order=time_order, forward=False, dtype=m.dtype, **kwargs)
 
 
 class BornOperator(FWIOperator):
-    def __init__(self, dm, m, src, damp, rec, time_order=4, spc_order=12, disk_path=None):
+    def __init__(self, dm, m, src, damp, rec, time_order=4, spc_order=12, **kwargs):
         assert(m.shape == damp.shape)
         self.input_params = [dm, m, src, damp, rec]
-        # saving disk path
-        self.disk_path = disk_path
-        u = TimeData("u", m.shape, src.nt, time_order=time_order, save=False, dtype=m.dtype, disk_path=self.disk_path)
-        U = TimeData("U", m.shape, src.nt, time_order=time_order, save=False, dtype=m.dtype, disk_path=self.disk_path)
+        u = TimeData("u", m.shape, src.nt, time_order=time_order, save=False, dtype=m.dtype)
+        U = TimeData("U", m.shape, src.nt, time_order=time_order, save=False, dtype=m.dtype)
         self.output_params = [u, U]
         dim = len(m.shape)
         total_dim = self.total_dim(dim)
@@ -227,5 +342,4 @@ class BornOperator(FWIOperator):
         insert_second_source = Eq(U[total_dim], U[total_dim]+(dt*dt)/m[space_dim]*src2)
         reset_u = Eq(u[tuple((t - 2,) + space_dim)], 0)
         self.stencils = [(first_update, first_stencil_args), (second_update, second_stencil_args), (insert_second_source, []), (reset_u, [])]
-        # propagate disk path to parent class
-        super(BornOperator, self).__init__(subs, src.nt, m.shape, spc_border=spc_order/2, time_order=time_order, forward=True, dtype=m.dtype, disk_path=self.disk_path)
+        super(BornOperator, self).__init__(subs, src.nt, m.shape, spc_border=spc_order/2, time_order=time_order, forward=True, dtype=m.dtype, **kwargs)
