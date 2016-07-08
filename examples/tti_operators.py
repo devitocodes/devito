@@ -47,8 +47,8 @@ class TTIOperator(Operator):
         # w2 = .5
         dttp = as_finite_diff(p(x, y, z, t).diff(t, t), [t-s, t, t+s])
         dttr = as_finite_diff(r(x, y, z, t).diff(t, t), [t-s, t, t+s])
-        dtp = as_finite_diff(p(x, y, z, t).diff(t), [t-s, t])
-        dtr = as_finite_diff(r(x, y, z, t).diff(t), [t-s, t])
+        dtp = as_finite_diff(p(x, y, z, t).diff(t), [t-s, t+s])
+        dtr = as_finite_diff(r(x, y, z, t).diff(t), [t-s, t+s])
         # Spacial finite differences can easily be extended to higher order by increasing the list of sampling point in the next expression.
         # Be sure to keep this stencil symmetric and everything else in the notebook will follow.
         dxxp = as_finite_diff(p(x, y, z, t).diff(x, x), [x-h, x, x+h])
@@ -79,8 +79,8 @@ class TTIOperator(Operator):
         wavep = m * dttp - A * (Gxxp + Gyyp) - B * Gzzr + e * dtp
         waver = m * dttr - B * (Gxxp + Gyyp) - Gzzr + e * dtr
 
-        stencilp = s**2/m*( (2 - e/s) * p(x, y, z, t) - (m/s**2 + e/s)*p(x, y, z, t-s) + A * (Gxxp + Gyyp) + B * Gzzr)
-        stencilr = s**2/m*( (2 - e/s) * r(x, y, z, t) - (m/s**2 + e/s)*r(x, y, z, t-s) + A * (Gxxp + Gyyp) + B * Gzzr)
+        stencilp = 2*s**2/(2*m + s*e)*( 2*m/s**2 * p(x, y, z, t) + (s*e-2*m)/(2*s**2)* p(x, y, z, t-s) + A * (Gxxp + Gyyp) + B * Gzzr)
+        stencilr = 2*s**2/(2*m + s*e)*( 2*m/s**2 * r(x, y, z, t) + (s*e-2*m)/(2*s**2)* r(x, y, z, t-s) + A * (Gxxp + Gyyp) + B * Gzzr)
         # stencilp = solve(wavep, p(x, y, z, t+s), simplify=False)[0]
         # stencilr = solve(waver, r(x, y, z, t+s), simplify=False)[0]
         return (stencilp, stencilr, (m, A, B, Th, Ph, s, h, e))
