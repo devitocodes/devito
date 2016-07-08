@@ -3,7 +3,6 @@ from sympy import Eq
 from devito.interfaces import TimeData, DenseData
 from sympy import Function, symbols, as_finite_diff, Wild
 from sympy.abc import x, y, t, z
-from sympy import solve
 from sympy import *
 from sympy.abc import *
 from fwi_operators import SourceLike
@@ -45,10 +44,10 @@ class TTIOperator(Operator):
         # Weights to sum the two fields
         # w1 = .5
         # w2 = .5
-        dttp = as_finite_diff(p(x, y, z, t).diff(t, t), [t-s, t, t+s])
-        dttr = as_finite_diff(r(x, y, z, t).diff(t, t), [t-s, t, t+s])
-        dtp = as_finite_diff(p(x, y, z, t).diff(t), [t-s, t+s])
-        dtr = as_finite_diff(r(x, y, z, t).diff(t), [t-s, t+s])
+        # dttp = as_finite_diff(p(x, y, z, t).diff(t, t), [t-s, t, t+s])
+        # dttr = as_finite_diff(r(x, y, z, t).diff(t, t), [t-s, t, t+s])
+        # dtp = as_finite_diff(p(x, y, z, t).diff(t), [t-s, t+s])
+        # dtr = as_finite_diff(r(x, y, z, t).diff(t), [t-s, t+s])
         # Spacial finite differences can easily be extended to higher order by increasing the list of sampling point in the next expression.
         # Be sure to keep this stencil symmetric and everything else in the notebook will follow.
         dxxp = as_finite_diff(p(x, y, z, t).diff(x, x), [x-h, x, x+h])
@@ -65,22 +64,22 @@ class TTIOperator(Operator):
         dxyr = .5/(h**2)*(-2*r(x, y, z, t) + r(x, y+h, z, t) + r(x, y-h, z, t) - r(x+h, y-h, z, t) + r(x-h, y, z, t) - r(x-h, y+h, z, t) + r(x+h, y, z, t))
         dyzp = .5/(h**2)*(-2*p(x, y, z, t) + p(x, y, z+h, t) + p(x, y, z-h, t) - p(x, y+h, z-h, t) + p(x, y-h, z, t) - p(x, y-h, z+h, t) + p(x, y+h, z, t))
         dyzr = .5/(h**2)*(-2*r(x, y, z, t) + r(x, y, z+h, t) + r(x, y, z-h, t) - r(x, y+h, z-h, t) + r(x, y-h, z, t) - r(x, y-h, z+h, t) + r(x, y+h, z, t))
- 
+
         def mysin(angle):
-            return 16*angle*(3.14-abs(angle))/(49.34- 4*abs(angle)*(3.14-abs(angle)))
+            return 16 * angle * (3.14 - abs(angle))/(49.34 - 4 * abs(angle) * (3.14 - abs(angle)))
 
         def mycos(angle):
             return mysin(angle + 1.57)
 
-        Gxxp = mycos(Ph)**2 * mycos(Th)**2 * dxxp + mysin(Ph)**2 * mycos(Th)**2 * dyyp + mysin(Th)**2 * dzzp + 2*mysin(Ph)*mycos(Ph) * mycos(Th)**2 * dxyp - mysin(Ph) * 2*mysin(Th)*mycos(Th)* dyzp - mycos(Ph) * 2*mysin(Th)*mycos(Th)* dxzp
-        Gyyp = mysin(Th)**2 * dxxp + mycos(Ph)**2 * dyyp - (2*mysin(Ph)*mycos(Ph))**2 * dxyp
+        Gxxp = mycos(Ph)**2 * mycos(Th)**2 * dxxp + mysin(Ph)**2 * mycos(Th)**2 * dyyp + mysin(Th)**2 * dzzp + 2 * mysin(Ph) * mycos(Ph) * mycos(Th)**2 * dxyp - mysin(Ph) * 2 * mysin(Th) * mycos(Th) * dyzp - mycos(Ph) * 2 * mysin(Th) * mycos(Th) * dxzp
+        Gyyp = mysin(Th)**2 * dxxp + mycos(Ph)**2 * dyyp - (2 * mysin(Ph) * mycos(Ph))**2 * dxyp
         Gzzr = mycos(Ph)**2 * mysin(Th)**2 * dxxr + mysin(Ph)**2 * mysin(Th)**2 * dyyr + mycos(Th)**2 * dzzr +\
-            2*mysin(Ph)*mycos(Ph) * mysin(Th)**2 * dxyr + mysin(Ph) * 2*mysin(Th)*mycos(Th)* dyzr + mycos(Ph) * 2*mysin(Th)*mycos(Th)* dxzr
-        wavep = m * dttp - A * (Gxxp + Gyyp) - B * Gzzr + e * dtp
-        waver = m * dttr - B * (Gxxp + Gyyp) - Gzzr + e * dtr
+            2 * mysin(Ph) * mycos(Ph) * mysin(Th)**2 * dxyr + mysin(Ph) * 2 * mysin(Th) * mycos(Th) * dyzr + mycos(Ph) * 2 * mysin(Th) * mycos(Th) * dxzr
+        # wavep = m * dttp - A * (Gxxp + Gyyp) - B * Gzzr + e * dtp
+        # waver = m * dttr - B * (Gxxp + Gyyp) - Gzzr + e * dtr
 
-        stencilp = 2*s**2/(2*m + s*e)*( 2*m/s**2 * p(x, y, z, t) + (s*e-2*m)/(2*s**2)* p(x, y, z, t-s) + A * (Gxxp + Gyyp) + B * Gzzr)
-        stencilr = 2*s**2/(2*m + s*e)*( 2*m/s**2 * r(x, y, z, t) + (s*e-2*m)/(2*s**2)* r(x, y, z, t-s) + A * (Gxxp + Gyyp) + B * Gzzr)
+        stencilp = 2 * s**2 / (2 * m + s * e) * (2 * m / s**2 * p(x, y, z, t) + (s * e - 2 * m) / (2 * s**2) * p(x, y, z, t-s) + A * (Gxxp + Gyyp) + B * Gzzr)
+        stencilr = 2 * s**2 / (2 * m + s * e) * (2 * m / s**2 * r(x, y, z, t) + (s * e - 2 * m) / (2 * s**2) * r(x, y, z, t-s) + A * (Gxxp + Gyyp) + B * Gzzr)
         # stencilp = solve(wavep, p(x, y, z, t+s), simplify=False)[0]
         # stencilr = solve(waver, r(x, y, z, t+s), simplify=False)[0]
         return (stencilp, stencilr, (m, A, B, Th, Ph, s, h, e))
