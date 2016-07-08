@@ -5,7 +5,8 @@ import time
 from math import floor
 from terminaltables import AsciiTable
 from containers import IShot, IGrid
-
+import os
+from devito.interfaces import remove_memmap_files
 
 dimensions = (100, 100)
 model = IGrid()
@@ -81,7 +82,13 @@ receiver_coords[:, 2] = location[2]
 data.set_receiver_pos(receiver_coords)
 data.set_shape(nt, 30)
 # A Forward propagation example
-jit_obj = AcousticWave2D_cg(model1, data, create_dm, nbpml=nbpml, t_order=2, s_order=2)
+
+# path at which numpy memmap file are stored
+cache_disk_path = "/tmp/devito_disk"
+if not os.path.exists(cache_disk_path):
+    os.makedirs(cache_disk_path)
+
+jit_obj = AcousticWave2D_cg(model1, data, create_dm, nbpml=nbpml, t_order=2, s_order=2, disk_path=cache_disk_path)
 python_obj = AcousticWave2D(model0, data, nbpml=nbpml)
 
 
@@ -182,3 +189,6 @@ table_data = [
 ]
 table = AsciiTable(table_data)
 print table.table
+
+# remove generated memmap files
+remove_memmap_files()

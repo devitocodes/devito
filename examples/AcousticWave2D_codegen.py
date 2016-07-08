@@ -10,7 +10,7 @@ class AcousticWave2D_cg:
     """ Class to setup the problem for the Acoustic Wave
         Note: s_order must always be greater than t_order
     """
-    def __init__(self, model, data, dm_initializer=None, source=None, nbpml=40, t_order=2, s_order=2):
+    def __init__(self, model, data, dm_initializer=None, source=None, nbpml=40, t_order=2, s_order=2, disk_path=None):
         self.model = model
         self.t_order = t_order
         self.s_order = s_order
@@ -19,6 +19,8 @@ class AcousticWave2D_cg:
         self.dt = model.get_critical_dt()
         self.h = model.get_spacing()
         self.nbpml = nbpml
+        # setup disk path used for numpy memmap in DenseData
+        self.disk_path = disk_path
         dimensions = self.model.get_shape()
         pad_list = []
         for dim_index in range(len(dimensions)):
@@ -69,7 +71,8 @@ class AcousticWave2D_cg:
         rec = SourceLike("rec", self.nrec, self.nt, self.dt, self.h, self.data.receiver_coords, len(dimensions), self.dtype, nbpml)
         src.data[:] = self.data.get_source()[:, np.newaxis]
         self.rec = rec
-        u = TimeData("u", m.shape, src.nt, time_order=t_order, save=True, dtype=m.dtype)
+        # pass disk path to TimeData u
+        u = TimeData("u", m.shape, src.nt, time_order=t_order, save=True, dtype=m.dtype, disk_path=self.disk_path)
         self.u = u
         srca = SourceLike("srca", 1, self.nt, self.dt, self.h, np.array(self.data.source_coords, dtype=self.dtype)[np.newaxis, :], len(dimensions), self.dtype, nbpml)
         self.srca = srca
@@ -78,23 +81,23 @@ class AcousticWave2D_cg:
         self.dm = dm
 
     def Forward(self):
-        fw = ForwardOperator(self.m, self.src, self.damp, self.rec, self.u, time_order=self.t_order, spc_order=self.s_order)
+        fw = ForwardOperator(self.m, self.src, self.damp, self.rec, self.u, time_order=self.t_order, spc_order=self.s_order, disk_path=self.disk_path)
         fw.apply()
         return (self.rec.data, self.u.data)
 
     def Adjoint(self, rec):
-        adj = AdjointOperator(self.m, self.rec, self.damp, self.srca, time_order=self.t_order, spc_order=self.s_order)
+        adj = AdjointOperator(self.m, self.rec, self.damp, self.srca, time_order=self.t_order, spc_order=self.s_order, disk_path=self.disk_path)
         v = adj.apply()[0]
         return (self.srca.data, v)
 
     def Gradient(self, rec, u):
-        grad_op = GradientOperator(self.u, self.m, self.rec, self.damp, time_order=self.t_order, spc_order=self.s_order)
+        grad_op = GradientOperator(self.u, self.m, self.rec, self.damp, time_order=self.t_order, spc_order=self.s_order, disk_path=self.disk_path)
         dt = self.dt
         grad = grad_op.apply()[0]
         return (dt**-2)*grad
 
     def Born(self):
-        born_op = BornOperator(self.dm, self.m, self.src, self.damp, self.rec, time_order=self.t_order, spc_order=self.s_order)
+        born_op = BornOperator(self.dm, self.m, self.src, self.damp, self.rec, time_order=self.t_order, spc_order=self.s_order, disk_path=self.disk_path)
         born_op.apply()
         return self.rec.data
 
@@ -111,13 +114,16 @@ class AcousticWave2D_cg:
 class SourceLike(PointData):
     """Defines the behaviour of sources and receivers.
     """
-    def __init__(self, name, npoint, nt, dt, h, data, ndim, dtype, nbpml):
+    def __init__(self, name, npoint, nt, dt, h, data, ndim, dtype, nbpml, disk_path=None):
         self.orig_data = data
         self.dt = dt
         self.h = h
         self.ndim = ndim
         self.nbpml = nbpml
-        super(SourceLike, self).__init__(name, npoint, nt, dtype)
+        # saving disk path
+        self.disk_path = disk_path
+        # propagate disk path to parent class
+        super(SourceLike, self).__init__(name, npoint, nt, dtype, self.disk_path)
         x1, y1, z1, x2, y2, z2 = symbols('x1, y1, z1, x2, y2, z2')
         if ndim == 2:
             A = Matrix([[1, x1, z1, x1*z1],

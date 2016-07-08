@@ -7,7 +7,7 @@ from sympy import solve
 
 
 class FWIOperator(Operator):
-    def _init_taylor(self, dim=2, time_order=2, space_order=2):
+    def _init_taylor(self, dim=2, time_order=2, space_order=2, disk_path=None):
         # Only dim=2 and dim=3 are supported
         # The acoustic wave equation for the square slowness m and a source q
         # is given in 3D by :
@@ -125,9 +125,11 @@ class FWIOperator(Operator):
 
 
 class ForwardOperator(FWIOperator):
-    def __init__(self, m, src, damp, rec, u, time_order=4, spc_order=12, **kwargs):
+    def __init__(self, m, src, damp, rec, u, time_order=4, spc_order=12, disk_path=None):
         assert(m.shape == damp.shape)
         self.input_params = [m, src, damp, rec, u]
+        # saving disk path
+        self.disk_path = disk_path
         u.pad_time = True
         self.output_params = []
         dim = len(m.shape)
@@ -141,14 +143,17 @@ class ForwardOperator(FWIOperator):
         src_list = src.add(m, u)
         rec = rec.read(u)
         self.time_loop_stencils_post = src_list+rec
-        super(ForwardOperator, self).__init__(subs, src.nt, m.shape, spc_border=spc_order/2, time_order=time_order, forward=True, dtype=m.dtype, **kwargs)
+        # propagate disk path to parent class
+        super(ForwardOperator, self).__init__(subs, src.nt, m.shape, spc_border=spc_order/2, time_order=time_order, forward=True, dtype=m.dtype, disk_path=self.disk_path)
 
 
 class AdjointOperator(FWIOperator):
-    def __init__(self, m, rec, damp, srca, time_order=4, spc_order=12, **kwargs):
+    def __init__(self, m, rec, damp, srca, time_order=4, spc_order=12, disk_path=None):
         assert(m.shape == damp.shape)
         self.input_params = [m, rec, damp, srca]
-        v = TimeData("v", m.shape, rec.nt, time_order=time_order, save=True, dtype=m.dtype)
+        # saving disk path
+        self.disk_path = disk_path
+        v = TimeData("v", m.shape, rec.nt, time_order=time_order, save=True, dtype=m.dtype, disk_path=self.disk_path)
         self.output_params = [v]
         dim = len(m.shape)
         total_dim = self.total_dim(dim)
@@ -162,14 +167,17 @@ class AdjointOperator(FWIOperator):
         rec_list = rec.add(m, v)
         src_list = srca.read(v)
         self.time_loop_stencils_post = rec_list + src_list
-        super(AdjointOperator, self).__init__(subs, rec.nt, m.shape, spc_border=spc_order/2, time_order=time_order, forward=False, dtype=m.dtype, **kwargs)
+        # propagate disk path to parent class
+        super(AdjointOperator, self).__init__(subs, rec.nt, m.shape, spc_border=spc_order/2, time_order=time_order, forward=False, dtype=m.dtype, disk_path=self.disk_path)
 
 
 class GradientOperator(FWIOperator):
-    def __init__(self, u, m, rec, damp, time_order=4, spc_order=12, **kwargs):
+    def __init__(self, u, m, rec, damp, time_order=4, spc_order=12, disk_path=None):
         assert(m.shape == damp.shape)
         self.input_params = [u, m, rec, damp]
-        v = TimeData("v", m.shape, rec.nt, time_order=time_order, save=False, dtype=m.dtype)
+        # saving disk path
+        self.disk_path = disk_path
+        v = TimeData("v", m.shape, rec.nt, time_order=time_order, save=False, dtype=m.dtype, disk_path=self.disk_path)
         grad = DenseData("grad", m.shape, dtype=m.dtype)
         self.output_params = [grad, v]
         dim = len(m.shape)
@@ -186,15 +194,18 @@ class GradientOperator(FWIOperator):
 
         rec_list = rec.add(m, v)
         self.time_loop_stencils_pre = rec_list
-        super(GradientOperator, self).__init__(subs, rec.nt, m.shape, spc_border=spc_order/2, time_order=time_order, forward=False, dtype=m.dtype, **kwargs)
+        # propagate disk path to parent class
+        super(GradientOperator, self).__init__(subs, rec.nt, m.shape, spc_border=spc_order/2, time_order=time_order, forward=False, dtype=m.dtype, disk_path=self.disk_path)
 
 
 class BornOperator(FWIOperator):
-    def __init__(self, dm, m, src, damp, rec, time_order=4, spc_order=12, **kwargs):
+    def __init__(self, dm, m, src, damp, rec, time_order=4, spc_order=12, disk_path=None):
         assert(m.shape == damp.shape)
         self.input_params = [dm, m, src, damp, rec]
-        u = TimeData("u", m.shape, src.nt, time_order=time_order, save=False, dtype=m.dtype)
-        U = TimeData("U", m.shape, src.nt, time_order=time_order, save=False, dtype=m.dtype)
+        # saving disk path
+        self.disk_path = disk_path
+        u = TimeData("u", m.shape, src.nt, time_order=time_order, save=False, dtype=m.dtype, disk_path=self.disk_path)
+        U = TimeData("U", m.shape, src.nt, time_order=time_order, save=False, dtype=m.dtype, disk_path=self.disk_path)
         self.output_params = [u, U]
         dim = len(m.shape)
         total_dim = self.total_dim(dim)
@@ -216,4 +227,5 @@ class BornOperator(FWIOperator):
         insert_second_source = Eq(U[total_dim], U[total_dim]+(dt*dt)/m[space_dim]*src2)
         reset_u = Eq(u[tuple((t - 2,) + space_dim)], 0)
         self.stencils = [(first_update, first_stencil_args), (second_update, second_stencil_args), (insert_second_source, []), (reset_u, [])]
-        super(BornOperator, self).__init__(subs, src.nt, m.shape, spc_border=spc_order/2, time_order=time_order, forward=True, dtype=m.dtype, **kwargs)
+        # propagate disk path to parent class
+        super(BornOperator, self).__init__(subs, src.nt, m.shape, spc_border=spc_order/2, time_order=time_order, forward=True, dtype=m.dtype, disk_path=self.disk_path)

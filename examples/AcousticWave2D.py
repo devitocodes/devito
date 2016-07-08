@@ -224,6 +224,7 @@ class AcousticWave2D:
         for i in range(nbpml):
             pos = np.abs((nbpml-i)/nbpml)
             val = dampcoeff * (pos - np.sin(2*np.pi*pos)/(2*np.pi))
+
             damp[i, :] += val
             damp[-(i + 1), :] += val
             damp[:, i] += val
