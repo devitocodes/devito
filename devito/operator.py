@@ -2,13 +2,42 @@ from jit_manager import JitManager
 from propagator import Propagator
 from at_controller import AtController
 import os
+import numpy as np
+
+
+__all__ = ['Operator']
 
 
 class Operator(object):
+    """Class encapsulating a defined operator as defined by the given stencil
+
+    The Operator class is the core abstraction in DeVito that allows
+    users to generate high-performance Finite Difference kernels from
+    a stencil definition defined from SymPy equations.
+
+    :param subs: SymPy symbols to substitute in the stencil
+    :param nt: Number of timesteps to execute
+    :param shape: Shape of the data buffer over which to execute
+    :param dtype: Data type for the grid buffer
+    :param spc_border: Number of spatial padding layers
+    :param time_order: Order of the time discretisation
+    :param forward: Flag indicating whether to execute forward in time
+    :param profile: Flag to enable performance profiling
+    :param cache_blocking: Flag to enable cache blocking
+    :param block_size: Block size used for cache clocking
+    :param auto_tune: Use Intel ISAT to auto-tune block size
+    :param stencils: List of (stencil, subs) tuples that define individual
+                     stencils and their according substitutions.
+    :param input_params: List of symbols that are expected as input.
+    :param output_params: List of symbols that define operator output.
+    """
+
     _ENV_VAR_OPENMP = "DEVITO_OPENMP"
 
-    def __init__(self, subs, nt, shape, dtype, spc_border=0, time_order=0, forward=True, profile=False,
-                 cache_blocking=False, block_size=None, auto_tune=False):
+    def __init__(self, subs, nt, shape, dtype=np.float32, spc_border=1,
+                 time_order=1, forward=True, profile=False,
+                 cache_blocking=False, block_size=5, auto_tune=False,
+                 stencils=[], input_params=[], output_params=[]):
         self.subs = subs
         self.cache_blocking = cache_blocking
         self.auto_tune = auto_tune
@@ -20,6 +49,9 @@ class Operator(object):
         self.propagator.time_loop_stencils_b = self.propagator.time_loop_stencils_b + getattr(self, "time_loop_stencils_pre", [])
         self.propagator.time_loop_stencils_a = self.propagator.time_loop_stencils_a + getattr(self, "time_loop_stencils_post", [])
         self.params = {}
+        self.stencils = stencils
+        self.input_params = input_params
+        self.output_params = output_params
         self.dtype = dtype
         for param in self.input_params:
             self.params[param.name] = param
@@ -58,7 +90,10 @@ class SimpleOperator(Operator):
         assert(input_grid.shape == output_grid.shape)
         nt = input_grid.shape[0]
         shape = input_grid.shape[1:]
-        self.input_params = [input_grid, output_grid]
-        self.output_params = []
-        self.stencils = zip(kernel, [[]]*len(kernel))
-        super(SimpleOperator, self).__init__([], nt, shape, input_grid.dtype, **kwargs)
+        input_params = [input_grid, output_grid]
+        output_params = []
+        stencils = zip(kernel, [[]]*len(kernel))
+        super(SimpleOperator, self).__init__([], nt, shape, stencils=stencils,
+                                             input_params=input_params,
+                                             output_params=output_params,
+                                             dtype=input_grid.dtype, **kwargs)
