@@ -4,20 +4,48 @@ import numpy as np
 from sympy import symbols, IndexedBase, Indexed
 from function_manager import FunctionDescriptor
 from collections import Iterable
+from at_controller import get_at_block_size, get_optimal_block_size
 
 
 class Propagator(object):
-    def __init__(self, name, nt, shape, spc_border=0, forward=True, time_order=0, openmp=False, profile=False, cache_blocking=False, block_size=5):
+    def __init__(self, name, nt, shape, spc_border=0, forward=True, time_order=0, openmp=False, profile=False,
+                 cache_blocking=False, block_size=None, auto_tune=False):
         self.t = symbols("t")
+
         self.cache_blocking = cache_blocking
-        if(isinstance(block_size, Iterable)):
-            if(len(block_size) == len(shape)):
-                self.block_sizes = block_size
+        self.auto_tune = auto_tune
+
+        self.spc_order = spc_border * 2  # setting space order
+        self.time_order = time_order
+
+        if self.cache_blocking:
+            if self.auto_tune:  # if auto tuning get block optimal block sizes and tune around that
+                self.tune_b_size = get_optimal_block_size(shape, self.time_order, self.spc_order)
+
+                self.tune_range = 8  # range of tuning around tune_b_size
+                if self.tune_b_size - self.tune_range <= 0:  # making sure that tune_b - tune_range > 0
+                    self.tune_range -= - (self.tune_b_size - self.tune_range) + 1
+
+                block_size = self.tune_b_size
+            elif not block_size:
+                # else if block_size not set check if there is best block_size from at report else use optimal on
+                optimal_block_size = get_optimal_block_size(shape, self.time_order, self.spc_order)
+                block_size = get_at_block_size(self.time_order, self.spc_order)
+
+                if block_size:
+                    block_size.append(optimal_block_size)  # append outer most dimension as it is not auto tuned
+                else:
+                    block_size = optimal_block_size  # use optimal block size
+
+            if isinstance(block_size, Iterable):
+                if len(block_size) == len(shape):
+                    self.block_sizes = block_size
+                else:
+                    raise ArgumentError("Block size should either be a single number or an array of the same size as the spatial domain")
             else:
-                raise ArgumentError("Block size should either be a single number or an array of the same size as the spatial domain")
-        else:
-            # A single block size has been passed. Broadcast it to a list of the size of shape
-            self.block_sizes = [int(block_size)]*len(shape)
+                # A single block size has been passed. Broadcast it to a list of the size of shape
+                self.block_sizes = [int(block_size)]*len(shape)
+
         # We assume the dimensions are passed to us in the following order
         # var_order
         if len(shape) == 2:
@@ -32,7 +60,6 @@ class Propagator(object):
         self.prep_variable_map()
         self.t_replace = {}
         self.time_steppers = []
-        self.time_order = time_order
         self.nt = nt
         self.time_loop_stencils_b = []
         self.time_loop_stencils_a = []
@@ -46,18 +73,25 @@ class Propagator(object):
         self.fd = FunctionDescriptor(name)
         self.pre_loop = []
         self.post_loop = []
+
         if self.profile:
             self.add_local_var("time", "double")
             self.pre_loop.append(cgen.Statement("struct timeval start, end"))
             self.pre_loop.append(cgen.Assign("time", 0))
             self.post_loop.append(cgen.PrintStatement("time: %f\n", "time"))
+
+        # Auto tuning
+        if self.cache_blocking and self.auto_tune:
+            self.at_markers = [("M1_start", "M1_end"), ("M2_start", "M2_end")]  # markers for at pragmas
+            self._at_init_block_vars()
+
         if forward:
             self._time_step = 1
         else:
             self._time_step = -1
         self._space_loop_limits = {}
         for i, dim in enumerate(self.space_dims):
-                self._space_loop_limits[dim] = (spc_border, shape[i]-spc_border)
+                self._space_loop_limits[dim] = (spc_border, shape[i] - spc_border)
 
         # Kernel operation intensity dictionary
         self._kernel_dic_oi = {'add': 0, 'mul': 0, 'load': 0, 'store': 0, 'load_list': [], 'load_all_list': [], 'oi_high': 0, 'oi_high_weighted': 0, 'oi_low': 0, 'oi_low_weighted': 0}
@@ -178,8 +212,17 @@ class Propagator(object):
         ivdep = True
         remainder = False
         orig_loop_body = loop_body
+
+        inner_most_dim_passed = False  # used in oder to avoid at inner most dimension
+
         for spc_var, block_size in reversed(zip(list(self.space_dims), self.block_sizes)):
             dim_var = str(self._var_map[spc_var])
+
+            if self.auto_tune and inner_most_dim_passed:  # change block size into var
+                block_size = dim_var + "block"
+            else:
+                inner_most_dim_passed = True
+
             block_var = dim_var + "b"
             loop_limits = self._space_loop_limits[spc_var]
             loop_body = cgen.For(cgen.InlineInitializer(cgen.Value("int", dim_var),
@@ -188,6 +231,8 @@ class Propagator(object):
             if ivdep and len(self.space_dims) > 1:
                 loop_body = cgen.Block([cgen.Pragma("ivdep")] + [loop_body])
             ivdep = False
+
+        inner_most_dim_passed = False  # used in oder to avoid at inner most dimension
 
         for spc_var, block_size in reversed(zip(list(self.space_dims), self.block_sizes)):
             orig_var = str(self._var_map[spc_var])
@@ -198,6 +243,12 @@ class Propagator(object):
             if old_upper_limit - new_upper_limit > 0:
                 remainder = True
             loop_limits = (loop_limits[0], new_upper_limit)
+
+            if self.auto_tune and inner_most_dim_passed:  # change block size into var name
+                block_size = orig_var + "block"
+            else:
+                inner_most_dim_passed = True
+
             loop_body = cgen.For(cgen.InlineInitializer(cgen.Value("int", dim_var),
                                                         str(loop_limits[0])),
                                  str(dim_var) + "<" + str(loop_limits[1]), str(dim_var) + "+=" + str(block_size), loop_body)
@@ -298,6 +349,39 @@ class Propagator(object):
             self.time_loop_stencils_b.append(stencil)
         else:
             self.time_loop_stencils_a.append(stencil)
+
+            # initialises block sizes as variables and adds auto tuning pragmas
+
+    def _at_init_block_vars(self):
+        """Initialises block sizes as variables in order to at them later"""
+
+        block_vars = []  # Blocking var names
+
+        for i in range(0, len(self.space_dims) - 1):  # generate block size vars. We want to ignore inner most dimension
+            block_vars.append(str(self.loop_counters[i]) + "block")
+
+        # main auto tuning pragma
+        at_main_pragma = "isat tuning name(spc_o_%s_tm_o_%s) scope(%s, %s) measure(%s, %s)" \
+                         % (self.spc_order, self.time_order, self.at_markers[0][0], self.at_markers[0][1],
+                            self.at_markers[1][0], self.at_markers[1][1])
+
+        for block_var in block_vars:  # appends vars that we want to tune to main at pragma
+            at_main_pragma += " variable(%s, range(%d, %d, 1))" \
+                              % (block_var, self.tune_b_size - self.tune_range, self.tune_b_size + self.tune_range)
+
+        # dependant will try all possible permutations of block sizes // prob what we want
+        # independant will find the first optimal varthen progress searching for the next one using the one found before
+        at_main_pragma += " search(dependent)"
+
+        self.pre_loop.append(cgen.Pragma(at_main_pragma))
+
+        for block_var in block_vars:
+            # init the block size variables
+            self.pre_loop.append(cgen.Statement("int const %s = %d" % (block_var, self.tune_b_size)))
+
+        # Setting auto tuning scope
+        self.pre_loop.append(cgen.Pragma("isat marker %s" % self.at_markers[0][0]))
+        self.post_loop.append(cgen.Pragma("isat marker %s" % self.at_markers[0][1]))
 
     def _get_ops_expr(self, expr, dict1, is_lhs=False):
         """Get number of different operations in expression expr.
