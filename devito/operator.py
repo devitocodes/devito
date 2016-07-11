@@ -1,8 +1,9 @@
 from devito.compiler import get_compiler_from_env, IntelMICCompiler
 from devito.interfaces import SymbolicData, TimeData
 from devito.propagator import Propagator
-from sympy import Indexed, lambdify, symbols
+from sympy import Indexed, lambdify, symbols, solve
 from sympy import Eq, Function, Symbol, preorder_traversal
+from sympy.abc import t
 import numpy as np
 
 
@@ -125,9 +126,14 @@ class Operator(object):
             sym_undef.remove(d)
         # TODO: We should check that all undfined symbols have known substitutions
 
+        # Shift time indices so that LHS writes into t only,
+        # eg. u[t+2] = u[t+1] + u[t]  -> u[t] = u[t-1] + u[t-2]
+        self.stencils = [eqn.subs(t, t + solve(eqn.lhs.args[0], t)[0])
+                         if isinstance(eqn.lhs, TimeData) else eqn
+                         for eqn in self.stencils]
         # Convert incoming stencil equations to "indexed access" format
-        self.stencils = [(Eq(expr_indexify(eqn.lhs), expr_indexify(eqn.rhs)), s)
-                         for eqn, s in stencils]
+        self.stencils = [(Eq(expr_indexify(eqn.lhs), expr_indexify(eqn.rhs)), sub)
+                         for eqn, sub in stencils]
         self.subs = subs
         self.propagator = Propagator(self.getName(), nt, shape, spc_border=spc_border,
                                      time_order=time_order, forward=forward,
