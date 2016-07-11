@@ -8,6 +8,7 @@ import codepy.jit as jit
 from tempfile import gettempdir
 import numpy as np
 from tools import convert_dtype_to_ctype
+from devito.propagator import Propagator
 
 
 class JitManager(object):
@@ -30,6 +31,8 @@ class JitManager(object):
 
     def __init__(self, propagators, dtype=None, openmp=False):
         self.compiler = guess_toolchain()
+        if self.compiler.cc in Propagator._gcc_compiler_list:
+            print("note only gcc 4.9 and above support pragma GCC ivdep") 
         self._openmp = openmp
         override_var = os.environ.get(self.COMPILER_OVERRIDE_VAR, "")
         if override_var != "" and not override_var.isspace():
@@ -44,8 +47,18 @@ class JitManager(object):
             flags = remove_flags.split(":")
             self._incompatible_flags = self._incompatible_flags + flags
 
+        # set cc for each propergator
+        for prop in propagators:
+            prop.set_cc(self.compiler.cc) 
         function_descriptors = [prop.get_fd() for prop in propagators]
+
         self.function_manager = FunctionManager(function_descriptors, self._mic_flag, self._openmp)
+
+        # add main method for auto tuning to produce executable file
+        if propagators[0].auto_tune and propagators[0].cache_blocking:
+            # appends main function to the list of function descriptors
+            self.function_manager.append_main_at_function(function_descriptors, propagators[0])
+
         self._function_descriptors = function_descriptors
         self._clean_flags()
         self._add_flags()

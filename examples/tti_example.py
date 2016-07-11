@@ -4,6 +4,12 @@ from devito.interfaces import DenseData, TimeData
 from tti_operators import SourceLikeTTI, ForwardOperator
 
 
+# setup deafult disk_path, if default is none and user
+# does not specify another path then ndarray is used
+DenseData.set_default_disk_path("/tmp/devito_disk")
+# make sure removal of memmap file on interrupts
+DenseData.register_remove_memmap_file_signal()
+
 dimensions = (50, 50, 50)
 model = IGrid()
 model0 = IGrid()
@@ -129,3 +135,6 @@ forward_op.apply()
 # ft2 = open('Wftti', 'w')
 # ft2.write(u.data)
 # ft2.close()
+
+# remove memmap file
+DenseData.remove_memmap_file()

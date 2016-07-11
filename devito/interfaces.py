@@ -1,25 +1,101 @@
 import numpy as np
 from sympy import IndexedBase
 from tools import aligned
+import os
+from signal import *
+import sys
+
+__all__ = ['DenseData', 'TimeData', 'PointData']
 
 
 class DenseData(IndexedBase):
-    def __init__(self, name, shape, dtype):
+
+    def __init__(self, name, shape, dtype, disk_path=None):
         self.name = name
         self.dtype = dtype
         self.pointer = None
         self.initializer = None
+        self.disk_path = disk_path
         super(DenseData, self).__init__(name)
 
     def __new__(cls, *args, **kwargs):
         return IndexedBase.__new__(cls, args[0], shape=args[1])
 
+    # this is the default directory where memmap files will be created
+    _default_disk_path = None
+    # holds the string name of all memmap file created
+    _memmap_file_list = []
+    # default exit code used on interrupt and kill
+    _default_exit_code = 0
+
+    # functions for managing memmap files
+    # call this method to specify where you want memmap file to be created
+    @staticmethod
+    def set_default_disk_path(disk_path):
+        """call this method to specify default directory to create memmap file"""
+        if not os.path.exists(disk_path):
+            os.makedirs(disk_path)
+        DenseData._default_disk_path = disk_path
+        print("default disk path set to: " + DenseData._default_disk_path)
+
+    @staticmethod
+    def get_memmap_file_list():
+        """returns the list of string path to all memmap file created"""
+        return DenseData._memmap_file_list
+
+    # used for clean memmap file on normal exit
+    @staticmethod
+    def remove_memmap_file():
+        """call this method at the end of script to clean up generated memmpa file"""
+        for f in DenseData._memmap_file_list:
+            try:
+                os.remove(f)
+            except OSError:
+                print("error removing " + f + " skipping")
+                pass
+
+    # used for clean memmap file on signal, internal method
+    @staticmethod
+    def _remove_memmap_file_on_signal(*args):
+        DenseData.remove_memmap_file()
+        sys.exit(DenseData._default_exit_code)
+
+    # to register clean up method for chosen signals
+    @staticmethod
+    def register_remove_memmap_file_signal():
+        """call this method to make sure memmap files are removed on interrupt or kill"""
+        for sig in (SIGABRT, SIGINT, SIGSEGV, SIGTERM):
+            signal(sig, DenseData._remove_memmap_file_on_signal)
+    # end of functions for managing memmap files
+
+    # This function allocate memmory for this data. if either _defualt_disk_path or
+    # self.disk_path is not None, a numpy memmap is used, if not a numpy ndarray is used.
+    # Warning: this function assume that seld.name is unique
+    def _allocate_memory(self):
+        """allocate memmory for this data. if either _defualt_disk_path or self.disk_path is not None,
+           a numpy memmap is used, if not a numpy ndarray is used."""
+        if DenseData._default_disk_path is None and self.disk_path is None:
+            # not disk_path use ndarray
+            self.pointer = aligned(np.zeros(self.shape, self.dtype, order='C'), alignment=64)
+            return
+        elif self.disk_path is None:
+            # using defualt disk_path
+            self.disk_path = DenseData._default_disk_path
+        elif not os.path.exists(self.disk_path):
+            # create disk path
+            os.makedirs(self.disk_path)
+        # allocate memory
+        f = self.disk_path + "/data_" + self.name
+        self.pointer = aligned(np.memmap(filename=f, dtype=self.dtype, mode='w+', shape=tuple(self.shape), order='C'), alignment=64)
+        if f not in DenseData._memmap_file_list:
+            # assume self.name is unique
+            DenseData._memmap_file_list.append(f)
+        if not self.disk_path == DenseData._default_disk_path:
+            print("memmap file written to: " + f)
+
     def set_initializer(self, lambda_initializer):
         assert(callable(lambda_initializer))
         self.initializer = lambda_initializer
-
-    def _allocate_memory(self):
-        self.pointer = aligned(np.zeros(self.shape, self.dtype, order='C'), alignment=64)
 
     @property
     def data(self):
@@ -39,7 +115,7 @@ class TimeData(DenseData):
     # constructor work needs to be moved into the __new__ method while some is in
     # __init__. This makes it important to override both __new__ and __init__ in
     # every child class.
-    def __init__(self, name, spc_shape, time_dim, time_order, save, dtype, pad_time=False):
+    def __init__(self, name, spc_shape, time_dim, time_order, save, dtype, pad_time=False, disk_path=None):
         if save:
             time_dim = time_dim + time_order
         else:
@@ -49,13 +125,14 @@ class TimeData(DenseData):
         self.save = save
         self.time_order = time_order
         self.pad_time = pad_time
+        self.disk_path = disk_path
 
     def _allocate_memory(self):
         super(TimeData, self)._allocate_memory()
         if self.pad_time is True:
             self.pointer = self.pointer[self.time_order:, :, :]
 
-    def __new__(cls, name, spc_shape, time_dim, time_order, save, dtype, pad_time=False):
+    def __new__(cls, name, spc_shape, time_dim, time_order, save, dtype, pad_time=False, disk_path=None):
         if save:
             time_dim = time_dim + time_order
         else:
@@ -69,10 +146,11 @@ class PointData(DenseData):
     sparse data container. For now, the naming follows the use in the
     current problem.
     """
-    def __init__(self, name, npoints, nt, dtype):
+    def __init__(self, name, npoints, nt, dtype, disk_path=None):
         self.npoints = npoints
         self.nt = nt
         super(PointData, self).__init__(name, (nt, npoints), dtype)
+        self.disk_path = disk_path
 
-    def __new__(cls, name, npoints, nt, *args):
+    def __new__(cls, name, npoints, nt, *args, **kwargs):
         return IndexedBase.__new__(cls, name, shape=(nt, npoints))

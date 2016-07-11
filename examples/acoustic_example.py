@@ -4,6 +4,12 @@ from containers import IShot, IGrid
 from devito.interfaces import DenseData, TimeData
 from fwi_operators import SourceLike, ForwardOperator, AdjointOperator, GradientOperator, BornOperator
 
+# setup deafult disk_path, if default is none and user
+# does not specify another path then ndarray is used
+DenseData.set_default_disk_path("/tmp/devito_disk")
+# make sure removal of memmap file on interrupts
+DenseData.register_remove_memmap_file_signal()
+
 dimensions = (50, 50, 50)
 model = IGrid()
 model0 = IGrid()
@@ -135,3 +141,6 @@ create_dm(dm.data)
 born_op = BornOperator(dm, m, src, damp, rec, t_order, spc_order)
 print("Applying")
 born_op.apply()
+
+# remove memmap file
+DenseData.remove_memmap_file()
