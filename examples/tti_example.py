@@ -4,10 +4,9 @@ from devito.interfaces import DenseData, TimeData
 from tti_operators import SourceLikeTTI, ForwardOperator
 
 
-# setup disk_path
-# disk_path indicates where numpy memmap files are created, if None
-# ndarray is used instead of numpy memmap. None by default
+# setup deafult disk_path
 DenseData.set_default_disk_path("/tmp/devito_disk")
+# make sure removal of memmap file on interrupts
 DenseData.register_remove_memmap_file_signal()
 
 dimensions = (50, 50, 50)

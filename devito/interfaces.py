@@ -1,8 +1,6 @@
 import numpy as np
 from sympy import IndexedBase
 from tools import aligned
-from hashlib import sha1
-from random import randint
 import os
 from signal import *
 import sys
@@ -21,19 +19,18 @@ class DenseData(IndexedBase):
     def __new__(cls, *args, **kwargs):
         return IndexedBase.__new__(cls, args[0], shape=args[1])
 
-    # hash function used for generating part of memmap file name
-    _hashing_function = sha1
-    # this is the directory where memmap files will be created
+    # this is the default directory where memmap files will be created
     _default_disk_path = None
     # holds the string name of all memmap file created
     _memmap_file_list = []
-    # default exit code
+    # default exit code used on interrupt and kill
     _default_exit_code = 0
 
     ## functions for managing memmap files
     # call this method to specify where you want memmap file to be created
     @staticmethod
     def set_default_disk_path(disk_path):
+        """call this method to specify default directory to create memmap file"""
         if not os.path.exists(disk_path):
             os.makedirs(disk_path)
         DenseData._default_disk_path = disk_path
@@ -41,10 +38,13 @@ class DenseData(IndexedBase):
 
     @staticmethod
     def get_memmap_file_list():
+        """returns the list of string path to all memmap file created"""
         return DenseData._memmap_file_list
 
+    # used for clean memmap file on normal exit
     @staticmethod
     def remove_memmap_file():
+        """call this method at the end of script to clean up generated memmpa file"""
         for f in DenseData._memmap_file_list:
             try:
                 os.remove(f)
@@ -52,20 +52,22 @@ class DenseData(IndexedBase):
                 print("error removing " + f + " skipping")
                 pass
 
+    # used for clean memmap file on signal, internal method
     @staticmethod
     def _remove_memmap_file_on_signal(*args):
         DenseData.remove_memmap_file()
         sys.exit(DenseData._default_exit_code)
 
+    # to register clean up method for chosen signals
     @staticmethod
     def register_remove_memmap_file_signal():
+        """call this method to make sure memmap files are removed on interrupt or kill"""
         for sig in (SIGABRT, SIGINT, SIGSEGV, SIGTERM):
             signal(sig, DenseData._remove_memmap_file_on_signal)
-
     ##end of functions for managing memmap files
 
-    # function to allocate memory for this data, if _disk_path is not None, a numpy memmap is used
-    # if not a numpy ndarray is used, by default _disk_path is None
+    #This function allocate memmory for this data. if either _defualt_disk_path or
+    #self.disk_path is not None, a numpy memmap is used, if not a numpy ndarray is used.
     def _allocate_memory(self):
         """allocate memmory for this data. if either _defualt_disk_path or self.disk_path is not None,
            a numpy memmap is used, if not a numpy ndarray is used."""
