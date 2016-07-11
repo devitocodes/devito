@@ -4,6 +4,8 @@ from tools import aligned
 from hashlib import sha1
 from random import randint
 import os
+from signal import *
+import sys
 
 
 class DenseData(IndexedBase):
@@ -25,6 +27,8 @@ class DenseData(IndexedBase):
     _default_disk_path = None
     # holds the string name of all memmap file created
     _memmap_file_list = []
+    # default exit code
+    _default_exit_code = 0
 
     ## functions for managing memmap files
     # call this method to specify where you want memmap file to be created
@@ -47,6 +51,17 @@ class DenseData(IndexedBase):
             except OSError:
                 print("error removing " + f + " skipping")
                 pass
+
+    @staticmethod
+    def _remove_memmap_file_on_signal(*args):
+        DenseData.remove_memmap_file()
+        sys.exit(DenseData._default_exit_code)
+
+    @staticmethod
+    def register_remove_memmap_file_signal():
+        for sig in (SIGABRT, SIGINT, SIGSEGV, SIGTERM):
+            signal(sig, DenseData._remove_memmap_file_on_signal)
+
     ##end of functions for managing memmap files
 
     # function to allocate memory for this data, if _disk_path is not None, a numpy memmap is used

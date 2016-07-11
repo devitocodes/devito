@@ -17,7 +17,6 @@ class SourceLike(PointData):
         self.nbpml = nbpml
         super(SourceLike, self).__init__(name, npoint, nt, dtype)
         self.disk_path = disk_path
-        print("self d = " + self.disk_path)
         x1, y1, z1, x2, y2, z2 = symbols('x1, y1, z1, x2, y2, z2')
         if ndim == 2:
             A = Matrix([[1, x1, z1, x1*z1],
