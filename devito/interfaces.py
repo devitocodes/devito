@@ -92,7 +92,7 @@ class TimeData(DenseData):
     # constructor work needs to be moved into the __new__ method while some is in
     # __init__. This makes it important to override both __new__ and __init__ in
     # every child class.
-    def __init__(self, name, spc_shape, time_dim, time_order, save, dtype, pad_time=False):
+    def __init__(self, name, spc_shape, time_dim, time_order, save, dtype, pad_time=False, disk_path=None):
         if save:
             time_dim = time_dim + time_order
         else:
@@ -102,13 +102,14 @@ class TimeData(DenseData):
         self.save = save
         self.time_order = time_order
         self.pad_time = pad_time
+        self.disk_path = disk_path
 
     def _allocate_memory(self):
         super(TimeData, self)._allocate_memory()
         if self.pad_time is True:
             self.pointer = self.pointer[self.time_order:, :, :]
 
-    def __new__(cls, name, spc_shape, time_dim, time_order, save, dtype, pad_time=False):
+    def __new__(cls, name, spc_shape, time_dim, time_order, save, dtype, pad_time=False, disk_path=None):
         if save:
             time_dim = time_dim + time_order
         else:
@@ -122,10 +123,11 @@ class PointData(DenseData):
     sparse data container. For now, the naming follows the use in the
     current problem.
     """
-    def __init__(self, name, npoints, nt, dtype):
+    def __init__(self, name, npoints, nt, dtype, disk_path=None):
         self.npoints = npoints
         self.nt = nt
         super(PointData, self).__init__(name, (nt, npoints), dtype)
+        self.disk_path = disk_path
 
-    def __new__(cls, name, npoints, nt, *args):
+    def __new__(cls, name, npoints, nt, *args, **kwargs):
         return IndexedBase.__new__(cls, name, shape=(nt, npoints))

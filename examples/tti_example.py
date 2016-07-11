@@ -110,9 +110,9 @@ def damp_boundary(damp, h, nbpml):
 nrec, _ = data.traces.shape
 m = DenseData("m", model.vp.shape, dtype)
 m.data[:] = model.vp**(-2)
-u = TimeData("u", m.shape, nt, time_order=t_order, save=False, dtype=m.dtype)
+u = TimeData("u", m.shape, nt, time_order=t_order, save=False, dtype=m.dtype, disk_path="/tmp/my_data")
 v = TimeData("v", m.shape, nt, time_order=t_order, save=False, dtype=m.dtype)
-a = DenseData("a", m.shape, dtype=m.dtype)
+a = DenseData("a", m.shape, dtype=m.dtype, disk_path="/tmp/my_data")
 a.data[:] = 1.4
 b = DenseData("b", m.shape, dtype=m.dtype)
 b.data[:] = np.sqrt(1.2)
@@ -122,8 +122,8 @@ th.data[:] = np.pi/5
 ph.data[:] = np.pi/6
 damp = DenseData("damp", model.vp.shape, m.dtype)
 damp_boundary(damp.data, h, nbpml)
-src = SourceLikeTTI("src", 1, nt, dt, h, np.array(data.source_coords, dtype=dtype)[np.newaxis, :], len(dimensions), dtype, nbpml)
-rec = SourceLikeTTI("rec", nrec, nt, dt, h, data.receiver_coords, len(dimensions), dtype, nbpml)
+src = SourceLikeTTI("src", 1, nt, dt, h, np.array(data.source_coords, dtype=dtype)[np.newaxis, :], len(dimensions), dtype, nbpml, disk_path="/tmp/my_data")
+rec = SourceLikeTTI("rec", nrec, nt, dt, h, data.receiver_coords, len(dimensions), dtype, nbpml, disk_path="/tmp/my_data")
 src.data[:] = data.get_source()[:, np.newaxis]
 forward_op = ForwardOperator(m, src, damp, rec, u, v, a, b, th, ph, t_order, spc_order)
 forward_op.apply()
