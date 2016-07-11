@@ -54,7 +54,7 @@ class SymbolicData(Function):
             if len(args) < 1:
                 args = cls.indices(shape)
             # Create a new type instance from cls and inject name
-            newcls = type(name, cls.__bases__, dict(cls.__dict__))
+            newcls = type(name, (cls, ), dict(cls.__dict__))
             # Create the new Function object and invoke __init__
             newobj = Function.__new__(newcls, *args)
             newobj.__init__(*args, **kwargs)
@@ -185,7 +185,7 @@ class TimeData(DenseData):
             SymbolicData.__init__(self)
             return
         else:
-            super(self.__class__, self).__init__(*args, **kwargs)
+            super(TimeData, self).__init__(*args, **kwargs)
             time_dim = kwargs.get('time_dim')
             self.time_order = kwargs.get('time_order', 1)
             self.save = kwargs.get('save', False)
@@ -208,7 +208,7 @@ class TimeData(DenseData):
         return _indices[:len(shape) + 1]
 
     def _allocate_memory(self):
-        super(self.__class__, self)._allocate_memory()
+        super(TimeData, self)._allocate_memory()
         if self.pad_time:
             self._data = self._data[self.time_order:, :, :]
 
