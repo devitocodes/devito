@@ -1,5 +1,6 @@
 import cgen_wrapper as cgen
 import numpy as np
+from at_controller import AtController
 
 
 class FunctionManager(object):
@@ -17,6 +18,11 @@ class FunctionManager(object):
         self.mic_flag = mic_flag
         if openmp:
             self.libraries = self.libraries + ['omp.h']
+
+        for fd in self.function_descriptors:  # appends main function if flag is set to true
+            if fd.add_main_at_function:
+                self._append_main_at_function(fd)
+                break
 
     def includes(self):
         statements = []
@@ -83,12 +89,11 @@ class FunctionManager(object):
         statements.append(cgen.Statement("return 0"))
         return cgen.Block(statements)
 
-    def append_main_at_function(self, function_descriptors, propagator):
+    def _append_main_at_function(self, function_descriptor):
         """Appends main at function to the list function desc. Works with assumption that we are tuning first function.
 
         Args:
-            function_descriptors (list<FunctionDescriptor>): list to which main function is appended
-            propagator (Propagator): Used for retrieving at markers
+            function_descriptor (FunctionDescriptor): function descriptor which has at main function flag set
         """
 
         statements = []  # statements for cgen.block
@@ -98,7 +103,7 @@ class FunctionManager(object):
 
         # allocates the space for matrix'es
         # Note currently auto tunes only the first function in function descriptors. If scope is larger. Extend
-        for param in function_descriptors[0].matrix_params:
+        for param in function_descriptor.matrix_params:
             array_size_str = ""
             for shape in param["shape"]:
                 array_size_str += "%s * " % shape
@@ -111,18 +116,18 @@ class FunctionManager(object):
             allocation_str = "%s* %s = (%s*)malloc(%ssizeof(%s))" % (ptype, pname, ptype, array_size_str, ptype)
             statements.append(cgen.Statement(allocation_str))
 
-        statements.append(cgen.Pragma("isat marker %s" % propagator.at_markers[1][0]))  # tells at measure start
+        statements.append(cgen.Pragma("isat marker %s" % AtController.at_markers[1][0]))  # tells at measure start
 
         #                      cuts the [    removes ]        removes ' symbol
         function_args_str = str(pnames)[1:].replace(']', '').replace('\'', '')
 
         # call to function that we are auto tuning
-        statements.append(cgen.Statement("%s(%s)" % (function_descriptors[0].name, function_args_str)))
+        statements.append(cgen.Statement("%s(%s)" % (function_descriptor.name, function_args_str)))
 
-        statements.append(cgen.Pragma("isat marker %s" % propagator.at_markers[1][1]))  # tells at measure end
+        statements.append(cgen.Pragma("isat marker %s" % AtController.at_markers[1][1]))  # tells at measure end
 
         main_fd.set_body(cgen.Block(statements))  # set whole function body
-        function_descriptors.append(main_fd)  # append function descriptor
+        self.function_descriptors.append(main_fd)  # append function descriptor to the list
 
 
 class FunctionDescriptor(object):
@@ -140,6 +145,7 @@ class FunctionDescriptor(object):
         self.value_params = []
         self.local_vars = []
         self.return_type = None
+        self.add_main_at_function = False
 
     def add_matrix_param(self, name, shape, dtype):
         """ Add a parameter to the function

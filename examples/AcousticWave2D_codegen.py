@@ -83,12 +83,12 @@ class AcousticWave2D_cg:
         fw = ForwardOperator(self.m, self.src, self.damp, self.rec, self.u, time_order=self.t_order, profile=True,
                              spc_order=self.s_order, auto_tune=self.auto_tune, cache_blocking=self.cache_blocking)
         fw.apply()
-        return self.rec.data, self.u.data
+        return (self.rec.data, self.u.data)
 
     def Adjoint(self, rec):
         adj = AdjointOperator(self.m, self.rec, self.damp, self.srca, time_order=self.t_order, spc_order=self.s_order)
         v = adj.apply()[0]
-        return self.srca.data, v
+        return (self.srca.data, v)
 
     def Gradient(self, rec, u):
         grad_op = GradientOperator(self.u, self.m, self.rec, self.damp, time_order=self.t_order, spc_order=self.s_order)
@@ -108,4 +108,4 @@ class AcousticWave2D_cg:
         f = 0.5*np.linalg.norm(res)**2
         print('Residual is ', f, 'starting gradient')
         g = self.Gradient(res, u)
-        return f, g[self.nbpml:-self.nbpml, self.nbpml:-self.nbpml]
+        return (f, g[self.nbpml:-self.nbpml, self.nbpml:-self.nbpml])

@@ -1,24 +1,27 @@
 import os
-import stat
 import math
 import shutil
 import cpuinfo
 import subprocess
+from tools import clean_folder, set_x_permission
 
 # global vars.
+DEVITO_CC_ENV = "DEVITO_CC"
+AT_REPORT_PATH_ENV = "AT_REPORT_DIR"
 # report folder will be created in current dir. Change if necessary
-reports_folder_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "auto-tune-reports")
+reports_folder_path = os.getenv(AT_REPORT_PATH_ENV,     # Default path
+                                os.path.join(os.path.dirname(os.path.realpath(__file__)), "auto-tune-report"))
 
 # where best block sizes for each kernel will be kept
 final_report_path = os.path.join(reports_folder_path, "final_report.txt")
 
 
-def get_at_block_size(time_order, space_order):
+def get_at_block_size(time_order, space_border):
     """Gets the best block sizes for given kernel if they are in the final_report_path
 
     Args:
         time_order (int): time order of kernel
-        space_order (int): space order of kernel
+        space_border (int): space border of kernel
 
     Returns:
         list: best block size. Starting from outer most dimension
@@ -36,7 +39,7 @@ def get_at_block_size(time_order, space_order):
                 continue
 
             split = line.split(' ')
-            if int(split[0]) == time_order and int(split[1]) == space_order:  # finds the one we are looking for
+            if int(split[0]) == time_order and int(split[1]) == space_border:  # finds the one we are looking for
 
                 # Splits, converts all block sizes into int and returns
                 return [int(element) for element in split[2].split(',')]
@@ -44,39 +47,39 @@ def get_at_block_size(time_order, space_order):
     return None  # returns none if no matching time/space order was found
 
 
-def get_optimal_block_size(shape, time_order, space_order):
-    """Gets optimal block size. Based on architecture Currently works only on linux
+def get_optimal_block_size(shape, load_c):
+    """Gets optimal block size. Based on architecture.
 
     Args:
         shape (tuple|list): shape of kernel
-        time_order (int): time order of kernel
-        space_order (int): space order of kernel
+        load_c (int): load count
 
     Returns:
         int: most optimal size  for the block
     """
 
-    # list [time_order][space_order] hardcoded number of loads from the roof line at: (change if necessary)
-    # https://docs.google.com/spreadsheets/d/1OmvsTftH3uCfYZj-1Lb-5Ji7edrURf0UzzywYaw0-FY/edit?ts=5745964f#gid=0
-    number_of_loads = [[11, 17, 23, 29, 35, 41, 47, 53], [19, 25, 31, 37, 43, 49, 55]]  # works only till space order 16
-
     cache_s = int(cpuinfo.get_cpu_info()['l2_cache_size'].split(' ')[0])  # cache size
     core_c = cpuinfo.get_cpu_info()['count']  # number of cores
-    loads_c = number_of_loads[time_order / 2][space_order / 2]  # number of loads
 
+    # assuming no prefetching, square block will give the most cache reuse.
+    # We then take the cache/core divide by the size of the inner most dimension in which we do not block.
+    #  This gives us the X*Y block space, of which we take the square root to get the size of our blocks.
     # ((C size / cores) / (4 * length inner most * kernel loads)
-    optimal_b_size = math.sqrt(((1000 * cache_s) / core_c) / (4 * shape[len(shape) - 1] * loads_c))
+    optimal_b_size = math.sqrt(((1000 * cache_s) / core_c) / (4 * shape[len(shape) - 1] * load_c))
     return int(round(optimal_b_size))  # rounds to the nearest integer
 
 
 class AtController(object):
     """Class responsible for controlling auto tuning process, copying relevant files and collecting data"""
 
-    def __init__(self, isat_dir_path):
+    at_markers = [("M1_start", "M1_end"), ("M2_start", "M2_end")]  # markers for at pragmas
+
+    def __init__(self, isat_dir_path, openmp=False):
         """Initialises at controller. Creates at working dir. Creates all isat-files
 
         Args:
             isat_dir_path (str): full path to isat installation directory
+            openmp (bool): Flag indicating whether openmp was used. Default False
 
         Raises:
             ValueError: if isat installation directory does not exist
@@ -85,7 +88,7 @@ class AtController(object):
             raise ValueError("isat installation directory does not exits")
 
         self.time_order = None
-        self.space_order = None
+        self.space_border = None
 
         self._isat_py_path = os.path.join(isat_dir_path, "Source/Python/isat.py")  # path to isat script that does at
         self._at_work_dir = os.path.join(isat_dir_path, "Auto-tuning")  # working dir for at
@@ -97,7 +100,7 @@ class AtController(object):
         self._isat_build_f = "isat-build"
         self._isat_clean_f = "isat-clean"
         self._isat_test_f = "isat-test"
-        self._make_f = "makefile"
+        self._make_f = "Makefile"
 
         self._build_f_path = os.path.join(at_file_dir, self._isat_build_f)
         self._clean_f_path = os.path.join(at_file_dir, self._isat_clean_f)
@@ -116,54 +119,55 @@ class AtController(object):
         if not os.path.exists(self._at_work_dir):  # creates main working directory
             os.mkdir(self._at_work_dir)
 
-        # Uncomment if contents of isat files changes
-        # shutil.rmtree(at_file_dir)
+        if os.path.exists(at_file_dir):
+            shutil.rmtree(at_file_dir)
 
-        if not os.path.exists(at_file_dir):  # creates directory where all necessary files for at will be kept
-            os.mkdir(at_file_dir)
+        os.mkdir(at_file_dir)
 
-            with open(self._build_f_path, 'w') as f:  # creates isat-build
-                f.writelines([shell_ref_str, "\nmake build"])
-            self._set_x_permission(self._build_f_path)
+        with open(self._build_f_path, 'w') as f:  # creates isat-build
+            f.writelines([shell_ref_str, "\nmake build"])
+        set_x_permission(self._build_f_path)
 
-            with open(self._clean_f_path, 'w') as f:  # create isat-clean
-                f.writelines([shell_ref_str, "\nmake clean"])
-            self._set_x_permission(self._clean_f_path)
+        with open(self._clean_f_path, 'w') as f:  # create isat-clean
+            f.writelines([shell_ref_str, "\nmake clean"])
+        set_x_permission(self._clean_f_path)
 
-            with open(self._test_f_path, 'w') as f:  # create isat-test
-                f.writelines([shell_ref_str, "\n./%s.exe" % self._at_f_name])
-            self._set_x_permission(self._test_f_path)
+        with open(self._test_f_path, 'w') as f:  # create isat-test
+            f.writelines([shell_ref_str, "\n./%s.out" % self._at_f_name])
+        set_x_permission(self._test_f_path)
 
-            with open(self._make_f_path, 'w') as f:  # creates make-file
-                # copied make file contents from one of examples in isat folder. If there's a need feel free to change
-                make_file_contents = ["CXX = icc", "\nCXX_OPTS = -O3 -qopenmp",  # compiler and its options
-                                      "\nSRCS = %s.cpp" % self._at_f_name, "\nEXE = %s.exe" % self._at_f_name,
-                                      "\n$(EXE): $(SRCS)", "\n\t$(CXX) $(CXX_OPTS) $< -o $@",
-                                      "\nclean:", "\n\t-rm *.exe", "\nbuild: $(EXE)"]
+        with open(self._make_f_path, 'w') as f:  # creates make-file
+            # copied make file contents from one of examples in isat folder. If there's a need feel free to change
+            openmp_str = "-qopenmp" if openmp else ""
+            make_file_contents = ["CXX = %s" % os.getenv(DEVITO_CC_ENV, 'gcc'),
+                                  "\nCXX_OPTS = -O3 %s" % openmp_str,  # compiler and its options
+                                  "\nSRCS = %s.cpp" % self._at_f_name, "\nOUT = %s.out" % self._at_f_name,
+                                  "\n$(OUT): $(SRCS)", "\n\t$(CXX) $(CXX_OPTS) $< -o $@",
+                                  "\nclean:", "\n\t-rm *.out", "\nbuild: $(OUT)"]
 
-                f.writelines(make_file_contents)
-                self._set_x_permission(self._make_f_path)
+            f.writelines(make_file_contents)
+            set_x_permission(self._make_f_path)
 
-    def auto_tune(self, file_path, time_order, space_order):
+    def auto_tune(self, file_path, time_order, space_border):
         """Does the auto tuning for selected file and collects relevant data
 
         Args:
             file_path (str): full path to the file that we want to auto tune
             time_order (int): time order of kernel.
-            space_order (int): space order of kernel.
+            space_border (int): space border of kernel.
         """
 
         try:
             print "Starting Auto tuning for %s" % file_path
             self.time_order = time_order
-            self.space_order = space_order
+            self.space_border = space_border
 
             # these functions have to run in this order
             self._prep_file_for_at(file_path)
             self._run_at()
             self._extract_report_info()
             print "Auto tuning  complete for %s" % file_path
-        except ValueError:
+        except ValueError or IOError or RuntimeError:
             print "Auto tuning for %s failed" % file_path
 
         self._at_parent_folder = ""  # reset parent folder name
@@ -182,15 +186,15 @@ class AtController(object):
             print "%s not found"
             raise ValueError()
 
-        self._at_parent_folder = os.path.join(self._at_work_dir, "time_o_%d_space_o_%d" %
-                                              (self.time_order, self.space_order))
+        self._at_parent_folder = os.path.join(self._at_work_dir, "time_o_%d_space_bo_%d" %
+                                              (self.time_order, self.space_border))
         src_dir_path = os.path.join(self._at_parent_folder, self._at_src_dir)
 
         # prep the parent folder
         if not os.path.isdir(self._at_parent_folder):
             os.mkdir(self._at_parent_folder)
         else:
-            self._clean_folder(self._at_parent_folder)
+            clean_folder(self._at_parent_folder)
 
         # create src and dst folders which will be used for at
         os.mkdir(src_dir_path)
@@ -215,18 +219,18 @@ class AtController(object):
         log = open(log_file_path, 'w')
 
         # auto tuning command. -i for source of at -o for destination of at result
-        cmd = "%s -i %s -o %s" % (self._isat_py_path, os.path.join(self._at_parent_folder, self._at_src_dir, ),
-                                  os.path.join(self._at_parent_folder, self._at_dst_dir))
+        cmd = "%s -i %s -o %s --no_interactive" % (self._isat_py_path, os.path.join(self._at_parent_folder, self._at_src_dir),
+                                                   os.path.join(self._at_parent_folder, self._at_dst_dir))
         process = subprocess.Popen(cmd, shell=True, universal_newlines=True,
                                    stdout=log, stdin=subprocess.PIPE, stderr=subprocess.STDOUT)
-        process.stdin.write('y')  # isat asks whether we want to continue
+
         process.communicate()[0]
 
         log.close()
 
         if process.returncode != 0:
             print("Isat.py return code != 0. Check %s for errors" % log_file_path)
-            raise ValueError()
+            raise RuntimeError()
 
     def _extract_report_info(self):
         """Copies report over to auto-tune-reports dir and extracts best block size from it
@@ -251,7 +255,7 @@ class AtController(object):
         self._extract_best_block_size(at_report_path)
 
         # note if running on windows change into back slash
-        split = self._at_parent_folder.split('/')
+        split = self._at_parent_folder.split(os.pathsep)
         report_name_ref = split[len(split) - 1]  # get at parent folder name which is used for naming reports
 
         # copy file for ref
@@ -264,7 +268,7 @@ class AtController(object):
             at_report_path (str): full path to a at report
 
         Raises:
-            ValueError: If failed to extract block size. Can't open report files, can't write to them. etc
+            IOError: If failed to extract block size. Can't open report files, can't write to them. etc
         """
         global final_report_path
         try:
@@ -281,12 +285,12 @@ class AtController(object):
                         best_block = best_block.replace(" ", '')
 
                         # writes the best block size for dimensions starting from outer most
-                        str_to_write = "\n%d %d %s" % (self.time_order, self.space_order, best_block)
+                        str_to_write = "\n%d %d %s" % (self.time_order, self.space_border, best_block)
                         break
 
             if not os.path.isfile(final_report_path):  # initialises report file if it does not exist
                 with open(final_report_path, 'w') as final_report:
-                    final_report.write("time o,space o,best block size")
+                    final_report.write("time o,space bo,best block size")
                     final_report.write(str_to_write)  # writes the string
             else:
                 with open(final_report_path, 'r') as final_report:  # reads all the contents
@@ -294,7 +298,7 @@ class AtController(object):
 
                 # checks whether entry already exist and updates it. Otherwise appends to the end of the file
                 entry_found = False
-                str_to_check = "%d %d " % (self.time_order, self.space_order)
+                str_to_check = "%d %d " % (self.time_order, self.space_border)
                 for i in range(1, len(lines)):
                     if str_to_check in lines[i]:  # remove the newline from beginning of the string
                         lines[i] = str_to_write.replace('\n', '')  # replace line if matching found
@@ -309,36 +313,4 @@ class AtController(object):
 
         except Exception:
             print "Failed to extract best block size from %s" % at_report_path
-            raise ValueError()
-
-    def _clean_folder(self, folder_path):
-        """Helper method. Deletes all files and folders in the specified directory
-
-        Args:
-            folder_path(str): full path to the folder where we want to delete everything (use with care)
-        """
-
-        if not os.path.isdir(folder_path):  # returns if folder does not exist
-            return
-
-        try:
-            for the_file in os.listdir(folder_path):
-                file_path = os.path.join(folder_path, the_file)
-
-                if os.path.isfile(file_path):  # removes all files
-                    os.unlink(file_path)
-                elif os.path.isdir(file_path):  # removes all dirs
-                    shutil.rmtree(file_path)
-
-        except Exception as e:
-            print "Failed to clean %s\n%s" % (folder_path, e)
-
-    def _set_x_permission(self, file_path):
-        """Helper method. Sets os executable permission for a given file
-        file_path(str): full path to the file that we want to set x permission
-        """
-        if not os.path.isfile(file_path):
-            return
-
-        st = os.stat(file_path)
-        os.chmod(file_path, st.st_mode | stat.S_IEXEC)
+            raise IOError()

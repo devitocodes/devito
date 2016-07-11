@@ -33,6 +33,7 @@ class Operator(object):
     """
 
     _ENV_VAR_OPENMP = "DEVITO_OPENMP"
+    _ENV_VAR_ISAT_PATH = "ISAT_PATH"
 
     def __init__(self, subs, nt, shape, dtype=np.float32, spc_border=1,
                  time_order=1, forward=True, profile=False,
@@ -74,10 +75,10 @@ class Operator(object):
         self.jit_manager = JitManager([self.propagator], dtype=self.dtype, openmp=self.openmp)
         wrapped_function = self.jit_manager.get_wrapped_functions()[0]
 
-        if self.auto_tune and self.cache_blocking:
-            #                               current isat insall dir. Change based on your environment
-            at_controller = AtController("%s/isat" % os.getenv("HOME"))         # = space order
-            at_controller.auto_tune(self.jit_manager.src_file, self.time_order, self.spc_border * 2)
+        if self.auto_tune and self.cache_blocking:         # Default path if env not set
+            isat_dir = os.getenv(self._ENV_VAR_ISAT_PATH, "%s/isat" % os.getenv("HOME"))  # current isat install dir
+            at_controller = AtController(isat_dir, self.openmp)                   # = space order
+            at_controller.auto_tune(self.jit_manager.src_file, self.time_order, self.spc_border)
 
         return wrapped_function
 

@@ -48,11 +48,6 @@ class JitManager(object):
 
         self.function_manager = FunctionManager(function_descriptors, self._mic_flag, self._openmp)
 
-        # add main method for auto tuning to produce executable file
-        if propagators[0].auto_tune and propagators[0].cache_blocking:
-            # appends main function to the list of function descriptors
-            self.function_manager.append_main_at_function(function_descriptors, propagators[0])
-
         self._function_descriptors = function_descriptors
         self._clean_flags()
         self._add_flags()
