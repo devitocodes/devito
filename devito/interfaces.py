@@ -5,6 +5,8 @@ import os
 from signal import *
 import sys
 
+__all__ = ['DenseData', 'TimeData', 'PointData']
+
 
 class DenseData(IndexedBase):
 
@@ -68,6 +70,7 @@ class DenseData(IndexedBase):
 
     #This function allocate memmory for this data. if either _defualt_disk_path or
     #self.disk_path is not None, a numpy memmap is used, if not a numpy ndarray is used.
+    #Warning: this function assume that seld.name is unique
     def _allocate_memory(self):
         """allocate memmory for this data. if either _defualt_disk_path or self.disk_path is not None,
            a numpy memmap is used, if not a numpy ndarray is used."""
@@ -84,7 +87,9 @@ class DenseData(IndexedBase):
         # allocate memory    
         f = self.disk_path + "/data_" + self.name
         self.pointer = aligned(np.memmap(filename=f, dtype=self.dtype, mode='w+', shape=tuple(self.shape), order='C'), alignment=64)
-        DenseData._memmap_file_list.append(f)
+        if not f in DenseData._memmap_file_list:
+            # assume self.name is unique
+            DenseData._memmap_file_list.append(f)
         print("memmap file written to: " + f)
 
     def set_initializer(self, lambda_initializer):

@@ -1,7 +1,7 @@
 from devito.interfaces import DenseData
 import numpy as np
 from sympy import symbols, Eq
-from devito.operators import SimpleOperator
+from devito.operator import SimpleOperator
 
 
 class Test_Cache_Blocking(object):

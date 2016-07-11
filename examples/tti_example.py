@@ -4,7 +4,8 @@ from devito.interfaces import DenseData, TimeData
 from tti_operators import SourceLikeTTI, ForwardOperator
 
 
-# setup deafult disk_path
+# setup deafult disk_path, if default is none and user
+# does not specify another path then ndarray is used
 DenseData.set_default_disk_path("/tmp/devito_disk")
 # make sure removal of memmap file on interrupts
 DenseData.register_remove_memmap_file_signal()
@@ -112,7 +113,7 @@ m = DenseData("m", model.vp.shape, dtype)
 m.data[:] = model.vp**(-2)
 u = TimeData("u", m.shape, nt, time_order=t_order, save=False, dtype=m.dtype)
 v = TimeData("v", m.shape, nt, time_order=t_order, save=False, dtype=m.dtype)
-a = DenseData("a", m.shape, dtype=m.dtype, disk_path="/tmp/my_data")
+a = DenseData("a", m.shape, dtype=m.dtype)
 a.data[:] = 1.4
 b = DenseData("b", m.shape, dtype=m.dtype)
 b.data[:] = np.sqrt(1.2)
