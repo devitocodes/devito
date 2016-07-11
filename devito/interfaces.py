@@ -28,7 +28,7 @@ class DenseData(IndexedBase):
     # default exit code used on interrupt and kill
     _default_exit_code = 0
 
-    ## functions for managing memmap files
+    # functions for managing memmap files
     # call this method to specify where you want memmap file to be created
     @staticmethod
     def set_default_disk_path(disk_path):
@@ -66,28 +66,28 @@ class DenseData(IndexedBase):
         """call this method to make sure memmap files are removed on interrupt or kill"""
         for sig in (SIGABRT, SIGINT, SIGSEGV, SIGTERM):
             signal(sig, DenseData._remove_memmap_file_on_signal)
-    ##end of functions for managing memmap files
+    # end of functions for managing memmap files
 
-    #This function allocate memmory for this data. if either _defualt_disk_path or
-    #self.disk_path is not None, a numpy memmap is used, if not a numpy ndarray is used.
-    #Warning: this function assume that seld.name is unique
+    # This function allocate memmory for this data. if either _defualt_disk_path or
+    # self.disk_path is not None, a numpy memmap is used, if not a numpy ndarray is used.
+    # Warning: this function assume that seld.name is unique
     def _allocate_memory(self):
         """allocate memmory for this data. if either _defualt_disk_path or self.disk_path is not None,
            a numpy memmap is used, if not a numpy ndarray is used."""
-        if DenseData._default_disk_path == None and self.disk_path == None:
+        if DenseData._default_disk_path is None and self.disk_path is None:
             # not disk_path use ndarray
             self.pointer = aligned(np.zeros(self.shape, self.dtype, order='C'), alignment=64)
             return
-        elif self.disk_path == None:
+        elif self.disk_path is None:
             # using defualt disk_path
             self.disk_path = DenseData._default_disk_path
         elif not os.path.exists(self.disk_path):
             # create disk path
             os.makedirs(self.disk_path)
-        # allocate memory    
+        # allocate memory
         f = self.disk_path + "/data_" + self.name
         self.pointer = aligned(np.memmap(filename=f, dtype=self.dtype, mode='w+', shape=tuple(self.shape), order='C'), alignment=64)
-        if not f in DenseData._memmap_file_list:
+        if f not in DenseData._memmap_file_list:
             # assume self.name is unique
             DenseData._memmap_file_list.append(f)
         if not self.disk_path == DenseData._default_disk_path:
