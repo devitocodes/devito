@@ -5,7 +5,7 @@ from devito.interfaces import DenseData, TimeData
 from fwi_operators import SourceLike, ForwardOperator, AdjointOperator, GradientOperator, BornOperator
 
 # setup deafult disk_path, if default is none and user
-# does not specify another path, then ndarray is used
+# does not specify another path then ndarray is used
 DenseData.set_default_disk_path("/tmp/devito_disk")
 # make sure removal of memmap file on interrupts
 DenseData.register_remove_memmap_file_signal()
