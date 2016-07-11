@@ -1,6 +1,9 @@
+import os
+import stat
+import shutil
 import ctypes
-from sympy import symbols
 import numpy as np
+from sympy import symbols
 
 
 def convert_dtype_to_ctype(dtype):
@@ -38,3 +41,37 @@ def aligned(a, alignment=16):
     np.copyto(aa, a)
     assert (aa.ctypes.data % alignment) == 0
     return aa
+
+
+def clean_folder(folder_path):
+    """Helper method. Deletes all files and folders in the specified directory
+
+    Args:
+        folder_path(str): full path to the folder where we want to delete everything (use with care)
+    """
+
+    if not os.path.isdir(folder_path):  # returns if folder does not exist
+        return
+
+    try:
+        for the_file in os.listdir(folder_path):
+            file_path = os.path.join(folder_path, the_file)
+
+            if os.path.isfile(file_path):  # removes all files
+                os.unlink(file_path)
+            elif os.path.isdir(file_path):  # removes all dirs
+                shutil.rmtree(file_path)
+
+    except Exception as e:
+        print "Failed to clean %s\n%s" % (folder_path, e)
+
+
+def set_x_permission(file_path):
+    """Helper method. Sets os executable permission for a given file
+    file_path(str): full path to the file that we want to set x permission
+    """
+    if not os.path.isfile(file_path):
+        return
+
+    st = os.stat(file_path)
+    os.chmod(file_path, st.st_mode | stat.S_IEXEC)
