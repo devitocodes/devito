@@ -1,7 +1,6 @@
 from jit_manager import JitManager
 from propagator import Propagator
 from sympy import Indexed, lambdify, symbols
-from sympy.utilities.autowrap import autowrap
 import os
 
 
@@ -82,10 +81,7 @@ class Operator(object):
         time_loop_limits = self.propagator.time_loop_limits
         time_loop_lambdas_b = self.expr_to_lambda(self.propagator.time_loop_stencils_b)
         time_loop_lambdas_a = self.expr_to_lambda(self.propagator.time_loop_stencils_a)
-        stencils = []
-        for stencil, args in self.stencils:
-            stencil = stencil.subs(dict(zip(self.subs, args)))
-            stencils.append(stencil)
+        stencils = [stencil.subs(dict(zip(self.subs, args))) for stencil, args in self.stencils]
         stencil_lambdas = self.expr_to_lambda(stencils)
         for ti in range(*time_loop_limits):
             # Run time loop stencils before space loop
