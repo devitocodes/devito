@@ -7,7 +7,7 @@ from tti_operators import SourceLikeTTI, ForwardOperator
 # setup disk_path
 # disk_path indicates where numpy memmap files are created, if None
 # ndarray is used instead of numpy memmap. None by default
-DenseData.set_disk_path("/tmp/devito_disk")
+DenseData.set_default_disk_path("/tmp/devito_disk")
 
 dimensions = (50, 50, 50)
 model = IGrid()

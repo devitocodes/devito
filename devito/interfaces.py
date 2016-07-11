@@ -8,25 +8,33 @@ import os
 
 class DenseData(IndexedBase):
 
+    def __init__(self, name, shape, dtype, disk_path=None):
+        self.name = name
+        self.dtype = dtype
+        self.pointer = None
+        self.initializer = None
+        self.disk_path = disk_path
+        super(DenseData, self).__init__(name)
+
+    def __new__(cls, *args, **kwargs):
+        return IndexedBase.__new__(cls, args[0], shape=args[1])
+
     # hash function used for generating part of memmap file name
     _hashing_function = sha1
     # this is the directory where memmap files will be created
-    _disk_path = None
+    _default_disk_path = None
     # holds the string name of all memmap file created
     _memmap_file_list = []
 
     ## functions for managing memmap files
     # call this method to specify where you want memmap file to be created
     @staticmethod
-    def set_disk_path(disk_path):
+    def set_default_disk_path(disk_path):
         if not os.path.exists(disk_path):
-            print("the directory" + disk_path + " does not exit")
             os.makedirs(disk_path)
-            print(disk_path + " is created")
-        else:
-            print("directory " + disk_path + " found")
-        DenseData._disk_path = disk_path
-    
+        DenseData._default_disk_path = disk_path
+        print("default disk path set to: " + DenseData._default_disk_path)
+
     @staticmethod
     def get_memmap_file_list():
         return DenseData._memmap_file_list
@@ -36,43 +44,35 @@ class DenseData(IndexedBase):
         for f in DenseData._memmap_file_list:
             try:
                 os.remove(f)
-                print("removed file: " + f)
             except OSError:
-                print("error removing " + f + " file may no longer exists, skipping")
+                print("error removing " + f + " skipping")
                 pass
     ##end of functions for managing memmap files
-
-    def __init__(self, name, shape, dtype):
-        self.name = name
-        self.dtype = dtype
-        self.pointer = None
-        self.initializer = None
-        super(DenseData, self).__init__(name)
-
-    def __new__(cls, *args, **kwargs):
-        return IndexedBase.__new__(cls, args[0], shape=args[1])
-
-    def set_initializer(self, lambda_initializer):
-        assert(callable(lambda_initializer))
-        self.initializer = lambda_initializer
-
-    # function to generate a hased file name used for memmap file
-    def _generate_memmap_filenmae(self):
-        hash_string = self.name + str(randint(0, 100000000))
-        return self._hashing_function(hash_string).hexdigest()
 
     # function to allocate memory for this data, if _disk_path is not None, a numpy memmap is used
     # if not a numpy ndarray is used, by default _disk_path is None
     def _allocate_memory(self):
-        self._disk_path = DenseData._disk_path
-        if self._disk_path == None:
+        """allocate memmory for this data. if either _defualt_disk_path or self.disk_path is not None,
+           a numpy memmap is used, if not a numpy ndarray is used."""
+        if DenseData._default_disk_path == None and self.disk_path == None:
+            # not disk_path use ndarray
             self.pointer = aligned(np.zeros(self.shape, self.dtype, order='C'), alignment=64)
-        else:
-            f = self._disk_path + "/data_" + self.name + "_" + self._generate_memmap_filenmae()
-            self.pointer = aligned(np.memmap(filename=f, dtype=self.dtype, mode='w+', shape=tuple(self.shape), order='C'), alignment=64)
-            DenseData._memmap_file_list.append(f)
-            print("memmap file written to: " + f)
-            print("if the script call DenseData.remove_memmap_file() at the end, this file will be deleted automatically. if you have interupted this script, please go to " + self._disk_path + " to delete this file.")
+            return
+        elif self.disk_path == None:
+            # using defualt disk_path
+            self.disk_path = DenseData._default_disk_path
+        elif not os.path.exists(self.disk_path):
+            # create disk path
+            os.makedirs(self.disk_path)
+        # allocate memory    
+        f = self.disk_path + "/data_" + self.name
+        self.pointer = aligned(np.memmap(filename=f, dtype=self.dtype, mode='w+', shape=tuple(self.shape), order='C'), alignment=64)
+        DenseData._memmap_file_list.append(f)
+        print("memmap file written to: " + f)
+
+    def set_initializer(self, lambda_initializer):
+        assert(callable(lambda_initializer))
+        self.initializer = lambda_initializer
 
     @property
     def data(self):
