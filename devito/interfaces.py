@@ -90,7 +90,8 @@ class DenseData(IndexedBase):
         if not f in DenseData._memmap_file_list:
             # assume self.name is unique
             DenseData._memmap_file_list.append(f)
-        print("memmap file written to: " + f)
+        if not self.disk_path == DenseData._default_disk_path:
+            print("memmap file written to: " + f)
 
     def set_initializer(self, lambda_initializer):
         assert(callable(lambda_initializer))
