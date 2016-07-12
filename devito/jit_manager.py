@@ -37,14 +37,7 @@ class JitManager(object):
 
     def __init__(self, propagators, dtype=None, openmp=False):
         self.compiler = guess_toolchain()
-        # set ivdep pragma for different compilers
-        if self.compiler.cc in JitManager._gcc_compiler:
-            print("note only gcc 4.9 and above support pragma GCC ivdep")
-            self.ivdep = JitManager._gcc_ivdep
-        elif self.compiler.cc in JitManager._intel_compiler:
-            self.ivdep = JitManager._intel_ivdep
-        else:
-            self.ivdep = JitManager._default_ivdep
+        self._set_ivdep()
         self._openmp = openmp
         override_var = os.environ.get(self.COMPILER_OVERRIDE_VAR, "")
         if override_var != "" and not override_var.isspace():
@@ -115,6 +108,17 @@ class JitManager(object):
     def function_descriptors(self, function_descriptors):
         self._function_descriptors = function_descriptors
         self.__clean()
+
+    # set ivdep pragma for different compilers
+    def _set_ivdep(self):
+        """call this method to set the ivdep pragma for the current comiler."""
+        if self.compiler.cc in JitManager._gcc_compiler:
+            print("note only gcc 4.9 and above support pragma GCC ivdep")
+            self.ivdep = JitManager._gcc_ivdep
+        elif self.compiler.cc in JitManager._intel_compiler:
+            self.ivdep = JitManager._intel_ivdep
+        else:
+            self.ivdep = JitManager._default_ivdep
 
     def compile(self):
         # Generate compilable source code
