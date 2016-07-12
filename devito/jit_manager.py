@@ -8,7 +8,6 @@ import codepy.jit as jit
 from tempfile import gettempdir
 import numpy as np
 from tools import convert_dtype_to_ctype
-from devito.propagator import Propagator
 
 
 class JitManager(object):
@@ -54,7 +53,7 @@ class JitManager(object):
 
         # set ivdep pragma for each propergator
         for prop in propagators:
-            prop.set_ivdep_pragma(self.ivdep) 
+            prop.set_ivdep_pragma(self.ivdep)
         function_descriptors = [prop.get_fd() for prop in propagators]
 
         self.function_manager = FunctionManager(function_descriptors, self._mic_flag, self._openmp)

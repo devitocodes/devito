@@ -17,7 +17,7 @@ class Propagator(object):
 
         self.spc_order = spc_border * 2  # setting space order
         self.time_order = time_order
-        
+
         # default compiler to None
         self.cc = None
 
