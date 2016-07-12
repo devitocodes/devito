@@ -1,4 +1,5 @@
 from devito.function_manager import FunctionManager, FunctionDescriptor
+from devito.compiler import get_compiler_from_env, jit_compile_and_load
 import cgen_wrapper as cgen
 from codeprinter import ccode
 import numpy as np
@@ -25,14 +26,21 @@ class Propagator(object):
     :param spc_border: Number of spatial padding layers
     :param time_order: Order of the time discretisation
     :param forward: Flag indicating whether to execute forward in time
+    :param compiler: Compiler class used to perform JIT compilation.
+                     If not provided, the compiler will be inferred from the
+                     environment variable DEVITO_ARCH, or default to GNUCompiler.
     :param openmp: Flag to insert OpenMP pragmas
     :param profile: Flag to enable performance profiling
     :param cache_blocking: Flag to enable cache blocking
     :param block_size: Block size used for cache clocking
     """
     def __init__(self, name, nt, shape, spc_border=0, time_order=0,
-                 forward=True, openmp=False, profile=False,
-                 cache_blocking=False, block_size=5):
+                 forward=True, compiler=None, openmp=False,
+                 profile=False, cache_blocking=False, block_size=5):
+        # Derive JIT compilation infrastructure
+        self.compiler = compiler or get_compiler_from_env()
+        self._openmp = openmp
+
         self.t = symbols("t")
         self.cache_blocking = cache_blocking
         if(isinstance(block_size, Iterable)):
@@ -65,7 +73,6 @@ class Propagator(object):
         self._save = True
         # This might be changed later when parameters are being set
         self.profile = profile
-        self._openmp = openmp
         # Which function parameters need special (non-save) time stepping and which don't
         self.save_vars = {}
         self.fd = FunctionDescriptor(name)
@@ -87,8 +94,9 @@ class Propagator(object):
         # Kernel operation intensity dictionary
         self._kernel_dic_oi = {'add': 0, 'mul': 0, 'load': 0, 'store': 0, 'load_list': [], 'load_all_list': [], 'oi_high': 0, 'oi_high_weighted': 0, 'oi_low': 0, 'oi_low_weighted': 0}
 
-        # Cache C code and function objects
+        # Cache C code, lib and function objects
         self._ccode = None
+        self._lib = None
         self._cfunction = None
 
     @property
@@ -106,14 +114,23 @@ class Propagator(object):
         """Returns the auto-generated C code as a string"""
         if self._ccode is None:
             manager = FunctionManager([self.fd], openmp=self._openmp)
+            # For some reason we need this call to trigger fd.body
+            self.get_fd()
             self._ccode = str(manager.generate())
         return self._ccode
 
-    def cfunction(self, lib):
-        """Returns the JIT-compiled C function as a ctypes.FuncPtr object"""
-        # TODO: lib should come from self, and will probably invoke the JIT engine
+    @property
+    def cfunction(self):
+        """Returns the JIT-compiled C function as a ctypes.FuncPtr object
+
+        Note that this invokes the JIT compilation toolchain with the
+        compiler class derived in the constructor.
+        """
+        if self._lib is None:
+            self._lib = jit_compile_and_load(self.ccode, self.basename,
+                                             self.compiler)
         if self._cfunction is None:
-            self._cfunction = getattr(lib, self.fd.name)
+            self._cfunction = getattr(self._lib, self.fd.name)
             self._cfunction.argtypes = self.fd.argtypes
         return self._cfunction
 
