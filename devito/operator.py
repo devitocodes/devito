@@ -25,19 +25,27 @@ class Operator(object):
     :param profile: Flag to enable performance profiling
     :param cache_blocking: Flag to enable cache blocking
     :param block_size: Block size used for cache clocking
+    :param stencils: List of (stencil, subs) tuples that define individual
+                     stencils and their according substitutions.
+    :param input_params: List of symbols that are expected as input.
+    :param output_params: List of symbols that define operator output.
     """
 
     _ENV_VAR_OPENMP = "DEVITO_OPENMP"
 
     def __init__(self, subs, nt, shape, dtype=np.float32, spc_border=0,
                  time_order=0, forward=True, profile=False,
-                 cache_blocking=False, block_size=5):
+                 cache_blocking=False, block_size=5,
+                 stencils=[], input_params=[], output_params=[]):
         self.subs = subs
         self.openmp = os.environ.get(self._ENV_VAR_OPENMP) == "1"
         self.propagator = Propagator(self.getName(), nt, shape, spc_border, forward, time_order, self.openmp, profile, cache_blocking, block_size)
         self.propagator.time_loop_stencils_b = self.propagator.time_loop_stencils_b + getattr(self, "time_loop_stencils_pre", [])
         self.propagator.time_loop_stencils_a = self.propagator.time_loop_stencils_a + getattr(self, "time_loop_stencils_post", [])
         self.params = {}
+        self.stencils = stencils
+        self.input_params = input_params
+        self.output_params = output_params
         self.dtype = dtype
         self.nt = nt
         self.shape = shape
@@ -166,7 +174,10 @@ class SimpleOperator(Operator):
         assert(input_grid.shape == output_grid.shape)
         nt = input_grid.shape[0]
         shape = input_grid.shape[1:]
-        self.input_params = [input_grid, output_grid]
-        self.output_params = []
-        self.stencils = zip(kernel, [[]]*len(kernel))
-        super(SimpleOperator, self).__init__([], nt, shape, input_grid.dtype, **kwargs)
+        input_params = [input_grid, output_grid]
+        output_params = []
+        stencils = zip(kernel, [[]]*len(kernel))
+        super(SimpleOperator, self).__init__([], nt, shape, stencils=stencils,
+                                             input_params=input_params,
+                                             output_params=output_params,
+                                             dtype=input_grid.dtype, **kwargs)
