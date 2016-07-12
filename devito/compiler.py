@@ -42,12 +42,27 @@ class GNUCompiler(Compiler):
             self.ldflags += ['-fopenmp']
 
 
+class ClangCompiler(Compiler):
+    """Set of standard compiler flags for the clang toolchain"""
+
+    def __init__(self, *args, **kwargs):
+        super(ClangCompiler, self).__init__(*args, **kwargs)
+        self.cc = 'clang'
+        self.ld = 'clang'
+        self.cflags = ['-O3', '-g', '-fPIC', '-Wall']
+        self.ldflags = ['-shared']
+        if self.openmp:
+            print "WARNING: Disabling OpenMP because clang does not support it."
+            self.openmp = False
+
+
 # Registry dict for deriving Compiler classes according to
 # environment variable DEVITO_ARCH. Developers should add
 # new compiler classes here and provide a description in
 # the docstring of get_compiler_from_env().
 compiler_registry = {
     'gcc': GNUCompiler, 'gnu': GNUCompiler,
+    'clang': ClangCompiler, 'osx': ClangCompiler,
 }
 
 
@@ -56,6 +71,7 @@ def get_compiler_from_env():
 
     The key environment variable DEVITO_ARCH supports the following values:
      * 'gcc' or 'gnu' - (Default) Standard GNU compiler toolchain
+     * 'clang' or 'osx' - Clang compiler toolchain for Mac OSX
 
     Additionally, the variable DEVITO_OPENMP can be used to enable OpenMP
     parallelisation on by setting it to "1".
