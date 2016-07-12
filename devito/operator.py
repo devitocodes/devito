@@ -171,7 +171,9 @@ class Operator(object):
                 arr_lhs[ind_lhs] = lamda(*args)
 
     def get_callable(self):
-        self.jit_manager = JitManager([self.propagator], dtype=self.dtype, openmp=self.openmp)
+        self.jit_manager = JitManager([self.propagator], self.propagator.basename,
+                                      dtype=self.dtype, openmp=self.openmp)
+        self.jit_manager.compile(self.propagator.ccode)
         return self.jit_manager.get_wrapped_functions()[0]
 
     def getName(self):

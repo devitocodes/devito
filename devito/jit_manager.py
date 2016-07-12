@@ -28,7 +28,7 @@ class JitManager(object):
     # The temp directory used to store generated code
     tmp_dir = os.path.join(gettempdir(), "devito-%s" % os.getuid())
 
-    def __init__(self, propagators, dtype=None, openmp=False):
+    def __init__(self, propagators, basename, dtype=None, openmp=False):
         self.compiler = guess_toolchain()
         self._openmp = openmp
         override_var = os.environ.get(self.COMPILER_OVERRIDE_VAR, "")
@@ -51,9 +51,8 @@ class JitManager(object):
         self._add_flags()
         # Generate a random salt to uniquely identify this instance of the class
         self._salt = randint(0, 100000000)
-        self._basename = self.__generate_filename()
-        self.src_file = os.path.join(self.tmp_dir, "%s.cpp" % self._basename)
-        self.src_lib = os.path.join(self.tmp_dir, "%s.so" % self._basename)
+        self.src_file = "%s.cpp" % basename
+        self.src_lib = "%s.so" % basename
         self.dtype = dtype
         # If the temp does not exist, create it
         if not os.path.isdir(self.tmp_dir):
@@ -91,12 +90,10 @@ class JitManager(object):
         self._function_descriptors = function_descriptors
         self.__clean()
 
-    def compile(self):
-        # Generate compilable source code
-        self.src_code = str(self.function_manager.generate())
+    def compile(self, src_code):
         print "Generated: %s" % self.src_file
         jit.extension_file_from_string(self.compiler, self.src_lib,
-                                       self.src_code, source_name=self.src_file)
+                                       src_code, source_name=self.src_file)
 
     def __clean(self):
         self._wrapped_functions = None
@@ -158,8 +155,6 @@ class JitManager(object):
         return wrapped_function
 
     def prepare_wrapped_function(self):
-        # Compile code if this hasn't been done yet
-        self.compile()
         # Load compiled binary
         self.__load_library(src_lib=self.src_lib)
 
