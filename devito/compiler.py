@@ -10,22 +10,36 @@ __all__ = ['get_tmp_dir', 'get_compiler_from_env',
            'GNUCompiler']
 
 
-class GNUCompiler(GCCToolchain):
-    """Set of standard compiler flags for the GCC toolchain"""
-
-    def __init__(self):
-        self.cc = 'g++'
-        self.ld = 'g++'
-        self.cflags = ['-O3', '-g', '-fPIC', '-Wall']
-        self.ldflags = ['-shared']
+class Compiler(GCCToolchain):
+    """Base class for all compiler classes."""
+    def __init__(self, openmp=False):
+        self.cc = 'unknown'
+        self.ld = 'unknown'
+        self.cflags = []
+        self.ldflags = []
         self.include_dirs = []
         self.libraries = []
         self.library_dirs = []
         self.defines = []
         self.undefines = []
+        # Devito-specific flags and properties
+        self.openmp = openmp
 
     def __str__(self):
         return self.__class__.__name__
+
+
+class GNUCompiler(Compiler):
+    """Set of standard compiler flags for the GCC toolchain"""
+
+    def __init__(self, *args, **kwargs):
+        super(GNUCompiler, self).__init__(*args, **kwargs)
+        self.cc = 'g++'
+        self.ld = 'g++'
+        self.cflags = ['-O3', '-g', '-fPIC', '-Wall']
+        self.ldflags = ['-shared']
+        if self.openmp:
+            self.ldflags += ['-fopenmp']
 
 
 # Registry dict for deriving Compiler classes according to
@@ -42,9 +56,13 @@ def get_compiler_from_env():
 
     The key environment variable DEVITO_ARCH supports the following values:
      * 'gcc' or 'gnu' - (Default) Standard GNU compiler toolchain
+
+    Additionally, the variable DEVITO_OPENMP can be used to enable OpenMP
+    parallelisation on by setting it to "1".
     """
     key = environ.get('DEVITO_ARCH', 'gnu')
-    return compiler_registry[key.lower()]()
+    openmp = environ.get('DEVITO_OPENMP', "0") == "1"
+    return compiler_registry[key.lower()](openmp=openmp)
 
 
 def get_tmp_dir():

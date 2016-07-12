@@ -1,7 +1,6 @@
 from devito.compiler import get_compiler_from_env
 from propagator import Propagator
 from sympy import Indexed, lambdify, symbols
-import os
 import numpy as np
 from sympy import Eq, preorder_traversal
 
@@ -52,7 +51,6 @@ class Operator(object):
                  stencils=[], input_params=[], output_params=[]):
         # Derive JIT compilation infrastructure
         compiler = compiler or get_compiler_from_env()
-        self.openmp = os.environ.get(self._ENV_VAR_OPENMP) == "1"
 
         # Convert incoming stencil equations to "indexed access" format
         self.stencils = [(Eq(expr_indexify(eqn.lhs), expr_indexify(eqn.rhs)), s)
@@ -60,7 +58,7 @@ class Operator(object):
         self.subs = subs
         self.propagator = Propagator(self.getName(), nt, shape, spc_border=spc_border,
                                      time_order=time_order, forward=forward,
-                                     compiler=compiler, openmp=self.openmp, profile=profile,
+                                     compiler=compiler, profile=profile,
                                      cache_blocking=cache_blocking, block_size=block_size)
         self.propagator.time_loop_stencils_b = self.propagator.time_loop_stencils_b + getattr(self, "time_loop_stencils_pre", [])
         self.propagator.time_loop_stencils_a = self.propagator.time_loop_stencils_a + getattr(self, "time_loop_stencils_post", [])

@@ -23,17 +23,15 @@ class Propagator(object):
     :param compiler: Compiler class used to perform JIT compilation.
                      If not provided, the compiler will be inferred from the
                      environment variable DEVITO_ARCH, or default to GNUCompiler.
-    :param openmp: Flag to insert OpenMP pragmas
     :param profile: Flag to enable performance profiling
     :param cache_blocking: Flag to enable cache blocking
     :param block_size: Block size used for cache clocking
     """
     def __init__(self, name, nt, shape, spc_border=0, time_order=0,
-                 forward=True, compiler=None, openmp=False,
-                 profile=False, cache_blocking=False, block_size=5):
+                 forward=True, compiler=None, profile=False,
+                 cache_blocking=False, block_size=5):
         # Derive JIT compilation infrastructure
         self.compiler = compiler or get_compiler_from_env()
-        self._openmp = openmp
 
         self.t = symbols("t")
         self.cache_blocking = cache_blocking
@@ -107,7 +105,7 @@ class Propagator(object):
     def ccode(self):
         """Returns the auto-generated C code as a string"""
         if self._ccode is None:
-            manager = FunctionManager([self.fd], openmp=self._openmp)
+            manager = FunctionManager([self.fd], openmp=self.compiler.openmp)
             # For some reason we need this call to trigger fd.body
             self.get_fd()
             self._ccode = str(manager.generate())
@@ -193,10 +191,10 @@ class Propagator(object):
         else:
             loop_body = self.generate_space_loops(loop_body)
 
-        omp_master = [cgen.Pragma("omp master")] if self._openmp else []
-        omp_single = [cgen.Pragma("omp single")] if self._openmp else []
-        omp_parallel = [cgen.Pragma("omp parallel")] if self._openmp else []
-        omp_for = [cgen.Pragma("omp for")] if self._openmp else []
+        omp_master = [cgen.Pragma("omp master")] if self.compiler.openmp else []
+        omp_single = [cgen.Pragma("omp single")] if self.compiler.openmp else []
+        omp_parallel = [cgen.Pragma("omp parallel")] if self.compiler.openmp else []
+        omp_for = [cgen.Pragma("omp for")] if self.compiler.openmp else []
         t_loop_limits = self.time_loop_limits
         t_var = str(self._var_map[self.t])
         cond_op = "<" if self._forward else ">"
@@ -206,7 +204,7 @@ class Propagator(object):
             time_stepping = self.get_time_stepping()
         else:
             time_stepping = []
-        loop_body = omp_for + [loop_body] if self._openmp else [loop_body]
+        loop_body = omp_for + [loop_body] if self.compiler.openmp else [loop_body]
         # Statements to be inserted into the time loop before the spatial loop
         time_loop_stencils_b = [self.convert_equality_to_cgen(x) for x in self.time_loop_stencils_b]
         # Statements to be inserted into the time loop after the spatial loop
