@@ -72,6 +72,22 @@ class IntelCompiler(Compiler):
             self.ldflags += ['-openmp']
 
 
+class IntelMICCompiler(Compiler):
+    """Set of standard compiler flags for the clang toolchain"""
+
+    def __init__(self, *args, **kwargs):
+        super(IntelMICCompiler, self).__init__(*args, **kwargs)
+        self.cc = 'icpc'
+        self.ld = 'icpc'
+        self.cflags = ['-O3', '-g', '-fPIC', '-Wall', "-mmic"]
+        self.ldflags = ['-shared']
+        if self.openmp:
+            self.ldflags += ['-openmp']
+        else:
+            print "WARNING: Running on Intel MIC without OpenMP is highly discouraged"
+        self._mic = __import__('pymic')
+
+
 # Registry dict for deriving Compiler classes according to
 # environment variable DEVITO_ARCH. Developers should add
 # new compiler classes here and provide a description in
@@ -80,6 +96,7 @@ compiler_registry = {
     'gcc': GNUCompiler, 'gnu': GNUCompiler,
     'clang': ClangCompiler, 'osx': ClangCompiler,
     'intel': IntelCompiler, 'icpc': IntelCompiler,
+    'intel-mic': IntelMICCompiler, 'mic': IntelMICCompiler,
 }
 
 
@@ -90,6 +107,7 @@ def get_compiler_from_env():
      * 'gcc' or 'gnu' - (Default) Standard GNU compiler toolchain
      * 'clang' or 'osx' - Clang compiler toolchain for Mac OSX
      * 'intel' or 'icpc' - Intel compiler toolchain via icpc
+     * 'intel-mic' or 'mic' - Intel MIC using offload mode via pymic
 
     Additionally, the variable DEVITO_OPENMP can be used to enable OpenMP
     parallelisation on by setting it to "1".
@@ -117,13 +135,21 @@ def jit_compile(ccode, basename, compiler=GNUCompiler):
     return lib_file
 
 
-def load(basename):
-    """Load a compiled library and return the ctypes object"""
+def load(basename, compiler=GNUCompiler):
+    """Load a compiled library and return the ctypes object
+
+    Note, if the provided compiler is of type `IntelMICCompiler`
+    we utilise the `pymic` package to manage device streams.
+    """
     lib_file = "%s.so" % basename
+    if isinstance(compiler, IntelMICCompiler):
+        compiler._device = compiler._mic.devices[0]
+        compiler._stream = compiler._device.get_default_stream()
+        return compiler._device.load_library(lib_file)
     return npct.load_library(lib_file, '.')
 
 
 def jit_compile_and_load(ccode, basename, compiler=GNUCompiler):
     """JIT compile the given ccode and return the loaded library"""
     jit_compile(ccode, basename, compiler=compiler)
-    return load(basename)
+    return load(basename, compiler=compiler)

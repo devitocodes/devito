@@ -1,4 +1,4 @@
-from devito.compiler import get_compiler_from_env
+from devito.compiler import get_compiler_from_env, IntelMICCompiler
 from propagator import Propagator
 from sympy import Indexed, lambdify, symbols
 import numpy as np
@@ -50,7 +50,7 @@ class Operator(object):
                  profile=False, cache_blocking=False, block_size=5,
                  stencils=[], input_params=[], output_params=[]):
         # Derive JIT compilation infrastructure
-        compiler = compiler or get_compiler_from_env()
+        self.compiler = compiler or get_compiler_from_env()
 
         # Convert incoming stencil equations to "indexed access" format
         self.stencils = [(Eq(expr_indexify(eqn.lhs), expr_indexify(eqn.rhs)), s)
@@ -58,7 +58,7 @@ class Operator(object):
         self.subs = subs
         self.propagator = Propagator(self.getName(), nt, shape, spc_border=spc_border,
                                      time_order=time_order, forward=forward,
-                                     compiler=compiler, profile=profile,
+                                     compiler=self.compiler, profile=profile,
                                      cache_blocking=cache_blocking, block_size=block_size)
         self.propagator.time_loop_stencils_b = self.propagator.time_loop_stencils_b + getattr(self, "time_loop_stencils_pre", [])
         self.propagator.time_loop_stencils_a = self.propagator.time_loop_stencils_a + getattr(self, "time_loop_stencils_post", [])
@@ -84,7 +84,12 @@ class Operator(object):
         for param in self.input_params:
             param.initialize()
         args = [param.data for param in self.input_params + self.output_params]
-        f(*args)
+        if isinstance(self.compiler, IntelMICCompiler):
+            # Off-load propagator kernel via pymic stream
+            self.compiler._stream.invoke(f, args)
+            self.compiler._stream.sync()
+        else:
+            f(*args)
         return tuple([param.data for param in self.output_params])
 
     def apply_python(self):

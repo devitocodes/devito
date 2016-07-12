@@ -1,5 +1,6 @@
 from devito.function_manager import FunctionManager, FunctionDescriptor
-from devito.compiler import get_tmp_dir, get_compiler_from_env, jit_compile_and_load
+from devito.compiler import get_tmp_dir, get_compiler_from_env
+from devito.compiler import jit_compile_and_load, IntelMICCompiler
 import cgen_wrapper as cgen
 from codeprinter import ccode
 import numpy as np
@@ -105,7 +106,9 @@ class Propagator(object):
     def ccode(self):
         """Returns the auto-generated C code as a string"""
         if self._ccode is None:
-            manager = FunctionManager([self.fd], openmp=self.compiler.openmp)
+            mic_flag = isinstance(self.compiler, IntelMICCompiler)
+            manager = FunctionManager([self.fd], mic_flag=mic_flag,
+                                      openmp=self.compiler.openmp)
             # For some reason we need this call to trigger fd.body
             self.get_fd()
             self._ccode = str(manager.generate())
