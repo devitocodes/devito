@@ -3,6 +3,7 @@ from codepy.jit import extension_file_from_string
 from os import environ, path, mkdir, getuid
 from tempfile import gettempdir
 import numpy.ctypeslib as npct
+from cgen import Pragma
 
 
 __all__ = ['get_tmp_dir', 'get_compiler_from_env',
@@ -24,6 +25,7 @@ class Compiler(GCCToolchain):
         self.undefines = []
         # Devito-specific flags and properties
         self.openmp = openmp
+        self.pragma_ivdep = Pragma('ivdep')
 
     def __str__(self):
         return self.__class__.__name__
@@ -40,6 +42,7 @@ class GNUCompiler(Compiler):
         self.ldflags = ['-shared']
         if self.openmp:
             self.ldflags += ['-fopenmp']
+        self.pragma_ivdep = Pragma('GCC ivdep')
 
 
 class ClangCompiler(Compiler):
