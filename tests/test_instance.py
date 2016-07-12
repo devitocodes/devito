@@ -1,11 +1,9 @@
-from devito.jit_manager import JitManager
 import numpy as np
 import devito.cgen_wrapper as cgen
 from devito.propagator import Propagator
 
 
 class Test_Instance_Variable_Reset(object):
-    g = None
 
     def test_2d(self):
         data = np.arange(6, dtype=np.float64).reshape((3, 2))
@@ -14,11 +12,7 @@ class Test_Instance_Variable_Reset(object):
         propagator.add_param("input_grid", data.shape, data.dtype)
         propagator.add_param("output_grid", data.shape, data.dtype)
         propagator.loop_body = kernel
-        if self.g is None:
-            self.g = JitManager([propagator])
-        else:
-            self.g.function_descriptors = [propagator]
-        f = self.g.get_wrapped_functions()[0]
+        f = propagator.cfunction
         arr = np.empty_like(data)
         f(data, arr)
         assert(arr[2][1] == 8)
@@ -31,11 +25,7 @@ class Test_Instance_Variable_Reset(object):
         propagator.add_param("input_grid", data.shape, data.dtype)
         propagator.add_param("output_grid", data.shape, data.dtype)
         propagator.loop_body = kernel
-        if self.g is None:
-            self.g = JitManager([propagator])
-        else:
-            self.g.function_descriptors = [propagator]
-        f = self.g.get_wrapped_functions()[0]
+        f = propagator.cfunction
         arr = np.empty_like(data)
         f(data, arr)
         assert(arr[3][2][1] == 26)
@@ -48,11 +38,7 @@ class Test_Instance_Variable_Reset(object):
         propagator.add_param("input_grid", data.shape, data.dtype)
         propagator.add_param("output_grid", data.shape, data.dtype)
         propagator.loop_body = kernel
-        if self.g is None:
-            self.g = JitManager([propagator])
-        else:
-            self.g.function_descriptors = [propagator]
-        f = self.g.get_wrapped_functions()[0]
+        f = propagator.cfunction
         arr = np.empty_like(data)
         f(data, arr)
         assert(arr[4][3][2][1] == 122)
