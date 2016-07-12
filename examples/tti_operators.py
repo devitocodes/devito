@@ -1,4 +1,4 @@
-from devito.operators import *
+from devito.operator import *
 from sympy import Eq
 from devito.interfaces import TimeData, DenseData
 from sympy import Function, symbols, as_finite_diff, Wild
@@ -122,12 +122,12 @@ class TTIOperator(Operator):
 class ForwardOperator(TTIOperator):
     def __init__(self, m, src, damp, rec, u, v, a, b, th, ph, time_order=4, spc_order=12):
         assert(m.shape == damp.shape)
-        self.input_params = [m, src, damp, rec, u, v, a, b, th, ph]
+        input_params = [m, src, damp, rec, u, v, a, b, th, ph]
         u.pad_time = False
         dt = src.dt
         h = src.h
         old_src = src
-        self.output_params = []
+        output_params = []
         dim = len(m.shape)
         total_dim = self.total_dim(dim)
         space_dim = self.space_dim(dim)
@@ -137,19 +137,22 @@ class ForwardOperator(TTIOperator):
         stencil_args = [m[space_dim], a[space_dim], b[space_dim], th[space_dim], ph[space_dim], dt, h, damp[space_dim]]
         first_stencil = Eq(u[total_dim], stencilp)
         second_stencil = Eq(v[total_dim], stencilr)
-        self.stencils = [(first_stencil, stencil_args), (second_stencil, stencil_args)]
+        stencils = [(first_stencil, stencil_args), (second_stencil, stencil_args)]
         src_list = old_src.add(m, u) + old_src.add(m, v)
         rec = rec.read(u, v)
         self.time_loop_stencils_post = src_list+rec
-        super(ForwardOperator, self).__init__(subs, old_src.nt, m.shape, spc_border=spc_order/2, time_order=time_order, forward=True, dtype=m.dtype)
+        super(ForwardOperator, self).__init__(subs, old_src.nt, m.shape, spc_border=spc_order/2,
+                                              time_order=time_order, forward=True, dtype=m.dtype,
+                                              stencils=stencils, input_params=input_params,
+                                              output_params=output_params)
 
 
 class AdjointOperator(TTIOperator):
     def __init__(self, m, rec, damp, srca, time_order=4, spc_order=12):
         assert(m.shape == damp.shape)
-        self.input_params = [m, rec, damp, srca]
+        input_params = [m, rec, damp, srca]
         v = TimeData("v", m.shape, rec.nt, time_order=time_order, save=True, dtype=m.dtype)
-        self.output_params = [v]
+        output_params = [v]
         dim = len(m.shape)
         total_dim = self.total_dim(dim)
         space_dim = self.space_dim(dim)
@@ -158,20 +161,23 @@ class AdjointOperator(TTIOperator):
         stencil = self.smart_sympy_replace(dim, time_order, stencil, Function('p'), v, fw=False)
         main_stencil = Eq(lhs, stencil)
         stencil_args = [m[space_dim], rec.dt, rec.h, damp[space_dim]]
-        self.stencils = [(main_stencil, stencil_args)]
+        stencils = [(main_stencil, stencil_args)]
         rec_list = rec.add(m, v)
         src_list = srca.read(v)
         self.time_loop_stencils_post = rec_list + src_list
-        super(AdjointOperator, self).__init__(subs, rec.nt, m.shape, spc_border=spc_order/2, time_order=time_order, forward=False, dtype=m.dtype)
+        super(AdjointOperator, self).__init__(subs, rec.nt, m.shape, spc_border=spc_order/2,
+                                              time_order=time_order, forward=False, dtype=m.dtype,
+                                              stencils=stencils, input_params=input_params,
+                                              output_params=output_params)
 
 
 class GradientOperator(TTIOperator):
     def __init__(self, u, m, rec, damp, time_order=4, spc_order=12):
         assert(m.shape == damp.shape)
-        self.input_params = [u, m, rec, damp]
+        input_params = [u, m, rec, damp]
         v = TimeData("v", m.shape, rec.nt, time_order=time_order, save=False, dtype=m.dtype)
         grad = DenseData("grad", m.shape, dtype=m.dtype)
-        self.output_params = [grad, v]
+        output_params = [grad, v]
         dim = len(m.shape)
         total_dim = self.total_dim(dim)
         space_dim = self.space_dim(dim)
@@ -182,20 +188,23 @@ class GradientOperator(TTIOperator):
         main_stencil = Eq(lhs, lhs + stencil)
         gradient_update = Eq(grad[space_dim], grad[space_dim] - (v[total_dim] - 2 * v[tuple((t + 1,) + space_dim)] + v[tuple((t + 2,) + space_dim)]) * u[total_dim])
         reset_v = Eq(v[tuple((t + 2,) + space_dim)], 0)
-        self.stencils = [(main_stencil, stencil_args), (gradient_update, []), (reset_v, [])]
+        stencils = [(main_stencil, stencil_args), (gradient_update, []), (reset_v, [])]
 
         rec_list = rec.add(m, v)
         self.time_loop_stencils_pre = rec_list
-        super(GradientOperator, self).__init__(subs, rec.nt, m.shape, spc_border=spc_order/2, time_order=time_order, forward=False, dtype=m.dtype)
+        super(GradientOperator, self).__init__(subs, rec.nt, m.shape, spc_border=spc_order/2,
+                                               time_order=time_order, forward=False, dtype=m.dtype,
+                                               stencils=stencils, input_params=input_params,
+                                               output_params=output_params)
 
 
 class BornOperator(TTIOperator):
     def __init__(self, dm, m, src, damp, rec, time_order=4, spc_order=12):
         assert(m.shape == damp.shape)
-        self.input_params = [dm, m, src, damp, rec]
+        input_params = [dm, m, src, damp, rec]
         u = TimeData("u", m.shape, src.nt, time_order=time_order, save=False, dtype=m.dtype)
         U = TimeData("U", m.shape, src.nt, time_order=time_order, save=False, dtype=m.dtype)
-        self.output_params = [u, U]
+        output_params = [u, U]
         dim = len(m.shape)
         total_dim = self.total_dim(dim)
         space_dim = self.space_dim(dim)
@@ -215,5 +224,8 @@ class BornOperator(TTIOperator):
         second_update = Eq(U[total_dim], second_stencil)
         insert_second_source = Eq(U[total_dim], U[total_dim]+(dt*dt)/m[space_dim]*src2)
         reset_u = Eq(u[tuple((t - 2,) + space_dim)], 0)
-        self.stencils = [(first_update, first_stencil_args), (second_update, second_stencil_args), (insert_second_source, []), (reset_u, [])]
-        super(BornOperator, self).__init__(subs, src.nt, m.shape, spc_border=spc_order/2, time_order=time_order, forward=True, dtype=m.dtype)
+        stencils = [(first_update, first_stencil_args), (second_update, second_stencil_args), (insert_second_source, []), (reset_u, [])]
+        super(BornOperator, self).__init__(subs, src.nt, m.shape, spc_border=spc_order/2,
+                                           time_order=time_order, forward=True, dtype=m.dtype,
+                                           stencils=stencils, input_params=input_params,
+                                           output_params=output_params)
