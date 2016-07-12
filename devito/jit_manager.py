@@ -22,17 +22,27 @@ class JitManager(object):
     # To enable mic process: 1:True 0:False;
     COMPILER_ENABLE_MIC = "DEVITO_MIC"
     _intel_compiler = ('icc', 'icpc')
+    # list of compilers that use GCC ivdep, only gcc 4.9 and above support ivdep
+    _gcc_compiler = ["gcc", "g++", "c++"]
     _device = None
     _stream = None
     _mic = None
+    # ivdep pragma for different compilers 
+    _gcc_ivdep = "GCC ivdep"
+    _intel_ivdep = "ivdep"
+    _default_ivdep = "ivdep"
 
     # The temp directory used to store generated code
     tmp_dir = os.path.join(gettempdir(), "devito-%s" % os.getuid())
 
     def __init__(self, propagators, dtype=None, openmp=False):
         self.compiler = guess_toolchain()
-        if self.compiler.cc in Propagator._gcc_compiler_list:
-            print("note only gcc 4.9 and above support pragma GCC ivdep") 
+        # set ivdep pragma for different compilers
+        if self.compiler.cc in JitManager._gcc_compiler:
+            print("note only gcc 4.9 and above support pragma GCC ivdep")
+            self.ivdep = JitManager._gcc_ivdep
+        elif self.compiler.cc in JitManager._intel_compiler:
+            self.ivdep = JitManager._default_ivdep
         self._openmp = openmp
         override_var = os.environ.get(self.COMPILER_OVERRIDE_VAR, "")
         if override_var != "" and not override_var.isspace():
@@ -47,9 +57,9 @@ class JitManager(object):
             flags = remove_flags.split(":")
             self._incompatible_flags = self._incompatible_flags + flags
 
-        # set cc for each propergator
+        # set ivdep pragma for each propergator
         for prop in propagators:
-            prop.set_cc(self.compiler.cc) 
+            prop.set_ivdep_pragma(self.ivdep) 
         function_descriptors = [prop.get_fd() for prop in propagators]
 
         self.function_manager = FunctionManager(function_descriptors, self._mic_flag, self._openmp)

@@ -99,9 +99,6 @@ class Propagator(object):
         # Kernel operation intensity dictionary
         self._kernel_dic_oi = {'add': 0, 'mul': 0, 'load': 0, 'store': 0, 'load_list': [], 'load_all_list': [], 'oi_high': 0, 'oi_high_weighted': 0, 'oi_low': 0, 'oi_low_weighted': 0}
 
-    # list of compilers that use GCC ivdep oly gcc 4.9 support ivdep
-    _gcc_compiler_list = ["gcc", "g++", "c++"]
-
     @property
     def save(self):
         return self._save
@@ -123,20 +120,11 @@ class Propagator(object):
             loop_limits = (self.nt-1, -1)
         return loop_limits
 
-    # function to set the compiler, this is for the info
-    # of the propagator to know which ivdep pragma to use
-    # cc default to None
-    def set_cc(self, cc):
-        """call this method to set the compiler for this propagator"""
-        self.cc = cc
-
-    # function to generate the correct ivdep, called internally
-    def _get_ivdep_pragma(self):
-        """call this method to get the correct ivdep pragma, self.cc should be set"""
-        if self.cc is not None and self.cc in Propagator._gcc_compiler_list:
-            return "GCC ivdep"
-        else:
-            return "ivdep"
+    # tells the propagator which ivdep pragma to use
+    # deault is "ivdep"
+    def set_ivdep_pragma(self, ivdep):
+        """call this method to set the ivdep pragma for this propagator"""
+        self.ivdep = ivdep
 
     def prep_variable_map(self):
         """ Mapping from model variables (x, y, z, t) to loop variables (i1, i2, i3, i4)
@@ -225,7 +213,7 @@ class Propagator(object):
                                                         str(loop_limits[0])),
                                  str(dim_var) + "<" + str(loop_limits[1]), str(dim_var) + "++", loop_body)
             if ivdep and len(self.space_dims) > 1:
-                loop_body = cgen.Block([cgen.Pragma(self._get_ivdep_pragma())] + [loop_body])
+                loop_body = cgen.Block([cgen.Pragma(self.ivdep)] + [loop_body])
             ivdep = False
         return loop_body
 
@@ -250,7 +238,7 @@ class Propagator(object):
                                                         block_var),
                                  dim_var + "<" + block_var+"+"+str(block_size), dim_var + "++", loop_body)
             if ivdep and len(self.space_dims) > 1:
-                loop_body = cgen.Block([cgen.Pragma(self._get_ivdep_pragma())] + [loop_body])
+                loop_body = cgen.Block([cgen.Pragma(self.ivdep)] + [loop_body])
             ivdep = False
 
         inner_most_dim_passed = False  # used in oder to avoid at inner most dimension
@@ -284,7 +272,7 @@ class Propagator(object):
                 remainder_loop = cgen.For(cgen.InlineInitializer(cgen.Value("int", dim_var), str(loop_limits[0])),
                                           str(dim_var) + "<" + str(loop_limits[1]), str(dim_var) + "++", remainder_loop)
                 if ivdep and len(self.space_dims) > 1:
-                    loop_body = cgen.Block([cgen.Pragma(self._get_ivdep_pragma())] + [loop_body])
+                    loop_body = cgen.Block([cgen.Pragma(self.ivdep)] + [loop_body])
                 ivdep = False
             loop_body = cgen.Block([loop_body, remainder_loop])
 
