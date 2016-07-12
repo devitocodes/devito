@@ -173,8 +173,10 @@ class Operator(object):
     def get_callable(self):
         self.jit_manager = JitManager([self.propagator], self.propagator.basename,
                                       dtype=self.dtype, openmp=self.openmp)
+        # JitManager now only performs the basice operations compile and load
         self.jit_manager.compile(self.propagator.ccode)
-        return self.jit_manager.get_wrapped_functions()[0]
+        self.jit_manager.load_library(src_lib=None)
+        return self.propagator.cfunction(self.jit_manager.library)
 
     def getName(self):
         return self.__class__.__name__

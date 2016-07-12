@@ -7,7 +7,6 @@ from codepy.toolchain import guess_toolchain
 import codepy.jit as jit
 from tempfile import gettempdir
 import numpy as np
-from tools import convert_dtype_to_ctype
 
 
 class JitManager(object):
@@ -65,7 +64,7 @@ class JitManager(object):
         self._hash = self._hashing_function(hash_string).hexdigest()
         return self._hash
 
-    def __load_library(self, src_lib):
+    def load_library(self, src_lib):
         """Load a compiled dynamic binary using ctypes.cdll"""
         libname = src_lib or self.src_lib
         try:
@@ -156,10 +155,9 @@ class JitManager(object):
 
     def prepare_wrapped_function(self):
         # Load compiled binary
-        self.__load_library(src_lib=self.src_lib)
+        self.load_library(src_lib=self.src_lib)
 
         # Type: double* in C
-        array_nd = np.ctypeslib.ndpointer(dtype=self.dtype, flags='C')
         wrapped_functions = []
         for function_descriptor in self._function_descriptors:
             # Pointer to the function in the compiled library
@@ -168,9 +166,7 @@ class JitManager(object):
                 wrapped_functions.append(self.create_a_function(self._stream, library_function))
             else:
                 # Ctypes needs an array describing the function parameters, prepare that array
-                argtypes = [array_nd for i in function_descriptor.matrix_params]
-                argtypes += [convert_dtype_to_ctype(param[0]) for param in function_descriptor.value_params]
-                library_function.argtypes = argtypes
+                library_function.argtypes = function_descriptor.argtypes
                 wrapped_functions.append(self.wrap_function(library_function, function_descriptor))
         return wrapped_functions
 

@@ -71,6 +71,10 @@ class Propagator(object):
         # Kernel operation intensity dictionary
         self._kernel_dic_oi = {'add': 0, 'mul': 0, 'load': 0, 'store': 0, 'load_list': [], 'load_all_list': [], 'oi_high': 0, 'oi_high_weighted': 0, 'oi_low': 0, 'oi_low_weighted': 0}
 
+        # Cache C code and function objects
+        self._ccode = None
+        self._cfunction = None
+
     @property
     def basename(self):
         """Generate a unique basename path for auto-generated files.
@@ -84,8 +88,18 @@ class Propagator(object):
     @property
     def ccode(self):
         """Returns the auto-generated C code as a string"""
-        manager = FunctionManager([self.fd], openmp=self._openmp)
-        return str(manager.generate())
+        if self._ccode is None:
+            manager = FunctionManager([self.fd], openmp=self._openmp)
+            self._ccode = str(manager.generate())
+        return self._ccode
+
+    def cfunction(self, lib):
+        """Returns the JIT-compiled C function as a ctypes.FuncPtr object"""
+        # TODO: lib should come from self, and will probably invoke the JIT engine
+        if self._cfunction is None:
+            self._cfunction = getattr(lib, self.fd.name)
+            self._cfunction.argtypes = self.fd.argtypes
+        return self._cfunction
 
     @property
     def save(self):
