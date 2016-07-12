@@ -42,6 +42,8 @@ class JitManager(object):
             print("note only gcc 4.9 and above support pragma GCC ivdep")
             self.ivdep = JitManager._gcc_ivdep
         elif self.compiler.cc in JitManager._intel_compiler:
+            self.ivdep = JitManager._intel_ivdep
+        else:
             self.ivdep = JitManager._default_ivdep
         self._openmp = openmp
         override_var = os.environ.get(self.COMPILER_OVERRIDE_VAR, "")
