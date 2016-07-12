@@ -26,7 +26,7 @@ class JitManager(object):
     _device = None
     _stream = None
     _mic = None
-    # ivdep pragma for different compilers 
+    # ivdep pragma for different compilers
     _gcc_ivdep = "GCC ivdep"
     _intel_ivdep = "ivdep"
     _default_ivdep = "ivdep"
