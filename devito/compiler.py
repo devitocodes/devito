@@ -1,10 +1,12 @@
 from codepy.toolchain import GCCToolchain
 from codepy.jit import extension_file_from_string
-from os import environ
+from os import environ, path, mkdir, getuid
+from tempfile import gettempdir
 import numpy.ctypeslib as npct
 
 
-__all__ = ['get_compiler_from_env', 'jit_compile', 'load', 'jit_compile_and_load',
+__all__ = ['get_tmp_dir', 'get_compiler_from_env',
+           'jit_compile', 'load', 'jit_compile_and_load',
            'GNUCompiler']
 
 
@@ -43,6 +45,14 @@ def get_compiler_from_env():
     """
     key = environ.get('DEVITO_ARCH', 'gnu')
     return compiler_registry[key.lower()]()
+
+
+def get_tmp_dir():
+    "Return path to a devito-specific tmp directory"""
+    tmpdir = path.join(gettempdir(), "devito-%s" % getuid())
+    if not path.exists(tmpdir):
+        mkdir(tmpdir)
+    return tmpdir
 
 
 def jit_compile(ccode, basename, compiler=GNUCompiler):

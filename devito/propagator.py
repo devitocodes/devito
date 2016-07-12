@@ -1,19 +1,13 @@
 from devito.function_manager import FunctionManager, FunctionDescriptor
-from devito.compiler import get_compiler_from_env, jit_compile_and_load
+from devito.compiler import get_tmp_dir, get_compiler_from_env, jit_compile_and_load
 import cgen_wrapper as cgen
 from codeprinter import ccode
 import numpy as np
 from sympy import symbols, IndexedBase, Indexed
 from collections import Iterable
-from os import path, getuid
-from tempfile import gettempdir
+from os import path
 from random import randint
 from hashlib import sha1
-
-
-def get_tmp_dir():
-    "Return path to a devito-specific tmp directory"""
-    return path.join(gettempdir(), "devito-%s" % getuid())
 
 
 class Propagator(object):
