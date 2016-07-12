@@ -53,7 +53,10 @@ class Operator(object):
                          for eqn, s in stencils]
         self.subs = subs
         self.openmp = os.environ.get(self._ENV_VAR_OPENMP) == "1"
-        self.propagator = Propagator(self.getName(), nt, shape, spc_border, forward, time_order, self.openmp, profile, cache_blocking, block_size)
+        self.propagator = Propagator(self.getName(), nt, shape, spc_border=spc_border,
+                                     time_order=time_order, forward=forward,
+                                     openmp=self.openmp, profile=profile,
+                                     cache_blocking=cache_blocking, block_size=block_size)
         self.propagator.time_loop_stencils_b = self.propagator.time_loop_stencils_b + getattr(self, "time_loop_stencils_pre", [])
         self.propagator.time_loop_stencils_a = self.propagator.time_loop_stencils_a + getattr(self, "time_loop_stencils_post", [])
         self.params = {}

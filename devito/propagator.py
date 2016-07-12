@@ -16,7 +16,23 @@ def get_tmp_dir():
 
 
 class Propagator(object):
-    def __init__(self, name, nt, shape, spc_border=0, forward=True, time_order=0, openmp=False, profile=False, cache_blocking=False, block_size=5):
+    """Propagator objects derive and encode C kernel code according
+    to a given set of stencils, variables and time-stepping options.
+
+    :param name: Name of the propagator kernel
+    :param nt: Number of timesteps to execute
+    :param shape: Shape of the data buffer over which to execute
+    :param spc_border: Number of spatial padding layers
+    :param time_order: Order of the time discretisation
+    :param forward: Flag indicating whether to execute forward in time
+    :param openmp: Flag to insert OpenMP pragmas
+    :param profile: Flag to enable performance profiling
+    :param cache_blocking: Flag to enable cache blocking
+    :param block_size: Block size used for cache clocking
+    """
+    def __init__(self, name, nt, shape, spc_border=0, time_order=0,
+                 forward=True, openmp=False, profile=False,
+                 cache_blocking=False, block_size=5):
         self.t = symbols("t")
         self.cache_blocking = cache_blocking
         if(isinstance(block_size, Iterable)):
