@@ -5,9 +5,29 @@ import os
 
 
 class Operator(object):
+    """Class encapsulating a defined operator as defined by the given stencil
+
+    The Operator class is the core abstraction in DeVito that allows
+    users to generate high-performance Finite Difference kernels from
+    a stencil definition defined from SymPy equations.
+
+    :param subs: SymPy symbols to substitute in the stencil
+    :param nt: Number of timesteps to execute
+    :param shape: Shape of the data buffer over which to execute
+    :param dtype: Data type for the grid buffer
+    :param spc_border: Number of spatial padding layers
+    :param time_order: Order of the time discretisation
+    :param forward: Flag indicating whether to execute forward in time
+    :param profile: Flag to enable performance profiling
+    :param cache_blocking: Flag to enable cache blocking
+    :param block_size: Block size used for cache clocking
+    """
+
     _ENV_VAR_OPENMP = "DEVITO_OPENMP"
 
-    def __init__(self, subs, nt, shape, dtype, spc_border=0, time_order=0, forward=True, profile=False, cache_blocking=False, block_size=5):
+    def __init__(self, subs, nt, shape, dtype=np.float32, spc_border=0,
+                 time_order=0, forward=True, profile=False,
+                 cache_blocking=False, block_size=5):
         self.subs = subs
         self.openmp = os.environ.get(self._ENV_VAR_OPENMP) == "1"
         self.propagator = Propagator(self.getName(), nt, shape, spc_border, forward, time_order, self.openmp, profile, cache_blocking, block_size)
