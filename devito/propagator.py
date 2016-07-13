@@ -180,7 +180,13 @@ class Propagator(object):
         if isinstance(equality, cgen.Generable):
             return equality
         else:
-            return cgen.Assign(ccode(self.time_substitutions(equality.lhs).xreplace(self._var_map)), ccode(self.time_substitutions(equality.rhs).xreplace(self._var_map)))
+            lhs= ccode(self.time_substitutions(equality.lhs).xreplace(self._var_map))
+            rhs = ccode(self.time_substitutions(equality.rhs).xreplace(self._var_map))
+            #TODO: add a check for it's single precision 
+           
+            rhs = str(rhs).replace("pow", "powf")
+            rhs = str(rhs).replace("fabs", "fabsf")
+            return cgen.Assign(lhs, rhs)
 
     def generate_loops(self, loop_body):
         """ Assuming that the variable order defined in init (#var_order) is the
@@ -392,7 +398,7 @@ class Propagator(object):
                         result['mul'] += len(args)-1
                 else:
                         if expr.is_Add:
-                                result['add'] += len(args)-1
+                                result['add'] += len(args)-     1
                 # recursive call of all arguments
                 for expr2 in args:
                         result2 = self._get_ops_expr(expr2, result, is_lhs)
