@@ -3,9 +3,19 @@ from propagator import Propagator
 from sympy import Indexed, lambdify, symbols
 import os
 import numpy as np
+from sympy import Eq, preorder_traversal
 
 
 __all__ = ['Operator']
+
+
+def expr_indexify(expr):
+    """Convert functions into indexed matrix accesses in sympy expression"""
+    replacements = {}
+    for e in preorder_traversal(expr):
+        if hasattr(e, 'indexed'):
+            replacements[e] = e.indexify()
+    return expr.xreplace(replacements)
 
 
 class Operator(object):
@@ -37,27 +47,26 @@ class Operator(object):
                  time_order=0, forward=True, profile=False,
                  cache_blocking=False, block_size=5,
                  stencils=[], input_params=[], output_params=[]):
+
+        # Convert incoming stencil equations to "indexed access" format
+        self.stencils = [(Eq(expr_indexify(eqn.lhs), expr_indexify(eqn.rhs)), s)
+                         for eqn, s in stencils]
         self.subs = subs
         self.openmp = os.environ.get(self._ENV_VAR_OPENMP) == "1"
         self.propagator = Propagator(self.getName(), nt, shape, spc_border, forward, time_order, self.openmp, profile, cache_blocking, block_size)
         self.propagator.time_loop_stencils_b = self.propagator.time_loop_stencils_b + getattr(self, "time_loop_stencils_pre", [])
         self.propagator.time_loop_stencils_a = self.propagator.time_loop_stencils_a + getattr(self, "time_loop_stencils_post", [])
         self.params = {}
-        self.stencils = stencils
         self.input_params = input_params
         self.output_params = output_params
         self.dtype = dtype
         self.nt = nt
         self.shape = shape
         self.spc_border = spc_border
-        for param in self.input_params:
+        self.symbol_to_data = {}
+        for param in self.input_params + self.output_params:
             self.params[param.name] = param
             self.propagator.add_devito_param(param)
-        for param in self.output_params:
-            self.params[param.label] = param
-            self.propagator.add_devito_param(param)
-        self.symbol_to_data = {}
-        for param in self.input_params+self.output_params:
             self.symbol_to_data[param.name] = param
         self.propagator.subs = self.subs
         self.propagator.stencils, self.propagator.stencil_args = zip(*self.stencils)
