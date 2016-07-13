@@ -63,14 +63,10 @@ class Operator(object):
         self.nt = nt
         self.shape = shape
         self.spc_border = spc_border
-        for param in self.input_params:
+        self.symbol_to_data = {}
+        for param in self.input_params + self.output_params:
             self.params[param.name] = param
             self.propagator.add_devito_param(param)
-        for param in self.output_params:
-            self.params[param.label] = param
-            self.propagator.add_devito_param(param)
-        self.symbol_to_data = {}
-        for param in self.input_params+self.output_params:
             self.symbol_to_data[param.name] = param
         self.propagator.subs = self.subs
         self.propagator.stencils, self.propagator.stencil_args = zip(*self.stencils)
