@@ -2,7 +2,7 @@ from devito.compiler import get_compiler_from_env, IntelMICCompiler
 from devito.interfaces import SymbolicData, TimeData
 from devito.propagator import Propagator
 from sympy import Indexed, lambdify, symbols
-from sympy import Eq, preorder_traversal
+from sympy import Eq, Function, Symbol, preorder_traversal
 import numpy as np
 
 
@@ -18,6 +18,29 @@ def expr_dimensions(expr):
         elif isinstance(e, SymbolicData):
             dimensions += e.indices(e.shape)
     return list(set(dimensions))
+
+
+def expr_symbols(expr):
+    """Collects defined and undefined symbols used in a sympy expression
+
+    Defined symbols are functions that have an associated :class
+    SymbolicData: object, or dimensions that are known to the devito
+    engine. Undefined symbols are generic `sympy.Function` or
+    `sympy.Symbol` objects that need to be substituted before generating
+    operator C code.
+    """
+    defined = set()
+    undefined = set()
+    for e in preorder_traversal(expr):
+        if isinstance(e, TimeData):
+            defined.add(e.func(*e.indices(e.shape[1:])))
+        elif isinstance(e, SymbolicData):
+            defined.add(e.func(*e.indices(e.shape)))
+        elif isinstance(e, Function):
+            undefined.add(e)
+        elif isinstance(e, Symbol):
+            undefined.add(e)
+    return list(defined), list(undefined)
 
 
 def expr_indexify(expr):
@@ -60,11 +83,13 @@ class Operator(object):
     def __init__(self, subs, nt, shape, dtype=np.float32, spc_border=0,
                  time_order=0, forward=True, compiler=None,
                  profile=False, cache_blocking=False, block_size=5,
-                 stencils=[], input_params=[], output_params=[]):
+                 stencils=[], input_params=None, output_params=None):
         # Derive JIT compilation infrastructure
         self.compiler = compiler or get_compiler_from_env()
 
-        # Pull all dimenion indices from the incoming stencil
+        self.input_params = input_params
+        self.output_params = output_params
+        # Pull all dimension indices from the incoming stencil
         dimensions = set()
         for eqn, _ in stencils:
             dimensions.update(set(expr_dimensions(eqn.lhs)))
@@ -80,6 +105,26 @@ class Operator(object):
         else:
             # Default space dimension symbols
             self.space_dims = symbols("x z" if len(shape) == 2 else "x y z")[:len(shape)]
+        # Get functions and symbols in LHS/RHS and update params
+        sym_undef = set()
+        for eqn, _ in stencils:
+            lhs_def, lhs_undef = expr_symbols(eqn.lhs)
+            sym_undef.update(lhs_undef)
+            if self.output_params is None:
+                self.output_params = list(lhs_def)
+            rhs_def, rhs_undef = expr_symbols(eqn.rhs)
+            sym_undef.update(rhs_undef)
+            if self.input_params is None:
+                self.input_params = list(rhs_def)
+        # Remove output from input params
+        for p in self.input_params:
+            if p in self.output_params:
+                self.output_params.remove(p)
+        # Remove known dimensions from undefined symbols
+        for d in dimensions:
+            sym_undef.remove(d)
+        # TODO: We should check that all undfined symbols have known substitutions
+
         # Convert incoming stencil equations to "indexed access" format
         self.stencils = [(Eq(expr_indexify(eqn.lhs), expr_indexify(eqn.rhs)), s)
                          for eqn, s in stencils]
@@ -91,16 +136,12 @@ class Operator(object):
                                      cache_blocking=cache_blocking, block_size=block_size)
         self.propagator.time_loop_stencils_b = self.propagator.time_loop_stencils_b + getattr(self, "time_loop_stencils_pre", [])
         self.propagator.time_loop_stencils_a = self.propagator.time_loop_stencils_a + getattr(self, "time_loop_stencils_post", [])
-        self.params = {}
-        self.input_params = input_params
-        self.output_params = output_params
         self.dtype = dtype
         self.nt = nt
         self.shape = shape
         self.spc_border = spc_border
         self.symbol_to_data = {}
         for param in self.input_params + self.output_params:
-            self.params[param.name] = param
             self.propagator.add_devito_param(param)
             self.symbol_to_data[param.name] = param
         self.propagator.subs = self.subs
