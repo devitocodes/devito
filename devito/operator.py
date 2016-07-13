@@ -1,11 +1,23 @@
 from devito.compiler import get_compiler_from_env, IntelMICCompiler
-from propagator import Propagator
+from devito.interfaces import SymbolicData, TimeData
+from devito.propagator import Propagator
 from sympy import Indexed, lambdify, symbols
-import numpy as np
 from sympy import Eq, preorder_traversal
+import numpy as np
 
 
 __all__ = ['Operator']
+
+
+def expr_dimensions(expr):
+    """Collects all function dimensions used in a sympy expression"""
+    dimensions = []
+    for e in preorder_traversal(expr):
+        if isinstance(e, TimeData):
+            dimensions += e.indices(e.shape[1:])
+        elif isinstance(e, SymbolicData):
+            dimensions += e.indices(e.shape)
+    return list(set(dimensions))
 
 
 def expr_indexify(expr):
@@ -52,12 +64,29 @@ class Operator(object):
         # Derive JIT compilation infrastructure
         self.compiler = compiler or get_compiler_from_env()
 
+        # Pull all dimenion indices from the incoming stencil
+        dimensions = set()
+        for eqn, _ in stencils:
+            dimensions.update(set(expr_dimensions(eqn.lhs)))
+            dimensions.update(set(expr_dimensions(eqn.rhs)))
+        # Time dimension is fixed for now
+        time_dim = symbols("t")
+        # Derive space dimensions from expression
+        self.space_dims = None
+        if len(dimensions) > 0:
+            self.space_dims = list(dimensions)
+            if time_dim in self.space_dims:
+                self.space_dims.remove(time_dim)
+        else:
+            # Default space dimension symbols
+            self.space_dims = symbols("x z" if len(shape) == 2 else "x y z")[:len(shape)]
         # Convert incoming stencil equations to "indexed access" format
         self.stencils = [(Eq(expr_indexify(eqn.lhs), expr_indexify(eqn.rhs)), s)
                          for eqn, s in stencils]
         self.subs = subs
         self.propagator = Propagator(self.getName(), nt, shape, spc_border=spc_border,
                                      time_order=time_order, forward=forward,
+                                     space_dims=self.space_dims,
                                      compiler=self.compiler, profile=profile,
                                      cache_blocking=cache_blocking, block_size=block_size)
         self.propagator.time_loop_stencils_b = self.propagator.time_loop_stencils_b + getattr(self, "time_loop_stencils_pre", [])
@@ -107,13 +136,9 @@ class Operator(object):
 
     def symbol_to_var(self, term, ti, indices=[]):
         arr = self.symbol_to_data[str(term.base.label)].data
-        if len(self.shape) == 2:
-            space_dims = symbols("x z")
-        else:
-            space_dims = symbols("x y z")
         num_ind = []
         for ind in term.indices:
-            ind = ind.subs({symbols("t"): ti}).subs(tuple(zip(space_dims, indices)))
+            ind = ind.subs({symbols("t"): ti}).subs(tuple(zip(self.space_dims, indices)))
             num_ind.append(ind)
         return (arr, tuple(num_ind))
 

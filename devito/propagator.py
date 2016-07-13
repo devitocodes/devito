@@ -35,16 +35,9 @@ class Propagator(object):
                  time_dim=None, space_dims=None, forward=True, compiler=None,
                  profile=False, cache_blocking=False, block_size=5):
         self.time_order = time_order
-        # Deriving time and space symbols
+        # Default time and space symbols if not provided
         self.time_dim = time_dim or t
-        if space_dims is None:
-            # Default space dimensions and their ordering
-            space_dims = (x, z) if len(shape) == 2 else (x, y, z)[:len(shape)]
-        # Sanitize dimensions in case they were passed in
-        if self.time_dim in space_dims:
-            space_dims = list(space_dims)
-            space_dims.remove(self.time_dim)
-        self.space_dims = tuple(space_dims)
+        self.space_dims = space_dims or (x, z) if len(shape) == 2 else (x, y, z)[:len(shape)]
         # Internal flags and meta-data
         self.loop_counters = symbols("i1 i2 i3 i4")
         self._pre_kernel_steps = []
