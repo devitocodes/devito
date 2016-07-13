@@ -6,7 +6,7 @@ and a given initial value for the density.
 import numpy as np
 import time
 from sympy import Function, Eq, symbols, as_finite_diff, solve, lambdify
-from sympy.abc import x, y, z, t
+from sympy.abc import x, y, t
 from devito import TimeData, Operator
 
 
@@ -120,31 +120,16 @@ def execute_devito(ui, dx=0.01, dy=0.01, a=0.5, timesteps=500):
     dt = dx2 * dy2 / (2 * a * (dx2 + dy2))
     # Allocate the grid and set initial condition
     # Note: This should be made simpler through the use of defaults
-    u = TimeData(name='u', shape=(nx, ny), time_dim=-666, time_order=1,
-                 save=False, dtype=np.float32)
+    u = TimeData(name='u', shape=(nx, ny), time_order=1)
     u.data[0, :] = ui[:]
 
     # Derive the stencil according to devito conventions
-    def diffusion_stencil_devito():
-        # Note: Apparently 2D grid indexing is assumed to be (x, z)
-        p = Function('p')
-        s, h, a = symbols('s h a')
-        dxx = as_finite_diff(p(x, z, t-s).diff(x, x), [x - h, x, x + h])
-        dzz = as_finite_diff(p(x, z, t-s).diff(z, z), [z - h, z, z + h])
-        dt = as_finite_diff(p(x, z, t).diff(t), [t - s, t])
-        equation = a * (dxx + dzz) - dt
-        stencil = solve(equation, p(x, z, t))
-        return stencil[0], [a, h, s]
-
-    # Prepare the stencil to make it devito conformant
-    # Note: The setup step needs some serious cleaning up
-    from examples.fwi_operators import FWIOperator
-    stencil, subs = diffusion_stencil_devito()
-    stencil = FWIOperator.smart_sympy_replace(num_dim=2, time_order=1, expr=stencil,
-                                              fun=Function('p'), arr=u, fw=True)
-    op = Operator(subs, timesteps, (nx, ny), spc_border=1, time_order=1,
-                  stencils=[(Eq(u.indexed[t, x, z], stencil), [a, dx, dt])],
-                  input_params=[u], output_params=[])
+    a, h, s = symbols('a h s')
+    eqn = Eq(u.dt, a * (u.dx2 + u.dy2))
+    stencil = solve(eqn, u.forward)[0]
+    op = Operator(subs=[a, h, s], nt=timesteps, shape=(nx, ny), spc_border=1,
+                  time_order=1, stencils=[(Eq(u.forward, stencil), [0.5, dx, dt])])
+    # Execute the generated Devito stencil operator
     tstart = time.time()
     op.apply()
     tfinish = time.time()
@@ -171,9 +156,20 @@ def test_diffusion2d(dx=0.01, dy=0.01, timesteps=1000):
     assert(np.linalg.norm(u, ord=2) < 13)
 
 if __name__ == "__main__":
-    # Below is a demonstration of various techniques to solve
-    # the simple 2D diffusion equation, including simple Python,
-    # vectorized numpy, a lambdified SymPy equation and the Devito API.
+    """Below is a demonstration of various techniques to solve the
+    simple 2D diffusion equation, including simple Python, vectorized
+    numpy, a lambdified SymPy equation and the Devito API.
+
+    Please not that the current settings for dx, dy, and timesteps are
+    chosen to highlight that Devito and "vectorised numpy" are
+    significantly faster than the "pure Python" or "lambdified SymPy"
+    approach. For a fair performance comparison between Devito and
+    "vectorised numpy" we recommend disabling the slow variants and
+    using the following values:
+
+    dx, dy = 0.001, 0.001
+    timesteps = 1000
+    """
     dx, dy = 0.01, 0.01
     timesteps = 20
 
