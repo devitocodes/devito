@@ -69,7 +69,7 @@ class TTIOperator(Operator):
             return 16 * angle * (3.14 - abs(angle))/(49.34 - 4 * abs(angle) * (3.14 - abs(angle)))
 
         def Bhaskaracos(angle):
-            return mysin(angle + 1.57)
+            return Bhaskarasin(angle + 1.57)
 
         Gxxp = c**2 * a**2 * dxxp + d**2 * a**2 * dyyp + b**2 * dzzp + 2 * d * c * a**2 * dxyp - d * 2 * b * a * dyzp - c * 2 * b * a * dxzp
         Gyyp = b**2 * dxxp + c**2 * dyyp - (2 * d * c)**2 * dxyp
@@ -83,6 +83,7 @@ class TTIOperator(Operator):
 		b = Bhaskarasin(Th)
 		c = Bhaskaracos(Ph)
 		d = Bhaskaracos(Ph)
+		pprint(stencilp)
         return (stencilp, stencilr, (m, A, B, Th, Ph, s, h, e))
 
     def smart_sympy_replace(self, num_dim, time_order, res, funs, arrs, fw):
