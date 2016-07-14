@@ -255,7 +255,7 @@ class AtController(object):
         self._extract_best_block_size(at_report_path)
 
         # note if running on windows change into back slash
-        split = self._at_parent_folder.split(os.pathsep)
+        split = self._at_parent_folder.split(os.sep)
         report_name_ref = split[len(split) - 1]  # get at parent folder name which is used for naming reports
 
         # copy file for ref
@@ -285,12 +285,12 @@ class AtController(object):
                         best_block = best_block.replace(" ", '')
 
                         # writes the best block size for dimensions starting from outer most
-                        str_to_write = "\n%d %d %s" % (self.time_order, self.space_border, best_block)
+                        str_to_write = "%d %d %s\n" % (self.time_order, self.space_border, best_block)
                         break
 
             if not os.path.isfile(final_report_path):  # initialises report file if it does not exist
                 with open(final_report_path, 'w') as final_report:
-                    final_report.write("time o,space bo,best block size")
+                    final_report.write("time o,space bo,best block size\n")
                     final_report.write(str_to_write)  # writes the string
             else:
                 with open(final_report_path, 'r') as final_report:  # reads all the contents
@@ -301,7 +301,7 @@ class AtController(object):
                 str_to_check = "%d %d " % (self.time_order, self.space_border)
                 for i in range(1, len(lines)):
                     if str_to_check in lines[i]:  # remove the newline from beginning of the string
-                        lines[i] = str_to_write.replace('\n', '')  # replace line if matching found
+                        lines[i] = str_to_write
                         entry_found = True
                         break
 

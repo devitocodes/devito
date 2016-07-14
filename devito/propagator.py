@@ -194,12 +194,12 @@ class Propagator(object):
 
         for spc_var, block_size in reversed(zip(list(self.space_dims), self.block_sizes)):
             dim_var = str(self._var_map[spc_var])
-
-            if self.auto_tune and not ivdep:  # change block size into var
-                block_size = dim_var + "block"
-
             block_var = dim_var + "b"
             loop_limits = self._space_loop_limits[spc_var]
+
+            if self.auto_tune:  # change block size into var string
+                block_size = dim_var + "block"
+
             loop_body = cgen.For(cgen.InlineInitializer(cgen.Value("int", dim_var),
                                                         block_var),
                                  dim_var + "<" + block_var+"+"+str(block_size), dim_var + "++", loop_body)
@@ -207,7 +207,6 @@ class Propagator(object):
                 loop_body = cgen.Block([cgen.Pragma("ivdep")] + [loop_body])
             ivdep = False
 
-        ivdep = True
         for spc_var, block_size in reversed(zip(list(self.space_dims), self.block_sizes)):
             orig_var = str(self._var_map[spc_var])
             dim_var = orig_var + "b"
@@ -218,23 +217,34 @@ class Propagator(object):
                 remainder = True
             loop_limits = (loop_limits[0], new_upper_limit)
 
-            if self.auto_tune and not ivdep:  # change block size into var name
-                block_size = orig_var + "block"
+            loop_limit_str = str(loop_limits[1])
+            block_size_str = str(block_size)
 
-            loop_body = cgen.For(cgen.InlineInitializer(cgen.Value("int", dim_var),
-                                                        str(loop_limits[0])),
-                                 str(dim_var) + "<" + str(loop_limits[1]), str(dim_var) + "+=" + str(block_size), loop_body)
-            ivdep = False
-        if remainder:
+            if self.auto_tune:
+                block_size_str = orig_var + "block"
+                loop_limit_str = "(%d - (%d %% %s))" % (old_upper_limit, old_upper_limit, block_size_str)
+
+            loop_body = cgen.For(cgen.InlineInitializer(cgen.Value("int", dim_var), str(loop_limits[0])),
+                                 str(dim_var) + "<" + loop_limit_str, str(dim_var) + "+=" + block_size_str, loop_body)
+
+        if remainder or self.auto_tune:  # Need remainder loop if auto tuning
             remainder_loop = orig_loop_body
             for spc_var, block_size in reversed(zip(list(self.space_dims), self.block_sizes)):
+                orig_var = str(self._var_map[spc_var])
                 dim_var = str(self._var_map[spc_var])
                 loop_limits = self._space_loop_limits[spc_var]
                 old_upper_limit = loop_limits[1]
                 new_upper_limit = old_upper_limit-old_upper_limit % block_size
                 loop_limits = (new_upper_limit, old_upper_limit)
-                remainder_loop = cgen.For(cgen.InlineInitializer(cgen.Value("int", dim_var), str(loop_limits[0])),
+
+                # makes remainder loop size adjustable if auto tuning
+                loop_limit_str = str(loop_limits[0])
+                if self.auto_tune:
+                    loop_limit_str = "(%d - (%d %% %s))" % (old_upper_limit, old_upper_limit, orig_var + "block")
+
+                remainder_loop = cgen.For(cgen.InlineInitializer(cgen.Value("int", dim_var), loop_limit_str),
                                           str(dim_var) + "<" + str(loop_limits[1]), str(dim_var) + "++", remainder_loop)
+
             loop_body = cgen.Block([loop_body, remainder_loop])
 
         return loop_body
@@ -327,7 +337,6 @@ class Propagator(object):
         If auto tuning - get optimal block size for architecture and tune around that
         elif block size not set - check if there is at result otherwise use optimal block size
         """
-
         if self.auto_tune:  # if auto tuning get block optimal block sizes and tune around that
             self.block_size = get_optimal_block_size(self.shape, len(self._kernel_dic_oi["load_all_list"]))
 
@@ -341,7 +350,7 @@ class Propagator(object):
 
             if self.block_size:
                 print "Warning: Block sizes not set. Using values found in auto tune report  %s" % final_report_path
-                self.block_size.append(optimal_block_size)  # append outer most dimension as it is not auto tuned
+                # self.block_size.append(optimal_block_size)  # append outer most dimension as it is not auto tuned
             else:
                 self.block_size = optimal_block_size  # use optimal block size
 
@@ -360,7 +369,7 @@ class Propagator(object):
 
         block_vars = []  # Blocking var names
 
-        for i in range(0, len(self.space_dims) - 1):  # generate block size vars. We want to ignore inner most dimension
+        for i in range(0, len(self.space_dims)):
             block_vars.append(str(self.loop_counters[i]) + "block")
 
         markers = AtController.at_markers  # markers for pragmas
