@@ -126,6 +126,7 @@ class Operator(object):
             sym_undef.remove(d)
         # TODO: We should check that all undfined symbols have known substitutions
 
+        self.stencils = stencils
         # Shift time indices so that LHS writes into t only,
         # eg. u[t+2] = u[t+1] + u[t]  -> u[t] = u[t-1] + u[t-2]
         self.stencils = [eqn.subs(t, t + solve(eqn.lhs.args[0], t)[0])
@@ -133,8 +134,9 @@ class Operator(object):
                          for eqn in self.stencils]
         # Convert incoming stencil equations to "indexed access" format
         self.stencils = [(Eq(expr_indexify(eqn.lhs), expr_indexify(eqn.rhs)), sub)
-                         for eqn, sub in stencils]
-        self.subs = subs
+                         for eqn, sub in self.stencils]
+        # Apply user-defined substitutions to stencil
+        self.stencils = [eqn.subs(dict(zip(subs, args))) for eqn, args in self.stencils]
         self.propagator = Propagator(self.getName(), nt, shape, spc_border=spc_border,
                                      time_order=time_order, forward=forward,
                                      space_dims=self.space_dims,
@@ -150,8 +152,7 @@ class Operator(object):
         for param in self.input_params + self.output_params:
             self.propagator.add_devito_param(param)
             self.symbol_to_data[param.name] = param
-        self.propagator.subs = self.subs
-        self.propagator.stencils, self.propagator.stencil_args = zip(*self.stencils)
+        self.propagator.stencils = self.stencils
 
     def apply(self, debug=False):
         if debug:

@@ -166,10 +166,9 @@ class Propagator(object):
         var_map[self.time_dim] = symbols("i%d" % (i + 1))
         self._var_map = var_map
 
-    def sympy_to_cgen(self, subs, stencils, stencil_args):
+    def sympy_to_cgen(self, stencils):
         stmts = []
-        for equality, args in zip(stencils, stencil_args):
-            equality = equality.subs(dict(zip(subs, args)))
+        for equality in stencils:
             self._kernel_dic_oi = self._get_ops_expr(equality.rhs, self._kernel_dic_oi, False)
             self._kernel_dic_oi = self._get_ops_expr(equality.lhs, self._kernel_dic_oi, True)
             stencil = self.convert_equality_to_cgen(equality)
@@ -327,7 +326,7 @@ class Propagator(object):
             self.fd.set_body(self.generate_loops(self.loop_body))
         except:  # We might have been given Sympy expression to evaluate
             # This is the more common use case so this will show up in error messages
-            self.fd.set_body(self.generate_loops(self.sympy_to_cgen(self.subs, self.stencils, self.stencil_args)))
+            self.fd.set_body(self.generate_loops(self.sympy_to_cgen(self.stencils)))
         return self.fd
 
     def get_time_stepping(self):
