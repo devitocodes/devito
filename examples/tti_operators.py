@@ -31,7 +31,7 @@ class TTIOperator(Operator):
         p = Function('p')
         r = Function('r')
 
-        s, h, x, y, z = symbols('s h x y z')
+        s, h, x, y, z, a, b, c, d = symbols('s h x y z a b c d')
         m = M(x, y, z)
         # q = Q(x, y, z, t)
         # d = D(x, y, z, t)
