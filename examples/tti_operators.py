@@ -83,7 +83,6 @@ class TTIOperator(Operator):
         b = Bhaskarasin(Th)
         c = Bhaskaracos(Ph)
         d = Bhaskaracos(Ph)
-        pprint(stencilp)
         return (stencilp, stencilr, (m, A, B, Th, Ph, s, h, e))
 
     def smart_sympy_replace(self, num_dim, time_order, res, funs, arrs, fw):
@@ -131,9 +130,9 @@ class TTIOperator(Operator):
 
 
 class ForwardOperator(TTIOperator):
-    def __init__(self, m, src, damp, rec, u, v, a, b, th, ph, time_order=4, spc_order=12):
+    def __init__(self, m, src, damp, rec, u, v, ep, delt, th, ph, time_order=4, spc_order=12):
         assert(m.shape == damp.shape)
-        self.input_params = [m, src, damp, rec, u, v, a, b, th, ph]
+        self.input_params = [m, src, damp, rec, u, v, ep, delt, th, ph]
         u.pad_time = False
         dt = src.dt
         h = src.h
@@ -145,7 +144,7 @@ class ForwardOperator(TTIOperator):
         stencilp, stencilr, subs = self._init_taylor(dim, time_order, spc_order)
         stencilp = self.smart_sympy_replace(dim, time_order, stencilp, [Function('p'), Function('r')], [u, v], fw=True)
         stencilr = self.smart_sympy_replace(dim, time_order, stencilr, [Function('p'), Function('r')], [u, v], fw=True)
-        stencil_args = [m[space_dim], a[space_dim], b[space_dim], th[space_dim], ph[space_dim], dt, h, damp[space_dim]]
+        stencil_args = [m[space_dim], ep[space_dim], delt[space_dim], th[space_dim], ph[space_dim], dt, h, damp[space_dim]]
         first_stencil = Eq(u[total_dim], stencilp)
         second_stencil = Eq(v[total_dim], stencilr)
         self.stencils = [(first_stencil, stencil_args), (second_stencil, stencil_args)]
