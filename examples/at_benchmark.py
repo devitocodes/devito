@@ -90,7 +90,7 @@ for time_order in xrange(2, 6, 2):
         norm_recg = np.linalg.norm(recg)
         norm_ug = np.linalg.norm(ug)
 
-# A Forward using at block sizes
+# A Forward using at block sizes which are picked up from auto-tuning report
 for time_order in xrange(2, 6, 2):
     for space_order in xrange(2, 18, 2):
         new_model = IGrid()
