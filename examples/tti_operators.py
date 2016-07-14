@@ -76,14 +76,14 @@ class TTIOperator(Operator):
         Gzzr = c**2 * b**2 * dxxr + d**2 * b**2 * dyyr + a**2 * dzzr + 2 * d * c * b**2 * dxyr + d * 2 * b * a * dyzr + c * 2 * b * a * dxzr
 
         stencilp = 2 * s**2 / (2 * m + s * e) * (2 * m / s**2 * p(x, y, z, t) + (s * e - 2 * m) / (2 * s**2) * p(x, y, z, t-s) + A * (Gxxp + Gyyp) + B * Gzzr)
-		stencilp=factor(expand(stencilp))
+        stencilp=factor(expand(stencilp))
         stencilr = 2 * s**2 / (2 * m + s * e) * (2 * m / s**2 * r(x, y, z, t) + (s * e - 2 * m) / (2 * s**2) * r(x, y, z, t-s) + A * (Gxxp + Gyyp) + B * Gzzr)
-		stencilr=factor(expand(stencilr))
-		a = Bhaskaracos(Th)
-		b = Bhaskarasin(Th)
-		c = Bhaskaracos(Ph)
-		d = Bhaskaracos(Ph)
-		pprint(stencilp)
+        stencilr=factor(expand(stencilr))
+        a = Bhaskaracos(Th)
+        b = Bhaskarasin(Th)
+        c = Bhaskaracos(Ph)
+        d = Bhaskaracos(Ph)
+        pprint(stencilp)
         return (stencilp, stencilr, (m, A, B, Th, Ph, s, h, e))
 
     def smart_sympy_replace(self, num_dim, time_order, res, funs, arrs, fw):
