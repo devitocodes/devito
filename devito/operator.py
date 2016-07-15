@@ -60,10 +60,13 @@ class Operator(object):
     users to generate high-performance Finite Difference kernels from
     a stencil definition defined from SymPy equations.
 
-    :param subs: SymPy symbols to substitute in the stencil
     :param nt: Number of timesteps to execute
     :param shape: Shape of the data buffer over which to execute
     :param dtype: Data type for the grid buffer
+    :param stencils: SymPy equation or list of equations that define the
+                     stencil used to create the kernel of this Operator.
+    :param substitutions: Dict or list of dicts containing the SymPy symbol
+                          substitutions for each stencil respectively.
     :param spc_border: Number of spatial padding layers
     :param time_order: Order of the time discretisation
     :param forward: Flag indicating whether to execute forward in time
@@ -73,26 +76,28 @@ class Operator(object):
     :param profile: Flag to enable performance profiling
     :param cache_blocking: Flag to enable cache blocking
     :param block_size: Block size used for cache clocking
-    :param stencils: List of (stencil, subs) tuples that define individual
-                     stencils and their according substitutions.
     :param input_params: List of symbols that are expected as input.
     :param output_params: List of symbols that define operator output.
     """
 
     _ENV_VAR_OPENMP = "DEVITO_OPENMP"
 
-    def __init__(self, subs, nt, shape, dtype=np.float32, spc_border=0,
-                 time_order=0, forward=True, compiler=None,
-                 profile=False, cache_blocking=False, block_size=5,
-                 stencils=[], input_params=None, output_params=None):
+    def __init__(self, nt, shape, dtype=np.float32, stencils=[],
+                 substitutions=[], spc_border=0, time_order=0,
+                 forward=True, compiler=None, profile=False,
+                 cache_blocking=False, block_size=5,
+                 input_params=None, output_params=None):
         # Derive JIT compilation infrastructure
         self.compiler = compiler or get_compiler_from_env()
 
+        # Ensure stencil and substititutions are lists internally
+        self.stencils = stencils if isinstance(stencils, list) else [stencils]
+        substitutions = substitutions if isinstance(substitutions, list) else [substitutions]
         self.input_params = input_params
         self.output_params = output_params
         # Pull all dimension indices from the incoming stencil
         dimensions = set()
-        for eqn, _ in stencils:
+        for eqn in self.stencils:
             dimensions.update(set(expr_dimensions(eqn.lhs)))
             dimensions.update(set(expr_dimensions(eqn.rhs)))
         # Time dimension is fixed for now
@@ -108,7 +113,7 @@ class Operator(object):
             self.space_dims = symbols("x z" if len(shape) == 2 else "x y z")[:len(shape)]
         # Get functions and symbols in LHS/RHS and update params
         sym_undef = set()
-        for eqn, _ in stencils:
+        for eqn in self.stencils:
             lhs_def, lhs_undef = expr_symbols(eqn.lhs)
             sym_undef.update(lhs_undef)
             if self.output_params is None:
@@ -126,17 +131,16 @@ class Operator(object):
             sym_undef.remove(d)
         # TODO: We should check that all undfined symbols have known substitutions
 
-        self.stencils = stencils
         # Shift time indices so that LHS writes into t only,
         # eg. u[t+2] = u[t+1] + u[t]  -> u[t] = u[t-1] + u[t-2]
         self.stencils = [eqn.subs(t, t + solve(eqn.lhs.args[0], t)[0])
                          if isinstance(eqn.lhs, TimeData) else eqn
                          for eqn in self.stencils]
         # Convert incoming stencil equations to "indexed access" format
-        self.stencils = [(Eq(expr_indexify(eqn.lhs), expr_indexify(eqn.rhs)), sub)
-                         for eqn, sub in self.stencils]
+        self.stencils = [Eq(expr_indexify(eqn.lhs), expr_indexify(eqn.rhs))
+                         for eqn in self.stencils]
         # Apply user-defined substitutions to stencil
-        self.stencils = [eqn.subs(dict(zip(subs, args))) for eqn, args in self.stencils]
+        self.stencils = [eqn.subs(args) for eqn, args in zip(self.stencils, substitutions)]
         self.propagator = Propagator(self.getName(), nt, shape, spc_border=spc_border,
                                      time_order=time_order, forward=forward,
                                      space_dims=self.space_dims,
@@ -206,8 +210,7 @@ class Operator(object):
         time_loop_limits = self.propagator.time_loop_limits
         time_loop_lambdas_b = self.expr_to_lambda(self.propagator.time_loop_stencils_b)
         time_loop_lambdas_a = self.expr_to_lambda(self.propagator.time_loop_stencils_a)
-        stencils = [stencil.subs(dict(zip(self.subs, args))) for stencil, args in self.stencils]
-        stencil_lambdas = self.expr_to_lambda(stencils)
+        stencil_lambdas = self.expr_to_lambda(self.stencils)
         for ti in range(*time_loop_limits):
             # Run time loop stencils before space loop
             for lams, expr in zip(time_loop_lambdas_b, self.propagator.time_loop_stencils_b):
@@ -237,7 +240,7 @@ class Operator(object):
                 for lams, expr in zip(stencil_lambdas, self.stencils):
                     lamda = lams[0]
                     subs = lams[1]
-                    arr_lhs, ind_lhs = self.symbol_to_var(expr[0].lhs, ti, indices)
+                    arr_lhs, ind_lhs = self.symbol_to_var(expr.lhs, ti, indices)
                     args = []
                     for x in subs:
                         arr, ind = self.symbol_to_var(x, ti, indices)
@@ -263,10 +266,10 @@ class SimpleOperator(Operator):
         assert(input_grid.shape == output_grid.shape)
         nt = input_grid.shape[0]
         shape = input_grid.shape[1:]
-        input_params = [input_grid, output_grid]
-        output_params = []
-        stencils = zip(kernel, [[]]*len(kernel))
-        super(SimpleOperator, self).__init__([], nt, shape, stencils=stencils,
+        input_params = [input_grid]
+        output_params = [output_grid]
+        super(SimpleOperator, self).__init__(nt, shape, stencils=kernel,
+                                             substitutions={},
                                              input_params=input_params,
                                              output_params=output_params,
                                              dtype=input_grid.dtype, **kwargs)
