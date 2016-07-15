@@ -1,4 +1,3 @@
-from devito.jit_manager import JitManager
 import numpy as np
 import devito.cgen_wrapper as cgen
 from devito.propagator import Propagator
@@ -13,8 +12,7 @@ class Test_Numpy_Array_Transfer(object):
         propagator.add_param("output_grid", data.shape, data.dtype)
         kernel = cgen.Assign("output_grid[i2][i1]", "input_grid[i2][i1] + 3")
         propagator.loop_body = kernel
-        g = JitManager([propagator])
-        f = g.get_wrapped_functions()[0]
+        f = propagator.cfunction
         arr = np.empty_like(data)
         f(data, arr)
         assert(arr[2][1] == 8)
@@ -27,8 +25,7 @@ class Test_Numpy_Array_Transfer(object):
         propagator.add_param("input_grid", data.shape, data.dtype)
         propagator.add_param("output_grid", data.shape, data.dtype)
         propagator.loop_body = kernel
-        g = JitManager([propagator])
-        f = g.get_wrapped_functions()[0]
+        f = propagator.cfunction
         arr = np.empty_like(data)
         f(data, arr)
         assert(arr[3][2][1] == 26)
@@ -41,8 +38,7 @@ class Test_Numpy_Array_Transfer(object):
         propagator.add_param("input_grid", data.shape, data.dtype)
         propagator.add_param("output_grid", data.shape, data.dtype)
         propagator.loop_body = kernel
-        g = JitManager([propagator])
-        f = g.get_wrapped_functions()[0]
+        f = propagator.cfunction
         arr = np.empty_like(data)
         f(data, arr)
         assert(arr[4][3][2][1] == 122)

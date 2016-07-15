@@ -1,5 +1,6 @@
 import cgen_wrapper as cgen
 import numpy as np
+from devito.tools import convert_dtype_to_ctype
 
 
 class FunctionManager(object):
@@ -114,3 +115,11 @@ class FunctionDescriptor(object):
     @property
     def params(self):
         return self.matrix_params + self.value_params
+
+    @property
+    def argtypes(self):
+        """Create argument types for defining function signatures via ctypes."""
+        argtypes = [np.ctypeslib.ndpointer(dtype=p['dtype'], flags='C')
+                    for p in self.matrix_params]
+        argtypes += [convert_dtype_to_ctype(p[0]) for p in self.value_params]
+        return argtypes

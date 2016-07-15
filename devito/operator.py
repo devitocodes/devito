@@ -1,7 +1,6 @@
-from jit_manager import JitManager
+from devito.compiler import get_compiler_from_env, IntelMICCompiler
 from propagator import Propagator
 from sympy import Indexed, lambdify, symbols
-import os
 import numpy as np
 from sympy import Eq, preorder_traversal
 
@@ -32,6 +31,9 @@ class Operator(object):
     :param spc_border: Number of spatial padding layers
     :param time_order: Order of the time discretisation
     :param forward: Flag indicating whether to execute forward in time
+    :param compiler: Compiler class used to perform JIT compilation.
+                     If not provided, the compiler will be inferred from the
+                     environment variable DEVITO_ARCH, or default to GNUCompiler.
     :param profile: Flag to enable performance profiling
     :param cache_blocking: Flag to enable cache blocking
     :param block_size: Block size used for cache clocking
@@ -44,16 +46,20 @@ class Operator(object):
     _ENV_VAR_OPENMP = "DEVITO_OPENMP"
 
     def __init__(self, subs, nt, shape, dtype=np.float32, spc_border=0,
-                 time_order=0, forward=True, profile=False,
-                 cache_blocking=False, block_size=5,
+                 time_order=0, forward=True, compiler=None,
+                 profile=False, cache_blocking=False, block_size=5,
                  stencils=[], input_params=[], output_params=[]):
+        # Derive JIT compilation infrastructure
+        self.compiler = compiler or get_compiler_from_env()
 
         # Convert incoming stencil equations to "indexed access" format
         self.stencils = [(Eq(expr_indexify(eqn.lhs), expr_indexify(eqn.rhs)), s)
                          for eqn, s in stencils]
         self.subs = subs
-        self.openmp = os.environ.get(self._ENV_VAR_OPENMP) == "1"
-        self.propagator = Propagator(self.getName(), nt, shape, spc_border, forward, time_order, self.openmp, profile, cache_blocking, block_size)
+        self.propagator = Propagator(self.getName(), nt, shape, spc_border=spc_border,
+                                     time_order=time_order, forward=forward,
+                                     compiler=self.compiler, profile=profile,
+                                     cache_blocking=cache_blocking, block_size=block_size)
         self.propagator.time_loop_stencils_b = self.propagator.time_loop_stencils_b + getattr(self, "time_loop_stencils_pre", [])
         self.propagator.time_loop_stencils_a = self.propagator.time_loop_stencils_a + getattr(self, "time_loop_stencils_post", [])
         self.params = {}
@@ -74,11 +80,16 @@ class Operator(object):
     def apply(self, debug=False):
         if debug:
             return self.apply_python()
-        f = self.get_callable()
+        f = self.propagator.cfunction
         for param in self.input_params:
             param.initialize()
         args = [param.data for param in self.input_params + self.output_params]
-        f(*args)
+        if isinstance(self.compiler, IntelMICCompiler):
+            # Off-load propagator kernel via pymic stream
+            self.compiler._stream.invoke(f, *args)
+            self.compiler._stream.sync()
+        else:
+            f(*args)
         return tuple([param.data for param in self.output_params])
 
     def apply_python(self):
@@ -169,10 +180,6 @@ class Operator(object):
                     arr, ind = self.symbol_to_var(x, ti)
                     args.append(arr[ind])
                 arr_lhs[ind_lhs] = lamda(*args)
-
-    def get_callable(self):
-        self.jit_manager = JitManager([self.propagator], dtype=self.dtype, openmp=self.openmp)
-        return self.jit_manager.get_wrapped_functions()[0]
 
     def getName(self):
         return self.__class__.__name__
