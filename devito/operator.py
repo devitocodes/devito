@@ -86,7 +86,7 @@ class Operator(object):
         args = [param.data for param in self.input_params + self.output_params]
         if isinstance(self.compiler, IntelMICCompiler):
             # Off-load propagator kernel via pymic stream
-            self.compiler._stream.invoke(f, args)
+            self.compiler._stream.invoke(f, *args)
             self.compiler._stream.sync()
         else:
             f(*args)

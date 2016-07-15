@@ -33,6 +33,7 @@ class Propagator(object):
                  cache_blocking=False, block_size=5):
         # Derive JIT compilation infrastructure
         self.compiler = compiler or get_compiler_from_env()
+        self.mic_flag = isinstance(self.compiler, IntelMICCompiler)
 
         self.t = symbols("t")
         self.cache_blocking = cache_blocking
@@ -106,8 +107,7 @@ class Propagator(object):
     def ccode(self):
         """Returns the auto-generated C code as a string"""
         if self._ccode is None:
-            mic_flag = isinstance(self.compiler, IntelMICCompiler)
-            manager = FunctionManager([self.fd], mic_flag=mic_flag,
+            manager = FunctionManager([self.fd], mic_flag=self.mic_flag,
                                       openmp=self.compiler.openmp)
             # For some reason we need this call to trigger fd.body
             self.get_fd()
@@ -126,7 +126,8 @@ class Propagator(object):
                                              self.compiler)
         if self._cfunction is None:
             self._cfunction = getattr(self._lib, self.fd.name)
-            self._cfunction.argtypes = self.fd.argtypes
+            if not self.mic_flag:
+                self._cfunction.argtypes = self.fd.argtypes
         return self._cfunction
 
     @property
