@@ -2,6 +2,10 @@ import numpy as np
 from sympy import IndexedBase, Function, as_finite_diff
 from sympy.abc import x, y, z, t, h, s
 from tools import aligned
+import os
+from signal import signal, SIGABRT, SIGINT, SIGSEGV, SIGTERM
+import sys
+import atexit
 
 
 __all__ = ['DenseData', 'TimeData', 'PointData']
@@ -100,6 +104,7 @@ class DenseData(SymbolicData):
             self.dtype = kwargs.get('dtype', np.float32)
             self._data = kwargs.get('_data', None)
             self.initializer = None
+            MemmapManager.setup(self, *args, **kwargs)
             # Store new instance in symbol cache
             self._cache_put(self)
 
@@ -127,7 +132,10 @@ class DenseData(SymbolicData):
         self.initializer = lambda_initializer
 
     def _allocate_memory(self):
-        self._data = aligned(np.zeros(self.shape, self.dtype, order='C'), alignment=64)
+        if self.memmap:
+            self._data = np.memmap(filename=self.f, dtype=self.dtype, mode='w+', shape=self.shape, order='C')
+        else:
+            self._data = aligned(np.zeros(self.shape, self.dtype, order='C'), alignment=64)
 
     @property
     def data(self):
@@ -255,3 +263,68 @@ class PointData(DenseData):
         """
         _indices = [t, x, y, z]
         return _indices[:len(shape) + 1]
+
+
+class MemmapManager():
+    """Class for managing all memmap related settings"""
+    # used to enable memmap as default
+    _use_memmap = False
+    # flag for registering exit func
+    _registered = False
+    _default_disk_path = "/tmp/devito_disk"
+    # contains str name of all memmap file created
+    _created_data = set()
+    _default_exit_code = 0
+
+    @staticmethod
+    def memmap_enabled_by_default():
+        """Call this method to enable memmap by default"""
+        return MemmapManager._use_memmap
+
+    @staticmethod
+    def set_default_disk_path(default_disk_path):
+        """Call this method to change the default disk path for memmap"""
+        MemmapManager._default_disk_path = default_disk_path
+
+    @staticmethod
+    def setup(data_self, *args, **kwargs):
+        """This method is used to setup memmap parameters for data classes.
+        :param name: name of data, must be unique
+        :param memmap: boolean indicates whether memmap is used. Optional
+        :param disk_path: str indicates path to create memmap file. Optional
+
+        Note: if memmap or disk_path are not provided, the default values
+        are used.
+        """
+        data_self.memmap = kwargs.get('memmap', MemmapManager._use_memmap)
+        if data_self.memmap:
+            disk_path = kwargs.get('disk_path', MemmapManager._default_disk_path)
+            if not os.path.exists(disk_path):
+                os.makedirs(disk_path)
+            data_self.f = disk_path + "/data_" + kwargs.get('name')
+            MemmapManager._created_data.add(data_self.f)
+            if not MemmapManager._registered:
+                MemmapManager._register_remove_memmap_file_signal()
+                MemmapManager._registered = True
+
+    @staticmethod
+    def _reomve_memmap_file():
+        """This method is used to clean up memmap file"""
+        for f in MemmapManager._created_data:
+            try:
+                os.remove(f)
+            except OSError:
+                print("error removing " + f + " it may be already removed, skipping")
+                pass
+
+    @staticmethod
+    def _remove_memmap_file_on_signal(*args):
+        """This method is used to clean memmap file on signal, internal method"""
+        sys.exit(MemmapManager._default_exit_code)
+
+    @staticmethod
+    def _register_remove_memmap_file_signal():
+        """This method is used to register clean up method for chosen signals"""
+        atexit.register(MemmapManager._reomve_memmap_file)
+        for sig in (SIGABRT, SIGINT, SIGSEGV, SIGTERM):
+            signal(sig, MemmapManager._remove_memmap_file_on_signal)
