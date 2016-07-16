@@ -1,7 +1,6 @@
 import numpy as np
 from devito.propagator import Propagator
 from sympy import IndexedBase, symbols, Eq
-from sympy.abc import x, y, z, t
 
 
 class Test_OI_Calculation(object):
@@ -16,16 +15,14 @@ class Test_OI_Calculation(object):
         mul = 2.0
         dtype = np.float32
         i1, i2 = symbols('i1 i2')
-        eq = Eq(x(i2, i1), 3*y(i2, i1) + 2*t(i2, i1))
         data = np.arange(50, dtype=np.float32).reshape((10, 5))
         v1 = IndexedBase('v1')
         v2 = IndexedBase('v2')
         v3 = IndexedBase('v3')
+        eq = Eq(v1[i2, i1], 3*v2[i2, i1] + 2*v3[i2, i1])
 
         propagator = Propagator("process", 10, (5,), 0)
         propagator.stencils = (eq,)
-        propagator.stencil_args = ([v1[i2, i1], v2[i2, i1], v3[i2, i1]], )
-        propagator.subs = (x(i2, i1), y(i2, i1), t(i2, i1))
         propagator.add_param("v1", data.shape, data.dtype)
         propagator.add_param("v2", data.shape, data.dtype)
         propagator.add_param("v3", data.shape, data.dtype)
@@ -48,17 +45,15 @@ class Test_OI_Calculation(object):
         mul = 3.0
         dtype = np.float32
         i1, i2 = symbols('i1 i2')
-        eq = Eq(x(i2, i1), (x(i2, i1) - 1.1*y(i2, i1))/(0.7*t(i2, i1) + z(i2, i1)))
         data = np.arange(50, dtype=np.float32).reshape((10, 5))
         v1 = IndexedBase('v1')
         v2 = IndexedBase('v2')
         v3 = IndexedBase('v3')
         v4 = IndexedBase('v4')
+        eq = Eq(v1[i2, i1], (v1[i2, i1] - 1.1*v2[i2, i1])/(0.7*v4[i2, i1] + v3[i2, i1]))
 
         propagator = Propagator("process", 10, (5,), 0)
         propagator.stencils = (eq, )
-        propagator.stencil_args = ([v1[i2, i1], v2[i2, i1], v3[i2, i1], v4[i2, i1]], )
-        propagator.subs = (x(i2, i1), y(i2, i1), z(i2, i1), t(i2, i1))
         propagator.add_param("v1", data.shape, data.dtype)
         propagator.add_param("v2", data.shape, data.dtype)
         propagator.add_param("v3", data.shape, data.dtype)
@@ -82,17 +77,17 @@ class Test_OI_Calculation(object):
         mul = 8.0
         dtype = np.float32
         i1, i2 = symbols('i1 i2')
-        eq = Eq(x(i2, i1), (y(i2, i1) + 5*y(i2, i1-1) + 2.5*y(i2, i1-2))/((0.7*t(i2, i1) - 0.333*t(i2, i1-1) - 0.15*t(i2, i1-2)) + z(i2, i1) + z(i2, i1-1)/2 + z(i2, i1-2)/4))
         data = np.arange(100, dtype=np.float32).reshape((10, 10))
         v1 = IndexedBase('v1')
         v2 = IndexedBase('v2')
         v3 = IndexedBase('v3')
         v4 = IndexedBase('v4')
+        eq = Eq(v1[i2, i1], (v2[i2, i1] + 5*v2[i2, i1-1] + 2.5*v2[i2, i1-2])
+                / ((0.7*v4[i2, i1] - 0.333*v4[i2, i1-1] - 0.15*v4[i2, i1-2])
+                   + v3[i2, i1] + v3[i2, i1-1] / 2 + v3[i2, i1-2] / 4))
 
         propagator = Propagator("process", 10, (10,), 2)
         propagator.stencils = (eq, )
-        propagator.stencil_args = ([v1[i2, i1], v2[i2, i1], v2[i2, i1 - 1], v2[i2, i1 - 2], v3[i2, i1], v3[i2, i1 - 1], v3[i2, i1 - 2], v4[i2, i1], v4[i2, i1 - 1], v4[i2, i1 - 2]], )
-        propagator.subs = (x(i2, i1), y(i2, i1), y(i2, i1 - 1), y(i2, i1 - 2), z(i2, i1), z(i2, i1 - 1), z(i2, i1 - 2), t(i2, i1), t(i2, i1 - 1), t(i2, i1 - 2))
         propagator.add_param("v1", data.shape, data.dtype)
         propagator.add_param("v2", data.shape, data.dtype)
         propagator.add_param("v3", data.shape, data.dtype)
