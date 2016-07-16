@@ -1,0 +1,91 @@
+from __future__ import absolute_import
+from sympy import symbols
+from functools import reduce
+from operator import mul
+
+
+__all__ = ['second_derivative', 'cross_derivative']
+
+
+# Explicitly derived Finite Difference coefficients for
+# symmetric derivative stencils.
+fd_coefficients = {
+    16: [-3.054844, 1.777778, -0.311111, 0.075421, -0.017677, 0.003481, -0.000518, 0.000051, -0.000002],
+    14: [-3.023594, 1.750000, -0.291667, 0.064815, -0.013258, 0.002121, -0.000227, 0.000012],
+    12: [-2.982778, 1.714286, -0.267857, 0.052910, -0.008929, 0.001039, -0.000060],
+    10: [-2.927222, 1.666667, -0.238095, 0.039683, -0.004960, 0.000317],
+    8: [-2.847222, 1.600000, -0.200000, 0.025397, -0.001786],
+    6: [-2.722222, 1.500000, -0.150000, 0.01111],
+    4: [-2.500000, 1.333333, -0.08333],
+    2: [-2., 1.],
+}
+
+
+# Default function and dimension symbol
+x, y, h = symbols('x y h')
+
+
+def second_derivative(*args, **kwargs):
+    """Derives second derivative for a product of given functions.
+
+    :param *args: All positional arguments must be fully qualified
+                  function objects, eg. `f(x, y)` or `g(t, x, y, z)`.
+    :param dim: Symbol defininf the dimension wrt. which to
+                differentiate, eg. `x`, `y`, `z` or `t`.
+    :param diff: Finite Difference symbol to insert, default `h`.
+    :param order: Discretisation order of the stencil to create.
+
+    Example: Deriving the second derivative of f(x, y)*g(x, y) wrt. x via
+             `second_derivative(f(x, y), g(x, y), order=2, dim=x)`
+             results in
+             `(-2.0*f(x, y)*g(x, y) + 1.0*f(-h + x, y)*g(-h + x, y)
+               + 1.0*f(h + x, y)*g(h + x, y)) / h**2`.
+    """
+    order = kwargs.get('order', 2)
+    dim = kwargs.get('dim', x)
+    diff = kwargs.get('diff', h)
+    assert(order in fd_coefficients)
+    coeffs = fd_coefficients[order]
+    deriv = coeffs[0] * reduce(mul, args, 1)
+    for i in range(1, int(order / 2) + 1):
+        aux1 = [a.subs(dim, dim + i * diff) for a in args]
+        aux2 = [a.subs(dim, dim - i * diff) for a in args]
+        deriv += coeffs[i] * (reduce(mul, aux1, 1) + reduce(mul, aux2, 1))
+    return (1 / diff**2) * deriv
+
+
+def cross_derivative(*args, **kwargs):
+    """Derives corss derivative for a product of given functions.
+
+    :param *args: All positional arguments must be fully qualified
+                  function objects, eg. `f(x, y)` or `g(t, x, y, z)`.
+    :param dims: 2-tuple of symbols defining the dimension wrt. which
+                 to differentiate, eg. `x`, `y`, `z` or `t`.
+    :param diff: Finite Difference symbol to insert, default `h`.
+
+    Example: Deriving the cross-derivative of f(x, y)*g(x, y)
+             wrt. x and y via:
+             `cross_derivative(f(x, y), g(x, y), dims=(x, y))`
+             results in
+             `0.5*(-2.0*f(x, y)*g(x, y) + f(x, -h + y)*g(x, -h + y)
+                   + f(x, h + y)*g(x, h + y) + f(-h + x, y)*g(-h + x, y)
+                   - f(-h + x, h + y)*g(-h + x, h + y) + f(h + x, y)*g(h + x, y)
+                   - f(h + x, -h + y)*g(h + x, -h + y)) / h**2
+    """
+    dims = kwargs.get('dims', (x, y))
+    diff = kwargs.get('diff', h)
+    assert(isinstance(dims, tuple) and len(dims) == 2)
+    deriv = -2. * reduce(mul, args, 1)
+    # Direction of first dimension
+    aux1_0 = [a.subs(dims[0], dims[0] + diff) for a in args]
+    aux2_0 = [a.subs(dims[0], dims[0] - diff) for a in args]
+    deriv += reduce(mul, aux1_0, 1) + reduce(mul, aux2_0, 1)
+    # Direction of second dimension
+    aux1_1 = [a.subs(dims[1], dims[1] + diff) for a in args]
+    aux2_1 = [a.subs(dims[1], dims[1] - diff) for a in args]
+    deriv += reduce(mul, aux1_1, 1) + reduce(mul, aux2_1, 1)
+    # Diagonal elements
+    aux1_2 = [a.subs({dims[0]: dims[0] - diff, dims[1]: dims[1] + diff}) for a in args]
+    aux2_2 = [a.subs({dims[0]: dims[0] + diff, dims[1]: dims[1] - diff}) for a in args]
+    deriv -= reduce(mul, aux1_2, 1) + reduce(mul, aux2_2, 1)
+    return (.5 / diff**2) * deriv
