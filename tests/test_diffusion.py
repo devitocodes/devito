@@ -120,7 +120,7 @@ def execute_devito(ui, dx=0.01, dy=0.01, a=0.5, timesteps=500):
     dt = dx2 * dy2 / (2 * a * (dx2 + dy2))
     # Allocate the grid and set initial condition
     # Note: This should be made simpler through the use of defaults
-    u = TimeData(name='u', shape=(nx, ny), time_order=1)
+    u = TimeData(name='u', shape=(nx, ny), time_order=1, space_order=2)
     u.data[0, :] = ui[:]
 
     # Derive the stencil according to devito conventions

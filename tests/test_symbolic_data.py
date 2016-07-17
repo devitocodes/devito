@@ -1,5 +1,6 @@
 from devito import DenseData, TimeData
-from sympy import symbols, Derivative, as_finite_diff
+from sympy import Derivative, as_finite_diff, simplify
+from sympy.abc import h, x, y, z, t
 import pytest
 import numpy as np
 
@@ -10,12 +11,11 @@ def shape(xdim=20, ydim=30):
 
 
 @pytest.mark.parametrize('SymbolType, dimension', [
-    (DenseData, 'x'), (DenseData, 'y'),
-    (TimeData, 'x'), (TimeData, 'y'), (TimeData, 't'),
+    (DenseData, x), (DenseData, y),
+    (TimeData, x), (TimeData, y), (TimeData, t),
 ])
 def test_stencil_derivative(shape, SymbolType, dimension):
     """Test symbolic behaviour when expanding stencil derivatives"""
-    x, h = symbols('%s h' % dimension)
     u = SymbolType(name='u', shape=shape)
     u.data[:] = 66.6
     dx = u.diff(x)
@@ -40,6 +40,22 @@ def test_stencil_derivative(shape, SymbolType, dimension):
 ])
 def test_preformed_derivatives(shape, SymbolType, derivative, dim):
     """Test the stencil expressions provided by devito objects"""
-    u = SymbolType(name='u', shape=shape)
+    u = SymbolType(name='u', shape=shape, time_order=2, space_order=2)
     expr = getattr(u, derivative)
     assert(len(expr.args) == dim)
+
+
+@pytest.mark.parametrize('derivative, dimension', [
+    ('dx2', x), ('dy2', y), ('dz2', z)
+])
+@pytest.mark.parametrize('order', [2, 4, 6, 8, 10, 12, 14, 16])
+def test_second_derivatives_space(derivative, dimension, order):
+    """Test second derivative expressions against native sympy"""
+    u = TimeData(name='u', shape=(20, 20, 20), time_order=2, space_order=order)
+    expr = getattr(u, derivative)
+    # Establish native sympy derivative expression
+    width = int(order / 2)
+    indices = [(dimension + i * h) for i in range(-width, width + 1)]
+    s_expr = as_finite_diff(u.diff(dimension, dimension), indices)
+    assert(simplify(expr - s_expr) == 0)  # Symbolic equality
+    assert(expr == s_expr)  # Exact equailty
