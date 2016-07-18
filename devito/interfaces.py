@@ -9,7 +9,7 @@ import sys
 import atexit
 
 
-__all__ = ['DenseData', 'TimeData', 'PointData']
+__all__ = ['DenseData', 'TimeData', 'PointData', 'MemmapManager']
 
 
 # This cache stores a reference to each created data object
@@ -342,9 +342,9 @@ class MemmapManager():
     _default_exit_code = 0
 
     @staticmethod
-    def memmap_enabled_by_default():
-        """Call this method to enable memmap by default"""
-        return MemmapManager._use_memmap
+    def set_memmap(memmap):
+        """Call this method to set default value of memmap"""
+        MemmapManager._use_memmap = memmap
 
     @staticmethod
     def set_default_disk_path(default_disk_path):
@@ -354,6 +354,7 @@ class MemmapManager():
     @staticmethod
     def setup(data_self, *args, **kwargs):
         """This method is used to setup memmap parameters for data classes.
+
         :param name: name of data, must be unique
         :param memmap: boolean indicates whether memmap is used. Optional
         :param disk_path: str indicates path to create memmap file. Optional
