@@ -146,8 +146,6 @@ class Operator(object):
                                      space_dims=self.space_dims,
                                      compiler=self.compiler, profile=profile,
                                      cache_blocking=cache_blocking, block_size=block_size)
-        self.propagator.time_loop_stencils_b = self.propagator.time_loop_stencils_b + getattr(self, "time_loop_stencils_pre", [])
-        self.propagator.time_loop_stencils_a = self.propagator.time_loop_stencils_a + getattr(self, "time_loop_stencils_post", [])
         self.dtype = dtype
         self.nt = nt
         self.shape = shape

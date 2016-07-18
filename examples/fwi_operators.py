@@ -266,14 +266,13 @@ class ForwardOperator(FWIOperator):
         main_stencil = Eq(u.indexed[total_dim], stencil)
         stencils = [main_stencil]
         substitutions = [dict(zip(subs, stencil_args))]
-        src_list = src.add(m, u)
-        rec = rec.read(u)
-        self.time_loop_stencils_post = src_list+rec
         super(ForwardOperator, self).__init__(src.nt, m.shape, stencils=stencils,
                                               substitutions=substitutions, spc_border=spc_order/2,
                                               time_order=time_order, forward=True, dtype=m.dtype,
                                               input_params=input_params, output_params=output_params,
                                               **kwargs)
+        # Insert source and receiver terms post-hoc
+        self.propagator.time_loop_stencils_a = src.add(m, u) + rec.read(u)
 
 
 class AdjointOperator(FWIOperator):
@@ -293,14 +292,13 @@ class AdjointOperator(FWIOperator):
         stencil_args = [m.indexed[space_dim], rec.dt, rec.h, damp.indexed[space_dim]]
         stencils = [main_stencil]
         substitutions = [dict(zip(subs, stencil_args))]
-        rec_list = rec.add(m, v)
-        src_list = srca.read(v)
-        self.time_loop_stencils_post = rec_list + src_list
         super(AdjointOperator, self).__init__(rec.nt, m.shape, stencils=stencils,
                                               substitutions=substitutions, spc_border=spc_order/2,
                                               time_order=time_order, forward=False, dtype=m.dtype,
                                               input_params=input_params, output_params=output_params,
                                               **kwargs)
+        # Insert source and receiver terms post-hoc
+        self.propagator.time_loop_stencils_a = rec.add(m, v) + srca.read(v)
 
 
 class GradientOperator(FWIOperator):
@@ -325,13 +323,13 @@ class GradientOperator(FWIOperator):
         reset_v = Eq(v.indexed[tuple((t + 2,) + space_dim)], 0)
         stencils = [main_stencil, gradient_update, reset_v]
         substitutions = [dict(zip(subs, stencil_args)), {}, {}]
-        rec_list = rec.add(m, v)
-        self.time_loop_stencils_pre = rec_list
         super(GradientOperator, self).__init__(rec.nt, m.shape, stencils=stencils,
                                                substitutions=substitutions, spc_border=spc_order/2,
                                                time_order=time_order, forward=False, dtype=m.dtype,
                                                input_params=input_params, output_params=output_params,
                                                **kwargs)
+        # Insert receiver term post-hoc
+        self.propagator.time_loop_stencils_b = rec.add(m, v)
 
 
 class BornOperator(FWIOperator):
@@ -348,10 +346,6 @@ class BornOperator(FWIOperator):
         space_dim = self.space_dim(dim)
         dt = src.dt
         h = src.h
-        src_list = src.add(m, u)
-        rec = rec.read(U)
-        self.time_loop_stencils_pre = src_list
-        self.time_loop_stencils_post = rec
         stencil, subs = self._init_taylor(dim, time_order, spc_order)[0]
         first_stencil = self.smart_sympy_replace(dim, time_order, stencil, Function('p'), u, fw=True)
         second_stencil = self.smart_sympy_replace(dim, time_order, stencil, Function('p'), U, fw=True)
@@ -370,3 +364,6 @@ class BornOperator(FWIOperator):
                                            time_order=time_order, forward=True, dtype=m.dtype,
                                            input_params=input_params, output_params=output_params,
                                            **kwargs)
+        # Insert source and receiver terms post-hoc
+        self.propagator.time_loop_stencils_b = src.add(m, u)
+        self.propagator.time_loop_stencils_a = rec.read(U)
