@@ -1,8 +1,8 @@
 from devito.operator import *
 from sympy import Eq
 from devito.interfaces import TimeData, DenseData, PointData
-from sympy import Function, symbols, as_finite_diff, Wild, IndexedBase
-from sympy.abc import x, y, t, z
+from sympy import symbols
+from sympy.abc import t
 from sympy import solve, Matrix
 
 
@@ -132,168 +132,48 @@ class SourceLike(PointData):
         return filtered
 
 
-class FWIOperator(Operator):
-    def _init_taylor(self, dim=2, time_order=2, space_order=2):
-        # Only dim=2 and dim=3 are supported
-        # The acoustic wave equation for the square slowness m and a source q
-        # is given in 3D by :
-        #
-        # \begin{cases} &m \frac{d^2 u(x,t)}{dt^2} - \nabla^2 u(x,t) =q  \\
-        # &u(.,0) = 0 \\ &\frac{d u(x,t)}{dt}|_{t=0} = 0 \end{cases}
-        #
-        # with the zero initial conditons to guarantee unicity of the solution
-        # Choose dimension (2 or 3)
-
-        # half width for indexes, goes from -half to half
-        width_t = int(time_order/2)
-        width_h = int(space_order/2)
-        p = Function('p')
-        s, h = symbols('s h')
-        if dim == 2:
-            m = IndexedBase("M")[x, z]
-            e = IndexedBase("E")[x, z]
-            solvep = p(x, z, t + width_t*s)
-            solvepa = p(x, z, t - width_t*s)
-        else:
-            m = IndexedBase("M")[x, y, z]
-            e = IndexedBase("E")[x, y, z]
-            solvep = p(x, y, z, t + width_t*s)
-            solvepa = p(x, y, z, t - width_t*s)
-
-        # Indexes for finite differences
-        # Could the next three list comprehensions be merged into one?
-        indx = [(x + i * h) for i in range(-width_h, width_h + 1)]
-        indy = [(y + i * h) for i in range(-width_h, width_h + 1)]
-        indz = [(z + i * h) for i in range(-width_h, width_h + 1)]
-        indt = [(t + i * s) for i in range(-width_t, width_t + 1)]
-
-        # Time and space  discretization as a Taylor expansion.
-        #
-        # The time discretization is define as a second order ( $ O (dt^2)) $)
-        # centered finite difference to get an explicit Euler scheme easy to
-        # solve by steping in time.
-        #
-        # $ \frac{d^2 u(x,t)}{dt^2} \simeq \frac{u(x,t+dt) - 2 u(x,t) +
-        # u(x,t-dt)}{dt^2} + O(dt^2) $
-        #
-        # And we define the space discretization also as a Taylor serie, with
-        # oder chosen by the user. This can either be a direct expansion of the
-        # second derivative bulding the laplacian, or a combination of first
-        # oder space derivative. The second option can be a better choice in
-        # case you would want to extand the method to more complex wave
-        # equations involving first order derivatives in chain only.
-        #
-        # $ \frac{d^2 u(x,t)}{dt^2} \simeq \frac{1}{dx^2} \sum_k \alpha_k
-        # (u(x+k dx,t)+u(x-k dx,t)) + O(dx^k)
-        # Finite differences
-        if dim == 2:
-            dtt = as_finite_diff(p(x, z, t).diff(t, t), indt)
-            dxx = as_finite_diff(p(x, z, t).diff(x, x), indx)
-            dzz = as_finite_diff(p(x, z, t).diff(z, z), indz)
-            dt = as_finite_diff(p(x, z, t).diff(t), indt)
-            lap = dxx + dzz
-        else:
-            dtt = as_finite_diff(p(x, y, z, t).diff(t, t), indt)
-            dxx = as_finite_diff(p(x, y, z, t).diff(x, x), indx)
-            dyy = as_finite_diff(p(x, y, z, t).diff(y, y), indy)
-            dzz = as_finite_diff(p(x, y, z, t).diff(z, z), indz)
-            dt = as_finite_diff(p(x, y, z, t).diff(t), indt)
-            lap = dxx + dyy + dzz
-
-        wave_equation = m*dtt - lap + e*dt
-        stencil = solve(wave_equation, solvep)[0]
-        wave_equationA = m*dtt - lap - e*dt
-        stencilA = solve(wave_equationA, solvepa)[0]
-        return ((stencil, (m, s, h, e)), (stencilA, (m, s, h, e)))
-
-    @classmethod
-    def smart_sympy_replace(cls, num_dim, time_order, expr, fun, arr, fw):
-        a = Wild('a')
-        b = Wild('b')
-        c = Wild('c')
-        d = Wild('d')
-        f = Wild('f')
-        q = Wild('q')
-        x, y, z = symbols("x y z")
-        h, s, t = symbols("h s t")
-        width_t = int(time_order/2)
-        # Replace function notation with array notation
-        # Reorder indices so time comes first
-        if num_dim == 2:
-            # Replace function notation with array notation
-            res = expr.replace(fun(a, b, c), arr.indexed[a, b, c])
-            # Reorder indices so time comes first
-            res = res.replace(arr.indexed[x+b, z+d, t+f], arr.indexed[t+f, x+b, z+d])
-        if num_dim == 3:
-            res = expr.replace(fun(a, b, c, d), arr.indexed[a, b, c, d])
-            res = res.replace(arr.indexed[x+b, y+q, z+d, t+f], arr.indexed[t+f, x+b, y+q, z+d])
-        # Replace x+h in indices with x+1
-        for dim_var in [x, y, z]:
-            res = res.replace(dim_var+c*h, dim_var+c)
-        # Replace t+s with t+1
-        res = res.replace(t+c*s, t+c)
-        if fw:
-            res = res.subs({t: t-width_t})
-        else:
-            res = res.subs({t: t+width_t})
-        return res
-
-    def total_dim(self, ndim):
-        if ndim == 2:
-            return (t, x, z)
-        else:
-            return (t, x, y, z)
-
-    def space_dim(self, ndim):
-        if ndim == 2:
-            return (x, z)
-        else:
-            return (x, y, z)
-
-
-class ForwardOperator(FWIOperator):
+class ForwardOperator(Operator):
     def __init__(self, m, src, damp, rec, u, time_order=4, spc_order=12, **kwargs):
         assert(m.shape == damp.shape)
-        input_params = [m, src, damp, rec, u]
         u.pad_time = False
-        output_params = []
-        dim = len(m.shape)
-        total_dim = self.total_dim(dim)
-        space_dim = self.space_dim(dim)
-        stencil, subs = self._init_taylor(dim, time_order, spc_order)[0]
-        stencil = self.smart_sympy_replace(dim, time_order, stencil, Function('p'), u, fw=True)
-        stencil_args = [m.indexed[space_dim], src.dt, src.h, damp.indexed[space_dim]]
-        main_stencil = Eq(u.indexed[total_dim], stencil)
-        stencils = [main_stencil]
-        substitutions = [dict(zip(subs, stencil_args))]
-        super(ForwardOperator, self).__init__(src.nt, m.shape, stencils=stencils,
-                                              substitutions=substitutions, spc_border=spc_order/2,
+        # Set time and space orders
+        u.time_order = time_order
+        u.space_order = spc_order
+        # Derive stencil from symbolic equation
+        eqn = m * u.dt2 - u.laplace + damp * u.dt
+        stencil = solve(eqn, u.forward)[0]
+        # Add substitutions for spacing (temporal and spatial)
+        s, h = symbols('s h')
+        subs = {s: src.dt, h: src.h}
+        super(ForwardOperator, self).__init__(src.nt, m.shape, stencils=Eq(u.forward, stencil),
+                                              substitutions=subs, spc_border=spc_order/2,
                                               time_order=time_order, forward=True, dtype=m.dtype,
-                                              input_params=input_params, output_params=output_params,
                                               **kwargs)
         # Insert source and receiver terms post-hoc
+        self.input_params += [src, rec]
         self.propagator.time_loop_stencils_a = src.add(m, u) + rec.read(u)
+        self.propagator.add_devito_param(src)
+        self.propagator.add_devito_param(rec)
 
 
-class AdjointOperator(FWIOperator):
+class AdjointOperator(Operator):
     def __init__(self, m, rec, damp, srca, time_order=4, spc_order=12, **kwargs):
         assert(m.shape == damp.shape)
+        # Create v with given time and space orders
+        v = TimeData(name="v", shape=m.shape, dtype=m.dtype, time_dim=rec.nt,
+                     time_order=time_order, space_order=spc_order, save=True)
+        # Derive stencil from symbolic equation
+        eqn = m * v.dt2 - v.laplace - damp * v.dt
+        stencil = solve(eqn, v.backward)[0]
+        # Add substitutions for spacing (temporal and spatial)
+        s, h = symbols('s h')
+        subs = {s: rec.dt, h: rec.h}
+        # Input/output signature detection is still dubious,
+        # so we need to keep this hard-coded for now
         input_params = [m, rec, damp, srca]
-        v = TimeData(name="v", shape=m.shape, time_dim=rec.nt, time_order=time_order,
-                     save=True, dtype=m.dtype)
         output_params = [v]
-        dim = len(m.shape)
-        total_dim = self.total_dim(dim)
-        space_dim = self.space_dim(dim)
-        lhs = v.indexed[total_dim]
-        stencil, subs = self._init_taylor(dim, time_order, spc_order)[1]
-        stencil = self.smart_sympy_replace(dim, time_order, stencil, Function('p'), v, fw=False)
-        main_stencil = Eq(lhs, stencil)
-        stencil_args = [m.indexed[space_dim], rec.dt, rec.h, damp.indexed[space_dim]]
-        stencils = [main_stencil]
-        substitutions = [dict(zip(subs, stencil_args))]
-        super(AdjointOperator, self).__init__(rec.nt, m.shape, stencils=stencils,
-                                              substitutions=substitutions, spc_border=spc_order/2,
+        super(AdjointOperator, self).__init__(rec.nt, m.shape, stencils=Eq(v.backward, stencil),
+                                              substitutions=subs, spc_border=spc_order/2,
                                               time_order=time_order, forward=False, dtype=m.dtype,
                                               input_params=input_params, output_params=output_params,
                                               **kwargs)
@@ -301,30 +181,32 @@ class AdjointOperator(FWIOperator):
         self.propagator.time_loop_stencils_a = rec.add(m, v) + srca.read(v)
 
 
-class GradientOperator(FWIOperator):
+class GradientOperator(Operator):
     def __init__(self, u, m, rec, damp, time_order=4, spc_order=12, **kwargs):
         assert(m.shape == damp.shape)
-        input_params = [u, m, rec, damp]
-        v = TimeData(name="v", shape=m.shape, time_dim=rec.nt, time_order=time_order,
-                     save=False, dtype=m.dtype)
+        v = TimeData(name="v", shape=m.shape, dtype=m.dtype, time_dim=rec.nt,
+                     time_order=time_order, space_order=spc_order, save=False, )
         grad = DenseData(name="grad", shape=m.shape, dtype=m.dtype)
-        output_params = [grad, v]
-        dim = len(m.shape)
-        total_dim = self.total_dim(dim)
-        space_dim = self.space_dim(dim)
-        lhs = v.indexed[total_dim]
-        stencil, subs = self._init_taylor(dim, time_order, spc_order)[1]
-        stencil = self.smart_sympy_replace(dim, time_order, stencil, Function('p'), v, fw=False)
-        stencil_args = [m.indexed[space_dim], rec.dt, rec.h, damp.indexed[space_dim]]
-        main_stencil = Eq(lhs, lhs + stencil)
+        # Derive stencil from symbolic equation
+        eqn = m * v.dt2 - v.laplace - damp * v.dt
+        stencil = solve(eqn, v.backward)[0]
+        # Add substitutions for spacing (temporal and spatial)
+        s, h = symbols('s h')
+        subs = {s: rec.dt, h: rec.h}
+        # Add Gradient-specific updates and resets
+        total_dim = tuple(v.indices(m.shape))
+        space_dim = tuple(m.indices(m.shape))
         gradient_update = Eq(grad.indexed[space_dim], grad.indexed[space_dim] -
                              (v.indexed[total_dim] - 2 * v.indexed[tuple((t + 1,) + space_dim)] +
                               v.indexed[tuple((t + 2,) + space_dim)]) * u.indexed[total_dim])
         reset_v = Eq(v.indexed[tuple((t + 2,) + space_dim)], 0)
-        stencils = [main_stencil, gradient_update, reset_v]
-        substitutions = [dict(zip(subs, stencil_args)), {}, {}]
+        stencils = [Eq(v.backward, stencil), gradient_update, reset_v]
+        # Input/output signature detection is still dubious,
+        # so we need to keep this hard-coded for now
+        input_params = [u, m, rec, damp]
+        output_params = [grad, v]
         super(GradientOperator, self).__init__(rec.nt, m.shape, stencils=stencils,
-                                               substitutions=substitutions, spc_border=spc_order/2,
+                                               substitutions=[subs, {}, {}], spc_border=spc_order/2,
                                                time_order=time_order, forward=False, dtype=m.dtype,
                                                input_params=input_params, output_params=output_params,
                                                **kwargs)
@@ -332,35 +214,37 @@ class GradientOperator(FWIOperator):
         self.propagator.time_loop_stencils_b = rec.add(m, v)
 
 
-class BornOperator(FWIOperator):
+class BornOperator(Operator):
     def __init__(self, dm, m, src, damp, rec, time_order=4, spc_order=12, **kwargs):
         assert(m.shape == damp.shape)
-        input_params = [dm, m, src, damp, rec]
-        u = TimeData(name="u", shape=m.shape, time_dim=src.nt, time_order=time_order,
-                     save=False, dtype=m.dtype)
-        U = TimeData(name="U", shape=m.shape, time_dim=src.nt, time_order=time_order,
-                     save=False, dtype=m.dtype)
-        output_params = [u, U]
-        dim = len(m.shape)
-        total_dim = self.total_dim(dim)
-        space_dim = self.space_dim(dim)
-        dt = src.dt
-        h = src.h
-        stencil, subs = self._init_taylor(dim, time_order, spc_order)[0]
-        first_stencil = self.smart_sympy_replace(dim, time_order, stencil, Function('p'), u, fw=True)
-        second_stencil = self.smart_sympy_replace(dim, time_order, stencil, Function('p'), U, fw=True)
-        first_stencil_args = [m.indexed[space_dim], dt, h, damp.indexed[space_dim]]
-        first_update = Eq(u.indexed[total_dim], u.indexed[total_dim]+first_stencil)
-        src2 = -(dt**-2)*(u.indexed[total_dim]-2*u.indexed[tuple((t - 1,) + space_dim)]+u.indexed[tuple((t - 2,) + space_dim)])*dm.indexed[space_dim]
-        second_stencil_args = [m.indexed[space_dim], dt, h, damp.indexed[space_dim]]
-        second_update = Eq(U.indexed[total_dim], second_stencil)
-        insert_second_source = Eq(U.indexed[total_dim], U.indexed[total_dim]+(dt*dt)/m.indexed[space_dim]*src2)
+        u = TimeData(name="u", shape=m.shape, dtype=m.dtype, time_dim=src.nt,
+                     time_order=time_order, space_order=spc_order, save=False)
+        U = TimeData(name="U", shape=m.shape, dtype=m.dtype, time_dim=src.nt,
+                     time_order=time_order, space_order=spc_order, save=False)
+        # Derive stencils from symbolic equation
+        first_eqn = m * u.dt2 - u.laplace - damp * u.dt
+        first_stencil = solve(first_eqn, u.forward)[0]
+        second_eqn = m * U.dt2 - U.laplace - damp * U.dt
+        second_stencil = solve(second_eqn, U.forward)[0]
+        # Add substitutions for spacing (temporal and spatial)
+        s, h = symbols('s h')
+        subs = {s: src.dt, h: src.h}
+        # Add Born-specific updates and resets
+        total_dim = tuple(u.indices(m.shape))
+        space_dim = tuple(m.indices(m.shape))
+        src2 = -(src.dt**-2) * (u.indexed[total_dim]-2*u.indexed[tuple((t - 1,) + space_dim)]
+                                + u.indexed[tuple((t - 2,) + space_dim)]) * dm.indexed[space_dim]
+        insert_second_source = Eq(U.indexed[total_dim], U.indexed[total_dim] + (src.dt * src.dt)
+                                  / m.indexed[space_dim]*src2)
         reset_u = Eq(u.indexed[tuple((t - 2,) + space_dim)], 0)
-        stencils = [first_update, second_update, insert_second_source, reset_u]
-        substitutions = [dict(zip(subs, first_stencil_args)),
-                         dict(zip(subs, second_stencil_args)), {}, {}]
+        stencils = [Eq(u.forward, first_stencil), Eq(U.forward, second_stencil),
+                    insert_second_source, reset_u]
+        # Input/output signature detection is still dubious,
+        # so we need to keep this hard-coded for now
+        input_params = [dm, m, src, damp, rec]
+        output_params = [u, U]
         super(BornOperator, self).__init__(src.nt, m.shape, stencils=stencils,
-                                           substitutions=substitutions, spc_border=spc_order/2,
+                                           substitutions=[subs, subs, {}, {}], spc_border=spc_order/2,
                                            time_order=time_order, forward=True, dtype=m.dtype,
                                            input_params=input_params, output_params=output_params,
                                            **kwargs)
