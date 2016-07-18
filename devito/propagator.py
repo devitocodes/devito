@@ -135,10 +135,12 @@ class Propagator(object):
 
     @property
     def save(self):
+        """indicates whether time history is saved."""
         return self._save
 
     @save.setter
     def save(self, save):
+        """Function used to initialise the save parameter."""
         if save is not True:
             self.time_steppers = [symbols("t%d" % i) for i in range(self.time_order+1)]
             self.t_replace = {}
@@ -148,6 +150,7 @@ class Propagator(object):
 
     @property
     def time_loop_limits(self):
+        """Bounds for the time loop."""
         if self._forward:
             loop_limits = (0, self.nt)
         else:
@@ -167,6 +170,7 @@ class Propagator(object):
         self._var_map = var_map
 
     def sympy_to_cgen(self, stencils):
+        """converts sympy stmts to cgen stmts."""
         stmts = []
         for equality in stencils:
             self._kernel_dic_oi = self._get_ops_expr(equality.rhs, self._kernel_dic_oi, False)
@@ -179,6 +183,10 @@ class Propagator(object):
         return cgen.Block(kernel)
 
     def convert_equality_to_cgen(self, equality):
+        """convert given equality to cgen.Generable stmt
+
+        :param equality: given equality statement.
+        """
         if isinstance(equality, cgen.Generable):
             return equality
         else:
@@ -192,6 +200,9 @@ class Propagator(object):
         in that definition should be the fastest varying dimension in the arrays.
         Therefore reverse the list of dimensions, making the last variable in
         #var_order (z in the 3D case) vary in the inner-most loop
+
+        :param loop_body: statement representing the loop body.
+        :return: cgen Block repsenting the loop.
         """
         # Space loops
         if self.cache_blocking:
@@ -234,6 +245,11 @@ class Propagator(object):
         return cgen.Block(body)
 
     def generate_space_loops(self, loop_body):
+        """Generate cgen block for a non cache blocking space loop
+
+        :param loop_body: statement representing the loop body.
+        :return: cgen Block repsenting the loop.
+        """
         ivdep = True
         for spc_var in reversed(list(self.space_dims)):
             dim_var = self._var_map[spc_var]
@@ -247,6 +263,11 @@ class Propagator(object):
         return loop_body
 
     def generate_space_loops_blocking(self, loop_body):
+        """Generate cgen block for a cache blocking space loop
+
+        :param loop_body: statement representing the loop body.
+        :return: cgen Block repsenting the loop.
+        """
         ivdep = True
         remainder = False
         orig_loop_body = loop_body
@@ -291,6 +312,7 @@ class Propagator(object):
         return loop_body
 
     def add_loop_step(self, assign, before=False):
+        """Add loop step to loop body."""
         stm = self.convert_equality_to_cgen(assign)
         if before:
             self._pre_kernel_steps.append(stm)
@@ -298,22 +320,43 @@ class Propagator(object):
             self._post_kernel_steps.append(stm)
 
     def add_devito_param(self, param):
+        """Setup relevant devito parameters.
+
+        :param param: contains all devito parameters.
+        """
         save = True
         if hasattr(param, "save"):
             save = param.save
         self.add_param(param.name, param.shape, param.dtype, save)
 
     def add_param(self, name, shape, dtype, save=True):
+        """Add a matrix parameter to the operator
+
+        :param name: name of parameter.
+        :param shape: shape of parameter.
+        :param dtype: base type of parameter.
+        :para save: indicates whether time history is saved.
+        """
         self.fd.add_matrix_param(name, shape, dtype)
         self.save = save
         self.save_vars[name] = save
         return IndexedBase(name, shape=shape)
 
     def add_scalar_param(self, name, dtype):
+        """Add a scalar parameter to the operator. E.g. int.
+
+        :param name: name of parameter.
+        :param dtype: type of parameter.
+        """
         self.fd.add_value_param(name, dtype)
         return symbols(name)
 
     def add_local_var(self, name, dtype):
+        """Add a local scalar parameter.
+
+        :param name: name of parameter.
+        :param dtype: type of parameter.
+        """
         self.fd.add_local_variable(name, dtype)
         return symbols(name)
 
@@ -330,6 +373,7 @@ class Propagator(object):
         return self.fd
 
     def get_time_stepping(self):
+        """Add the time stepping code to the loop."""
         ti = self._var_map[self.time_dim]
         body = []
         time_stepper_indices = range(self.time_order+1)
@@ -366,6 +410,11 @@ class Propagator(object):
         return sympy_expr
 
     def add_time_loop_stencil(self, stencil, before=False):
+        """Add the given stencil to the time loop stencil.
+
+        :param stencil: given stencil.
+        :param before: flag indicates where to add given stencil, false by default.
+        """
         if before:
             self.time_loop_stencils_b.append(stencil)
         else:
@@ -391,7 +440,7 @@ class Propagator(object):
         if expr.is_Mul or expr.is_Add or expr.is_Pow:
                 args = expr.args
                 # increment MUL or ADD by # arguments less 1
-                # sympy multiplication and addition can have multiple arguments
+                # sympy multiplication and addtion can have multiple arguments
                 if expr.is_Mul:
                         result['mul'] += len(args)-1
                 else:

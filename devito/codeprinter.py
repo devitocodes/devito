@@ -4,16 +4,18 @@ from mpmath.libmp import to_str, prec_to_dps
 
 
 class CodePrinter(CCodePrinter):
-    """
-    CodePrinter extends sympy.printing.ccode.CCodePrinter
+    """Decorator for sympy.printing.ccode.CCodePrinter.
+
+    :param settings: a dictionary containing relevant settings
     """
     def __init__(self, settings={}):
         CCodePrinter.__init__(self, settings)
 
     def _print_Indexed(self, expr):
-        """
-        override method in CCodePrinter
-        Print field as C style multidimensional array
+        """Print field as C style multidimensional array
+
+        :param expr: an indexed expression
+
         e.g. U[t,x,y,z] -> U[t][x][y][z]
         """
         output = self._print(expr.base.label) \
@@ -21,9 +23,11 @@ class CodePrinter(CCodePrinter):
         return output
 
     def _print_Rational(self, expr):
-        """
-        override method in CCodePrinter
+        """override method in CCodePrinter
         print fractional number as float/float
+
+        :param expr: a rational number
+
         (default was long double/long double)
         """
         # This method and _print_Float below forcefully add a F to any
@@ -34,9 +38,10 @@ class CodePrinter(CCodePrinter):
         return '%d.0F/%d.0F' % (p, q)  # float precision by default
 
     def _print_Mod(self, expr):
-        """
-        override method in CCodePrinter
+        """override method in CCodePrinter
         print mod using % operator in C++
+
+        :param expr: the experssion in which a C++ % operator is inserted
         """
         args = map(ccode, expr.args)
         args = ['('+x+')' for x in args]
@@ -44,9 +49,10 @@ class CodePrinter(CCodePrinter):
         return result
 
     def _print_Float(self, expr):
-        """
-        override method in StrPrinter
+        """override method in StrPrinter
         always printing floating point numbers in scientific notation
+
+        :param expr: a floating poit number
         """
         prec = expr._prec
         if prec < 5:
@@ -68,9 +74,10 @@ class CodePrinter(CCodePrinter):
 
 
 def ccode(expr, **settings):
-    """
-    generate C++ code from expression expr
+    """generate C++ code from expression expr
     calling CodePrinter class
+
+    :param settings: a dictionary of settings for code printing
     """
     if isinstance(expr, Eq):
         return ccode_eq(expr)
@@ -81,9 +88,10 @@ def ccode(expr, **settings):
 
 
 def ccode_eq(eq, **settings):
-    """
-    genereate C++ assignment from equation eq
+    """genereate C++ assignment from equation eq
     assigning RHS to LHS
+
+    :param settings: a dictionary of settings for code printing
     """
     return CodePrinter(settings).doprint(eq.lhs, None) \
         + ' = ' + CodePrinter(settings).doprint(eq.rhs, None)
