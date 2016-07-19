@@ -9,10 +9,13 @@ class AcousticWave2D_cg:
     """ Class to setup the problem for the Acoustic Wave
         Note: s_order must always be greater than t_order
     """
-    def __init__(self, model, data, dm_initializer=None, source=None, nbpml=40, t_order=2, s_order=2):
+    def __init__(self, model, data, dm_initializer=None, source=None, nbpml=40, t_order=2, s_order=2,
+                 cache_blocking=False, auto_tune=False):
         self.model = model
         self.t_order = t_order
         self.s_order = s_order
+        self.auto_tune = auto_tune
+        self.cache_blocking = cache_blocking
         self.data = data
         self.dtype = np.float64
         self.dt = model.get_critical_dt()
@@ -77,7 +80,8 @@ class AcousticWave2D_cg:
         self.dm.initializer = self.dm_initializer
 
     def Forward(self):
-        fw = ForwardOperator(self.m, self.src, self.damp, self.rec, self.u, time_order=self.t_order, spc_order=self.s_order)
+        fw = ForwardOperator(self.m, self.src, self.damp, self.rec, self.u, time_order=self.t_order, profile=True,
+                             spc_order=self.s_order, auto_tune=self.auto_tune, cache_blocking=self.cache_blocking)
         fw.apply()
         return (self.rec.data, self.u.data)
 
@@ -104,4 +108,4 @@ class AcousticWave2D_cg:
         f = 0.5*np.linalg.norm(res)**2
         print('Residual is ', f, 'starting gradient')
         g = self.Gradient(res, u)
-        return f, g[self.nbpml:-self.nbpml, self.nbpml:-self.nbpml]
+        return (f, g[self.nbpml:-self.nbpml, self.nbpml:-self.nbpml])
