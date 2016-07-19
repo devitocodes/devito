@@ -1,7 +1,4 @@
 """
-Illustrative example of solving the 2D diffusion equation following:
-http://www.timteatro.net/2010/10/29/performance-python-solving-the-2d-diffusion-equation-with-numpy
-
 This example encodes multiple ways to solve the 2D diffusion equations
 using an explicit finite difference scheme with fixed boundary values
 and a given initial value for the density.
