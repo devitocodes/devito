@@ -6,7 +6,7 @@ import os
 class Operator(object):
     _ENV_VAR_OPENMP = "DEVITO_OPENMP"
 
-    def __init__(self, subs, nt, shape, spc_border, time_order, forward, dtype):
+    def __init__(self, subs, angles, nt, shape, spc_border, time_order, forward, dtype):
         self.subs = subs
         self.openmp = os.environ.get(self._ENV_VAR_OPENMP) == "1"
         self.propagator = Propagator(self.getName(), nt, shape, spc_border, forward, time_order, self.openmp)
@@ -22,6 +22,7 @@ class Operator(object):
             self.propagator.add_devito_param(param)
         self.propagator.subs = self.subs
         self.propagator.stencils, self.propagator.stencil_args = zip(*self.stencils)
+        self.propagator.angles = angles
 
     def apply(self):
         f = self.get_callable()
