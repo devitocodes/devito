@@ -82,7 +82,7 @@ class TTIOperator(Operator):
         ang0 = Bhaskaracos(Th)
         ang1 = Bhaskarasin(Th)
         ang2 = Bhaskaracos(Ph)
-        ang3 = Bhaskaracos(Ph)
+        ang3 = Bhaskarasin(Ph)
         return (stencilp, stencilr, (m, A, B, Th, Ph, s, h, e), [ang0,ang1,ang2,ang3])
 
     def smart_sympy_replace(self, num_dim, time_order, res, funs, arrs, fw):
