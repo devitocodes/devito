@@ -31,7 +31,7 @@ class TTIOperator(Operator):
         p = Function('p')
         r = Function('r')
 
-        s, h, x, y, z, a, b, c, d = symbols('s h x y z a b c d')
+        s, h, x, y, z, ang0, ang1, ang2, ang3 = symbols('s h x y z ang0 ang1 ang2 ang3')
         m = M(x, y, z)
         # q = Q(x, y, z, t)
         # d = D(x, y, z, t)
@@ -71,19 +71,19 @@ class TTIOperator(Operator):
         def Bhaskaracos(angle):
             return Bhaskarasin(angle + 1.57)
 
-        Gxxp = c**2 * a**2 * dxxp + d**2 * a**2 * dyyp + b**2 * dzzp + 2 * d * c * a**2 * dxyp - d * 2 * b * a * dyzp - c * 2 * b * a * dxzp
-        Gyyp = b**2 * dxxp + c**2 * dyyp - (2 * d * c)**2 * dxyp
-        Gzzr = c**2 * b**2 * dxxr + d**2 * b**2 * dyyr + a**2 * dzzr + 2 * d * c * b**2 * dxyr + d * 2 * b * a * dyzr + c * 2 * b * a * dxzr
+        Gxxp = ang2**2 * ang0**2 * dxxp + ang3**2 * ang0**2 * dyyp + ang1**2 * dzzp + 2 * ang3 * ang2 * ang0**2 * dxyp - ang3 * 2 * ang1 * ang0 * dyzp - ang2 * 2 * ang1 * ang0 * dxzp
+        Gyyp = ang1**2 * dxxp + ang2**2 * dyyp - (2 * ang3 * ang2)**2 * dxyp
+        Gzzr = ang2**2 * ang1**2 * dxxr + ang3**2 * ang1**2 * dyyr + ang0**2 * dzzr + 2 * ang3 * ang2 * ang1**2 * dxyr + ang3 * 2 * ang1 * ang0 * dyzr + ang2 * 2 * ang1 * ang0 * dxzr
 
         stencilp = 2 * s**2 / (2 * m + s * e) * (2 * m / s**2 * p(x, y, z, t) + (s * e - 2 * m) / (2 * s**2) * p(x, y, z, t-s) + A * (Gxxp + Gyyp) + B * Gzzr)
         stencilp=factor(expand(stencilp))
         stencilr = 2 * s**2 / (2 * m + s * e) * (2 * m / s**2 * r(x, y, z, t) + (s * e - 2 * m) / (2 * s**2) * r(x, y, z, t-s) + A * (Gxxp + Gyyp) + B * Gzzr)
         stencilr=factor(expand(stencilr))
-        a = Bhaskaracos(Th)
-        b = Bhaskarasin(Th)
-        c = Bhaskaracos(Ph)
-        d = Bhaskaracos(Ph)
-        return (stencilp, stencilr, (m, A, B, Th, Ph, s, h, e))
+        ang0 = Bhaskaracos(Th)
+        ang1 = Bhaskarasin(Th)
+        ang2 = Bhaskaracos(Ph)
+        ang3 = Bhaskarasin(Ph)
+        return (stencilp, stencilr, (m, A, B, Th, Ph, s, h, e), [ang0,ang1,ang2,ang3])
 
     def smart_sympy_replace(self, num_dim, time_order, res, funs, arrs, fw):
         a = Wild('a')
@@ -141,7 +141,7 @@ class ForwardOperator(TTIOperator):
         dim = len(m.shape)
         total_dim = self.total_dim(dim)
         space_dim = self.space_dim(dim)
-        stencilp, stencilr, subs = self._init_taylor(dim, time_order, spc_order)
+        stencilp, stencilr, subs, angles = self._init_taylor(dim, time_order, spc_order)
         stencilp = self.smart_sympy_replace(dim, time_order, stencilp, [Function('p'), Function('r')], [u, v], fw=True)
         stencilr = self.smart_sympy_replace(dim, time_order, stencilr, [Function('p'), Function('r')], [u, v], fw=True)
         stencil_args = [m.indexed[space_dim], a.indexed[space_dim], b.indexed[space_dim],
@@ -152,10 +152,7 @@ class ForwardOperator(TTIOperator):
         src_list = old_src.add(m, u) + old_src.add(m, v)
         rec = rec.read(u, v)
         self.time_loop_stencils_post = src_list+rec
-        super(ForwardOperator, self).__init__(subs, old_src.nt, m.shape, spc_border=spc_order/2,
-                                              time_order=time_order, forward=True, dtype=m.dtype,
-                                              stencils=stencils, input_params=input_params,
-                                              output_params=output_params)
+        super(ForwardOperator, self).__init__(subs, angles, old_src.nt, m.shape, spc_border=spc_order/2, time_order=time_order, forward=True, dtype=m.dtype)
 
 
 class AdjointOperator(TTIOperator):
