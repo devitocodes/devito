@@ -94,14 +94,14 @@ class SymbolicData(Function):
 class DenseData(SymbolicData):
     """Data object for spatially varying data that acts as a Function symbol
 
-    :param name: Name of the resulting :class sympy.Function: symbol
+    :param name: Name of the resulting :class:`sympy.Function` symbol
     :param shape: Shape of the spatial data grid
     :param dtype: Data type of the buffered data
     :param space_order: Discretisation order for space derivatives
 
-    Note: :class DenseData: objects are assumed to be constant in time and
-    therefore do not support time derivatives. Use :class TimeData: for
-    time-varying grid data.
+    Note: :class:`DenseData` objects are assumed to be constant in time and
+    therefore do not support time derivatives. Use :class:`TimeData` for
+    time-varying griad data.
     """
     def __init__(self, *args, **kwargs):
         if self._cached():
@@ -224,7 +224,7 @@ class DenseData(SymbolicData):
 class TimeData(DenseData):
     """Data object for time-varying data that acts as a Function symbol
 
-    :param name: Name of the resulting :class sympy.Function: symbol
+    :param name: Name of the resulting :class:`sympy.Function` symbol
     :param shape: Shape of the spatial data grid
     :param dtype: Data type of the buffered data
     :param save: Save the intermediate results to the data buffer. Defaults
@@ -315,7 +315,7 @@ class TimeData(DenseData):
 class PointData(DenseData):
     """Data object for sparse point data that acts as a Function symbol
 
-    :param name: Name of the resulting :class sympy.Function: symbol
+    :param name: Name of the resulting :class:`sympy.Function` symbol
     :param point: Number of points to sample
     :param nt: Size of the time dimension for point data
     :param dtype: Data type of the buffered data

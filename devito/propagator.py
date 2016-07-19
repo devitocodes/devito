@@ -189,7 +189,7 @@ class Propagator(object):
         """Converts sympy stencils to cgen statements
 
         :param stencils: A list of stencils to be converted
-        :returns: :class cgen.Block: containing the converted kernel
+        :returns: :class:`cgen.Block` containing the converted kernel
         """
         stmts = []
         for equality in stencils:
@@ -203,10 +203,10 @@ class Propagator(object):
         return cgen.Block(kernel)
 
     def convert_equality_to_cgen(self, equality):
-        """Convert given equality to :class cgen.Generable: statement
+        """Convert given equality to :class:`cgen.Generable` statement
 
         :param equality: Given equality statement
-        :returns: The resulting :class cgen.Generable: statement
+        :returns: The resulting :class:`cgen.Generable` statement
         """
         if isinstance(equality, cgen.Generable):
             return equality
@@ -223,7 +223,7 @@ class Propagator(object):
         #var_order (z in the 3D case) vary in the inner-most loop
 
         :param loop_body: Statement representing the loop body
-        :returns: :class cgen.Block: representing the loop
+        :returns: :class:`cgen.Block` representing the loop
         """
         # Space loops
         if self.cache_blocking:
@@ -269,7 +269,7 @@ class Propagator(object):
         """Generate cgen block for a non cache blocking space loop
 
         :param loop_body: Statement representing the loop body
-        :returns: :class cgen.Block: representing the loop
+        :returns: :class:`cgen.Block` representing the loop
         """
         ivdep = True
         for spc_var in reversed(list(self.space_dims)):
@@ -287,7 +287,7 @@ class Propagator(object):
         """Generate cgen block for a cache blocking space loop
 
         :param loop_body: Statement representing the loop body
-        :returns :class cgen.Block: representing the loop
+        :returns :class:`cgen.Block` representing the loop
         """
         ivdep = True
         remainder = False
@@ -357,7 +357,7 @@ class Propagator(object):
         :param shape: Shape of parameter
         :param dtype: Base type of parameter
         :param save: Indicates whether time history is saved
-        :returns: :class sympy.IndexedBase: containing the matrix parameter
+        :returns: :class:`sympy.IndexedBase` containing the matrix parameter
         """
         self.fd.add_matrix_param(name, shape, dtype)
         self.save = save
@@ -388,7 +388,7 @@ class Propagator(object):
         in the format that FunctionManager and JitManager can deal with it. Before calling,
         make sure you have either called set_jit_params or set_jit_simple already
 
-        :returns: The resulting :class devito.function_manager.FunctionDescriptor:
+        :returns: The resulting :class:`devito.function_manager.FunctionDescriptor`
         """
         try:  # Assume we have been given a a loop body in cgen types
             self.fd.set_body(self.generate_loops(self.loop_body))
@@ -400,7 +400,7 @@ class Propagator(object):
     def get_time_stepping(self):
         """Add the time stepping code to the loop
 
-        :returns: A list of :class cgen.Statement: containing the time stepping code
+        :returns: A list of :class:`cgen.Statement` containing the time stepping code
         """
         ti = self._var_map[self.time_dim]
         body = []
@@ -495,7 +495,7 @@ class Propagator(object):
         Operation intensity OI = (ADD+MUL)/[(LOAD+STORE)*word_size]
         Weighted OI, OI_w = (ADD+MUL)/(2*Max(ADD,MUL)) * OI
 
-        :param dtype: :class numpy.dtype: used to specify the word size
+        :param dtype: :class:`numpy.dtype` used to specify the word size
         :returns: A tuple (#ADD, #MUL, #LOAD, #STORE) containing the operation intensity
         """
         load = 0

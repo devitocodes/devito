@@ -4,12 +4,12 @@ from devito.tools import convert_dtype_to_ctype
 
 
 class FunctionManager(object):
-    """Class that accepts a list of FunctionDescriptor objects and generates the C
+    """Class that accepts a list of :class:`FunctionDescriptor` objects and generates the C
     function represented by it
 
-    :param function_descriptor: The list of FunctionDescriptor objects
-    :param mic_flag: True if using MIC. Default is false
-    :param openmp: True if using OpenMP. Default is false
+    :param function_descriptor: The list of :class:`FunctionDescriptor` objects
+    :param mic_flag: True if using MIC. Default is False
+    :param openmp: True if using OpenMP. Default is False
     """
     libraries = ['cassert', 'cstdlib', 'cmath', 'iostream',
                  'fstream', 'vector', 'cstdio', 'string', 'inttypes.h', 'sys/time.h', 'math.h']
@@ -24,8 +24,8 @@ class FunctionManager(object):
             self.libraries = self.libraries + ['omp.h']
 
     def includes(self):
-        """:returns: cgen.Module -- A module containing allthe preprocessor
-        directives
+        """
+        :returns: :class:`cgen.Module` -- A module containing all the preprocessor directives
         """
         statements = []
         statements += self._defines
@@ -43,29 +43,26 @@ class FunctionManager(object):
         self._defines.append(cgen.Define(name, text))
 
     def generate(self):
-        """:returns: cgen.Module -- A module containing the includes and the
-        generated functions
+        """:returns: :class:`cgen.Module` -- A module containing the includes and the generated functions
         """
         statements = [self.includes()]
         statements += [self.process_function(m) for m in self.function_descriptors]
         return cgen.Module(statements)
 
     def process_function(self, function_descriptor):
-        """Generates a function signature and body from a FunctionDescriptor
+        """Generates a function signature and body from a :class:`FunctionDescriptor`
 
-        :param function_descriptor: The FunctionDescriptor to process
-        :returns: cgen.FunctionBody -- The cgen.FunctionBody generated from
-        function_descriptor
+        :param function_descriptor: The :class:`FunctionDescriptor` to process
+        :returns: :class:`cgen.FunctionBody` -- The function body generated from the function_descriptor
         """
         return cgen.FunctionBody(self.generate_function_signature(function_descriptor),
                                  self.generate_function_body(function_descriptor))
 
     def generate_function_signature(self, function_descriptor):
-        """Generates a function signature from a FunctionDescriptor
+        """Generates a function signature from a :class:`FunctionDescriptor`
 
-        :param function_descriptor: The FunctionDescriptor to process
-        :returns: cgen.FunctionDeclaration -- The function declaration
-        generated from function_descriptor
+        :param function_descriptor: The :class:`FunctionDescriptor` to process
+        :returns: :class:`cgen.FunctionDeclaration` -- The function declaration generated from function_descriptor
         """
         function_params = []
         for param in function_descriptor.matrix_params:
@@ -80,11 +77,10 @@ class FunctionManager(object):
             return cgen.Extern("C", cgen.FunctionDeclaration(cgen.Value('int', function_descriptor.name), function_params))
 
     def generate_function_body(self, function_descriptor):
-        """Generates a function body from a FunctionDescriptor
+        """Generates a function body from a :class:`FunctionDescriptor`
 
-        :param function_descriptor: The FunctionDescriptor to process
-        :returns: cgen.Block -- A cgen.Block containing the generated function
-        body
+        :param function_descriptor: The :class:`FunctionDescriptor` to process
+        :returns: :class:`cgen.Block` -- A block containing the generated function body
         """
         statements = [cgen.POD(var[0], var[1]) for var in function_descriptor.local_vars]
 
@@ -126,7 +122,7 @@ class FunctionDescriptor(object):
 
         :param name: The name of the matrix
         :param shape: Tuple of matrix dimensions
-        :param dtype: The numpy.dtype of the matrix
+        :param dtype: The :class:`numpy.dtype` of the matrix
         """
         self.matrix_params.append({'name': name, 'shape': shape, 'dtype': dtype})
 
@@ -134,7 +130,7 @@ class FunctionDescriptor(object):
         """Declare a new value (scalar) parameter for this function
 
         :param name: The name of the scalar
-        :param dtype: The numpy.dtype of the scalar
+        :param dtype: The :class:`numpy.dtype` of the scalar
         """
         self.value_params.append((np.dtype(dtype), name))
 
@@ -142,7 +138,7 @@ class FunctionDescriptor(object):
         """Add a local variable to the function
 
         :param name: The name of the local variable
-        :param dtype: The numpy.dtype of the variable
+        :param dtype: The :class:`numpy.dtype` of the variable
         """
         try:
             self.local_vars.append((np.dtype(dtype), name))
@@ -152,7 +148,7 @@ class FunctionDescriptor(object):
     def set_body(self, body):
         """Sets the body of the function
 
-        :param body: A cgen.Block containing the body of the function
+        :param body: A :class:`cgen.Block` containing the body of the function
         """
         self.body = body
 
