@@ -44,8 +44,8 @@ class AcousticWave2D_cg:
             nbpml = self.nbpml
             num_dim = len(damp.shape)
             for i in range(nbpml):
-                pos = np.abs((nbpml-i)/float(nbpml))
-                val = dampcoeff * (pos - np.sin(2*np.pi*pos)/(2*np.pi))
+                pos = np.abs((nbpml - i) / float(nbpml))
+                val = dampcoeff * (pos - np.sin(2 * np.pi * pos) / (2 * np.pi))
                 if num_dim == 2:
                     damp[i, :] += val
                     damp[-(i + 1), :] += val
@@ -60,23 +60,25 @@ class AcousticWave2D_cg:
                     damp[:, :, -(i + 1)] += val
 
         self.m = DenseData(name="m", shape=self.model.vp.shape, dtype=self.dtype)
-        self.m.data[:] = self.model.vp**(-2)
+        self.m.data[:] = self.model.vp ** (-2)
         self.damp = DenseData(name="damp", shape=self.model.vp.shape, dtype=self.dtype)
         # Initialize damp by calling the function that can precompute damping
-        damp_boundary(damp.data)
-        self.damp = damp
-        src = SourceLike("src", 1, self.nt, self.dt, self.h, np.array(self.data.source_coords, dtype=self.dtype)[np.newaxis, :], len(dimensions), self.dtype, nbpml)
-        self.src = src
-        rec = SourceLike("rec", self.nrec, self.nt, self.dt, self.h, self.data.receiver_coords, len(dimensions), self.dtype, nbpml)
-        src.data[:] = self.data.get_source()[:, np.newaxis]
-        self.rec = rec
-        u = TimeData("u", m.shape, src.nt, time_order=t_order, save=True, dtype=m.dtype)
-        self.u = u
-        srca = SourceLike("srca", 1, self.nt, self.dt, self.h, np.array(self.data.source_coords, dtype=self.dtype)[np.newaxis, :], len(dimensions), self.dtype, nbpml)
-        self.srca = srca
-        dm = DenseData("dm", self.model.vp.shape, self.dtype)
-        dm.initializer = self.dm_initializer
-        self.dm = dm
+        damp_boundary(self.damp.data)
+        self.src = SourceLike(name="src", npoint=1, nt=self.nt, dt=self.dt, h=self.h,
+                              data=np.array(self.data.source_coords, dtype=self.dtype)[np.newaxis, :],
+                              ndim=len(dimensions), dtype=self.dtype, nbpml=nbpml)
+        self.rec = SourceLike(name="rec", npoint=self.nrec, nt=self.nt, dt=self.dt, h=self.h,
+                              data=self.data.receiver_coords, ndim=len(dimensions), dtype=self.dtype,
+                              nbpml=nbpml)
+        self.src.data[:] = self.data.get_source()[:, np.newaxis]
+        self.u = TimeData(name="u", shape=self.m.shape, time_dim=self.src.nt, time_order=t_order,
+                          save=False, dtype=self.m.dtype)
+        self.srca = SourceLike(name="srca", npoint=1, nt=self.nt, dt=self.dt, h=self.h,
+                               data=np.array(self.data.source_coords, dtype=self.dtype)[np.newaxis, :],
+                               ndim=len(dimensions), dtype=self.dtype, nbpml=nbpml)
+        self.dm = DenseData(name="dm", shape=self.model.vp.shape, dtype=self.dtype)
+
+        self.dm.initializer = self.dm_initializer
 
     def Forward(self):
         fw = ForwardOperator(self.m, self.src, self.damp, self.rec, self.u, time_order=self.t_order, profile=True,

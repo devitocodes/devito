@@ -74,12 +74,12 @@ class AtController(object):
 
     at_markers = [("M1_start", "M1_end"), ("M2_start", "M2_end")]  # markers for at pragmas
 
-    def __init__(self, isat_dir_path, openmp=False):
+    def __init__(self, isat_dir_path, compiler):
         """Initialises at controller. Creates at working dir. Creates all isat-files
 
         Args:
             isat_dir_path (str): full path to isat installation directory
-            openmp (bool): Flag indicating whether openmp was used. Default False
+            compiler (Compiler): Which compiler should be used for auto tuning
 
         Raises:
             ValueError: if isat installation directory does not exist
@@ -119,7 +119,7 @@ class AtController(object):
         if not os.path.exists(self._at_work_dir):  # creates main working directory
             os.mkdir(self._at_work_dir)
 
-        if os.path.exists(at_file_dir):
+        if os.path.exists(at_file_dir):  # making sure that all files are up to date
             shutil.rmtree(at_file_dir)
 
         os.mkdir(at_file_dir)
@@ -138,9 +138,8 @@ class AtController(object):
 
         with open(self._make_f_path, 'w') as f:  # creates make-file
             # copied make file contents from one of examples in isat folder. If there's a need feel free to change
-            openmp_str = "-qopenmp" if openmp else ""
-            make_file_contents = ["CXX = %s" % os.getenv(DEVITO_CC_ENV, 'gcc'),
-                                  "\nCXX_OPTS = -O3 %s" % openmp_str,  # compiler and its options
+            make_file_contents = ["CXX = %s" % compiler.cc,                 # compiler and its options
+                                  "\nCXX_OPTS = %s" % " ".join(compiler.cflags),
                                   "\nSRCS = %s.cpp" % self._at_f_name, "\nOUT = %s.out" % self._at_f_name,
                                   "\n$(OUT): $(SRCS)", "\n\t$(CXX) $(CXX_OPTS) $< -o $@",
                                   "\nclean:", "\n\t-rm *.out", "\nbuild: $(OUT)"]
@@ -183,7 +182,7 @@ class AtController(object):
         """
 
         if not os.path.isfile(file_path):
-            print "%s not found"
+            print "%s not found" % file_path
             raise ValueError()
 
         self._at_parent_folder = os.path.join(self._at_work_dir, "time_o_%d_space_bo_%d" %

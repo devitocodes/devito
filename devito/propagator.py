@@ -1,4 +1,4 @@
-from devito.function_manager import FunctionManager, FunctionDescriptor
+from devito.function_manager import FunctionManager
 from devito.compiler import get_tmp_dir, get_compiler_from_env
 from devito.compiler import jit_compile_and_load, IntelMICCompiler
 import cgen_wrapper as cgen
@@ -6,14 +6,15 @@ from codeprinter import ccode
 import numpy as np
 from sympy import symbols, IndexedBase, Indexed
 from function_manager import FunctionDescriptor
-from at_controller import get_best_best_block_size, get_optimal_block_size
 from collections import Iterable
-from at_controller import get_at_block_size, get_optimal_block_size, AtController, final_report_path
+from at_controller import *
 from os import getenv, path
 from random import randint
 from hashlib import sha1
 
 _ENV_VAR_TUNE_RANGE = "TUNE_RANGE"
+_ENV_VAR_ISAT_PATH = "ISAT_PATH"
+
 
 class Propagator(object):
     """Propagator objects derive and encode C kernel code according
@@ -31,6 +32,7 @@ class Propagator(object):
     :param profile: Flag to enable performance profiling
     :param cache_blocking: Flag to enable cache blocking
     :param block_size: Block size used for cache clocking
+    :param auto_tune: Flag to enable auto tuning of block sizes. Has to be used together with cache_blocking flag
     """
     def __init__(self, name, nt, shape, spc_border=0, time_order=0,
                  forward=True, compiler=None, profile=False,
@@ -114,10 +116,11 @@ class Propagator(object):
     def ccode(self):
         """Returns the auto-generated C code as a string"""
         if self._ccode is None:
-            manager = FunctionManager([self.fd], mic_flag=self.mic_flag,
-                                      openmp=self.compiler.openmp)
             # For some reason we need this call to trigger fd.body
             self.get_fd()
+
+            manager = FunctionManager([self.fd], mic_flag=self.mic_flag,
+                                      openmp=self.compiler.openmp)
             self._ccode = str(manager.generate())
         return self._ccode
 
@@ -129,12 +132,20 @@ class Propagator(object):
         compiler class derived in the constructor.
         """
         if self._lib is None:
-            self._lib = jit_compile_and_load(self.ccode, self.basename,
+            basename = self.basename
+            self._lib = jit_compile_and_load(self.ccode, basename,
                                              self.compiler)
         if self._cfunction is None:
             self._cfunction = getattr(self._lib, self.fd.name)
             if not self.mic_flag:
                 self._cfunction.argtypes = self.fd.argtypes
+
+        # Run auto tuning if set as code has been already compiled
+        if self.auto_tune and self.cache_blocking:  # Default path if env not set
+            isat_dir = os.getenv(_ENV_VAR_ISAT_PATH, "%s/isat" % os.getenv("HOME"))  # current isat install dir
+            at_controller = AtController(isat_dir, self.compiler)
+            at_controller.auto_tune("%s.cpp" % basename, self.time_order, self.spc_border)
+
         return self._cfunction
 
     @property
