@@ -4,10 +4,10 @@ import numpy as np
 
 
 def convert_dtype_to_ctype(dtype):
-    """maps Python types to C types.
+    """Maps Python types to C types.
 
-    :param dtype: a Python numpy type of int32, float32, int64 or float64.
-    :return: corrospondinf C type
+    :param dtype: A Python numpy type of int32, float32, int64 or float64
+    :returns: Corresponding C type
     """
     conversion_dict = {np.int32: ctypes.c_int, np.float32: ctypes.c_float,
                        np.int64: ctypes.c_int64, np.float64: ctypes.c_double}
@@ -15,17 +15,17 @@ def convert_dtype_to_ctype(dtype):
 
 
 def sympy_find(expr, term, repl):
-    """chage all terms from function notation to array notation.
-
-    :param expr: the expression to be condsred for changed.
-    :param term: the pattern to be replaced.
-    :param repl: the pattern replacing.
-    :return: the changed expr.
+    """Chage all terms from function notation to array notation.
 
     Finds all terms of the form term(x1, x2, x3)
     and changes them to repl[x1, x2, x3]. i.e. changes from
     function notation to array notation. It also reorders the indices
     x1, x2, x3 so that the time index comes first.
+
+    :param expr: The expression to be processed
+    :param term: The pattern to be replaced
+    :param repl: The replacing pattern
+    :returns: The changed expression
     """
 
     t = symbols("t")
@@ -40,11 +40,11 @@ def sympy_find(expr, term, repl):
 
 
 def aligned(a, alignment=16):
-    """Function to align the memmory.
+    """Function to align the memmory
 
-    :param a: the memory given.
-    :param alignment: granularity of alignment, 16 bytes by default.
-    :return: refeence to the start of the aligned memmory.
+    :param a: The given memory
+    :param alignment: Granularity of alignment, 16 bytes by default
+    :returns: Reference to the start of the aligned memory
     """
     if (a.ctypes.data % alignment) == 0:
         return a

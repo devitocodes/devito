@@ -187,7 +187,7 @@ def get_compiler_from_env():
 
 
 def get_tmp_dir():
-    """Functiona to get a temp directory.
+    """Function to get a temp directory.
 
     :return: Path to a devito-specific tmp directory
     """

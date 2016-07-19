@@ -45,7 +45,10 @@ def expr_symbols(expr):
 
 
 def expr_indexify(expr):
-    """Convert functions into indexed matrix accesses in sympy expression"""
+    """Convert functions into indexed matrix accesses in sympy expression
+
+    :param expr: SymPy function expression to be converted
+    """
     replacements = {}
     for e in preorder_traversal(expr):
         if hasattr(e, 'indexed'):
@@ -157,6 +160,10 @@ class Operator(object):
         self.propagator.stencils = self.stencils
 
     def apply(self, debug=False):
+        """:param debug: If True, use Python to apply the operator. Default False.
+
+        :returns: A tuple containing the values of the operator outputs
+        """
         if debug:
             return self.apply_python()
         f = self.propagator.cfunction
@@ -172,10 +179,19 @@ class Operator(object):
         return tuple([param.data for param in self.output_params])
 
     def apply_python(self):
+        """Uses Python to apply the operator
+
+        :returns: A tuple containing the values of the operator outputs
+        """
         self.run_python()
         return tuple([param.data for param in self.output_params])
 
     def find_free_terms(self, expr):
+        """Finds free terms in an expression
+
+        :param expr: The expression to search
+        :returns: A list of free terms in the expression
+        """
         free_terms = []
         for term in expr.args:
             if isinstance(term, Indexed):
@@ -185,6 +201,13 @@ class Operator(object):
         return free_terms
 
     def symbol_to_var(self, term, ti, indices=[]):
+        """Retrieves the Python data from a symbol
+
+        :param term: The symbol from which the data has to be retrieved
+        :param ti: The value of t to use
+        :param indices: A list of indices to use for the space dimensions
+        :returns: A tuple containing the data and the indices to access it
+        """
         arr = self.symbol_to_data[str(term.base.label)].data
         num_ind = []
         for ind in term.indices:
@@ -193,6 +216,11 @@ class Operator(object):
         return (arr, tuple(num_ind))
 
     def expr_to_lambda(self, expr_arr):
+        """Tranforms a list of expressions in a list of lambdas
+
+        :param expr_arr: The list of expressions to be transformed
+        :returns: The list of lambdas resulting from the expressions
+        """
         lambdas = []
         for expr in expr_arr:
             terms = self.find_free_terms(expr.rhs)
@@ -205,6 +233,8 @@ class Operator(object):
         return lambdas
 
     def run_python(self):
+        """Executes the operator using Python
+        """
         time_loop_limits = self.propagator.time_loop_limits
         time_loop_lambdas_b = self.expr_to_lambda(self.propagator.time_loop_stencils_b)
         time_loop_lambdas_a = self.expr_to_lambda(self.propagator.time_loop_stencils_a)
@@ -256,6 +286,10 @@ class Operator(object):
                 arr_lhs[ind_lhs] = lamda(*args)
 
     def getName(self):
+        """Gives the name of the class
+
+        :returns: The name of the class
+        """
         return self.__class__.__name__
 
 
