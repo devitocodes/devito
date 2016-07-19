@@ -9,10 +9,13 @@ class AcousticWave2D_cg:
     """ Class to setup the problem for the Acoustic Wave
         Note: s_order must always be greater than t_order
     """
-    def __init__(self, model, data, dm_initializer=None, source=None, nbpml=40, t_order=2, s_order=2):
+    def __init__(self, model, data, dm_initializer=None, source=None, nbpml=40, t_order=2, s_order=2,
+                 cache_blocking=False, auto_tune=False):
         self.model = model
         self.t_order = t_order
         self.s_order = s_order
+        self.auto_tune = auto_tune
+        self.cache_blocking = cache_blocking
         self.data = data
         self.dtype = np.float64
         self.dt = model.get_critical_dt()
@@ -41,8 +44,8 @@ class AcousticWave2D_cg:
             nbpml = self.nbpml
             num_dim = len(damp.shape)
             for i in range(nbpml):
-                pos = np.abs((nbpml-i)/float(nbpml))
-                val = dampcoeff * (pos - np.sin(2*np.pi*pos)/(2*np.pi))
+                pos = np.abs((nbpml - i) / float(nbpml))
+                val = dampcoeff * (pos - np.sin(2 * np.pi * pos) / (2 * np.pi))
                 if num_dim == 2:
                     damp[i, :] += val
                     damp[-(i + 1), :] += val
@@ -57,7 +60,7 @@ class AcousticWave2D_cg:
                     damp[:, :, -(i + 1)] += val
 
         self.m = DenseData(name="m", shape=self.model.vp.shape, dtype=self.dtype)
-        self.m.data[:] = self.model.vp**(-2)
+        self.m.data[:] = self.model.vp ** (-2)
         self.damp = DenseData(name="damp", shape=self.model.vp.shape, dtype=self.dtype)
         # Initialize damp by calling the function that can precompute damping
         damp_boundary(self.damp.data)
@@ -74,10 +77,12 @@ class AcousticWave2D_cg:
                                data=np.array(self.data.source_coords, dtype=self.dtype)[np.newaxis, :],
                                ndim=len(dimensions), dtype=self.dtype, nbpml=nbpml)
         self.dm = DenseData(name="dm", shape=self.model.vp.shape, dtype=self.dtype)
+
         self.dm.initializer = self.dm_initializer
 
     def Forward(self):
-        fw = ForwardOperator(self.m, self.src, self.damp, self.rec, self.u, time_order=self.t_order, spc_order=self.s_order)
+        fw = ForwardOperator(self.m, self.src, self.damp, self.rec, self.u, time_order=self.t_order, profile=True,
+                             spc_order=self.s_order, auto_tune=self.auto_tune, cache_blocking=self.cache_blocking)
         fw.apply()
         return (self.rec.data, self.u.data)
 
@@ -104,4 +109,4 @@ class AcousticWave2D_cg:
         f = 0.5*np.linalg.norm(res)**2
         print('Residual is ', f, 'starting gradient')
         g = self.Gradient(res, u)
-        return f, g[self.nbpml:-self.nbpml, self.nbpml:-self.nbpml]
+        return (f, g[self.nbpml:-self.nbpml, self.nbpml:-self.nbpml])

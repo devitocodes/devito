@@ -19,11 +19,9 @@ def expr_indexify(expr):
 
 class Operator(object):
     """Class encapsulating a defined operator as defined by the given stencil
-
     The Operator class is the core abstraction in DeVito that allows
     users to generate high-performance Finite Difference kernels from
     a stencil definition defined from SymPy equations.
-
     :param subs: SymPy symbols to substitute in the stencil
     :param nt: Number of timesteps to execute
     :param shape: Shape of the data buffer over which to execute
@@ -37,6 +35,7 @@ class Operator(object):
     :param profile: Flag to enable performance profiling
     :param cache_blocking: Flag to enable cache blocking
     :param block_size: Block size used for cache clocking
+    :param auto_tune: Flag to enable auto tuning of block sizes. Has to be used with cache_blocking flag
     :param stencils: List of (stencil, subs) tuples that define individual
                      stencils and their according substitutions.
     :param input_params: List of symbols that are expected as input.
@@ -47,7 +46,7 @@ class Operator(object):
 
     def __init__(self, subs, nt, shape, dtype=np.float32, spc_border=0,
                  time_order=0, forward=True, compiler=None,
-                 profile=False, cache_blocking=False, block_size=5,
+                 profile=False, cache_blocking=False, block_size=None, auto_tune=False,
                  stencils=[], input_params=[], output_params=[]):
         # Derive JIT compilation infrastructure
         self.compiler = compiler or get_compiler_from_env()
@@ -59,7 +58,7 @@ class Operator(object):
         self.propagator = Propagator(self.getName(), nt, shape, spc_border=spc_border,
                                      time_order=time_order, forward=forward,
                                      compiler=self.compiler, profile=profile,
-                                     cache_blocking=cache_blocking, block_size=block_size)
+                                     cache_blocking=cache_blocking, block_size=block_size, auto_tune=auto_tune)
         self.propagator.time_loop_stencils_b = self.propagator.time_loop_stencils_b + getattr(self, "time_loop_stencils_pre", [])
         self.propagator.time_loop_stencils_a = self.propagator.time_loop_stencils_a + getattr(self, "time_loop_stencils_post", [])
         self.params = {}

@@ -1,5 +1,6 @@
 import cgen_wrapper as cgen
 import numpy as np
+from at_controller import AtController
 from devito.tools import convert_dtype_to_ctype
 
 
@@ -18,6 +19,11 @@ class FunctionManager(object):
         self.mic_flag = mic_flag
         if openmp:
             self.libraries = self.libraries + ['omp.h']
+
+        for fd in self.function_descriptors:  # appends main at function if flag is set to true
+            if fd.add_main_at_function:
+                self._append_main_at_function(fd)
+                break
 
     def includes(self):
         statements = []
@@ -46,10 +52,20 @@ class FunctionManager(object):
             function_params = function_params + [param_vec_def]
         if self.mic_flag:
             function_params += [cgen.Pointer(cgen.POD(type_label, name+"_pointer")) for type_label, name in function_descriptor.value_params]
-            return cgen.FunctionDeclaration(cgen.Value(self._pymic_attribute + '\nint', function_descriptor.name),
+
+            # sets function return type if specified
+            return_type = function_descriptor.return_type if function_descriptor.return_type else self._pymic_attribute + '\nint'
+
+            return cgen.FunctionDeclaration(cgen.Value(return_type, function_descriptor.name),
                                             function_params)
         else:
             function_params += [cgen.POD(type_label, name) for type_label, name in function_descriptor.value_params]
+
+            # used in auto tune
+            if function_descriptor.return_type:  # sets return type if specified
+                return cgen.FunctionDeclaration(cgen.Value(function_descriptor.return_type, function_descriptor.name),
+                                                function_params)
+
             return cgen.Extern("C", cgen.FunctionDeclaration(cgen.Value('int', function_descriptor.name), function_params))
 
     def generate_function_body(self, function_descriptor):
@@ -74,6 +90,45 @@ class FunctionManager(object):
         statements.append(cgen.Statement("return 0"))
         return cgen.Block(statements)
 
+    def _append_main_at_function(self, function_descriptor):
+        """Appends main at function to the list function desc. Works with assumption that we are tuning first function.
+        Args:
+            function_descriptor (FunctionDescriptor): function descriptor which has at main function flag set
+        """
+
+        statements = []  # statements for cgen.block
+        pnames = []  # parameter names
+        main_fd = FunctionDescriptor("main")
+        main_fd.return_type = "int"
+
+        # allocates the space for matrix'es
+        # Note currently auto tunes only the first function in function descriptors. If scope is larger. Extend
+        for param in function_descriptor.matrix_params:
+            array_size_str = ""
+            for shape in param["shape"]:
+                array_size_str += "%s * " % shape
+
+            ptype = cgen.dtype_to_ctype(param['dtype'])
+            pname = param["name"] + "_vec"
+            pnames.append(pname)
+
+            # Produces similar str: double* m_vec =(double*)malloc(336*336*336*sizeof(double))
+            allocation_str = "%s* %s = (%s*)malloc(%ssizeof(%s))" % (ptype, pname, ptype, array_size_str, ptype)
+            statements.append(cgen.Statement(allocation_str))
+
+        statements.append(cgen.Pragma("isat marker %s" % AtController.at_markers[1][0]))  # tells at measure start
+
+        #                      cuts the [    removes ]        removes ' symbol
+        function_args_str = str(pnames)[1:].replace(']', '').replace('\'', '')
+
+        # call to function that we are auto tuning
+        statements.append(cgen.Statement("%s(%s)" % (function_descriptor.name, function_args_str)))
+
+        statements.append(cgen.Pragma("isat marker %s" % AtController.at_markers[1][1]))  # tells at measure end
+
+        main_fd.set_body(cgen.Block(statements))  # set whole function body
+        self.function_descriptors.append(main_fd)  # append function descriptor to the list
+
 
 class FunctionDescriptor(object):
     """ This class can be used to describe a general C function which receives multiple parameters
@@ -89,10 +144,15 @@ class FunctionDescriptor(object):
         self.matrix_params = []
         self.value_params = []
         self.local_vars = []
+        self.return_type = None
+        self.add_main_at_function = False
 
     def add_matrix_param(self, name, shape, dtype):
         """ Add a parameter to the function
             Each parameter has an associated name, shape, dtype
+
+           ex result function_name(double *m){
+           double (*m)[180][180] = (double (*)[180][180]) m_vec;
         """
         self.matrix_params.append({'name': name, 'shape': shape, 'dtype': dtype})
 
@@ -110,6 +170,11 @@ class FunctionDescriptor(object):
             self.local_vars.append((dtype, name))
 
     def set_body(self, body):
+        """ Sets body.
+
+        Args:
+            body (cgen.Statement|cgen.Block): body of function. If not required type function manager complains
+        """
         self.body = body
 
     @property
