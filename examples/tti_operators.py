@@ -12,8 +12,8 @@ from fwi_operators import SourceLike
 class SourceLikeTTI(SourceLike):
     def read(self, u, v):
         eqs = []
-        for i in range(self.npoint):
-            eqs.append(Eq(self.indexed[t, i], (self.grid2point(u, self.orig_data[i, :]) + self.grid2point(v, self.orig_data[i, :]))/2))
+        for i in range(self.npoints):
+            eqs.append(Eq(self[t, i], (self.grid2point(u, self.orig_data[i, :]) + self.grid2point(v, self.orig_data[i, :]))/2))
         return eqs
 
 
@@ -90,11 +90,11 @@ class TTIOperator(Operator):
         for fun, arr in zip(funs, arrs):
             if num_dim == 2:
                 # Replace function notation with array notation
-                res = res.replace(fun(a, b, c), arr.indexed[a, b, c])
-                res = res.replace(arr.indexed[a*x+b, c*z+d, e*t+f], arr.indexed[e*t+f, a*x+b, c*z+d])
+                res = res.replace(fun(a, b, c), arr[a, b, c])
+                res = res.replace(arr[a*x+b, c*z+d, e*t+f], arr[e*t+f, a*x+b, c*z+d])
             else:  # num_dim == 3
-                res = res.replace(fun(a, b, c, d), arr.indexed[a, b, c, d])
-                res = res.replace(arr.indexed[x+b, y+q, z+d, t+f], arr.indexed[t+f, x+b, y+q, z+d])
+                res = res.replace(fun(a, b, c, d), arr[a, b, c, d])
+                res = res.replace(arr[x+b, y+q, z+d, t+f], arr[t+f, x+b, y+q, z+d])
         # Replace x+h in indices with x+1
         for dim_var in [x, y, z]:
             res = res.replace(dim_var+c*h, dim_var+c)
@@ -134,10 +134,9 @@ class ForwardOperator(TTIOperator):
         stencilp, stencilr, subs = self._init_taylor(dim, time_order, spc_order)
         stencilp = self.smart_sympy_replace(dim, time_order, stencilp, [Function('p'), Function('r')], [u, v], fw=True)
         stencilr = self.smart_sympy_replace(dim, time_order, stencilr, [Function('p'), Function('r')], [u, v], fw=True)
-        stencil_args = [m.indexed[space_dim], a.indexed[space_dim], b.indexed[space_dim],
-                        th.indexed[space_dim], ph.indexed[space_dim], dt, h, damp.indexed[space_dim]]
-        first_stencil = Eq(u.indexed[total_dim], stencilp)
-        second_stencil = Eq(v.indexed[total_dim], stencilr)
+        stencil_args = [m[space_dim], a[space_dim], b[space_dim], th[space_dim], ph[space_dim], dt, h, damp[space_dim]]
+        first_stencil = Eq(u[total_dim], stencilp)
+        second_stencil = Eq(v[total_dim], stencilr)
         stencils = [(first_stencil, stencil_args), (second_stencil, stencil_args)]
         src_list = old_src.add(m, u) + old_src.add(m, v)
         rec = rec.read(u, v)
@@ -157,11 +156,11 @@ class AdjointOperator(TTIOperator):
         dim = len(m.shape)
         total_dim = self.total_dim(dim)
         space_dim = self.space_dim(dim)
-        lhs = v.indexed[total_dim]
+        lhs = v[total_dim]
         stencil, subs = self._init_taylor(dim, time_order, spc_order)[1]
         stencil = self.smart_sympy_replace(dim, time_order, stencil, Function('p'), v, fw=False)
         main_stencil = Eq(lhs, stencil)
-        stencil_args = [m.indexed[space_dim], rec.dt, rec.h, damp.indexed[space_dim]]
+        stencil_args = [m[space_dim], rec.dt, rec.h, damp[space_dim]]
         stencils = [(main_stencil, stencil_args)]
         rec_list = rec.add(m, v)
         src_list = srca.read(v)
@@ -182,13 +181,13 @@ class GradientOperator(TTIOperator):
         dim = len(m.shape)
         total_dim = self.total_dim(dim)
         space_dim = self.space_dim(dim)
-        lhs = v.indexed[total_dim]
+        lhs = v[total_dim]
         stencil, subs = self._init_taylor(dim, time_order, spc_order)[1]
         stencil = self.smart_sympy_replace(dim, time_order, stencil, Function('p'), v, fw=False)
-        stencil_args = [m.indexed[space_dim], rec.dt, rec.h, damp.indexed[space_dim]]
+        stencil_args = [m[space_dim], rec.dt, rec.h, damp[space_dim]]
         main_stencil = Eq(lhs, lhs + stencil)
-        gradient_update = Eq(grad.indexed[space_dim], grad.indexed[space_dim] - (v.indexed[total_dim] - 2 * v.indexed[tuple((t + 1,) + space_dim)] + v.indexed[tuple((t + 2,) + space_dim)]) * u.indexed[total_dim])
-        reset_v = Eq(v.indexed[tuple((t + 2,) + space_dim)], 0)
+        gradient_update = Eq(grad[space_dim], grad[space_dim] - (v[total_dim] - 2 * v[tuple((t + 1,) + space_dim)] + v[tuple((t + 2,) + space_dim)]) * u[total_dim])
+        reset_v = Eq(v[tuple((t + 2,) + space_dim)], 0)
         stencils = [(main_stencil, stencil_args), (gradient_update, []), (reset_v, [])]
 
         rec_list = rec.add(m, v)
@@ -218,15 +217,14 @@ class BornOperator(TTIOperator):
         stencil, subs = self._init_taylor(dim, time_order, spc_order)[0]
         first_stencil = self.smart_sympy_replace(dim, time_order, stencil, Function('p'), u, fw=True)
         second_stencil = self.smart_sympy_replace(dim, time_order, stencil, Function('p'), U, fw=True)
-        first_stencil_args = [m.indexed[space_dim], dt, h, damp.indexed[space_dim]]
-        first_update = Eq(u.indexed[total_dim], u.indexed[total_dim]+first_stencil)
-        src2 = -(dt**-2)*(u.indexed[total_dim]-2*u.indexed[tuple((t - 1,) + space_dim)]+u.indexed[tuple((t - 2,) + space_dim)])*dm.indexed[space_dim]
-        second_stencil_args = [m.indexed[space_dim], dt, h, damp.indexed[space_dim]]
-        second_update = Eq(U.indexed[total_dim], second_stencil)
-        insert_second_source = Eq(U.indexed[total_dim], U.indexed[total_dim]+(dt*dt)/m.indexed[space_dim]*src2)
-        reset_u = Eq(u.indexed[tuple((t - 2,) + space_dim)], 0)
-        stencils = [(first_update, first_stencil_args), (second_update, second_stencil_args),
-                    (insert_second_source, []), (reset_u, [])]
+        first_stencil_args = [m[space_dim], dt, h, damp[space_dim]]
+        first_update = Eq(u[total_dim], u[total_dim]+first_stencil)
+        src2 = -(dt**-2)*(u[total_dim]-2*u[tuple((t - 1,) + space_dim)]+u[tuple((t - 2,) + space_dim)])*dm[space_dim]
+        second_stencil_args = [m[space_dim], dt, h, damp[space_dim]]
+        second_update = Eq(U[total_dim], second_stencil)
+        insert_second_source = Eq(U[total_dim], U[total_dim]+(dt*dt)/m[space_dim]*src2)
+        reset_u = Eq(u[tuple((t - 2,) + space_dim)], 0)
+        stencils = [(first_update, first_stencil_args), (second_update, second_stencil_args), (insert_second_source, []), (reset_u, [])]
         super(BornOperator, self).__init__(subs, src.nt, m.shape, spc_border=spc_order/2,
                                            time_order=time_order, forward=True, dtype=m.dtype,
                                            stencils=stencils, input_params=input_params,
