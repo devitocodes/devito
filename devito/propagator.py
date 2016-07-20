@@ -215,7 +215,7 @@ class Propagator(object):
         omp_master = [cgen.Pragma("omp master")] if self.compiler.openmp else []
         omp_single = [cgen.Pragma("omp single")] if self.compiler.openmp else []
         omp_parallel = [cgen.Pragma("omp parallel")] if self.compiler.openmp else []
-        omp_for = [cgen.Pragma("omp for")] if self.compiler.openmp else []
+        #omp_for = [cgen.Pragma("omp for")] if self.compiler.openmp else []
         t_loop_limits = self.time_loop_limits
         t_var = str(self._var_map[self.t])
         cond_op = "<" if self._forward else ">"
@@ -225,8 +225,11 @@ class Propagator(object):
             time_stepping = self.get_time_stepping()
         else:
             time_stepping = []
-        loop_body = omp_for + [loop_body] if self.compiler.openmp else [loop_body]
+
+        # TODO fix properly
+        #loop_body = [loop_body.insert(1, omp_for)] if self.compiler.openmp else [loop_body]
         # Statements to be inserted into the time loop before the spatial loop
+        loop_body = [loop_body]
         time_loop_stencils_b = [self.convert_equality_to_cgen(x) for x in self.time_loop_stencils_b]
         # Statements to be inserted into the time loop after the spatial loop
         time_loop_stencils_a = [self.convert_equality_to_cgen(x) for x in self.time_loop_stencils_a]
@@ -263,6 +266,9 @@ class Propagator(object):
         ivdep = True
         remainder = False
         orig_loop_body = loop_body
+        omp_for = cgen.Pragma("omp for") if self.compiler.openmp else None
+
+
 
         for spc_var, block_size in reversed(zip(list(self.space_dims), self.block_sizes)):
             dim_var = str(self._var_map[spc_var])
@@ -316,7 +322,11 @@ class Propagator(object):
 
                 remainder_loop = cgen.For(cgen.InlineInitializer(cgen.Value("int", dim_var), loop_limit_str),
                                           str(dim_var) + "<" + str(loop_limits[1]), str(dim_var) + "++", remainder_loop)
-            loop_body = cgen.Block([loop_body, remainder_loop])
+
+            # TODO FIX
+            omp_for = cgen.Pragma("omp for") if self.compiler.openmp else None
+
+            loop_body = cgen.Block([omp_for, loop_body, remainder_loop])
 
         return loop_body
 

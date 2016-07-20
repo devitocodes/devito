@@ -41,11 +41,12 @@ class AtController(object):
                 if len(shape) > 2:
                     for z in range(minimum, maximum):
                         blocks = [x, y, z]
-                        times.append((blocks, self._time_it(blocks)))
+                        timeee = self._time_it(blocks)
+                        times.append((blocks, timeee))
+                        print timeee
                 else:
                     blocks = [x, y]
                     times.append((blocks, self._time_it(blocks)))
-
         return sorted(times, key=lambda element: element[1])
 
     def minimize(self, method='powell'):

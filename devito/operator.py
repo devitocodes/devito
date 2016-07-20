@@ -96,7 +96,7 @@ class Operator(object):
             optimal_b_size = [optimal_b_size] * len(self.shape)
             at_controller = AtController(f, args, optimal_b_size)
             # print at_controller.minimize()
-            print at_controller.brute_force(self.shape, 5, 15)
+            print at_controller.brute_force(self.shape, 2, 30)
 
         if isinstance(self.compiler, IntelMICCompiler):
             # Off-load propagator kernel via pymic stream
