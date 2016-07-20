@@ -4,7 +4,7 @@ from devito.interfaces import DenseData, TimeData
 from tti_operators import SourceLikeTTI, ForwardOperator
 
 
-dimensions = (50, 50, 50)
+dimensions = (25, 25, 25)
 model = IGrid()
 model0 = IGrid()
 model1 = IGrid()
@@ -106,22 +106,25 @@ def damp_boundary(damp, h, nbpml):
             damp[:, :, -(i + 1)] += val
 
 nrec, _ = data.traces.shape
-m = DenseData("m", model.vp.shape, dtype)
+m = DenseData(name="m", shape=model.vp.shape, dtype=dtype)
 m.data[:] = model.vp**(-2)
-u = TimeData("u", m.shape, nt, time_order=t_order, save=False, dtype=m.dtype)
-v = TimeData("v", m.shape, nt, time_order=t_order, save=False, dtype=m.dtype)
-a = DenseData("a", m.shape, dtype=m.dtype)
+u = TimeData(name="u", shape=m.shape, time_dim=nt, time_order=t_order, save=False, dtype=m.dtype)
+v = TimeData(name="v", shape=m.shape, time_dim=nt, time_order=t_order, save=False, dtype=m.dtype)
+a = DenseData(name="a", shape=m.shape, dtype=m.dtype)
 a.data[:] = 1.4
-b = DenseData("b", m.shape, dtype=m.dtype)
+b = DenseData(name="b", shape=m.shape, dtype=m.dtype)
 b.data[:] = np.sqrt(1.2)
-th = DenseData("th", m.shape, dtype=m.dtype)
-ph = DenseData("ph", m.shape, dtype=m.dtype)
+th = DenseData(name="th", shape=m.shape, dtype=m.dtype)
+ph = DenseData(name="ph", shape=m.shape, dtype=m.dtype)
 th.data[:] = np.pi/5
 ph.data[:] = np.pi/6
-damp = DenseData("damp", model.vp.shape, m.dtype)
+damp = DenseData(name="damp", shape=model.vp.shape, dtype=m.dtype)
 damp_boundary(damp.data, h, nbpml)
-src = SourceLikeTTI("src", 1, nt, dt, h, np.array(data.source_coords, dtype=dtype)[np.newaxis, :], len(dimensions), dtype, nbpml)
-rec = SourceLikeTTI("rec", nrec, nt, dt, h, data.receiver_coords, len(dimensions), dtype, nbpml)
+src = SourceLikeTTI(name="src", npoint=1, nt=nt, dt=dt, h=h,
+                    data=np.array(data.source_coords, dtype=dtype)[np.newaxis, :],
+                    ndim=len(dimensions), dtype=dtype, nbpml=nbpml)
+rec = SourceLikeTTI(name="rec", npoint=nrec, nt=nt, dt=dt, h=h, data=data.receiver_coords,
+                    ndim=len(dimensions), dtype=dtype, nbpml=nbpml)
 src.data[:] = data.get_source()[:, np.newaxis]
 forward_op = ForwardOperator(m, src, damp, rec, u, v, a, b, th, ph, t_order, spc_order)
 forward_op.apply()

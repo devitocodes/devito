@@ -4,8 +4,9 @@ import numpy as np
 
 
 def convert_dtype_to_ctype(dtype):
-    conversion_dict = {'int64': ctypes.c_int64, 'float64': ctypes.c_float}
-    return conversion_dict[str(dtype)]
+    conversion_dict = {np.int32: ctypes.c_int, np.float32: ctypes.c_float,
+                       np.int64: ctypes.c_int64, np.float64: ctypes.c_double}
+    return conversion_dict[dtype]
 
 
 def sympy_find(expr, term, repl):

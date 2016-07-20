@@ -106,21 +106,26 @@ def damp_boundary(damp, h, nbpml):
             damp[:, :, -(i + 1)] += val
 
 nrec, _ = data.traces.shape
-m = DenseData("m", model.vp.shape, dtype)
+m = DenseData(name="m", shape=model.vp.shape, dtype=dtype)
 m.data[:] = model.vp**(-2)
-u = TimeData("u", m.shape, nt, time_order=t_order, save=False, dtype=m.dtype)
-v = TimeData("v", m.shape, nt, time_order=t_order, save=False, dtype=m.dtype)
+u = TimeData(name="u", shape=m.shape, time_dim=nt, time_order=t_order, save=False, dtype=m.dtype)
+v = TimeData(name="v", shape=m.shape, time_dim=nt, time_order=t_order, save=False, dtype=m.dtype)
 
-damp = DenseData("damp", model.vp.shape, m.dtype)
+damp = DenseData(name="damp", shape=model.vp.shape, dtype=m.dtype)
 damp_boundary(damp.data, h, nbpml)
-src = SourceLike("src", 1, nt, dt, h, np.array(data.source_coords, dtype=dtype)[np.newaxis, :], len(dimensions), dtype, nbpml)
-rec = SourceLike("rec", nrec, nt, dt, h, data.receiver_coords, len(dimensions), dtype, nbpml)
+src = SourceLike(name="src", npoint=1, nt=nt, dt=dt, h=h,
+                 data=np.array(data.source_coords, dtype=dtype)[np.newaxis, :],
+                 ndim=len(dimensions), dtype=dtype, nbpml=nbpml)
+rec = SourceLike(name="rec", npoint=nrec, nt=nt, dt=dt, h=h, data=data.receiver_coords,
+                 ndim=len(dimensions), dtype=dtype, nbpml=nbpml)
 src.data[:] = data.get_source()[:, np.newaxis]
 print("Preparing Forward")
 forward_op = ForwardOperator(m, src, damp, rec, u, t_order, spc_order)
 print("Applying")
 forward_op.apply()
-srca = SourceLike("srca", 1, nt, dt, h, np.array(data.source_coords, dtype=dtype)[np.newaxis, :], len(dimensions), dtype, nbpml)
+srca = SourceLike(name="srca", npoint=1, nt=nt, dt=dt, h=h,
+                  data=np.array(data.source_coords, dtype=dtype)[np.newaxis, :],
+                  ndim=len(dimensions), dtype=dtype, nbpml=nbpml)
 print("Preparing adjoint")
 adjoint_op = AdjointOperator(m, rec, damp, srca, t_order, spc_order)
 print("Applying")
@@ -130,7 +135,7 @@ gradient_op = GradientOperator(u, m, rec, damp, t_order, spc_order)
 print("Applying")
 gradient_op.apply()
 print("Preparing Born")
-dm = DenseData("dm", model.vp.shape, dtype)
+dm = DenseData(name="dm", shape=model.vp.shape, dtype=dtype)
 create_dm(dm.data)
 born_op = BornOperator(dm, m, src, damp, rec, t_order, spc_order)
 print("Applying")

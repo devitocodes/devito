@@ -1,4 +1,3 @@
-from devito.jit_manager import JitManager
 import numpy as np
 from devito.propagator import Propagator
 from sympy import IndexedBase, symbols, Eq
@@ -6,7 +5,6 @@ from sympy.abc import x, y, z, t
 
 
 class Test_OI_Calculation(object):
-    g = None
 
     def test_oi_1(self):
         '''OI = (ADD+MUL)/[(LOAD+STORE)*word_size]; word_size=8(double),4(float)
@@ -31,12 +29,7 @@ class Test_OI_Calculation(object):
         propagator.add_param("v1", data.shape, data.dtype)
         propagator.add_param("v2", data.shape, data.dtype)
         propagator.add_param("v3", data.shape, data.dtype)
-
-        if self.g is None:
-            self.g = JitManager([propagator])
-        else:
-            self.g.function_descriptors = [propagator]
-        f = self.g.get_wrapped_functions()[0]
+        f = propagator.cfunction
 
         propagator_oi = propagator.get_kernel_oi(dtype)
         hand_oi = (mul+add)/((load+store)*np.dtype(dtype).itemsize)
@@ -70,12 +63,7 @@ class Test_OI_Calculation(object):
         propagator.add_param("v2", data.shape, data.dtype)
         propagator.add_param("v3", data.shape, data.dtype)
         propagator.add_param("v4", data.shape, data.dtype)
-
-        if self.g is None:
-            self.g = JitManager([propagator])
-        else:
-            self.g.function_descriptors = [propagator]
-        f = self.g.get_wrapped_functions()[0]
+        f = propagator.cfunction
 
         propagator_oi = propagator.get_kernel_oi(dtype)
         hand_oi = (mul+add)/((load+store)*np.dtype(dtype).itemsize)
@@ -109,12 +97,7 @@ class Test_OI_Calculation(object):
         propagator.add_param("v2", data.shape, data.dtype)
         propagator.add_param("v3", data.shape, data.dtype)
         propagator.add_param("v4", data.shape, data.dtype)
-
-        if self.g is None:
-            self.g = JitManager([propagator])
-        else:
-            self.g.function_descriptors = [propagator]
-        f = self.g.get_wrapped_functions()[0]
+        f = propagator.cfunction
 
         propagator_oi = propagator.get_kernel_oi(dtype)
         hand_oi = (mul+add)/((load+store)*np.dtype(dtype).itemsize)
