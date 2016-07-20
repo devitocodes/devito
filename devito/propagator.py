@@ -1,14 +1,19 @@
-from devito.function_manager import FunctionManager, FunctionDescriptor
+from devito.function_manager import FunctionManager
 from devito.compiler import get_tmp_dir, get_compiler_from_env
 from devito.compiler import jit_compile_and_load, IntelMICCompiler
 import cgen_wrapper as cgen
 from codeprinter import ccode
 import numpy as np
 from sympy import symbols, IndexedBase, Indexed
+from function_manager import FunctionDescriptor
 from collections import Iterable
-from os import path
+from at_controller import *
+from os import getenv, path
 from random import randint
 from hashlib import sha1
+
+_ENV_VAR_TUNE_RANGE = "TUNE_RANGE"
+_ENV_VAR_ISAT_PATH = "ISAT_PATH"
 
 
 class Propagator(object):
@@ -27,31 +32,33 @@ class Propagator(object):
     :param profile: Flag to enable performance profiling
     :param cache_blocking: Flag to enable cache blocking
     :param block_size: Block size used for cache clocking
+    :param auto_tune: Flag to enable auto tuning of block sizes. Has to be used together with cache_blocking flag
     """
     def __init__(self, name, nt, shape, spc_border=0, time_order=0,
                  forward=True, compiler=None, profile=False,
-                 cache_blocking=False, block_size=5):
+                 cache_blocking=False, block_size=None, auto_tune=False):
         # Derive JIT compilation infrastructure
         self.compiler = compiler or get_compiler_from_env()
         self.mic_flag = isinstance(self.compiler, IntelMICCompiler)
 
         self.t = symbols("t")
+
         self.cache_blocking = cache_blocking
-        if(isinstance(block_size, Iterable)):
-            if(len(block_size) == len(shape)):
-                self.block_sizes = block_size
-            else:
-                raise ArgumentError("Block size should either be a single number or an array of the same size as the spatial domain")
-        else:
-            # A single block size has been passed. Broadcast it to a list of the size of shape
-            self.block_sizes = [int(block_size)]*len(shape)
+        self.auto_tune = auto_tune
+
+        self.spc_border = spc_border
+        self.time_order = time_order
+        self.block_size = block_size
+        self.block_sizes = []
+        self.shape = shape
+
         # We assume the dimensions are passed to us in the following order
         # var_order
-        if len(shape) == 2:
+        if len(self.shape) == 2:
             self.space_dims = symbols("x z")
         else:
             self.space_dims = symbols("x y z")
-        self.space_dims = self.space_dims[0:len(shape)]
+        self.space_dims = self.space_dims[0:len(self.shape)]
         self.loop_counters = symbols("i1 i2 i3 i4")
         self._pre_kernel_steps = []
         self._post_kernel_steps = []
@@ -59,7 +66,6 @@ class Propagator(object):
         self.prep_variable_map()
         self.t_replace = {}
         self.time_steppers = []
-        self.time_order = time_order
         self.nt = nt
         self.time_loop_stencils_b = []
         self.time_loop_stencils_a = []
@@ -72,18 +78,20 @@ class Propagator(object):
         self.fd = FunctionDescriptor(name)
         self.pre_loop = []
         self.post_loop = []
+
         if self.profile:
             self.add_local_var("time", "double")
             self.pre_loop.append(cgen.Statement("struct timeval start, end"))
             self.pre_loop.append(cgen.Assign("time", 0))
             self.post_loop.append(cgen.PrintStatement("time: %f\n", "time"))
+
         if forward:
             self._time_step = 1
         else:
             self._time_step = -1
         self._space_loop_limits = {}
         for i, dim in enumerate(self.space_dims):
-                self._space_loop_limits[dim] = (spc_border, shape[i]-spc_border)
+                self._space_loop_limits[dim] = (self.spc_border, self.shape[i] - self.spc_border)
 
         # Kernel operation intensity dictionary
         self._kernel_dic_oi = {'add': 0, 'mul': 0, 'load': 0, 'store': 0, 'load_list': [], 'load_all_list': [], 'oi_high': 0, 'oi_high_weighted': 0, 'oi_low': 0, 'oi_low_weighted': 0}
@@ -107,10 +115,11 @@ class Propagator(object):
     def ccode(self):
         """Returns the auto-generated C code as a string"""
         if self._ccode is None:
-            manager = FunctionManager([self.fd], mic_flag=self.mic_flag,
-                                      openmp=self.compiler.openmp)
             # For some reason we need this call to trigger fd.body
             self.get_fd()
+
+            manager = FunctionManager([self.fd], mic_flag=self.mic_flag,
+                                      openmp=self.compiler.openmp)
             self._ccode = str(manager.generate())
         return self._ccode
 
@@ -122,12 +131,14 @@ class Propagator(object):
         compiler class derived in the constructor.
         """
         if self._lib is None:
-            self._lib = jit_compile_and_load(self.ccode, self.basename,
+            basename = self.basename
+            self._lib = jit_compile_and_load(self.ccode, basename,
                                              self.compiler)
         if self._cfunction is None:
             self._cfunction = getattr(self._lib, self.fd.name)
             if not self.mic_flag:
                 self._cfunction.argtypes = self.fd.argtypes
+
         return self._cfunction
 
     @property
@@ -207,6 +218,12 @@ class Propagator(object):
         """
         # Space loops
         if self.cache_blocking:
+            self._decide_block_sizes()
+
+            if self.auto_tune:
+                for i in range(0, len(self.space_dims)):  # add block sizes as parameters
+                    self.fd.add_value_param(str(self.loop_counters[i]) + "block", "int")
+
             loop_body = self.generate_space_loops_blocking(loop_body)
         else:
             loop_body = self.generate_space_loops(loop_body)
@@ -214,7 +231,7 @@ class Propagator(object):
         omp_master = [cgen.Pragma("omp master")] if self.compiler.openmp else []
         omp_single = [cgen.Pragma("omp single")] if self.compiler.openmp else []
         omp_parallel = [cgen.Pragma("omp parallel")] if self.compiler.openmp else []
-        omp_for = [cgen.Pragma("omp for")] if self.compiler.openmp else []
+        #omp_for = [cgen.Pragma("omp for")] if self.compiler.openmp else []
         t_loop_limits = self.time_loop_limits
         t_var = str(self._var_map[self.t])
         cond_op = "<" if self._forward else ">"
@@ -224,8 +241,11 @@ class Propagator(object):
             time_stepping = self.get_time_stepping()
         else:
             time_stepping = []
-        loop_body = omp_for + [loop_body] if self.compiler.openmp else [loop_body]
+
+        # TODO fix properly
+        #loop_body = [loop_body.insert(1, omp_for)] if self.compiler.openmp else [loop_body]
         # Statements to be inserted into the time loop before the spatial loop
+        loop_body = [loop_body]
         time_loop_stencils_b = [self.convert_equality_to_cgen(x) for x in self.time_loop_stencils_b]
         # Statements to be inserted into the time loop after the spatial loop
         time_loop_stencils_a = [self.convert_equality_to_cgen(x) for x in self.time_loop_stencils_a]
@@ -262,10 +282,18 @@ class Propagator(object):
         ivdep = True
         remainder = False
         orig_loop_body = loop_body
+        omp_for = cgen.Pragma("omp for") if self.compiler.openmp else None
+
+
+
         for spc_var, block_size in reversed(zip(list(self.space_dims), self.block_sizes)):
             dim_var = str(self._var_map[spc_var])
             block_var = dim_var + "b"
             loop_limits = self._space_loop_limits[spc_var]
+
+            if self.auto_tune:  # change block size into var string
+                block_size = dim_var + "block"
+
             loop_body = cgen.For(cgen.InlineInitializer(cgen.Value("int", dim_var),
                                                         block_var),
                                  dim_var + "<" + block_var+"+"+str(block_size), dim_var + "++", loop_body)
@@ -282,23 +310,43 @@ class Propagator(object):
             if old_upper_limit - new_upper_limit > 0:
                 remainder = True
             loop_limits = (loop_limits[0], new_upper_limit)
-            loop_body = cgen.For(cgen.InlineInitializer(cgen.Value("int", dim_var),
-                                                        str(loop_limits[0])),
-                                 str(dim_var) + "<" + str(loop_limits[1]), str(dim_var) + "+=" + str(block_size), loop_body)
-        if remainder:
+
+            loop_limit_str = str(loop_limits[1])
+            block_size_str = str(block_size)
+
+            if self.auto_tune:
+                block_size_str = orig_var + "block"
+                loop_limit_str = "(%d - (%d %% %s))" % (old_upper_limit, old_upper_limit, block_size_str)
+
+            loop_body = cgen.For(cgen.InlineInitializer(cgen.Value("int", dim_var), str(loop_limits[0])),
+                                 str(dim_var) + "<" + loop_limit_str, str(dim_var) + "+=" + block_size_str, loop_body)
+
+        if remainder or self.auto_tune:  # Need remainder loop if auto tuning
             remainder_loop = orig_loop_body
             for spc_var, block_size in reversed(zip(list(self.space_dims), self.block_sizes)):
+                orig_var = str(self._var_map[spc_var])
                 dim_var = str(self._var_map[spc_var])
                 loop_limits = self._space_loop_limits[spc_var]
                 old_upper_limit = loop_limits[1]
                 new_upper_limit = old_upper_limit-old_upper_limit % block_size
                 loop_limits = (new_upper_limit, old_upper_limit)
-                remainder_loop = cgen.For(cgen.InlineInitializer(cgen.Value("int", dim_var), str(loop_limits[0])),
+
+                # makes remainder loop size adjustable if auto tuning
+                loop_limit_str = str(loop_limits[0])
+                if self.auto_tune:
+                    loop_limit_str = "(%d - (%d %% %s))" % (old_upper_limit, old_upper_limit, orig_var + "block")
+
+                remainder_loop = cgen.For(cgen.InlineInitializer(cgen.Value("int", dim_var), loop_limit_str),
                                           str(dim_var) + "<" + str(loop_limits[1]), str(dim_var) + "++", remainder_loop)
                 if ivdep and len(self.space_dims) > 1:
                     loop_body = cgen.Block([self.compiler.pragma_ivdep] + [self.compiler.pragma_nontemporal] + [loop_body])
                 ivdep = False
             loop_body = cgen.Block([loop_body, remainder_loop])
+
+            # TODO FIX
+            omp_for = cgen.Pragma("omp for") if self.compiler.openmp else None
+
+            loop_body = cgen.Block([omp_for, loop_body, remainder_loop])
 
         return loop_body
 
@@ -382,6 +430,35 @@ class Propagator(object):
             self.time_loop_stencils_b.append(stencil)
         else:
             self.time_loop_stencils_a.append(stencil)
+
+    def get_number_of_loads(self):
+        return len(self._kernel_dic_oi["load_all_list"])
+
+    def _decide_block_sizes(self):
+        """Decides block size if cache blocking
+        If auto tuning - get optimal block size for architecture and tune around that
+        elif block size not set - check if there is at result otherwise use optimal block size
+        """
+        # if self.auto_tune:  # if auto tuning get block optimal block sizes and tune around that
+        #     self.block_size = get_optimal_block_size(self.shape, len(self._kernel_dic_oi["load_all_list"]))
+        #
+        #     if self.block_size - self.tune_range <= 0:  # making sure that tune_b - tune_range > 0
+        #         self.tune_range -= - (self.block_size - self.tune_range) + 1
+        #
+        # elif not self.block_size:
+        #     # else if block_size not set check if there is best block_size from at report else use optimal on
+        #     self.block_size = get_optimal_block_size(self.shape, len(self._kernel_dic_oi["load_all_list"]))
+
+        self.block_size = get_optimal_block_size(self.shape, self.get_number_of_loads())
+
+        if isinstance(self.block_size, Iterable):
+            if len(self.block_size) == len(self.shape):
+                self.block_sizes = self.block_size
+            else:
+                raise ArgumentError("Block size should either be a single number or an array of the same size as the spatial domain")
+        else:
+            # A single block size has been passed. Broadcast it to a list of the size of shape
+            self.block_sizes = [int(self.block_size)] * len(self.shape)
 
     def _get_ops_expr(self, expr, dict1, is_lhs=False):
         """Get number of different operations in expression expr.
