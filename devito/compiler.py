@@ -40,6 +40,7 @@ class GNUCompiler(Compiler):
         self.ld = 'g++'
         self.cflags = ['-O3', '-g', '-fPIC', '-Wall']
         self.ldflags = ['-shared']
+        self.openmp = False  # TODO for some reason chrashing if open mp
         if self.openmp:
             self.ldflags += ['-fopenmp']
         self.pragma_ivdep = Pragma('GCC ivdep')

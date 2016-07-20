@@ -1,6 +1,5 @@
 import cgen_wrapper as cgen
 import numpy as np
-from at_controller import AtController
 from devito.tools import convert_dtype_to_ctype
 
 
@@ -19,11 +18,6 @@ class FunctionManager(object):
         self.mic_flag = mic_flag
         if openmp:
             self.libraries = self.libraries + ['omp.h']
-
-        for fd in self.function_descriptors:  # appends main at function if flag is set to true
-            if fd.add_main_at_function:
-                self._append_main_at_function(fd)
-                break
 
     def includes(self):
         statements = []
@@ -90,45 +84,6 @@ class FunctionManager(object):
         statements.append(cgen.Statement("return 0"))
         return cgen.Block(statements)
 
-    def _append_main_at_function(self, function_descriptor):
-        """Appends main at function to the list function desc. Works with assumption that we are tuning first function.
-        Args:
-            function_descriptor (FunctionDescriptor): function descriptor which has at main function flag set
-        """
-
-        statements = []  # statements for cgen.block
-        pnames = []  # parameter names
-        main_fd = FunctionDescriptor("main")
-        main_fd.return_type = "int"
-
-        # allocates the space for matrix'es
-        # Note currently auto tunes only the first function in function descriptors. If scope is larger. Extend
-        for param in function_descriptor.matrix_params:
-            array_size_str = ""
-            for shape in param["shape"]:
-                array_size_str += "%s * " % shape
-
-            ptype = cgen.dtype_to_ctype(param['dtype'])
-            pname = param["name"] + "_vec"
-            pnames.append(pname)
-
-            # Produces similar str: double* m_vec =(double*)malloc(336*336*336*sizeof(double))
-            allocation_str = "%s* %s = (%s*)malloc(%ssizeof(%s))" % (ptype, pname, ptype, array_size_str, ptype)
-            statements.append(cgen.Statement(allocation_str))
-
-        statements.append(cgen.Pragma("isat marker %s" % AtController.at_markers[1][0]))  # tells at measure start
-
-        #                      cuts the [    removes ]        removes ' symbol
-        function_args_str = str(pnames)[1:].replace(']', '').replace('\'', '')
-
-        # call to function that we are auto tuning
-        statements.append(cgen.Statement("%s(%s)" % (function_descriptor.name, function_args_str)))
-
-        statements.append(cgen.Pragma("isat marker %s" % AtController.at_markers[1][1]))  # tells at measure end
-
-        main_fd.set_body(cgen.Block(statements))  # set whole function body
-        self.function_descriptors.append(main_fd)  # append function descriptor to the list
-
 
 class FunctionDescriptor(object):
     """ This class can be used to describe a general C function which receives multiple parameters
@@ -145,7 +100,6 @@ class FunctionDescriptor(object):
         self.value_params = []
         self.local_vars = []
         self.return_type = None
-        self.add_main_at_function = False
 
     def add_matrix_param(self, name, shape, dtype):
         """ Add a parameter to the function
@@ -186,5 +140,8 @@ class FunctionDescriptor(object):
         """Create argument types for defining function signatures via ctypes."""
         argtypes = [np.ctypeslib.ndpointer(dtype=p['dtype'], flags='C')
                     for p in self.matrix_params]
-        argtypes += [convert_dtype_to_ctype(p[0]) for p in self.value_params]
+        try:
+            argtypes += [convert_dtype_to_ctype(p[0]) for p in self.value_params]
+        except:  # TODO FIX THIS
+            argtypes += [convert_dtype_to_ctype(np.int64)]
         return argtypes

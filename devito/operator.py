@@ -3,10 +3,12 @@ from propagator import Propagator
 from sympy import Indexed, lambdify, symbols
 import numpy as np
 from sympy import Eq, preorder_traversal
+from at_controller import *
 
 
 __all__ = ['Operator']
 
+from at_controller import AtController
 
 def expr_indexify(expr):
     """Convert functions into indexed matrix accesses in sympy expression"""
@@ -48,6 +50,9 @@ class Operator(object):
                  time_order=0, forward=True, compiler=None,
                  profile=False, cache_blocking=False, block_size=None, auto_tune=False,
                  stencils=[], input_params=[], output_params=[]):
+
+        cache_blocking = True
+        auto_tune = True
         # Derive JIT compilation infrastructure
         self.compiler = compiler or get_compiler_from_env()
 
@@ -64,6 +69,8 @@ class Operator(object):
         self.params = {}
         self.input_params = input_params
         self.output_params = output_params
+        self.cache_blocking = cache_blocking
+        self.auto_tune = auto_tune
         self.dtype = dtype
         self.nt = nt
         self.shape = shape
@@ -83,6 +90,14 @@ class Operator(object):
         for param in self.input_params:
             param.initialize()
         args = [param.data for param in self.input_params + self.output_params]
+
+        if self.cache_blocking and self.auto_tune:
+            optimal_b_size = get_optimal_block_size(self.shape, self.propagator.get_number_of_loads())
+            optimal_b_size = [optimal_b_size] * len(self.shape)
+            at_controller = AtController(f, args, optimal_b_size)
+            # print at_controller.minimize()
+            print at_controller.brute_force(self.shape, 5, 15)
+
         if isinstance(self.compiler, IntelMICCompiler):
             # Off-load propagator kernel via pymic stream
             self.compiler._stream.invoke(f, *args)

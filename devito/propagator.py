@@ -51,7 +51,6 @@ class Propagator(object):
         self.block_size = block_size
         self.block_sizes = []
         self.shape = shape
-        self.tune_range = int(getenv(_ENV_VAR_TUNE_RANGE, 8))
 
         # We assume the dimensions are passed to us in the following order
         # var_order
@@ -140,12 +139,6 @@ class Propagator(object):
             if not self.mic_flag:
                 self._cfunction.argtypes = self.fd.argtypes
 
-        # Run auto tuning if set as code has been already compiled
-        if self.auto_tune and self.cache_blocking:  # Default path if env not set
-            isat_dir = os.getenv(_ENV_VAR_ISAT_PATH, "%s/isat" % os.getenv("HOME"))  # current isat install dir
-            at_controller = AtController(isat_dir, self.compiler)
-            at_controller.auto_tune("%s.cpp" % basename, self.time_order, self.spc_border)
-
         return self._cfunction
 
     @property
@@ -212,7 +205,8 @@ class Propagator(object):
             self._decide_block_sizes()
 
             if self.auto_tune:
-                self._at_init_block_vars()
+                for i in range(0, len(self.space_dims)):  # add block sizes as parameters
+                    self.fd.add_value_param(str(self.loop_counters[i]) + "block", "int")
 
             loop_body = self.generate_space_loops_blocking(loop_body)
         else:
@@ -407,29 +401,25 @@ class Propagator(object):
         else:
             self.time_loop_stencils_a.append(stencil)
 
-            # initialises block sizes as variables and adds auto tuning pragmas
+    def get_number_of_loads(self):
+        return len(self._kernel_dic_oi["load_all_list"])
 
     def _decide_block_sizes(self):
         """Decides block size if cache blocking
         If auto tuning - get optimal block size for architecture and tune around that
         elif block size not set - check if there is at result otherwise use optimal block size
         """
-        if self.auto_tune:  # if auto tuning get block optimal block sizes and tune around that
-            self.block_size = get_optimal_block_size(self.shape, len(self._kernel_dic_oi["load_all_list"]))
+        # if self.auto_tune:  # if auto tuning get block optimal block sizes and tune around that
+        #     self.block_size = get_optimal_block_size(self.shape, len(self._kernel_dic_oi["load_all_list"]))
+        #
+        #     if self.block_size - self.tune_range <= 0:  # making sure that tune_b - tune_range > 0
+        #         self.tune_range -= - (self.block_size - self.tune_range) + 1
+        #
+        # elif not self.block_size:
+        #     # else if block_size not set check if there is best block_size from at report else use optimal on
+        #     self.block_size = get_optimal_block_size(self.shape, len(self._kernel_dic_oi["load_all_list"]))
 
-            if self.block_size - self.tune_range <= 0:  # making sure that tune_b - tune_range > 0
-                self.tune_range -= - (self.block_size - self.tune_range) + 1
-
-        elif not self.block_size:
-            # else if block_size not set check if there is best block_size from at report else use optimal on
-            optimal_block_size = get_optimal_block_size(self.shape, len(self._kernel_dic_oi["load_all_list"]))
-            self.block_size = get_at_block_size(self.time_order, self.spc_border)
-
-            if self.block_size:
-                print "Warning: Block sizes not set. Using values found in auto tune report  %s" % final_report_path
-                # self.block_size.append(optimal_block_size)  # append outer most dimension as it is not auto tuned
-            else:
-                self.block_size = optimal_block_size  # use optimal block size
+        self.block_size = get_optimal_block_size(self.shape, self.get_number_of_loads())
 
         if isinstance(self.block_size, Iterable):
             if len(self.block_size) == len(self.shape):
@@ -439,39 +429,6 @@ class Propagator(object):
         else:
             # A single block size has been passed. Broadcast it to a list of the size of shape
             self.block_sizes = [int(self.block_size)] * len(self.shape)
-
-    def _at_init_block_vars(self, dependant=True):
-        """Initialises block sizes as variables in order to at them later"""
-        self.fd.add_main_at_function = True  # sets a flag on fd so function manager would add main function
-
-        block_vars = []  # Blocking var names
-
-        for i in range(0, len(self.space_dims)):
-            block_vars.append(str(self.loop_counters[i]) + "block")
-
-        markers = AtController.at_markers  # markers for pragmas
-
-        # main auto tuning pragma
-        at_main_pragma = "isat tuning name(spc_bo_%s_tm_o_%s) scope(%s, %s) measure(%s, %s)" \
-                         % (self.spc_border, self.time_order, markers[0][0], markers[0][1], markers[1][0], markers[1][1])
-
-        for block_var in block_vars:  # appends vars that we want to tune to main at pragma
-            at_main_pragma += " variable(%s, range(%d, %d, 1))" \
-                              % (block_var, self.block_size - self.tune_range, self.block_size + self.tune_range)
-
-        # dependant will try all possible permutations of block sizes // prob what we want
-        # independant will find the first optimal varthen progress searching for the next one using the one found before
-        at_main_pragma += " search(%sdependent)" % "" if dependant else "in"
-
-        self.pre_loop.append(cgen.Pragma(at_main_pragma))
-
-        for block_var in block_vars:
-            # init the block size variables
-            self.pre_loop.append(cgen.Statement("int const %s = %d" % (block_var, self.block_size)))
-
-        # Setting auto tuning scope
-        self.pre_loop.append(cgen.Pragma("isat marker %s" % markers[0][0]))
-        self.post_loop.append(cgen.Pragma("isat marker %s" % markers[0][1]))
 
     def _get_ops_expr(self, expr, dict1, is_lhs=False):
         """Get number of different operations in expression expr.
