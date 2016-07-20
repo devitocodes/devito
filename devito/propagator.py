@@ -251,7 +251,7 @@ class Propagator(object):
                                                         str(loop_limits[0])),
                                  str(dim_var) + "<" + str(loop_limits[1]), str(dim_var) + "++", loop_body)
             if ivdep and len(self.space_dims) > 1:
-                loop_body = cgen.Block([self.compiler.pragma_ivdep] + [loop_body])
+                loop_body = cgen.Block([self.compiler.pragma_ivdep] +[self.compiler.pragma_nontemporal] + [loop_body])
             ivdep = False
         return loop_body
 
@@ -267,7 +267,7 @@ class Propagator(object):
                                                         block_var),
                                  dim_var + "<" + block_var+"+"+str(block_size), dim_var + "++", loop_body)
             if ivdep and len(self.space_dims) > 1:
-                loop_body = cgen.Block([self.compiler.pragma_ivdep] + [loop_body])
+                loop_body = cgen.Block([self.compiler.pragma_ivdep] + [self.compiler.pragma_nontemporal] + [loop_body])
             ivdep = False
 
         for spc_var, block_size in reversed(zip(list(self.space_dims), self.block_sizes)):
@@ -293,7 +293,7 @@ class Propagator(object):
                 remainder_loop = cgen.For(cgen.InlineInitializer(cgen.Value("int", dim_var), str(loop_limits[0])),
                                           str(dim_var) + "<" + str(loop_limits[1]), str(dim_var) + "++", remainder_loop)
                 if ivdep and len(self.space_dims) > 1:
-                    loop_body = cgen.Block([self.compiler.pragma_ivdep] + [loop_body])
+                    loop_body = cgen.Block([self.compiler.pragma_ivdep] + [self.compiler.pragma_nontemporal] + [loop_body])
                 ivdep = False
             loop_body = cgen.Block([loop_body, remainder_loop])
 
