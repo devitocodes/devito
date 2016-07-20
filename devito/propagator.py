@@ -163,13 +163,16 @@ class Propagator(object):
         var_map[self.t] = symbols("i%d" % (i + 1))
         self._var_map = var_map
 
-    def sympy_to_cgen(self, subs, stencils, stencil_args, angles):
-        if len(self.angles) > 0:
-            angles = []
+    def sympy_to_cgen(self, subs, stencils, stencil_args, factorized):
+        if len(self.factorized) > 0:
+            factors = []
             args = stencil_args[0]
-            for number, angle in enumerate(self.angles):
-                self.add_local_var("ang%i" % number , "float")
-                angles.append(cgen.Assign("ang%i" % number , str(ccode(angle.subs(dict(zip(subs, args))).xreplace(self._var_map))).replace("pow", "powf").replace("fabs", "fabsf")))
+            for name, term in zip(self.factorized.keys(), self.factorized):
+                term = self.factorized[name]
+                #TODO: add support for double precision
+                self.add_local_var(name , "float")
+                #TODO: undo precision enforcing
+                factors.append(cgen.Assign(name , str(ccode(term.subs(dict(zip(subs, args))).xreplace(self._var_map))).replace("pow", "powf").replace("fabs", "fabsf")))
                             
         stmts = []
         for equality, args in zip(stencils, stencil_args):
@@ -181,7 +184,7 @@ class Propagator(object):
         kernel = self._pre_kernel_steps
         kernel += stmts
         kernel += self._post_kernel_steps
-        return cgen.Block(angles+kernel)
+        return cgen.Block(factors+kernel)
 
     def convert_equality_to_cgen(self, equality):
         if isinstance(equality, cgen.Generable):
@@ -335,7 +338,7 @@ class Propagator(object):
             self.fd.set_body(self.generate_loops(self.loop_body))
         except:  # We might have been given Sympy expression to evaluate
             # This is the more common use case so this will show up in error messages
-            self.fd.set_body(self.generate_loops(self.sympy_to_cgen(self.subs, self.stencils, self.stencil_args, self.angles)))
+            self.fd.set_body(self.generate_loops(self.sympy_to_cgen(self.subs, self.stencils, self.stencil_args, self.factorized)))
         return self.fd
 
     def get_time_stepping(self):

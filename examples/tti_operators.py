@@ -83,8 +83,8 @@ class TTIOperator(Operator):
         ang1 = Bhaskarasin(Th)
         ang2 = Bhaskaracos(Ph)
         ang3 = Bhaskarasin(Ph)
-        return (stencilp, stencilr, (m, A, B, Th, Ph, s, h, e), [ang0,ang1,ang2,ang3])
-
+        factorized = {"ang0":ang0,"ang1":ang1,"ang2":ang2,"ang3":ang3}
+        return (stencilp, stencilr, (m, A, B, Th, Ph, s, h, e), factorized)
     def smart_sympy_replace(self, num_dim, time_order, res, funs, arrs, fw):
         a = Wild('a')
         b = Wild('b')
@@ -141,7 +141,7 @@ class ForwardOperator(TTIOperator):
         dim = len(m.shape)
         total_dim = self.total_dim(dim)
         space_dim = self.space_dim(dim)
-        stencilp, stencilr, subs, angles = self._init_taylor(dim, time_order, spc_order)
+        stencilp, stencilr, subs, factorized = self._init_taylor(dim, time_order, spc_order)
         stencilp = self.smart_sympy_replace(dim, time_order, stencilp, [Function('p'), Function('r')], [u, v], fw=True)
         stencilr = self.smart_sympy_replace(dim, time_order, stencilr, [Function('p'), Function('r')], [u, v], fw=True)
         stencil_args = [m.indexed[space_dim], a.indexed[space_dim], b.indexed[space_dim],
@@ -152,7 +152,10 @@ class ForwardOperator(TTIOperator):
         src_list = old_src.add(m, u) + old_src.add(m, v)
         rec = rec.read(u, v)
         self.time_loop_stencils_post = src_list+rec
-        super(ForwardOperator, self).__init__(subs, angles, old_src.nt, m.shape, spc_border=spc_order/2, time_order=time_order, forward=True, dtype=m.dtype)
+        super(ForwardOperator, self).__init__(subs, old_src.nt, m.shape, spc_border=spc_order/2,
+                                              time_order=time_order, forward=True, dtype=m.dtype,
+                                              stencils=stencils, input_params=input_params,
+                                              output_params=output_params, factorized=factorized)
 
 
 class AdjointOperator(TTIOperator):

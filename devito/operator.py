@@ -41,6 +41,7 @@ class Operator(object):
                      stencils and their according substitutions.
     :param input_params: List of symbols that are expected as input.
     :param output_params: List of symbols that define operator output.
+    :param factorized: A map given by {string_name:sympy_object} for including factorized terms
     """
 
     _ENV_VAR_OPENMP = "DEVITO_OPENMP"
@@ -48,7 +49,7 @@ class Operator(object):
     def __init__(self, subs, nt, shape, dtype=np.float32, spc_border=0,
                  time_order=0, forward=True, compiler=None,
                  profile=False, cache_blocking=False, block_size=5,
-                 stencils=[], input_params=[], output_params=[]):
+                 stencils=[], input_params=[], output_params=[], factorized={}):
         # Derive JIT compilation infrastructure
         self.compiler = compiler or get_compiler_from_env()
 
@@ -76,6 +77,7 @@ class Operator(object):
             self.symbol_to_data[param.name] = param
         self.propagator.subs = self.subs
         self.propagator.stencils, self.propagator.stencil_args = zip(*self.stencils)
+        self.propagator.factorized = factorized
 
     def apply(self, debug=False):
         if debug:
