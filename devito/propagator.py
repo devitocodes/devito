@@ -32,7 +32,9 @@ class Propagator(object):
     :param profile: Flag to enable performance profiling
     :param cache_blocking: Flag to enable cache blocking
     :param block_size: Block size used for cache clocking
+    :param cb_inner_dim: Flag to enable cache blocking of inner most dimension. Default = False
     """
+
     def __init__(self, name, nt, shape, spc_border=0, time_order=0,
                  time_dim=None, space_dims=None, forward=True, compiler=None,
                  profile=False, cache_blocking=False, block_size=5):
@@ -284,9 +286,7 @@ class Propagator(object):
             time_stepping = self.get_time_stepping()
         else:
             time_stepping = []
-
-        loop_body = omp_for + [loop_body] if self.compiler.openmp else [loop_body]
-
+        loop_body = [cgen.Block(omp_for + loop_body)]
         # Statements to be inserted into the time loop before the spatial loop
         time_loop_stencils_b = [self.convert_equality_to_cgen(x) for x in self.time_loop_stencils_b]
 
@@ -324,10 +324,9 @@ class Propagator(object):
         return cgen.Block(body)
 
     def generate_space_loops(self, loop_body):
-        """Generate cgen block for a non cache blocking space loop
-
+        """Generate list<cgen.For> for a non cache blocking space loop
         :param loop_body: Statement representing the loop body
-        :returns: :class:`cgen.Block` representing the loop
+        :returns: :list<cgen.For> a list of for loops
         """
         ivdep = True
 
@@ -345,77 +344,76 @@ class Propagator(object):
                 loop_body = cgen.Block([self.compiler.pragma_ivdep] + [loop_body])
 
             ivdep = False
-
-        return loop_body
+        return [loop_body]  # returns body as a list
 
     def generate_space_loops_blocking(self, loop_body):
-        """Generate cgen block for a cache blocking space loop
-
+        """Generate list<cgen.For> for a cache blocking space loop
         :param loop_body: Statement representing the loop body
-        :returns: :class:`cgen.Block` representing the loop
+        :returns: :list<cgen.For> a list of for loops
         """
         ivdep = True
         remainder = False
         orig_loop_body = loop_body
+        remainder_loop = None
 
         for spc_var, block_size in reversed(zip(list(self.space_dims), self.block_sizes)):
             dim_var = str(self._var_map[spc_var])
             block_var = dim_var + "b"
             loop_limits = self._space_loop_limits[spc_var]
-            loop_body = cgen.For(
-                cgen.InlineInitializer(cgen.Value("int", dim_var), block_var),
-                dim_var + "<" + block_var + "+" + str(block_size),
-                dim_var + "++",
-                loop_body
-            )
+
+            lower_limit_str = block_var
+            upper_limit_str = block_var+"+"+str(block_size)
+
+            if ivdep and not self.cache_block_inner:
+                lower_limit_str = str(loop_limits[0])
+                upper_limit_str = str(loop_limits[1])
+
+            loop_body = cgen.For(cgen.InlineInitializer(cgen.Value("int", dim_var), lower_limit_str),
+                                 dim_var + "<" + upper_limit_str, dim_var + "++", loop_body)
 
             if ivdep and len(self.space_dims) > 1:
                 loop_body = cgen.Block([self.compiler.pragma_ivdep] + [loop_body])
 
             ivdep = False
 
+        ivdep = True
         for spc_var, block_size in reversed(zip(list(self.space_dims), self.block_sizes)):
-            orig_var = str(self._var_map[spc_var])
-            dim_var = orig_var + "b"
-            loop_limits = self._space_loop_limits[spc_var]
-            old_upper_limit = loop_limits[1]
-            new_upper_limit = old_upper_limit-old_upper_limit % block_size
+            # if not cache blocking inner most dim skip this iteration
+            if not ivdep or self.cache_block_inner:
 
-            if old_upper_limit - new_upper_limit > 0:
-                remainder = True
+                orig_var = str(self._var_map[spc_var])
+                dim_var = orig_var + "b"
+                loop_limits = self._space_loop_limits[spc_var]
+                old_upper_limit = loop_limits[1]                  # sets new upper limit
+                loop_limits = (loop_limits[0], loop_limits[1] - loop_limits[1] % block_size)
 
-            loop_limits = (loop_limits[0], new_upper_limit)
-            loop_body = cgen.For(
-                cgen.InlineInitializer(cgen.Value("int", dim_var), str(loop_limits[0])),
-                str(dim_var) + "<" + str(loop_limits[1]),
-                str(dim_var) + "+=" + str(block_size),
-                loop_body
-            )
+                if old_upper_limit - loop_limits[1] > 0:  # check old vs new upper limit
+                    remainder = True
+
+                loop_body = cgen.For(cgen.InlineInitializer(cgen.Value("int", dim_var), str(loop_limits[0])),
+                                     str(dim_var) + "<" + str(loop_limits[1]), str(dim_var) + "+=" + str(block_size), loop_body)
+            ivdep = False
 
         if remainder:
             remainder_loop = orig_loop_body
+            ivdep = True
 
             for spc_var, block_size in reversed(zip(list(self.space_dims), self.block_sizes)):
                 dim_var = str(self._var_map[spc_var])
                 loop_limits = self._space_loop_limits[spc_var]
-                old_upper_limit = loop_limits[1]
-                new_upper_limit = old_upper_limit-old_upper_limit % block_size
-                loop_limits = (new_upper_limit, old_upper_limit)
-                remainder_loop = cgen.For(
-                    cgen.InlineInitializer(cgen.Value("int", dim_var), str(loop_limits[0])),
-                    str(dim_var) + "<" + str(loop_limits[1]),
-                    str(dim_var) + "++",
-                    remainder_loop
-                )
+
+                if not ivdep or self.cache_block_inner:  # Does not block inner most dim if cache_block_inne flag is set
+                    loop_limits = (loop_limits[1] - loop_limits[1] % block_size, loop_limits[1])
+
+                remainder_loop = cgen.For(cgen.InlineInitializer(cgen.Value("int", dim_var), str(loop_limits[0])),
+                                          str(dim_var) + "<" + str(loop_limits[1]), str(dim_var) + "++", remainder_loop)
 
                 if ivdep and len(self.space_dims) > 1:
-                    loop_body = cgen.Block([self.compiler.pragma_ivdep] + [loop_body])
+                    remainder_loop = cgen.Block([self.compiler.pragma_ivdep] + [remainder_loop])
 
                 ivdep = False
 
-            loop_body = cgen.Block([loop_body, remainder_loop])
-
-        return loop_body
+        return [loop_body, remainder_loop] if remainder_loop else [loop_body]
 
     def add_loop_step(self, assign, before=False):
         """Add loop step to loop body"""
