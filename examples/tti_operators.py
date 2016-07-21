@@ -50,12 +50,22 @@ class TTIOperator(Operator):
         # dtr = as_finite_diff(r(x, y, z, t).diff(t), [t-s, t+s])
         # Spacial finite differences can easily be extended to higher order by increasing the list of sampling point in the next expression.
         # Be sure to keep this stencil symmetric and everything else in the notebook will follow.
-        dxxp = as_finite_diff(p(x, y, z, t).diff(x, x), [x-h, x, x+h])
-        dyyp = as_finite_diff(p(x, y, z, t).diff(y, y), [y-h, y, y+h])
-        dzzp = as_finite_diff(p(x, y, z, t).diff(z, z), [z-h, z, z+h])
-        dxxr = as_finite_diff(r(x, y, z, t).diff(x, x), [x-h, x, x+h])
-        dyyr = as_finite_diff(r(x, y, z, t).diff(y, y), [y-h, y, y+h])
-        dzzr = as_finite_diff(r(x, y, z, t).diff(z, z), [z-h, z, z+h])
+        width_h = int(space_order/2)
+
+        # Indexes for finite differences
+        # Could the next three list comprehensions be merged into one?
+        indx = [(x + i * h) for i in range(-width_h, width_h + 1)]
+        indy = [(y + i * h) for i in range(-width_h, width_h + 1)]
+        indz = [(z + i * h) for i in range(-width_h, width_h + 1)]
+
+
+
+        dxxp = as_finite_diff(p(x, y, z, t).diff(x, x), indx)
+        dyyp = as_finite_diff(p(x, y, z, t).diff(y, y), indy)
+        dzzp = as_finite_diff(p(x, y, z, t).diff(z, z), indz)
+        dxxr = as_finite_diff(r(x, y, z, t).diff(x, x), indx)
+        dyyr = as_finite_diff(r(x, y, z, t).diff(y, y), indy)
+        dzzr = as_finite_diff(r(x, y, z, t).diff(z, z), indz)
 
         # My 4th order stencil for cross derivatives
         dxzp = .5/(h**2)*(-2*p(x, y, z, t) + p(x, y, z+h, t) + p(x, y, z-h, t) - p(x+h, y, z-h, t) + p(x-h, y, z, t) - p(x-h, y, z+h, t) + p(x+h, y, z, t))
