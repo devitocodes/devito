@@ -4,7 +4,7 @@ from devito.interfaces import DenseData, TimeData
 from tti_operators import SourceLikeTTI, ForwardOperator
 
 
-dimensions = (50, 50, 50)
+dimensions = (25, 25, 25)
 model = IGrid()
 model0 = IGrid()
 model1 = IGrid()
@@ -31,8 +31,8 @@ def smooth10(vel, shape):
 
 # True velocity
 true_vp = np.ones(dimensions) + 2.0
-true_vp[int(dimensions[0] / 3):int(2*dimensions[0]/3), :] = 3.0
-true_vp[int(2*dimensions[0] / 3):int(dimensions[0]), :] = 4.0
+true_vp[:, :, int(dimensions[0] / 3):int(2*dimensions[0]/3)] = 3.0
+true_vp[:, :, int(2*dimensions[0] / 3):int(dimensions[0])] = 4.0
 # Smooth velocity
 initial_vp = smooth10(true_vp, dimensions)
 nbpml = 40
@@ -59,13 +59,16 @@ data = IShot()
 f0 = .010
 dt = model.get_critical_dt()
 t0 = 0.0
-tn = 200.0
+tn = 100.0
 nt = int(1+(tn-t0)/dt)
 h = model.get_spacing()
 model.vp = np.pad(model.vp, tuple(pad_list), 'edge')
 data.reinterpolate(dt)
 model.set_origin(nbpml)
 # Set up the source as Ricker wavelet for f0
+# ft = open('Vel','w')
+# ft.write(model.vp)
+# ft.close()
 
 
 def source(t, f0):

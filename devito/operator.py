@@ -3,10 +3,12 @@ from propagator import Propagator
 from sympy import Indexed, lambdify, symbols
 import numpy as np
 from sympy import Eq, preorder_traversal
+from at_controller import *
 
 
 __all__ = ['Operator']
 
+from at_controller import AtController
 
 def expr_indexify(expr):
     """Convert functions into indexed matrix accesses in sympy expression"""
@@ -19,11 +21,9 @@ def expr_indexify(expr):
 
 class Operator(object):
     """Class encapsulating a defined operator as defined by the given stencil
-
     The Operator class is the core abstraction in DeVito that allows
     users to generate high-performance Finite Difference kernels from
     a stencil definition defined from SymPy equations.
-
     :param subs: SymPy symbols to substitute in the stencil
     :param nt: Number of timesteps to execute
     :param shape: Shape of the data buffer over which to execute
@@ -37,18 +37,23 @@ class Operator(object):
     :param profile: Flag to enable performance profiling
     :param cache_blocking: Flag to enable cache blocking
     :param block_size: Block size used for cache clocking
+    :param auto_tune: Flag to enable auto tuning of block sizes. Has to be used with cache_blocking flag
     :param stencils: List of (stencil, subs) tuples that define individual
                      stencils and their according substitutions.
     :param input_params: List of symbols that are expected as input.
     :param output_params: List of symbols that define operator output.
+    :param factorized: A map given by {string_name:sympy_object} for including factorized terms
     """
 
     _ENV_VAR_OPENMP = "DEVITO_OPENMP"
 
     def __init__(self, subs, nt, shape, dtype=np.float32, spc_border=0,
                  time_order=0, forward=True, compiler=None,
-                 profile=False, cache_blocking=False, block_size=5,
-                 stencils=[], input_params=[], output_params=[]):
+                 profile=False, cache_blocking=False, block_size=None, auto_tune=False,
+                 stencils=[], input_params=[], output_params=[], factorized={}):
+
+        cache_blocking = True
+        auto_tune = True
         # Derive JIT compilation infrastructure
         self.compiler = compiler or get_compiler_from_env()
 
@@ -59,12 +64,14 @@ class Operator(object):
         self.propagator = Propagator(self.getName(), nt, shape, spc_border=spc_border,
                                      time_order=time_order, forward=forward,
                                      compiler=self.compiler, profile=profile,
-                                     cache_blocking=cache_blocking, block_size=block_size)
+                                     cache_blocking=cache_blocking, block_size=block_size, auto_tune=auto_tune)
         self.propagator.time_loop_stencils_b = self.propagator.time_loop_stencils_b + getattr(self, "time_loop_stencils_pre", [])
         self.propagator.time_loop_stencils_a = self.propagator.time_loop_stencils_a + getattr(self, "time_loop_stencils_post", [])
         self.params = {}
         self.input_params = input_params
         self.output_params = output_params
+        self.cache_blocking = cache_blocking
+        self.auto_tune = auto_tune
         self.dtype = dtype
         self.nt = nt
         self.shape = shape
@@ -76,6 +83,8 @@ class Operator(object):
             self.symbol_to_data[param.name] = param
         self.propagator.subs = self.subs
         self.propagator.stencils, self.propagator.stencil_args = zip(*self.stencils)
+        self.propagator.factorized = factorized
+    
 
     def apply(self, debug=False):
         if debug:
@@ -84,6 +93,14 @@ class Operator(object):
         for param in self.input_params:
             param.initialize()
         args = [param.data for param in self.input_params + self.output_params]
+
+        if self.cache_blocking and self.auto_tune:
+            optimal_b_size = get_optimal_block_size(self.shape, self.propagator.get_number_of_loads())
+            optimal_b_size = [optimal_b_size] * len(self.shape)
+            at_controller = AtController(f, args, optimal_b_size)
+            # print at_controller.minimize()
+            print at_controller.brute_force(self.shape, 2, 30)
+
         if isinstance(self.compiler, IntelMICCompiler):
             # Off-load propagator kernel via pymic stream
             self.compiler._stream.invoke(f, *args)

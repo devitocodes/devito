@@ -46,10 +46,20 @@ class FunctionManager(object):
             function_params = function_params + [param_vec_def]
         if self.mic_flag:
             function_params += [cgen.Pointer(cgen.POD(type_label, name+"_pointer")) for type_label, name in function_descriptor.value_params]
-            return cgen.FunctionDeclaration(cgen.Value(self._pymic_attribute + '\nint', function_descriptor.name),
+
+            # sets function return type if specified
+            return_type = function_descriptor.return_type if function_descriptor.return_type else self._pymic_attribute + '\nint'
+
+            return cgen.FunctionDeclaration(cgen.Value(return_type, function_descriptor.name),
                                             function_params)
         else:
             function_params += [cgen.POD(type_label, name) for type_label, name in function_descriptor.value_params]
+
+            # used in auto tune
+            if function_descriptor.return_type:  # sets return type if specified
+                return cgen.FunctionDeclaration(cgen.Value(function_descriptor.return_type, function_descriptor.name),
+                                                function_params)
+
             return cgen.Extern("C", cgen.FunctionDeclaration(cgen.Value('int', function_descriptor.name), function_params))
 
     def generate_function_body(self, function_descriptor):
@@ -89,10 +99,14 @@ class FunctionDescriptor(object):
         self.matrix_params = []
         self.value_params = []
         self.local_vars = []
+        self.return_type = None
 
     def add_matrix_param(self, name, shape, dtype):
         """ Add a parameter to the function
             Each parameter has an associated name, shape, dtype
+
+           ex result function_name(double *m){
+           double (*m)[180][180] = (double (*)[180][180]) m_vec;
         """
         self.matrix_params.append({'name': name, 'shape': shape, 'dtype': dtype})
 
@@ -110,6 +124,11 @@ class FunctionDescriptor(object):
             self.local_vars.append((dtype, name))
 
     def set_body(self, body):
+        """ Sets body.
+
+        Args:
+            body (cgen.Statement|cgen.Block): body of function. If not required type function manager complains
+        """
         self.body = body
 
     @property
@@ -121,5 +140,8 @@ class FunctionDescriptor(object):
         """Create argument types for defining function signatures via ctypes."""
         argtypes = [np.ctypeslib.ndpointer(dtype=p['dtype'], flags='C')
                     for p in self.matrix_params]
-        argtypes += [convert_dtype_to_ctype(p[0]) for p in self.value_params]
+        try:
+            argtypes += [convert_dtype_to_ctype(p[0]) for p in self.value_params]
+        except:  # TODO FIX THIS
+            argtypes += [convert_dtype_to_ctype(np.int64)]
         return argtypes

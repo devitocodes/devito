@@ -3,7 +3,6 @@ from sympy import Eq
 from devito.interfaces import TimeData, DenseData
 from sympy import Function, symbols, as_finite_diff, Wild
 from sympy.abc import x, y, t, z
-from sympy import solve
 from sympy import *
 from sympy.abc import *
 from fwi_operators import SourceLike
@@ -32,7 +31,7 @@ class TTIOperator(Operator):
         p = Function('p')
         r = Function('r')
 
-        s, h, x, y, z = symbols('s h x y z')
+        s, h, x, y, z, ang0, ang1, ang2, ang3 = symbols('s h x y z ang0 ang1 ang2 ang3')
         m = M(x, y, z)
         # q = Q(x, y, z, t)
         # d = D(x, y, z, t)
@@ -45,18 +44,28 @@ class TTIOperator(Operator):
         # Weights to sum the two fields
         # w1 = .5
         # w2 = .5
-        dttp = as_finite_diff(p(x, y, z, t).diff(t, t), [t-s, t, t+s])
-        dttr = as_finite_diff(r(x, y, z, t).diff(t, t), [t-s, t, t+s])
-        dtp = as_finite_diff(p(x, y, z, t).diff(t), [t-s, t])
-        dtr = as_finite_diff(r(x, y, z, t).diff(t), [t-s, t])
+        # dttp = as_finite_diff(p(x, y, z, t).diff(t, t), [t-s, t, t+s])
+        # dttr = as_finite_diff(r(x, y, z, t).diff(t, t), [t-s, t, t+s])
+        # dtp = as_finite_diff(p(x, y, z, t).diff(t), [t-s, t+s])
+        # dtr = as_finite_diff(r(x, y, z, t).diff(t), [t-s, t+s])
         # Spacial finite differences can easily be extended to higher order by increasing the list of sampling point in the next expression.
         # Be sure to keep this stencil symmetric and everything else in the notebook will follow.
-        dxxp = as_finite_diff(p(x, y, z, t).diff(x, x), [x-h, x, x+h])
-        dyyp = as_finite_diff(p(x, y, z, t).diff(y, y), [y-h, y, y+h])
-        dzzp = as_finite_diff(p(x, y, z, t).diff(z, z), [z-h, z, z+h])
-        dxxr = as_finite_diff(r(x, y, z, t).diff(x, x), [x-h, x, x+h])
-        dyyr = as_finite_diff(r(x, y, z, t).diff(y, y), [y-h, y, y+h])
-        dzzr = as_finite_diff(r(x, y, z, t).diff(z, z), [z-h, z, z+h])
+        width_h = int(space_order/2)
+
+        # Indexes for finite differences
+        # Could the next three list comprehensions be merged into one?
+        indx = [(x + i * h) for i in range(-width_h, width_h + 1)]
+        indy = [(y + i * h) for i in range(-width_h, width_h + 1)]
+        indz = [(z + i * h) for i in range(-width_h, width_h + 1)]
+
+
+
+        dxxp = as_finite_diff(p(x, y, z, t).diff(x, x), indx)
+        dyyp = as_finite_diff(p(x, y, z, t).diff(y, y), indy)
+        dzzp = as_finite_diff(p(x, y, z, t).diff(z, z), indz)
+        dxxr = as_finite_diff(r(x, y, z, t).diff(x, x), indx)
+        dyyr = as_finite_diff(r(x, y, z, t).diff(y, y), indy)
+        dzzr = as_finite_diff(r(x, y, z, t).diff(z, z), indz)
 
         # My 4th order stencil for cross derivatives
         dxzp = .5/(h**2)*(-2*p(x, y, z, t) + p(x, y, z+h, t) + p(x, y, z-h, t) - p(x+h, y, z-h, t) + p(x-h, y, z, t) - p(x-h, y, z+h, t) + p(x+h, y, z, t))
@@ -65,16 +74,27 @@ class TTIOperator(Operator):
         dxyr = .5/(h**2)*(-2*r(x, y, z, t) + r(x, y+h, z, t) + r(x, y-h, z, t) - r(x+h, y-h, z, t) + r(x-h, y, z, t) - r(x-h, y+h, z, t) + r(x+h, y, z, t))
         dyzp = .5/(h**2)*(-2*p(x, y, z, t) + p(x, y, z+h, t) + p(x, y, z-h, t) - p(x, y+h, z-h, t) + p(x, y-h, z, t) - p(x, y-h, z+h, t) + p(x, y+h, z, t))
         dyzr = .5/(h**2)*(-2*r(x, y, z, t) + r(x, y, z+h, t) + r(x, y, z-h, t) - r(x, y+h, z-h, t) + r(x, y-h, z, t) - r(x, y-h, z+h, t) + r(x, y+h, z, t))
-        Gxxp = cos(Ph)**2 * cos(Th)**2 * dxxp + sin(Ph)**2 * cos(Th)**2 * dyyp + sin(Th)**2 * dzzp + sin(2*Ph) * cos(Th)**2 * dxyp - sin(Ph) * sin(2*Th) * dyzp - cos(Ph) * sin(2*Th) * dxzp
-        Gyyp = sin(Th)**2 * dxxp + cos(Ph)**2 * dyyp - sin(2*Ph)**2 * dxyp
-        Gzzr = cos(Ph)**2 * sin(Th)**2 * dxxr + sin(Ph)**2 * sin(Th)**2 * dyyr + cos(Th)**2 * dzzr +\
-            sin(2*Ph) * sin(Th)**2 * dxyr + sin(Ph) * sin(2*Th) * dyzr + cos(Ph) * sin(2*Th) * dxzr
-        wavep = m * dttp - A * (Gxxp + Gyyp) - B * Gzzr + e * dtp
-        waver = m * dttr - B * (Gxxp + Gyyp) - Gzzr + e * dtr
-        stencilp = solve(wavep, p(x, y, z, t+s), simplify=False)[0]
-        stencilr = solve(waver, r(x, y, z, t+s), simplify=False)[0]
-        return (stencilp, stencilr, (m, A, B, Th, Ph, s, h, e))
 
+        def Bhaskarasin(angle):
+            return 16 * angle * (3.14 - abs(angle))/(49.34 - 4 * abs(angle) * (3.14 - abs(angle)))
+
+        def Bhaskaracos(angle):
+            return Bhaskarasin(angle + 1.57)
+
+        Gxxp = ang2**2 * ang0**2 * dxxp + ang3**2 * ang0**2 * dyyp + ang1**2 * dzzp + 2 * ang3 * ang2 * ang0**2 * dxyp - ang3 * 2 * ang1 * ang0 * dyzp - ang2 * 2 * ang1 * ang0 * dxzp
+        Gyyp = ang1**2 * dxxp + ang2**2 * dyyp - (2 * ang3 * ang2)**2 * dxyp
+        Gzzr = ang2**2 * ang1**2 * dxxr + ang3**2 * ang1**2 * dyyr + ang0**2 * dzzr + 2 * ang3 * ang2 * ang1**2 * dxyr + ang3 * 2 * ang1 * ang0 * dyzr + ang2 * 2 * ang1 * ang0 * dxzr
+
+        stencilp = 2 * s**2 / (2 * m + s * e) * (2 * m / s**2 * p(x, y, z, t) + (s * e - 2 * m) / (2 * s**2) * p(x, y, z, t-s) + A * (Gxxp + Gyyp) + B * Gzzr)
+        stencilp=factor(expand(stencilp))
+        stencilr = 2 * s**2 / (2 * m + s * e) * (2 * m / s**2 * r(x, y, z, t) + (s * e - 2 * m) / (2 * s**2) * r(x, y, z, t-s) + A * (Gxxp + Gyyp) + B * Gzzr)
+        stencilr=factor(expand(stencilr))
+        ang0 = Bhaskaracos(Th)
+        ang1 = Bhaskarasin(Th)
+        ang2 = Bhaskaracos(Ph)
+        ang3 = Bhaskarasin(Ph)
+        factorized = {"ang0":ang0,"ang1":ang1,"ang2":ang2,"ang3":ang3}
+        return (stencilp, stencilr, (m, A, B, Th, Ph, s, h, e), factorized)
     def smart_sympy_replace(self, num_dim, time_order, res, funs, arrs, fw):
         a = Wild('a')
         b = Wild('b')
@@ -131,7 +151,7 @@ class ForwardOperator(TTIOperator):
         dim = len(m.shape)
         total_dim = self.total_dim(dim)
         space_dim = self.space_dim(dim)
-        stencilp, stencilr, subs = self._init_taylor(dim, time_order, spc_order)
+        stencilp, stencilr, subs, factorized = self._init_taylor(dim, time_order, spc_order)
         stencilp = self.smart_sympy_replace(dim, time_order, stencilp, [Function('p'), Function('r')], [u, v], fw=True)
         stencilr = self.smart_sympy_replace(dim, time_order, stencilr, [Function('p'), Function('r')], [u, v], fw=True)
         stencil_args = [m.indexed[space_dim], a.indexed[space_dim], b.indexed[space_dim],
@@ -145,7 +165,7 @@ class ForwardOperator(TTIOperator):
         super(ForwardOperator, self).__init__(subs, old_src.nt, m.shape, spc_border=spc_order/2,
                                               time_order=time_order, forward=True, dtype=m.dtype,
                                               stencils=stencils, input_params=input_params,
-                                              output_params=output_params)
+                                              output_params=output_params, factorized=factorized)
 
 
 class AdjointOperator(TTIOperator):
