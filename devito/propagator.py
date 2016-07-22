@@ -474,7 +474,7 @@ class Propagator(object):
         if expr.is_Mul or expr.is_Add or expr.is_Pow:
                 args = expr.args
                 # increment MUL or ADD by # arguments less 1
-                # sympy multiplication and addtion can have multiple arguments
+                # sympy multiplication and addition can have multiple arguments
                 if expr.is_Mul:
                         result['mul'] += len(args)-1
                 else:

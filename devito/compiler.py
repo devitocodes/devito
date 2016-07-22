@@ -23,6 +23,18 @@ class Compiler(GCCToolchain):
         def __init__(self):
             self.cc = 'mycompiler'
             self.cflags = ['list', 'of', 'all', 'compiler', 'flags']
+
+    The flags that can be set are:
+        * :data:`self.cc`
+        * :data:`self.cflag`
+        * :data:`self.ldflags`
+        * :data:`self.include_dirs`
+        * :data:`self.libraries`
+        * :data:`self.library_dirs`
+        * :data:`self.defines`
+        * :data:`self.undefines`
+        * :data:`self.pragma_ivdep`
+
     """
     def __init__(self, openmp=False):
         self.cc = 'unknown'
@@ -46,16 +58,6 @@ class GNUCompiler(Compiler):
     """Set of standard compiler flags for the GCC toolchain
 
     :param openmp: Boolean indicating if openmp is enabled. False by default
-    :param cc: Name of compiler used. Set to 'g++'.
-    :param ld: Name of linker used. Set to 'g++'.
-    :param cflags: List of string name of flags for compiler. Set to ['-O3', '-g', '-fPIC', '-Wall'].
-    :param ldflags: List of string nmae of linker flags. Set to ['-shared'].
-    :param include_dirs: List of string, include directories. Set to [].
-    :param libraries: List of string name of libraries linked. Set to [].
-    :param library_dirs: List of string path of directories to search for libraries. Set to [].
-    :param defines: List of -D define options. Set to [].
-    :param undefines: List of -U undefine options. Set to [].
-    :param pragma_ivdep: The ivdep pragma for this particular compiler. Set to 'GCC ivdep'.
     """
 
     def __init__(self, *args, **kwargs):
@@ -73,16 +75,6 @@ class ClangCompiler(Compiler):
     """Set of standard compiler flags for the clang toolchain
 
     :param openmp: Boolean indicating if openmp is enabled. False by default
-    :param cc: Name of compiler used. Set to 'clang'.
-    :param ld: Name of linker used. Set to 'clang'.
-    :param cflags: List of string name of flags for compiler. Set to ['-O3', '-g', '-fPIC', '-Wall'].
-    :param ldflags: List of string nmae of linker flags. Set to ['-shared'].
-    :param include_dirs: List of string, include directories. Set to [].
-    :param libraries: List of string name of libraries linked. Set to [].
-    :param library_dirs: List of string path of directories to search for libraries. Set to [].
-    :param defines: List of -D define options. Set to [].
-    :param undefines: List of -U undefine options. Set to [].
-    :param pragma_ivdep: The ivdep pragma for this particular compiler. Set to 'ivdep'.
 
     Note: Genrates warning if openmp is disabled.
     """
@@ -102,16 +94,6 @@ class IntelCompiler(Compiler):
     """Set of standard compiler flags for the Intel toolchain
 
     :param openmp: Boolean indicating if openmp is enabled. False by default
-    :param cc: Name of compiler used. Set to 'icpc'.
-    :param ld: Name of linker used. Set to 'icpc'.
-    :param cflags: List of string name of flags for compiler. Set to ['-O3', '-g', '-fPIC', '-Wall'].
-    :param ldflags: List of string nmae of linker flags. Set to ['-shared'].
-    :param include_dirs: List of string, include directories. Set to [].
-    :param libraries: List of string name of libraries linked. Set to [].
-    :param library_dirs: List of string path of directories to search for libraries. Set to [].
-    :param defines: List of -D define options. Set to [].
-    :param undefines: List of -U undefine options. Set to [].
-    :param pragma_ivdep: The ivdep pragma for this particular compiler. Set to 'ivdep'.
     """
 
     def __init__(self, *args, **kwargs):
@@ -128,16 +110,6 @@ class IntelMICCompiler(Compiler):
     """Set of standard compiler flags for the IntelMIC toolchain
 
     :param openmp: Boolean indicating if openmp is enabled. False by default
-    :param cc: Name of compiler used. Set to 'icpc'.
-    :param ld: Name of linker used. Set to 'icpc'.
-    :param cflags: List of string name of flags for compiler. Set to ['-O3', '-g', '-fPIC', '-Wall'].
-    :param ldflags: List of string nmae of linker flags. Set to ['-shared'].
-    :param include_dirs: List of string, include directories. Set to [].
-    :param libraries: List of string name of libraries linked. Set to [].
-    :param library_dirs: List of string path of directories to search for libraries. Set to [].
-    :param defines: List of -D define options. Set to [].
-    :param undefines: List of -U undefine options. Set to [].
-    :param pragma_ivdep: The ivdep pragma for this particular compiler. Set to 'ivdep'.
 
     Note: Generates warning if openmp is disabled.
     """
