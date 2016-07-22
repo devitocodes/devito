@@ -287,7 +287,7 @@ class Propagator(object):
         """Generate cgen block for a cache blocking space loop
 
         :param loop_body: Statement representing the loop body
-        :returns :class:`cgen.Block` representing the loop
+        :returns: :class:`cgen.Block` representing the loop
         """
         ivdep = True
         remainder = False
@@ -351,7 +351,7 @@ class Propagator(object):
         self.add_param(param.name, param.shape, param.dtype, save)
 
     def add_param(self, name, shape, dtype, save=True):
-        """Add a matrix parameter to the operator
+        """Add a matrix parameter to the propagator
 
         :param name: Name of parameter
         :param shape: Shape of parameter
@@ -365,7 +365,7 @@ class Propagator(object):
         return IndexedBase(name, shape=shape)
 
     def add_scalar_param(self, name, dtype):
-        """Add a scalar parameter to the operator. E.g. int
+        """Add a scalar parameter to the propagator. E.g. int
 
         :param name: Name of parameter
         :param dtype: Type of parameter
@@ -426,6 +426,7 @@ class Propagator(object):
         but only for variables which are not being saved in the time domain
 
         :param sympy_expr: The Sympy expression to process
+        :returns: The expression after the substitutions
         """
         if isinstance(sympy_expr, Indexed):
             array_term = sympy_expr
@@ -440,10 +441,10 @@ class Propagator(object):
         return sympy_expr
 
     def add_time_loop_stencil(self, stencil, before=False):
-        """Add the given stencil to the time loop stencil
+        """Add a statement either before or after the main spatial loop, but still inside the time loop.
 
         :param stencil: Given stencil
-        :param before: Flag indicating where to add given stencil, False by default
+        :param before: Flag indicating whether the statement should be inserted before, False by default
         """
         if before:
             self.time_loop_stencils_b.append(stencil)

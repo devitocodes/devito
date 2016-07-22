@@ -4,7 +4,7 @@ import numpy as np
 
 
 def convert_dtype_to_ctype(dtype):
-    """Maps Python types to C types.
+    """Maps numpy types to C types.
 
     :param dtype: A Python numpy type of int32, float32, int64 or float64
     :returns: Corresponding C type
@@ -15,7 +15,7 @@ def convert_dtype_to_ctype(dtype):
 
 
 def sympy_find(expr, term, repl):
-    """Chage all terms from function notation to array notation.
+    """Change all terms from function notation to array notation.
 
     Finds all terms of the form term(x1, x2, x3)
     and changes them to repl[x1, x2, x3]. i.e. changes from

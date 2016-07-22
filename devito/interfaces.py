@@ -167,7 +167,10 @@ class DenseData(SymbolicData):
 
     @property
     def data(self):
-        """Reference to the numpy ndarray containing the data."""
+        """Reference to the :class:`numpy.ndarray` containing the data
+
+        :returns: The ndarray containing the data
+        """
         if self._data is None:
             self._allocate_memory()
         return self._data
