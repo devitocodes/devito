@@ -18,6 +18,7 @@ class SourceLikeTTI(PointData):
         self.nbpml = kwargs.get('nbpml')
         PointData.__init__(self, *args, **kwargs)
         x1, y1, z1, x2, y2, z2 = symbols('x1, y1, z1, x2, y2, z2')
+
         if self.ndim == 2:
             A = Matrix([[1, x1, z1, x1*z1],
                         [1, x1, z2, x1*z2],
@@ -58,6 +59,7 @@ class SourceLikeTTI(PointData):
                           (x2, self.h),
                           (y2, self.h),
                           (z2, self.h)]
+
         A = A.subs(reference_cell)
         self.bs = A.inv().T.dot(p)
 
@@ -71,6 +73,7 @@ class SourceLikeTTI(PointData):
             rx, rz = self.rs
         else:
             rx, ry, rz = self.rs
+
         x, y, z = pt_coords
         i = int(x/self.h)
         k = int(z/self.h)
@@ -78,14 +81,17 @@ class SourceLikeTTI(PointData):
         subs = []
         x = x - i*self.h
         subs.append((rx, x))
+
         if self.ndim == 3:
             j = int(y/self.h)
             y = y - j*self.h
             subs.append((ry, y))
             coords = (i + self.nbpml, j + self.nbpml, k + self.nbpml)
+
         z = z - k*self.h
         subs.append((rz, z))
         s = [b.subs(subs).evalf() for b in self.bs]
+
         return coords, tuple(s)
 
     # Interpolate onto receiver point.
@@ -94,6 +100,7 @@ class SourceLikeTTI(PointData):
             rx, rz = self.rs
         else:
             rx, ry, rz = self.rs
+
         x, y, z = pt_coords
         i = int(x/self.h)
         k = int(z/self.h)
@@ -108,7 +115,9 @@ class SourceLikeTTI(PointData):
             j = int(y/self.h)
             y = y - j*self.h
             subs.append((ry, y))
+
         subs.append((rz, z))
+
         if self.ndim == 2:
             return sum([b.subs(subs) * u.indexed[t, i+inc[0]+self.nbpml, k+inc[1]+self.nbpml]
                         for inc, b in zip(self.increments, self.bs)])
@@ -118,14 +127,17 @@ class SourceLikeTTI(PointData):
 
     def read(self, u, v):
         eqs = []
+
         for i in range(self.npoint):
             eqs.append(Eq(self.indexed[t, i],
                           (self.grid2point(v, self.orig_data[i, :]) + self.grid2point(u, self.orig_data[i, :]))))
+
         return eqs
 
     def add(self, m, u):
         assignments = []
         dt = self.dt
+
         for j in range(self.npoint):
             add = self.point2grid(self.orig_data[j, :])
             coords = add[0]
@@ -133,6 +145,7 @@ class SourceLikeTTI(PointData):
             assignments += [Eq(u.indexed[tuple([t] + [coords[i] + inc[i] for i in range(self.ndim)])],
                                u.indexed[tuple([t] + [coords[i] + inc[i] for i in range(self.ndim)])] +
                                self.indexed[t, j]*dt*dt/m.indexed[coords]*w) for w, inc in zip(s, self.increments)]
+
         filtered = [x for x in assignments if isinstance(x, Eq)]
         return filtered
 
@@ -149,12 +162,14 @@ class ForwardOperator(Operator):
         assert(m.shape == damp.shape)
         u.pad_time = False
         v.pad_time = False
+
         # Set time and space orders
         u.time_order = time_order
         u.space_order = spc_order
         v.time_order = time_order
         v.space_order = spc_order
         s, h = symbols('s h')
+
         if len(m.shape) == 3:
             Gxxp = (ang2**2 * ang0**2 * u.dx2 + ang3**2 * ang0**2 * u.dy2 + ang1**2 * u.dz2 + 2 * ang3 * ang2 * ang0**2
                     * u.dxy - ang3 * 2 * ang1 * ang0 * u.dyz - ang2 * 2 * ang1 * ang0 * u.dxz)
@@ -165,6 +180,7 @@ class ForwardOperator(Operator):
             Gyyp = 0
             Gxxp = ang0**2 * u.dx2 + ang1**2 * u.dy2 - 2 * ang0 * ang1 * u.dxy
             Gzzr = ang1**2 * v.dx2 + ang0**2 * v.dy2 + 2 * ang0 * ang1 * v.dxy
+
         # Derive stencil from symbolic equation
         stencilp = 2 * s**2 / (2 * m + s * damp) * (2 * m / s**2 * u +
                                                     (s * damp - 2 * m) / (2 * s**2) * u.backward +
@@ -172,11 +188,13 @@ class ForwardOperator(Operator):
         stencilr = 2 * s**2 / (2 * m + s * damp) * (2 * m / s**2 * v +
                                                     (s * damp - 2 * m) / (2 * s**2) * v.backward +
                                                     B * (Gxxp + Gyyp) + Gzzr)
+
         ang0 = Bhaskaracos(th)
         ang1 = Bhaskarasin(th)
         ang2 = Bhaskaracos(ph)
         ang3 = Bhaskarasin(ph)
         factorized = {"ang0": ang0, "ang1": ang1, "ang2": ang2, "ang3": ang3}
+
         # Add substitutions for spacing (temporal and spatial)
         subs = [{s: src.dt, h: src.h}, {s: src.dt, h: src.h}]
         first_stencil = Eq(u.forward, stencilp)
@@ -186,6 +204,7 @@ class ForwardOperator(Operator):
             src.nt, m.shape, stencils=stencils, substitutions=subs, spc_border=spc_order/2, time_order=time_order,
             forward=True, dtype=m.dtype, input_params=[m, damp, A, B, th, ph, u, v], factorized=factorized, **kwargs
         )
+
         # Insert source and receiver terms post-hoc
         self.input_params += [src, rec]
         self.propagator.time_loop_stencils_a = src.add(m, u) + src.add(m, v) + rec.read(u, v)
@@ -196,6 +215,7 @@ class ForwardOperator(Operator):
 class AdjointOperator(Operator):
     def __init__(self, m, rec, damp, srca, time_order=4, spc_order=12):
         assert(m.shape == damp.shape)
+
         input_params = [m, rec, damp, srca]
         v = TimeData("v", m.shape, rec.nt, time_order=time_order, save=True, dtype=m.dtype)
         output_params = [v]
@@ -209,10 +229,12 @@ class AdjointOperator(Operator):
         stencil_args = [m.indexed[space_dim], rec.dt, rec.h, damp.indexed[space_dim]]
         stencils = [main_stencil]
         substitutions = [dict(zip(subs, stencil_args))]
+
         super(AdjointOperator, self).__init__(rec.nt, m.shape, stencils=stencils,
                                               substitutions=substitutions, spc_border=spc_order/2,
                                               time_order=time_order, forward=False, dtype=m.dtype,
                                               input_params=input_params, output_params=output_params)
+
         # Insert source and receiver terms post-hoc
         self.propagator.time_loop_stencils_a = rec.add(m, v) + srca.read(v)
 
@@ -220,6 +242,7 @@ class AdjointOperator(Operator):
 class GradientOperator(Operator):
     def __init__(self, u, m, rec, damp, time_order=4, spc_order=12):
         assert(m.shape == damp.shape)
+
         input_params = [u, m, rec, damp]
         v = TimeData("v", m.shape, rec.nt, time_order=time_order, save=False, dtype=m.dtype)
         grad = DenseData("grad", m.shape, dtype=m.dtype)
@@ -239,10 +262,12 @@ class GradientOperator(Operator):
         reset_v = Eq(v.indexed[tuple((t + 2,) + space_dim)], 0)
         stencils = [main_stencil, gradient_update, reset_v]
         substitutions = [dict(zip(subs, stencil_args)), {}, {}]
+
         super(GradientOperator, self).__init__(rec.nt, m.shape, stencils=stencils,
                                                substitutions=substitutions, spc_border=spc_order/2,
                                                time_order=time_order, forward=False, dtype=m.dtype,
                                                input_params=input_params, output_params=output_params)
+
         # Insert source and receiver terms post-hoc
         self.propagator.time_loop_stencils_b = rec.add(m, v)
 
@@ -250,6 +275,7 @@ class GradientOperator(Operator):
 class BornOperator(Operator):
     def __init__(self, dm, m, src, damp, rec, time_order=4, spc_order=12):
         assert(m.shape == damp.shape)
+
         input_params = [dm, m, src, damp, rec]
         u = TimeData("u", m.shape, src.nt, time_order=time_order, save=False, dtype=m.dtype)
         U = TimeData("U", m.shape, src.nt, time_order=time_order, save=False, dtype=m.dtype)
@@ -273,10 +299,12 @@ class BornOperator(Operator):
         stencils = [first_update, second_update, insert_second_source, reset_u]
         substitutions = [dict(zip(subs, first_stencil_args)),
                          dict(zip(subs, second_stencil_args)), {}, {}]
+
         super(BornOperator, self).__init__(src.nt, m.shape, stencils=stencils,
                                            substitutions=substitutions, spc_border=spc_order/2,
                                            time_order=time_order, forward=True, dtype=m.dtype,
                                            input_params=input_params, output_params=output_params)
+
         # Insert source and receiver terms post-hoc
         self.propagator.time_loop_stencils_b = src.add(m, u)
         self.propagator.time_loop_stencils_a = rec.read(U)

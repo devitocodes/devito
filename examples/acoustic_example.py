@@ -21,8 +21,10 @@ def smooth10(vel, shape):
     out = np.ones(shape)
     out[:, :] = vel[:, :]
     nx = shape[0]
+
     for a in range(5, nx-6):
         out[a, :] = np.sum(vel[a - 5:a + 5, :], axis=0) / 10
+
     return out
 
 
@@ -58,6 +60,7 @@ data.reinterpolate(dt)
 # Set up the source as Ricker wavelet for f0
 def source(t, f0):
     r = (np.pi * f0 * (t - 1./f0))
+
     return (1-2.*r**2)*np.exp(-r**2)
 
 
@@ -72,6 +75,7 @@ receiver_coords[:, 1] = 500
 receiver_coords[:, 2] = location[2]
 data.set_receiver_pos(receiver_coords)
 data.set_shape(nt, 101)
+
 Acoustic = Acoustic_cg(model, data, dm_orig, None, nbpml=10, t_order=2, s_order=2)
 print("Preparing Forward")
 print("Applying")
