@@ -109,9 +109,13 @@ class SourceLike(PointData):
             subs.append((ry, y))
         subs.append((rz, z))
         if self.ndim == 2:
-            return sum([b.subs(subs) * u.indexed[t, i+inc[0]+self.nbpml, k+inc[1]+self.nbpml] for inc, b in zip(self.increments, self.bs)])
+            return sum(
+                [b.subs(subs) * u.indexed[t, i+inc[0]+self.nbpml, k+inc[1]+self.nbpml]
+                    for inc, b in zip(self.increments, self.bs)])
         else:
-            return sum([b.subs(subs) * u.indexed[t, i+inc[0]+self.nbpml, j+inc[1]+self.nbpml, k+inc[2]+self.nbpml] for inc, b in zip(self.increments, self.bs)])
+            return sum(
+                [b.subs(subs) * u.indexed[t, i+inc[0]+self.nbpml, j+inc[1]+self.nbpml, k+inc[2]+self.nbpml]
+                    for inc, b in zip(self.increments, self.bs)])
 
     def read(self, u):
         eqs = []
@@ -127,7 +131,8 @@ class SourceLike(PointData):
             coords = add[0]
             s = add[1]
             assignments += [Eq(u.indexed[tuple([t] + [coords[i] + inc[i] for i in range(self.ndim)])],
-                               u.indexed[tuple([t] + [coords[i] + inc[i] for i in range(self.ndim)])] + self.indexed[t, j]*dt*dt/m.indexed[coords]*w) for w, inc in zip(s, self.increments)]
+                               u.indexed[tuple([t] + [coords[i] + inc[i] for i in range(self.ndim)])] +
+                               self.indexed[t, j]*dt*dt/m.indexed[coords]*w) for w, inc in zip(s, self.increments)]
         filtered = [x for x in assignments if isinstance(x, Eq)]
         return filtered
 

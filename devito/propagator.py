@@ -87,7 +87,8 @@ class Propagator(object):
             if(len(block_size) == len(shape)):
                 self.block_sizes = block_size
             else:
-                raise ArgumentError("Block size should either be a single number or an array of the same size as the spatial domain")
+                raise ArgumentError(
+                    "Block size should either be a single number or an array of the same size as the spatial domain")
         else:
             # A single block size has been passed. Broadcast it to a list of the size of shape
             self.block_sizes = [int(block_size)]*len(shape)
@@ -263,15 +264,26 @@ class Propagator(object):
         time_loop_stencils_a = [self.convert_equality_to_cgen(x) for x in self.time_loop_stencils_a]
         if self.profile:
             start_time_stmt = omp_master + [cgen.Block([cgen.Statement("gettimeofday(&start, NULL)")])]
-            end_time_stmt = omp_master + [cgen.Block([cgen.Statement("gettimeofday(&end, NULL)")] + [cgen.Statement("time += ((end.tv_sec  - start.tv_sec) * 1000000u + end.tv_usec - start.tv_usec) / 1.e6")])]
+            end_time_stmt = omp_master + [cgen.Block(
+                [cgen.Statement("gettimeofday(&end, NULL)")] +
+                [cgen.Statement("time += ((end.tv_sec - start.tv_sec) * ",
+                                "1000000u + end.tv_usec - start.tv_usec) / 1.e6")]
+            )]
         else:
             start_time_stmt = []
             end_time_stmt = []
-        initial_block = omp_single + [cgen.Block(time_stepping + time_loop_stencils_b)] if time_stepping or time_loop_stencils_b else []
+        initial_block = omp_single + ([cgen.Block(time_stepping + time_loop_stencils_b)]
+                                      if time_stepping or time_loop_stencils_b else [])
         initial_block = initial_block + start_time_stmt
-        end_block = end_time_stmt + omp_single + [cgen.Block(time_loop_stencils_a)] if time_loop_stencils_a else end_time_stmt
+        end_block = end_time_stmt + omp_single + ([cgen.Block(time_loop_stencils_a)]
+                                                  if time_loop_stencils_a else end_time_stmt)
         loop_body = cgen.Block(initial_block + loop_body + end_block)
-        loop_body = cgen.For(cgen.InlineInitializer(cgen.Value("int", t_var), str(t_loop_limits[0])), t_var + cond_op + str(t_loop_limits[1]), t_var + "+=" + str(self._time_step), loop_body)
+        loop_body = cgen.For(
+            cgen.InlineInitializer(cgen.Value("int", t_var), str(t_loop_limits[0])),
+            t_var + cond_op + str(t_loop_limits[1]),
+            t_var + "+=" + str(self._time_step),
+            loop_body
+        )
         # Code to declare the time stepping variables (outside the time loop)
         def_time_step = [cgen.Value("int", t_var_def.name) for t_var_def in self.time_steppers]
         body = def_time_step + self.pre_loop + omp_parallel + [loop_body] + self.post_loop
@@ -287,9 +299,12 @@ class Propagator(object):
         for spc_var in reversed(list(self.space_dims)):
             dim_var = self._var_map[spc_var]
             loop_limits = self._space_loop_limits[spc_var]
-            loop_body = cgen.For(cgen.InlineInitializer(cgen.Value("int", dim_var),
-                                                        str(loop_limits[0])),
-                                 str(dim_var) + "<" + str(loop_limits[1]), str(dim_var) + "++", loop_body)
+            loop_body = cgen.For(
+                cgen.InlineInitializer(cgen.Value("int", dim_var), str(loop_limits[0])),
+                str(dim_var) + "<" + str(loop_limits[1]),
+                str(dim_var) + "++",
+                loop_body
+            )
             if ivdep and len(self.space_dims) > 1:
                 loop_body = cgen.Block([self.compiler.pragma_ivdep] + [loop_body])
             ivdep = False
@@ -308,9 +323,12 @@ class Propagator(object):
             dim_var = str(self._var_map[spc_var])
             block_var = dim_var + "b"
             loop_limits = self._space_loop_limits[spc_var]
-            loop_body = cgen.For(cgen.InlineInitializer(cgen.Value("int", dim_var),
-                                                        block_var),
-                                 dim_var + "<" + block_var+"+"+str(block_size), dim_var + "++", loop_body)
+            loop_body = cgen.For(
+                cgen.InlineInitializer(cgen.Value("int", dim_var), block_var),
+                dim_var + "<" + block_var + "+" + str(block_size),
+                dim_var + "++",
+                loop_body
+            )
             if ivdep and len(self.space_dims) > 1:
                 loop_body = cgen.Block([self.compiler.pragma_ivdep] + [loop_body])
             ivdep = False
@@ -324,9 +342,12 @@ class Propagator(object):
             if old_upper_limit - new_upper_limit > 0:
                 remainder = True
             loop_limits = (loop_limits[0], new_upper_limit)
-            loop_body = cgen.For(cgen.InlineInitializer(cgen.Value("int", dim_var),
-                                                        str(loop_limits[0])),
-                                 str(dim_var) + "<" + str(loop_limits[1]), str(dim_var) + "+=" + str(block_size), loop_body)
+            loop_body = cgen.For(
+                cgen.InlineInitializer(cgen.Value("int", dim_var), str(loop_limits[0])),
+                str(dim_var) + "<" + str(loop_limits[1]),
+                str(dim_var) + "+=" + str(block_size),
+                loop_body
+            )
         if remainder:
             remainder_loop = orig_loop_body
             for spc_var, block_size in reversed(zip(list(self.space_dims), self.block_sizes)):
@@ -335,8 +356,12 @@ class Propagator(object):
                 old_upper_limit = loop_limits[1]
                 new_upper_limit = old_upper_limit-old_upper_limit % block_size
                 loop_limits = (new_upper_limit, old_upper_limit)
-                remainder_loop = cgen.For(cgen.InlineInitializer(cgen.Value("int", dim_var), str(loop_limits[0])),
-                                          str(dim_var) + "<" + str(loop_limits[1]), str(dim_var) + "++", remainder_loop)
+                remainder_loop = cgen.For(
+                    cgen.InlineInitializer(cgen.Value("int", dim_var), str(loop_limits[0])),
+                    str(dim_var) + "<" + str(loop_limits[1]),
+                    str(dim_var) + "++",
+                    remainder_loop
+                )
                 if ivdep and len(self.space_dims) > 1:
                     loop_body = cgen.Block([self.compiler.pragma_ivdep] + [loop_body])
                 ivdep = False
@@ -443,7 +468,8 @@ class Propagator(object):
         if isinstance(sympy_expr, Indexed):
             array_term = sympy_expr
             if not str(array_term.base.label) in self.save_vars:
-                raise ValueError("Invalid variable '%s' in sympy expression. Did you add it to the operator's params?" % str(array_term.base.label))
+                raise ValueError("Invalid variable '%s' in sympy expression. Did you add it to the operator's params?" %
+                                 str(array_term.base.label))
             if not self.save_vars[str(array_term.base.label)]:
                 array_term = array_term.xreplace(self.t_replace)
             return array_term
@@ -466,8 +492,8 @@ class Propagator(object):
     def _get_ops_expr(self, expr, dict1, is_lhs=False):
         """Get number of different operations in expression expr
 
-        Types of operations are ADD (inc -) and MUL (inc /), arrays (IndexedBase objects) in expr that are not in list arrays
-        are added to the list.
+        Types of operations are ADD (inc -) and MUL (inc /), arrays (IndexedBase objects) in expr that are not in list
+        arrays are added to the list.
 
         :param expr: The expression to process
         :returns: Dictionary of (#ADD, #MUL, list of unique names of fields, list of unique field elements)

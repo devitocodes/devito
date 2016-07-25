@@ -110,14 +110,17 @@ class SourceLikeTTI(PointData):
             subs.append((ry, y))
         subs.append((rz, z))
         if self.ndim == 2:
-            return sum([b.subs(subs) * u.indexed[t, i+inc[0]+self.nbpml, k+inc[1]+self.nbpml] for inc, b in zip(self.increments, self.bs)])
+            return sum([b.subs(subs) * u.indexed[t, i+inc[0]+self.nbpml, k+inc[1]+self.nbpml]
+                        for inc, b in zip(self.increments, self.bs)])
         else:
-            return sum([b.subs(subs) * u.indexed[t, i+inc[0]+self.nbpml, j+inc[1]+self.nbpml, k+inc[2]+self.nbpml] for inc, b in zip(self.increments, self.bs)])
+            return sum([b.subs(subs) * u.indexed[t, i+inc[0]+self.nbpml, j+inc[1]+self.nbpml, k+inc[2]+self.nbpml]
+                        for inc, b in zip(self.increments, self.bs)])
 
     def read(self, u, v):
         eqs = []
         for i in range(self.npoint):
-            eqs.append(Eq(self.indexed[t, i], (self.grid2point(v, self.orig_data[i, :]) + self.grid2point(u, self.orig_data[i, :]))))
+            eqs.append(Eq(self.indexed[t, i],
+                          (self.grid2point(v, self.orig_data[i, :]) + self.grid2point(u, self.orig_data[i, :]))))
         return eqs
 
     def add(self, m, u):
@@ -128,7 +131,8 @@ class SourceLikeTTI(PointData):
             coords = add[0]
             s = add[1]
             assignments += [Eq(u.indexed[tuple([t] + [coords[i] + inc[i] for i in range(self.ndim)])],
-                               u.indexed[tuple([t] + [coords[i] + inc[i] for i in range(self.ndim)])] + self.indexed[t, j]*dt*dt/m.indexed[coords]*w) for w, inc in zip(s, self.increments)]
+                               u.indexed[tuple([t] + [coords[i] + inc[i] for i in range(self.ndim)])] +
+                               self.indexed[t, j]*dt*dt/m.indexed[coords]*w) for w, inc in zip(s, self.increments)]
         filtered = [x for x in assignments if isinstance(x, Eq)]
         return filtered
 
@@ -152,16 +156,22 @@ class ForwardOperator(Operator):
         v.space_order = spc_order
         s, h = symbols('s h')
         if len(m.shape) == 3:
-            Gxxp = ang2**2 * ang0**2 * u.dx2 + ang3**2 * ang0**2 * u.dy2 + ang1**2 * u.dz2 + 2 * ang3 * ang2 * ang0**2 * u.dxy - ang3 * 2 * ang1 * ang0 * u.dyz - ang2 * 2 * ang1 * ang0 * u.dxz
+            Gxxp = (ang2**2 * ang0**2 * u.dx2 + ang3**2 * ang0**2 * u.dy2 + ang1**2 * u.dz2 + 2 * ang3 * ang2 * ang0**2
+                    * u.dxy - ang3 * 2 * ang1 * ang0 * u.dyz - ang2 * 2 * ang1 * ang0 * u.dxz)
             Gyyp = ang1**2 * u.dx2 + ang2**2 * u.dy2 - (2 * ang3 * ang2)**2 * u.dxy
-            Gzzr = ang2**2 * ang1**2 * v.dx2 + ang3**2 * ang1**2 * v.dy2 + ang0**2 * v.dz2 + 2 * ang3 * ang2 * ang1**2 * v.dxy + ang3 * 2 * ang1 * ang0 * v.dyz + ang2 * 2 * ang1 * ang0 * v.dxz
+            Gzzr = (ang2**2 * ang1**2 * v.dx2 + ang3**2 * ang1**2 * v.dy2 + ang0**2 * v.dz2 + 2 * ang3 * ang2 * ang1**2
+                    * v.dxy + ang3 * 2 * ang1 * ang0 * v.dyz + ang2 * 2 * ang1 * ang0 * v.dxz)
         else:
             Gyyp = 0
             Gxxp = ang0**2 * u.dx2 + ang1**2 * u.dy2 - 2 * ang0 * ang1 * u.dxy
             Gzzr = ang1**2 * v.dx2 + ang0**2 * v.dy2 + 2 * ang0 * ang1 * v.dxy
         # Derive stencil from symbolic equation
-        stencilp = 2 * s**2 / (2 * m + s * damp) * (2 * m / s**2 * u + (s * damp - 2 * m) / (2 * s**2) * u.backward + A * (Gxxp + Gyyp) + B * Gzzr)
-        stencilr = 2 * s**2 / (2 * m + s * damp) * (2 * m / s**2 * v + (s * damp - 2 * m) / (2 * s**2) * v.backward + B * (Gxxp + Gyyp) + Gzzr)
+        stencilp = 2 * s**2 / (2 * m + s * damp) * (2 * m / s**2 * u +
+                                                    (s * damp - 2 * m) / (2 * s**2) * u.backward +
+                                                    A * (Gxxp + Gyyp) + B * Gzzr)
+        stencilr = 2 * s**2 / (2 * m + s * damp) * (2 * m / s**2 * v +
+                                                    (s * damp - 2 * m) / (2 * s**2) * v.backward +
+                                                    B * (Gxxp + Gyyp) + Gzzr)
         ang0 = Bhaskaracos(th)
         ang1 = Bhaskarasin(th)
         ang2 = Bhaskaracos(ph)
@@ -172,9 +182,10 @@ class ForwardOperator(Operator):
         first_stencil = Eq(u.forward, stencilp)
         second_stencil = Eq(v.forward, stencilr)
         stencils = [first_stencil, second_stencil]
-        super(ForwardOperator, self).__init__(src.nt, m.shape, stencils=stencils, substitutions=subs,
-                                              spc_border=spc_order/2, time_order=time_order, forward=True, dtype=m.dtype,
-                                              input_params=[m, damp, A, B, th, ph, u, v], factorized=factorized, **kwargs)
+        super(ForwardOperator, self).__init__(
+            src.nt, m.shape, stencils=stencils, substitutions=subs, spc_border=spc_order/2, time_order=time_order,
+            forward=True, dtype=m.dtype, input_params=[m, damp, A, B, th, ph, u, v], factorized=factorized, **kwargs
+        )
         # Insert source and receiver terms post-hoc
         self.input_params += [src, rec]
         self.propagator.time_loop_stencils_a = src.add(m, u) + src.add(m, v) + rec.read(u, v)
@@ -221,7 +232,10 @@ class GradientOperator(Operator):
         stencil = self.smart_sympy_replace(dim, time_order, stencil, Function('p'), v, fw=False)
         stencil_args = [m.indexed[space_dim], rec.dt, rec.h, damp.indexed[space_dim]]
         main_stencil = Eq(lhs, lhs + stencil)
-        gradient_update = Eq(grad.indexed[space_dim], grad.indexed[space_dim] - (v.indexed[total_dim] - 2 * v.indexed[tuple((t + 1,) + space_dim)] + v.indexed[tuple((t + 2,) + space_dim)]) * u.indexed[total_dim])
+        gradient_update = Eq(grad.indexed[space_dim],
+                             grad.indexed[space_dim] -
+                             (v.indexed[total_dim] - 2 * v.indexed[tuple((t + 1,) + space_dim)] +
+                                 v.indexed[tuple((t + 2,) + space_dim)]) * u.indexed[total_dim])
         reset_v = Eq(v.indexed[tuple((t + 2,) + space_dim)], 0)
         stencils = [main_stencil, gradient_update, reset_v]
         substitutions = [dict(zip(subs, stencil_args)), {}, {}]
@@ -250,7 +264,8 @@ class BornOperator(Operator):
         second_stencil = self.smart_sympy_replace(dim, time_order, stencil, Function('p'), U, fw=True)
         first_stencil_args = [m.indexed[space_dim], dt, h, damp.indexed[space_dim]]
         first_update = Eq(u.indexed[total_dim], u.indexed[total_dim]+first_stencil)
-        src2 = -(dt**-2)*(u.indexed[total_dim]-2*u.indexed[tuple((t - 1,) + space_dim)]+u.indexed[tuple((t - 2,) + space_dim)])*dm.indexed[space_dim]
+        src2 = (-(dt**-2)*(u.indexed[total_dim]-2*u.indexed[tuple((t - 1,) + space_dim)] +
+                u.indexed[tuple((t - 2,) + space_dim)])*dm.indexed[space_dim])
         second_stencil_args = [m.indexed[space_dim], dt, h, damp.indexed[space_dim]]
         second_update = Eq(U.indexed[total_dim], second_stencil)
         insert_second_source = Eq(U.indexed[total_dim], U.indexed[total_dim]+(dt*dt)/m.indexed[space_dim]*src2)

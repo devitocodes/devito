@@ -69,12 +69,14 @@ class FunctionManager(object):
             param_vec_def = cgen.Pointer(cgen.POD(param['dtype'], param['name']+"_vec"))
             function_params = function_params + [param_vec_def]
         if self.mic_flag:
-            function_params += [cgen.Pointer(cgen.POD(type_label, name+"_pointer")) for type_label, name in function_descriptor.value_params]
+            function_params += [cgen.Pointer(cgen.POD(type_label, name+"_pointer"))
+                                for type_label, name in function_descriptor.value_params]
             return cgen.FunctionDeclaration(cgen.Value(self._pymic_attribute + '\nint', function_descriptor.name),
                                             function_params)
         else:
             function_params += [cgen.POD(type_label, name) for type_label, name in function_descriptor.value_params]
-            return cgen.Extern("C", cgen.FunctionDeclaration(cgen.Value('int', function_descriptor.name), function_params))
+            return cgen.Extern("C",
+                               cgen.FunctionDeclaration(cgen.Value('int', function_descriptor.name), function_params))
 
     def generate_function_body(self, function_descriptor):
         """Generates a function body from a :class:`FunctionDescriptor`

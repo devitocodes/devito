@@ -77,7 +77,8 @@ class Acoustic_cg:
             self.dm.data[:] = np.pad(dm_initializer, tuple(pad_list), 'edge')
 
     def Forward(self):
-        fw = ForwardOperator(self.m, self.src, self.damp, self.rec, self.u, time_order=self.t_order, spc_order=self.s_order)
+        fw = ForwardOperator(
+            self.m, self.src, self.damp, self.rec, self.u, time_order=self.t_order, spc_order=self.s_order)
         fw.apply()
         return (self.rec.data, self.u.data)
 
@@ -93,7 +94,8 @@ class Acoustic_cg:
         return (dt**-2)*grad
 
     def Born(self):
-        born_op = BornOperator(self.dm, self.m, self.src, self.damp, self.rec, time_order=self.t_order, spc_order=self.s_order)
+        born_op = BornOperator(
+            self.dm, self.m, self.src, self.damp, self.rec, time_order=self.t_order, spc_order=self.s_order)
         born_op.apply()
         return self.rec.data
 
