@@ -10,6 +10,7 @@ from sympy import Eq, Function, as_finite_diff, lambdify, solve, symbols
 from sympy.abc import t, x, y
 
 from devito import Operator, TimeData
+from devito.logger import log
 
 
 def ring_initial(dx=0.01, dy=0.01):
@@ -58,8 +59,8 @@ def execute_python(ui, dx=0.01, dy=0.01, a=0.5, timesteps=500):
         else:
             single_step(ui, u)
     tfinish = time.time()
-    print "Python: Diffusion with dx=%0.4f, dy=%0.4f, executed %d timesteps in %f seconds"\
-        % (dx, dy, timesteps, tfinish - tstart)
+    log("Python: Diffusion with dx=%0.4f, dy=%0.4f, executed %d timesteps in %f seconds"\
+        % (dx, dy, timesteps, tfinish - tstart))
     return u if ti % 2 == 0 else ui
 
 
@@ -82,8 +83,8 @@ def execute_numpy(ui, dx=0.01, dy=0.01, a=0.5, timesteps=500):
         else:
             single_step(ui, u)
     tfinish = time.time()
-    print "Numpy: Diffusion with dx=%0.4f, dy=%0.4f, executed %d timesteps in %f seconds"\
-        % (dx, dy, timesteps, tfinish - tstart)
+    log("Numpy: Diffusion with dx=%0.4f, dy=%0.4f, executed %d timesteps in %f seconds"\
+        % (dx, dy, timesteps, tfinish - tstart))
     return u if ti % 2 == 0 else ui
 
 
@@ -110,8 +111,8 @@ def execute_lambdify(ui, dx=0.01, dy=0.01, a=0.5, timesteps=500):
         else:
             single_step(ui, u)
     tfinish = time.time()
-    print "Lambdify: Diffusion with dx=%0.4f, dy=%0.4f, executed %d timesteps in %f seconds"\
-        % (dx, dy, timesteps, tfinish - tstart)
+    log("Lambdify: Diffusion with dx=%0.4f, dy=%0.4f, executed %d timesteps in %f seconds"\
+        % (dx, dy, timesteps, tfinish - tstart))
     return u if ti % 2 == 0 else ui
 
 
@@ -135,8 +136,8 @@ def execute_devito(ui, dx=0.01, dy=0.01, a=0.5, timesteps=500):
     tstart = time.time()
     op.apply()
     tfinish = time.time()
-    print "Devito: Diffusion with dx=%0.4f, dy=%0.4f, executed %d timesteps in %f seconds"\
-        % (dx, dy, timesteps, tfinish - tstart)
+    log("Devito: Diffusion with dx=%0.4f, dy=%0.4f, executed %d timesteps in %f seconds"\
+        % (dx, dy, timesteps, tfinish - tstart))
     return u.data[1, :]
 
 
