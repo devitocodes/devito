@@ -1,6 +1,7 @@
 import numpy as np
-from containers import IShot, IGrid
+
 from Acoustic_codegen import Acoustic_cg
+from containers import IGrid, IShot
 
 dimensions = (50, 50, 50)
 model = IGrid()

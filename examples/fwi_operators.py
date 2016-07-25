@@ -1,9 +1,8 @@
-from devito.operator import *
-from sympy import Eq
-from devito.interfaces import TimeData, DenseData, PointData
-from sympy import symbols
+from sympy import Eq, Matrix, solve, symbols
 from sympy.abc import t
-from sympy import solve, Matrix
+
+from devito.interfaces import DenseData, PointData, TimeData
+from devito.operator import *
 
 
 class SourceLike(PointData):

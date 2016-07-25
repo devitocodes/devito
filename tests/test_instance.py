@@ -1,4 +1,5 @@
 import numpy as np
+
 import devito.cgen_wrapper as cgen
 from devito.propagator import Propagator
 

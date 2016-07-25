@@ -3,11 +3,13 @@ This example encodes multiple ways to solve the 2D diffusion equations
 using an explicit finite difference scheme with fixed boundary values
 and a given initial value for the density.
 """
-import numpy as np
 import time
-from sympy import Function, Eq, symbols, as_finite_diff, solve, lambdify
-from sympy.abc import x, y, t
-from devito import TimeData, Operator
+
+import numpy as np
+from sympy import Eq, Function, as_finite_diff, lambdify, solve, symbols
+from sympy.abc import t, x, y
+
+from devito import Operator, TimeData
 
 
 def ring_initial(dx=0.01, dy=0.01):

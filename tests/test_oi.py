@@ -1,6 +1,7 @@
 import numpy as np
+from sympy import Eq, IndexedBase, symbols
+
 from devito.propagator import Propagator
-from sympy import IndexedBase, symbols, Eq
 
 
 class Test_OI_Calculation(object):

@@ -1,5 +1,6 @@
-from cgen import *
 import ctypes
+
+from cgen import *
 
 
 def convert_dtype_to_ctype(dtype):

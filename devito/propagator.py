@@ -1,15 +1,17 @@
-from devito.function_manager import FunctionManager, FunctionDescriptor
-from devito.compiler import get_tmp_dir, get_compiler_from_env
-from devito.compiler import jit_compile_and_load, IntelMICCompiler
-import cgen_wrapper as cgen
-from codeprinter import ccode
-import numpy as np
-from sympy import symbols, IndexedBase, Indexed
-from sympy.abc import x, y, z, t
 from collections import Iterable
+from hashlib import sha1
 from os import path
 from random import randint
-from hashlib import sha1
+
+import numpy as np
+from sympy import Indexed, IndexedBase, symbols
+from sympy.abc import t, x, y, z
+
+import cgen_wrapper as cgen
+from codeprinter import ccode
+from devito.compiler import (IntelMICCompiler, get_compiler_from_env,
+                             get_tmp_dir, jit_compile_and_load)
+from devito.function_manager import FunctionDescriptor, FunctionManager
 
 
 class Propagator(object):

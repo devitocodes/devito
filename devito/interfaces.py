@@ -1,14 +1,15 @@
-from devito.finite_difference import cross_derivative
-import numpy as np
-from sympy import IndexedBase, Function, as_finite_diff
-from sympy.abc import x, y, z, t, h, s
-from tools import aligned
-import os
-from signal import signal, SIGABRT, SIGINT, SIGSEGV, SIGTERM
-from tempfile import gettempdir
-import sys
 import atexit
+import os
+import sys
+from signal import SIGABRT, SIGINT, SIGSEGV, SIGTERM, signal
+from tempfile import gettempdir
 
+import numpy as np
+from sympy import Function, IndexedBase, as_finite_diff
+from sympy.abc import h, s, t, x, y, z
+
+from devito.finite_difference import cross_derivative
+from tools import aligned
 
 __all__ = ['DenseData', 'TimeData', 'PointData']
 

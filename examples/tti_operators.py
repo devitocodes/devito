@@ -1,10 +1,10 @@
-from devito.operator import *
-from sympy import Eq
-from devito.interfaces import TimeData, DenseData, PointData
-from sympy import Function, symbols
-from sympy.abc import t
 from sympy import *
+from sympy import Eq, Function, Wild, as_finite_diff, solve, symbols
 from sympy.abc import *
+from sympy.abc import t
+
+from devito.interfaces import DenseData, PointData, TimeData
+from devito.operator import *
 
 
 class SourceLikeTTI(PointData):

@@ -1,6 +1,6 @@
-from sympy.printing.ccode import CCodePrinter
+from mpmath.libmp import prec_to_dps, to_str
 from sympy import Eq
-from mpmath.libmp import to_str, prec_to_dps
+from sympy.printing.ccode import CCodePrinter
 
 
 class CodePrinter(CCodePrinter):

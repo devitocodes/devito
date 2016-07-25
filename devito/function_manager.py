@@ -1,5 +1,6 @@
-import cgen_wrapper as cgen
 import numpy as np
+
+import cgen_wrapper as cgen
 from devito.tools import convert_dtype_to_ctype
 
 

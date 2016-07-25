@@ -1,7 +1,9 @@
-from containers import IShot, IGrid
 import numpy as np
-from TTI_codegen import TTI_cg
 
+from containers import IGrid, IShot
+from devito.interfaces import DenseData, TimeData
+from TTI_codegen import TTI_cg
+from tti_operators import ForwardOperator, SourceLikeTTI
 
 dimensions = (50, 50, 50)
 model = IGrid()

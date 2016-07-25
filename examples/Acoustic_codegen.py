@@ -1,8 +1,10 @@
 # coding: utf-8
 from __future__ import print_function
+
 import numpy as np
-from examples.fwi_operators import *
+
 from devito.interfaces import DenseData
+from examples.fwi_operators import *
 
 
 class Acoustic_cg:

@@ -1,8 +1,10 @@
-from examples.Acoustic_codegen import Acoustic_cg
 import numpy as np
-from numpy import linalg
-from examples.containers import IGrid, IShot
 import pytest
+from numpy import linalg
+
+from examples.Acoustic_codegen import Acoustic_cg
+from examples.AcousticWave2D_codegen import AcousticWave2D_cg
+from examples.containers import IGrid, IShot
 
 
 class Test_AdjointA(object):

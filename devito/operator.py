@@ -1,11 +1,11 @@
-from devito.compiler import get_compiler_from_env, IntelMICCompiler
+import numpy as np
+from sympy import (Eq, Function, Indexed, Symbol, lambdify, preorder_traversal,
+                   solve, symbols)
+from sympy.abc import t
+
+from devito.compiler import IntelMICCompiler, get_compiler_from_env
 from devito.interfaces import SymbolicData, TimeData
 from devito.propagator import Propagator
-from sympy import Indexed, lambdify, symbols, solve
-from sympy import Eq, Function, Symbol, preorder_traversal
-from sympy.abc import t
-import numpy as np
-
 
 __all__ = ['Operator']
 

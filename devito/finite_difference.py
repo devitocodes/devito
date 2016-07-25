@@ -1,8 +1,9 @@
 from __future__ import absolute_import
-from sympy import symbols, finite_diff_weights
+
 from functools import reduce
 from operator import mul
 
+from sympy import finite_diff_weights, symbols
 
 __all__ = ['second_derivative', 'cross_derivative']
 

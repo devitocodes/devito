@@ -1,13 +1,12 @@
 # coding: utf-8
 from __future__ import print_function
 
-from sympy import Function, symbols, init_printing, as_finite_diff, solve, \
-                  lambdify, Matrix
-from sympy.abc import x, y, t, M, E
-
-import sympy
 import numpy as np
+import sympy
 from numpy import linalg
+from sympy import (Function, Matrix, as_finite_diff, init_printing, lambdify,
+                   solve, symbols)
+from sympy.abc import E, M, t, x, y
 
 init_printing()
 
