@@ -5,6 +5,8 @@ from sympy import Function, symbols, as_finite_diff, Wild
 from sympy.abc import x, y, t, z
 from sympy import *
 from sympy.abc import *
+from operator import mul
+from functools import reduce
 from fwi_operators import SourceLike
 
 
