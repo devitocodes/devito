@@ -1,5 +1,5 @@
 from sympy import *
-from sympy import Eq, Function, Wild, as_finite_diff, solve, symbols
+from sympy import Eq, Function, symbols
 from sympy.abc import *
 from sympy.abc import t
 

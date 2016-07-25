@@ -35,6 +35,7 @@ before_script:
 script:
   - export PYTHONPATH=$PYTHONPATH:$PWD
   - flake8 --builtins=ArgumentError .
+  - isort --check-only **/*.py
   - py.test -vs tests/
   - python examples/acoustic_example.py
   - python examples/tti_example.py
