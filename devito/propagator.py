@@ -164,8 +164,8 @@ class Propagator(object):
         self._var_map = var_map
 
     def sympy_to_cgen(self, subs, stencils, stencil_args, factorized):
+        factors = []
         if len(self.factorized) > 0:
-            factors = []
             args = stencil_args[0]
             for name, term in zip(self.factorized.keys(), self.factorized):
                 term = self.factorized[name]
