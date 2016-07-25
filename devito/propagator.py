@@ -36,9 +36,11 @@ class Propagator(object):
                  profile=False, cache_blocking=False, block_size=5):
         self.factorized = []  # to hold factored terms. gets set in operator
         self.time_order = time_order
+
         # Default time and space symbols if not provided
         self.time_dim = time_dim or t
         self.space_dims = space_dims or (x, z) if len(shape) == 2 else (x, y, z)[:len(shape)]
+
         # Internal flags and meta-data
         self.loop_counters = symbols("i1 i2 i3 i4")
         self._pre_kernel_steps = []
@@ -51,9 +53,11 @@ class Propagator(object):
         self.nt = nt
         self.time_loop_stencils_b = []
         self.time_loop_stencils_a = []
+
         # Start with the assumption that the propagator needs to save
         # the field in memory at every time step
         self._save = True
+
         # Which function parameters need special (non-save) time stepping and which don't
         self.save_vars = {}
         self.fd = FunctionDescriptor(name)
@@ -61,6 +65,7 @@ class Propagator(object):
         self.post_loop = []
         self._time_step = 1 if forward else -1
         self._space_loop_limits = {}
+
         for i, dim in enumerate(self.space_dims):
             self._space_loop_limits[dim] = (spc_border, shape[i] - spc_border)
 
@@ -70,6 +75,7 @@ class Propagator(object):
 
         # Settings for performance profiling
         self.profile = profile
+
         if self.profile:
             self.add_local_var("time", "double")
             self.pre_loop.append(cgen.Statement("struct timeval start, end"))
@@ -83,6 +89,7 @@ class Propagator(object):
 
         # Cache blocking and default block sizes
         self.cache_blocking = cache_blocking
+
         if(isinstance(block_size, Iterable)):
             if(len(block_size) == len(shape)):
                 self.block_sizes = block_size
@@ -108,6 +115,7 @@ class Propagator(object):
         :returns: The basename path as a string
         """
         string = "%s-%s" % (str(self.fd.params), randint(0, 100000000))
+
         return path.join(get_tmp_dir(), sha1(string).hexdigest())
 
     @property
@@ -121,6 +129,7 @@ class Propagator(object):
             # For some reason we need this call to trigger fd.body
             self.get_fd()
             self._ccode = str(manager.generate())
+
         return self._ccode
 
     @property
@@ -137,8 +146,10 @@ class Propagator(object):
                                              self.compiler)
         if self._cfunction is None:
             self._cfunction = getattr(self._lib, self.fd.name)
+
             if not self.mic_flag:
                 self._cfunction.argtypes = self.fd.argtypes
+
         return self._cfunction
 
     @property
@@ -158,8 +169,10 @@ class Propagator(object):
         if save is not True:
             self.time_steppers = [symbols("t%d" % i) for i in range(self.time_order+1)]
             self.t_replace = {}
+
             for i, t_var in enumerate(reversed(self.time_steppers)):
                 self.t_replace[self.time_dim - i*self._time_step] = t_var
+
         self._save = self._save and save
 
     @property
@@ -172,6 +185,7 @@ class Propagator(object):
             loop_limits = (0, self.nt)
         else:
             loop_limits = (self.nt-1, -1)
+
         return loop_limits
 
     def prep_variable_map(self):
@@ -181,9 +195,11 @@ class Propagator(object):
         """
         var_map = {}
         i = 0
+
         for dim in self.space_dims:
             var_map[dim] = symbols("i%d" % (i + 1))
             i += 1
+
         var_map[self.time_dim] = symbols("i%d" % (i + 1))
         self._var_map = var_map
 
@@ -201,16 +217,24 @@ class Propagator(object):
                 # TODO: add support for double precision
                 self.add_local_var(name, np.float32)
                 # TODO: undo precision enforcing
-                factors.append(cgen.Assign(name, str(ccode(expr.xreplace(self._var_map))).replace("pow", "powf").replace("fabs", "fabsf")))
+                factors.append(
+                    cgen.Assign(
+                        name,
+                        str(ccode(expr.xreplace(self._var_map))).replace("pow", "powf").replace("fabs", "fabsf")
+                    )
+                )
         stmts = []
+
         for equality in stencils:
             self._kernel_dic_oi = self._get_ops_expr(equality.rhs, self._kernel_dic_oi, False)
             self._kernel_dic_oi = self._get_ops_expr(equality.lhs, self._kernel_dic_oi, True)
             stencil = self.convert_equality_to_cgen(equality)
             stmts.append(stencil)
+
         kernel = self._pre_kernel_steps
         kernel += stmts
         kernel += self._post_kernel_steps
+
         return cgen.Block(factors+kernel)
 
     def convert_equality_to_cgen(self, equality):
@@ -226,6 +250,7 @@ class Propagator(object):
             s_rhs = ccode(self.time_substitutions(equality.rhs).xreplace(self._var_map))
             s_rhs = str(s_rhs).replace("pow", "powf")
             s_rhs = str(s_rhs).replace("fabs", "fabsf")
+
             return cgen.Assign(s_lhs, s_rhs)
 
     def generate_loops(self, loop_body):
@@ -257,11 +282,15 @@ class Propagator(object):
             time_stepping = self.get_time_stepping()
         else:
             time_stepping = []
+
         loop_body = omp_for + [loop_body] if self.compiler.openmp else [loop_body]
+
         # Statements to be inserted into the time loop before the spatial loop
         time_loop_stencils_b = [self.convert_equality_to_cgen(x) for x in self.time_loop_stencils_b]
+
         # Statements to be inserted into the time loop after the spatial loop
         time_loop_stencils_a = [self.convert_equality_to_cgen(x) for x in self.time_loop_stencils_a]
+
         if self.profile:
             start_time_stmt = omp_master + [cgen.Block([cgen.Statement("gettimeofday(&start, NULL)")])]
             end_time_stmt = omp_master + [cgen.Block(
@@ -272,6 +301,7 @@ class Propagator(object):
         else:
             start_time_stmt = []
             end_time_stmt = []
+
         initial_block = omp_single + ([cgen.Block(time_stepping + time_loop_stencils_b)]
                                       if time_stepping or time_loop_stencils_b else [])
         initial_block = initial_block + start_time_stmt
@@ -284,9 +314,11 @@ class Propagator(object):
             t_var + "+=" + str(self._time_step),
             loop_body
         )
+
         # Code to declare the time stepping variables (outside the time loop)
         def_time_step = [cgen.Value("int", t_var_def.name) for t_var_def in self.time_steppers]
         body = def_time_step + self.pre_loop + omp_parallel + [loop_body] + self.post_loop
+
         return cgen.Block(body)
 
     def generate_space_loops(self, loop_body):
@@ -296,6 +328,7 @@ class Propagator(object):
         :returns: :class:`cgen.Block` representing the loop
         """
         ivdep = True
+
         for spc_var in reversed(list(self.space_dims)):
             dim_var = self._var_map[spc_var]
             loop_limits = self._space_loop_limits[spc_var]
@@ -305,9 +338,12 @@ class Propagator(object):
                 str(dim_var) + "++",
                 loop_body
             )
+
             if ivdep and len(self.space_dims) > 1:
                 loop_body = cgen.Block([self.compiler.pragma_ivdep] + [loop_body])
+
             ivdep = False
+
         return loop_body
 
     def generate_space_loops_blocking(self, loop_body):
@@ -319,6 +355,7 @@ class Propagator(object):
         ivdep = True
         remainder = False
         orig_loop_body = loop_body
+
         for spc_var, block_size in reversed(zip(list(self.space_dims), self.block_sizes)):
             dim_var = str(self._var_map[spc_var])
             block_var = dim_var + "b"
@@ -329,8 +366,10 @@ class Propagator(object):
                 dim_var + "++",
                 loop_body
             )
+
             if ivdep and len(self.space_dims) > 1:
                 loop_body = cgen.Block([self.compiler.pragma_ivdep] + [loop_body])
+
             ivdep = False
 
         for spc_var, block_size in reversed(zip(list(self.space_dims), self.block_sizes)):
@@ -339,8 +378,10 @@ class Propagator(object):
             loop_limits = self._space_loop_limits[spc_var]
             old_upper_limit = loop_limits[1]
             new_upper_limit = old_upper_limit-old_upper_limit % block_size
+
             if old_upper_limit - new_upper_limit > 0:
                 remainder = True
+
             loop_limits = (loop_limits[0], new_upper_limit)
             loop_body = cgen.For(
                 cgen.InlineInitializer(cgen.Value("int", dim_var), str(loop_limits[0])),
@@ -348,8 +389,10 @@ class Propagator(object):
                 str(dim_var) + "+=" + str(block_size),
                 loop_body
             )
+
         if remainder:
             remainder_loop = orig_loop_body
+
             for spc_var, block_size in reversed(zip(list(self.space_dims), self.block_sizes)):
                 dim_var = str(self._var_map[spc_var])
                 loop_limits = self._space_loop_limits[spc_var]
@@ -362,9 +405,12 @@ class Propagator(object):
                     str(dim_var) + "++",
                     remainder_loop
                 )
+
                 if ivdep and len(self.space_dims) > 1:
                     loop_body = cgen.Block([self.compiler.pragma_ivdep] + [loop_body])
+
                 ivdep = False
+
             loop_body = cgen.Block([loop_body, remainder_loop])
 
         return loop_body
@@ -372,6 +418,7 @@ class Propagator(object):
     def add_loop_step(self, assign, before=False):
         """Add loop step to loop body"""
         stm = self.convert_equality_to_cgen(assign)
+
         if before:
             self._pre_kernel_steps.append(stm)
         else:
@@ -383,8 +430,10 @@ class Propagator(object):
         :param param: Contains all devito parameters
         """
         save = True
+
         if hasattr(param, "save"):
             save = param.save
+
         self.add_param(param.name, param.shape, param.dtype, save)
 
     def add_param(self, name, shape, dtype, save=True):
@@ -399,6 +448,7 @@ class Propagator(object):
         self.fd.add_matrix_param(name, shape, dtype)
         self.save = save
         self.save_vars[name] = save
+
         return IndexedBase(name, shape=shape)
 
     def add_scalar_param(self, name, dtype):
@@ -408,6 +458,7 @@ class Propagator(object):
         :param dtype: Type of parameter
         """
         self.fd.add_value_param(name, dtype)
+
         return symbols(name)
 
     def add_local_var(self, name, dtype):
@@ -418,6 +469,7 @@ class Propagator(object):
         :returns: The symbol associated with the parameter
         """
         self.fd.add_local_variable(name, dtype)
+
         return symbols(name)
 
     def get_fd(self):
@@ -432,6 +484,7 @@ class Propagator(object):
         except:  # We might have been given Sympy expression to evaluate
             # This is the more common use case so this will show up in error messages
             self.fd.set_body(self.generate_loops(self.sympy_to_cgen(self.stencils)))
+
         return self.fd
 
     def get_time_stepping(self):
@@ -444,16 +497,20 @@ class Propagator(object):
         time_stepper_indices = range(self.time_order+1)
         first_time_index = 0
         step_backwards = -1
+
         if self._forward is not True:
             time_stepper_indices = reversed(time_stepper_indices)
             first_time_index = self.time_order
             step_backwards = 1
+
         for i in time_stepper_indices:
             lhs = self.time_steppers[i].name
+
             if i == first_time_index:
                 rhs = ccode(ti % (self.time_order+1))
             else:
                 rhs = ccode((self.time_steppers[i+step_backwards]+1) % (self.time_order+1))
+
             body.append(cgen.Assign(lhs, rhs))
 
         return body
@@ -467,15 +524,19 @@ class Propagator(object):
         """
         if isinstance(sympy_expr, Indexed):
             array_term = sympy_expr
+
             if not str(array_term.base.label) in self.save_vars:
                 raise ValueError("Invalid variable '%s' in sympy expression. Did you add it to the operator's params?" %
                                  str(array_term.base.label))
+
             if not self.save_vars[str(array_term.base.label)]:
                 array_term = array_term.xreplace(self.t_replace)
+
             return array_term
         else:
             for arg in sympy_expr.args:
                 sympy_expr = sympy_expr.subs(arg, self.time_substitutions(arg))
+
         return sympy_expr
 
     def add_time_loop_stencil(self, stencil, before=False):
@@ -499,19 +560,23 @@ class Propagator(object):
         :returns: Dictionary of (#ADD, #MUL, list of unique names of fields, list of unique field elements)
         """
         result = dict1  # dictionary to return
+
         # add array to list arrays if it is not in it
         if isinstance(expr, Indexed):
                 base = expr.base.label
+
                 if is_lhs:
                         result['store'] += 1
                 if base not in result['load_list']:
                         result['load_list'] += [base]  # accumulate distinct array
                 if expr not in result['load_all_list']:
                         result['load_all_list'] += [expr]  # accumulate distinct array elements
+
                 return result
 
         if expr.is_Mul or expr.is_Add or expr.is_Pow:
                 args = expr.args
+
                 # increment MUL or ADD by # arguments less 1
                 # sympy multiplication and addition can have multiple arguments
                 if expr.is_Mul:
@@ -519,11 +584,13 @@ class Propagator(object):
                 else:
                         if expr.is_Add:
                                 result['add'] += len(args)-1
+
                 # recursive call of all arguments
                 for expr2 in args:
                         result2 = self._get_ops_expr(expr2, result, is_lhs)
 
                 return result2
+
         # return zero and unchanged array if execution gets here
         return result
 

@@ -11,6 +11,7 @@ def convert_dtype_to_ctype(dtype):
     """
     conversion_dict = {np.int32: ctypes.c_int, np.float32: ctypes.c_float,
                        np.int64: ctypes.c_int64, np.float64: ctypes.c_double}
+
     return conversion_dict[dtype]
 
 
@@ -29,13 +30,16 @@ def sympy_find(expr, term, repl):
     """
 
     t = symbols("t")
+
     if type(expr) == term:
         args_wo_t = [x for x in expr.args if x != t and t not in x.args]
         args_t = [x for x in expr.args if x == t or t in x.args]
         expr = repl[tuple(args_t + args_wo_t)]
+
     if hasattr(expr, "args"):
         for a in expr.args:
             expr = expr.subs(a, sympy_find(a, term, repl))
+
     return expr
 
 
@@ -54,5 +58,7 @@ def aligned(a, alignment=16):
     ofs = (-buf.ctypes.data % alignment) / a.itemsize
     aa = buf[ofs:ofs+a.size].reshape(a.shape)
     np.copyto(aa, a)
+
     assert (aa.ctypes.data % alignment) == 0
+
     return aa

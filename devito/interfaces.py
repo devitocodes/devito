@@ -53,14 +53,19 @@ class SymbolicData(Function):
         if cls not in _SymbolCache:
             name = kwargs.get('name')
             shape = kwargs.get('shape')
+
             if len(args) < 1:
                 args = cls.indices(shape)
+
             # Create a new type instance from cls and inject name
             newcls = type(name, (cls, ), dict(cls.__dict__))
+
             # Create the new Function object and invoke __init__
             newobj = Function.__new__(newcls, *args)
             newobj.__init__(*args, **kwargs)
+
             return newobj
+
         return Function.__new__(cls, *args)
 
     def __init__(self):
@@ -127,6 +132,7 @@ class DenseData(SymbolicData):
         :return: Indices used for axis.
         """
         _indices = [x, y, z]
+
         return _indices[:len(shape)]
 
     @property
@@ -145,6 +151,7 @@ class DenseData(SymbolicData):
         :return: Index corrosponding to the indices
         """
         indices = [a.subs({h: 1, s: 1}) for a in self.args]
+
         return self.indexed[indices]
 
     def set_initializer(self, lambda_initializer):
@@ -153,6 +160,7 @@ class DenseData(SymbolicData):
         :param lambda_initializer: Given lambda function.
         """
         assert(callable(lambda_initializer))
+
         self.initializer = lambda_initializer
 
     def _allocate_memory(self):
@@ -173,6 +181,7 @@ class DenseData(SymbolicData):
         """
         if self._data is None:
             self._allocate_memory()
+
         return self._data
 
     def initialize(self):
@@ -186,6 +195,7 @@ class DenseData(SymbolicData):
         """Symbol for the second derivative wrt the x dimension"""
         width_h = int(self.space_order/2)
         indx = [(x + i * h) for i in range(-width_h, width_h + 1)]
+
         return as_finite_diff(self.diff(x, x), indx)
 
     @property
@@ -193,6 +203,7 @@ class DenseData(SymbolicData):
         """Symbol for the second derivative wrt the y dimension"""
         width_h = int(self.space_order/2)
         indy = [(y + i * h) for i in range(-width_h, width_h + 1)]
+
         return as_finite_diff(self.diff(y, y), indy)
 
     @property
@@ -200,12 +211,14 @@ class DenseData(SymbolicData):
         """Symbol for the second derivative wrt the z dimension"""
         width_h = int(self.space_order/2)
         indz = [(z + i * h) for i in range(-width_h, width_h + 1)]
+
         return as_finite_diff(self.diff(z, z), indz)
 
     @property
     def laplace(self):
         """Symbol for the second derivative wrt all spatial dimenions"""
         derivs = ['dx2', 'dy2', 'dz2']
+
         return sum([getattr(self, d) for d in derivs[:self.dim]])
 
     @property
@@ -255,11 +268,14 @@ class TimeData(DenseData):
             self.time_order = kwargs.get('time_order', 1)
             self.save = kwargs.get('save', False)
             self.pad_time = kwargs.get('pad_time', False)
+
             if self.save:
                 time_dim += self.time_order
             else:
                 time_dim = self.time_order + 1
+
             self.shape = (time_dim,) + self.shape
+
             # Store final instance in symbol cache
             self._cache_put(self)
 
@@ -271,11 +287,13 @@ class TimeData(DenseData):
         :return: Indices used for axis.
         """
         _indices = [t, x, y, z]
+
         return _indices[:len(shape) + 1]
 
     def _allocate_memory(self):
         """function to allocate memmory in terms of numpy ndarrays."""
         super(TimeData, self)._allocate_memory()
+
         if self.pad_time:
             self._data = self._data[self.time_order:, :, :]
 
@@ -288,12 +306,14 @@ class TimeData(DenseData):
     def forward(self):
         """Symbol for the time-forward state of the function"""
         i = int(self.time_order / 2) if self.time_order >= 2 else 1
+
         return self.subs(t, t + i * s)
 
     @property
     def backward(self):
         """Symbol for the time-forward state of the function"""
         i = int(self.time_order / 2) if self.time_order >= 2 else 1
+
         return self.subs(t, t - i * s)
 
     @property
@@ -305,6 +325,7 @@ class TimeData(DenseData):
         else:
             width = int(self.time_order / 2)
             indices = [(t + i * s) for i in range(-width, width + 1)]
+
         return as_finite_diff(self.diff(t), indices)
 
     @property
@@ -312,6 +333,7 @@ class TimeData(DenseData):
         """Symbol for the second derivative wrt the t dimension"""
         width_t = int(self.time_order/2)
         indt = [(t + i * s) for i in range(-width_t, width_t + 1)]
+
         return as_finite_diff(self.diff(t, t), indt)
 
 
@@ -345,6 +367,7 @@ class PointData(DenseData):
         nt = kwargs.get('nt')
         npoint = kwargs.get('npoint')
         kwargs['shape'] = (nt, npoint)
+
         return DenseData.__new__(cls, *args, **kwargs)
 
     @classmethod
@@ -355,6 +378,7 @@ class PointData(DenseData):
         :return: indices used for axis.
         """
         _indices = [t, x, y, z]
+
         return _indices[:len(shape) + 1]
 
 
@@ -391,12 +415,16 @@ class MemmapManager():
         are used.
         """
         data_self.memmap = kwargs.get('memmap', MemmapManager._use_memmap)
+
         if data_self.memmap:
             disk_path = kwargs.get('disk_path', MemmapManager._default_disk_path)
+
             if not os.path.exists(disk_path):
                 os.makedirs(disk_path)
+
             data_self.f = disk_path + "/data_" + kwargs.get('name')
             MemmapManager._created_data.add(data_self.f)
+
             if not MemmapManager._registered:
                 MemmapManager._register_remove_memmap_file_signal()
                 MemmapManager._registered = True
@@ -420,5 +448,6 @@ class MemmapManager():
     def _register_remove_memmap_file_signal():
         """This method is used to register clean up method for chosen signals"""
         atexit.register(MemmapManager._reomve_memmap_file)
+
         for sig in (SIGABRT, SIGINT, SIGSEGV, SIGTERM):
             signal(sig, MemmapManager._remove_memmap_file_on_signal)
