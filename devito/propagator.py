@@ -31,6 +31,7 @@ class Propagator(object):
     def __init__(self, name, nt, shape, spc_border=0, time_order=0,
                  forward=True, compiler=None, profile=False,
                  cache_blocking=False, block_size=5):
+        self.factorized = []  # to hold factored terms. gets set in operator
         # Derive JIT compilation infrastructure
         self.compiler = compiler or get_compiler_from_env()
         self.mic_flag = isinstance(self.compiler, IntelMICCompiler)
@@ -163,7 +164,17 @@ class Propagator(object):
         var_map[self.t] = symbols("i%d" % (i + 1))
         self._var_map = var_map
 
-    def sympy_to_cgen(self, subs, stencils, stencil_args):
+    def sympy_to_cgen(self, subs, stencils, stencil_args, factorized):
+        factors = []
+        if len(self.factorized) > 0:
+            args = stencil_args[0]
+            for name, term in zip(factorized.keys(), factorized):
+                term = factorized[name]
+                # TODO: add support for double precision
+                self.add_local_var(name, "float")
+                # TODO: undo precision enforcing
+                factors.append(cgen.Assign(name, str(ccode(term.subs(dict(zip(subs, args))).xreplace(self._var_map))).replace("pow", "powf").replace("fabs", "fabsf")))
+
         stmts = []
         for equality, args in zip(stencils, stencil_args):
             equality = equality.subs(dict(zip(subs, args)))
@@ -174,13 +185,19 @@ class Propagator(object):
         kernel = self._pre_kernel_steps
         kernel += stmts
         kernel += self._post_kernel_steps
-        return cgen.Block(kernel)
+        return cgen.Block(factors+kernel)
 
     def convert_equality_to_cgen(self, equality):
         if isinstance(equality, cgen.Generable):
             return equality
         else:
-            return cgen.Assign(ccode(self.time_substitutions(equality.lhs).xreplace(self._var_map)), ccode(self.time_substitutions(equality.rhs).xreplace(self._var_map)))
+            lhs = ccode(self.time_substitutions(equality.lhs).xreplace(self._var_map))
+            rhs = ccode(self.time_substitutions(equality.rhs).xreplace(self._var_map))
+            # TODO: add a check for it's single precision
+
+            rhs = str(rhs).replace("pow", "powf")
+            rhs = str(rhs).replace("fabs", "fabsf")
+            return cgen.Assign(lhs, rhs)
 
     def generate_loops(self, loop_body):
         """ Assuming that the variable order defined in init (#var_order) is the
@@ -238,7 +255,7 @@ class Propagator(object):
                                                         str(loop_limits[0])),
                                  str(dim_var) + "<" + str(loop_limits[1]), str(dim_var) + "++", loop_body)
             if ivdep and len(self.space_dims) > 1:
-                loop_body = cgen.Block([self.compiler.pragma_ivdep] + [loop_body])
+                loop_body = cgen.Block([self.compiler.pragma_ivdep] + self.compiler.pragma_nontemporal + [loop_body])
             ivdep = False
         return loop_body
 
@@ -254,7 +271,7 @@ class Propagator(object):
                                                         block_var),
                                  dim_var + "<" + block_var+"+"+str(block_size), dim_var + "++", loop_body)
             if ivdep and len(self.space_dims) > 1:
-                loop_body = cgen.Block([self.compiler.pragma_ivdep] + [loop_body])
+                loop_body = cgen.Block([self.compiler.pragma_ivdep] + self.compiler.pragma_nontemporal + [loop_body])
             ivdep = False
 
         for spc_var, block_size in reversed(zip(list(self.space_dims), self.block_sizes)):
@@ -280,7 +297,7 @@ class Propagator(object):
                 remainder_loop = cgen.For(cgen.InlineInitializer(cgen.Value("int", dim_var), str(loop_limits[0])),
                                           str(dim_var) + "<" + str(loop_limits[1]), str(dim_var) + "++", remainder_loop)
                 if ivdep and len(self.space_dims) > 1:
-                    loop_body = cgen.Block([self.compiler.pragma_ivdep] + [loop_body])
+                    loop_body = cgen.Block([self.compiler.pragma_ivdep] + self.compiler.pragma_nontemporal + [loop_body])
                 ivdep = False
             loop_body = cgen.Block([loop_body, remainder_loop])
 
@@ -322,7 +339,7 @@ class Propagator(object):
             self.fd.set_body(self.generate_loops(self.loop_body))
         except:  # We might have been given Sympy expression to evaluate
             # This is the more common use case so this will show up in error messages
-            self.fd.set_body(self.generate_loops(self.sympy_to_cgen(self.subs, self.stencils, self.stencil_args)))
+            self.fd.set_body(self.generate_loops(self.sympy_to_cgen(self.subs, self.stencils, self.stencil_args, self.factorized)))
         return self.fd
 
     def get_time_stepping(self):
@@ -389,10 +406,10 @@ class Propagator(object):
                 # increment MUL or ADD by # arguments less 1
                 # sympy multiplication and addition can have multiple arguments
                 if expr.is_Mul:
-                        result['mul'] += len(args)-1
+                        result['mul'] += len(args) - 1
                 else:
                         if expr.is_Add:
-                                result['add'] += len(args)-1
+                                result['add'] += len(args) - 1
                 # recursive call of all arguments
                 for expr2 in args:
                         result2 = self._get_ops_expr(expr2, result, is_lhs)
