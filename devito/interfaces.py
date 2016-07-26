@@ -1,3 +1,4 @@
+from devito.finite_difference import cross_derivative
 import numpy as np
 from sympy import IndexedBase, Function, as_finite_diff
 from sympy.abc import x, y, z, t, h, s
@@ -54,7 +55,7 @@ class SymbolicData(Function):
             if len(args) < 1:
                 args = cls.indices(shape)
             # Create a new type instance from cls and inject name
-            newcls = type(name, cls.__bases__, dict(cls.__dict__))
+            newcls = type(name, (cls, ), dict(cls.__dict__))
             # Create the new Function object and invoke __init__
             newobj = Function.__new__(newcls, *args)
             newobj.__init__(*args, **kwargs)
@@ -88,10 +89,11 @@ class DenseData(SymbolicData):
     :param name: Name of the resulting :class sympy.Function: symbol
     :param shape: Shape of the spatial data grid
     :param dtype: Data type of the buffered data
+    :param space_order: Discretisation order for space derivatives
 
     Note: :class DenseData: objects are assumed to be constant in time and
     therefore do not support time derivatives. Use :class TimeData: for
-    time-varying griad data.
+    time-varying grid data.
     """
     def __init__(self, *args, **kwargs):
         if self._cached():
@@ -102,6 +104,7 @@ class DenseData(SymbolicData):
             self.name = kwargs.get('name')
             self.shape = kwargs.get('shape')
             self.dtype = kwargs.get('dtype', np.float32)
+            self.space_order = kwargs.get('space_order', 1)
             self._data = kwargs.get('_data', None)
             self.initializer = None
             MemmapManager.setup(self, *args, **kwargs)
@@ -116,6 +119,11 @@ class DenseData(SymbolicData):
         """
         _indices = [x, y, z]
         return _indices[:len(shape)]
+
+    @property
+    def dim(self):
+        """Returns the spatial dimension of the data object"""
+        return len(self.shape)
 
     @property
     def indexed(self):
@@ -151,12 +159,44 @@ class DenseData(SymbolicData):
     @property
     def dx2(self):
         """Symbol for the second derivative wrt the x dimension"""
-        return as_finite_diff(self.diff(x, x), [x - h, x, x + h])
+        width_h = int(self.space_order/2)
+        indx = [(x + i * h) for i in range(-width_h, width_h + 1)]
+        return as_finite_diff(self.diff(x, x), indx)
 
     @property
     def dy2(self):
         """Symbol for the second derivative wrt the y dimension"""
-        return as_finite_diff(self.diff(y, y), [y - h, y, y + h])
+        width_h = int(self.space_order/2)
+        indy = [(y + i * h) for i in range(-width_h, width_h + 1)]
+        return as_finite_diff(self.diff(y, y), indy)
+
+    @property
+    def dz2(self):
+        """Symbol for the second derivative wrt the z dimension"""
+        width_h = int(self.space_order/2)
+        indz = [(z + i * h) for i in range(-width_h, width_h + 1)]
+        return as_finite_diff(self.diff(z, z), indz)
+
+    @property
+    def laplace(self):
+        """Symbol for the second derivative wrt all spatial dimenions"""
+        derivs = ['dx2', 'dy2', 'dz2']
+        return sum([getattr(self, d) for d in derivs[:self.dim]])
+
+    @property
+    def dxy(self):
+        """Symbol for the cross derivative wrt the x and y dimension"""
+        return cross_derivative(self, dims=(x, y))
+
+    @property
+    def dxz(self):
+        """Symbol for the cross derivative wrt the x and z dimension"""
+        return cross_derivative(self, dims=(x, z))
+
+    @property
+    def dyz(self):
+        """Symbol for the cross derivative wrt the y and z dimension"""
+        return cross_derivative(self, dims=(y, z))
 
 
 class TimeData(DenseData):
@@ -185,7 +225,7 @@ class TimeData(DenseData):
             SymbolicData.__init__(self)
             return
         else:
-            super(self.__class__, self).__init__(*args, **kwargs)
+            super(TimeData, self).__init__(*args, **kwargs)
             time_dim = kwargs.get('time_dim')
             self.time_order = kwargs.get('time_order', 1)
             self.save = kwargs.get('save', False)
@@ -208,19 +248,44 @@ class TimeData(DenseData):
         return _indices[:len(shape) + 1]
 
     def _allocate_memory(self):
-        super(self.__class__, self)._allocate_memory()
+        super(TimeData, self)._allocate_memory()
         if self.pad_time:
             self._data = self._data[self.time_order:, :, :]
 
     @property
+    def dim(self):
+        """Returns the spatial dimension of the data object"""
+        return len(self.shape[1:])
+
+    @property
     def forward(self):
         """Symbol for the time-forward state of the function"""
-        return self.subs(t, t + s)
+        i = int(self.time_order / 2) if self.time_order >= 2 else 1
+        return self.subs(t, t + i * s)
+
+    @property
+    def backward(self):
+        """Symbol for the time-forward state of the function"""
+        i = int(self.time_order / 2) if self.time_order >= 2 else 1
+        return self.subs(t, t - i * s)
 
     @property
     def dt(self):
         """Symbol for the first derivative wrt the time dimension"""
-        return as_finite_diff(self.diff(t), [t, t + s])
+        if self.time_order == 1:
+            # This hack is needed for the first-order diffusion test
+            indices = [t, t + s]
+        else:
+            width = int(self.time_order / 2)
+            indices = [(t + i * s) for i in range(-width, width + 1)]
+        return as_finite_diff(self.diff(t), indices)
+
+    @property
+    def dt2(self):
+        """Symbol for the second derivative wrt the t dimension"""
+        width_t = int(self.time_order/2)
+        indt = [(t + i * s) for i in range(-width_t, width_t + 1)]
+        return as_finite_diff(self.diff(t, t), indt)
 
 
 class PointData(DenseData):

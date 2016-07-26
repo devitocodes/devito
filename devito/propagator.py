@@ -5,6 +5,7 @@ import cgen_wrapper as cgen
 from codeprinter import ccode
 import numpy as np
 from sympy import symbols, IndexedBase, Indexed
+from sympy.abc import x, y, z, t
 from collections import Iterable
 from os import path
 from random import randint
@@ -20,6 +21,8 @@ class Propagator(object):
     :param shape: Shape of the data buffer over which to execute
     :param spc_border: Number of spatial padding layers
     :param time_order: Order of the time discretisation
+    :param time_dim: Symbol that defines the time dimension
+    :param space_dims: List of symbols that define the space dimensions
     :param forward: Flag indicating whether to execute forward in time
     :param compiler: Compiler class used to perform JIT compilation.
                      If not provided, the compiler will be inferred from the
@@ -29,29 +32,13 @@ class Propagator(object):
     :param block_size: Block size used for cache clocking
     """
     def __init__(self, name, nt, shape, spc_border=0, time_order=0,
-                 forward=True, compiler=None, profile=False,
-                 cache_blocking=False, block_size=5):
-        # Derive JIT compilation infrastructure
-        self.compiler = compiler or get_compiler_from_env()
-        self.mic_flag = isinstance(self.compiler, IntelMICCompiler)
-
-        self.t = symbols("t")
-        self.cache_blocking = cache_blocking
-        if(isinstance(block_size, Iterable)):
-            if(len(block_size) == len(shape)):
-                self.block_sizes = block_size
-            else:
-                raise ArgumentError("Block size should either be a single number or an array of the same size as the spatial domain")
-        else:
-            # A single block size has been passed. Broadcast it to a list of the size of shape
-            self.block_sizes = [int(block_size)]*len(shape)
-        # We assume the dimensions are passed to us in the following order
-        # var_order
-        if len(shape) == 2:
-            self.space_dims = symbols("x z")
-        else:
-            self.space_dims = symbols("x y z")
-        self.space_dims = self.space_dims[0:len(shape)]
+                 time_dim=None, space_dims=None, forward=True, compiler=None,
+                 profile=False, cache_blocking=False, block_size=5):
+        self.time_order = time_order
+        # Default time and space symbols if not provided
+        self.time_dim = time_dim or t
+        self.space_dims = space_dims or (x, z) if len(shape) == 2 else (x, y, z)[:len(shape)]
+        # Internal flags and meta-data
         self.loop_counters = symbols("i1 i2 i3 i4")
         self._pre_kernel_steps = []
         self._post_kernel_steps = []
@@ -63,30 +50,46 @@ class Propagator(object):
         self.nt = nt
         self.time_loop_stencils_b = []
         self.time_loop_stencils_a = []
-        # Start with the assumption that the propagator needs to save the field in memory at every time step
+        # Start with the assumption that the propagator needs to save
+        # the field in memory at every time step
         self._save = True
-        # This might be changed later when parameters are being set
-        self.profile = profile
         # Which function parameters need special (non-save) time stepping and which don't
         self.save_vars = {}
         self.fd = FunctionDescriptor(name)
         self.pre_loop = []
         self.post_loop = []
+        self._time_step = 1 if forward else -1
+        self._space_loop_limits = {}
+        for i, dim in enumerate(self.space_dims):
+            self._space_loop_limits[dim] = (spc_border, shape[i] - spc_border)
+
+        # Derive JIT compilation infrastructure
+        self.compiler = compiler or get_compiler_from_env()
+        self.mic_flag = isinstance(self.compiler, IntelMICCompiler)
+
+        # Settings for performance profiling
+        self.profile = profile
         if self.profile:
             self.add_local_var("time", "double")
             self.pre_loop.append(cgen.Statement("struct timeval start, end"))
             self.pre_loop.append(cgen.Assign("time", 0))
             self.post_loop.append(cgen.PrintStatement("time: %f\n", "time"))
-        if forward:
-            self._time_step = 1
-        else:
-            self._time_step = -1
-        self._space_loop_limits = {}
-        for i, dim in enumerate(self.space_dims):
-                self._space_loop_limits[dim] = (spc_border, shape[i]-spc_border)
 
-        # Kernel operation intensity dictionary
-        self._kernel_dic_oi = {'add': 0, 'mul': 0, 'load': 0, 'store': 0, 'load_list': [], 'load_all_list': [], 'oi_high': 0, 'oi_high_weighted': 0, 'oi_low': 0, 'oi_low_weighted': 0}
+        # Kernel operational intensity dictionary
+        self._kernel_dic_oi = {'add': 0, 'mul': 0, 'load': 0, 'store': 0,
+                               'load_list': [], 'load_all_list': [], 'oi_high': 0,
+                               'oi_high_weighted': 0, 'oi_low': 0, 'oi_low_weighted': 0}
+
+        # Cache blocking and default block sizes
+        self.cache_blocking = cache_blocking
+        if(isinstance(block_size, Iterable)):
+            if(len(block_size) == len(shape)):
+                self.block_sizes = block_size
+            else:
+                raise ArgumentError("Block size should either be a single number or an array of the same size as the spatial domain")
+        else:
+            # A single block size has been passed. Broadcast it to a list of the size of shape
+            self.block_sizes = [int(block_size)]*len(shape)
 
         # Cache C code, lib and function objects
         self._ccode = None
@@ -140,7 +143,7 @@ class Propagator(object):
             self.time_steppers = [symbols("t%d" % i) for i in range(self.time_order+1)]
             self.t_replace = {}
             for i, t_var in enumerate(reversed(self.time_steppers)):
-                self.t_replace[self.t - i*self._time_step] = t_var
+                self.t_replace[self.time_dim - i*self._time_step] = t_var
         self._save = self._save and save
 
     @property
@@ -160,13 +163,12 @@ class Propagator(object):
         for dim in self.space_dims:
             var_map[dim] = symbols("i%d" % (i + 1))
             i += 1
-        var_map[self.t] = symbols("i%d" % (i + 1))
+        var_map[self.time_dim] = symbols("i%d" % (i + 1))
         self._var_map = var_map
 
-    def sympy_to_cgen(self, subs, stencils, stencil_args):
+    def sympy_to_cgen(self, stencils):
         stmts = []
-        for equality, args in zip(stencils, stencil_args):
-            equality = equality.subs(dict(zip(subs, args)))
+        for equality in stencils:
             self._kernel_dic_oi = self._get_ops_expr(equality.rhs, self._kernel_dic_oi, False)
             self._kernel_dic_oi = self._get_ops_expr(equality.lhs, self._kernel_dic_oi, True)
             stencil = self.convert_equality_to_cgen(equality)
@@ -180,7 +182,9 @@ class Propagator(object):
         if isinstance(equality, cgen.Generable):
             return equality
         else:
-            return cgen.Assign(ccode(self.time_substitutions(equality.lhs).xreplace(self._var_map)), ccode(self.time_substitutions(equality.rhs).xreplace(self._var_map)))
+            s_lhs = ccode(self.time_substitutions(equality.lhs).xreplace(self._var_map))
+            s_rhs = ccode(self.time_substitutions(equality.rhs).xreplace(self._var_map))
+            return cgen.Assign(s_lhs, s_rhs)
 
     def generate_loops(self, loop_body):
         """ Assuming that the variable order defined in init (#var_order) is the
@@ -200,7 +204,7 @@ class Propagator(object):
         omp_parallel = [cgen.Pragma("omp parallel")] if self.compiler.openmp else []
         omp_for = [cgen.Pragma("omp for")] if self.compiler.openmp else []
         t_loop_limits = self.time_loop_limits
-        t_var = str(self._var_map[self.t])
+        t_var = str(self._var_map[self.time_dim])
         cond_op = "<" if self._forward else ">"
 
         if self.save is not True:
@@ -322,11 +326,11 @@ class Propagator(object):
             self.fd.set_body(self.generate_loops(self.loop_body))
         except:  # We might have been given Sympy expression to evaluate
             # This is the more common use case so this will show up in error messages
-            self.fd.set_body(self.generate_loops(self.sympy_to_cgen(self.subs, self.stencils, self.stencil_args)))
+            self.fd.set_body(self.generate_loops(self.sympy_to_cgen(self.stencils)))
         return self.fd
 
     def get_time_stepping(self):
-        ti = self._var_map[self.t]
+        ti = self._var_map[self.time_dim]
         body = []
         time_stepper_indices = range(self.time_order+1)
         first_time_index = 0
@@ -352,7 +356,7 @@ class Propagator(object):
         if isinstance(sympy_expr, Indexed):
             array_term = sympy_expr
             if not str(array_term.base.label) in self.save_vars:
-                raise(ValueError, "Invalid variable '%s' in sympy expression. Did you add it to the operator's params?" % str(array_term.base.label))
+                raise ValueError("Invalid variable '%s' in sympy expression. Did you add it to the operator's params?" % str(array_term.base.label))
             if not self.save_vars[str(array_term.base.label)]:
                 array_term = array_term.xreplace(self.t_replace)
             return array_term
