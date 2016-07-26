@@ -33,6 +33,14 @@ devito.compiler module
     :undoc-members:
     :show-inheritance:
 
+devito.finite_difference module
+-------------------------------
+
+.. automodule:: devito.finite_difference
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
 devito.function_manager module
 ------------------------------
 
