@@ -76,7 +76,6 @@ class IntelCompiler(Compiler):
         # self.pragma_aligned = Pragma('omp simd aligned()')
 
 
-
 class IntelMICCompiler(Compiler):
     """Set of standard compiler flags for the clang toolchain"""
 
