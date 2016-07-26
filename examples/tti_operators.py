@@ -55,21 +55,21 @@ class TTIOperator(Operator):
         indz = [(z + i * h) for i in range(-width_h, width_h + 1)]
 
         def cross_deriv(*args, **kwargs):
-            deriv=0
+            deriv = 0
             order = kwargs.get('order', 1)
             dims = kwargs.get('dims', (x, y))
             diff = kwargs.get('diff', h)
             assert(isinstance(dims, tuple) and len(dims) == 2)
-            ind1r = [(dims[0] + i * diff) for i in range(-int((order) / 2) + 1 - (order<4), int((order + 1) / 2) + 2 - (order<4))]
-            ind2r = [(dims[1] + i * diff) for i in range(-int((order) / 2) + 1 - (order<4), int((order + 1) / 2) + 2 - (order<4))]
-            ind1l = [(dims[0] - i * diff) for i in range(-int((order) / 2) + 1 - (order<4), int((order + 1) / 2) + 2 - (order<4))]
-            ind2l = [(dims[1] - i * diff) for i in range(-int((order) / 2) + 1 - (order<4), int((order + 1) / 2) + 2 - (order<4))]
+            ind1r = [(dims[0] + i * diff) for i in range(-int((order) / 2) + 1 - (order < 4), int((order + 1) / 2) + 2 - (order < 4))]
+            ind2r = [(dims[1] + i * diff) for i in range(-int((order) / 2) + 1 - (order < 4), int((order + 1) / 2) + 2 - (order < 4))]
+            ind1l = [(dims[0] - i * diff) for i in range(-int((order) / 2) + 1 - (order < 4), int((order + 1) / 2) + 2 - (order < 4))]
+            ind2l = [(dims[1] - i * diff) for i in range(-int((order) / 2) + 1 - (order < 4), int((order + 1) / 2) + 2 - (order < 4))]
             cx = finite_diff_weights(1, ind1r, dims[0])
             cx = cx[-1][-1]
             cy = finite_diff_weights(1, ind2r, dims[1])
             cy = cy[-1][-1]
-            for i in range(0,len(ind1r)):
-                for j in range(0,len(ind2r)):
+            for i in range(0, len(ind1r)):
+                for j in range(0, len(ind2r)):
                     var1 = [a.subs({dims[0]: ind1r[i], dims[1]: ind2r[j]}) for a in args]
                     var2 = [a.subs({dims[0]: ind1l[i], dims[1]: ind2l[j]}) for a in args]
                     deriv += .25 * cy[j] * cx[i] * reduce(mul, var1, 1) + .25 * cy[len(ind2l)-j-1] * cx[len(ind1l)-i-1] * reduce(mul, var2, 1)
@@ -83,13 +83,13 @@ class TTIOperator(Operator):
         dzzr = as_finite_diff(r(x, y, z, t).diff(z, z), indz)
 
         # My 4th order stencil for cross derivatives
-        dxzp = cross_deriv(p(x, y, z, t), order = int(space_order/2), dims = (x, z))
-        dxyp = cross_deriv(p(x, y, z, t), order = int(space_order/2), dims = (x, y))
-        dyzp = cross_deriv(p(x, y, z, t), order = int(space_order/2), dims = (y, z))
-        
-        dxzr = cross_deriv(r(x, y, z, t), order = int(space_order/2), dims = (x, z))
-        dxyr = cross_deriv(r(x, y, z, t), order = int(space_order/2), dims = (x, y))
-        dyzr = cross_deriv(r(x, y, z, t), order = int(space_order/2), dims = (y, z))
+        dxzp = cross_deriv(p(x, y, z, t), order=int(space_order/2), dims=(x, z))
+        dxyp = cross_deriv(p(x, y, z, t), order=int(space_order/2), dims=(x, y))
+        dyzp = cross_deriv(p(x, y, z, t), order=int(space_order/2), dims=(y, z))
+
+        dxzr = cross_deriv(r(x, y, z, t), order=int(space_order/2), dims=(x, z))
+        dxyr = cross_deriv(r(x, y, z, t), order=int(space_order/2), dims=(x, y))
+        dyzr = cross_deriv(r(x, y, z, t), order=int(space_order/2), dims=(y, z))
 
         def Bhaskarasin(angle):
             return 16 * angle * (3.14 - abs(angle))/(49.34 - 4 * abs(angle) * (3.14 - abs(angle)))
@@ -102,16 +102,16 @@ class TTIOperator(Operator):
         Gzzr = ang2**2 * ang1**2 * dxxr + ang3**2 * ang1**2 * dyyr + ang0**2 * dzzr + 2 * ang3 * ang2 * ang1**2 * dxyr + ang3 * 2 * ang1 * ang0 * dyzr + ang2 * 2 * ang1 * ang0 * dxzr
 
         stencilp = 2 * s**2 / (2 * m + s * e) * (2 * m / s**2 * p(x, y, z, t) + (s * e - 2 * m) / (2 * s**2) * p(x, y, z, t-s) + A * (Gxxp + Gyyp) + B * Gzzr)
-        stencilp=factor(expand(stencilp))
+        stencilp = factor(expand(stencilp))
         stencilr = 2 * s**2 / (2 * m + s * e) * (2 * m / s**2 * r(x, y, z, t) + (s * e - 2 * m) / (2 * s**2) * r(x, y, z, t-s) + A * (Gxxp + Gyyp) + B * Gzzr)
-        stencilr=factor(expand(stencilr))
+        stencilr = factor(expand(stencilr))
         ang0 = Bhaskaracos(Th)
         ang1 = Bhaskarasin(Th)
         ang2 = Bhaskaracos(Ph)
         ang3 = Bhaskarasin(Ph)
-        factorized = {"ang0":ang0,"ang1":ang1,"ang2":ang2,"ang3":ang3}
+        factorized = {"ang0": ang0, "ang1": ang1, "ang2": ang2, "ang3": ang3}
         return (stencilp, stencilr, (m, A, B, Th, Ph, s, h, e), factorized)
-    
+
     def smart_sympy_replace(self, num_dim, time_order, res, funs, arrs, fw):
         a = Wild('a')
         b = Wild('b')

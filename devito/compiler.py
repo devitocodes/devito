@@ -33,7 +33,6 @@ class Compiler(GCCToolchain):
     def __str__(self):
         return self.__class__.__name__
 
-
 class GNUCompiler(Compiler):
     """Set of standard compiler flags for the GCC toolchain"""
 
@@ -76,6 +75,7 @@ class IntelCompiler(Compiler):
         self.pragma_nontemporal = [Pragma('vector nontemporal')]
         #self.pragma_aligned = Pragma('omp simd aligned()')
 
+
 class IntelMICCompiler(Compiler):
     """Set of standard compiler flags for the clang toolchain"""
 
@@ -91,6 +91,7 @@ class IntelMICCompiler(Compiler):
             print "WARNING: Running on Intel MIC without OpenMP is highly discouraged"
         self._mic = __import__('pymic')
 
+
 class IntelKNLCompiler(Compiler):
     """Set of standard compiler flags for the clang toolchain"""
 
@@ -104,7 +105,7 @@ class IntelKNLCompiler(Compiler):
             self.ldflags += ['-qopenmp']
         else:
             print "WARNING: Running on Intel KNL without OpenMP is highly discouraged"
-        
+
 # Registry dict for deriving Compiler classes according to
 # environment variable DEVITO_ARCH. Developers should add
 # new compiler classes here and provide a description in
@@ -113,7 +114,7 @@ compiler_registry = {
     'gcc': GNUCompiler, 'gnu': GNUCompiler,
     'clang': ClangCompiler, 'osx': ClangCompiler,
     'intel': IntelCompiler, 'icpc': IntelCompiler,
-    'icc':IntelCompiler,
+    'icc': IntelCompiler,
     'intel-mic': IntelMICCompiler, 'mic': IntelMICCompiler,
     'intel-knl': IntelKNLCompiler, 'knl': IntelKNLCompiler,
 }
