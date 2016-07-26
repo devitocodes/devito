@@ -73,7 +73,7 @@ class TTIOperator(Operator):
                     var1 = [a.subs({dims[0]: ind1r[i], dims[1]: ind2r[j]}) for a in args]
                     var2 = [a.subs({dims[0]: ind1l[i], dims[1]: ind2l[j]}) for a in args]
                     deriv += .25 * cy[j] * cx[i] * reduce(mul, var1, 1) + .25 * cy[len(ind2l)-j-1] * cx[len(ind1l)-i-1] * reduce(mul, var2, 1)
-                    return deriv
+                return deriv
 
         dxxp = as_finite_diff(p(x, y, z, t).diff(x, x), indx)
         dyyp = as_finite_diff(p(x, y, z, t).diff(y, y), indy)
