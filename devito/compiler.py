@@ -73,7 +73,8 @@ class IntelCompiler(Compiler):
         if self.openmp:
             self.ldflags += ['-qopenmp']
         self.pragma_nontemporal = [Pragma('vector nontemporal')]
-        #self.pragma_aligned = Pragma('omp simd aligned()')
+        # self.pragma_aligned = Pragma('omp simd aligned()')
+
 
 
 class IntelMICCompiler(Compiler):
