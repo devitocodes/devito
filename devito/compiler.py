@@ -28,10 +28,10 @@ class Compiler(GCCToolchain):
         self.pragma_ivdep = Pragma('ivdep')
         self.pragma_nontemporal = []
         self.pragma_aligned = []
-        
-        
+
     def __str__(self):
         return self.__class__.__name__
+
 
 class GNUCompiler(Compiler):
     """Set of standard compiler flags for the GCC toolchain"""
