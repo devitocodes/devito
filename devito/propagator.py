@@ -31,6 +31,7 @@ class Propagator(object):
     def __init__(self, name, nt, shape, spc_border=0, time_order=0,
                  forward=True, compiler=None, profile=False,
                  cache_blocking=False, block_size=5):
+        self.factorized = []  # to hold factored terms. gets set in operator
         # Derive JIT compilation infrastructure
         self.compiler = compiler or get_compiler_from_env()
         self.mic_flag = isinstance(self.compiler, IntelMICCompiler)
@@ -167,8 +168,8 @@ class Propagator(object):
         factors = []
         if len(self.factorized) > 0:
             args = stencil_args[0]
-            for name, term in zip(self.factorized.keys(), self.factorized):
-                term = self.factorized[name]
+            for name, term in zip(factorized.keys(), factorized):
+                term = factorized[name]
                 # TODO: add support for double precision
                 self.add_local_var(name, "float")
                 # TODO: undo precision enforcing
