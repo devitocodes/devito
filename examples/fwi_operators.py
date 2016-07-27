@@ -9,7 +9,6 @@ class SourceLike(PointData):
     """Defines the behaviour of sources and receivers.
     """
     def __init__(self, *args, **kwargs):
-        self.orig_data = kwargs.get('data')
         self.dt = kwargs.get('dt')
         self.h = kwargs.get('h')
         self.ndim = kwargs.get('ndim')
@@ -128,8 +127,7 @@ class SourceLike(PointData):
         eqs = []
 
         for i in range(self.npoint):
-            eqs.append(Eq(self.indexed[t, i], self.grid2point(u, self.orig_data[i, :])))
-
+            eqs.append(Eq(self.indexed[t, i], self.grid2point(u, self.coordinates[i, :])))
         return eqs
 
     def add(self, m, u):
@@ -137,7 +135,7 @@ class SourceLike(PointData):
         dt = self.dt
 
         for j in range(self.npoint):
-            add = self.point2grid(self.orig_data[j, :])
+            add = self.point2grid(self.coordinates[j, :])
             coords = add[0]
             s = add[1]
             assignments += [Eq(u.indexed[tuple([t] + [coords[i] + inc[i] for i in range(self.ndim)])],

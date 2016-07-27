@@ -373,7 +373,8 @@ class PointData(DenseData):
     """Data object for sparse point data that acts as a Function symbol
 
     :param name: Name of the resulting :class:`sympy.Function` symbol
-    :param point: Number of points to sample
+    :param npoint: Number of points to sample
+    :param coordinates: Coordinates data for the sparse points
     :param nt: Size of the time dimension for point data
     :param dtype: Data type of the buffered data
 
@@ -391,7 +392,8 @@ class PointData(DenseData):
             self.nt = kwargs.get('nt')
             self.npoint = kwargs.get('npoint')
             kwargs['shape'] = (self.nt, self.npoint)
-            DenseData.__init__(self, *args, **kwargs)
+            super(PointData, self).__init__(self, *args, **kwargs)
+            self.coordinates = kwargs.get('coordinates')
             # Store final instance in symbol cache
             self._cache_put(self)
 
