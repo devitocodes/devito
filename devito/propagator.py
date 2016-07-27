@@ -50,6 +50,7 @@ class Propagator(object):
         self.nt = nt
         self.time_loop_stencils_b = []
         self.time_loop_stencils_a = []
+        self.factorized = []
         # Start with the assumption that the propagator needs to save
         # the field in memory at every time step
         self._save = True
