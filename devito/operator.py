@@ -157,6 +157,8 @@ class Operator(object):
             self.symbol_to_data[param.name] = param
         self.propagator.stencils = self.stencils
         self.propagator.factorized = factorized
+        for name in factorized.keys():
+            self.propagator.factorized[name] = expr_indexify(factorized[name])
 
     def apply(self, debug=False):
         if debug:

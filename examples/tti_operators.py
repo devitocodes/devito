@@ -114,10 +114,10 @@ class SourceLikeTTI(PointData):
         else:
             return sum([b.subs(subs) * u.indexed[t, i+inc[0]+self.nbpml, j+inc[1]+self.nbpml, k+inc[2]+self.nbpml] for inc, b in zip(self.increments, self.bs)])
 
-    def read(self, u):
+    def read(self, u, v):
         eqs = []
         for i in range(self.npoint):
-            eqs.append(Eq(self.indexed[t, i], self.grid2point(u, self.orig_data[i, :])))
+            eqs.append(Eq(self.indexed[t, i], (self.grid2point(v, self.orig_data[i, :]) + self.grid2point(u, self.orig_data[i, :]))))
         return eqs
 
     def add(self, m, u):
@@ -174,7 +174,7 @@ class ForwardOperator(Operator):
                                               input_params = [m, damp, A, B, th, ph, u, v], factorized=factorized, **kwargs)
         # Insert source and receiver terms post-hoc
         self.input_params += [src, rec]
-        self.propagator.time_loop_stencils_a = src.add(m, u) + rec.read(u)
+        self.propagator.time_loop_stencils_a = src.add(m, u) + src.add(m, v) + rec.read(u,v)
         self.propagator.add_devito_param(src)
         self.propagator.add_devito_param(rec)
 
