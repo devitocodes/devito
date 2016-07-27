@@ -50,7 +50,6 @@ class Propagator(object):
         self.nt = nt
         self.time_loop_stencils_b = []
         self.time_loop_stencils_a = []
-        self.factorized = []
         # Start with the assumption that the propagator needs to save
         # the field in memory at every time step
         self._save = True
@@ -167,20 +166,9 @@ class Propagator(object):
         var_map[self.time_dim] = symbols("i%d" % (i + 1))
         self._var_map = var_map
 
-    def sympy_to_cgen(self, subs, stencils, stencil_args, factorized):
-        factors = []
-        if len(self.factorized) > 0:
-            args = stencil_args[0]
-            for name, term in zip(factorized.keys(), factorized):
-                term = factorized[name]
-                # TODO: add support for double precision
-                self.add_local_var(name, "float")
-                # TODO: undo precision enforcing
-                factors.append(cgen.Assign(name, str(ccode(term.subs(dict(zip(subs, args))).xreplace(self._var_map))).replace("pow", "powf").replace("fabs", "fabsf")))
-
+    def sympy_to_cgen(self, stencils):
         stmts = []
-        for equality, args in zip(stencils, stencil_args):
-            equality = equality.subs(dict(zip(subs, args)))
+        for equality in stencils:
             self._kernel_dic_oi = self._get_ops_expr(equality.rhs, self._kernel_dic_oi, False)
             self._kernel_dic_oi = self._get_ops_expr(equality.lhs, self._kernel_dic_oi, True)
             stencil = self.convert_equality_to_cgen(equality)
@@ -188,7 +176,7 @@ class Propagator(object):
         kernel = self._pre_kernel_steps
         kernel += stmts
         kernel += self._post_kernel_steps
-        return cgen.Block(factors+kernel)
+        return cgen.Block(kernel)
 
     def convert_equality_to_cgen(self, equality):
         if isinstance(equality, cgen.Generable):
@@ -338,7 +326,7 @@ class Propagator(object):
             self.fd.set_body(self.generate_loops(self.loop_body))
         except:  # We might have been given Sympy expression to evaluate
             # This is the more common use case so this will show up in error messages
-            self.fd.set_body(self.generate_loops(self.sympy_to_cgen(self.subs, self.stencils, self.stencil_args, self.factorized)))
+            self.fd.set_body(self.generate_loops(self.sympy_to_cgen(self.stencils)))
         return self.fd
 
     def get_time_stepping(self):
