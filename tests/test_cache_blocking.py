@@ -1,7 +1,6 @@
-import numpy as np
-from sympy import Eq, symbols
-
 from devito.interfaces import DenseData
+import numpy as np
+from sympy import symbols, Eq
 from devito.operator import SimpleOperator
 
 
@@ -32,15 +31,24 @@ class Test_Cache_Blocking(object):
         op_block.apply()
         assert(np.equal(output_grid_block.data, output_grid_noblock.data).all())
 
-    def test_cache_blocking_cb_inner_dim(self):
+    def test_cache_blocking_full_range(self):
         input_grid = DenseData(name="input_grid", shape=(302, 302), dtype=np.float64)
         input_grid.data[:] = np.arange(91204, dtype=np.float64).reshape((302, 302))
-        output_grid_noblock = DenseData(name="output_grid", shape=(302, 302), dtype=np.float64)
         x, t = symbols("x t")
-        eq = Eq(output_grid_noblock.indexed[t, x], input_grid.indexed[t, x] + 3)
-        op_noblock = SimpleOperator(input_grid, output_grid_noblock, [eq])
-        op_noblock.apply()
-        output_grid_block = DenseData(name="output_grid", shape=(302, 302), dtype=np.float64)
-        op_block = SimpleOperator(input_grid, output_grid_block, [eq], cache_blocking=True, cb_inner_dim=True)
-        op_block.apply()
-        assert (np.equal(output_grid_block.data, output_grid_noblock.data).all())
+
+        errors = []
+        for spc_border in range(0, 9):
+            for block_size in range(1, 11):
+
+                output_grid_noblock = DenseData(name="output_grid", shape=(302, 302), dtype=np.float64)
+                eq = Eq(output_grid_noblock.indexed[t, x], input_grid.indexed[t, x] + 3)
+                op_noblock = SimpleOperator(input_grid, output_grid_noblock, [eq], time_order=2, spc_border=spc_border)
+                op_noblock.apply()
+
+                output_grid_block = DenseData(name="output_grid", shape=(302, 302), dtype=np.float64)
+                op_block = SimpleOperator(input_grid, output_grid_block, [eq], cache_blocking=True,
+                                          block_size=block_size, time_order=2, spc_border=spc_border)
+                op_block.apply()
+                if not (np.equal(output_grid_block.data, output_grid_noblock.data).all()):
+                    errors.append("Error at spc_order = %d with block_size = %d" % (spc_border * 2, block_size))
+        assert not errors, errors
