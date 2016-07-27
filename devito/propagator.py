@@ -171,11 +171,11 @@ class Propagator(object):
         factors = []
         if len(self.factorized)>0:
             for name, term in zip(self.factorized.keys(), self.factorized):
-                term = self.factorized[name]
+                expr = self.factorized[name]
                 # TODO: add support for double precision
                 self.add_local_var(name, "float")
                 # TODO: undo precision enforcing
-                factors.append(cgen.Assign(name, ccode(self.time_substitutions(term).xreplace(self._var_map)).replace("pow", "powf").replace("fabs", "fabsf")))
+                factors.append(cgen.Assign(name, str(ccode(self.time_substitutions(expr).xreplace(self._var_map))).replace("pow", "powf").replace("fabs", "fabsf")))
         stmts = []
         for equality in stencils:
             self._kernel_dic_oi = self._get_ops_expr(equality.rhs, self._kernel_dic_oi, False)
@@ -193,6 +193,9 @@ class Propagator(object):
         else:
             s_lhs = ccode(self.time_substitutions(equality.lhs).xreplace(self._var_map))
             s_rhs = ccode(self.time_substitutions(equality.rhs).xreplace(self._var_map))
+            
+            s_rhs = str(s_rhs).replace("pow", "powf")
+            s_rhs = str(s_rhs).replace("fabs", "fabsf")
             return cgen.Assign(s_lhs, s_rhs)
 
     def generate_loops(self, loop_body):

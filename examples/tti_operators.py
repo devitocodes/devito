@@ -159,7 +159,11 @@ class ForwardOperator(Operator):
         stencilp = factor(expand(stencilp))
         stencilr = 2 * s**2 / (2 * m + s * damp) * (2 * m / s**2 * v + (s * damp - 2 * m) / (2 * s**2) * v.backward + A * (Gxxp + Gyyp) + B * Gzzr)
         stencilr = factor(expand(stencilr))
-        factorized = {"ang0": Bhaskaracos(th), "ang1": Bhaskarasin(th), "ang2": Bhaskaracos(ph), "ang3": Bhaskarasin(ph)}
+        ang0 = Bhaskaracos(th)
+        ang1 = Bhaskarasin(th)
+        ang2 = Bhaskaracos(ph)
+        ang3 = Bhaskarasin(ph)
+        factorized = {"ang0":ang0, "ang1":ang1, "ang2":ang2, "ang3":ang3}
         # Add substitutions for spacing (temporal and spatial)
         subs = {s: src.dt, h: src.h}
         first_stencil = Eq(u.forward, stencilp)
