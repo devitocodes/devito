@@ -128,8 +128,8 @@ class SourceLikeTTI(PointData):
         eqs = []
 
         for i in range(self.npoint):
-            eqs.append(Eq(self.indexed[t, i], (self.grid2point(v, self.coordinates[i, :])
-                                               + self.grid2point(u, self.coordinates[i, :]))))
+            eqs.append(Eq(self.indexed[t, i], (self.grid2point(v, self.coordinates.data[i, :])
+                                               + self.grid2point(u, self.coordinates.data[i, :]))))
         return eqs
 
     def add(self, m, u):
@@ -137,7 +137,7 @@ class SourceLikeTTI(PointData):
         dt = self.dt
 
         for j in range(self.npoint):
-            add = self.point2grid(self.coordinates[j, :])
+            add = self.point2grid(self.coordinates.data[j, :])
             coords = add[0]
             s = add[1]
             assignments += [Eq(u.indexed[tuple([t] + [coords[i] + inc[i] for i in range(self.ndim)])],
