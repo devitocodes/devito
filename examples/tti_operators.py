@@ -159,11 +159,7 @@ class ForwardOperator(Operator):
         stencilp = factor(expand(stencilp))
         stencilr = 2 * s**2 / (2 * m + s * damp) * (2 * m / s**2 * v + (s * damp - 2 * m) / (2 * s**2) * v.backward + A * (Gxxp + Gyyp) + B * Gzzr)
         stencilr = factor(expand(stencilr))
-        ang0 = Bhaskaracos(th)
-        ang1 = Bhaskarasin(th)
-        ang2 = Bhaskaracos(ph)
-        ang3 = Bhaskarasin(ph)
-        factorized = {"ang0": ang0, "ang1": ang1, "ang2": ang2, "ang3": ang3}
+        factorized = {"ang0": Bhaskaracos(th), "ang1": Bhaskarasin(th), "ang2": Bhaskaracos(ph), "ang3": Bhaskarasin(ph)}
         # Add substitutions for spacing (temporal and spatial)
         subs = {s: src.dt, h: src.h}
         first_stencil = Eq(u.forward, stencilp)
@@ -171,7 +167,7 @@ class ForwardOperator(Operator):
         stencils = [first_stencil, second_stencil]
         super(ForwardOperator, self).__init__(src.nt, m.shape, stencils=stencils, substitutions = subs, 
                                               spc_border=spc_order/2, time_order=time_order, forward=True, dtype=m.dtype,
-                                              factorized=factorized, **kwargs)
+                                              input_params = [m, damp, A, B, th, ph, u, v], factorized=factorized, **kwargs)
         # Insert source and receiver terms post-hoc
         self.input_params += [src, rec]
         self.propagator.time_loop_stencils_a = src.add(m, u) + rec.read(u)

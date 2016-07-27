@@ -4,7 +4,7 @@ from devito.compiler import jit_compile_and_load, IntelMICCompiler
 import cgen_wrapper as cgen
 from codeprinter import ccode
 import numpy as np
-from sympy import symbols, IndexedBase, Indexed
+from sympy import Eq, symbols, IndexedBase, Indexed
 from sympy.abc import x, y, z, t
 from collections import Iterable
 from os import path
@@ -34,6 +34,7 @@ class Propagator(object):
     def __init__(self, name, nt, shape, spc_border=0, time_order=0,
                  time_dim=None, space_dims=None, forward=True, compiler=None,
                  profile=False, cache_blocking=False, block_size=5):
+        self.factorized = []  # to hold factored terms. gets set in operator
         self.time_order = time_order
         # Default time and space symbols if not provided
         self.time_dim = time_dim or t
@@ -167,6 +168,14 @@ class Propagator(object):
         self._var_map = var_map
 
     def sympy_to_cgen(self, stencils):
+        factors = []
+        if len(self.factorized)>0:
+            for name, term in zip(self.factorized.keys(), self.factorized):
+                term = self.factorized[name]
+                # TODO: add support for double precision
+                self.add_local_var(name, "float")
+                # TODO: undo precision enforcing
+                factors.append(cgen.Assign(name, ccode(self.time_substitutions(term).xreplace(self._var_map)).replace("pow", "powf").replace("fabs", "fabsf")))
         stmts = []
         for equality in stencils:
             self._kernel_dic_oi = self._get_ops_expr(equality.rhs, self._kernel_dic_oi, False)
@@ -176,7 +185,7 @@ class Propagator(object):
         kernel = self._pre_kernel_steps
         kernel += stmts
         kernel += self._post_kernel_steps
-        return cgen.Block(kernel)
+        return cgen.Block(factors+kernel)
 
     def convert_equality_to_cgen(self, equality):
         if isinstance(equality, cgen.Generable):
