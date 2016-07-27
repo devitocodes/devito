@@ -23,11 +23,11 @@ class TTI_cg:
         for dim_index in range(len(dimensions)):
             pad_list.append((nbpml, nbpml))
         self.model.vp = np.pad(self.model.vp, tuple(pad_list), 'edge')
-		self.model.epsilon = np.pad(self.model.epsilon, tuple(pad_list), 'edge')
-		self.model.delta = np.pad(self.model.delta, tuple(pad_list), 'edge')
-		self.model.theta = np.pad(self.model.theta, tuple(pad_list), 'edge')
-		self.model.phi = np.pad(self.model.phi, tuple(pad_list), 'edge')
-		self.model.set_origin(nbpml)
+        self.model.epsilon = np.pad(self.model.epsilon, tuple(pad_list), 'edge')
+        self.model.delta = np.pad(self.model.delta, tuple(pad_list), 'edge')
+        self.model.theta = np.pad(self.model.theta, tuple(pad_list), 'edge')
+        self.model.phi = np.pad(self.model.phi, tuple(pad_list), 'edge')
+        self.model.set_origin(nbpml)
         self.data.reinterpolate(self.dt)
         self.nrec, self.nt = self.data.traces.shape
         self.model.set_origin(nbpml)
@@ -74,27 +74,28 @@ class TTI_cg:
         self.damp = DenseData(name="damp", shape=self.model.vp.shape, dtype=self.dtype)
         # Initialize damp by calling the function that can precompute damping
         damp_boundary(self.damp.data)
-        self.src = SourceLike(name="src", npoint=1, nt=self.nt, dt=self.dt, h=self.h,
+        self.src = SourceLikeTTI(name="src", npoint=1, nt=self.nt, dt=self.dt, h=self.h,
                               data=np.array(self.data.source_coords, dtype=self.dtype)[np.newaxis, :],
                               ndim=len(dimensions), dtype=self.dtype, nbpml=nbpml)
-        self.rec = SourceLike(name="rec", npoint=self.nrec, nt=self.nt, dt=self.dt, h=self.h,
+        self.rec = SourceLikeTTI(name="rec", npoint=self.nrec, nt=self.nt, dt=self.dt, h=self.h,
                               data=self.data.receiver_coords, ndim=len(dimensions), dtype=self.dtype,
                               nbpml=nbpml)
         self.src.data[:] = self.data.get_source()[:, np.newaxis]
-		u = TimeData(name="u", shape=self.m.shape, time_dim=self.src.nt, time_order=t_order,
+        self.u = TimeData(name="u", shape=self.m.shape, time_dim=self.src.nt, time_order=t_order,
                           save=False, dtype=self.m.dtype)
-        v = TimeData(name="v", shape=self.m.shape, time_dim=self.src.nt, time_order=t_order,
+        self.v = TimeData(name="v", shape=self.m.shape, time_dim=self.src.nt, time_order=t_order,
                           save=False, dtype=self.m.dtype)
-        self.srca = SourceLike(name="srca", npoint=1, nt=self.nt, dt=self.dt, h=self.h,
+        self.srca = SourceLikeTTI(name="srca", npoint=1, nt=self.nt, dt=self.dt, h=self.h,
                                data=np.array(self.data.source_coords, dtype=self.dtype)[np.newaxis, :],
                                ndim=len(dimensions), dtype=self.dtype, nbpml=nbpml)
-        self.dm = DenseData(name="dm", shape=self.model.vp.shape, dtype=self.dtype)
-        self.dm.initializer = self.dm_initializer
+        if dm_initializer is not None:
+            self.dm = DenseData(name="dm", shape=self.model.vp.shape, dtype=self.dtype)
+            self.dm.data[:]= np.pad(dm_initializer,tuple(pad_list), 'edge')
 
     def Forward(self):
-        fw = ForwardOperator(self.m, self.src, self.damp, self.rec, self.u,self.v, self.a, self.b, self.theta, self.phi, time_order=self.t_order, spc_order=self.s_order)
+        fw = ForwardOperator(self.m, self.src, self.damp, self.rec, self.u, self.v, self.a, self.b, self.th, self.ph, time_order=self.t_order, spc_order=self.s_order)
         fw.apply()
-        return (self.rec.data, self.u.data)
+        return (self.rec.data, self.u.data, self.v.data)
 
     def Adjoint(self, rec):
         adj = AdjointOperator(self.m, self.rec, self.damp, self.srca, time_order=self.t_order, spc_order=self.s_order)

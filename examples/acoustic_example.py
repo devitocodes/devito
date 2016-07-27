@@ -1,8 +1,7 @@
 import numpy as np
 from math import floor
 from containers import IShot, IGrid
-from devito.interfaces import DenseData, TimeData
-from Acoustic_codegen import Acoustic_cg 
+from Acoustic_codegen import Acoustic_cg
 
 dimensions = (50, 50, 50)
 model = IGrid()
@@ -92,8 +91,8 @@ print("Applying")
 
 print("Preparing Gradient")
 print("Applying")
-g = Acoustic.Gradient(rec,u)
+g = Acoustic.Gradient(rec, u)
 
 print("Preparing Born")
 print("Applying")
-LinRec= Acoustic.Born()
+LinRec = Acoustic.Born()

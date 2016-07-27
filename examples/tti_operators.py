@@ -1,13 +1,11 @@
 from devito.operator import *
 from sympy import Eq
-from devito.interfaces import TimeData, DenseData
+from devito.interfaces import TimeData, DenseData, PointData
 from sympy import Function, symbols, as_finite_diff, Wild
 from sympy.abc import x, y, t, z
 from sympy import solve
 from sympy import *
 from sympy.abc import *
-from fwi_operators import SourceLike
-
 
 class SourceLikeTTI(PointData):
     """Defines the behaviour of sources and receivers.
@@ -135,35 +133,36 @@ class SourceLikeTTI(PointData):
         return filtered
 		
 		
-class ForwardOperator(TTIOperator):
+class ForwardOperator(Operator):
     def __init__(self, m, src, damp, rec, u, v, a, b, th, ph, time_order=2, spc_order=4):
         def Bhaskarasin(angle):
             return 16 * angle * (3.14 - abs(angle))/(49.34 - 4 * abs(angle) * (3.14 - abs(angle)))
 
         def Bhaskaracos(angle):
             return Bhaskarasin(angle + 1.57)		
-		assert(m.shape == damp.shape)
+        
+        assert(m.shape == damp.shape)
         u.pad_time = False
-		v.pad_time = False
+        v.pad_time = False
         # Set time and space orders
         u.time_order = time_order
         u.space_order = spc_order
-		v.time_order = time_order
+        v.time_order = time_order
         v.space_order = spc_order
-		s, h = symbols('s h')
+        s, h = symbols('s h')
         # Derive stencil from symbolic equation
         stencilp = 2 * s**2 / (2 * m + s * e) * (2 * m / s**2 * u + (s * e - 2 * m) / (2 * s**2) * u.backward + A * (u.Gxx + u.Gyy) + B * v.Gzz)
         stencilp = factor(expand(stencilp))
         stencilr = 2 * s**2 / (2 * m + s * e) * (2 * m / s**2 * v + (s * e - 2 * m) / (2 * s**2) * v.backward + A * (u.Gxx + u.Gyy) + B * v.Gzz)
-		stencilr = factor(expand(stencilr))
-		ang0 = Bhaskaracos(Th)
+        stencilr = factor(expand(stencilr))
+        ang0 = Bhaskaracos(Th)
         ang1 = Bhaskarasin(Th)
         ang2 = Bhaskaracos(Ph)
         ang3 = Bhaskarasin(Ph)
         factorized = {"ang0": ang0, "ang1": ang1, "ang2": ang2, "ang3": ang3}
         # Add substitutions for spacing (temporal and spatial)
         subs = {s: src.dt, h: src.h}
-		first_stencil = Eq(u.indexed[total_dim], stencilp)
+        first_stencil = Eq(u.indexed[total_dim], stencilp)
         second_stencil = Eq(v.indexed[total_dim], stencilr)
         stencils = [first_stencil, second_stencil]
         super(ForwardOperator, self).__init__(src.nt, m.shape, stencils=stencils,
@@ -177,7 +176,7 @@ class ForwardOperator(TTIOperator):
         self.propagator.add_devito_param(rec)
 
 
-class AdjointOperator(TTIOperator):
+class AdjointOperator(Operator):
     def __init__(self, m, rec, damp, srca, time_order=4, spc_order=12):
         assert(m.shape == damp.shape)
         input_params = [m, rec, damp, srca]
@@ -201,7 +200,7 @@ class AdjointOperator(TTIOperator):
         self.propagator.time_loop_stencils_a = rec.add(m, v) + srca.read(v)
 
 
-class GradientOperator(TTIOperator):
+class GradientOperator(Operator):
     def __init__(self, u, m, rec, damp, time_order=4, spc_order=12):
         assert(m.shape == damp.shape)
         input_params = [u, m, rec, damp]
@@ -228,7 +227,7 @@ class GradientOperator(TTIOperator):
         self.propagator.time_loop_stencils_b = rec.add(m, v)
 
 
-class BornOperator(TTIOperator):
+class BornOperator(Operator):
     def __init__(self, dm, m, src, damp, rec, time_order=4, spc_order=12):
         assert(m.shape == damp.shape)
         input_params = [dm, m, src, damp, rec]

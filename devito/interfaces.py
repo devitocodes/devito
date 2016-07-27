@@ -202,6 +202,7 @@ class DenseData(SymbolicData):
     def Gxx(self):
         """Symbol for the first TTI forward operator"""
         return ang2**2 * ang0**2 * dx2(self) + ang3**2 * ang0**2 * dy2(self) + ang1**2 * dz2(self) + 2 * ang3 * ang2 * ang0**2 * dxy(self) - ang3 * 2 * ang1 * ang0 * dyz(self) - ang2 * 2 * ang1 * ang0 * dxz(self)
+    
     @property
     def Gxx(self):
         """Symbol for the second TTI forward operator"""

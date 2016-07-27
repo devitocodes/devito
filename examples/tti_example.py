@@ -18,7 +18,7 @@ true_vp = np.ones(dimensions) + 2.0
 true_vp[int(dimensions[0] / 3):int(2*dimensions[0]/3), :] = 3.0
 true_vp[int(2*dimensions[0] / 3):int(dimensions[0]), :] = 4.0
 
-model.create_model(origin, spacing, true_vp, .3, .2, np.pi/3, np.pi/5)
+model.create_model(origin, spacing, true_vp, .3*np.ones(dimensions), .2*np.ones(dimensions), np.pi/3*np.ones(dimensions), np.pi/5*np.ones(dimensions))
 
 # Define seismic data.
 data = IShot()
@@ -47,4 +47,5 @@ receiver_coords[:, 2] = location[2]
 data.set_receiver_pos(receiver_coords)
 data.set_shape(nt, 101)
 
-TTI = TTI_cg(model, data, data.get_source(), t_order=2, s_order=4, nbpml=10)
+TTI = TTI_cg(model, data, None, None, t_order=2, s_order=4, nbpml=10)
+(rec, u, v) = TTI.Forward()
