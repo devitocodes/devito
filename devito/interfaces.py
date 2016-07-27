@@ -186,17 +186,31 @@ class DenseData(SymbolicData):
     @property
     def dxy(self):
         """Symbol for the cross derivative wrt the x and y dimension"""
-        return cross_derivative(self, dims=(x, y))
+        return cross_derivative(self, order=int(self.space_order/2), dims=(x, y))
 
     @property
     def dxz(self):
         """Symbol for the cross derivative wrt the x and z dimension"""
-        return cross_derivative(self, dims=(x, z))
+        return cross_derivative(self, order=int(self.space_order/2), dims=(x, z))
 
     @property
     def dyz(self):
         """Symbol for the cross derivative wrt the y and z dimension"""
-        return cross_derivative(self, dims=(y, z))
+        return cross_derivative(self, order=int(self.space_order/2), dims=(y, z))
+
+    @propery
+    def Gxx(self)
+        """Symbol for the first TTI forward operator"""
+        Gxxp = ang2**2 * ang0**2 * dx2(self) + ang3**2 * ang0**2 * dy2(self) + ang1**2 * dz2(self) + 2 * ang3 * ang2 * ang0**2 * dxy(self) - ang3 * 2 * ang1 * ang0 * dyz(self) - ang2 * 2 * ang1 * ang0 * dxz(self)
+    @propery
+    def Gxx(self)
+        """Symbol for the second TTI forward operator"""
+                Gyyp = ang1**2 * dx2(self) + ang2**2 * dy2(self) - (2 * ang3 * ang2)**2 * dxy(self)
+
+    @propery
+    def Gxx(self)
+        """Symbol for the third TTI forward operator"""
+        Gzzr = ang2**2 * ang1**2 * dx2(self) + ang3**2 * ang1**2 * dy2(self) + ang0**2 * dz2(self) + 2 * ang3 * ang2 * ang1**2 * dxy(self) + ang3 * 2 * ang1 * ang0 * dyz(self) + ang2 * 2 * ang1 * ang0 * dxz(self)
 
 
 class TimeData(DenseData):

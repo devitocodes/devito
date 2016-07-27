@@ -1,4 +1,4 @@
-from examples.AcousticWave2D_codegen import AcousticWave2D_cg
+from examples.Acoustic_codegen import Acoustic_cg
 import numpy as np
 from numpy import linalg
 from examples.containers import IGrid, IShot
@@ -46,7 +46,7 @@ class Test_AdjointA(object):
         data.set_receiver_pos(receiver_coords)
         data.set_shape(nt, 30)
         # Adjoint test
-        wave_true = AcousticWave2D_cg(model, data, None, t_order=time_order, s_order=space_order, nbpml=10)
+        wave_true = Acoustic_cg(model, data, None, t_order=time_order, s_order=space_order, nbpml=10)
         return wave_true
 
     @pytest.fixture(params=[2, 4])

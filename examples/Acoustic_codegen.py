@@ -5,7 +5,7 @@ from examples.fwi_operators import *
 from devito.interfaces import DenseData
 
 
-class AcousticWave2D_cg:
+class Acoustic_cg:
     """ Class to setup the problem for the Acoustic Wave
         Note: s_order must always be greater than t_order
     """
