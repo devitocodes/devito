@@ -198,21 +198,6 @@ class DenseData(SymbolicData):
         """Symbol for the cross derivative wrt the y and z dimension"""
         return cross_derivative(self, order=int(self.space_order/2), dims=(y, z))
 
-    @property
-    def Gxx(self):
-        """Symbol for the first TTI forward operator"""
-        return ang2**2 * ang0**2 * dx2(self) + ang3**2 * ang0**2 * dy2(self) + ang1**2 * dz2(self) + 2 * ang3 * ang2 * ang0**2 * dxy(self) - ang3 * 2 * ang1 * ang0 * dyz(self) - ang2 * 2 * ang1 * ang0 * dxz(self)
-    
-    @property
-    def Gxx(self):
-        """Symbol for the second TTI forward operator"""
-        return ang1**2 * dx2(self) + ang2**2 * dy2(self) - (2 * ang3 * ang2)**2 * dxy(self)
-
-    @property
-    def Gxx(self):
-        """Symbol for the third TTI forward operator"""
-        return ang2**2 * ang1**2 * dx2(self) + ang3**2 * ang1**2 * dy2(self) + ang0**2 * dz2(self) + 2 * ang3 * ang2 * ang1**2 * dxy(self) + ang3 * 2 * ang1 * ang0 * dyz(self) + ang2 * 2 * ang1 * ang0 * dxz(self)
-
 
 class TimeData(DenseData):
     """Data object for time-varying data that acts as a Function symbol
