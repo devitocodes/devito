@@ -12,7 +12,30 @@ __all__ = ['get_tmp_dir', 'get_compiler_from_env',
 
 
 class Compiler(GCCToolchain):
-    """Base class for all compiler classes."""
+    """Base class for all compiler classes.
+
+    :param openmp: Boolean indicating if openmp is enabled. False by default
+
+    The base class defaults all compiler specific settings to empty lists. Preset configurations
+    can be built by inheriting from `Compiler` and setting specific flags to the desired values, eg.:
+
+    def class MyCompiler(Compiler):
+        def __init__(self):
+            self.cc = 'mycompiler'
+            self.cflags = ['list', 'of', 'all', 'compiler', 'flags']
+
+    The flags that can be set are:
+        * :data:`self.cc`
+        * :data:`self.cflag`
+        * :data:`self.ldflags`
+        * :data:`self.include_dirs`
+        * :data:`self.libraries`
+        * :data:`self.library_dirs`
+        * :data:`self.defines`
+        * :data:`self.undefines`
+        * :data:`self.pragma_ivdep`
+
+    """
     def __init__(self, openmp=False):
         self.cc = 'unknown'
         self.ld = 'unknown'
@@ -34,7 +57,10 @@ class Compiler(GCCToolchain):
 
 
 class GNUCompiler(Compiler):
-    """Set of standard compiler flags for the GCC toolchain"""
+    """Set of standard compiler flags for the GCC toolchain
+
+    :param openmp: Boolean indicating if openmp is enabled. False by default
+    """
 
     def __init__(self, *args, **kwargs):
         super(GNUCompiler, self).__init__(*args, **kwargs)
@@ -48,7 +74,12 @@ class GNUCompiler(Compiler):
 
 
 class ClangCompiler(Compiler):
-    """Set of standard compiler flags for the clang toolchain"""
+    """Set of standard compiler flags for the clang toolchain
+
+    :param openmp: Boolean indicating if openmp is enabled. False by default
+
+    Note: Genrates warning if openmp is disabled.
+    """
 
     def __init__(self, *args, **kwargs):
         super(ClangCompiler, self).__init__(*args, **kwargs)
@@ -62,7 +93,10 @@ class ClangCompiler(Compiler):
 
 
 class IntelCompiler(Compiler):
-    """Set of standard compiler flags for the clang toolchain"""
+    """Set of standard compiler flags for the Intel toolchain
+
+    :param openmp: Boolean indicating if openmp is enabled. False by default
+    """
 
     def __init__(self, *args, **kwargs):
         super(IntelCompiler, self).__init__(*args, **kwargs)
@@ -77,7 +111,12 @@ class IntelCompiler(Compiler):
 
 
 class IntelMICCompiler(Compiler):
-    """Set of standard compiler flags for the clang toolchain"""
+    """Set of standard compiler flags for the IntelMIC toolchain
+
+    :param openmp: Boolean indicating if openmp is enabled. False by default
+
+    Note: Generates warning if openmp is disabled.
+    """
 
     def __init__(self, *args, **kwargs):
         super(IntelMICCompiler, self).__init__(*args, **kwargs)
@@ -123,6 +162,8 @@ compiler_registry = {
 def get_compiler_from_env():
     """Derive compiler class and settings from environment variables
 
+    :return: The compiler indicated by the environment variable.
+
     The key environment variable DEVITO_ARCH supports the following values:
      * 'gcc' or 'gnu' - (Default) Standard GNU compiler toolchain
      * 'clang' or 'osx' - Clang compiler toolchain for Mac OSX
@@ -138,7 +179,10 @@ def get_compiler_from_env():
 
 
 def get_tmp_dir():
-    "Return path to a devito-specific tmp directory"""
+    """Function to get a temp directory.
+
+    :return: Path to a devito-specific tmp directory
+    """
     tmpdir = path.join(gettempdir(), "devito-%s" % getuid())
     if not path.exists(tmpdir):
         mkdir(tmpdir)
@@ -146,7 +190,13 @@ def get_tmp_dir():
 
 
 def jit_compile(ccode, basename, compiler=GNUCompiler):
-    """JIT compiles the given ccode and returns the lib filepath"""
+    """JIT compiles the given ccode and returns the lib filepath.
+
+    :param ccode: String of C source code.
+    :param basename: The string used to name various files for this compilation.
+    :param compiler: The toolchain used for compilation. GNUCompiler by default.
+    :return: Path to compiled lib
+    """
     src_file = "%s.cpp" % basename
     lib_file = "%s.so" % basename
     print "%s: Compiling %s" % (compiler, src_file)
@@ -156,9 +206,13 @@ def jit_compile(ccode, basename, compiler=GNUCompiler):
 
 
 def load(basename, compiler=GNUCompiler):
-    """Load a compiled library and return the ctypes object
+    """Load a compiled library
 
-    Note, if the provided compiler is of type `IntelMICCompiler`
+    :param basename: Name of the .so file.
+    :param compiler: The toolchain used for compilation. GNUCompiler by default.
+    :return: The loaded library.
+
+    Note: If the provided compiler is of type `IntelMICCompiler`
     we utilise the `pymic` package to manage device streams.
     """
     lib_file = "%s.so" % basename
@@ -170,6 +224,12 @@ def load(basename, compiler=GNUCompiler):
 
 
 def jit_compile_and_load(ccode, basename, compiler=GNUCompiler):
-    """JIT compile the given ccode and return the loaded library"""
+    """JIT compile the given ccode
+
+    :param ccode: String of C source code.
+    :param basename: The string used to name various files for this compilation.
+    :param compiler: The toolchain used for compilation. GNUCompiler by default.
+    :return: The compiled library.
+    """
     jit_compile(ccode, basename, compiler=compiler)
     return load(basename, compiler=compiler)

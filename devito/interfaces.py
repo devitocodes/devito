@@ -5,6 +5,7 @@ from sympy.abc import x, y, z, t, h, s
 from tools import aligned
 import os
 from signal import signal, SIGABRT, SIGINT, SIGSEGV, SIGTERM
+from tempfile import gettempdir
 import sys
 import atexit
 
@@ -34,7 +35,7 @@ class SymbolicData(Function):
     cache all created objects on that name. This entails that data
     object should implement `__init__` in the following format:
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, \*args, \*\*kwargs):
         if self._cached():
             SymbolicData.__init__(self)
             return
@@ -63,37 +64,44 @@ class SymbolicData(Function):
         return Function.__new__(cls, *args)
 
     def __init__(self):
-        """Initialise from a cached instance by shallow copying __dict__"""
+        """Initialise from a cached instance by shallow copying __dict__."""
         original = _SymbolCache[self.__class__]
         self.__dict__ = original.__dict__.copy()
 
     @classmethod
     def _cached(cls):
-        """Test if current class is already in the symbol cache"""
+        """Test if current class is already in the symbol cache."""
         return cls in _SymbolCache
 
     @classmethod
     def _cache_put(cls, obj):
-        """Store given object instance in symbol cache"""
+        """Store given object instance in symbol cache.
+
+        :param obj: Object to be cached.
+        """
         _SymbolCache[cls] = obj
 
     @classmethod
     def indices(cls, shape):
-        """Abstract class method to determine the default dimension indices."""
+        """Abstract class method to determine the default dimension indices.
+
+        :param shape: Given shape of the data.
+        :raises NotImplementedError: 'Abstract class `SymbolicData` does not have default indices'.
+        """
         raise NotImplementedError('Abstract class `SymbolicData` does not have default indices')
 
 
 class DenseData(SymbolicData):
     """Data object for spatially varying data that acts as a Function symbol
 
-    :param name: Name of the resulting :class sympy.Function: symbol
+    :param name: Name of the resulting :class:`sympy.Function` symbol
     :param shape: Shape of the spatial data grid
     :param dtype: Data type of the buffered data
     :param space_order: Discretisation order for space derivatives
 
-    Note: :class DenseData: objects are assumed to be constant in time and
-    therefore do not support time derivatives. Use :class TimeData: for
-    time-varying grid data.
+    Note: :class:`DenseData` objects are assumed to be constant in time and
+    therefore do not support time derivatives. Use :class:`TimeData` for
+    time-varying griad data.
     """
     def __init__(self, *args, **kwargs):
         if self._cached():
@@ -116,6 +124,7 @@ class DenseData(SymbolicData):
         """Return the default dimension indices for a given data shape
 
         :param shape: Shape of the spatial data
+        :return: Indices used for axis.
         """
         _indices = [x, y, z]
         return _indices[:len(shape)]
@@ -127,19 +136,30 @@ class DenseData(SymbolicData):
 
     @property
     def indexed(self):
-        """Returns base symbol as sympy.IndexedBase"""
+        """:return: Base symbol as sympy.IndexedBase"""
         return IndexedBase(self.name, shape=self.shape)
 
     def indexify(self):
-        """Convert base symbol and dimensions to indexed data accesses"""
+        """Convert base symbol and dimensions to indexed data accesses
+
+        :return: Index corrosponding to the indices
+        """
         indices = [a.subs({h: 1, s: 1}) for a in self.args]
         return self.indexed[indices]
 
     def set_initializer(self, lambda_initializer):
+        """Set data intialising function to given lambda function.
+
+        :param lambda_initializer: Given lambda function.
+        """
         assert(callable(lambda_initializer))
         self.initializer = lambda_initializer
 
     def _allocate_memory(self):
+        """Function to allocate memmory in terms of numpy ndarrays.
+
+        Note: memmap is a subclass of ndarray.
+        """
         if self.memmap:
             self._data = np.memmap(filename=self.f, dtype=self.dtype, mode='w+', shape=self.shape, order='C')
         else:
@@ -147,11 +167,16 @@ class DenseData(SymbolicData):
 
     @property
     def data(self):
+        """Reference to the :class:`numpy.ndarray` containing the data
+
+        :returns: The ndarray containing the data
+        """
         if self._data is None:
             self._allocate_memory()
         return self._data
 
     def initialize(self):
+        """Apply the data initilisation function, if it is not None."""
         if self.initializer is not None:
             self.initializer(self.data)
         # Ignore if no initializer exists - assume no initialisation necessary
@@ -202,7 +227,7 @@ class DenseData(SymbolicData):
 class TimeData(DenseData):
     """Data object for time-varying data that acts as a Function symbol
 
-    :param name: Name of the resulting :class sympy.Function: symbol
+    :param name: Name of the resulting :class:`sympy.Function` symbol
     :param shape: Shape of the spatial data grid
     :param dtype: Data type of the buffered data
     :param save: Save the intermediate results to the data buffer. Defaults
@@ -243,11 +268,13 @@ class TimeData(DenseData):
         """Return the default dimension indices for a given data shape
 
         :param shape: Shape of the spatial data
+        :return: Indices used for axis.
         """
         _indices = [t, x, y, z]
         return _indices[:len(shape) + 1]
 
     def _allocate_memory(self):
+        """function to allocate memmory in terms of numpy ndarrays."""
         super(TimeData, self)._allocate_memory()
         if self.pad_time:
             self._data = self._data[self.time_order:, :, :]
@@ -291,7 +318,7 @@ class TimeData(DenseData):
 class PointData(DenseData):
     """Data object for sparse point data that acts as a Function symbol
 
-    :param name: Name of the resulting :class sympy.Function: symbol
+    :param name: Name of the resulting :class:`sympy.Function` symbol
     :param point: Number of points to sample
     :param nt: Size of the time dimension for point data
     :param dtype: Data type of the buffered data
@@ -325,6 +352,7 @@ class PointData(DenseData):
         """Return the default dimension indices for a given data shape
 
         :param shape: Shape of the spatial data
+        :return: indices used for axis.
         """
         _indices = [t, x, y, z]
         return _indices[:len(shape) + 1]
@@ -336,15 +364,15 @@ class MemmapManager():
     _use_memmap = False
     # flag for registering exit func
     _registered = False
-    _default_disk_path = "/tmp/devito_disk"
+    _default_disk_path = os.path.join(gettempdir(), "devito_disk")
     # contains str name of all memmap file created
     _created_data = set()
     _default_exit_code = 0
 
     @staticmethod
-    def memmap_enabled_by_default():
-        """Call this method to enable memmap by default"""
-        return MemmapManager._use_memmap
+    def set_memmap(memmap):
+        """Call this method to set default value of memmap"""
+        MemmapManager._use_memmap = memmap
 
     @staticmethod
     def set_default_disk_path(default_disk_path):
@@ -354,11 +382,12 @@ class MemmapManager():
     @staticmethod
     def setup(data_self, *args, **kwargs):
         """This method is used to setup memmap parameters for data classes.
-        :param name: name of data, must be unique
-        :param memmap: boolean indicates whether memmap is used. Optional
-        :param disk_path: str indicates path to create memmap file. Optional
 
-        Note: if memmap or disk_path are not provided, the default values
+        :param name: Name of data, must be unique
+        :param memmap: Boolean indicates whether memmap is used. Optional
+        :param disk_path: String indicates path to create memmap file. Optional
+
+        Note: If memmap or disk_path are not provided, the default values
         are used.
         """
         data_self.memmap = kwargs.get('memmap', MemmapManager._use_memmap)
