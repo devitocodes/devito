@@ -2,7 +2,7 @@ import numpy as np
 from math import floor
 from containers import IShot, IGrid
 from devito.interfaces import DenseData, TimeData
-from fwi_operators import SourceLike, ForwardOperator, AdjointOperator, GradientOperator, BornOperator
+from Acoustic_codegen import Acoustic_cg 
 
 dimensions = (50, 50, 50)
 model = IGrid()
@@ -81,14 +81,14 @@ receiver_coords[:, 1] = 500
 receiver_coords[:, 2] = location[2]
 data.set_receiver_pos(receiver_coords)
 data.set_shape(nt, 101)
-wave_true = Acoustic_cg(model, data, dm, data.get_source(), t_order=time_order, s_order=space_order, nbpml=10)
+Acoustic = Acoustic_cg(model, data, dm_orig, None, t_order=2, s_order=4, nbpml=10)
 print("Preparing Forward")
 print("Applying")
 (rec, u) = Acoustic.Forward()
 
 print("Preparing adjoint")
 print("Applying")
-(srca, v) = Acoustic.Backward(rec)
+(srca, v) = Acoustic.Adjoint(rec)
 
 print("Preparing Gradient")
 print("Applying")
@@ -96,4 +96,4 @@ g = Acoustic.Gradient(rec,u)
 
 print("Preparing Born")
 print("Applying")
-(rec, u) = Acoustic.Born()
+LinRec= Acoustic.Born()
