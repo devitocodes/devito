@@ -169,9 +169,9 @@ class ForwardOperator(Operator):
         first_stencil = Eq(u.forward, stencilp)
         second_stencil = Eq(v.forward, stencilr)
         stencils = [first_stencil, second_stencil]
-        super(ForwardOperator, self).__init__(src.nt, m.shape, spc_border=spc_order/2,substitutions = subs, 
-                                              time_order=time_order, forward=True, dtype=m.dtype,
-                                              stencils=stencils, factorized=factorized, **kwargs)
+        super(ForwardOperator, self).__init__(src.nt, m.shape, stencils=stencils, spc_border=spc_order/2,substitutions = subs, 
+                                              spc_border=spc_order/2, time_order=time_order, forward=True, dtype=m.dtype,
+                                              factorized=factorized, **kwargs)
         # Insert source and receiver terms post-hoc
         self.input_params += [src, rec]
         self.propagator.time_loop_stencils_a = src.add(m, u) + rec.read(u)
