@@ -75,22 +75,22 @@ class TTI_cg:
         # Initialize damp by calling the function that can precompute damping
         damp_boundary(self.damp.data)
         self.src = SourceLikeTTI(name="src", npoint=1, nt=self.nt, dt=self.dt, h=self.h,
-                              data=np.array(self.data.source_coords, dtype=self.dtype)[np.newaxis, :],
-                              ndim=len(dimensions), dtype=self.dtype, nbpml=nbpml)
+                                 data=np.array(self.data.source_coords, dtype=self.dtype)[np.newaxis, :],
+                                 ndim=len(dimensions), dtype=self.dtype, nbpml=nbpml)
         self.rec = SourceLikeTTI(name="rec", npoint=self.nrec, nt=self.nt, dt=self.dt, h=self.h,
-                              data=self.data.receiver_coords, ndim=len(dimensions), dtype=self.dtype,
-                              nbpml=nbpml)
+                                 data=self.data.receiver_coords, ndim=len(dimensions), dtype=self.dtype,
+                                 nbpml=nbpml)
         self.src.data[:] = self.data.get_source()[:, np.newaxis]
         self.u = TimeData(name="u", shape=self.m.shape, time_dim=self.src.nt, time_order=t_order,
                           save=False, dtype=self.m.dtype)
         self.v = TimeData(name="v", shape=self.m.shape, time_dim=self.src.nt, time_order=t_order,
                           save=False, dtype=self.m.dtype)
         self.srca = SourceLikeTTI(name="srca", npoint=1, nt=self.nt, dt=self.dt, h=self.h,
-                               data=np.array(self.data.source_coords, dtype=self.dtype)[np.newaxis, :],
-                               ndim=len(dimensions), dtype=self.dtype, nbpml=nbpml)
+                                  data=np.array(self.data.source_coords, dtype=self.dtype)[np.newaxis, :],
+                                  ndim=len(dimensions), dtype=self.dtype, nbpml=nbpml)
         if dm_initializer is not None:
             self.dm = DenseData(name="dm", shape=self.model.vp.shape, dtype=self.dtype)
-            self.dm.data[:]= np.pad(dm_initializer, tuple(pad_list), 'edge')
+            self.dm.data[:] = np.pad(dm_initializer, tuple(pad_list), 'edge')
 
     def Forward(self):
         fw = ForwardOperator(self.m, self.src, self.damp, self.rec, self.u, self.v, self.a, self.b, self.th, self.ph, time_order=self.t_order, spc_order=self.s_order)
