@@ -32,7 +32,7 @@ class Test_Cache_Blocking(object):
         op_block.apply()
         assert(np.equal(output_grid_block.data, output_grid_noblock.data).all())
 
-    def test_cache_blocking_remainder(self):
+    def test_cache_blocking_cb_inner_dim(self):
         input_grid = DenseData(name="input_grid", shape=(302, 302), dtype=np.float64)
         input_grid.data[:] = np.arange(91204, dtype=np.float64).reshape((302, 302))
         output_grid_noblock = DenseData(name="output_grid", shape=(302, 302), dtype=np.float64)

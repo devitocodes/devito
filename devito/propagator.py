@@ -93,7 +93,6 @@ class Propagator(object):
 
         # Cache blocking and default block sizes
         self.cache_blocking = cache_blocking
-
         if(isinstance(block_size, Iterable)):
             if(len(block_size) == len(shape)):
                 self.block_sizes = block_size
