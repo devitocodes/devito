@@ -1,0 +1,709 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>devito.propagator &mdash; Devito 1 documentation</title>
+  
+
+  
+  
+
+  
+
+  
+  
+    
+
+  
+
+  
+  
+    <link rel="stylesheet" href="../../_static/css/theme.css" type="text/css" />
+  
+
+  
+
+  
+    <link rel="top" title="Devito 1 documentation" href="../../index.html"/>
+        <link rel="up" title="Module code" href="../index.html"/> 
+
+  
+  <script src="../../_static/js/modernizr.min.js"></script>
+
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search">
+          
+
+          
+            <a href="../../index.html" class="icon icon-home"> Devito
+          
+
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                0
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+                <ul>
+<li class="toctree-l1"><a class="reference internal" href="../../download.html">Download</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../tutorials.html">Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../devito.html">API Documentation</a></li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" role="navigation" aria-label="top navigation">
+        <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+        <a href="../../index.html">Devito</a>
+      </nav>
+
+
+      
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href="../../index.html">Docs</a> &raquo;</li>
+      
+          <li><a href="../index.html">Module code</a> &raquo;</li>
+      
+    <li>devito.propagator</li>
+      <li class="wy-breadcrumbs-aside">
+        
+          
+        
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <h1>Source code for devito.propagator</h1><div class="highlight"><pre>
+<span></span><span class="kn">from</span> <span class="nn">devito.function_manager</span> <span class="k">import</span> <span class="n">FunctionManager</span><span class="p">,</span> <span class="n">FunctionDescriptor</span>
+<span class="kn">from</span> <span class="nn">devito.compiler</span> <span class="k">import</span> <span class="n">get_tmp_dir</span><span class="p">,</span> <span class="n">get_compiler_from_env</span>
+<span class="kn">from</span> <span class="nn">devito.compiler</span> <span class="k">import</span> <span class="n">jit_compile_and_load</span><span class="p">,</span> <span class="n">IntelMICCompiler</span>
+<span class="kn">import</span> <span class="nn">cgen_wrapper</span> <span class="k">as</span> <span class="nn">cgen</span>
+<span class="kn">from</span> <span class="nn">codeprinter</span> <span class="k">import</span> <span class="n">ccode</span>
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">from</span> <span class="nn">sympy</span> <span class="k">import</span> <span class="n">symbols</span><span class="p">,</span> <span class="n">IndexedBase</span><span class="p">,</span> <span class="n">Indexed</span>
+<span class="kn">from</span> <span class="nn">sympy.abc</span> <span class="k">import</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">z</span><span class="p">,</span> <span class="n">t</span>
+<span class="kn">from</span> <span class="nn">collections</span> <span class="k">import</span> <span class="n">Iterable</span>
+<span class="kn">from</span> <span class="nn">os</span> <span class="k">import</span> <span class="n">path</span>
+<span class="kn">from</span> <span class="nn">random</span> <span class="k">import</span> <span class="n">randint</span>
+<span class="kn">from</span> <span class="nn">hashlib</span> <span class="k">import</span> <span class="n">sha1</span>
+
+
+<div class="viewcode-block" id="Propagator"><a class="viewcode-back" href="../../devito.html#devito.propagator.Propagator">[docs]</a><span class="k">class</span> <span class="nc">Propagator</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Propagator objects derive and encode C kernel code according</span>
+<span class="sd">    to a given set of stencils, variables and time-stepping options</span>
+
+<span class="sd">    :param name: Name of the propagator kernel</span>
+<span class="sd">    :param nt: Number of timesteps to execute</span>
+<span class="sd">    :param shape: Shape of the data buffer over which to execute</span>
+<span class="sd">    :param spc_border: Number of spatial padding layers</span>
+<span class="sd">    :param time_order: Order of the time discretisation</span>
+<span class="sd">    :param time_dim: Symbol that defines the time dimension</span>
+<span class="sd">    :param space_dims: List of symbols that define the space dimensions</span>
+<span class="sd">    :param forward: Flag indicating whether to execute forward in time</span>
+<span class="sd">    :param compiler: Compiler class used to perform JIT compilation.</span>
+<span class="sd">                     If not provided, the compiler will be inferred from the</span>
+<span class="sd">                     environment variable DEVITO_ARCH, or default to GNUCompiler</span>
+<span class="sd">    :param profile: Flag to enable performance profiling</span>
+<span class="sd">    :param cache_blocking: Flag to enable cache blocking</span>
+<span class="sd">    :param block_size: Block size used for cache clocking</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">nt</span><span class="p">,</span> <span class="n">shape</span><span class="p">,</span> <span class="n">spc_border</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">time_order</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
+                 <span class="n">time_dim</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">space_dims</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">forward</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">compiler</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                 <span class="n">profile</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">cache_blocking</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">block_size</span><span class="o">=</span><span class="mi">5</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">time_order</span> <span class="o">=</span> <span class="n">time_order</span>
+        <span class="c1"># Default time and space symbols if not provided</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">time_dim</span> <span class="o">=</span> <span class="n">time_dim</span> <span class="ow">or</span> <span class="n">t</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">space_dims</span> <span class="o">=</span> <span class="n">space_dims</span> <span class="ow">or</span> <span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">z</span><span class="p">)</span> <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">shape</span><span class="p">)</span> <span class="o">==</span> <span class="mi">2</span> <span class="k">else</span> <span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">z</span><span class="p">)[:</span><span class="nb">len</span><span class="p">(</span><span class="n">shape</span><span class="p">)]</span>
+        <span class="c1"># Internal flags and meta-data</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">loop_counters</span> <span class="o">=</span> <span class="n">symbols</span><span class="p">(</span><span class="s2">&quot;i1 i2 i3 i4&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_pre_kernel_steps</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_post_kernel_steps</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_forward</span> <span class="o">=</span> <span class="n">forward</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">prep_variable_map</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">t_replace</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">time_steppers</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">time_order</span> <span class="o">=</span> <span class="n">time_order</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">nt</span> <span class="o">=</span> <span class="n">nt</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">time_loop_stencils_b</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">time_loop_stencils_a</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="c1"># Start with the assumption that the propagator needs to save</span>
+        <span class="c1"># the field in memory at every time step</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_save</span> <span class="o">=</span> <span class="kc">True</span>
+        <span class="c1"># Which function parameters need special (non-save) time stepping and which don&#39;t</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">save_vars</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">fd</span> <span class="o">=</span> <span class="n">FunctionDescriptor</span><span class="p">(</span><span class="n">name</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">pre_loop</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">post_loop</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_time_step</span> <span class="o">=</span> <span class="mi">1</span> <span class="k">if</span> <span class="n">forward</span> <span class="k">else</span> <span class="o">-</span><span class="mi">1</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_space_loop_limits</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">dim</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">space_dims</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_space_loop_limits</span><span class="p">[</span><span class="n">dim</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="n">spc_border</span><span class="p">,</span> <span class="n">shape</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">-</span> <span class="n">spc_border</span><span class="p">)</span>
+
+        <span class="c1"># Derive JIT compilation infrastructure</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">compiler</span> <span class="o">=</span> <span class="n">compiler</span> <span class="ow">or</span> <span class="n">get_compiler_from_env</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">mic_flag</span> <span class="o">=</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">compiler</span><span class="p">,</span> <span class="n">IntelMICCompiler</span><span class="p">)</span>
+
+        <span class="c1"># Settings for performance profiling</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">profile</span> <span class="o">=</span> <span class="n">profile</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">profile</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">add_local_var</span><span class="p">(</span><span class="s2">&quot;time&quot;</span><span class="p">,</span> <span class="s2">&quot;double&quot;</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">pre_loop</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">cgen</span><span class="o">.</span><span class="n">Statement</span><span class="p">(</span><span class="s2">&quot;struct timeval start, end&quot;</span><span class="p">))</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">pre_loop</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">cgen</span><span class="o">.</span><span class="n">Assign</span><span class="p">(</span><span class="s2">&quot;time&quot;</span><span class="p">,</span> <span class="mi">0</span><span class="p">))</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">post_loop</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">cgen</span><span class="o">.</span><span class="n">PrintStatement</span><span class="p">(</span><span class="s2">&quot;time: </span><span class="si">%f</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">,</span> <span class="s2">&quot;time&quot;</span><span class="p">))</span>
+
+        <span class="c1"># Kernel operational intensity dictionary</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_kernel_dic_oi</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;add&#39;</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span> <span class="s1">&#39;mul&#39;</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span> <span class="s1">&#39;load&#39;</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span> <span class="s1">&#39;store&#39;</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span>
+                               <span class="s1">&#39;load_list&#39;</span><span class="p">:</span> <span class="p">[],</span> <span class="s1">&#39;load_all_list&#39;</span><span class="p">:</span> <span class="p">[],</span> <span class="s1">&#39;oi_high&#39;</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span>
+                               <span class="s1">&#39;oi_high_weighted&#39;</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span> <span class="s1">&#39;oi_low&#39;</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span> <span class="s1">&#39;oi_low_weighted&#39;</span><span class="p">:</span> <span class="mi">0</span><span class="p">}</span>
+
+        <span class="c1"># Cache blocking and default block sizes</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">cache_blocking</span> <span class="o">=</span> <span class="n">cache_blocking</span>
+        <span class="k">if</span><span class="p">(</span><span class="nb">isinstance</span><span class="p">(</span><span class="n">block_size</span><span class="p">,</span> <span class="n">Iterable</span><span class="p">)):</span>
+            <span class="k">if</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">block_size</span><span class="p">)</span> <span class="o">==</span> <span class="nb">len</span><span class="p">(</span><span class="n">shape</span><span class="p">)):</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">block_sizes</span> <span class="o">=</span> <span class="n">block_size</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="n">ArgumentError</span><span class="p">(</span><span class="s2">&quot;Block size should either be a single number or an array of the same size as the spatial domain&quot;</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="c1"># A single block size has been passed. Broadcast it to a list of the size of shape</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">block_sizes</span> <span class="o">=</span> <span class="p">[</span><span class="nb">int</span><span class="p">(</span><span class="n">block_size</span><span class="p">)]</span><span class="o">*</span><span class="nb">len</span><span class="p">(</span><span class="n">shape</span><span class="p">)</span>
+
+        <span class="c1"># Cache C code, lib and function objects</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_ccode</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_lib</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_cfunction</span> <span class="o">=</span> <span class="kc">None</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">basename</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Generate a unique basename path for auto-generated files</span>
+
+<span class="sd">        The basename is generated by hashing grid variables (fd.params)</span>
+<span class="sd">        and made unique by the addition of a random salt value</span>
+
+<span class="sd">        :returns: The basename path as a string</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">string</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="si">%s</span><span class="s2">-</span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">fd</span><span class="o">.</span><span class="n">params</span><span class="p">),</span> <span class="n">randint</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">100000000</span><span class="p">))</span>
+        <span class="k">return</span> <span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">get_tmp_dir</span><span class="p">(),</span> <span class="n">sha1</span><span class="p">(</span><span class="n">string</span><span class="p">)</span><span class="o">.</span><span class="n">hexdigest</span><span class="p">())</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">ccode</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Returns the auto-generated C code as a string</span>
+
+<span class="sd">        :returns: The code&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ccode</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">manager</span> <span class="o">=</span> <span class="n">FunctionManager</span><span class="p">([</span><span class="bp">self</span><span class="o">.</span><span class="n">fd</span><span class="p">],</span> <span class="n">mic_flag</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">mic_flag</span><span class="p">,</span>
+                                      <span class="n">openmp</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">compiler</span><span class="o">.</span><span class="n">openmp</span><span class="p">)</span>
+            <span class="c1"># For some reason we need this call to trigger fd.body</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">get_fd</span><span class="p">()</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_ccode</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">manager</span><span class="o">.</span><span class="n">generate</span><span class="p">())</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ccode</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">cfunction</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Returns the JIT-compiled C function as a ctypes.FuncPtr object</span>
+
+<span class="sd">        Note that this invokes the JIT compilation toolchain with the</span>
+<span class="sd">        compiler class derived in the constructor</span>
+
+<span class="sd">        :returns: The generated C function</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_lib</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_lib</span> <span class="o">=</span> <span class="n">jit_compile_and_load</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">ccode</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">basename</span><span class="p">,</span>
+                                             <span class="bp">self</span><span class="o">.</span><span class="n">compiler</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cfunction</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_cfunction</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_lib</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">fd</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">mic_flag</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_cfunction</span><span class="o">.</span><span class="n">argtypes</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">fd</span><span class="o">.</span><span class="n">argtypes</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cfunction</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">save</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Indicates whether time history is saved.</span>
+
+<span class="sd">        :returns: True if the time history is saved, else False.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_save</span>
+
+    <span class="nd">@save</span><span class="o">.</span><span class="n">setter</span>
+    <span class="k">def</span> <span class="nf">save</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">save</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Function used to initialise the save parameter</span>
+
+<span class="sd">        :param save: The new value of the save parameter</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">save</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">True</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">time_steppers</span> <span class="o">=</span> <span class="p">[</span><span class="n">symbols</span><span class="p">(</span><span class="s2">&quot;t</span><span class="si">%d</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">time_order</span><span class="o">+</span><span class="mi">1</span><span class="p">)]</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">t_replace</span> <span class="o">=</span> <span class="p">{}</span>
+            <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">t_var</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="nb">reversed</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">time_steppers</span><span class="p">)):</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">t_replace</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">time_dim</span> <span class="o">-</span> <span class="n">i</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">_time_step</span><span class="p">]</span> <span class="o">=</span> <span class="n">t_var</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_save</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_save</span> <span class="ow">and</span> <span class="n">save</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">time_loop_limits</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Bounds for the time loop</span>
+
+<span class="sd">        :returns: The bounds</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_forward</span><span class="p">:</span>
+            <span class="n">loop_limits</span> <span class="o">=</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">nt</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">loop_limits</span> <span class="o">=</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">nt</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">loop_limits</span>
+
+<div class="viewcode-block" id="Propagator.prep_variable_map"><a class="viewcode-back" href="../../devito.html#devito.propagator.Propagator.prep_variable_map">[docs]</a>    <span class="k">def</span> <span class="nf">prep_variable_map</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Mapping from model variables (x, y, z, t) to loop variables (i1, i2, i3, i4)</span>
+
+<span class="sd">        For now, i1 i2 i3 are assigned in the order the variables were defined in init( #var_order)</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">var_map</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="n">i</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="k">for</span> <span class="n">dim</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">space_dims</span><span class="p">:</span>
+            <span class="n">var_map</span><span class="p">[</span><span class="n">dim</span><span class="p">]</span> <span class="o">=</span> <span class="n">symbols</span><span class="p">(</span><span class="s2">&quot;i</span><span class="si">%d</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">i</span> <span class="o">+</span> <span class="mi">1</span><span class="p">))</span>
+            <span class="n">i</span> <span class="o">+=</span> <span class="mi">1</span>
+        <span class="n">var_map</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">time_dim</span><span class="p">]</span> <span class="o">=</span> <span class="n">symbols</span><span class="p">(</span><span class="s2">&quot;i</span><span class="si">%d</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">i</span> <span class="o">+</span> <span class="mi">1</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_var_map</span> <span class="o">=</span> <span class="n">var_map</span></div>
+
+<div class="viewcode-block" id="Propagator.sympy_to_cgen"><a class="viewcode-back" href="../../devito.html#devito.propagator.Propagator.sympy_to_cgen">[docs]</a>    <span class="k">def</span> <span class="nf">sympy_to_cgen</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">stencils</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Converts sympy stencils to cgen statements</span>
+
+<span class="sd">        :param stencils: A list of stencils to be converted</span>
+<span class="sd">        :returns: :class:`cgen.Block` containing the converted kernel</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">stmts</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">equality</span> <span class="ow">in</span> <span class="n">stencils</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_kernel_dic_oi</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_ops_expr</span><span class="p">(</span><span class="n">equality</span><span class="o">.</span><span class="n">rhs</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_kernel_dic_oi</span><span class="p">,</span> <span class="kc">False</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_kernel_dic_oi</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_ops_expr</span><span class="p">(</span><span class="n">equality</span><span class="o">.</span><span class="n">lhs</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_kernel_dic_oi</span><span class="p">,</span> <span class="kc">True</span><span class="p">)</span>
+            <span class="n">stencil</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">convert_equality_to_cgen</span><span class="p">(</span><span class="n">equality</span><span class="p">)</span>
+            <span class="n">stmts</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">stencil</span><span class="p">)</span>
+        <span class="n">kernel</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_pre_kernel_steps</span>
+        <span class="n">kernel</span> <span class="o">+=</span> <span class="n">stmts</span>
+        <span class="n">kernel</span> <span class="o">+=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_post_kernel_steps</span>
+        <span class="k">return</span> <span class="n">cgen</span><span class="o">.</span><span class="n">Block</span><span class="p">(</span><span class="n">kernel</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="Propagator.convert_equality_to_cgen"><a class="viewcode-back" href="../../devito.html#devito.propagator.Propagator.convert_equality_to_cgen">[docs]</a>    <span class="k">def</span> <span class="nf">convert_equality_to_cgen</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">equality</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Convert given equality to :class:`cgen.Generable` statement</span>
+
+<span class="sd">        :param equality: Given equality statement</span>
+<span class="sd">        :returns: The resulting :class:`cgen.Generable` statement</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">equality</span><span class="p">,</span> <span class="n">cgen</span><span class="o">.</span><span class="n">Generable</span><span class="p">):</span>
+            <span class="k">return</span> <span class="n">equality</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">s_lhs</span> <span class="o">=</span> <span class="n">ccode</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">time_substitutions</span><span class="p">(</span><span class="n">equality</span><span class="o">.</span><span class="n">lhs</span><span class="p">)</span><span class="o">.</span><span class="n">xreplace</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_var_map</span><span class="p">))</span>
+            <span class="n">s_rhs</span> <span class="o">=</span> <span class="n">ccode</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">time_substitutions</span><span class="p">(</span><span class="n">equality</span><span class="o">.</span><span class="n">rhs</span><span class="p">)</span><span class="o">.</span><span class="n">xreplace</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_var_map</span><span class="p">))</span>
+            <span class="k">return</span> <span class="n">cgen</span><span class="o">.</span><span class="n">Assign</span><span class="p">(</span><span class="n">s_lhs</span><span class="p">,</span> <span class="n">s_rhs</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="Propagator.generate_loops"><a class="viewcode-back" href="../../devito.html#devito.propagator.Propagator.generate_loops">[docs]</a>    <span class="k">def</span> <span class="nf">generate_loops</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">loop_body</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Assuming that the variable order defined in init (#var_order) is the</span>
+<span class="sd">        order the corresponding dimensions are layout in memory, the last variable</span>
+<span class="sd">        in that definition should be the fastest varying dimension in the arrays.</span>
+<span class="sd">        Therefore reverse the list of dimensions, making the last variable in</span>
+<span class="sd">        #var_order (z in the 3D case) vary in the inner-most loop</span>
+
+<span class="sd">        :param loop_body: Statement representing the loop body</span>
+<span class="sd">        :returns: :class:`cgen.Block` representing the loop</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># Space loops</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">cache_blocking</span><span class="p">:</span>
+            <span class="n">loop_body</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">generate_space_loops_blocking</span><span class="p">(</span><span class="n">loop_body</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">loop_body</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">generate_space_loops</span><span class="p">(</span><span class="n">loop_body</span><span class="p">)</span>
+
+        <span class="n">omp_master</span> <span class="o">=</span> <span class="p">[</span><span class="n">cgen</span><span class="o">.</span><span class="n">Pragma</span><span class="p">(</span><span class="s2">&quot;omp master&quot;</span><span class="p">)]</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">compiler</span><span class="o">.</span><span class="n">openmp</span> <span class="k">else</span> <span class="p">[]</span>
+        <span class="n">omp_single</span> <span class="o">=</span> <span class="p">[</span><span class="n">cgen</span><span class="o">.</span><span class="n">Pragma</span><span class="p">(</span><span class="s2">&quot;omp single&quot;</span><span class="p">)]</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">compiler</span><span class="o">.</span><span class="n">openmp</span> <span class="k">else</span> <span class="p">[]</span>
+        <span class="n">omp_parallel</span> <span class="o">=</span> <span class="p">[</span><span class="n">cgen</span><span class="o">.</span><span class="n">Pragma</span><span class="p">(</span><span class="s2">&quot;omp parallel&quot;</span><span class="p">)]</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">compiler</span><span class="o">.</span><span class="n">openmp</span> <span class="k">else</span> <span class="p">[]</span>
+        <span class="n">omp_for</span> <span class="o">=</span> <span class="p">[</span><span class="n">cgen</span><span class="o">.</span><span class="n">Pragma</span><span class="p">(</span><span class="s2">&quot;omp for&quot;</span><span class="p">)]</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">compiler</span><span class="o">.</span><span class="n">openmp</span> <span class="k">else</span> <span class="p">[]</span>
+        <span class="n">t_loop_limits</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">time_loop_limits</span>
+        <span class="n">t_var</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_var_map</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">time_dim</span><span class="p">])</span>
+        <span class="n">cond_op</span> <span class="o">=</span> <span class="s2">&quot;&lt;&quot;</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_forward</span> <span class="k">else</span> <span class="s2">&quot;&gt;&quot;</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">save</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">True</span><span class="p">:</span>
+            <span class="c1"># To cycle between array elements when we are not saving time history</span>
+            <span class="n">time_stepping</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_time_stepping</span><span class="p">()</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">time_stepping</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">loop_body</span> <span class="o">=</span> <span class="n">omp_for</span> <span class="o">+</span> <span class="p">[</span><span class="n">loop_body</span><span class="p">]</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">compiler</span><span class="o">.</span><span class="n">openmp</span> <span class="k">else</span> <span class="p">[</span><span class="n">loop_body</span><span class="p">]</span>
+        <span class="c1"># Statements to be inserted into the time loop before the spatial loop</span>
+        <span class="n">time_loop_stencils_b</span> <span class="o">=</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">convert_equality_to_cgen</span><span class="p">(</span><span class="n">x</span><span class="p">)</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">time_loop_stencils_b</span><span class="p">]</span>
+        <span class="c1"># Statements to be inserted into the time loop after the spatial loop</span>
+        <span class="n">time_loop_stencils_a</span> <span class="o">=</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">convert_equality_to_cgen</span><span class="p">(</span><span class="n">x</span><span class="p">)</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">time_loop_stencils_a</span><span class="p">]</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">profile</span><span class="p">:</span>
+            <span class="n">start_time_stmt</span> <span class="o">=</span> <span class="n">omp_master</span> <span class="o">+</span> <span class="p">[</span><span class="n">cgen</span><span class="o">.</span><span class="n">Block</span><span class="p">([</span><span class="n">cgen</span><span class="o">.</span><span class="n">Statement</span><span class="p">(</span><span class="s2">&quot;gettimeofday(&amp;start, NULL)&quot;</span><span class="p">)])]</span>
+            <span class="n">end_time_stmt</span> <span class="o">=</span> <span class="n">omp_master</span> <span class="o">+</span> <span class="p">[</span><span class="n">cgen</span><span class="o">.</span><span class="n">Block</span><span class="p">([</span><span class="n">cgen</span><span class="o">.</span><span class="n">Statement</span><span class="p">(</span><span class="s2">&quot;gettimeofday(&amp;end, NULL)&quot;</span><span class="p">)]</span> <span class="o">+</span> <span class="p">[</span><span class="n">cgen</span><span class="o">.</span><span class="n">Statement</span><span class="p">(</span><span class="s2">&quot;time += ((end.tv_sec  - start.tv_sec) * 1000000u + end.tv_usec - start.tv_usec) / 1.e6&quot;</span><span class="p">)])]</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">start_time_stmt</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="n">end_time_stmt</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">initial_block</span> <span class="o">=</span> <span class="n">omp_single</span> <span class="o">+</span> <span class="p">[</span><span class="n">cgen</span><span class="o">.</span><span class="n">Block</span><span class="p">(</span><span class="n">time_stepping</span> <span class="o">+</span> <span class="n">time_loop_stencils_b</span><span class="p">)]</span> <span class="k">if</span> <span class="n">time_stepping</span> <span class="ow">or</span> <span class="n">time_loop_stencils_b</span> <span class="k">else</span> <span class="p">[]</span>
+        <span class="n">initial_block</span> <span class="o">=</span> <span class="n">initial_block</span> <span class="o">+</span> <span class="n">start_time_stmt</span>
+        <span class="n">end_block</span> <span class="o">=</span> <span class="n">end_time_stmt</span> <span class="o">+</span> <span class="n">omp_single</span> <span class="o">+</span> <span class="p">[</span><span class="n">cgen</span><span class="o">.</span><span class="n">Block</span><span class="p">(</span><span class="n">time_loop_stencils_a</span><span class="p">)]</span> <span class="k">if</span> <span class="n">time_loop_stencils_a</span> <span class="k">else</span> <span class="n">end_time_stmt</span>
+        <span class="n">loop_body</span> <span class="o">=</span> <span class="n">cgen</span><span class="o">.</span><span class="n">Block</span><span class="p">(</span><span class="n">initial_block</span> <span class="o">+</span> <span class="n">loop_body</span> <span class="o">+</span> <span class="n">end_block</span><span class="p">)</span>
+        <span class="n">loop_body</span> <span class="o">=</span> <span class="n">cgen</span><span class="o">.</span><span class="n">For</span><span class="p">(</span><span class="n">cgen</span><span class="o">.</span><span class="n">InlineInitializer</span><span class="p">(</span><span class="n">cgen</span><span class="o">.</span><span class="n">Value</span><span class="p">(</span><span class="s2">&quot;int&quot;</span><span class="p">,</span> <span class="n">t_var</span><span class="p">),</span> <span class="nb">str</span><span class="p">(</span><span class="n">t_loop_limits</span><span class="p">[</span><span class="mi">0</span><span class="p">])),</span> <span class="n">t_var</span> <span class="o">+</span> <span class="n">cond_op</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">t_loop_limits</span><span class="p">[</span><span class="mi">1</span><span class="p">]),</span> <span class="n">t_var</span> <span class="o">+</span> <span class="s2">&quot;+=&quot;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_time_step</span><span class="p">),</span> <span class="n">loop_body</span><span class="p">)</span>
+        <span class="c1"># Code to declare the time stepping variables (outside the time loop)</span>
+        <span class="n">def_time_step</span> <span class="o">=</span> <span class="p">[</span><span class="n">cgen</span><span class="o">.</span><span class="n">Value</span><span class="p">(</span><span class="s2">&quot;int&quot;</span><span class="p">,</span> <span class="n">t_var_def</span><span class="o">.</span><span class="n">name</span><span class="p">)</span> <span class="k">for</span> <span class="n">t_var_def</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">time_steppers</span><span class="p">]</span>
+        <span class="n">body</span> <span class="o">=</span> <span class="n">def_time_step</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">pre_loop</span> <span class="o">+</span> <span class="n">omp_parallel</span> <span class="o">+</span> <span class="p">[</span><span class="n">loop_body</span><span class="p">]</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">post_loop</span>
+        <span class="k">return</span> <span class="n">cgen</span><span class="o">.</span><span class="n">Block</span><span class="p">(</span><span class="n">body</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="Propagator.generate_space_loops"><a class="viewcode-back" href="../../devito.html#devito.propagator.Propagator.generate_space_loops">[docs]</a>    <span class="k">def</span> <span class="nf">generate_space_loops</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">loop_body</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Generate cgen block for a non cache blocking space loop</span>
+
+<span class="sd">        :param loop_body: Statement representing the loop body</span>
+<span class="sd">        :returns: :class:`cgen.Block` representing the loop</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">ivdep</span> <span class="o">=</span> <span class="kc">True</span>
+        <span class="k">for</span> <span class="n">spc_var</span> <span class="ow">in</span> <span class="nb">reversed</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">space_dims</span><span class="p">)):</span>
+            <span class="n">dim_var</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_var_map</span><span class="p">[</span><span class="n">spc_var</span><span class="p">]</span>
+            <span class="n">loop_limits</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_space_loop_limits</span><span class="p">[</span><span class="n">spc_var</span><span class="p">]</span>
+            <span class="n">loop_body</span> <span class="o">=</span> <span class="n">cgen</span><span class="o">.</span><span class="n">For</span><span class="p">(</span><span class="n">cgen</span><span class="o">.</span><span class="n">InlineInitializer</span><span class="p">(</span><span class="n">cgen</span><span class="o">.</span><span class="n">Value</span><span class="p">(</span><span class="s2">&quot;int&quot;</span><span class="p">,</span> <span class="n">dim_var</span><span class="p">),</span>
+                                                        <span class="nb">str</span><span class="p">(</span><span class="n">loop_limits</span><span class="p">[</span><span class="mi">0</span><span class="p">])),</span>
+                                 <span class="nb">str</span><span class="p">(</span><span class="n">dim_var</span><span class="p">)</span> <span class="o">+</span> <span class="s2">&quot;&lt;&quot;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">loop_limits</span><span class="p">[</span><span class="mi">1</span><span class="p">]),</span> <span class="nb">str</span><span class="p">(</span><span class="n">dim_var</span><span class="p">)</span> <span class="o">+</span> <span class="s2">&quot;++&quot;</span><span class="p">,</span> <span class="n">loop_body</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">ivdep</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">space_dims</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="n">loop_body</span> <span class="o">=</span> <span class="n">cgen</span><span class="o">.</span><span class="n">Block</span><span class="p">([</span><span class="bp">self</span><span class="o">.</span><span class="n">compiler</span><span class="o">.</span><span class="n">pragma_ivdep</span><span class="p">]</span> <span class="o">+</span> <span class="p">[</span><span class="n">loop_body</span><span class="p">])</span>
+            <span class="n">ivdep</span> <span class="o">=</span> <span class="kc">False</span>
+        <span class="k">return</span> <span class="n">loop_body</span></div>
+
+<div class="viewcode-block" id="Propagator.generate_space_loops_blocking"><a class="viewcode-back" href="../../devito.html#devito.propagator.Propagator.generate_space_loops_blocking">[docs]</a>    <span class="k">def</span> <span class="nf">generate_space_loops_blocking</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">loop_body</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Generate cgen block for a cache blocking space loop</span>
+
+<span class="sd">        :param loop_body: Statement representing the loop body</span>
+<span class="sd">        :returns: :class:`cgen.Block` representing the loop</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">ivdep</span> <span class="o">=</span> <span class="kc">True</span>
+        <span class="n">remainder</span> <span class="o">=</span> <span class="kc">False</span>
+        <span class="n">orig_loop_body</span> <span class="o">=</span> <span class="n">loop_body</span>
+        <span class="k">for</span> <span class="n">spc_var</span><span class="p">,</span> <span class="n">block_size</span> <span class="ow">in</span> <span class="nb">reversed</span><span class="p">(</span><span class="nb">zip</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">space_dims</span><span class="p">),</span> <span class="bp">self</span><span class="o">.</span><span class="n">block_sizes</span><span class="p">)):</span>
+            <span class="n">dim_var</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_var_map</span><span class="p">[</span><span class="n">spc_var</span><span class="p">])</span>
+            <span class="n">block_var</span> <span class="o">=</span> <span class="n">dim_var</span> <span class="o">+</span> <span class="s2">&quot;b&quot;</span>
+            <span class="n">loop_limits</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_space_loop_limits</span><span class="p">[</span><span class="n">spc_var</span><span class="p">]</span>
+            <span class="n">loop_body</span> <span class="o">=</span> <span class="n">cgen</span><span class="o">.</span><span class="n">For</span><span class="p">(</span><span class="n">cgen</span><span class="o">.</span><span class="n">InlineInitializer</span><span class="p">(</span><span class="n">cgen</span><span class="o">.</span><span class="n">Value</span><span class="p">(</span><span class="s2">&quot;int&quot;</span><span class="p">,</span> <span class="n">dim_var</span><span class="p">),</span>
+                                                        <span class="n">block_var</span><span class="p">),</span>
+                                 <span class="n">dim_var</span> <span class="o">+</span> <span class="s2">&quot;&lt;&quot;</span> <span class="o">+</span> <span class="n">block_var</span><span class="o">+</span><span class="s2">&quot;+&quot;</span><span class="o">+</span><span class="nb">str</span><span class="p">(</span><span class="n">block_size</span><span class="p">),</span> <span class="n">dim_var</span> <span class="o">+</span> <span class="s2">&quot;++&quot;</span><span class="p">,</span> <span class="n">loop_body</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">ivdep</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">space_dims</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="n">loop_body</span> <span class="o">=</span> <span class="n">cgen</span><span class="o">.</span><span class="n">Block</span><span class="p">([</span><span class="bp">self</span><span class="o">.</span><span class="n">compiler</span><span class="o">.</span><span class="n">pragma_ivdep</span><span class="p">]</span> <span class="o">+</span> <span class="p">[</span><span class="n">loop_body</span><span class="p">])</span>
+            <span class="n">ivdep</span> <span class="o">=</span> <span class="kc">False</span>
+
+        <span class="k">for</span> <span class="n">spc_var</span><span class="p">,</span> <span class="n">block_size</span> <span class="ow">in</span> <span class="nb">reversed</span><span class="p">(</span><span class="nb">zip</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">space_dims</span><span class="p">),</span> <span class="bp">self</span><span class="o">.</span><span class="n">block_sizes</span><span class="p">)):</span>
+            <span class="n">orig_var</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_var_map</span><span class="p">[</span><span class="n">spc_var</span><span class="p">])</span>
+            <span class="n">dim_var</span> <span class="o">=</span> <span class="n">orig_var</span> <span class="o">+</span> <span class="s2">&quot;b&quot;</span>
+            <span class="n">loop_limits</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_space_loop_limits</span><span class="p">[</span><span class="n">spc_var</span><span class="p">]</span>
+            <span class="n">old_upper_limit</span> <span class="o">=</span> <span class="n">loop_limits</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+            <span class="n">new_upper_limit</span> <span class="o">=</span> <span class="n">old_upper_limit</span><span class="o">-</span><span class="n">old_upper_limit</span> <span class="o">%</span> <span class="n">block_size</span>
+            <span class="k">if</span> <span class="n">old_upper_limit</span> <span class="o">-</span> <span class="n">new_upper_limit</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="n">remainder</span> <span class="o">=</span> <span class="kc">True</span>
+            <span class="n">loop_limits</span> <span class="o">=</span> <span class="p">(</span><span class="n">loop_limits</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">new_upper_limit</span><span class="p">)</span>
+            <span class="n">loop_body</span> <span class="o">=</span> <span class="n">cgen</span><span class="o">.</span><span class="n">For</span><span class="p">(</span><span class="n">cgen</span><span class="o">.</span><span class="n">InlineInitializer</span><span class="p">(</span><span class="n">cgen</span><span class="o">.</span><span class="n">Value</span><span class="p">(</span><span class="s2">&quot;int&quot;</span><span class="p">,</span> <span class="n">dim_var</span><span class="p">),</span>
+                                                        <span class="nb">str</span><span class="p">(</span><span class="n">loop_limits</span><span class="p">[</span><span class="mi">0</span><span class="p">])),</span>
+                                 <span class="nb">str</span><span class="p">(</span><span class="n">dim_var</span><span class="p">)</span> <span class="o">+</span> <span class="s2">&quot;&lt;&quot;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">loop_limits</span><span class="p">[</span><span class="mi">1</span><span class="p">]),</span> <span class="nb">str</span><span class="p">(</span><span class="n">dim_var</span><span class="p">)</span> <span class="o">+</span> <span class="s2">&quot;+=&quot;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">block_size</span><span class="p">),</span> <span class="n">loop_body</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">remainder</span><span class="p">:</span>
+            <span class="n">remainder_loop</span> <span class="o">=</span> <span class="n">orig_loop_body</span>
+            <span class="k">for</span> <span class="n">spc_var</span><span class="p">,</span> <span class="n">block_size</span> <span class="ow">in</span> <span class="nb">reversed</span><span class="p">(</span><span class="nb">zip</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">space_dims</span><span class="p">),</span> <span class="bp">self</span><span class="o">.</span><span class="n">block_sizes</span><span class="p">)):</span>
+                <span class="n">dim_var</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_var_map</span><span class="p">[</span><span class="n">spc_var</span><span class="p">])</span>
+                <span class="n">loop_limits</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_space_loop_limits</span><span class="p">[</span><span class="n">spc_var</span><span class="p">]</span>
+                <span class="n">old_upper_limit</span> <span class="o">=</span> <span class="n">loop_limits</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+                <span class="n">new_upper_limit</span> <span class="o">=</span> <span class="n">old_upper_limit</span><span class="o">-</span><span class="n">old_upper_limit</span> <span class="o">%</span> <span class="n">block_size</span>
+                <span class="n">loop_limits</span> <span class="o">=</span> <span class="p">(</span><span class="n">new_upper_limit</span><span class="p">,</span> <span class="n">old_upper_limit</span><span class="p">)</span>
+                <span class="n">remainder_loop</span> <span class="o">=</span> <span class="n">cgen</span><span class="o">.</span><span class="n">For</span><span class="p">(</span><span class="n">cgen</span><span class="o">.</span><span class="n">InlineInitializer</span><span class="p">(</span><span class="n">cgen</span><span class="o">.</span><span class="n">Value</span><span class="p">(</span><span class="s2">&quot;int&quot;</span><span class="p">,</span> <span class="n">dim_var</span><span class="p">),</span> <span class="nb">str</span><span class="p">(</span><span class="n">loop_limits</span><span class="p">[</span><span class="mi">0</span><span class="p">])),</span>
+                                          <span class="nb">str</span><span class="p">(</span><span class="n">dim_var</span><span class="p">)</span> <span class="o">+</span> <span class="s2">&quot;&lt;&quot;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">loop_limits</span><span class="p">[</span><span class="mi">1</span><span class="p">]),</span> <span class="nb">str</span><span class="p">(</span><span class="n">dim_var</span><span class="p">)</span> <span class="o">+</span> <span class="s2">&quot;++&quot;</span><span class="p">,</span> <span class="n">remainder_loop</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">ivdep</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">space_dims</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+                    <span class="n">loop_body</span> <span class="o">=</span> <span class="n">cgen</span><span class="o">.</span><span class="n">Block</span><span class="p">([</span><span class="bp">self</span><span class="o">.</span><span class="n">compiler</span><span class="o">.</span><span class="n">pragma_ivdep</span><span class="p">]</span> <span class="o">+</span> <span class="p">[</span><span class="n">loop_body</span><span class="p">])</span>
+                <span class="n">ivdep</span> <span class="o">=</span> <span class="kc">False</span>
+            <span class="n">loop_body</span> <span class="o">=</span> <span class="n">cgen</span><span class="o">.</span><span class="n">Block</span><span class="p">([</span><span class="n">loop_body</span><span class="p">,</span> <span class="n">remainder_loop</span><span class="p">])</span>
+
+        <span class="k">return</span> <span class="n">loop_body</span></div>
+
+<div class="viewcode-block" id="Propagator.add_loop_step"><a class="viewcode-back" href="../../devito.html#devito.propagator.Propagator.add_loop_step">[docs]</a>    <span class="k">def</span> <span class="nf">add_loop_step</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">assign</span><span class="p">,</span> <span class="n">before</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Add loop step to loop body&quot;&quot;&quot;</span>
+        <span class="n">stm</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">convert_equality_to_cgen</span><span class="p">(</span><span class="n">assign</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">before</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_pre_kernel_steps</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">stm</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_post_kernel_steps</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">stm</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="Propagator.add_devito_param"><a class="viewcode-back" href="../../devito.html#devito.propagator.Propagator.add_devito_param">[docs]</a>    <span class="k">def</span> <span class="nf">add_devito_param</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">param</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Setup relevant devito parameters</span>
+
+<span class="sd">        :param param: Contains all devito parameters</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">save</span> <span class="o">=</span> <span class="kc">True</span>
+        <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">param</span><span class="p">,</span> <span class="s2">&quot;save&quot;</span><span class="p">):</span>
+            <span class="n">save</span> <span class="o">=</span> <span class="n">param</span><span class="o">.</span><span class="n">save</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">add_param</span><span class="p">(</span><span class="n">param</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">param</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span> <span class="n">param</span><span class="o">.</span><span class="n">dtype</span><span class="p">,</span> <span class="n">save</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="Propagator.add_param"><a class="viewcode-back" href="../../devito.html#devito.propagator.Propagator.add_param">[docs]</a>    <span class="k">def</span> <span class="nf">add_param</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">shape</span><span class="p">,</span> <span class="n">dtype</span><span class="p">,</span> <span class="n">save</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Add a matrix parameter to the propagator</span>
+
+<span class="sd">        :param name: Name of parameter</span>
+<span class="sd">        :param shape: Shape of parameter</span>
+<span class="sd">        :param dtype: Base type of parameter</span>
+<span class="sd">        :param save: Indicates whether time history is saved</span>
+<span class="sd">        :returns: :class:`sympy.IndexedBase` containing the matrix parameter</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">fd</span><span class="o">.</span><span class="n">add_matrix_param</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">shape</span><span class="p">,</span> <span class="n">dtype</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">save</span> <span class="o">=</span> <span class="n">save</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">save_vars</span><span class="p">[</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="n">save</span>
+        <span class="k">return</span> <span class="n">IndexedBase</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">shape</span><span class="o">=</span><span class="n">shape</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="Propagator.add_scalar_param"><a class="viewcode-back" href="../../devito.html#devito.propagator.Propagator.add_scalar_param">[docs]</a>    <span class="k">def</span> <span class="nf">add_scalar_param</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">dtype</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Add a scalar parameter to the propagator. E.g. int</span>
+
+<span class="sd">        :param name: Name of parameter</span>
+<span class="sd">        :param dtype: Type of parameter</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">fd</span><span class="o">.</span><span class="n">add_value_param</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">dtype</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">symbols</span><span class="p">(</span><span class="n">name</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="Propagator.add_local_var"><a class="viewcode-back" href="../../devito.html#devito.propagator.Propagator.add_local_var">[docs]</a>    <span class="k">def</span> <span class="nf">add_local_var</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">dtype</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Add a local scalar parameter</span>
+
+<span class="sd">        :param name: Name of parameter</span>
+<span class="sd">        :param dtype: Type of parameter</span>
+<span class="sd">        :returns: The symbol associated with the parameter</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">fd</span><span class="o">.</span><span class="n">add_local_variable</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">dtype</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">symbols</span><span class="p">(</span><span class="n">name</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="Propagator.get_fd"><a class="viewcode-back" href="../../devito.html#devito.propagator.Propagator.get_fd">[docs]</a>    <span class="k">def</span> <span class="nf">get_fd</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Get a FunctionDescriptor that describes the code represented by this Propagator</span>
+<span class="sd">        in the format that FunctionManager and JitManager can deal with it. Before calling,</span>
+<span class="sd">        make sure you have either called set_jit_params or set_jit_simple already</span>
+
+<span class="sd">        :returns: The resulting :class:`devito.function_manager.FunctionDescriptor`</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">try</span><span class="p">:</span>  <span class="c1"># Assume we have been given a a loop body in cgen types</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">fd</span><span class="o">.</span><span class="n">set_body</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">generate_loops</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">loop_body</span><span class="p">))</span>
+        <span class="k">except</span><span class="p">:</span>  <span class="c1"># We might have been given Sympy expression to evaluate</span>
+            <span class="c1"># This is the more common use case so this will show up in error messages</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">fd</span><span class="o">.</span><span class="n">set_body</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">generate_loops</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">sympy_to_cgen</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">stencils</span><span class="p">)))</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">fd</span></div>
+
+<div class="viewcode-block" id="Propagator.get_time_stepping"><a class="viewcode-back" href="../../devito.html#devito.propagator.Propagator.get_time_stepping">[docs]</a>    <span class="k">def</span> <span class="nf">get_time_stepping</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Add the time stepping code to the loop</span>
+
+<span class="sd">        :returns: A list of :class:`cgen.Statement` containing the time stepping code</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">ti</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_var_map</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">time_dim</span><span class="p">]</span>
+        <span class="n">body</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">time_stepper_indices</span> <span class="o">=</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">time_order</span><span class="o">+</span><span class="mi">1</span><span class="p">)</span>
+        <span class="n">first_time_index</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="n">step_backwards</span> <span class="o">=</span> <span class="o">-</span><span class="mi">1</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_forward</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">True</span><span class="p">:</span>
+            <span class="n">time_stepper_indices</span> <span class="o">=</span> <span class="nb">reversed</span><span class="p">(</span><span class="n">time_stepper_indices</span><span class="p">)</span>
+            <span class="n">first_time_index</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">time_order</span>
+            <span class="n">step_backwards</span> <span class="o">=</span> <span class="mi">1</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">time_stepper_indices</span><span class="p">:</span>
+            <span class="n">lhs</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">time_steppers</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">name</span>
+            <span class="k">if</span> <span class="n">i</span> <span class="o">==</span> <span class="n">first_time_index</span><span class="p">:</span>
+                <span class="n">rhs</span> <span class="o">=</span> <span class="n">ccode</span><span class="p">(</span><span class="n">ti</span> <span class="o">%</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">time_order</span><span class="o">+</span><span class="mi">1</span><span class="p">))</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">rhs</span> <span class="o">=</span> <span class="n">ccode</span><span class="p">((</span><span class="bp">self</span><span class="o">.</span><span class="n">time_steppers</span><span class="p">[</span><span class="n">i</span><span class="o">+</span><span class="n">step_backwards</span><span class="p">]</span><span class="o">+</span><span class="mi">1</span><span class="p">)</span> <span class="o">%</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">time_order</span><span class="o">+</span><span class="mi">1</span><span class="p">))</span>
+            <span class="n">body</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">cgen</span><span class="o">.</span><span class="n">Assign</span><span class="p">(</span><span class="n">lhs</span><span class="p">,</span> <span class="n">rhs</span><span class="p">))</span>
+
+        <span class="k">return</span> <span class="n">body</span></div>
+
+<div class="viewcode-block" id="Propagator.time_substitutions"><a class="viewcode-back" href="../../devito.html#devito.propagator.Propagator.time_substitutions">[docs]</a>    <span class="k">def</span> <span class="nf">time_substitutions</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">sympy_expr</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;This method checks through the sympy_expr to replace the time index with a cyclic index</span>
+<span class="sd">        but only for variables which are not being saved in the time domain</span>
+
+<span class="sd">        :param sympy_expr: The Sympy expression to process</span>
+<span class="sd">        :returns: The expression after the substitutions</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">sympy_expr</span><span class="p">,</span> <span class="n">Indexed</span><span class="p">):</span>
+            <span class="n">array_term</span> <span class="o">=</span> <span class="n">sympy_expr</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="nb">str</span><span class="p">(</span><span class="n">array_term</span><span class="o">.</span><span class="n">base</span><span class="o">.</span><span class="n">label</span><span class="p">)</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">save_vars</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Invalid variable &#39;</span><span class="si">%s</span><span class="s2">&#39; in sympy expression. Did you add it to the operator&#39;s params?&quot;</span> <span class="o">%</span> <span class="nb">str</span><span class="p">(</span><span class="n">array_term</span><span class="o">.</span><span class="n">base</span><span class="o">.</span><span class="n">label</span><span class="p">))</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">save_vars</span><span class="p">[</span><span class="nb">str</span><span class="p">(</span><span class="n">array_term</span><span class="o">.</span><span class="n">base</span><span class="o">.</span><span class="n">label</span><span class="p">)]:</span>
+                <span class="n">array_term</span> <span class="o">=</span> <span class="n">array_term</span><span class="o">.</span><span class="n">xreplace</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">t_replace</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">array_term</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">arg</span> <span class="ow">in</span> <span class="n">sympy_expr</span><span class="o">.</span><span class="n">args</span><span class="p">:</span>
+                <span class="n">sympy_expr</span> <span class="o">=</span> <span class="n">sympy_expr</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">arg</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">time_substitutions</span><span class="p">(</span><span class="n">arg</span><span class="p">))</span>
+        <span class="k">return</span> <span class="n">sympy_expr</span></div>
+
+<div class="viewcode-block" id="Propagator.add_time_loop_stencil"><a class="viewcode-back" href="../../devito.html#devito.propagator.Propagator.add_time_loop_stencil">[docs]</a>    <span class="k">def</span> <span class="nf">add_time_loop_stencil</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">stencil</span><span class="p">,</span> <span class="n">before</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Add a statement either before or after the main spatial loop, but still inside the time loop.</span>
+
+<span class="sd">        :param stencil: Given stencil</span>
+<span class="sd">        :param before: Flag indicating whether the statement should be inserted before, False by default</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">before</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">time_loop_stencils_b</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">stencil</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">time_loop_stencils_a</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">stencil</span><span class="p">)</span></div>
+
+    <span class="k">def</span> <span class="nf">_get_ops_expr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">expr</span><span class="p">,</span> <span class="n">dict1</span><span class="p">,</span> <span class="n">is_lhs</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Get number of different operations in expression expr</span>
+
+<span class="sd">        Types of operations are ADD (inc -) and MUL (inc /), arrays (IndexedBase objects) in expr that are not in list arrays</span>
+<span class="sd">        are added to the list.</span>
+
+<span class="sd">        :param expr: The expression to process</span>
+<span class="sd">        :returns: Dictionary of (#ADD, #MUL, list of unique names of fields, list of unique field elements)</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">result</span> <span class="o">=</span> <span class="n">dict1</span>  <span class="c1"># dictionary to return</span>
+        <span class="c1"># add array to list arrays if it is not in it</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">Indexed</span><span class="p">):</span>
+                <span class="n">base</span> <span class="o">=</span> <span class="n">expr</span><span class="o">.</span><span class="n">base</span><span class="o">.</span><span class="n">label</span>
+                <span class="k">if</span> <span class="n">is_lhs</span><span class="p">:</span>
+                        <span class="n">result</span><span class="p">[</span><span class="s1">&#39;store&#39;</span><span class="p">]</span> <span class="o">+=</span> <span class="mi">1</span>
+                <span class="k">if</span> <span class="n">base</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">result</span><span class="p">[</span><span class="s1">&#39;load_list&#39;</span><span class="p">]:</span>
+                        <span class="n">result</span><span class="p">[</span><span class="s1">&#39;load_list&#39;</span><span class="p">]</span> <span class="o">+=</span> <span class="p">[</span><span class="n">base</span><span class="p">]</span>  <span class="c1"># accumulate distinct array</span>
+                <span class="k">if</span> <span class="n">expr</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">result</span><span class="p">[</span><span class="s1">&#39;load_all_list&#39;</span><span class="p">]:</span>
+                        <span class="n">result</span><span class="p">[</span><span class="s1">&#39;load_all_list&#39;</span><span class="p">]</span> <span class="o">+=</span> <span class="p">[</span><span class="n">expr</span><span class="p">]</span>  <span class="c1"># accumulate distinct array elements</span>
+                <span class="k">return</span> <span class="n">result</span>
+
+        <span class="k">if</span> <span class="n">expr</span><span class="o">.</span><span class="n">is_Mul</span> <span class="ow">or</span> <span class="n">expr</span><span class="o">.</span><span class="n">is_Add</span> <span class="ow">or</span> <span class="n">expr</span><span class="o">.</span><span class="n">is_Pow</span><span class="p">:</span>
+                <span class="n">args</span> <span class="o">=</span> <span class="n">expr</span><span class="o">.</span><span class="n">args</span>
+                <span class="c1"># increment MUL or ADD by # arguments less 1</span>
+                <span class="c1"># sympy multiplication and addition can have multiple arguments</span>
+                <span class="k">if</span> <span class="n">expr</span><span class="o">.</span><span class="n">is_Mul</span><span class="p">:</span>
+                        <span class="n">result</span><span class="p">[</span><span class="s1">&#39;mul&#39;</span><span class="p">]</span> <span class="o">+=</span> <span class="nb">len</span><span class="p">(</span><span class="n">args</span><span class="p">)</span><span class="o">-</span><span class="mi">1</span>
+                <span class="k">else</span><span class="p">:</span>
+                        <span class="k">if</span> <span class="n">expr</span><span class="o">.</span><span class="n">is_Add</span><span class="p">:</span>
+                                <span class="n">result</span><span class="p">[</span><span class="s1">&#39;add&#39;</span><span class="p">]</span> <span class="o">+=</span> <span class="nb">len</span><span class="p">(</span><span class="n">args</span><span class="p">)</span><span class="o">-</span><span class="mi">1</span>
+                <span class="c1"># recursive call of all arguments</span>
+                <span class="k">for</span> <span class="n">expr2</span> <span class="ow">in</span> <span class="n">args</span><span class="p">:</span>
+                        <span class="n">result2</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_ops_expr</span><span class="p">(</span><span class="n">expr2</span><span class="p">,</span> <span class="n">result</span><span class="p">,</span> <span class="n">is_lhs</span><span class="p">)</span>
+
+                <span class="k">return</span> <span class="n">result2</span>
+        <span class="c1"># return zero and unchanged array if execution gets here</span>
+        <span class="k">return</span> <span class="n">result</span>
+
+<div class="viewcode-block" id="Propagator.get_kernel_oi"><a class="viewcode-back" href="../../devito.html#devito.propagator.Propagator.get_kernel_oi">[docs]</a>    <span class="k">def</span> <span class="nf">get_kernel_oi</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Get the operation intensity of the kernel. The types of operations are ADD (inc -), MUL (inc /), LOAD, STORE.</span>
+<span class="sd">        #LOAD = number of unique fields in the kernel</span>
+
+<span class="sd">        Operation intensity OI = (ADD+MUL)/[(LOAD+STORE)*word_size]</span>
+<span class="sd">        Weighted OI, OI_w = (ADD+MUL)/(2*Max(ADD,MUL)) * OI</span>
+
+<span class="sd">        :param dtype: :class:`numpy.dtype` used to specify the word size</span>
+<span class="sd">        :returns: A tuple (#ADD, #MUL, #LOAD, #STORE) containing the operation intensity</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">load</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="n">load_all</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="n">word_size</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">dtype</span><span class="p">(</span><span class="n">dtype</span><span class="p">)</span><span class="o">.</span><span class="n">itemsize</span>
+        <span class="n">load</span> <span class="o">+=</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_kernel_dic_oi</span><span class="p">[</span><span class="s1">&#39;load_list&#39;</span><span class="p">])</span>
+        <span class="n">store</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_kernel_dic_oi</span><span class="p">[</span><span class="s1">&#39;store&#39;</span><span class="p">]</span>
+        <span class="n">load_all</span> <span class="o">+=</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_kernel_dic_oi</span><span class="p">[</span><span class="s1">&#39;load_all_list&#39;</span><span class="p">])</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_kernel_dic_oi</span><span class="p">[</span><span class="s1">&#39;load&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">load_all</span>
+        <span class="n">add</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_kernel_dic_oi</span><span class="p">[</span><span class="s1">&#39;add&#39;</span><span class="p">]</span>
+        <span class="n">mul</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_kernel_dic_oi</span><span class="p">[</span><span class="s1">&#39;mul&#39;</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_kernel_dic_oi</span><span class="p">[</span><span class="s1">&#39;oi_high&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">add</span><span class="o">+</span><span class="n">mul</span><span class="p">)</span><span class="o">/</span><span class="p">(</span><span class="n">load</span><span class="o">+</span><span class="n">store</span><span class="p">)</span><span class="o">/</span><span class="n">word_size</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_kernel_dic_oi</span><span class="p">[</span><span class="s1">&#39;oi_high_weighted&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_kernel_dic_oi</span><span class="p">[</span><span class="s1">&#39;oi_high&#39;</span><span class="p">]</span><span class="o">*</span><span class="p">(</span><span class="n">add</span><span class="o">+</span><span class="n">mul</span><span class="p">)</span><span class="o">/</span><span class="nb">max</span><span class="p">(</span><span class="n">add</span><span class="p">,</span> <span class="n">mul</span><span class="p">)</span><span class="o">/</span><span class="mf">2.0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_kernel_dic_oi</span><span class="p">[</span><span class="s1">&#39;oi_low&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">add</span><span class="o">+</span><span class="n">mul</span><span class="p">)</span><span class="o">/</span><span class="p">(</span><span class="n">load_all</span><span class="o">+</span><span class="n">store</span><span class="p">)</span><span class="o">/</span><span class="n">word_size</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_kernel_dic_oi</span><span class="p">[</span><span class="s1">&#39;oi_low_weighted&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_kernel_dic_oi</span><span class="p">[</span><span class="s1">&#39;oi_low&#39;</span><span class="p">]</span><span class="o">*</span><span class="p">(</span><span class="n">add</span><span class="o">+</span><span class="n">mul</span><span class="p">)</span><span class="o">/</span><span class="nb">max</span><span class="p">(</span><span class="n">add</span><span class="p">,</span> <span class="n">mul</span><span class="p">)</span><span class="o">/</span><span class="mf">2.0</span>
+
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_kernel_dic_oi</span><span class="p">[</span><span class="s1">&#39;oi_high&#39;</span><span class="p">]</span></div></div>
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2016, Opesci.
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/snide/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  
+
+    <script type="text/javascript">
+        var DOCUMENTATION_OPTIONS = {
+            URL_ROOT:'../../',
+            VERSION:'1',
+            COLLAPSE_INDEX:false,
+            FILE_SUFFIX:'.html',
+            HAS_SOURCE:  true
+        };
+    </script>
+      <script type="text/javascript" src="../../_static/jquery.js"></script>
+      <script type="text/javascript" src="../../_static/underscore.js"></script>
+      <script type="text/javascript" src="../../_static/doctools.js"></script>
+      <script type="text/javascript" src="https://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+
+  
+
+  
+  
+    <script type="text/javascript" src="../../_static/js/theme.js"></script>
+  
+
+  
+  
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.StickyNav.enable();
+      });
+  </script>
+   
+
+</body>
+</html>

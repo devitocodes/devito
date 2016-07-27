@@ -1,0 +1,500 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>devito.operator &mdash; Devito 1 documentation</title>
+  
+
+  
+  
+
+  
+
+  
+  
+    
+
+  
+
+  
+  
+    <link rel="stylesheet" href="../../_static/css/theme.css" type="text/css" />
+  
+
+  
+
+  
+    <link rel="top" title="Devito 1 documentation" href="../../index.html"/>
+        <link rel="up" title="Module code" href="../index.html"/> 
+
+  
+  <script src="../../_static/js/modernizr.min.js"></script>
+
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search">
+          
+
+          
+            <a href="../../index.html" class="icon icon-home"> Devito
+          
+
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                0
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+                <ul>
+<li class="toctree-l1"><a class="reference internal" href="../../download.html">Download</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../tutorials.html">Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../devito.html">API Documentation</a></li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" role="navigation" aria-label="top navigation">
+        <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+        <a href="../../index.html">Devito</a>
+      </nav>
+
+
+      
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href="../../index.html">Docs</a> &raquo;</li>
+      
+          <li><a href="../index.html">Module code</a> &raquo;</li>
+      
+    <li>devito.operator</li>
+      <li class="wy-breadcrumbs-aside">
+        
+          
+        
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <h1>Source code for devito.operator</h1><div class="highlight"><pre>
+<span></span><span class="kn">from</span> <span class="nn">devito.compiler</span> <span class="k">import</span> <span class="n">get_compiler_from_env</span><span class="p">,</span> <span class="n">IntelMICCompiler</span>
+<span class="kn">from</span> <span class="nn">devito.interfaces</span> <span class="k">import</span> <span class="n">SymbolicData</span><span class="p">,</span> <span class="n">TimeData</span>
+<span class="kn">from</span> <span class="nn">devito.propagator</span> <span class="k">import</span> <span class="n">Propagator</span>
+<span class="kn">from</span> <span class="nn">sympy</span> <span class="k">import</span> <span class="n">Indexed</span><span class="p">,</span> <span class="n">lambdify</span><span class="p">,</span> <span class="n">symbols</span><span class="p">,</span> <span class="n">solve</span>
+<span class="kn">from</span> <span class="nn">sympy</span> <span class="k">import</span> <span class="n">Eq</span><span class="p">,</span> <span class="n">Function</span><span class="p">,</span> <span class="n">Symbol</span><span class="p">,</span> <span class="n">preorder_traversal</span>
+<span class="kn">from</span> <span class="nn">sympy.abc</span> <span class="k">import</span> <span class="n">t</span>
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;Operator&#39;</span><span class="p">]</span>
+
+
+<span class="k">def</span> <span class="nf">expr_dimensions</span><span class="p">(</span><span class="n">expr</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Collects all function dimensions used in a sympy expression&quot;&quot;&quot;</span>
+    <span class="n">dimensions</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">preorder_traversal</span><span class="p">(</span><span class="n">expr</span><span class="p">):</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">e</span><span class="p">,</span> <span class="n">TimeData</span><span class="p">):</span>
+            <span class="n">dimensions</span> <span class="o">+=</span> <span class="n">e</span><span class="o">.</span><span class="n">indices</span><span class="p">(</span><span class="n">e</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">:])</span>
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">e</span><span class="p">,</span> <span class="n">SymbolicData</span><span class="p">):</span>
+            <span class="n">dimensions</span> <span class="o">+=</span> <span class="n">e</span><span class="o">.</span><span class="n">indices</span><span class="p">(</span><span class="n">e</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+    <span class="k">return</span> <span class="nb">list</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="n">dimensions</span><span class="p">))</span>
+
+
+<span class="k">def</span> <span class="nf">expr_symbols</span><span class="p">(</span><span class="n">expr</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Collects defined and undefined symbols used in a sympy expression</span>
+
+<span class="sd">    Defined symbols are functions that have an associated :class</span>
+<span class="sd">    SymbolicData: object, or dimensions that are known to the devito</span>
+<span class="sd">    engine. Undefined symbols are generic `sympy.Function` or</span>
+<span class="sd">    `sympy.Symbol` objects that need to be substituted before generating</span>
+<span class="sd">    operator C code.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">defined</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+    <span class="n">undefined</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+    <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">preorder_traversal</span><span class="p">(</span><span class="n">expr</span><span class="p">):</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">e</span><span class="p">,</span> <span class="n">TimeData</span><span class="p">):</span>
+            <span class="n">defined</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">e</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="o">*</span><span class="n">e</span><span class="o">.</span><span class="n">indices</span><span class="p">(</span><span class="n">e</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">:])))</span>
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">e</span><span class="p">,</span> <span class="n">SymbolicData</span><span class="p">):</span>
+            <span class="n">defined</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">e</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="o">*</span><span class="n">e</span><span class="o">.</span><span class="n">indices</span><span class="p">(</span><span class="n">e</span><span class="o">.</span><span class="n">shape</span><span class="p">)))</span>
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">e</span><span class="p">,</span> <span class="n">Function</span><span class="p">):</span>
+            <span class="n">undefined</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">e</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">e</span><span class="p">,</span> <span class="n">Symbol</span><span class="p">):</span>
+            <span class="n">undefined</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">e</span><span class="p">)</span>
+    <span class="k">return</span> <span class="nb">list</span><span class="p">(</span><span class="n">defined</span><span class="p">),</span> <span class="nb">list</span><span class="p">(</span><span class="n">undefined</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">expr_indexify</span><span class="p">(</span><span class="n">expr</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Convert functions into indexed matrix accesses in sympy expression</span>
+
+<span class="sd">    :param expr: SymPy function expression to be converted</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">replacements</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">preorder_traversal</span><span class="p">(</span><span class="n">expr</span><span class="p">):</span>
+        <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">e</span><span class="p">,</span> <span class="s1">&#39;indexed&#39;</span><span class="p">):</span>
+            <span class="n">replacements</span><span class="p">[</span><span class="n">e</span><span class="p">]</span> <span class="o">=</span> <span class="n">e</span><span class="o">.</span><span class="n">indexify</span><span class="p">()</span>
+    <span class="k">return</span> <span class="n">expr</span><span class="o">.</span><span class="n">xreplace</span><span class="p">(</span><span class="n">replacements</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="Operator"><a class="viewcode-back" href="../../devito.html#devito.operator.Operator">[docs]</a><span class="k">class</span> <span class="nc">Operator</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Class encapsulating a defined operator as defined by the given stencil</span>
+
+<span class="sd">    The Operator class is the core abstraction in DeVito that allows</span>
+<span class="sd">    users to generate high-performance Finite Difference kernels from</span>
+<span class="sd">    a stencil definition defined from SymPy equations.</span>
+
+<span class="sd">    :param nt: Number of timesteps to execute</span>
+<span class="sd">    :param shape: Shape of the data buffer over which to execute</span>
+<span class="sd">    :param dtype: Data type for the grid buffer</span>
+<span class="sd">    :param stencils: SymPy equation or list of equations that define the</span>
+<span class="sd">                     stencil used to create the kernel of this Operator.</span>
+<span class="sd">    :param substitutions: Dict or list of dicts containing the SymPy symbol</span>
+<span class="sd">                          substitutions for each stencil respectively.</span>
+<span class="sd">    :param spc_border: Number of spatial padding layers</span>
+<span class="sd">    :param time_order: Order of the time discretisation</span>
+<span class="sd">    :param forward: Flag indicating whether to execute forward in time</span>
+<span class="sd">    :param compiler: Compiler class used to perform JIT compilation.</span>
+<span class="sd">                     If not provided, the compiler will be inferred from the</span>
+<span class="sd">                     environment variable DEVITO_ARCH, or default to GNUCompiler.</span>
+<span class="sd">    :param profile: Flag to enable performance profiling</span>
+<span class="sd">    :param cache_blocking: Flag to enable cache blocking</span>
+<span class="sd">    :param block_size: Block size used for cache clocking</span>
+<span class="sd">    :param input_params: List of symbols that are expected as input.</span>
+<span class="sd">    :param output_params: List of symbols that define operator output.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">_ENV_VAR_OPENMP</span> <span class="o">=</span> <span class="s2">&quot;DEVITO_OPENMP&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">nt</span><span class="p">,</span> <span class="n">shape</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">,</span> <span class="n">stencils</span><span class="o">=</span><span class="p">[],</span>
+                 <span class="n">substitutions</span><span class="o">=</span><span class="p">[],</span> <span class="n">spc_border</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">time_order</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
+                 <span class="n">forward</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">compiler</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">profile</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+                 <span class="n">cache_blocking</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">block_size</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span>
+                 <span class="n">input_params</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">output_params</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="c1"># Derive JIT compilation infrastructure</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">compiler</span> <span class="o">=</span> <span class="n">compiler</span> <span class="ow">or</span> <span class="n">get_compiler_from_env</span><span class="p">()</span>
+
+        <span class="c1"># Ensure stencil and substititutions are lists internally</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">stencils</span> <span class="o">=</span> <span class="n">stencils</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">stencils</span><span class="p">,</span> <span class="nb">list</span><span class="p">)</span> <span class="k">else</span> <span class="p">[</span><span class="n">stencils</span><span class="p">]</span>
+        <span class="n">substitutions</span> <span class="o">=</span> <span class="n">substitutions</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">substitutions</span><span class="p">,</span> <span class="nb">list</span><span class="p">)</span> <span class="k">else</span> <span class="p">[</span><span class="n">substitutions</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">input_params</span> <span class="o">=</span> <span class="n">input_params</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">output_params</span> <span class="o">=</span> <span class="n">output_params</span>
+        <span class="c1"># Pull all dimension indices from the incoming stencil</span>
+        <span class="n">dimensions</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+        <span class="k">for</span> <span class="n">eqn</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">stencils</span><span class="p">:</span>
+            <span class="n">dimensions</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="n">expr_dimensions</span><span class="p">(</span><span class="n">eqn</span><span class="o">.</span><span class="n">lhs</span><span class="p">)))</span>
+            <span class="n">dimensions</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="n">expr_dimensions</span><span class="p">(</span><span class="n">eqn</span><span class="o">.</span><span class="n">rhs</span><span class="p">)))</span>
+        <span class="c1"># Time dimension is fixed for now</span>
+        <span class="n">time_dim</span> <span class="o">=</span> <span class="n">symbols</span><span class="p">(</span><span class="s2">&quot;t&quot;</span><span class="p">)</span>
+        <span class="c1"># Derive space dimensions from expression</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">space_dims</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">dimensions</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">space_dims</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">dimensions</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">time_dim</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">space_dims</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">space_dims</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span><span class="n">time_dim</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="c1"># Default space dimension symbols</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">space_dims</span> <span class="o">=</span> <span class="n">symbols</span><span class="p">(</span><span class="s2">&quot;x z&quot;</span> <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">shape</span><span class="p">)</span> <span class="o">==</span> <span class="mi">2</span> <span class="k">else</span> <span class="s2">&quot;x y z&quot;</span><span class="p">)[:</span><span class="nb">len</span><span class="p">(</span><span class="n">shape</span><span class="p">)]</span>
+        <span class="c1"># Get functions and symbols in LHS/RHS and update params</span>
+        <span class="n">sym_undef</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+        <span class="k">for</span> <span class="n">eqn</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">stencils</span><span class="p">:</span>
+            <span class="n">lhs_def</span><span class="p">,</span> <span class="n">lhs_undef</span> <span class="o">=</span> <span class="n">expr_symbols</span><span class="p">(</span><span class="n">eqn</span><span class="o">.</span><span class="n">lhs</span><span class="p">)</span>
+            <span class="n">sym_undef</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">lhs_undef</span><span class="p">)</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">output_params</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">output_params</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">lhs_def</span><span class="p">)</span>
+            <span class="n">rhs_def</span><span class="p">,</span> <span class="n">rhs_undef</span> <span class="o">=</span> <span class="n">expr_symbols</span><span class="p">(</span><span class="n">eqn</span><span class="o">.</span><span class="n">rhs</span><span class="p">)</span>
+            <span class="n">sym_undef</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">rhs_undef</span><span class="p">)</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">input_params</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">input_params</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">rhs_def</span><span class="p">)</span>
+        <span class="c1"># Remove output from input params</span>
+        <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">input_params</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">p</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">output_params</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">output_params</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span><span class="n">p</span><span class="p">)</span>
+        <span class="c1"># Remove known dimensions from undefined symbols</span>
+        <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">dimensions</span><span class="p">:</span>
+            <span class="n">sym_undef</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span><span class="n">d</span><span class="p">)</span>
+        <span class="c1"># TODO: We should check that all undfined symbols have known substitutions</span>
+
+        <span class="c1"># Shift time indices so that LHS writes into t only,</span>
+        <span class="c1"># eg. u[t+2] = u[t+1] + u[t]  -&gt; u[t] = u[t-1] + u[t-2]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">stencils</span> <span class="o">=</span> <span class="p">[</span><span class="n">eqn</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">t</span><span class="p">,</span> <span class="n">t</span> <span class="o">+</span> <span class="n">solve</span><span class="p">(</span><span class="n">eqn</span><span class="o">.</span><span class="n">lhs</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">t</span><span class="p">)[</span><span class="mi">0</span><span class="p">])</span>
+                         <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">eqn</span><span class="o">.</span><span class="n">lhs</span><span class="p">,</span> <span class="n">TimeData</span><span class="p">)</span> <span class="k">else</span> <span class="n">eqn</span>
+                         <span class="k">for</span> <span class="n">eqn</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">stencils</span><span class="p">]</span>
+        <span class="c1"># Convert incoming stencil equations to &quot;indexed access&quot; format</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">stencils</span> <span class="o">=</span> <span class="p">[</span><span class="n">Eq</span><span class="p">(</span><span class="n">expr_indexify</span><span class="p">(</span><span class="n">eqn</span><span class="o">.</span><span class="n">lhs</span><span class="p">),</span> <span class="n">expr_indexify</span><span class="p">(</span><span class="n">eqn</span><span class="o">.</span><span class="n">rhs</span><span class="p">))</span>
+                         <span class="k">for</span> <span class="n">eqn</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">stencils</span><span class="p">]</span>
+        <span class="c1"># Apply user-defined substitutions to stencil</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">stencils</span> <span class="o">=</span> <span class="p">[</span><span class="n">eqn</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">args</span><span class="p">)</span> <span class="k">for</span> <span class="n">eqn</span><span class="p">,</span> <span class="n">args</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">stencils</span><span class="p">,</span> <span class="n">substitutions</span><span class="p">)]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">propagator</span> <span class="o">=</span> <span class="n">Propagator</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">getName</span><span class="p">(),</span> <span class="n">nt</span><span class="p">,</span> <span class="n">shape</span><span class="p">,</span> <span class="n">spc_border</span><span class="o">=</span><span class="n">spc_border</span><span class="p">,</span>
+                                     <span class="n">time_order</span><span class="o">=</span><span class="n">time_order</span><span class="p">,</span> <span class="n">forward</span><span class="o">=</span><span class="n">forward</span><span class="p">,</span>
+                                     <span class="n">space_dims</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">space_dims</span><span class="p">,</span>
+                                     <span class="n">compiler</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">compiler</span><span class="p">,</span> <span class="n">profile</span><span class="o">=</span><span class="n">profile</span><span class="p">,</span>
+                                     <span class="n">cache_blocking</span><span class="o">=</span><span class="n">cache_blocking</span><span class="p">,</span> <span class="n">block_size</span><span class="o">=</span><span class="n">block_size</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">dtype</span> <span class="o">=</span> <span class="n">dtype</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">nt</span> <span class="o">=</span> <span class="n">nt</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">shape</span> <span class="o">=</span> <span class="n">shape</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">spc_border</span> <span class="o">=</span> <span class="n">spc_border</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">symbol_to_data</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="k">for</span> <span class="n">param</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">input_params</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">output_params</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">propagator</span><span class="o">.</span><span class="n">add_devito_param</span><span class="p">(</span><span class="n">param</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">symbol_to_data</span><span class="p">[</span><span class="n">param</span><span class="o">.</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="n">param</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">propagator</span><span class="o">.</span><span class="n">stencils</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">stencils</span>
+
+<div class="viewcode-block" id="Operator.apply"><a class="viewcode-back" href="../../devito.html#devito.operator.Operator.apply">[docs]</a>    <span class="k">def</span> <span class="nf">apply</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">debug</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;:param debug: If True, use Python to apply the operator. Default False.</span>
+
+<span class="sd">        :returns: A tuple containing the values of the operator outputs</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">debug</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">apply_python</span><span class="p">()</span>
+        <span class="n">f</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">propagator</span><span class="o">.</span><span class="n">cfunction</span>
+        <span class="k">for</span> <span class="n">param</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">input_params</span><span class="p">:</span>
+            <span class="n">param</span><span class="o">.</span><span class="n">initialize</span><span class="p">()</span>
+        <span class="n">args</span> <span class="o">=</span> <span class="p">[</span><span class="n">param</span><span class="o">.</span><span class="n">data</span> <span class="k">for</span> <span class="n">param</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">input_params</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">output_params</span><span class="p">]</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">compiler</span><span class="p">,</span> <span class="n">IntelMICCompiler</span><span class="p">):</span>
+            <span class="c1"># Off-load propagator kernel via pymic stream</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">compiler</span><span class="o">.</span><span class="n">_stream</span><span class="o">.</span><span class="n">invoke</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">compiler</span><span class="o">.</span><span class="n">_stream</span><span class="o">.</span><span class="n">sync</span><span class="p">()</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">f</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">)</span>
+        <span class="k">return</span> <span class="nb">tuple</span><span class="p">([</span><span class="n">param</span><span class="o">.</span><span class="n">data</span> <span class="k">for</span> <span class="n">param</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">output_params</span><span class="p">])</span></div>
+
+<div class="viewcode-block" id="Operator.apply_python"><a class="viewcode-back" href="../../devito.html#devito.operator.Operator.apply_python">[docs]</a>    <span class="k">def</span> <span class="nf">apply_python</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Uses Python to apply the operator</span>
+
+<span class="sd">        :returns: A tuple containing the values of the operator outputs</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">run_python</span><span class="p">()</span>
+        <span class="k">return</span> <span class="nb">tuple</span><span class="p">([</span><span class="n">param</span><span class="o">.</span><span class="n">data</span> <span class="k">for</span> <span class="n">param</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">output_params</span><span class="p">])</span></div>
+
+<div class="viewcode-block" id="Operator.find_free_terms"><a class="viewcode-back" href="../../devito.html#devito.operator.Operator.find_free_terms">[docs]</a>    <span class="k">def</span> <span class="nf">find_free_terms</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">expr</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Finds free terms in an expression</span>
+
+<span class="sd">        :param expr: The expression to search</span>
+<span class="sd">        :returns: A list of free terms in the expression</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">free_terms</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">term</span> <span class="ow">in</span> <span class="n">expr</span><span class="o">.</span><span class="n">args</span><span class="p">:</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">term</span><span class="p">,</span> <span class="n">Indexed</span><span class="p">):</span>
+                <span class="n">free_terms</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">term</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">free_terms</span> <span class="o">+=</span> <span class="bp">self</span><span class="o">.</span><span class="n">find_free_terms</span><span class="p">(</span><span class="n">term</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">free_terms</span></div>
+
+<div class="viewcode-block" id="Operator.symbol_to_var"><a class="viewcode-back" href="../../devito.html#devito.operator.Operator.symbol_to_var">[docs]</a>    <span class="k">def</span> <span class="nf">symbol_to_var</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">term</span><span class="p">,</span> <span class="n">ti</span><span class="p">,</span> <span class="n">indices</span><span class="o">=</span><span class="p">[]):</span>
+        <span class="sd">&quot;&quot;&quot;Retrieves the Python data from a symbol</span>
+
+<span class="sd">        :param term: The symbol from which the data has to be retrieved</span>
+<span class="sd">        :param ti: The value of t to use</span>
+<span class="sd">        :param indices: A list of indices to use for the space dimensions</span>
+<span class="sd">        :returns: A tuple containing the data and the indices to access it</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">arr</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">symbol_to_data</span><span class="p">[</span><span class="nb">str</span><span class="p">(</span><span class="n">term</span><span class="o">.</span><span class="n">base</span><span class="o">.</span><span class="n">label</span><span class="p">)]</span><span class="o">.</span><span class="n">data</span>
+        <span class="n">num_ind</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">ind</span> <span class="ow">in</span> <span class="n">term</span><span class="o">.</span><span class="n">indices</span><span class="p">:</span>
+            <span class="n">ind</span> <span class="o">=</span> <span class="n">ind</span><span class="o">.</span><span class="n">subs</span><span class="p">({</span><span class="n">symbols</span><span class="p">(</span><span class="s2">&quot;t&quot;</span><span class="p">):</span> <span class="n">ti</span><span class="p">})</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="nb">tuple</span><span class="p">(</span><span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">space_dims</span><span class="p">,</span> <span class="n">indices</span><span class="p">)))</span>
+            <span class="n">num_ind</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">ind</span><span class="p">)</span>
+        <span class="k">return</span> <span class="p">(</span><span class="n">arr</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">num_ind</span><span class="p">))</span></div>
+
+<div class="viewcode-block" id="Operator.expr_to_lambda"><a class="viewcode-back" href="../../devito.html#devito.operator.Operator.expr_to_lambda">[docs]</a>    <span class="k">def</span> <span class="nf">expr_to_lambda</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">expr_arr</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Tranforms a list of expressions in a list of lambdas</span>
+
+<span class="sd">        :param expr_arr: The list of expressions to be transformed</span>
+<span class="sd">        :returns: The list of lambdas resulting from the expressions</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">lambdas</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">expr</span> <span class="ow">in</span> <span class="n">expr_arr</span><span class="p">:</span>
+            <span class="n">terms</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">find_free_terms</span><span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="n">rhs</span><span class="p">)</span>
+            <span class="n">term_symbols</span> <span class="o">=</span> <span class="p">[</span><span class="n">symbols</span><span class="p">(</span><span class="s2">&quot;i</span><span class="si">%d</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">terms</span><span class="p">))]</span>
+            <span class="c1"># Substitute IndexedBase references to simple variables</span>
+            <span class="c1"># lambdify doesn&#39;t support IndexedBase references in expressions</span>
+            <span class="n">expr_to_lambda</span> <span class="o">=</span> <span class="n">expr</span><span class="o">.</span><span class="n">rhs</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="nb">dict</span><span class="p">(</span><span class="nb">zip</span><span class="p">(</span><span class="n">terms</span><span class="p">,</span> <span class="n">term_symbols</span><span class="p">)))</span>
+            <span class="n">lambdified</span> <span class="o">=</span> <span class="n">lambdify</span><span class="p">(</span><span class="n">term_symbols</span><span class="p">,</span> <span class="n">expr_to_lambda</span><span class="p">)</span>
+            <span class="n">lambdas</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">lambdified</span><span class="p">,</span> <span class="n">terms</span><span class="p">))</span>
+        <span class="k">return</span> <span class="n">lambdas</span></div>
+
+<div class="viewcode-block" id="Operator.run_python"><a class="viewcode-back" href="../../devito.html#devito.operator.Operator.run_python">[docs]</a>    <span class="k">def</span> <span class="nf">run_python</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Executes the operator using Python</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">time_loop_limits</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">propagator</span><span class="o">.</span><span class="n">time_loop_limits</span>
+        <span class="n">time_loop_lambdas_b</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">expr_to_lambda</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">propagator</span><span class="o">.</span><span class="n">time_loop_stencils_b</span><span class="p">)</span>
+        <span class="n">time_loop_lambdas_a</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">expr_to_lambda</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">propagator</span><span class="o">.</span><span class="n">time_loop_stencils_a</span><span class="p">)</span>
+        <span class="n">stencil_lambdas</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">expr_to_lambda</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">stencils</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">ti</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="o">*</span><span class="n">time_loop_limits</span><span class="p">):</span>
+            <span class="c1"># Run time loop stencils before space loop</span>
+            <span class="k">for</span> <span class="n">lams</span><span class="p">,</span> <span class="n">expr</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">time_loop_lambdas_b</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">propagator</span><span class="o">.</span><span class="n">time_loop_stencils_b</span><span class="p">):</span>
+                <span class="n">lamda</span> <span class="o">=</span> <span class="n">lams</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+                <span class="n">subs</span> <span class="o">=</span> <span class="n">lams</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+                <span class="n">arr_lhs</span><span class="p">,</span> <span class="n">ind_lhs</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">symbol_to_var</span><span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="n">lhs</span><span class="p">,</span> <span class="n">ti</span><span class="p">)</span>
+                <span class="n">args</span> <span class="o">=</span> <span class="p">[]</span>
+                <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">subs</span><span class="p">:</span>
+                    <span class="n">arr</span><span class="p">,</span> <span class="n">ind</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">symbol_to_var</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">ti</span><span class="p">)</span>
+                    <span class="n">args</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">arr</span><span class="p">[</span><span class="n">ind</span><span class="p">])</span>
+                <span class="n">arr_lhs</span><span class="p">[</span><span class="n">ind_lhs</span><span class="p">]</span> <span class="o">=</span> <span class="n">lamda</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">)</span>
+            <span class="n">lower_limits</span> <span class="o">=</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">spc_border</span><span class="p">]</span><span class="o">*</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+            <span class="n">upper_limits</span> <span class="o">=</span> <span class="p">[</span><span class="n">x</span><span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">spc_border</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">shape</span><span class="p">]</span>
+            <span class="n">indices</span> <span class="o">=</span> <span class="n">lower_limits</span><span class="p">[:]</span>
+            <span class="c1"># Number of iterations in each dimension</span>
+            <span class="n">total_size_arr</span> <span class="o">=</span> <span class="p">[</span><span class="n">a</span> <span class="o">-</span> <span class="n">b</span> <span class="k">for</span> <span class="n">a</span><span class="p">,</span> <span class="n">b</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">upper_limits</span><span class="p">,</span> <span class="n">lower_limits</span><span class="p">)]</span>
+            <span class="c1"># Total number of iterations</span>
+            <span class="n">total_iter</span> <span class="o">=</span> <span class="n">reduce</span><span class="p">(</span><span class="k">lambda</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">:</span> <span class="n">x</span><span class="o">*</span><span class="n">y</span><span class="p">,</span> <span class="n">total_size_arr</span><span class="p">)</span>
+            <span class="c1"># The 2/3 dimensional space loop has been collapsed to a single loop</span>
+            <span class="k">for</span> <span class="n">iter_index</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">total_iter</span><span class="p">):</span>
+                <span class="n">dimension_limit</span> <span class="o">=</span> <span class="mi">1</span>
+                <span class="c1"># Calculating 2/3 dimensional index based on 1D index</span>
+                <span class="n">indices</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="n">lower_limits</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">+</span> <span class="n">iter_index</span> <span class="o">%</span> <span class="n">total_size_arr</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+                <span class="k">for</span> <span class="n">dimension</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">shape</span><span class="p">)):</span>
+                    <span class="n">dimension_limit</span> <span class="o">*=</span> <span class="n">total_size_arr</span><span class="p">[</span><span class="n">dimension</span><span class="p">]</span>
+                    <span class="n">indices</span><span class="p">[</span><span class="n">dimension</span><span class="p">]</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">iter_index</span> <span class="o">/</span> <span class="n">dimension_limit</span><span class="p">)</span>
+                <span class="k">for</span> <span class="n">lams</span><span class="p">,</span> <span class="n">expr</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">stencil_lambdas</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">stencils</span><span class="p">):</span>
+                    <span class="n">lamda</span> <span class="o">=</span> <span class="n">lams</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+                    <span class="n">subs</span> <span class="o">=</span> <span class="n">lams</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+                    <span class="n">arr_lhs</span><span class="p">,</span> <span class="n">ind_lhs</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">symbol_to_var</span><span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="n">lhs</span><span class="p">,</span> <span class="n">ti</span><span class="p">,</span> <span class="n">indices</span><span class="p">)</span>
+                    <span class="n">args</span> <span class="o">=</span> <span class="p">[]</span>
+                    <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">subs</span><span class="p">:</span>
+                        <span class="n">arr</span><span class="p">,</span> <span class="n">ind</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">symbol_to_var</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">ti</span><span class="p">,</span> <span class="n">indices</span><span class="p">)</span>
+                        <span class="n">args</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">arr</span><span class="p">[</span><span class="n">ind</span><span class="p">])</span>
+                    <span class="n">arr_lhs</span><span class="p">[</span><span class="n">ind_lhs</span><span class="p">]</span> <span class="o">=</span> <span class="n">lamda</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">)</span>
+            <span class="c1"># Time loop stencils for after space loop</span>
+            <span class="k">for</span> <span class="n">lams</span><span class="p">,</span> <span class="n">expr</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">time_loop_lambdas_a</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">propagator</span><span class="o">.</span><span class="n">time_loop_stencils_a</span><span class="p">):</span>
+                <span class="n">lamda</span> <span class="o">=</span> <span class="n">lams</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+                <span class="n">subs</span> <span class="o">=</span> <span class="n">lams</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+                <span class="n">arr_lhs</span><span class="p">,</span> <span class="n">ind_lhs</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">symbol_to_var</span><span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="n">lhs</span><span class="p">,</span> <span class="n">ti</span><span class="p">)</span>
+                <span class="n">args</span> <span class="o">=</span> <span class="p">[]</span>
+                <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">subs</span><span class="p">:</span>
+                    <span class="n">arr</span><span class="p">,</span> <span class="n">ind</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">symbol_to_var</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">ti</span><span class="p">)</span>
+                    <span class="n">args</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">arr</span><span class="p">[</span><span class="n">ind</span><span class="p">])</span>
+                <span class="n">arr_lhs</span><span class="p">[</span><span class="n">ind_lhs</span><span class="p">]</span> <span class="o">=</span> <span class="n">lamda</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="Operator.getName"><a class="viewcode-back" href="../../devito.html#devito.operator.Operator.getName">[docs]</a>    <span class="k">def</span> <span class="nf">getName</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Gives the name of the class</span>
+
+<span class="sd">        :returns: The name of the class</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">__class__</span><span class="o">.</span><span class="n">__name__</span></div></div>
+
+
+<span class="k">class</span> <span class="nc">SimpleOperator</span><span class="p">(</span><span class="n">Operator</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">input_grid</span><span class="p">,</span> <span class="n">output_grid</span><span class="p">,</span> <span class="n">kernel</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="k">assert</span><span class="p">(</span><span class="n">input_grid</span><span class="o">.</span><span class="n">shape</span> <span class="o">==</span> <span class="n">output_grid</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+        <span class="n">nt</span> <span class="o">=</span> <span class="n">input_grid</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="n">shape</span> <span class="o">=</span> <span class="n">input_grid</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">:]</span>
+        <span class="n">input_params</span> <span class="o">=</span> <span class="p">[</span><span class="n">input_grid</span><span class="p">]</span>
+        <span class="n">output_params</span> <span class="o">=</span> <span class="p">[</span><span class="n">output_grid</span><span class="p">]</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">SimpleOperator</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="n">nt</span><span class="p">,</span> <span class="n">shape</span><span class="p">,</span> <span class="n">stencils</span><span class="o">=</span><span class="n">kernel</span><span class="p">,</span>
+                                             <span class="n">substitutions</span><span class="o">=</span><span class="p">{},</span>
+                                             <span class="n">input_params</span><span class="o">=</span><span class="n">input_params</span><span class="p">,</span>
+                                             <span class="n">output_params</span><span class="o">=</span><span class="n">output_params</span><span class="p">,</span>
+                                             <span class="n">dtype</span><span class="o">=</span><span class="n">input_grid</span><span class="o">.</span><span class="n">dtype</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2016, Opesci.
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/snide/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  
+
+    <script type="text/javascript">
+        var DOCUMENTATION_OPTIONS = {
+            URL_ROOT:'../../',
+            VERSION:'1',
+            COLLAPSE_INDEX:false,
+            FILE_SUFFIX:'.html',
+            HAS_SOURCE:  true
+        };
+    </script>
+      <script type="text/javascript" src="../../_static/jquery.js"></script>
+      <script type="text/javascript" src="../../_static/underscore.js"></script>
+      <script type="text/javascript" src="../../_static/doctools.js"></script>
+      <script type="text/javascript" src="https://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+
+  
+
+  
+  
+    <script type="text/javascript" src="../../_static/js/theme.js"></script>
+  
+
+  
+  
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.StickyNav.enable();
+      });
+  </script>
+   
+
+</body>
+</html>

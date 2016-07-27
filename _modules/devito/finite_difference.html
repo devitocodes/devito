@@ -1,0 +1,284 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>devito.finite_difference &mdash; Devito 1 documentation</title>
+  
+
+  
+  
+
+  
+
+  
+  
+    
+
+  
+
+  
+  
+    <link rel="stylesheet" href="../../_static/css/theme.css" type="text/css" />
+  
+
+  
+
+  
+    <link rel="top" title="Devito 1 documentation" href="../../index.html"/>
+        <link rel="up" title="Module code" href="../index.html"/> 
+
+  
+  <script src="../../_static/js/modernizr.min.js"></script>
+
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search">
+          
+
+          
+            <a href="../../index.html" class="icon icon-home"> Devito
+          
+
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                0
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+                <ul>
+<li class="toctree-l1"><a class="reference internal" href="../../download.html">Download</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../tutorials.html">Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../devito.html">API Documentation</a></li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" role="navigation" aria-label="top navigation">
+        <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+        <a href="../../index.html">Devito</a>
+      </nav>
+
+
+      
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href="../../index.html">Docs</a> &raquo;</li>
+      
+          <li><a href="../index.html">Module code</a> &raquo;</li>
+      
+    <li>devito.finite_difference</li>
+      <li class="wy-breadcrumbs-aside">
+        
+          
+        
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <h1>Source code for devito.finite_difference</h1><div class="highlight"><pre>
+<span></span><span class="kn">from</span> <span class="nn">__future__</span> <span class="k">import</span> <span class="n">absolute_import</span>
+<span class="kn">from</span> <span class="nn">sympy</span> <span class="k">import</span> <span class="n">symbols</span>
+<span class="kn">from</span> <span class="nn">functools</span> <span class="k">import</span> <span class="n">reduce</span>
+<span class="kn">from</span> <span class="nn">operator</span> <span class="k">import</span> <span class="n">mul</span>
+
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;second_derivative&#39;</span><span class="p">,</span> <span class="s1">&#39;cross_derivative&#39;</span><span class="p">]</span>
+
+
+<span class="c1"># Explicitly derived Finite Difference coefficients for</span>
+<span class="c1"># symmetric derivative stencils.</span>
+<span class="n">fd_coefficients</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="mi">16</span><span class="p">:</span> <span class="p">[</span><span class="o">-</span><span class="mf">3.054844</span><span class="p">,</span> <span class="mf">1.777778</span><span class="p">,</span> <span class="o">-</span><span class="mf">0.311111</span><span class="p">,</span> <span class="mf">0.075421</span><span class="p">,</span> <span class="o">-</span><span class="mf">0.017677</span><span class="p">,</span> <span class="mf">0.003481</span><span class="p">,</span> <span class="o">-</span><span class="mf">0.000518</span><span class="p">,</span> <span class="mf">0.000051</span><span class="p">,</span> <span class="o">-</span><span class="mf">0.000002</span><span class="p">],</span>
+    <span class="mi">14</span><span class="p">:</span> <span class="p">[</span><span class="o">-</span><span class="mf">3.023594</span><span class="p">,</span> <span class="mf">1.750000</span><span class="p">,</span> <span class="o">-</span><span class="mf">0.291667</span><span class="p">,</span> <span class="mf">0.064815</span><span class="p">,</span> <span class="o">-</span><span class="mf">0.013258</span><span class="p">,</span> <span class="mf">0.002121</span><span class="p">,</span> <span class="o">-</span><span class="mf">0.000227</span><span class="p">,</span> <span class="mf">0.000012</span><span class="p">],</span>
+    <span class="mi">12</span><span class="p">:</span> <span class="p">[</span><span class="o">-</span><span class="mf">2.982778</span><span class="p">,</span> <span class="mf">1.714286</span><span class="p">,</span> <span class="o">-</span><span class="mf">0.267857</span><span class="p">,</span> <span class="mf">0.052910</span><span class="p">,</span> <span class="o">-</span><span class="mf">0.008929</span><span class="p">,</span> <span class="mf">0.001039</span><span class="p">,</span> <span class="o">-</span><span class="mf">0.000060</span><span class="p">],</span>
+    <span class="mi">10</span><span class="p">:</span> <span class="p">[</span><span class="o">-</span><span class="mf">2.927222</span><span class="p">,</span> <span class="mf">1.666667</span><span class="p">,</span> <span class="o">-</span><span class="mf">0.238095</span><span class="p">,</span> <span class="mf">0.039683</span><span class="p">,</span> <span class="o">-</span><span class="mf">0.004960</span><span class="p">,</span> <span class="mf">0.000317</span><span class="p">],</span>
+    <span class="mi">8</span><span class="p">:</span> <span class="p">[</span><span class="o">-</span><span class="mf">2.847222</span><span class="p">,</span> <span class="mf">1.600000</span><span class="p">,</span> <span class="o">-</span><span class="mf">0.200000</span><span class="p">,</span> <span class="mf">0.025397</span><span class="p">,</span> <span class="o">-</span><span class="mf">0.001786</span><span class="p">],</span>
+    <span class="mi">6</span><span class="p">:</span> <span class="p">[</span><span class="o">-</span><span class="mf">2.722222</span><span class="p">,</span> <span class="mf">1.500000</span><span class="p">,</span> <span class="o">-</span><span class="mf">0.150000</span><span class="p">,</span> <span class="mf">0.01111</span><span class="p">],</span>
+    <span class="mi">4</span><span class="p">:</span> <span class="p">[</span><span class="o">-</span><span class="mf">2.500000</span><span class="p">,</span> <span class="mf">1.333333</span><span class="p">,</span> <span class="o">-</span><span class="mf">0.08333</span><span class="p">],</span>
+    <span class="mi">2</span><span class="p">:</span> <span class="p">[</span><span class="o">-</span><span class="mf">2.</span><span class="p">,</span> <span class="mf">1.</span><span class="p">],</span>
+<span class="p">}</span>
+
+
+<span class="c1"># Default function and dimension symbol</span>
+<span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">h</span> <span class="o">=</span> <span class="n">symbols</span><span class="p">(</span><span class="s1">&#39;x y h&#39;</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="second_derivative"><a class="viewcode-back" href="../../devito.html#devito.finite_difference.second_derivative">[docs]</a><span class="k">def</span> <span class="nf">second_derivative</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Derives second derivative for a product of given functions.</span>
+
+<span class="sd">    :param *args: All positional arguments must be fully qualified</span>
+<span class="sd">                  function objects, eg. `f(x, y)` or `g(t, x, y, z)`.</span>
+<span class="sd">    :param dim: Symbol defininf the dimension wrt. which to</span>
+<span class="sd">                differentiate, eg. `x`, `y`, `z` or `t`.</span>
+<span class="sd">    :param diff: Finite Difference symbol to insert, default `h`.</span>
+<span class="sd">    :param order: Discretisation order of the stencil to create.</span>
+
+<span class="sd">    Example: Deriving the second derivative of f(x, y)*g(x, y) wrt. x via</span>
+<span class="sd">             `second_derivative(f(x, y), g(x, y), order=2, dim=x)`</span>
+<span class="sd">             results in</span>
+<span class="sd">             `(-2.0*f(x, y)*g(x, y) + 1.0*f(-h + x, y)*g(-h + x, y)</span>
+<span class="sd">               + 1.0*f(h + x, y)*g(h + x, y)) / h**2`.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">order</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;order&#39;</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span>
+    <span class="n">dim</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;dim&#39;</span><span class="p">,</span> <span class="n">x</span><span class="p">)</span>
+    <span class="n">diff</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;diff&#39;</span><span class="p">,</span> <span class="n">h</span><span class="p">)</span>
+    <span class="k">assert</span><span class="p">(</span><span class="n">order</span> <span class="ow">in</span> <span class="n">fd_coefficients</span><span class="p">)</span>
+    <span class="n">coeffs</span> <span class="o">=</span> <span class="n">fd_coefficients</span><span class="p">[</span><span class="n">order</span><span class="p">]</span>
+    <span class="n">deriv</span> <span class="o">=</span> <span class="n">coeffs</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">*</span> <span class="n">reduce</span><span class="p">(</span><span class="n">mul</span><span class="p">,</span> <span class="n">args</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="nb">int</span><span class="p">(</span><span class="n">order</span> <span class="o">/</span> <span class="mi">2</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span><span class="p">):</span>
+        <span class="n">aux1</span> <span class="o">=</span> <span class="p">[</span><span class="n">a</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">dim</span><span class="p">,</span> <span class="n">dim</span> <span class="o">+</span> <span class="n">i</span> <span class="o">*</span> <span class="n">diff</span><span class="p">)</span> <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="n">args</span><span class="p">]</span>
+        <span class="n">aux2</span> <span class="o">=</span> <span class="p">[</span><span class="n">a</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">dim</span><span class="p">,</span> <span class="n">dim</span> <span class="o">-</span> <span class="n">i</span> <span class="o">*</span> <span class="n">diff</span><span class="p">)</span> <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="n">args</span><span class="p">]</span>
+        <span class="n">deriv</span> <span class="o">+=</span> <span class="n">coeffs</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">*</span> <span class="p">(</span><span class="n">reduce</span><span class="p">(</span><span class="n">mul</span><span class="p">,</span> <span class="n">aux1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span> <span class="o">+</span> <span class="n">reduce</span><span class="p">(</span><span class="n">mul</span><span class="p">,</span> <span class="n">aux2</span><span class="p">,</span> <span class="mi">1</span><span class="p">))</span>
+    <span class="k">return</span> <span class="p">(</span><span class="mi">1</span> <span class="o">/</span> <span class="n">diff</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span> <span class="o">*</span> <span class="n">deriv</span></div>
+
+
+<div class="viewcode-block" id="cross_derivative"><a class="viewcode-back" href="../../devito.html#devito.finite_difference.cross_derivative">[docs]</a><span class="k">def</span> <span class="nf">cross_derivative</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Derives corss derivative for a product of given functions.</span>
+
+<span class="sd">    :param *args: All positional arguments must be fully qualified</span>
+<span class="sd">                  function objects, eg. `f(x, y)` or `g(t, x, y, z)`.</span>
+<span class="sd">    :param dims: 2-tuple of symbols defining the dimension wrt. which</span>
+<span class="sd">                 to differentiate, eg. `x`, `y`, `z` or `t`.</span>
+<span class="sd">    :param diff: Finite Difference symbol to insert, default `h`.</span>
+
+<span class="sd">    Example: Deriving the cross-derivative of f(x, y)*g(x, y)</span>
+<span class="sd">             wrt. x and y via:</span>
+<span class="sd">             `cross_derivative(f(x, y), g(x, y), dims=(x, y))`</span>
+<span class="sd">             results in</span>
+<span class="sd">             `0.5*(-2.0*f(x, y)*g(x, y) + f(x, -h + y)*g(x, -h + y)</span>
+<span class="sd">                   + f(x, h + y)*g(x, h + y) + f(-h + x, y)*g(-h + x, y)</span>
+<span class="sd">                   - f(-h + x, h + y)*g(-h + x, h + y) + f(h + x, y)*g(h + x, y)</span>
+<span class="sd">                   - f(h + x, -h + y)*g(h + x, -h + y)) / h**2</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">dims</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;dims&#39;</span><span class="p">,</span> <span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">))</span>
+    <span class="n">diff</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;diff&#39;</span><span class="p">,</span> <span class="n">h</span><span class="p">)</span>
+    <span class="k">assert</span><span class="p">(</span><span class="nb">isinstance</span><span class="p">(</span><span class="n">dims</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">)</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="n">dims</span><span class="p">)</span> <span class="o">==</span> <span class="mi">2</span><span class="p">)</span>
+    <span class="n">deriv</span> <span class="o">=</span> <span class="o">-</span><span class="mf">2.</span> <span class="o">*</span> <span class="n">reduce</span><span class="p">(</span><span class="n">mul</span><span class="p">,</span> <span class="n">args</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="c1"># Direction of first dimension</span>
+    <span class="n">aux1_0</span> <span class="o">=</span> <span class="p">[</span><span class="n">a</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">dims</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">dims</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">+</span> <span class="n">diff</span><span class="p">)</span> <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="n">args</span><span class="p">]</span>
+    <span class="n">aux2_0</span> <span class="o">=</span> <span class="p">[</span><span class="n">a</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">dims</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">dims</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">-</span> <span class="n">diff</span><span class="p">)</span> <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="n">args</span><span class="p">]</span>
+    <span class="n">deriv</span> <span class="o">+=</span> <span class="n">reduce</span><span class="p">(</span><span class="n">mul</span><span class="p">,</span> <span class="n">aux1_0</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span> <span class="o">+</span> <span class="n">reduce</span><span class="p">(</span><span class="n">mul</span><span class="p">,</span> <span class="n">aux2_0</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="c1"># Direction of second dimension</span>
+    <span class="n">aux1_1</span> <span class="o">=</span> <span class="p">[</span><span class="n">a</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">dims</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">dims</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="n">diff</span><span class="p">)</span> <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="n">args</span><span class="p">]</span>
+    <span class="n">aux2_1</span> <span class="o">=</span> <span class="p">[</span><span class="n">a</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">dims</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">dims</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">-</span> <span class="n">diff</span><span class="p">)</span> <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="n">args</span><span class="p">]</span>
+    <span class="n">deriv</span> <span class="o">+=</span> <span class="n">reduce</span><span class="p">(</span><span class="n">mul</span><span class="p">,</span> <span class="n">aux1_1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span> <span class="o">+</span> <span class="n">reduce</span><span class="p">(</span><span class="n">mul</span><span class="p">,</span> <span class="n">aux2_1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="c1"># Diagonal elements</span>
+    <span class="n">aux1_2</span> <span class="o">=</span> <span class="p">[</span><span class="n">a</span><span class="o">.</span><span class="n">subs</span><span class="p">({</span><span class="n">dims</span><span class="p">[</span><span class="mi">0</span><span class="p">]:</span> <span class="n">dims</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">-</span> <span class="n">diff</span><span class="p">,</span> <span class="n">dims</span><span class="p">[</span><span class="mi">1</span><span class="p">]:</span> <span class="n">dims</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="n">diff</span><span class="p">})</span> <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="n">args</span><span class="p">]</span>
+    <span class="n">aux2_2</span> <span class="o">=</span> <span class="p">[</span><span class="n">a</span><span class="o">.</span><span class="n">subs</span><span class="p">({</span><span class="n">dims</span><span class="p">[</span><span class="mi">0</span><span class="p">]:</span> <span class="n">dims</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">+</span> <span class="n">diff</span><span class="p">,</span> <span class="n">dims</span><span class="p">[</span><span class="mi">1</span><span class="p">]:</span> <span class="n">dims</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">-</span> <span class="n">diff</span><span class="p">})</span> <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="n">args</span><span class="p">]</span>
+    <span class="n">deriv</span> <span class="o">-=</span> <span class="n">reduce</span><span class="p">(</span><span class="n">mul</span><span class="p">,</span> <span class="n">aux1_2</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span> <span class="o">+</span> <span class="n">reduce</span><span class="p">(</span><span class="n">mul</span><span class="p">,</span> <span class="n">aux2_2</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="k">return</span> <span class="p">(</span><span class="o">.</span><span class="mi">5</span> <span class="o">/</span> <span class="n">diff</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span> <span class="o">*</span> <span class="n">deriv</span></div>
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2016, Opesci.
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/snide/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  
+
+    <script type="text/javascript">
+        var DOCUMENTATION_OPTIONS = {
+            URL_ROOT:'../../',
+            VERSION:'1',
+            COLLAPSE_INDEX:false,
+            FILE_SUFFIX:'.html',
+            HAS_SOURCE:  true
+        };
+    </script>
+      <script type="text/javascript" src="../../_static/jquery.js"></script>
+      <script type="text/javascript" src="../../_static/underscore.js"></script>
+      <script type="text/javascript" src="../../_static/doctools.js"></script>
+      <script type="text/javascript" src="https://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+
+  
+
+  
+  
+    <script type="text/javascript" src="../../_static/js/theme.js"></script>
+  
+
+  
+  
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.StickyNav.enable();
+      });
+  </script>
+   
+
+</body>
+</html>

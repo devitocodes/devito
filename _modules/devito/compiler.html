@@ -1,0 +1,408 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>devito.compiler &mdash; Devito 1 documentation</title>
+  
+
+  
+  
+
+  
+
+  
+  
+    
+
+  
+
+  
+  
+    <link rel="stylesheet" href="../../_static/css/theme.css" type="text/css" />
+  
+
+  
+
+  
+    <link rel="top" title="Devito 1 documentation" href="../../index.html"/>
+        <link rel="up" title="Module code" href="../index.html"/> 
+
+  
+  <script src="../../_static/js/modernizr.min.js"></script>
+
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search">
+          
+
+          
+            <a href="../../index.html" class="icon icon-home"> Devito
+          
+
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                0
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+                <ul>
+<li class="toctree-l1"><a class="reference internal" href="../../download.html">Download</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../tutorials.html">Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../devito.html">API Documentation</a></li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" role="navigation" aria-label="top navigation">
+        <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+        <a href="../../index.html">Devito</a>
+      </nav>
+
+
+      
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href="../../index.html">Docs</a> &raquo;</li>
+      
+          <li><a href="../index.html">Module code</a> &raquo;</li>
+      
+    <li>devito.compiler</li>
+      <li class="wy-breadcrumbs-aside">
+        
+          
+        
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <h1>Source code for devito.compiler</h1><div class="highlight"><pre>
+<span></span><span class="kn">from</span> <span class="nn">codepy.toolchain</span> <span class="k">import</span> <span class="n">GCCToolchain</span>
+<span class="kn">from</span> <span class="nn">codepy.jit</span> <span class="k">import</span> <span class="n">extension_file_from_string</span>
+<span class="kn">from</span> <span class="nn">os</span> <span class="k">import</span> <span class="n">environ</span><span class="p">,</span> <span class="n">path</span><span class="p">,</span> <span class="n">mkdir</span><span class="p">,</span> <span class="n">getuid</span>
+<span class="kn">from</span> <span class="nn">tempfile</span> <span class="k">import</span> <span class="n">gettempdir</span>
+<span class="kn">import</span> <span class="nn">numpy.ctypeslib</span> <span class="k">as</span> <span class="nn">npct</span>
+<span class="kn">from</span> <span class="nn">cgen</span> <span class="k">import</span> <span class="n">Pragma</span>
+
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;get_tmp_dir&#39;</span><span class="p">,</span> <span class="s1">&#39;get_compiler_from_env&#39;</span><span class="p">,</span>
+           <span class="s1">&#39;jit_compile&#39;</span><span class="p">,</span> <span class="s1">&#39;load&#39;</span><span class="p">,</span> <span class="s1">&#39;jit_compile_and_load&#39;</span><span class="p">,</span>
+           <span class="s1">&#39;GNUCompiler&#39;</span><span class="p">]</span>
+
+
+<span class="k">class</span> <span class="nc">Compiler</span><span class="p">(</span><span class="n">GCCToolchain</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Base class for all compiler classes.</span>
+
+<span class="sd">    :param openmp: Boolean indicating if openmp is enabled. False by default</span>
+
+<span class="sd">    The base class defaults all compiler specific settings to empty lists. Preset configurations</span>
+<span class="sd">    can be built by inheriting from `Compiler` and setting specific flags to the desired values, eg.:</span>
+
+<span class="sd">    def class MyCompiler(Compiler):</span>
+<span class="sd">        def __init__(self):</span>
+<span class="sd">            self.cc = &#39;mycompiler&#39;</span>
+<span class="sd">            self.cflags = [&#39;list&#39;, &#39;of&#39;, &#39;all&#39;, &#39;compiler&#39;, &#39;flags&#39;]</span>
+
+<span class="sd">    The flags that can be set are:</span>
+<span class="sd">        * :data:`self.cc`</span>
+<span class="sd">        * :data:`self.cflag`</span>
+<span class="sd">        * :data:`self.ldflags`</span>
+<span class="sd">        * :data:`self.include_dirs`</span>
+<span class="sd">        * :data:`self.libraries`</span>
+<span class="sd">        * :data:`self.library_dirs`</span>
+<span class="sd">        * :data:`self.defines`</span>
+<span class="sd">        * :data:`self.undefines`</span>
+<span class="sd">        * :data:`self.pragma_ivdep`</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">openmp</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">cc</span> <span class="o">=</span> <span class="s1">&#39;unknown&#39;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ld</span> <span class="o">=</span> <span class="s1">&#39;unknown&#39;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">cflags</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ldflags</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">include_dirs</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">libraries</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">library_dirs</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">defines</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">undefines</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="c1"># Devito-specific flags and properties</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">openmp</span> <span class="o">=</span> <span class="n">openmp</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">pragma_ivdep</span> <span class="o">=</span> <span class="n">Pragma</span><span class="p">(</span><span class="s1">&#39;ivdep&#39;</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">__class__</span><span class="o">.</span><span class="n">__name__</span>
+
+
+<div class="viewcode-block" id="GNUCompiler"><a class="viewcode-back" href="../../devito.html#devito.compiler.GNUCompiler">[docs]</a><span class="k">class</span> <span class="nc">GNUCompiler</span><span class="p">(</span><span class="n">Compiler</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Set of standard compiler flags for the GCC toolchain</span>
+
+<span class="sd">    :param openmp: Boolean indicating if openmp is enabled. False by default</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">GNUCompiler</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">cc</span> <span class="o">=</span> <span class="s1">&#39;g++&#39;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ld</span> <span class="o">=</span> <span class="s1">&#39;g++&#39;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">cflags</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;-O3&#39;</span><span class="p">,</span> <span class="s1">&#39;-g&#39;</span><span class="p">,</span> <span class="s1">&#39;-fPIC&#39;</span><span class="p">,</span> <span class="s1">&#39;-Wall&#39;</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ldflags</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;-shared&#39;</span><span class="p">]</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">openmp</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">ldflags</span> <span class="o">+=</span> <span class="p">[</span><span class="s1">&#39;-fopenmp&#39;</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">pragma_ivdep</span> <span class="o">=</span> <span class="n">Pragma</span><span class="p">(</span><span class="s1">&#39;GCC ivdep&#39;</span><span class="p">)</span></div>
+
+
+<span class="k">class</span> <span class="nc">ClangCompiler</span><span class="p">(</span><span class="n">Compiler</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Set of standard compiler flags for the clang toolchain</span>
+
+<span class="sd">    :param openmp: Boolean indicating if openmp is enabled. False by default</span>
+
+<span class="sd">    Note: Genrates warning if openmp is disabled.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">ClangCompiler</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">cc</span> <span class="o">=</span> <span class="s1">&#39;clang&#39;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ld</span> <span class="o">=</span> <span class="s1">&#39;clang&#39;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">cflags</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;-O3&#39;</span><span class="p">,</span> <span class="s1">&#39;-g&#39;</span><span class="p">,</span> <span class="s1">&#39;-fPIC&#39;</span><span class="p">,</span> <span class="s1">&#39;-Wall&#39;</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ldflags</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;-shared&#39;</span><span class="p">]</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">openmp</span><span class="p">:</span>
+            <span class="nb">print</span> <span class="s2">&quot;WARNING: Disabling OpenMP because clang does not support it.&quot;</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">openmp</span> <span class="o">=</span> <span class="kc">False</span>
+
+
+<span class="k">class</span> <span class="nc">IntelCompiler</span><span class="p">(</span><span class="n">Compiler</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Set of standard compiler flags for the Intel toolchain</span>
+
+<span class="sd">    :param openmp: Boolean indicating if openmp is enabled. False by default</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">IntelCompiler</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">cc</span> <span class="o">=</span> <span class="s1">&#39;icpc&#39;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ld</span> <span class="o">=</span> <span class="s1">&#39;icpc&#39;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">cflags</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;-O3&#39;</span><span class="p">,</span> <span class="s1">&#39;-g&#39;</span><span class="p">,</span> <span class="s1">&#39;-fPIC&#39;</span><span class="p">,</span> <span class="s1">&#39;-Wall&#39;</span><span class="p">,</span> <span class="s2">&quot;-mavx&quot;</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ldflags</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;-shared&#39;</span><span class="p">]</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">openmp</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">ldflags</span> <span class="o">+=</span> <span class="p">[</span><span class="s1">&#39;-openmp&#39;</span><span class="p">]</span>
+
+
+<span class="k">class</span> <span class="nc">IntelMICCompiler</span><span class="p">(</span><span class="n">Compiler</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Set of standard compiler flags for the IntelMIC toolchain</span>
+
+<span class="sd">    :param openmp: Boolean indicating if openmp is enabled. False by default</span>
+
+<span class="sd">    Note: Generates warning if openmp is disabled.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">IntelMICCompiler</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">cc</span> <span class="o">=</span> <span class="s1">&#39;icpc&#39;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ld</span> <span class="o">=</span> <span class="s1">&#39;icpc&#39;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">cflags</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;-O3&#39;</span><span class="p">,</span> <span class="s1">&#39;-g&#39;</span><span class="p">,</span> <span class="s1">&#39;-fPIC&#39;</span><span class="p">,</span> <span class="s1">&#39;-Wall&#39;</span><span class="p">,</span> <span class="s2">&quot;-mmic&quot;</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ldflags</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;-shared&#39;</span><span class="p">]</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">openmp</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">ldflags</span> <span class="o">+=</span> <span class="p">[</span><span class="s1">&#39;-openmp&#39;</span><span class="p">]</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="nb">print</span> <span class="s2">&quot;WARNING: Running on Intel MIC without OpenMP is highly discouraged&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_mic</span> <span class="o">=</span> <span class="nb">__import__</span><span class="p">(</span><span class="s1">&#39;pymic&#39;</span><span class="p">)</span>
+
+
+<span class="c1"># Registry dict for deriving Compiler classes according to</span>
+<span class="c1"># environment variable DEVITO_ARCH. Developers should add</span>
+<span class="c1"># new compiler classes here and provide a description in</span>
+<span class="c1"># the docstring of get_compiler_from_env().</span>
+<span class="n">compiler_registry</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;gcc&#39;</span><span class="p">:</span> <span class="n">GNUCompiler</span><span class="p">,</span> <span class="s1">&#39;gnu&#39;</span><span class="p">:</span> <span class="n">GNUCompiler</span><span class="p">,</span>
+    <span class="s1">&#39;clang&#39;</span><span class="p">:</span> <span class="n">ClangCompiler</span><span class="p">,</span> <span class="s1">&#39;osx&#39;</span><span class="p">:</span> <span class="n">ClangCompiler</span><span class="p">,</span>
+    <span class="s1">&#39;intel&#39;</span><span class="p">:</span> <span class="n">IntelCompiler</span><span class="p">,</span> <span class="s1">&#39;icpc&#39;</span><span class="p">:</span> <span class="n">IntelCompiler</span><span class="p">,</span>
+    <span class="s1">&#39;intel-mic&#39;</span><span class="p">:</span> <span class="n">IntelMICCompiler</span><span class="p">,</span> <span class="s1">&#39;mic&#39;</span><span class="p">:</span> <span class="n">IntelMICCompiler</span><span class="p">,</span>
+<span class="p">}</span>
+
+
+<div class="viewcode-block" id="get_compiler_from_env"><a class="viewcode-back" href="../../devito.html#devito.compiler.get_compiler_from_env">[docs]</a><span class="k">def</span> <span class="nf">get_compiler_from_env</span><span class="p">():</span>
+    <span class="sd">&quot;&quot;&quot;Derive compiler class and settings from environment variables</span>
+
+<span class="sd">    :return: The compiler indicated by the environment variable.</span>
+
+<span class="sd">    The key environment variable DEVITO_ARCH supports the following values:</span>
+<span class="sd">     * &#39;gcc&#39; or &#39;gnu&#39; - (Default) Standard GNU compiler toolchain</span>
+<span class="sd">     * &#39;clang&#39; or &#39;osx&#39; - Clang compiler toolchain for Mac OSX</span>
+<span class="sd">     * &#39;intel&#39; or &#39;icpc&#39; - Intel compiler toolchain via icpc</span>
+<span class="sd">     * &#39;intel-mic&#39; or &#39;mic&#39; - Intel MIC using offload mode via pymic</span>
+
+<span class="sd">    Additionally, the variable DEVITO_OPENMP can be used to enable OpenMP</span>
+<span class="sd">    parallelisation on by setting it to &quot;1&quot;.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">key</span> <span class="o">=</span> <span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;DEVITO_ARCH&#39;</span><span class="p">,</span> <span class="s1">&#39;gnu&#39;</span><span class="p">)</span>
+    <span class="n">openmp</span> <span class="o">=</span> <span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;DEVITO_OPENMP&#39;</span><span class="p">,</span> <span class="s2">&quot;0&quot;</span><span class="p">)</span> <span class="o">==</span> <span class="s2">&quot;1&quot;</span>
+    <span class="k">return</span> <span class="n">compiler_registry</span><span class="p">[</span><span class="n">key</span><span class="o">.</span><span class="n">lower</span><span class="p">()](</span><span class="n">openmp</span><span class="o">=</span><span class="n">openmp</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="get_tmp_dir"><a class="viewcode-back" href="../../devito.html#devito.compiler.get_tmp_dir">[docs]</a><span class="k">def</span> <span class="nf">get_tmp_dir</span><span class="p">():</span>
+    <span class="sd">&quot;&quot;&quot;Function to get a temp directory.</span>
+
+<span class="sd">    :return: Path to a devito-specific tmp directory</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">tmpdir</span> <span class="o">=</span> <span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">gettempdir</span><span class="p">(),</span> <span class="s2">&quot;devito-</span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="n">getuid</span><span class="p">())</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">tmpdir</span><span class="p">):</span>
+        <span class="n">mkdir</span><span class="p">(</span><span class="n">tmpdir</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">tmpdir</span></div>
+
+
+<div class="viewcode-block" id="jit_compile"><a class="viewcode-back" href="../../devito.html#devito.compiler.jit_compile">[docs]</a><span class="k">def</span> <span class="nf">jit_compile</span><span class="p">(</span><span class="n">ccode</span><span class="p">,</span> <span class="n">basename</span><span class="p">,</span> <span class="n">compiler</span><span class="o">=</span><span class="n">GNUCompiler</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;JIT compiles the given ccode and returns the lib filepath.</span>
+
+<span class="sd">    :param ccode: String of C source code.</span>
+<span class="sd">    :param basename: The string used to name various files for this compilation.</span>
+<span class="sd">    :param compiler: The toolchain used for compilation. GNUCompiler by default.</span>
+<span class="sd">    :return: Path to compiled lib</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">src_file</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="si">%s</span><span class="s2">.cpp&quot;</span> <span class="o">%</span> <span class="n">basename</span>
+    <span class="n">lib_file</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="si">%s</span><span class="s2">.so&quot;</span> <span class="o">%</span> <span class="n">basename</span>
+    <span class="nb">print</span> <span class="s2">&quot;</span><span class="si">%s</span><span class="s2">: Compiling </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">compiler</span><span class="p">,</span> <span class="n">src_file</span><span class="p">)</span>
+    <span class="n">extension_file_from_string</span><span class="p">(</span><span class="n">toolchain</span><span class="o">=</span><span class="n">compiler</span><span class="p">,</span> <span class="n">ext_file</span><span class="o">=</span><span class="n">lib_file</span><span class="p">,</span>
+                               <span class="n">source_string</span><span class="o">=</span><span class="n">ccode</span><span class="p">,</span> <span class="n">source_name</span><span class="o">=</span><span class="n">src_file</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">lib_file</span></div>
+
+
+<div class="viewcode-block" id="load"><a class="viewcode-back" href="../../devito.html#devito.compiler.load">[docs]</a><span class="k">def</span> <span class="nf">load</span><span class="p">(</span><span class="n">basename</span><span class="p">,</span> <span class="n">compiler</span><span class="o">=</span><span class="n">GNUCompiler</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Load a compiled library</span>
+
+<span class="sd">    :param basename: Name of the .so file.</span>
+<span class="sd">    :param compiler: The toolchain used for compilation. GNUCompiler by default.</span>
+<span class="sd">    :return: The loaded library.</span>
+
+<span class="sd">    Note: If the provided compiler is of type `IntelMICCompiler`</span>
+<span class="sd">    we utilise the `pymic` package to manage device streams.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">lib_file</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="si">%s</span><span class="s2">.so&quot;</span> <span class="o">%</span> <span class="n">basename</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">compiler</span><span class="p">,</span> <span class="n">IntelMICCompiler</span><span class="p">):</span>
+        <span class="n">compiler</span><span class="o">.</span><span class="n">_device</span> <span class="o">=</span> <span class="n">compiler</span><span class="o">.</span><span class="n">_mic</span><span class="o">.</span><span class="n">devices</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="n">compiler</span><span class="o">.</span><span class="n">_stream</span> <span class="o">=</span> <span class="n">compiler</span><span class="o">.</span><span class="n">_device</span><span class="o">.</span><span class="n">get_default_stream</span><span class="p">()</span>
+        <span class="k">return</span> <span class="n">compiler</span><span class="o">.</span><span class="n">_device</span><span class="o">.</span><span class="n">load_library</span><span class="p">(</span><span class="n">lib_file</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">npct</span><span class="o">.</span><span class="n">load_library</span><span class="p">(</span><span class="n">lib_file</span><span class="p">,</span> <span class="s1">&#39;.&#39;</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="jit_compile_and_load"><a class="viewcode-back" href="../../devito.html#devito.compiler.jit_compile_and_load">[docs]</a><span class="k">def</span> <span class="nf">jit_compile_and_load</span><span class="p">(</span><span class="n">ccode</span><span class="p">,</span> <span class="n">basename</span><span class="p">,</span> <span class="n">compiler</span><span class="o">=</span><span class="n">GNUCompiler</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;JIT compile the given ccode</span>
+
+<span class="sd">    :param ccode: String of C source code.</span>
+<span class="sd">    :param basename: The string used to name various files for this compilation.</span>
+<span class="sd">    :param compiler: The toolchain used for compilation. GNUCompiler by default.</span>
+<span class="sd">    :return: The compiled library.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">jit_compile</span><span class="p">(</span><span class="n">ccode</span><span class="p">,</span> <span class="n">basename</span><span class="p">,</span> <span class="n">compiler</span><span class="o">=</span><span class="n">compiler</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">load</span><span class="p">(</span><span class="n">basename</span><span class="p">,</span> <span class="n">compiler</span><span class="o">=</span><span class="n">compiler</span><span class="p">)</span></div>
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2016, Opesci.
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/snide/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  
+
+    <script type="text/javascript">
+        var DOCUMENTATION_OPTIONS = {
+            URL_ROOT:'../../',
+            VERSION:'1',
+            COLLAPSE_INDEX:false,
+            FILE_SUFFIX:'.html',
+            HAS_SOURCE:  true
+        };
+    </script>
+      <script type="text/javascript" src="../../_static/jquery.js"></script>
+      <script type="text/javascript" src="../../_static/underscore.js"></script>
+      <script type="text/javascript" src="../../_static/doctools.js"></script>
+      <script type="text/javascript" src="https://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+
+  
+
+  
+  
+    <script type="text/javascript" src="../../_static/js/theme.js"></script>
+  
+
+  
+  
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.StickyNav.enable();
+      });
+  </script>
+   
+
+</body>
+</html>
