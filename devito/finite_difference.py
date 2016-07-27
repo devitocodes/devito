@@ -1,5 +1,5 @@
 from __future__ import absolute_import
-from sympy import symbols
+from sympy import symbols, finite_diff_weights
 from functools import reduce
 from operator import mul
 
@@ -84,13 +84,13 @@ def cross_derivative(*args, **kwargs):
     ind2l = [(dims[1] - i * diff) for i in range(-int((order) / 2) + 1 - (order < 4), int((order + 1) / 2) + 2 - (order < 4))]
     # Finite difference weights from Taylor approximation with this positions
     c1 = finite_diff_weights(1, ind1r, dims[0])
-    c1 = cx[-1][-1]
+    c1 = c1[-1][-1]
     c2 = finite_diff_weights(1, ind2r, dims[1])
-    c2 = cy[-1][-1]
+    c2 = c2[-1][-1]
     # Diagonal elements
     for i in range(0, len(ind1r)):
         for j in range(0, len(ind2r)):
             var1 = [a.subs({dims[0]: ind1r[i], dims[1]: ind2r[j]}) for a in args]
             var2 = [a.subs({dims[0]: ind1l[i], dims[1]: ind2l[j]}) for a in args]
-            deriv += .25 * cy[j] * cx[i] * reduce(mul, var1, 1) + .25 * cy[len(ind2l)-j-1] * cx[len(ind1l)-i-1] * reduce(mul, var2, 1)
+            deriv += .25 * c2[j] * c1[i] * reduce(mul, var1, 1) + .25 * c2[len(ind2l)-j-1] * c1[len(ind1l)-i-1] * reduce(mul, var2, 1)
     return deriv

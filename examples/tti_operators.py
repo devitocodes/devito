@@ -134,13 +134,14 @@ class SourceLikeTTI(PointData):
 		
 		
 class ForwardOperator(Operator):
-    def __init__(self, m, src, damp, rec, u, v, a, b, th, ph, time_order=2, spc_order=4):
+    def __init__(self, m, src, damp, rec, u, v, A, B, th, ph, time_order=2, spc_order=4, **kwargs):
         def Bhaskarasin(angle):
             return 16 * angle * (3.14 - abs(angle))/(49.34 - 4 * abs(angle) * (3.14 - abs(angle)))
 
         def Bhaskaracos(angle):
             return Bhaskarasin(angle + 1.57)		
         
+        ang0, ang1, ang2, ang3 = symbols('ang0 ang1 ang2 ang3')
         assert(m.shape == damp.shape)
         u.pad_time = False
         v.pad_time = False
@@ -150,28 +151,27 @@ class ForwardOperator(Operator):
         v.time_order = time_order
         v.space_order = spc_order
         s, h = symbols('s h')
-		Gxxp = ang2**2 * ang0**2 * u.dx2 + ang3**2 * ang0**2 * u.dy2 + ang1**2 * u.dz2 + 2 * ang3 * ang2 * ang0**2 * u.dxy - ang3 * 2 * ang1 * ang0 * u.dyz - ang2 * 2 * ang1 * ang0 * u.dxz
-		Gyyp = ang1**2 * u.dx2+ ang2**2 * u.dy2 - (2 * ang3 * ang2)**2 * u.dxy
-		Gzzr = ang2**2 * ang1**2 * v.dx2+ ang3**2 * ang1**2 * v.dy2 + ang0**2 * v.dz2+ 2 * ang3 * ang2 * ang1**2 * v.dxy + ang3 * 2 * ang1 * ang0 * v.dyz + ang2 * 2 * ang1 * ang0 * v.dxz
+        Gxxp = ang2**2 * ang0**2 * u.dx2 + ang3**2 * ang0**2 * u.dy2 + ang1**2 * u.dz2 + 2 * ang3 * ang2 * ang0**2 * u.dxy - ang3 * 2 * ang1 * ang0 * u.dyz - ang2 * 2 * ang1 * ang0 * u.dxz
+        Gyyp = ang1**2 * u.dx2+ ang2**2 * u.dy2 - (2 * ang3 * ang2)**2 * u.dxy
+        Gzzr = ang2**2 * ang1**2 * v.dx2+ ang3**2 * ang1**2 * v.dy2 + ang0**2 * v.dz2+ 2 * ang3 * ang2 * ang1**2 * v.dxy + ang3 * 2 * ang1 * ang0 * v.dyz + ang2 * 2 * ang1 * ang0 * v.dxz
         # Derive stencil from symbolic equation
-        stencilp = 2 * s**2 / (2 * m + s * e) * (2 * m / s**2 * u + (s * e - 2 * m) / (2 * s**2) * u.backward + A * (Gxxp + Gyyp) + B * Gzzr)
+        stencilp = 2 * s**2 / (2 * m + s * damp) * (2 * m / s**2 * u + (s * damp - 2 * m) / (2 * s**2) * u.backward + A * (Gxxp + Gyyp) + B * Gzzr)
         stencilp = factor(expand(stencilp))
-        stencilr = 2 * s**2 / (2 * m + s * e) * (2 * m / s**2 * v + (s * e - 2 * m) / (2 * s**2) * v.backward + A * (Gxxp + Gyyp) + B * Gzzr)
+        stencilr = 2 * s**2 / (2 * m + s * damp) * (2 * m / s**2 * v + (s * damp - 2 * m) / (2 * s**2) * v.backward + A * (Gxxp + Gyyp) + B * Gzzr)
         stencilr = factor(expand(stencilr))
-        ang0 = Bhaskaracos(Th)
-        ang1 = Bhaskarasin(Th)
-        ang2 = Bhaskaracos(Ph)
-        ang3 = Bhaskarasin(Ph)
+        ang0 = Bhaskaracos(th)
+        ang1 = Bhaskarasin(th)
+        ang2 = Bhaskaracos(ph)
+        ang3 = Bhaskarasin(ph)
         factorized = {"ang0": ang0, "ang1": ang1, "ang2": ang2, "ang3": ang3}
         # Add substitutions for spacing (temporal and spatial)
         subs = {s: src.dt, h: src.h}
-        first_stencil = Eq(u.indexed[total_dim], stencilp)
-        second_stencil = Eq(v.indexed[total_dim], stencilr)
+        first_stencil = Eq(u.forward, stencilp)
+        second_stencil = Eq(v.forward, stencilr)
         stencils = [first_stencil, second_stencil]
-        super(ForwardOperator, self).__init__(src.nt, m.shape, stencils=stencils,
-                                              substitutions=subs, spc_border=spc_order/2,
+        super(ForwardOperator, self).__init__(src.nt, m.shape, spc_border=spc_order/2,substitutions = subs, 
                                               time_order=time_order, forward=True, dtype=m.dtype,
-                                              **kwargs)
+                                              stencils=stencils, factorized=factorized, **kwargs)
         # Insert source and receiver terms post-hoc
         self.input_params += [src, rec]
         self.propagator.time_loop_stencils_a = src.add(m, u) + rec.read(u)
