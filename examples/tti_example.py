@@ -1,6 +1,5 @@
 from containers import IShot, IGrid
 import numpy as np
-from devito.interfaces import DenseData, TimeData
 from TTI_codegen import TTI_cg
 
 

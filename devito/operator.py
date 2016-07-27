@@ -87,7 +87,7 @@ class Operator(object):
                  substitutions=[], spc_border=0, time_order=0,
                  forward=True, compiler=None, profile=False,
                  cache_blocking=False, block_size=5,
-                 input_params=None, output_params=None,factorized={}):
+                 input_params=None, output_params=None, factorized={}):
         # Derive JIT compilation infrastructure
         self.compiler = compiler or get_compiler_from_env()
 

@@ -4,7 +4,7 @@ from devito.compiler import jit_compile_and_load, IntelMICCompiler
 import cgen_wrapper as cgen
 from codeprinter import ccode
 import numpy as np
-from sympy import Eq, symbols, IndexedBase, Indexed
+from sympy import symbols, IndexedBase, Indexed
 from sympy.abc import x, y, z, t
 from collections import Iterable
 from os import path
@@ -169,7 +169,7 @@ class Propagator(object):
 
     def sympy_to_cgen(self, stencils):
         factors = []
-        if len(self.factorized)>0:
+        if len(self.factorized) > 0:
             for name, term in zip(self.factorized.keys(), self.factorized):
                 expr = self.factorized[name]
                 # TODO: add support for double precision

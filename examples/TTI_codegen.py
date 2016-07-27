@@ -90,7 +90,7 @@ class TTI_cg:
                                ndim=len(dimensions), dtype=self.dtype, nbpml=nbpml)
         if dm_initializer is not None:
             self.dm = DenseData(name="dm", shape=self.model.vp.shape, dtype=self.dtype)
-            self.dm.data[:]= np.pad(dm_initializer,tuple(pad_list), 'edge')
+            self.dm.data[:]= np.pad(dm_initializer, tuple(pad_list), 'edge')
 
     def Forward(self):
         fw = ForwardOperator(self.m, self.src, self.damp, self.rec, self.u, self.v, self.a, self.b, self.th, self.ph, time_order=self.t_order, spc_order=self.s_order)

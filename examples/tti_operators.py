@@ -1,11 +1,11 @@
 from devito.operator import *
 from sympy import Eq
 from devito.interfaces import TimeData, DenseData, PointData
-from sympy import Function, symbols, as_finite_diff, Wild
-from sympy.abc import x, y, t, z
-from sympy import solve
+from sympy import Function, symbols
+from sympy.abc import t
 from sympy import *
 from sympy.abc import *
+
 
 class SourceLikeTTI(PointData):
     """Defines the behaviour of sources and receivers.
@@ -29,7 +29,7 @@ class SourceLikeTTI(PointData):
             p = Matrix([[1],
                         [rx],
                         [rz],
-                        [rx*rz]])
+                        [rx * rz]])
         else:
             A = Matrix([[1, x1, y1, z1, x1*y1, x1*z1, y1*z1, x1*y1*z1],
                         [1, x1, y2, z1, x1*y2, x1*z1, y2*z1, x1*y2*z1],
@@ -131,16 +131,16 @@ class SourceLikeTTI(PointData):
                                u.indexed[tuple([t] + [coords[i] + inc[i] for i in range(self.ndim)])] + self.indexed[t, j]*dt*dt/m.indexed[coords]*w) for w, inc in zip(s, self.increments)]
         filtered = [x for x in assignments if isinstance(x, Eq)]
         return filtered
-		
-		
+
+
 class ForwardOperator(Operator):
     def __init__(self, m, src, damp, rec, u, v, A, B, th, ph, time_order=2, spc_order=4, **kwargs):
         def Bhaskarasin(angle):
-            return 16 * angle * (3.14 - abs(angle))/(49.34 - 4 * abs(angle) * (3.14 - abs(angle)))
+            return 16 * angle * (3.14 - abs(angle)) / (49.34 - 4 * abs(angle) * (3.14 - abs(angle)))
 
         def Bhaskaracos(angle):
-            return Bhaskarasin(angle + 1.57)		
-        
+            return Bhaskarasin(angle + 1.57)
+
         ang0, ang1, ang2, ang3 = symbols('ang0 ang1 ang2 ang3')
         assert(m.shape == damp.shape)
         u.pad_time = False
@@ -152,8 +152,8 @@ class ForwardOperator(Operator):
         v.space_order = spc_order
         s, h = symbols('s h')
         Gxxp = ang2**2 * ang0**2 * u.dx2 + ang3**2 * ang0**2 * u.dy2 + ang1**2 * u.dz2 + 2 * ang3 * ang2 * ang0**2 * u.dxy - ang3 * 2 * ang1 * ang0 * u.dyz - ang2 * 2 * ang1 * ang0 * u.dxz
-        Gyyp = ang1**2 * u.dx2+ ang2**2 * u.dy2 - (2 * ang3 * ang2)**2 * u.dxy
-        Gzzr = ang2**2 * ang1**2 * v.dx2+ ang3**2 * ang1**2 * v.dy2 + ang0**2 * v.dz2+ 2 * ang3 * ang2 * ang1**2 * v.dxy + ang3 * 2 * ang1 * ang0 * v.dyz + ang2 * 2 * ang1 * ang0 * v.dxz
+        Gyyp = ang1**2 * u.dx2 + ang2**2 * u.dy2 - (2 * ang3 * ang2)**2 * u.dxy
+        Gzzr = ang2**2 * ang1**2 * v.dx2 + ang3**2 * ang1**2 * v.dy2 + ang0**2 * v.dz2 + 2 * ang3 * ang2 * ang1**2 * v.dxy + ang3 * 2 * ang1 * ang0 * v.dyz + ang2 * 2 * ang1 * ang0 * v.dxz
         # Derive stencil from symbolic equation
         stencilp = 2 * s**2 / (2 * m + s * damp) * (2 * m / s**2 * u + (s * damp - 2 * m) / (2 * s**2) * u.backward + A * (Gxxp + Gyyp) + B * Gzzr)
         stencilp = factor(expand(stencilp))
@@ -163,7 +163,7 @@ class ForwardOperator(Operator):
         ang1 = Bhaskarasin(th)
         ang2 = Bhaskaracos(ph)
         ang3 = Bhaskarasin(ph)
-        factorized = {"ang0":ang0, "ang1":ang1, "ang2":ang2, "ang3":ang3}
+        factorized = {"ang0": ang0, "ang1": ang1, "ang2": ang2, "ang3": ang3}
         # Add substitutions for spacing (temporal and spatial)
         subs = {s: src.dt, h: src.h}
         first_stencil = Eq(u.forward, stencilp)
@@ -174,7 +174,7 @@ class ForwardOperator(Operator):
                                               input_params = [m, damp, A, B, th, ph, u, v], factorized=factorized, **kwargs)
         # Insert source and receiver terms post-hoc
         self.input_params += [src, rec]
-        self.propagator.time_loop_stencils_a = src.add(m, u) + src.add(m, v) + rec.read(u,v)
+        self.propagator.time_loop_stencils_a = src.add(m, u) + src.add(m, v) + rec.read(u, v)
         self.propagator.add_devito_param(src)
         self.propagator.add_devito_param(rec)
 
