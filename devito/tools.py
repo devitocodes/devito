@@ -4,16 +4,28 @@ import numpy as np
 
 
 def convert_dtype_to_ctype(dtype):
+    """Maps numpy types to C types.
+
+    :param dtype: A Python numpy type of int32, float32, int64 or float64
+    :returns: Corresponding C type
+    """
     conversion_dict = {np.int32: ctypes.c_int, np.float32: ctypes.c_float,
                        np.int64: ctypes.c_int64, np.float64: ctypes.c_double}
     return conversion_dict[dtype]
 
 
 def sympy_find(expr, term, repl):
-    """ This function finds all terms of the form term(x1, x2, x3)
+    """Change all terms from function notation to array notation.
+
+    Finds all terms of the form term(x1, x2, x3)
     and changes them to repl[x1, x2, x3]. i.e. changes from
     function notation to array notation. It also reorders the indices
     x1, x2, x3 so that the time index comes first.
+
+    :param expr: The expression to be processed
+    :param term: The pattern to be replaced
+    :param repl: The replacing pattern
+    :returns: The changed expression
     """
 
     t = symbols("t")
@@ -28,6 +40,12 @@ def sympy_find(expr, term, repl):
 
 
 def aligned(a, alignment=16):
+    """Function to align the memmory
+
+    :param a: The given memory
+    :param alignment: Granularity of alignment, 16 bytes by default
+    :returns: Reference to the start of the aligned memory
+    """
     if (a.ctypes.data % alignment) == 0:
         return a
 

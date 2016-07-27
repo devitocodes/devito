@@ -8,6 +8,13 @@ language: c
 python:
     - "2.7"
 
+# Environment variable for documentation deployment
+# Change author email when website author changes
+env:
+  global:
+  - ENCRYPTION_LABEL: "1909213e8aea"
+  - COMMIT_AUTHOR_EMAIL: "pandolfovince@gmail.com"
+
 sudo: false
 
 addons:
@@ -28,3 +35,4 @@ script:
   - py.test -vs tests/
   - python examples/acoustic_example.py
   - python examples/tti_example.py
+  - bash ./docs/deploy.sh
