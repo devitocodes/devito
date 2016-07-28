@@ -81,6 +81,7 @@ class Operator(object):
     :param block_size: Block size used for cache clocking
     :param input_params: List of symbols that are expected as input.
     :param output_params: List of symbols that define operator output.
+    :param factorized: A map given by {string_name:sympy_object} for including factorized terms
     """
 
     _ENV_VAR_OPENMP = "DEVITO_OPENMP"
@@ -89,7 +90,7 @@ class Operator(object):
                  substitutions=[], spc_border=0, time_order=0,
                  forward=True, compiler=None, profile=False,
                  cache_blocking=False, block_size=5,
-                 input_params=None, output_params=None):
+                 input_params=None, output_params=None, factorized={}):
         # Derive JIT compilation infrastructure
         self.compiler = compiler or get_compiler_from_env()
 
@@ -158,6 +159,9 @@ class Operator(object):
             self.propagator.add_devito_param(param)
             self.symbol_to_data[param.name] = param
         self.propagator.stencils = self.stencils
+        self.propagator.factorized = factorized
+        for name in factorized.keys():
+            self.propagator.factorized[name] = expr_indexify(factorized[name])
 
     def apply(self, debug=False):
         """:param debug: If True, use Python to apply the operator. Default False.

@@ -1,8 +1,7 @@
 import numpy as np
 from math import floor
 from containers import IShot, IGrid
-from devito.interfaces import DenseData, TimeData
-from fwi_operators import SourceLike, ForwardOperator, AdjointOperator, GradientOperator, BornOperator
+from Acoustic_codegen import Acoustic_cg
 
 dimensions = (50, 50, 50)
 model = IGrid()
@@ -50,8 +49,6 @@ def create_dm(dm):
 dv = -true_vp + initial_vp
 
 model.create_model(origin, spacing, true_vp)
-model0.create_model(origin, spacing, initial_vp)
-model1.create_model(origin, spacing, initial_vp)
 
 # Define seismic data.
 data = IShot()
@@ -64,7 +61,6 @@ nt = int(1+(tn-t0)/dt)
 h = model.get_spacing()
 model.vp = np.pad(model.vp, tuple(pad_list), 'edge')
 data.reinterpolate(dt)
-model.set_origin(nbpml)
 
 
 # Set up the source as Ricker wavelet for f0
@@ -84,59 +80,19 @@ receiver_coords[:, 1] = 500
 receiver_coords[:, 2] = location[2]
 data.set_receiver_pos(receiver_coords)
 data.set_shape(nt, 101)
-
-
-def damp_boundary(damp, h, nbpml):
-    dampcoeff = 1.5 * np.log(1.0 / 0.001) / (40 * h)
-    num_dim = len(damp.shape)
-    for i in range(nbpml):
-        pos = np.abs((nbpml-i)/float(nbpml))
-        val = dampcoeff * (pos - np.sin(2*np.pi*pos)/(2*np.pi))
-        if num_dim == 2:
-            damp[i, :] += val
-            damp[-(i + 1), :] += val
-            damp[:, i] += val
-            damp[:, -(i + 1)] += val
-        else:
-            damp[i, :, :] += val
-            damp[-(i + 1), :, :] += val
-            damp[:, i, :] += val
-            damp[:, -(i + 1), :] += val
-            damp[:, :, i] += val
-            damp[:, :, -(i + 1)] += val
-
-nrec, _ = data.traces.shape
-m = DenseData(name="m", shape=model.vp.shape, dtype=dtype)
-m.data[:] = model.vp**(-2)
-u = TimeData(name="u", shape=m.shape, time_dim=nt, time_order=t_order, save=False, dtype=m.dtype)
-v = TimeData(name="v", shape=m.shape, time_dim=nt, time_order=t_order, save=False, dtype=m.dtype)
-
-damp = DenseData(name="damp", shape=model.vp.shape, dtype=m.dtype)
-damp_boundary(damp.data, h, nbpml)
-src = SourceLike(name="src", npoint=1, nt=nt, dt=dt, h=h,
-                 data=np.array(data.source_coords, dtype=dtype)[np.newaxis, :],
-                 ndim=len(dimensions), dtype=dtype, nbpml=nbpml)
-rec = SourceLike(name="rec", npoint=nrec, nt=nt, dt=dt, h=h, data=data.receiver_coords,
-                 ndim=len(dimensions), dtype=dtype, nbpml=nbpml)
-src.data[:] = data.get_source()[:, np.newaxis]
+Acoustic = Acoustic_cg(model, data, dm_orig, None, t_order=2, s_order=4, nbpml=10)
 print("Preparing Forward")
-forward_op = ForwardOperator(m, src, damp, rec, u, t_order, spc_order)
 print("Applying")
-forward_op.apply()
-srca = SourceLike(name="srca", npoint=1, nt=nt, dt=dt, h=h,
-                  data=np.array(data.source_coords, dtype=dtype)[np.newaxis, :],
-                  ndim=len(dimensions), dtype=dtype, nbpml=nbpml)
+(rec, u) = Acoustic.Forward()
+
 print("Preparing adjoint")
-adjoint_op = AdjointOperator(m, rec, damp, srca, t_order, spc_order)
 print("Applying")
-adjoint_op.apply()
+(srca, v) = Acoustic.Adjoint(rec)
+
 print("Preparing Gradient")
-gradient_op = GradientOperator(u, m, rec, damp, t_order, spc_order)
 print("Applying")
-gradient_op.apply()
+g = Acoustic.Gradient(rec, u)
+
 print("Preparing Born")
-dm = DenseData(name="dm", shape=model.vp.shape, dtype=dtype)
-create_dm(dm.data)
-born_op = BornOperator(dm, m, src, damp, rec, t_order, spc_order)
 print("Applying")
-born_op.apply()
+LinRec = Acoustic.Born()

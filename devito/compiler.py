@@ -49,6 +49,8 @@ class Compiler(GCCToolchain):
         # Devito-specific flags and properties
         self.openmp = openmp
         self.pragma_ivdep = Pragma('ivdep')
+        self.pragma_nontemporal = []
+        self.pragma_aligned = []
 
     def __str__(self):
         return self.__class__.__name__
@@ -103,7 +105,8 @@ class IntelCompiler(Compiler):
         self.cflags = ['-O3', '-g', '-fPIC', '-Wall', "-mavx"]
         self.ldflags = ['-shared']
         if self.openmp:
-            self.ldflags += ['-openmp']
+            self.ldflags += ['-qopenmp']
+        self.pragma_nontemporal = [Pragma('vector nontemporal')]
 
 
 class IntelMICCompiler(Compiler):
@@ -121,11 +124,25 @@ class IntelMICCompiler(Compiler):
         self.cflags = ['-O3', '-g', '-fPIC', '-Wall', "-mmic"]
         self.ldflags = ['-shared']
         if self.openmp:
-            self.ldflags += ['-openmp']
+            self.ldflags += ['-qopenmp']
         else:
             print "WARNING: Running on Intel MIC without OpenMP is highly discouraged"
         self._mic = __import__('pymic')
 
+
+class IntelKNLCompiler(Compiler):
+    """Set of standard compiler flags for the clang toolchain"""
+
+    def __init__(self, *args, **kwargs):
+        super(IntelKNLCompiler, self).__init__(*args, **kwargs)
+        self.cc = 'icpc'
+        self.ld = 'icpc'
+        self.cflags = ['-O3', '-g', '-fPIC', '-Wall', "-xMIC-AVX512"]
+        self.ldflags = ['-shared']
+        if self.openmp:
+            self.ldflags += ['-qopenmp']
+        else:
+            print "WARNING: Running on Intel KNL without OpenMP is highly discouraged"
 
 # Registry dict for deriving Compiler classes according to
 # environment variable DEVITO_ARCH. Developers should add
@@ -135,7 +152,9 @@ compiler_registry = {
     'gcc': GNUCompiler, 'gnu': GNUCompiler,
     'clang': ClangCompiler, 'osx': ClangCompiler,
     'intel': IntelCompiler, 'icpc': IntelCompiler,
+    'icc': IntelCompiler,
     'intel-mic': IntelMICCompiler, 'mic': IntelMICCompiler,
+    'intel-knl': IntelKNLCompiler, 'knl': IntelKNLCompiler,
 }
 
 

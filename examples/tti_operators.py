@@ -1,154 +1,185 @@
 from devito.operator import *
 from sympy import Eq
-from devito.interfaces import TimeData, DenseData
-from sympy import Function, symbols, as_finite_diff, Wild
-from sympy.abc import x, y, t, z
-from sympy import solve
+from devito.interfaces import TimeData, DenseData, PointData
+from sympy import Function, symbols
+from sympy.abc import t
 from sympy import *
 from sympy.abc import *
-from fwi_operators import SourceLike
 
 
-class SourceLikeTTI(SourceLike):
+class SourceLikeTTI(PointData):
+    """Defines the behaviour of sources and receivers.
+    """
+    def __init__(self, *args, **kwargs):
+        self.orig_data = kwargs.get('data')
+        self.dt = kwargs.get('dt')
+        self.h = kwargs.get('h')
+        self.ndim = kwargs.get('ndim')
+        self.nbpml = kwargs.get('nbpml')
+        PointData.__init__(self, *args, **kwargs)
+        x1, y1, z1, x2, y2, z2 = symbols('x1, y1, z1, x2, y2, z2')
+        if self.ndim == 2:
+            A = Matrix([[1, x1, z1, x1*z1],
+                        [1, x1, z2, x1*z2],
+                        [1, x2, z1, x2*z1],
+                        [1, x2, z2, x2*z2]])
+            self.increments = (0, 0), (0, 1), (1, 0), (1, 1)
+            self.rs = symbols('rx, rz')
+            rx, rz = self.rs
+            p = Matrix([[1],
+                        [rx],
+                        [rz],
+                        [rx * rz]])
+        else:
+            A = Matrix([[1, x1, y1, z1, x1*y1, x1*z1, y1*z1, x1*y1*z1],
+                        [1, x1, y2, z1, x1*y2, x1*z1, y2*z1, x1*y2*z1],
+                        [1, x2, y1, z1, x2*y1, x2*z1, y2*z1, x2*y1*z1],
+                        [1, x1, y1, z2, x1*y1, x1*z2, y1*z2, x1*y1*z2],
+                        [1, x2, y2, z1, x2*y2, x2*z1, y2*z1, x2*y2*z1],
+                        [1, x1, y2, z2, x1*y2, x1*z2, y2*z2, x1*y2*z2],
+                        [1, x2, y1, z2, x2*y1, x2*z2, y1*z2, x2*y1*z2],
+                        [1, x2, y2, z2, x2*y2, x2*z2, y2*z2, x2*y2*z2]])
+            self.increments = (0, 0, 0), (0, 1, 0), (1, 0, 0), (0, 0, 1), (1, 1, 0), (0, 1, 1), (1, 0, 1), (1, 1, 1)
+            self.rs = symbols('rx, ry, rz')
+            rx, ry, rz = self.rs
+            p = Matrix([[1],
+                        [rx],
+                        [ry],
+                        [rz],
+                        [rx*ry],
+                        [rx*rz],
+                        [ry*rz],
+                        [rx*ry*rz]])
+
+        # Map to reference cell
+        reference_cell = [(x1, 0),
+                          (y1, 0),
+                          (z1, 0),
+                          (x2, self.h),
+                          (y2, self.h),
+                          (z2, self.h)]
+        A = A.subs(reference_cell)
+        self.bs = A.inv().T.dot(p)
+
+    def point2grid(self, pt_coords):
+        # In: s - Magnitude of the source
+        #     x, z - Position of the source
+        # Returns: (i, k) - Grid coordinate at top left of grid cell.
+        #          (s11, s12, s21, s22) - source values at coordinates
+        #          (i, k), (i, k+1), (i+1, k), (i+1, k+1)
+        if self.ndim == 2:
+            rx, rz = self.rs
+        else:
+            rx, ry, rz = self.rs
+        x, y, z = pt_coords
+        i = int(x/self.h)
+        k = int(z/self.h)
+        coords = (i + self.nbpml, k + self.nbpml)
+        subs = []
+        x = x - i*self.h
+        subs.append((rx, x))
+        if self.ndim == 3:
+            j = int(y/self.h)
+            y = y - j*self.h
+            subs.append((ry, y))
+            coords = (i + self.nbpml, j + self.nbpml, k + self.nbpml)
+        z = z - k*self.h
+        subs.append((rz, z))
+        s = [b.subs(subs).evalf() for b in self.bs]
+        return coords, tuple(s)
+
+    # Interpolate onto receiver point.
+    def grid2point(self, u, pt_coords):
+        if self.ndim == 2:
+            rx, rz = self.rs
+        else:
+            rx, ry, rz = self.rs
+        x, y, z = pt_coords
+        i = int(x/self.h)
+        k = int(z/self.h)
+
+        x = x - i*self.h
+        z = z - k*self.h
+
+        subs = []
+        subs.append((rx, x))
+
+        if self.ndim == 3:
+            j = int(y/self.h)
+            y = y - j*self.h
+            subs.append((ry, y))
+        subs.append((rz, z))
+        if self.ndim == 2:
+            return sum([b.subs(subs) * u.indexed[t, i+inc[0]+self.nbpml, k+inc[1]+self.nbpml] for inc, b in zip(self.increments, self.bs)])
+        else:
+            return sum([b.subs(subs) * u.indexed[t, i+inc[0]+self.nbpml, j+inc[1]+self.nbpml, k+inc[2]+self.nbpml] for inc, b in zip(self.increments, self.bs)])
+
     def read(self, u, v):
         eqs = []
         for i in range(self.npoint):
-            eqs.append(Eq(self.indexed[t, i], (self.grid2point(u, self.orig_data[i, :]) + self.grid2point(v, self.orig_data[i, :]))/2))
+            eqs.append(Eq(self.indexed[t, i], (self.grid2point(v, self.orig_data[i, :]) + self.grid2point(u, self.orig_data[i, :]))))
         return eqs
 
-
-class TTIOperator(Operator):
-    def _init_taylor(self, dim=2, time_order=2, space_order=2):
-        # Only dim=2 and dim=3 are supported
-        # The acoustic wave equation for the square slowness m and a source q
-        # is given in 3D by :
-        #
-        # \begin{cases} &m \frac{d^2 u(x,t)}{dt^2} - \nabla^2 u(x,t) =q  \\
-        # &u(.,0) = 0 \\ &\frac{d u(x,t)}{dt}|_{t=0} = 0 \end{cases}
-        #
-        # with the zero initial conditons to guarantee unicity of the solution
-        # Choose dimension (2 or 3)
-        # half width for indexes, goes from -half to half
-        p = Function('p')
-        r = Function('r')
-
-        s, h, x, y, z = symbols('s h x y z')
-        m = M(x, y, z)
-        # q = Q(x, y, z, t)
-        # d = D(x, y, z, t)
-        e = E(x, y, z)
-
-        A = epsilon(x, y, z)  # (1 + 2epsilon) but make the symbolic simpler
-        B = delta(x, y, z)  # sqrt(1 + 2epsilon) but make the symbolic simpler
-        Th = theta(x, y, z)
-        Ph = phi(x, y, z)
-        # Weights to sum the two fields
-        # w1 = .5
-        # w2 = .5
-        dttp = as_finite_diff(p(x, y, z, t).diff(t, t), [t-s, t, t+s])
-        dttr = as_finite_diff(r(x, y, z, t).diff(t, t), [t-s, t, t+s])
-        dtp = as_finite_diff(p(x, y, z, t).diff(t), [t-s, t])
-        dtr = as_finite_diff(r(x, y, z, t).diff(t), [t-s, t])
-        # Spacial finite differences can easily be extended to higher order by increasing the list of sampling point in the next expression.
-        # Be sure to keep this stencil symmetric and everything else in the notebook will follow.
-        dxxp = as_finite_diff(p(x, y, z, t).diff(x, x), [x-h, x, x+h])
-        dyyp = as_finite_diff(p(x, y, z, t).diff(y, y), [y-h, y, y+h])
-        dzzp = as_finite_diff(p(x, y, z, t).diff(z, z), [z-h, z, z+h])
-        dxxr = as_finite_diff(r(x, y, z, t).diff(x, x), [x-h, x, x+h])
-        dyyr = as_finite_diff(r(x, y, z, t).diff(y, y), [y-h, y, y+h])
-        dzzr = as_finite_diff(r(x, y, z, t).diff(z, z), [z-h, z, z+h])
-
-        # My 4th order stencil for cross derivatives
-        dxzp = .5/(h**2)*(-2*p(x, y, z, t) + p(x, y, z+h, t) + p(x, y, z-h, t) - p(x+h, y, z-h, t) + p(x-h, y, z, t) - p(x-h, y, z+h, t) + p(x+h, y, z, t))
-        dxzr = .5/(h**2)*(-2*r(x, y, z, t) + r(x, y, z+h, t) + r(x, y, z-h, t) - r(x+h, y, z-h, t) + r(x-h, y, z, t) - r(x-h, y, z+h, t) + r(x+h, y, z, t))
-        dxyp = .5/(h**2)*(-2*p(x, y, z, t) + p(x, y+h, z, t) + p(x, y-h, z, t) - p(x+h, y-h, z, t) + p(x-h, y, z, t) - p(x-h, y+h, z, t) + p(x+h, y, z, t))
-        dxyr = .5/(h**2)*(-2*r(x, y, z, t) + r(x, y+h, z, t) + r(x, y-h, z, t) - r(x+h, y-h, z, t) + r(x-h, y, z, t) - r(x-h, y+h, z, t) + r(x+h, y, z, t))
-        dyzp = .5/(h**2)*(-2*p(x, y, z, t) + p(x, y, z+h, t) + p(x, y, z-h, t) - p(x, y+h, z-h, t) + p(x, y-h, z, t) - p(x, y-h, z+h, t) + p(x, y+h, z, t))
-        dyzr = .5/(h**2)*(-2*r(x, y, z, t) + r(x, y, z+h, t) + r(x, y, z-h, t) - r(x, y+h, z-h, t) + r(x, y-h, z, t) - r(x, y-h, z+h, t) + r(x, y+h, z, t))
-        Gxxp = cos(Ph)**2 * cos(Th)**2 * dxxp + sin(Ph)**2 * cos(Th)**2 * dyyp + sin(Th)**2 * dzzp + sin(2*Ph) * cos(Th)**2 * dxyp - sin(Ph) * sin(2*Th) * dyzp - cos(Ph) * sin(2*Th) * dxzp
-        Gyyp = sin(Th)**2 * dxxp + cos(Ph)**2 * dyyp - sin(2*Ph)**2 * dxyp
-        Gzzr = cos(Ph)**2 * sin(Th)**2 * dxxr + sin(Ph)**2 * sin(Th)**2 * dyyr + cos(Th)**2 * dzzr +\
-            sin(2*Ph) * sin(Th)**2 * dxyr + sin(Ph) * sin(2*Th) * dyzr + cos(Ph) * sin(2*Th) * dxzr
-        wavep = m * dttp - A * (Gxxp + Gyyp) - B * Gzzr + e * dtp
-        waver = m * dttr - B * (Gxxp + Gyyp) - Gzzr + e * dtr
-        stencilp = solve(wavep, p(x, y, z, t+s), simplify=False)[0]
-        stencilr = solve(waver, r(x, y, z, t+s), simplify=False)[0]
-        return (stencilp, stencilr, (m, A, B, Th, Ph, s, h, e))
-
-    def smart_sympy_replace(self, num_dim, time_order, res, funs, arrs, fw):
-        a = Wild('a')
-        b = Wild('b')
-        c = Wild('c')
-        d = Wild('d')
-        e = Wild('e')
-        f = Wild('f')
-        q = Wild('q')
-        x, y, z = symbols("x y z")
-        h, s, t = symbols("h s t")
-        width_t = int(time_order/2)
-        assert(len(funs) == len(arrs))
-        for fun, arr in zip(funs, arrs):
-            if num_dim == 2:
-                # Replace function notation with array notation
-                res = res.replace(fun(a, b, c), arr.indexed[a, b, c])
-                res = res.replace(arr.indexed[a*x+b, c*z+d, e*t+f], arr.indexed[e*t+f, a*x+b, c*z+d])
-            else:  # num_dim == 3
-                res = res.replace(fun(a, b, c, d), arr.indexed[a, b, c, d])
-                res = res.replace(arr.indexed[x+b, y+q, z+d, t+f], arr.indexed[t+f, x+b, y+q, z+d])
-        # Replace x+h in indices with x+1
-        for dim_var in [x, y, z]:
-            res = res.replace(dim_var+c*h, dim_var+c)
-        # Replace t+s with t+1
-        res = res.replace(t+c*s, t+c)
-        if fw:
-            res = res.subs({t: t-width_t})
-        else:
-            res = res.subs({t: t+width_t})
-        return res
-
-    def total_dim(self, ndim):
-        if ndim == 2:
-            return (t, x, z)
-        else:
-            return (t, x, y, z)
-
-    def space_dim(self, ndim):
-        if ndim == 2:
-            return (x, z)
-        else:
-            return (x, y, z)
+    def add(self, m, u):
+        assignments = []
+        dt = self.dt
+        for j in range(self.npoint):
+            add = self.point2grid(self.orig_data[j, :])
+            coords = add[0]
+            s = add[1]
+            assignments += [Eq(u.indexed[tuple([t] + [coords[i] + inc[i] for i in range(self.ndim)])],
+                               u.indexed[tuple([t] + [coords[i] + inc[i] for i in range(self.ndim)])] + self.indexed[t, j]*dt*dt/m.indexed[coords]*w) for w, inc in zip(s, self.increments)]
+        filtered = [x for x in assignments if isinstance(x, Eq)]
+        return filtered
 
 
-class ForwardOperator(TTIOperator):
-    def __init__(self, m, src, damp, rec, u, v, a, b, th, ph, time_order=4, spc_order=12):
+class ForwardOperator(Operator):
+    def __init__(self, m, src, damp, rec, u, v, A, B, th, ph, time_order=2, spc_order=4, **kwargs):
+        def Bhaskarasin(angle):
+            return 16 * angle * (3.14 - abs(angle)) / (49.34 - 4 * abs(angle) * (3.14 - abs(angle)))
+
+        def Bhaskaracos(angle):
+            return Bhaskarasin(angle + 1.57)
+
+        ang0, ang1, ang2, ang3 = symbols('ang0 ang1 ang2 ang3')
         assert(m.shape == damp.shape)
-        input_params = [m, src, damp, rec, u, v, a, b, th, ph]
         u.pad_time = False
-        dt = src.dt
-        h = src.h
-        old_src = src
-        output_params = []
-        dim = len(m.shape)
-        total_dim = self.total_dim(dim)
-        space_dim = self.space_dim(dim)
-        stencilp, stencilr, subs = self._init_taylor(dim, time_order, spc_order)
-        stencilp = self.smart_sympy_replace(dim, time_order, stencilp, [Function('p'), Function('r')], [u, v], fw=True)
-        stencilr = self.smart_sympy_replace(dim, time_order, stencilr, [Function('p'), Function('r')], [u, v], fw=True)
-        stencil_args = [m.indexed[space_dim], a.indexed[space_dim], b.indexed[space_dim],
-                        th.indexed[space_dim], ph.indexed[space_dim], dt, h, damp.indexed[space_dim]]
-        first_stencil = Eq(u.indexed[total_dim], stencilp)
-        second_stencil = Eq(v.indexed[total_dim], stencilr)
+        v.pad_time = False
+        # Set time and space orders
+        u.time_order = time_order
+        u.space_order = spc_order
+        v.time_order = time_order
+        v.space_order = spc_order
+        s, h = symbols('s h')
+        Gxxp = ang2**2 * ang0**2 * u.dx2 + ang3**2 * ang0**2 * u.dy2 + ang1**2 * u.dz2 + 2 * ang3 * ang2 * ang0**2 * u.dxy - ang3 * 2 * ang1 * ang0 * u.dyz - ang2 * 2 * ang1 * ang0 * u.dxz
+        Gyyp = ang1**2 * u.dx2 + ang2**2 * u.dy2 - (2 * ang3 * ang2)**2 * u.dxy
+        Gzzr = ang2**2 * ang1**2 * v.dx2 + ang3**2 * ang1**2 * v.dy2 + ang0**2 * v.dz2 + 2 * ang3 * ang2 * ang1**2 * v.dxy + ang3 * 2 * ang1 * ang0 * v.dyz + ang2 * 2 * ang1 * ang0 * v.dxz
+        # Derive stencil from symbolic equation
+        stencilp = 2 * s**2 / (2 * m + s * damp) * (2 * m / s**2 * u + (s * damp - 2 * m) / (2 * s**2) * u.backward + A * (Gxxp + Gyyp) + B * Gzzr)
+        stencilp = factor(expand(stencilp))
+        stencilr = 2 * s**2 / (2 * m + s * damp) * (2 * m / s**2 * v + (s * damp - 2 * m) / (2 * s**2) * v.backward + B * (Gxxp + Gyyp) + Gzzr)
+        stencilr = factor(expand(stencilr))
+        ang0 = Bhaskaracos(th)
+        ang1 = Bhaskarasin(th)
+        ang2 = Bhaskaracos(ph)
+        ang3 = Bhaskarasin(ph)
+        factorized = {"ang0": ang0, "ang1": ang1, "ang2": ang2, "ang3": ang3}
+        # Add substitutions for spacing (temporal and spatial)
+        subs = [{s: src.dt, h: src.h}, {s: src.h, h: src.h}]
+        first_stencil = Eq(u.forward, stencilp)
+        second_stencil = Eq(v.forward, stencilr)
         stencils = [first_stencil, second_stencil]
-        substitutions = [dict(zip(subs, stencil_args)), dict(zip(subs, stencil_args))]
-        super(ForwardOperator, self).__init__(old_src.nt, m.shape, stencils=stencils,
-                                              substitutions=substitutions, spc_border=spc_order/2,
-                                              time_order=time_order, forward=True, dtype=m.dtype,
-                                              input_params=input_params, output_params=output_params)
+        super(ForwardOperator, self).__init__(src.nt, m.shape, stencils=stencils, substitutions=subs,
+                                              spc_border=spc_order/2, time_order=time_order, forward=True, dtype=m.dtype,
+                                              input_params=[m, damp, A, B, th, ph, u, v], factorized=factorized, **kwargs)
         # Insert source and receiver terms post-hoc
-        self.propagator.time_loop_stencils_a = old_src.add(m, u) + old_src.add(m, v)
+        self.input_params += [src, rec]
+        self.propagator.time_loop_stencils_a = src.add(m, u) + src.add(m, v) + rec.read(u, v)
+        self.propagator.add_devito_param(src)
+        self.propagator.add_devito_param(rec)
 
 
-class AdjointOperator(TTIOperator):
+class AdjointOperator(Operator):
     def __init__(self, m, rec, damp, srca, time_order=4, spc_order=12):
         assert(m.shape == damp.shape)
         input_params = [m, rec, damp, srca]
@@ -172,7 +203,7 @@ class AdjointOperator(TTIOperator):
         self.propagator.time_loop_stencils_a = rec.add(m, v) + srca.read(v)
 
 
-class GradientOperator(TTIOperator):
+class GradientOperator(Operator):
     def __init__(self, u, m, rec, damp, time_order=4, spc_order=12):
         assert(m.shape == damp.shape)
         input_params = [u, m, rec, damp]
@@ -199,7 +230,7 @@ class GradientOperator(TTIOperator):
         self.propagator.time_loop_stencils_b = rec.add(m, v)
 
 
-class BornOperator(TTIOperator):
+class BornOperator(Operator):
     def __init__(self, dm, m, src, damp, rec, time_order=4, spc_order=12):
         assert(m.shape == damp.shape)
         input_params = [dm, m, src, damp, rec]

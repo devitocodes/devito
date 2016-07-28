@@ -211,17 +211,17 @@ class DenseData(SymbolicData):
     @property
     def dxy(self):
         """Symbol for the cross derivative wrt the x and y dimension"""
-        return cross_derivative(self, dims=(x, y))
+        return cross_derivative(self, order=int(self.space_order/2), dims=(x, y))
 
     @property
     def dxz(self):
         """Symbol for the cross derivative wrt the x and z dimension"""
-        return cross_derivative(self, dims=(x, z))
+        return cross_derivative(self, order=int(self.space_order/2), dims=(x, z))
 
     @property
     def dyz(self):
         """Symbol for the cross derivative wrt the y and z dimension"""
-        return cross_derivative(self, dims=(y, z))
+        return cross_derivative(self, order=int(self.space_order/2), dims=(y, z))
 
 
 class TimeData(DenseData):

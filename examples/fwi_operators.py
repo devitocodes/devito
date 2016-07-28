@@ -133,7 +133,7 @@ class SourceLike(PointData):
 
 
 class ForwardOperator(Operator):
-    def __init__(self, m, src, damp, rec, u, time_order=4, spc_order=12, **kwargs):
+    def __init__(self, m, src, damp, rec, u, time_order=2, spc_order=6, **kwargs):
         assert(m.shape == damp.shape)
         u.pad_time = False
         # Set time and space orders
@@ -157,7 +157,7 @@ class ForwardOperator(Operator):
 
 
 class AdjointOperator(Operator):
-    def __init__(self, m, rec, damp, srca, time_order=4, spc_order=12, **kwargs):
+    def __init__(self, m, rec, damp, srca, time_order=2, spc_order=6, **kwargs):
         assert(m.shape == damp.shape)
         # Create v with given time and space orders
         v = TimeData(name="v", shape=m.shape, dtype=m.dtype, time_dim=rec.nt,
@@ -182,7 +182,7 @@ class AdjointOperator(Operator):
 
 
 class GradientOperator(Operator):
-    def __init__(self, u, m, rec, damp, time_order=4, spc_order=12, **kwargs):
+    def __init__(self, u, m, rec, damp, time_order=2, spc_order=6, **kwargs):
         assert(m.shape == damp.shape)
         v = TimeData(name="v", shape=m.shape, dtype=m.dtype, time_dim=rec.nt,
                      time_order=time_order, space_order=spc_order, save=False, )
@@ -215,7 +215,7 @@ class GradientOperator(Operator):
 
 
 class BornOperator(Operator):
-    def __init__(self, dm, m, src, damp, rec, time_order=4, spc_order=12, **kwargs):
+    def __init__(self, dm, m, src, damp, rec, time_order=2, spc_order=6, **kwargs):
         assert(m.shape == damp.shape)
         u = TimeData(name="u", shape=m.shape, dtype=m.dtype, time_dim=src.nt,
                      time_order=time_order, space_order=spc_order, save=False)

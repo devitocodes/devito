@@ -34,6 +34,7 @@ class Propagator(object):
     def __init__(self, name, nt, shape, spc_border=0, time_order=0,
                  time_dim=None, space_dims=None, forward=True, compiler=None,
                  profile=False, cache_blocking=False, block_size=5):
+        self.factorized = []  # to hold factored terms. gets set in operator
         self.time_order = time_order
         # Default time and space symbols if not provided
         self.time_dim = time_dim or t
@@ -191,6 +192,15 @@ class Propagator(object):
         :param stencils: A list of stencils to be converted
         :returns: :class:`cgen.Block` containing the converted kernel
         """
+
+        factors = []
+        if len(self.factorized) > 0:
+            for name, term in zip(self.factorized.keys(), self.factorized):
+                expr = self.factorized[name]
+                # TODO: add support for double precision
+                self.add_local_var(name, "float")
+                # TODO: undo precision enforcing
+                factors.append(cgen.Assign(name, str(ccode(expr.xreplace(self._var_map))).replace("pow", "powf").replace("fabs", "fabsf")))
         stmts = []
         for equality in stencils:
             self._kernel_dic_oi = self._get_ops_expr(equality.rhs, self._kernel_dic_oi, False)
@@ -200,7 +210,7 @@ class Propagator(object):
         kernel = self._pre_kernel_steps
         kernel += stmts
         kernel += self._post_kernel_steps
-        return cgen.Block(kernel)
+        return cgen.Block(factors+kernel)
 
     def convert_equality_to_cgen(self, equality):
         """Convert given equality to :class:`cgen.Generable` statement
@@ -213,6 +223,8 @@ class Propagator(object):
         else:
             s_lhs = ccode(self.time_substitutions(equality.lhs).xreplace(self._var_map))
             s_rhs = ccode(self.time_substitutions(equality.rhs).xreplace(self._var_map))
+            s_rhs = str(s_rhs).replace("pow", "powf")
+            s_rhs = str(s_rhs).replace("fabs", "fabsf")
             return cgen.Assign(s_lhs, s_rhs)
 
     def generate_loops(self, loop_body):

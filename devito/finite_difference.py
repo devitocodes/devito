@@ -1,5 +1,5 @@
 from __future__ import absolute_import
-from sympy import symbols
+from sympy import symbols, finite_diff_weights
 from functools import reduce
 from operator import mul
 
@@ -74,18 +74,23 @@ def cross_derivative(*args, **kwargs):
     """
     dims = kwargs.get('dims', (x, y))
     diff = kwargs.get('diff', h)
+    order = kwargs.get('order', 1)
     assert(isinstance(dims, tuple) and len(dims) == 2)
-    deriv = -2. * reduce(mul, args, 1)
-    # Direction of first dimension
-    aux1_0 = [a.subs(dims[0], dims[0] + diff) for a in args]
-    aux2_0 = [a.subs(dims[0], dims[0] - diff) for a in args]
-    deriv += reduce(mul, aux1_0, 1) + reduce(mul, aux2_0, 1)
-    # Direction of second dimension
-    aux1_1 = [a.subs(dims[1], dims[1] + diff) for a in args]
-    aux2_1 = [a.subs(dims[1], dims[1] - diff) for a in args]
-    deriv += reduce(mul, aux1_1, 1) + reduce(mul, aux2_1, 1)
+    deriv = 0
+    # Stencil positions for non-symmetric cross-derivatives with symmetric averaging
+    ind1r = [(dims[0] + i * diff) for i in range(-int(order / 2) + 1 - (order < 4), int((order + 1) / 2) + 2 - (order < 4))]
+    ind2r = [(dims[1] + i * diff) for i in range(-int(order / 2) + 1 - (order < 4), int((order + 1) / 2) + 2 - (order < 4))]
+    ind1l = [(dims[0] - i * diff) for i in range(-int(order / 2) + 1 - (order < 4), int((order + 1) / 2) + 2 - (order < 4))]
+    ind2l = [(dims[1] - i * diff) for i in range(-int(order / 2) + 1 - (order < 4), int((order + 1) / 2) + 2 - (order < 4))]
+    # Finite difference weights from Taylor approximation with this positions
+    c1 = finite_diff_weights(1, ind1r, dims[0])
+    c1 = c1[-1][-1]
+    c2 = finite_diff_weights(1, ind2r, dims[1])
+    c2 = c2[-1][-1]
     # Diagonal elements
-    aux1_2 = [a.subs({dims[0]: dims[0] - diff, dims[1]: dims[1] + diff}) for a in args]
-    aux2_2 = [a.subs({dims[0]: dims[0] + diff, dims[1]: dims[1] - diff}) for a in args]
-    deriv -= reduce(mul, aux1_2, 1) + reduce(mul, aux2_2, 1)
-    return (.5 / diff**2) * deriv
+    for i in range(0, len(ind1r)):
+        for j in range(0, len(ind2r)):
+            var1 = [a.subs({dims[0]: ind1r[i], dims[1]: ind2r[j]}) for a in args]
+            var2 = [a.subs({dims[0]: ind1l[i], dims[1]: ind2l[j]}) for a in args]
+            deriv += .25 * c2[j] * c1[i] * reduce(mul, var1, 1) + .25 * c2[len(ind2l)-j-1] * c1[len(ind1l)-i-1] * reduce(mul, var2, 1)
+    return deriv

@@ -5,7 +5,7 @@ from examples.fwi_operators import *
 from devito.interfaces import DenseData
 
 
-class AcousticWave2D_cg:
+class Acoustic_cg:
     """ Class to setup the problem for the Acoustic Wave
         Note: s_order must always be greater than t_order
     """
@@ -73,8 +73,9 @@ class AcousticWave2D_cg:
         self.srca = SourceLike(name="srca", npoint=1, nt=self.nt, dt=self.dt, h=self.h,
                                data=np.array(self.data.source_coords, dtype=self.dtype)[np.newaxis, :],
                                ndim=len(dimensions), dtype=self.dtype, nbpml=nbpml)
-        self.dm = DenseData(name="dm", shape=self.model.vp.shape, dtype=self.dtype)
-        self.dm.initializer = self.dm_initializer
+        if dm_initializer is not None:
+            self.dm = DenseData(name="dm", shape=self.model.vp.shape, dtype=self.dtype)
+            self.dm.data[:] = np.pad(dm_initializer, tuple(pad_list), 'edge')
 
     def Forward(self):
         fw = ForwardOperator(self.m, self.src, self.damp, self.rec, self.u, time_order=self.t_order, spc_order=self.s_order)
