@@ -157,7 +157,7 @@ class ForwardOperator(Operator):
         # Derive stencil from symbolic equation
         stencilp = 2 * s**2 / (2 * m + s * damp) * (2 * m / s**2 * u + (s * damp - 2 * m) / (2 * s**2) * u.backward + A * (Gxxp + Gyyp) + B * Gzzr)
         stencilp = factor(expand(stencilp))
-        stencilr = 2 * s**2 / (2 * m + s * damp) * (2 * m / s**2 * v + (s * damp - 2 * m) / (2 * s**2) * v.backward + A * (Gxxp + Gyyp) + B * Gzzr)
+        stencilr = 2 * s**2 / (2 * m + s * damp) * (2 * m / s**2 * v + (s * damp - 2 * m) / (2 * s**2) * v.backward + B * (Gxxp + Gyyp) + Gzzr)
         stencilr = factor(expand(stencilr))
         ang0 = Bhaskaracos(th)
         ang1 = Bhaskarasin(th)
@@ -165,7 +165,7 @@ class ForwardOperator(Operator):
         ang3 = Bhaskarasin(ph)
         factorized = {"ang0": ang0, "ang1": ang1, "ang2": ang2, "ang3": ang3}
         # Add substitutions for spacing (temporal and spatial)
-        subs = {s: src.dt, h: src.h}
+        subs = [{s: src.dt, h: src.h},{s: src.h, h: src.h}]
         first_stencil = Eq(u.forward, stencilp)
         second_stencil = Eq(v.forward, stencilr)
         stencils = [first_stencil, second_stencil]
