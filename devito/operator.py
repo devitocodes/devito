@@ -195,8 +195,8 @@ class Operator(object):
         f = self.propagator.cfunction
 
         for param in self.input_params:
-            param.initialize()
-
+            if hasattr(param, 'initialize'):
+                param.initialize()
         args = [param.data for param in self.input_params + self.output_params]
 
         if isinstance(self.compiler, IntelMICCompiler):
