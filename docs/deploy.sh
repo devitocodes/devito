@@ -7,6 +7,7 @@ TARGET_BRANCH="gh-pages"
 function doCompile {
     pip install --user sphinx
     pip install --user sphinx_rtd_theme
+    export PYTHONPATH=$(pwd):$PYTHONPATH
     cd docs && make html
     cp -r _build/html/* ../out/
     cd ..
@@ -55,14 +56,19 @@ git add .
 git commit -m "Deploy to GitHub Pages: ${SHA}"
 
 # Get the deploy key by using Travis's stored variables to decrypt deploy_key.enc
+
+cd ..
+
 ENCRYPTED_KEY_VAR="encrypted_${ENCRYPTION_LABEL}_key"
 ENCRYPTED_IV_VAR="encrypted_${ENCRYPTION_LABEL}_iv"
 ENCRYPTED_KEY=${!ENCRYPTED_KEY_VAR}
 ENCRYPTED_IV=${!ENCRYPTED_IV_VAR}
-openssl aes-256-cbc -K $ENCRYPTED_KEY -iv $ENCRYPTED_IV -in deploy_key.enc -out deploy_key -d
+openssl aes-256-cbc -K $ENCRYPTED_KEY -iv $ENCRYPTED_IV -in docs/deploy_key.enc -out deploy_key -d
 chmod 600 deploy_key
 eval `ssh-agent -s`
 ssh-add deploy_key
+
+cd out
 
 # Now that we're all set up, we can push.
 git push $SSH_REPO $TARGET_BRANCH
