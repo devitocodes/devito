@@ -320,7 +320,7 @@ class Propagator(object):
             dim_var = orig_var + "b"
             loop_limits = self._space_loop_limits[spc_var]
             old_upper_limit = loop_limits[1]
-            new_upper_limit = old_upper_limit-old_upper_limit % block_size
+            new_upper_limit = old_upper_limit-loop_limits[0]-old_upper_limit % block_size
             if old_upper_limit - new_upper_limit > 0:
                 remainder = True
             loop_limits = (loop_limits[0], new_upper_limit)
@@ -333,7 +333,7 @@ class Propagator(object):
                 dim_var = str(self._var_map[spc_var])
                 loop_limits = self._space_loop_limits[spc_var]
                 old_upper_limit = loop_limits[1]
-                new_upper_limit = old_upper_limit-old_upper_limit % block_size
+                new_upper_limit = old_upper_limit-loop_limits[0]-old_upper_limit % block_size
                 loop_limits = (new_upper_limit, old_upper_limit)
                 remainder_loop = cgen.For(cgen.InlineInitializer(cgen.Value("int", dim_var), str(loop_limits[0])),
                                           str(dim_var) + "<" + str(loop_limits[1]), str(dim_var) + "++", remainder_loop)
