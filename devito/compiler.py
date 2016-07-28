@@ -66,7 +66,7 @@ class GNUCompiler(Compiler):
         super(GNUCompiler, self).__init__(*args, **kwargs)
         self.cc = 'g++'
         self.ld = 'g++'
-        self.cflags = ['-O3', 'g', '-fPIC', '-Wall']
+        self.cflags = ['-O3', '-g', '-fPIC', '-Wall']
         self.ldflags = ['-shared']
         if self.openmp:
             self.ldflags += ['-fopenmp']
