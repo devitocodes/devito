@@ -67,10 +67,10 @@ class SourceLike(PointData):
         #          (i, k), (i, k+1), (i+1, k), (i+1, k+1)
         if self.ndim == 2:
             rx, rz = self.rs
+            x, z = pt_coords
         else:
             rx, ry, rz = self.rs
-
-        x, y, z = pt_coords
+            x, y, z = pt_coords
         i = int(x/self.h)
         k = int(z/self.h)
         coords = (i + self.nbpml, k + self.nbpml)
@@ -94,10 +94,10 @@ class SourceLike(PointData):
     def grid2point(self, u, pt_coords):
         if self.ndim == 2:
             rx, rz = self.rs
+            x, z = pt_coords
         else:
             rx, ry, rz = self.rs
-
-        x, y, z = pt_coords
+            x, y, z = pt_coords
         i = int(x/self.h)
         k = int(z/self.h)
 

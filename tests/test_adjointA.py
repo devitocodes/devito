@@ -37,13 +37,15 @@ class Test_AdjointA(object):
             return (1-2.*r**2)*np.exp(-r**2)
 
         time_series = source(np.linspace(t0, tn, nt), f0)
-        location = (origin[0] + dimensions[0] * spacing[0] * 0.5, 0,
+        location = (origin[0] + dimensions[0] * spacing[0] * 0.5,
                     origin[-1] + 2 * spacing[-1])
+        if len(dimensions) == 3:
+            location = (location[0], 0., location[1])
         data.set_source(time_series, dt, location)
-        receiver_coords = np.zeros((30, 3))
+        receiver_coords = np.zeros((30, len(dimensions)))
         receiver_coords[:, 0] = np.linspace(50, origin[0] + dimensions[0]*spacing[0] - 50, num=30)
-        receiver_coords[:, 1] = 0.0
-        receiver_coords[:, 2] = location[2]
+        receiver_coords[:, -1] = location[-1]
+
         data.set_receiver_pos(receiver_coords)
         data.set_shape(nt, 30)
         # Adjoint test
