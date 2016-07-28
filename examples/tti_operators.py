@@ -156,9 +156,9 @@ class ForwardOperator(Operator):
         Gzzr = ang2**2 * ang1**2 * v.dx2 + ang3**2 * ang1**2 * v.dy2 + ang0**2 * v.dz2 + 2 * ang3 * ang2 * ang1**2 * v.dxy + ang3 * 2 * ang1 * ang0 * v.dyz + ang2 * 2 * ang1 * ang0 * v.dxz
         # Derive stencil from symbolic equation
         stencilp = 2 * s**2 / (2 * m + s * damp) * (2 * m / s**2 * u + (s * damp - 2 * m) / (2 * s**2) * u.backward + A * (Gxxp + Gyyp) + B * Gzzr)
-        stencilp = factor(expand(stencilp))
+        # stencilp = factor(expand(stencilp))
         stencilr = 2 * s**2 / (2 * m + s * damp) * (2 * m / s**2 * v + (s * damp - 2 * m) / (2 * s**2) * v.backward + B * (Gxxp + Gyyp) + Gzzr)
-        stencilr = factor(expand(stencilr))
+        # stencilr = factor(expand(stencilr))
         ang0 = Bhaskaracos(th)
         ang1 = Bhaskarasin(th)
         ang2 = Bhaskaracos(ph)
