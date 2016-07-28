@@ -67,9 +67,9 @@ number which will be used for all dimensions or a list explicitly stating
 block sizes for each dim(x,y,z).
 
 Note, by default inner most dimension is not blocked, if you want to
-disable this set `cb_inner_dim` flag to `True`
+disable this set `cb_inner_dim` flag to `True`.
 Example usage:
 ```
-op = Operator(..., cache_blocking=True, block_size=[5, 10, 5], cb_inner_dim=False)
+op = Operator(..., cache_blocking=True, block_size=[5, 10, 5], cb_inner_dim=True)
 ```
  
