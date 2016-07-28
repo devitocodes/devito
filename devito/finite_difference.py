@@ -28,18 +28,18 @@ x, y, h = symbols('x y h')
 def second_derivative(*args, **kwargs):
     """Derives second derivative for a product of given functions.
 
-    :param *args: All positional arguments must be fully qualified
-                  function objects, eg. `f(x, y)` or `g(t, x, y, z)`.
+    :param \*args: All positional arguments must be fully qualified
+       function objects, eg. `f(x, y)` or `g(t, x, y, z)`.
     :param dim: Symbol defininf the dimension wrt. which to
-                differentiate, eg. `x`, `y`, `z` or `t`.
+       differentiate, eg. `x`, `y`, `z` or `t`.
     :param diff: Finite Difference symbol to insert, default `h`.
     :param order: Discretisation order of the stencil to create.
+    :returns: The second derivative
 
     Example: Deriving the second derivative of f(x, y)*g(x, y) wrt. x via
-             `second_derivative(f(x, y), g(x, y), order=2, dim=x)`
-             results in
-             `(-2.0*f(x, y)*g(x, y) + 1.0*f(-h + x, y)*g(-h + x, y)
-               + 1.0*f(h + x, y)*g(h + x, y)) / h**2`.
+       `second_derivative(f(x, y), g(x, y), order=2, dim=x)`
+       results in `(-2.0*f(x, y)*g(x, y) + 1.0*f(-h + x, y)*g(-h + x, y) +
+       1.0*f(h + x, y)*g(h + x, y)) / h**2`.
     """
     order = kwargs.get('order', 2)
     dim = kwargs.get('dim', x)
@@ -57,20 +57,21 @@ def second_derivative(*args, **kwargs):
 def cross_derivative(*args, **kwargs):
     """Derives corss derivative for a product of given functions.
 
-    :param *args: All positional arguments must be fully qualified
-                  function objects, eg. `f(x, y)` or `g(t, x, y, z)`.
+    :param \*args: All positional arguments must be fully qualified
+       function objects, eg. `f(x, y)` or `g(t, x, y, z)`.
     :param dims: 2-tuple of symbols defining the dimension wrt. which
-                 to differentiate, eg. `x`, `y`, `z` or `t`.
+       to differentiate, eg. `x`, `y`, `z` or `t`.
     :param diff: Finite Difference symbol to insert, default `h`.
+    :returns: The cross derivative
 
     Example: Deriving the cross-derivative of f(x, y)*g(x, y)
-             wrt. x and y via:
-             `cross_derivative(f(x, y), g(x, y), dims=(x, y))`
-             results in
-             `0.5*(-2.0*f(x, y)*g(x, y) + f(x, -h + y)*g(x, -h + y)
-                   + f(x, h + y)*g(x, h + y) + f(-h + x, y)*g(-h + x, y)
-                   - f(-h + x, h + y)*g(-h + x, h + y) + f(h + x, y)*g(h + x, y)
-                   - f(h + x, -h + y)*g(h + x, -h + y)) / h**2
+       wrt. x and y via:
+       ``cross_derivative(f(x, y), g(x, y), dims=(x, y))``
+       results in
+       `0.5*(-2.0*f(x, y)*g(x, y) + f(x, -h + y)*g(x, -h + y) +
+       f(x, h + y)*g(x, h + y) + f(-h + x, y)*g(-h + x, y) -
+       f(-h + x, h + y)*g(-h + x, h + y) + f(h + x, y)*g(h + x, y) -
+       f(h + x, -h + y)*g(h + x, -h + y)) / h**2`
     """
     dims = kwargs.get('dims', (x, y))
     diff = kwargs.get('diff', h)
