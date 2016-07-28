@@ -384,7 +384,7 @@ class Propagator(object):
                 dim_var = orig_var + "b"
                 loop_limits = self._space_loop_limits[spc_var]
                 old_upper_limit = loop_limits[1]                  # sets new upper limit
-                loop_limits = (loop_limits[0], loop_limits[1] - loop_limits[1] % block_size)
+                loop_limits = (loop_limits[0], loop_limits[1] - (loop_limits[1]-loop_limits[0]) % block_size)
 
                 if old_upper_limit - loop_limits[1] > 0:  # check old vs new upper limit
                     remainder = True
@@ -402,7 +402,7 @@ class Propagator(object):
                 loop_limits = self._space_loop_limits[spc_var]
 
                 if not ivdep or self.cache_block_inner:  # Does not block inner most dim if cache_block_inne flag is set
-                    loop_limits = (loop_limits[1] - loop_limits[1] % block_size, loop_limits[1])
+                    loop_limits = (loop_limits[1] - (loop_limits[1]-loop_limits[0]) % block_size, loop_limits[1])
 
                 remainder_loop = cgen.For(cgen.InlineInitializer(cgen.Value("int", dim_var), str(loop_limits[0])),
                                           str(dim_var) + "<" + str(loop_limits[1]), str(dim_var) + "++", remainder_loop)
