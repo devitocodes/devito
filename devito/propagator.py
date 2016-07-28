@@ -13,6 +13,7 @@ from codeprinter import ccode
 from devito.compiler import (IntelMICCompiler, get_compiler_from_env,
                              get_tmp_dir, jit_compile_and_load)
 from devito.function_manager import FunctionDescriptor, FunctionManager
+from devito.iteration import Iteration
 
 
 class Propagator(object):
@@ -253,6 +254,9 @@ class Propagator(object):
         """
         if isinstance(equality, cgen.Generable):
             return equality
+        elif isinstance(equality, Iteration):
+            equality.substitute(self._var_map)
+            return equality.ccode
         else:
             s_lhs = ccode(self.time_substitutions(equality.lhs).xreplace(self._var_map))
             s_rhs = ccode(self.time_substitutions(equality.rhs).xreplace(self._var_map))
