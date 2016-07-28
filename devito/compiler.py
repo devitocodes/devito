@@ -66,7 +66,7 @@ class GNUCompiler(Compiler):
         super(GNUCompiler, self).__init__(*args, **kwargs)
         self.cc = 'g++'
         self.ld = 'g++'
-        self.cflags = ['-O3', '-g', '-fPIC', '-Wall']
+        self.cflags = ['-O3', '-fPIC', '-Wall']
         self.ldflags = ['-shared']
         if self.openmp:
             self.ldflags += ['-fopenmp']
@@ -85,7 +85,7 @@ class ClangCompiler(Compiler):
         super(ClangCompiler, self).__init__(*args, **kwargs)
         self.cc = 'clang'
         self.ld = 'clang'
-        self.cflags = ['-O3', '-g', '-fPIC', '-Wall']
+        self.cflags = ['-O3', '-fPIC', '-Wall']
         self.ldflags = ['-shared']
         if self.openmp:
             print "WARNING: Disabling OpenMP because clang does not support it."
@@ -102,7 +102,7 @@ class IntelCompiler(Compiler):
         super(IntelCompiler, self).__init__(*args, **kwargs)
         self.cc = 'icpc'
         self.ld = 'icpc'
-        self.cflags = ['-O3', '-g', '-fPIC', '-Wall', "-mavx"]
+        self.cflags = ['-O3', '-fPIC', '-Wall', "-mavx"]
         self.ldflags = ['-shared']
         if self.openmp:
             self.ldflags += ['-qopenmp']
@@ -122,7 +122,7 @@ class IntelMICCompiler(Compiler):
         super(IntelMICCompiler, self).__init__(*args, **kwargs)
         self.cc = 'icpc'
         self.ld = 'icpc'
-        self.cflags = ['-O3', '-g', '-fPIC', '-Wall', "-mmic"]
+        self.cflags = ['-O3', '-fPIC', '-Wall', "-mmic"]
         self.ldflags = ['-shared']
         if self.openmp:
             self.ldflags += ['-qopenmp']
@@ -138,7 +138,7 @@ class IntelKNLCompiler(Compiler):
         super(IntelKNLCompiler, self).__init__(*args, **kwargs)
         self.cc = 'icpc'
         self.ld = 'icpc'
-        self.cflags = ['-O3', '-g', '-fPIC', '-Wall', "-xMIC-AVX512"]
+        self.cflags = ['-O3', '-fPIC', '-Wall', "-xMIC-AVX512"]
         self.ldflags = ['-shared']
         if self.openmp:
             self.ldflags += ['-qopenmp']

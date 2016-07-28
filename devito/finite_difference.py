@@ -78,10 +78,10 @@ def cross_derivative(*args, **kwargs):
     assert(isinstance(dims, tuple) and len(dims) == 2)
     deriv = 0
     # Stencil positions for non-symmetric cross-derivatives with symmetric averaging
-    ind1r = [(dims[0] + i * diff) for i in range(-int((order) / 2) + 1 - (order < 4), int((order + 1) / 2) + 2 - (order < 4))]
-    ind2r = [(dims[1] + i * diff) for i in range(-int((order) / 2) + 1 - (order < 4), int((order + 1) / 2) + 2 - (order < 4))]
-    ind1l = [(dims[0] - i * diff) for i in range(-int((order) / 2) + 1 - (order < 4), int((order + 1) / 2) + 2 - (order < 4))]
-    ind2l = [(dims[1] - i * diff) for i in range(-int((order) / 2) + 1 - (order < 4), int((order + 1) / 2) + 2 - (order < 4))]
+    ind1r = [(dims[0] + i * diff) for i in range(-int(order / 2) + 1 - (order < 4), int((order + 1) / 2) + 2 - (order < 4))]
+    ind2r = [(dims[1] + i * diff) for i in range(-int(order / 2) + 1 - (order < 4), int((order + 1) / 2) + 2 - (order < 4))]
+    ind1l = [(dims[0] - i * diff) for i in range(-int(order / 2) + 1 - (order < 4), int((order + 1) / 2) + 2 - (order < 4))]
+    ind2l = [(dims[1] - i * diff) for i in range(-int(order / 2) + 1 - (order < 4), int((order + 1) / 2) + 2 - (order < 4))]
     # Finite difference weights from Taylor approximation with this positions
     c1 = finite_diff_weights(1, ind1r, dims[0])
     c1 = c1[-1][-1]
