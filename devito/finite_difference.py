@@ -37,9 +37,9 @@ def second_derivative(*args, **kwargs):
     :returns: The second derivative
 
     Example: Deriving the second derivative of f(x, y)*g(x, y) wrt. x via
-       `second_derivative(f(x, y), g(x, y), order=2, dim=x)`
-       results in `(-2.0*f(x, y)*g(x, y) + 1.0*f(-h + x, y)*g(-h + x, y) +
-       1.0*f(h + x, y)*g(h + x, y)) / h**2`.
+       ``second_derivative(f(x, y), g(x, y), order=2, dim=x)``
+       results in ``(-2.0*f(x, y)*g(x, y) + 1.0*f(-h + x, y)*g(-h + x, y) +
+       1.0*f(h + x, y)*g(h + x, y)) / h**2``.
     """
     order = kwargs.get('order', 2)
     dim = kwargs.get('dim', x)
@@ -68,10 +68,10 @@ def cross_derivative(*args, **kwargs):
        wrt. x and y via:
        ``cross_derivative(f(x, y), g(x, y), dims=(x, y))``
        results in
-       `0.5*(-2.0*f(x, y)*g(x, y) + f(x, -h + y)*g(x, -h + y) +
+       ``0.5*(-2.0*f(x, y)*g(x, y) + f(x, -h + y)*g(x, -h + y) +
        f(x, h + y)*g(x, h + y) + f(-h + x, y)*g(-h + x, y) -
        f(-h + x, h + y)*g(-h + x, h + y) + f(h + x, y)*g(h + x, y) -
-       f(h + x, -h + y)*g(h + x, -h + y)) / h**2`
+       f(h + x, -h + y)*g(h + x, -h + y)) / h**2``
     """
     dims = kwargs.get('dims', (x, y))
     diff = kwargs.get('diff', h)
