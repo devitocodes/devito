@@ -165,7 +165,7 @@ class ForwardOperator(Operator):
         ang3 = Bhaskarasin(ph)
         factorized = {"ang0": ang0, "ang1": ang1, "ang2": ang2, "ang3": ang3}
         # Add substitutions for spacing (temporal and spatial)
-        subs = [{s: src.dt, h: src.h},{s: src.h, h: src.h}]
+        subs = [{s: src.dt, h: src.h}, {s: src.h, h: src.h}]
         first_stencil = Eq(u.forward, stencilp)
         second_stencil = Eq(v.forward, stencilr)
         stencils = [first_stencil, second_stencil]
