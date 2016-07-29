@@ -340,8 +340,7 @@ class Propagator(object):
             )
 
             if ivdep and len(self.space_dims) > 1:
-                loop_body = cgen.Block([self.compiler.pragma_ivdep] + [loop_body])
-
+                loop_body = cgen.Block(self.compiler.pragma_ivdep + self.compiler.pragma_nontemporal + [loop_body])
             ivdep = False
         return [loop_body]  # returns body as a list
 
@@ -370,7 +369,7 @@ class Propagator(object):
                                  orig_var + "<" + upper_limit_str, orig_var + "++", loop_body)
 
             if inner_most_dim and len(self.space_dims) > 1:
-                loop_body = cgen.Block([self.compiler.pragma_ivdep] + [loop_body])
+                loop_body = cgen.Block(self.compiler.pragma_ivdep + self.add_devito_param.pragma_nontemporal + [loop_body])
             inner_most_dim = False
 
         remainder_counter = 0  # indicates how many remainder loops we need
