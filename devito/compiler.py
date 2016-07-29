@@ -105,7 +105,7 @@ class IntelCompiler(Compiler):
         super(IntelCompiler, self).__init__(*args, **kwargs)
         self.cc = 'icpc'
         self.ld = 'icpc'
-        self.cflags = ['-O3', '-g', '-fPIC', '-Wall', "-mavx"]
+        self.cflags = ['-O3', '-g', '-fPIC', '-Wall', "-xhost"]
         self.ldflags = ['-shared']
 
         if self.openmp:

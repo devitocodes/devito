@@ -174,6 +174,7 @@ class Operator(object):
                                      spc_border=spc_border, time_order=time_order, forward=forward,
                                      space_dims=self.space_dims, compiler=self.compiler, profile=profile,
                                      cache_blocking=cache_blocking, block_size=block_size)
+        self.propagator.dtype = dtype
         self.dtype = dtype
         self.nt = nt
         self.shape = shape
