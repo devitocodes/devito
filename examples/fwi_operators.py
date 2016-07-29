@@ -60,6 +60,25 @@ class SourceLike(PointData):
         A = A.subs(reference_cell)
         self.bs = A.inv().T.dot(p)
 
+    @property
+    def sym_coordinates(self):
+        """Symbol representing the coordinate values in each dimension"""
+        return tuple([self.coordinates.indexed[p, i]
+                      for i in range(self.ndim)])
+
+    @property
+    def sym_coord_indices(self):
+        """Symbol for each grid index according to the coordinates"""
+        return tuple([Function('INT')(Function('floor')(x / self.h))
+                      for x in self.sym_coordinates])
+
+    @property
+    def sym_coord_bases(self):
+        """Symbol for the base coordinates of the reference grid point"""
+        return tuple([Function('FLOAT')(x - idx * self.h)
+                      for x, idx in zip(self.sym_coordinates,
+                                        self.sym_coord_indices)])
+
     def point2grid(self, pt_coords):
         # In: s - Magnitude of the source
         #     x, z - Position of the source
@@ -92,33 +111,13 @@ class SourceLike(PointData):
         return coords, tuple(s)
 
     def grid2point(self, u):
-        """Generates a expression for generic grid-to-point interpolation"""
-        if self.ndim == 2:
-            x = self.coordinates.indexed[p, 0]
-            z = self.coordinates.indexed[p, 1]
-            i = Function('INT')(Function('floor')(x / self.h))
-            k = Function('INT')(Function('floor')(z / self.h))
-            rx, rz = self.rs
-            subs = {rx: Function('FLOAT')(x - i * self.h),
-                    rz: Function('FLOAT')(z - k * self.h)}
-            return sum([b.subs(subs) * u.indexed[t, i + inc[0] + self.nbpml,
-                                                 k + inc[1] + self.nbpml]
-                        for inc, b in zip(self.increments, self.bs)])
-        else:
-            x = self.coordinates.indexed[p, 0]
-            y = self.coordinates.indexed[p, 1]
-            z = self.coordinates.indexed[p, 2]
-            i = Function('INT')(Function('floor')(x / self.h))
-            j = Function('INT')(Function('floor')(y / self.h))
-            k = Function('INT')(Function('floor')(z / self.h))
-            rx, ry, rz = self.rs
-            subs = {rx: Function('FLOAT')(x - i * self.h),
-                    ry: Function('FLOAT')(y - j * self.h),
-                    rz: Function('FLOAT')(z - k * self.h)}
-            return sum([b.subs(subs) * u.indexed[t, i + inc[0] + self.nbpml,
-                                                 j + inc[1] + self.nbpml,
-                                                 k + inc[2] + self.nbpml]
-                        for inc, b in zip(self.increments, self.bs)])
+        """Generates an expression for generic grid-to-point interpolation"""
+        subs = dict(zip(self.rs, self.sym_coord_bases))
+        index_matrix = [tuple([idx + ii + self.nbpml for ii, idx
+                               in zip(inc, self.sym_coord_indices)])
+                        for inc in self.increments]
+        return sum([b.subs(subs) * u.indexed[(t, ) + idx]
+                    for idx, b in zip(index_matrix, self.bs)])
 
     def read(self, u):
         """Iteration loop over receivers performing grid-to-point interpolation."""
