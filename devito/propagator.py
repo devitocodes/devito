@@ -198,7 +198,7 @@ class Propagator(object):
             for name, term in zip(self.factorized.keys(), self.factorized):
                 expr = self.factorized[name]
                 # TODO: add support for double precision
-                self.add_local_var(name, "float")
+                self.add_local_var(name, np.float32)
                 # TODO: undo precision enforcing
                 factors.append(cgen.Assign(name, str(ccode(expr.xreplace(self._var_map))).replace("pow", "powf").replace("fabs", "fabsf")))
         stmts = []
