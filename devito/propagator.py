@@ -296,9 +296,11 @@ class Propagator(object):
             time_stepping = []
         loop_body = [cgen.Block(omp_for + loop_body)]
         # Statements to be inserted into the time loop before the spatial loop
+        time_loop_stencils_b = [self.time_substitutions(x) for x in self.time_loop_stencils_b]
         time_loop_stencils_b = [self.convert_equality_to_cgen(x) for x in self.time_loop_stencils_b]
 
         # Statements to be inserted into the time loop after the spatial loop
+        time_loop_stencils_a = [self.time_substitutions(x) for x in self.time_loop_stencils_a]
         time_loop_stencils_a = [self.convert_equality_to_cgen(x) for x in self.time_loop_stencils_a]
 
         if self.profile:
@@ -566,6 +568,12 @@ class Propagator(object):
         :returns: The expression after the substitutions
         """
         subs_dict = {}
+
+        # For Iteration objects we apply time subs to the stencil list
+        if isinstance(sympy_expr, Iteration):
+            sympy_expr.stencils = [self.time_substitutions(s)
+                                   for s in sympy_expr.stencils]
+            return sympy_expr
 
         for arg in postorder_traversal(sympy_expr):
             if isinstance(arg, Indexed):
