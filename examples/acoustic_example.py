@@ -3,7 +3,7 @@ from math import floor
 from containers import IShot, IGrid
 from Acoustic_codegen import Acoustic_cg
 
-dimensions = (150, 150, 150)
+dimensions = (50, 50, 50)
 model = IGrid()
 model0 = IGrid()
 model1 = IGrid()
@@ -50,7 +50,7 @@ data = IShot()
 f0 = .010
 dt = model.get_critical_dt()
 t0 = 0.0
-tn = 500.0;
+tn = 250.0;
 nt = int(1+(tn-t0)/dt)
 h = model.get_spacing()
 data.reinterpolate(dt)
@@ -63,13 +63,13 @@ def source(t, f0):
 
 
 time_series = source(np.linspace(t0, tn, nt), f0)
-location = (origin[0] + dimensions[0] * spacing[0] * 0.5, 1500,
+location = (origin[0] + dimensions[0] * spacing[0] * 0.5, 500,
             origin[1] + 2 * spacing[1])
 data.set_source(time_series, dt, location)
 
 receiver_coords = np.zeros((101, 3))
-receiver_coords[:, 0] = np.linspace(50, 2950, num=101)
-receiver_coords[:, 1] = 1500
+receiver_coords[:, 0] = np.linspace(50, 950, num=101)
+receiver_coords[:, 1] = 500
 receiver_coords[:, 2] = location[2]
 data.set_receiver_pos(receiver_coords)
 data.set_shape(nt, 101)
