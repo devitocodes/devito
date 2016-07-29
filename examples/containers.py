@@ -28,7 +28,7 @@ class IGrid:
         if len(self.vp.shape) == 3:
             coeff = 0.38
         else:
-            coeff = 0.42 
+            coeff = 0.42
         return coeff * self.spacing[0] / (self.scale*np.max(self.vp))
 
     def get_spacing(self):
