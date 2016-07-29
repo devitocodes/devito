@@ -79,36 +79,17 @@ class SourceLike(PointData):
                       for x, idx in zip(self.sym_coordinates,
                                         self.sym_coord_indices)])
 
-    def point2grid(self, pt_coords):
-        # In: s - Magnitude of the source
-        #     x, z - Position of the source
-        # Returns: (i, k) - Grid coordinate at top left of grid cell.
-        #          (s11, s12, s21, s22) - source values at coordinates
-        #          (i, k), (i, k+1), (i+1, k), (i+1, k+1)
-        if self.ndim == 2:
-            rx, rz = self.rs
-            x, z = pt_coords
-        else:
-            rx, ry, rz = self.rs
-            x, y, z = pt_coords
-        i = int(x/self.h)
-        k = int(z/self.h)
-        coords = (i + self.nbpml, k + self.nbpml)
-        subs = []
-        x = x - i*self.h
-        subs.append((rx, x))
-
-        if self.ndim == 3:
-            j = int(y/self.h)
-            y = y - j*self.h
-            subs.append((ry, y))
-            coords = (i + self.nbpml, j + self.nbpml, k + self.nbpml)
-
-        z = z - k*self.h
-        subs.append((rz, z))
-        s = [b.subs(subs).evalf() for b in self.bs]
-
-        return coords, tuple(s)
+    def point2grid(self, u, m):
+        """Generates an expression for generic point-to-grid interpolation"""
+        dt = self.dt
+        subs = dict(zip(self.rs, self.sym_coord_bases))
+        index_matrix = [tuple([idx + ii + self.nbpml for ii, idx
+                               in zip(inc, self.sym_coord_indices)])
+                        for inc in self.increments]
+        eqns = [Eq(u.indexed[(t, ) + idx], u.indexed[(t, ) + idx]
+                   + self.indexed[t, p] * dt * dt / m.indexed[idx] * b.subs(subs))
+                for idx, b in zip(index_matrix, self.bs)]
+        return eqns
 
     def grid2point(self, u):
         """Generates an expression for generic grid-to-point interpolation"""
@@ -120,25 +101,13 @@ class SourceLike(PointData):
                     for idx, b in zip(index_matrix, self.bs)])
 
     def read(self, u):
-        """Iteration loop over receivers performing grid-to-point interpolation."""
+        """Iteration loop over points performing grid-to-point interpolation."""
         interp_expr = Eq(self.indexed[t, p], self.grid2point(u))
         return [Iteration(interp_expr, variable=p, limits=self.shape[1])]
 
     def add(self, m, u):
-        assignments = []
-        dt = self.dt
-
-        for j in range(self.npoint):
-            add = self.point2grid(self.coordinates.data[j, :])
-            coords = add[0]
-            s = add[1]
-            assignments += [Eq(u.indexed[tuple([t] + [coords[i] + inc[i] for i in range(self.ndim)])],
-                               u.indexed[tuple([t] + [coords[i] + inc[i] for i in range(self.ndim)])] +
-                               self.indexed[t, j]*dt*dt/m.indexed[coords]*w) for w, inc in zip(s, self.increments)]
-
-        filtered = [x for x in assignments if isinstance(x, Eq)]
-
-        return filtered
+        """Iteration loop over points performing point-to-grid interpolation."""
+        return [Iteration(self.point2grid(u, m), variable=p, limits=self.shape[1])]
 
 
 class ForwardOperator(Operator):
@@ -165,9 +134,10 @@ class ForwardOperator(Operator):
                                               **kwargs)
 
         # Insert source and receiver terms post-hoc
-        self.input_params += [src, rec, rec.coordinates]
+        self.input_params += [src, src.coordinates, rec, rec.coordinates]
         self.propagator.time_loop_stencils_a = src.add(m, u) + rec.read(u)
         self.propagator.add_devito_param(src)
+        self.propagator.add_devito_param(src.coordinates)
         self.propagator.add_devito_param(rec)
         self.propagator.add_devito_param(rec.coordinates)
 
@@ -193,11 +163,12 @@ class AdjointOperator(Operator):
                                               **kwargs)
 
         # Insert source and receiver terms post-hoc
-        self.input_params += [srca, srca.coordinates, rec]
+        self.input_params += [srca, srca.coordinates, rec, rec.coordinates]
         self.propagator.time_loop_stencils_a = rec.add(m, v) + srca.read(v)
         self.propagator.add_devito_param(srca)
         self.propagator.add_devito_param(srca.coordinates)
         self.propagator.add_devito_param(rec)
+        self.propagator.add_devito_param(rec.coordinates)
 
 
 class GradientOperator(Operator):
@@ -230,11 +201,12 @@ class GradientOperator(Operator):
                                                **kwargs)
 
         # Insert receiver term post-hoc
-        self.input_params += [u, rec]
+        self.input_params += [u, rec, rec.coordinates]
         self.output_params += [grad]
         self.propagator.time_loop_stencils_b = rec.add(m, v)
         self.propagator.add_devito_param(u)
         self.propagator.add_devito_param(rec)
+        self.propagator.add_devito_param(rec.coordinates)
         self.propagator.add_devito_param(grad)
 
 
@@ -273,12 +245,13 @@ class BornOperator(Operator):
                                            **kwargs)
 
         # Insert source and receiver terms post-hoc
-        self.input_params += [dm, src, rec, rec.coordinates]
+        self.input_params += [dm, src, src.coordinates, rec, rec.coordinates]
         self.output_params += [U]
         self.propagator.time_loop_stencils_b = src.add(m, u)
         self.propagator.time_loop_stencils_a = rec.read(U)
         self.propagator.add_devito_param(dm)
         self.propagator.add_devito_param(src)
+        self.propagator.add_devito_param(src.coordinates)
         self.propagator.add_devito_param(rec)
         self.propagator.add_devito_param(rec.coordinates)
         self.propagator.add_devito_param(U)
