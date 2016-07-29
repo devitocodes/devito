@@ -77,9 +77,7 @@ Acoustic = Acoustic_cg(model, data, dm_orig, None, nbpml = 10, t_order=2, s_orde
 print("Preparing Forward")
 print("Applying")
 (rec, u) = Acoustic.Forward()
-recf = open('RecTTI','w')
-recf.write(rec.data)
-recf.close()
+
 print("Preparing adjoint")
 print("Applying")
 (srca, v) = Acoustic.Adjoint(rec)
