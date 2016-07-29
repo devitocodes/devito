@@ -192,20 +192,16 @@ class AdjointOperator(Operator):
         # Add substitutions for spacing (temporal and spatial)
         s, h = symbols('s h')
         subs = {s: rec.dt, h: rec.h}
-
-        # Input/output signature detection is still dubious,
-        # so we need to keep this hard-coded for now
-        input_params = [m, rec, damp, srca]
-        output_params = [v]
-
         super(AdjointOperator, self).__init__(rec.nt, m.shape, stencils=Eq(v.backward, stencil),
                                               substitutions=subs, spc_border=spc_order/2,
                                               time_order=time_order, forward=False, dtype=m.dtype,
-                                              input_params=input_params, output_params=output_params,
                                               **kwargs)
 
         # Insert source and receiver terms post-hoc
+        self.input_params += [srca, rec]
         self.propagator.time_loop_stencils_a = rec.add(m, v) + srca.read(v)
+        self.propagator.add_devito_param(srca)
+        self.propagator.add_devito_param(rec)
 
 
 class GradientOperator(Operator):
@@ -232,20 +228,18 @@ class GradientOperator(Operator):
                               v.indexed[tuple((t + 2,) + space_dim)]) * u.indexed[total_dim])
         reset_v = Eq(v.indexed[tuple((t + 2,) + space_dim)], 0)
         stencils = [Eq(v.backward, stencil), gradient_update, reset_v]
-
-        # Input/output signature detection is still dubious,
-        # so we need to keep this hard-coded for now
-        input_params = [u, m, rec, damp]
-        output_params = [grad, v]
-
         super(GradientOperator, self).__init__(rec.nt, m.shape, stencils=stencils,
                                                substitutions=[subs, {}, {}], spc_border=spc_order/2,
                                                time_order=time_order, forward=False, dtype=m.dtype,
-                                               input_params=input_params, output_params=output_params,
                                                **kwargs)
 
         # Insert receiver term post-hoc
+        self.input_params += [u, rec]
+        self.output_params += [grad]
         self.propagator.time_loop_stencils_b = rec.add(m, v)
+        self.propagator.add_devito_param(u)
+        self.propagator.add_devito_param(rec)
+        self.propagator.add_devito_param(grad)
 
 
 class BornOperator(Operator):
@@ -277,18 +271,17 @@ class BornOperator(Operator):
         reset_u = Eq(u.indexed[tuple((t - 2,) + space_dim)], 0)
         stencils = [Eq(u.forward, first_stencil), Eq(U.forward, second_stencil),
                     insert_second_source, reset_u]
-
-        # Input/output signature detection is still dubious,
-        # so we need to keep this hard-coded for now
-        input_params = [dm, m, src, damp, rec]
-        output_params = [u, U]
-
         super(BornOperator, self).__init__(src.nt, m.shape, stencils=stencils,
                                            substitutions=[subs, subs, {}, {}], spc_border=spc_order/2,
                                            time_order=time_order, forward=True, dtype=m.dtype,
-                                           input_params=input_params, output_params=output_params,
                                            **kwargs)
 
         # Insert source and receiver terms post-hoc
+        self.input_params += [dm, src, rec]
+        self.output_params += [U]
         self.propagator.time_loop_stencils_b = src.add(m, u)
         self.propagator.time_loop_stencils_a = rec.read(U)
+        self.propagator.add_devito_param(dm)
+        self.propagator.add_devito_param(src)
+        self.propagator.add_devito_param(rec)
+        self.propagator.add_devito_param(U)
