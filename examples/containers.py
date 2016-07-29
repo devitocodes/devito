@@ -29,7 +29,7 @@ class IGrid:
             coeff = 0.38
         else:
             coeff = 0.42
-        return coeff * self.spacing[0] / (np.max(self.vp))
+        return coeff * self.spacing[0] / (2*np.max(self.vp))
 
     def get_spacing(self):
         return self.spacing[0]

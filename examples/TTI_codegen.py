@@ -42,7 +42,7 @@ class TTI_cg:
 
         def damp_boundary(damp):
             h = self.h
-            dampcoeff = 0.0 #1.5 * np.log(1.0 / 0.001) / (40 * h)
+            dampcoeff = 1.5 * np.log(1.0 / 0.001) / (40 * h)
             nbpml = self.nbpml
             num_dim = len(damp.shape)
             for i in range(nbpml):
