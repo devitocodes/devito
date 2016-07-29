@@ -29,7 +29,7 @@ class IGrid:
             coeff = 0.38
         else:
             coeff = 0.42
-        return coeff * self.spacing[0] / (np.max(self.vp))
+        return coeff * self.spacing[0] / (self.scale * np.max(self.vp))
 
     def get_spacing(self):
         return self.spacing[0]
@@ -41,6 +41,10 @@ class IGrid:
         self.theta = theta
         self.phi = phi
         self.spacing = spacing
+        if theta is not None:
+            self.scale = 1.5
+        else:
+            self.scale = 1
         self.origin = origin
 
     def set_origin(self, shift):
