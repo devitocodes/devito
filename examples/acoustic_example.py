@@ -1,5 +1,4 @@
 import numpy as np
-from math import floor
 from containers import IShot, IGrid
 from Acoustic_codegen import Acoustic_cg
 
@@ -50,7 +49,7 @@ data = IShot()
 f0 = .010
 dt = model.get_critical_dt()
 t0 = 0.0
-tn = 250.0;
+tn = 250.0
 nt = int(1+(tn-t0)/dt)
 h = model.get_spacing()
 data.reinterpolate(dt)
@@ -73,7 +72,7 @@ receiver_coords[:, 1] = 500
 receiver_coords[:, 2] = location[2]
 data.set_receiver_pos(receiver_coords)
 data.set_shape(nt, 101)
-Acoustic = Acoustic_cg(model, data, dm_orig, None, nbpml = 10, t_order=2, s_order=2)
+Acoustic = Acoustic_cg(model, data, dm_orig, None, nbpml=10, t_order=2, s_order=2)
 print("Preparing Forward")
 print("Applying")
 (rec, u) = Acoustic.Forward()

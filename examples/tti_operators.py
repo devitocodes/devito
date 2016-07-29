@@ -151,7 +151,7 @@ class ForwardOperator(Operator):
         v.time_order = time_order
         v.space_order = spc_order
         s, h = symbols('s h')
-        if len(m.shape)==3:
+        if len(m.shape) == 3:
             Gxxp = ang2**2 * ang0**2 * u.dx2 + ang3**2 * ang0**2 * u.dy2 + ang1**2 * u.dz2 + 2 * ang3 * ang2 * ang0**2 * u.dxy - ang3 * 2 * ang1 * ang0 * u.dyz - ang2 * 2 * ang1 * ang0 * u.dxz
             Gyyp = ang1**2 * u.dx2 + ang2**2 * u.dy2 - (2 * ang3 * ang2)**2 * u.dxy
             Gzzr = ang2**2 * ang1**2 * v.dx2 + ang3**2 * ang1**2 * v.dy2 + ang0**2 * v.dz2 + 2 * ang3 * ang2 * ang1**2 * v.dxy + ang3 * 2 * ang1 * ang0 * v.dyz + ang2 * 2 * ang1 * ang0 * v.dxz
