@@ -84,7 +84,8 @@ class Operator(object):
                      environment variable DEVITO_ARCH, or default to GNUCompiler.
     :param profile: Flag to enable performance profiling
     :param cache_blocking: Flag to enable cache blocking
-    :param block_size: Block size used for cache clocking
+    :param block_size: Block size used for cache clocking. Can be either a single number used for all dimensions or
+                      a list stating block sizes for each dimension. Set block size to None to skip blocking on that dim
     :param input_params: List of symbols that are expected as input.
     :param output_params: List of symbols that define operator output.
     :param factorized: A map given by {string_name:sympy_object} for including factorized terms

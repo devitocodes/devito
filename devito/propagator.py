@@ -31,7 +31,8 @@ class Propagator(object):
                      environment variable DEVITO_ARCH, or default to GNUCompiler
     :param profile: Flag to enable performance profiling
     :param cache_blocking: Flag to enable cache blocking
-    :param block_size: Block size used for cache clocking
+    :param block_size: Block size used for cache clocking. Can be either a single number used for all dimensions or
+                      a list stating block sizes for each dimension. Set block size to None to skip blocking on that dim
     """
 
     def __init__(self, name, nt, shape, spc_border=0, time_order=0,
@@ -92,13 +93,14 @@ class Propagator(object):
 
         # Cache blocking and default block sizes
         self.cache_blocking = cache_blocking
-        if(isinstance(block_size, Iterable)):
-            if(len(block_size) == len(shape)):
+
+        if isinstance(block_size, Iterable):
+            if len(block_size) == len(shape):
                 self.block_sizes = block_size
-            elif len(block_size) == len(shape) - 1 and not self.cache_block_inner:
-                self.block_sizes = block_size.append(1)  # append dummy value for iterations when creating loop
             else:
                 raise ValueError("Block size should either be a single number or an array of the same size as the spatial domain")
+        elif block_size is None:  # Turn off cache blocking if block size set to None
+            self.cache_blocking = False
         else:
             # A single block size has been passed. Broadcast it to a list of the size of shape
             self.block_sizes = [int(block_size)]*len(shape)
@@ -360,10 +362,10 @@ class Propagator(object):
             block_var = dim_var + "b"
             loop_limits = self._space_loop_limits[spc_var]
 
-            lower_limit_str = block_var
-            upper_limit_str = block_var+"+"+str(block_size)
-
-            if inner_most_dim and not self.cache_block_inner:
+            if block_size:
+                lower_limit_str = block_var
+                upper_limit_str = block_var + "+" + str(block_size)
+            else:
                 lower_limit_str = str(loop_limits[0])
                 upper_limit_str = str(loop_limits[1])
 
@@ -374,11 +376,9 @@ class Propagator(object):
                 loop_body = cgen.Block([self.compiler.pragma_ivdep] + [loop_body])
             inner_most_dim = False
 
-        inner_most_dim = True
         for spc_var, block_size in reversed(zip(list(self.space_dims), self.block_sizes)):
-            # if not cache blocking inner most dim skip this iteration
-            if not inner_most_dim or self.cache_block_inner:
-
+            # if block size set to None do not block this dimension
+            if block_size:
                 orig_var = str(self._var_map[spc_var])
                 dim_var = orig_var + "b"
                 loop_limits = self._space_loop_limits[spc_var]
@@ -390,7 +390,6 @@ class Propagator(object):
 
                 loop_body = cgen.For(cgen.InlineInitializer(cgen.Value("int", dim_var), str(loop_limits[0])),
                                      str(dim_var) + "<" + str(loop_limits[1]), str(dim_var) + "+=" + str(block_size), loop_body)
-            inner_most_dim = False
 
         if remainder:
             remainder_loop = orig_loop_body
@@ -400,8 +399,8 @@ class Propagator(object):
                 dim_var = str(self._var_map[spc_var])
                 loop_limits = self._space_loop_limits[spc_var]
 
-                # Does not block inner most dim if cache_block_inner flag is set
-                if not inner_most_dim or self.cache_block_inner:
+                # Does not block this dim if block_size is None
+                if block_size:
                     loop_limits = (loop_limits[1] - (loop_limits[1] - loop_limits[0]) % block_size, loop_limits[1])
 
                 remainder_loop = cgen.For(cgen.InlineInitializer(cgen.Value("int", dim_var), str(loop_limits[0])),
