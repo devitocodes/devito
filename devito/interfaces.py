@@ -127,6 +127,8 @@ class DenseData(SymbolicData):
         :return: Indices used for axis.
         """
         _indices = [x, y, z]
+        if (len(shape)==2):
+            return [x, z]
         return _indices[:len(shape)]
 
     @property
@@ -271,6 +273,8 @@ class TimeData(DenseData):
         :return: Indices used for axis.
         """
         _indices = [t, x, y, z]
+        if len(shape)==2:
+            return [t, x, z]
         return _indices[:len(shape) + 1]
 
     def _allocate_memory(self):

@@ -50,7 +50,7 @@ data = IShot()
 f0 = .010
 dt = model.get_critical_dt()
 t0 = 0.0
-tn = 1000.0
+tn = 500.0;
 nt = int(1+(tn-t0)/dt)
 h = model.get_spacing()
 data.reinterpolate(dt)
