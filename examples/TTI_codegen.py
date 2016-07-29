@@ -9,7 +9,7 @@ class TTI_cg:
     """ Class to setup the problem for the Acoustic Wave
         Note: s_order must always be greater than t_order
     """
-    def __init__(self, model, data, dm_initializer=None, source=None, nbpml=40, t_order=2, s_order=2):
+    def __init__(self, model, data, dm_initializer=None, source=None, t_order=2, s_order=2, nbpml=40):
         self.model = model
         self.t_order = t_order
         self.s_order = s_order
@@ -64,9 +64,9 @@ class TTI_cg:
         self.m = DenseData(name="m", shape=self.model.vp.shape, dtype=self.dtype)
         self.m.data[:] = self.model.vp**(-2)
         self.a = DenseData(name="a", shape=self.model.vp.shape, dtype=self.dtype)
-        self.a.data[:] = 1 + 2 * self.model.epsilon
+        self.a.data[:] = 1.0 + 2.0 * self.model.epsilon
         self.b = DenseData(name="b", shape=self.model.vp.shape, dtype=self.dtype)
-        self.b.data[:] = np.sqrt(1 + 2 * self.model.delta)
+        self.b.data[:] = np.sqrt(1.0 + 2.0 * self.model.delta)
         self.th = DenseData(name="th", shape=self.model.vp.shape, dtype=self.dtype)
         self.ph = DenseData(name="ph", shape=self.model.vp.shape, dtype=self.dtype)
         self.th.data[:] = self.model.theta

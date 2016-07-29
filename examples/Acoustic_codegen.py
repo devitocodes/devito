@@ -55,7 +55,6 @@ class Acoustic_cg:
                     damp[:, -(i + 1), :] += val
                     damp[:, :, i] += val
                     damp[:, :, -(i + 1)] += val
-
         self.m = DenseData(name="m", shape=self.model.vp.shape, dtype=self.dtype)
         self.m.data[:] = self.model.vp**(-2)
         self.damp = DenseData(name="damp", shape=self.model.vp.shape, dtype=self.dtype)

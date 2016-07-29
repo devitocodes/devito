@@ -1,5 +1,4 @@
 import numpy as np
-from math import floor
 from containers import IShot, IGrid
 from Acoustic_codegen import Acoustic_cg
 
@@ -11,7 +10,7 @@ model.shape = dimensions
 model0.shape = dimensions
 model1.shape = dimensions
 origin = (0., 0.)
-spacing = (25., 25.)
+spacing = (20., 20.)
 dtype = np.float32
 t_order = 2
 spc_order = 2
@@ -29,18 +28,12 @@ def smooth10(vel, shape):
 
 # True velocity
 true_vp = np.ones(dimensions) + 2.0
-true_vp[floor(dimensions[0] / 2):floor(dimensions[0]), :] = 4.5
+true_vp[:, :, int(dimensions[0] / 2):int(dimensions[0])] = 4.5
 
 # Smooth velocity
 initial_vp = smooth10(true_vp, dimensions)
 
-nbpml = 40
 dm_orig = true_vp**-2 - initial_vp**-2
-pad_list = []
-for dim_index in range(len(dimensions)):
-    pad_list.append((nbpml, nbpml))
-
-dm_orig = np.pad(dm_orig, tuple(pad_list), 'edge')
 
 
 def create_dm(dm):
@@ -56,10 +49,9 @@ data = IShot()
 f0 = .010
 dt = model.get_critical_dt()
 t0 = 0.0
-tn = 100.0
+tn = 250.0
 nt = int(1+(tn-t0)/dt)
 h = model.get_spacing()
-model.vp = np.pad(model.vp, tuple(pad_list), 'edge')
 data.reinterpolate(dt)
 
 
@@ -80,7 +72,7 @@ receiver_coords[:, 1] = 500
 receiver_coords[:, 2] = location[2]
 data.set_receiver_pos(receiver_coords)
 data.set_shape(nt, 101)
-Acoustic = Acoustic_cg(model, data, dm_orig, None, t_order=2, s_order=4, nbpml=10)
+Acoustic = Acoustic_cg(model, data, dm_orig, None, nbpml=10, t_order=2, s_order=2)
 print("Preparing Forward")
 print("Applying")
 (rec, u) = Acoustic.Forward()

@@ -134,7 +134,6 @@ class Operator(object):
         for d in dimensions:
             sym_undef.remove(d)
         # TODO: We should check that all undfined symbols have known substitutions
-
         # Shift time indices so that LHS writes into t only,
         # eg. u[t+2] = u[t+1] + u[t]  -> u[t] = u[t-1] + u[t-2]
         self.stencils = [eqn.subs(t, t + solve(eqn.lhs.args[0], t)[0])
