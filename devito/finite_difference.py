@@ -64,14 +64,13 @@ def cross_derivative(*args, **kwargs):
     :param diff: Finite Difference symbol to insert, default `h`.
     :returns: The cross derivative
 
-    Example: Deriving the cross-derivative of f(x, y)*g(x, y)
-       wrt. x and y via:
+    Example: Deriving the cross-derivative of f(x, y)*g(x, y) wrt. x and y via:
        ``cross_derivative(f(x, y), g(x, y), dims=(x, y))``
-       results in
-       ``0.5*(-2.0*f(x, y)*g(x, y) + f(x, -h + y)*g(x, -h + y) +
-       f(x, h + y)*g(x, h + y) + f(-h + x, y)*g(-h + x, y) -
-       f(-h + x, h + y)*g(-h + x, h + y) + f(h + x, y)*g(h + x, y) -
-       f(h + x, -h + y)*g(h + x, -h + y)) / h**2``
+       results in:
+       ``0.5*(-2.0*f(x, y)*g(x, y) + f(x, -h + y)*g(x, -h + y) +``
+       ``f(x, h + y)*g(x, h + y) + f(-h + x, y)*g(-h + x, y) -``
+       ``f(-h + x, h + y)*g(-h + x, h + y) + f(h + x, y)*g(h + x, y) -``
+       ``f(h + x, -h + y)*g(h + x, -h + y)) / h**2``
     """
     dims = kwargs.get('dims', (x, y))
     diff = kwargs.get('diff', h)
