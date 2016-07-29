@@ -144,12 +144,6 @@ class Operator(object):
 
             if self.input_params is None:
                 self.input_params = list(rhs_def)
-
-        # Remove output from input params
-        for p in self.input_params:
-            if p in self.output_params:
-                self.output_params.remove(p)
-
         # Remove known dimensions from undefined symbols
         for d in dimensions:
             sym_undef.remove(d)
@@ -179,10 +173,18 @@ class Operator(object):
         self.shape = shape
         self.spc_border = spc_border
         self.symbol_to_data = {}
-
-        for param in self.input_params + self.output_params:
+        for param in self.signature:
             self.propagator.add_devito_param(param)
             self.symbol_to_data[param.name] = param
+
+    @property
+    def signature(self):
+        """List of data object parameters that define the operator signature
+
+        :returns: List of unique input and output data objects
+        """
+        return self.input_params + [param for param in self.output_params
+                                    if param not in self.input_params]
 
     def apply(self, debug=False):
         """:param debug: If True, use Python to apply the operator. Default False.
@@ -197,8 +199,7 @@ class Operator(object):
         for param in self.input_params:
             if hasattr(param, 'initialize'):
                 param.initialize()
-        args = [param.data for param in self.input_params + self.output_params]
-
+        args = [param.data for param in self.signature]
         if isinstance(self.compiler, IntelMICCompiler):
             # Off-load propagator kernel via pymic stream
             self.compiler._stream.invoke(f, *args)
