@@ -10,6 +10,11 @@ class CodePrinter(CCodePrinter):
     """
     def __init__(self, settings={}):
         CCodePrinter.__init__(self, settings)
+        custom_functions = {
+            'INT': 'int',
+            'FLOAT': 'float'
+        }
+        self.known_functions.update(custom_functions)
 
     def _print_Indexed(self, expr):
         """Print field as C style multidimensional array
