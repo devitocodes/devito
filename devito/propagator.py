@@ -226,6 +226,8 @@ class Propagator(object):
                 self.add_local_var(name, self.dtype)
                 if self.dtype is np.float32:
                     factors.append(cgen.Assign(name, str(ccode(expr.xreplace(self._var_map))).replace("pow", "powf").replace("fabs", "fabsf")))
+                else:
+                    factors.append(cgen.Assign(name, str(ccode(expr.xreplace(self._var_map)))))
         stmts = []
 
         for equality in stencils:
