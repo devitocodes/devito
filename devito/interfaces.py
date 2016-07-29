@@ -406,6 +406,11 @@ class CoordinateData(SymbolicData):
         _indices = [p]
         return _indices
 
+    @property
+    def indexed(self):
+        """:return: Base symbol as sympy.IndexedBase"""
+        return IndexedBase(self.name, shape=self.shape)
+
 
 class PointData(DenseData):
     """Data object for sparse point data that acts as a Function symbol
