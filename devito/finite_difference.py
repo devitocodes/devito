@@ -85,12 +85,12 @@ def cross_derivative(*args, **kwargs):
     # Finite difference weights from Taylor approximation with this positions
     c1 = finite_diff_weights(1, ind1r, dims[0])
     c1 = c1[-1][-1]
-    c2 = finite_diff_weights(1, ind2r, dims[1])
+    c2 = finite_diff_weights(1, ind1l, dims[0])
     c2 = c2[-1][-1]
     # Diagonal elements
     for i in range(0, len(ind1r)):
         for j in range(0, len(ind2r)):
-            var1 = [a.subs({dims[0]: ind1r[i], dims[1]: ind2l[j]}) for a in args]
-            var2 = [a.subs({dims[0]: ind1l[i], dims[1]: ind2r[j]}) for a in args]
-            deriv += .5 * c2[j] * c1[i] * reduce(mul, var1, 1) + .5 * c2[len(ind2l)-j-1] * c1[len(ind1l)-i-1] * reduce(mul, var2, 1)
+            var1 = [a.subs({dims[0]: ind1r[i], dims[1]: ind2r[j]}) for a in args]
+            var2 = [a.subs({dims[0]: ind1l[i], dims[1]: ind2l[j]}) for a in args]
+            deriv += .5 * c1[i] * c1[j] * reduce(mul, var1, 1) + .5 * c2[-(j+1)] * c2[-(i+1)] * reduce(mul, var2, 1)
     return -deriv
