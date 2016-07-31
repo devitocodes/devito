@@ -178,8 +178,8 @@ class Operator(object):
 	self.symbol_to_data[param.name] = param
 	self.propagator.stencils = self.stencils
 	self.propagator.factorized = factorized
-	for name in factorized.keys():
-		self.propagator.factorized[name] = expr_indexify(factorized[name]).subs(substitutions[1])
+	for name, val in factorized.items():
+		self.propagator.factorized[name] = expr_indexify(val.subs(t, t - 1)).subs(substitutions[1])
 
     @property
     def signature(self):

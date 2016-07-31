@@ -201,31 +201,31 @@ class ForwardOperator(Operator):
             Gzz2 = first_derivative(Gz2r, ang1 * ang2, dim=x, side=-1, order=spc_order/2) +\
                    first_derivative(Gz2r, ang1 * ang3, dim=y, side=-1, order=spc_order/2) +\
                    first_derivative(Gz2r, ang0, dim=z, side=-1, order=spc_order/2)
-
-                parm = [m, damp, A, B, th, ph, u, v]
+            parm = [m, damp, A, B, th, ph, u, v]
         else:
             Gyy2 = 0
             Gyy1 = 0
             parm = [m, damp, A, B, th, u, v]
-            Gx1p = ang0 * u.dxl - ang1 * u.dyl
-            Gz1r = ang1 * v.dxl + ang0 * v.dyl
-            Gxx1 = first_derivative(Gx1p, ang0, dim=x, side=1, order=spc_order/2) -\
-               first_derivative(Gx1p, ang1, dim=y, side=1, order=spc_order/2)
-            Gzz1 = first_derivative(Gz1r, ang1, dim=x, side=1, order=spc_order/2) +\
-               first_derivative(Gz1r, ang0, dim=y, side=1, order=spc_order/2)
+            # print(.5*factor(expand(first_derivative(u.dxr,dim=x,side=-1,order=1)+ first_derivative(u.dxl,dim=x,side=1,order=1))))
+            Gx1p = simplify(ang0 * u.dxl - ang1 * u.dyl)
+            Gz1r = simplify(ang1 * v.dxl + ang0 * v.dyl)
+            Gxx1 = simplify(first_derivative(Gx1p, ang0, dim=x, side=1, order=spc_order/2) -\
+               first_derivative(Gx1p, ang1, dim=y, side=1, order=spc_order/2))
+            Gzz1 = simplify(first_derivative(Gz1r, ang1, dim=x, side=1, order=spc_order/2) +\
+               first_derivative(Gz1r, ang0, dim=y, side=1, order=spc_order/2))
 
-            Gx2p = ang0 * u.dxr - ang1 * u.dyr
-            Gz2r = ang1 * v.dxr + ang0 * v.dyr
+            Gx2p = simplify(ang0 * u.dxr - ang1 * u.dyr)
+            Gz2r = simplify(ang1 * v.dxr + ang0 * v.dyr)
 
-            Gxx2 = first_derivative(Gx2p, ang0, dim=x, side=-1, order=spc_order/2) -\
-               first_derivative(Gx2p, ang1, dim=y, side=-1, order=spc_order/2)
-            Gzz2 = first_derivative(Gz2r, ang1, dim=x, side=-1, order=spc_order/2) +\
-                   first_derivative(Gz2r, ang0, dim=z, side=-1, order=spc_order/2)
+            Gxx2 = simplify(first_derivative(Gx2p, ang0, dim=x, side=-1, order=spc_order/2) -\
+               first_derivative(Gx2p, ang1, dim=y, side=-1, order=spc_order/2))
+            Gzz2 = simplify(first_derivative(Gz2r, ang1, dim=x, side=-1, order=spc_order/2) +\
+                   first_derivative(Gz2r, ang0, dim=y, side=-1, order=spc_order/2))
 
         stencilp = 2 * s**2 / (2 * m + s * damp) * (2 * m / s**2 * u + (s * damp - 2 * m) / (2 * s**2) * u.backward + A * Hp + B * Hzr)
         stencilr = 2 * s**2 / (2 * m + s * damp) * (2 * m / s**2 * v + (s * damp - 2 * m) / (2 * s**2) * v.backward + B * Hp + Hzr)
-        Hp = -.5 * Gxx1 - .5 * Gxx2 - .5 * Gyy1 - .5 * Gyy2
-        Hzr = -.5 * Gzz1 - .5 * Gzz2
+        Hp = simplify(.5 * Gxx1 + .5 * Gxx2 + .5 * Gyy1 + .5 * Gyy2)
+        Hzr = simplify(.5 * Gzz1 + .5 * Gzz2)
         factorized = {"Hp": Hp, "Hzr": Hzr}
         # Add substitutions for spacing (temporal and spatial)
         subs = [{s: src.dt, h: src.h}, {s: src.dt, h: src.h}]
