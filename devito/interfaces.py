@@ -1,4 +1,5 @@
 import atexit
+from devito.finite_difference import cross_derivative, first_derivative
 import os
 import sys
 from signal import SIGABRT, SIGINT, SIGSEGV, SIGTERM, signal
@@ -255,8 +256,8 @@ class DenseData(SymbolicData):
     @property
     def dyr(self):
         """Symbol for the cross derivative wrt the x and z dimension"""
-        return first_derivative(self, order=int(self.space_order/2), dim=y, side=1)    
-		
+        return first_derivative(self, order=int(self.space_order/2), dim=y, side=1)
+
     @property
     def dzl(self):
         """Symbol for the cross derivative wrt the x and y dimension"""
@@ -266,6 +267,7 @@ class DenseData(SymbolicData):
     def dzr(self):
         """Symbol for the cross derivative wrt the x and z dimension"""
         return first_derivative(self, order=int(self.space_order/2), dim=z, side=1)
+
 
 class TimeData(DenseData):
     """Data object for time-varying data that acts as a Function symbol
