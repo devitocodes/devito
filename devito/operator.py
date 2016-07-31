@@ -175,7 +175,11 @@ class Operator(object):
         self.symbol_to_data = {}
         for param in self.signature:
             self.propagator.add_devito_param(param)
-            self.symbol_to_data[param.name] = param
+	self.symbol_to_data[param.name] = param
+	self.propagator.stencils = self.stencils
+	self.propagator.factorized = factorized
+	for name in factorized.keys():
+		self.propagator.factorized[name] = expr_indexify(factorized[name]).subs(substitutions[1])
 
     @property
     def signature(self):

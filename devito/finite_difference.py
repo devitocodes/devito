@@ -141,5 +141,5 @@ def first_derivative(*args, **kwargs):
     # Diagonal elements
     for i in range(0, len(ind)):
             var = [a.subs({dim: ind[i]}) for a in args]
-            deriv += .5 * c[i] * reduce(mul, var, 1)
+            deriv += c[i] * reduce(mul, var, 1)
     return -deriv

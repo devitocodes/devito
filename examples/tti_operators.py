@@ -1,8 +1,7 @@
 from sympy import *
-from sympy import Eq, Function, symbols
 from sympy.abc import *
-from sympy.abc import t
 
+from devito.finite_difference import first_derivative
 from devito.interfaces import DenseData, PointData, TimeData
 from devito.operator import *
 
@@ -156,7 +155,9 @@ class ForwardOperator(Operator):
         def Bhaskaracos(angle):
             return Bhaskarasin(angle + 1.57)
 
-        ang0, ang1, ang2, ang3, Hp, Hzr = symbols('ang0 ang1 ang2 ang3 Hp Hzr')
+        Hp, Hzr = symbols('Hp Hzr')
+        ang0 = Function('ang0') (x, y)
+        ang1 = Function('ang1') (x, y)
         assert(m.shape == damp.shape)
         u.pad_time = False
         v.pad_time = False
@@ -170,8 +171,8 @@ class ForwardOperator(Operator):
 
 	ang0 = Bhaskaracos(th)
         ang1 = Bhaskarasin(th)
-        ang2 = Bhaskaracos(ph)
-        ang3 = Bhaskarasin(ph)
+        # ang2 = Bhaskaracos(ph)
+        # ang3 = Bhaskarasin(ph)
         # Derive stencil from symbolic equation
         if len(m.shape) == 3:
             Gy1p = ang3 * u.dxl - ang2 * u.dyl
@@ -181,32 +182,34 @@ class ForwardOperator(Operator):
             Gy2p = ang3 * u.dxr - ang2 * u.dyr
             Gyy2 = first_derivative(Gy2p, ang3, dim=x, side=-1, order=spc_order/2) -\
                    first_derivative(Gy2p, ang2, dim=y, side=-1, order=spc_order/2)
+            parm = [m, damp, A, B, th, ph, u, v]a
+            dim2 = y
+            dim3 = z
         else:
             Gyy2 = 0
             Gyy1 = 0
             ang2 = 1
             ang3 = 0
+            parm = [m, damp, A, B, th, u, v]
 
         Gx1p = ang0 * ang2 * u.dxl + ang0 * ang3 * u.dyl - ang1 * u.dzl
         Gz1r = ang1 * ang2 * v.dxl + ang1 * ang3 * v.dyl + ang0 * v.dzl
-
-        Gxx1 = first_derivative(Gx1p, ang0, ang2, dim=x, side=1, order=spc_order/2) +\
-               first_derivative(Gx1p, ang0, ang3, dim=y, side=1, order=spc_order/2) -\
+        Gxx1 = first_derivative(Gx1p, ang0 * ang2, dim=x, side=1, order=spc_order/2) +\
+               first_derivative(Gx1p, ang0 * ang3,  dim=y, side=1, order=spc_order/2) -\
                first_derivative(Gx1p, ang1, dim=z, side=1, order=spc_order/2)
-        Gzz1 = first_derivative(Gz1r, ang1, ang2, dim=x, side=1, order=spc_order/2) +\
-               first_derivative(Gz1r, ang1, ang3, dim=y, side=1, order=spc_order/2) -\
+        Gzz1 = first_derivative(Gz1r, ang1 * ang2, dim=x, side=1, order=spc_order/2) +\
+               first_derivative(Gz1r, ang1 * ang3, dim=y, side=1, order=spc_order/2) -\
                first_derivative(Gz1r, ang0, dim=z, side=1, order=spc_order/2)
 
         Gx2p = ang0 * ang2 * u.dxr + ang0 * ang3 * u.dyr - ang1 * u.dzr
         Gz2r = ang1 * ang2 * v.dxr + ang1 * ang3 * v.dyr + ang0 * v.dzr
 
-        Gxx2 = first_derivative(Gx2p, ang0, ang2, dim=x, side=-1, order=spc_order/2) +\
-               first_derivative(Gx2p, ang0, ang3, dim=y, side=-1, order=spc_order/2) -\
+        Gxx2 = first_derivative(Gx2p, ang0 * ang2, dim=x, side=-1, order=spc_order/2) +\
+               first_derivative(Gx2p, ang0 * ang3, dim=y, side=-1, order=spc_order/2) -\
                first_derivative(Gx2p, ang1, dim=z, side=-1, order=spc_order/2)
-        Gzz2 = first_derivative(Gz2r, ang1, ang2, dim=x, side=-1, order=spc_order/2) +\
-               first_derivative(Gz2r, ang1, ang3, dim=y, side=-1, order=spc_order/2) -\
+        Gzz2 = first_derivative(Gz2r, ang1 * ang2, dim=x, side=-1, order=spc_order/2) +\
+               first_derivative(Gz2r, ang1 * ang3, dim=y, side=-1, order=spc_order/2) -\
                first_derivative(Gz2r, ang0, dim=z, side=-1, order=spc_order/2)
-
         stencilp = 2 * s**2 / (2 * m + s * damp) * (2 * m / s**2 * u + (s * damp - 2 * m) / (2 * s**2) * u.backward + A * Hp + B * Hzr)
         stencilr = 2 * s**2 / (2 * m + s * damp) * (2 * m / s**2 * v + (s * damp - 2 * m) / (2 * s**2) * v.backward + B * Hp + Hzr)
         Hp = -.5 * Gxx1 - .5 * Gxx2 - .5 * Gyy1 - .5 * Gyy2
@@ -217,10 +220,9 @@ class ForwardOperator(Operator):
         first_stencil = Eq(u.forward, stencilp)
         second_stencil = Eq(v.forward, stencilr)
         stencils = [first_stencil, second_stencil]
-        super(ForwardOperator, self).__init__(
-            src.nt, m.shape, stencils=stencils, substitutions=subs, spc_border=spc_order/2, time_order=time_order,
-            forward=True, dtype=m.dtype, input_params=[m, damp, A, B, th, ph, u, v], factorized=factorized, **kwargs
-        )
+        super(ForwardOperator, self).__init__(src.nt, m.shape, stencils=stencils, substitutions=subs,
+                                              spc_border=spc_order/2, time_order=time_order, forward=True, dtype=m.dtype,
+                                              input_params=parm, factorized=factorized, **kwargs)
 
         # Insert source and receiver terms post-hoc
         self.input_params += [src, rec]
