@@ -237,6 +237,35 @@ class DenseData(SymbolicData):
         """Symbol for the cross derivative wrt the y and z dimension"""
         return cross_derivative(self, order=int(self.space_order/2), dims=(y, z))
 
+    @property
+    def dxl(self):
+        """Symbol for the cross derivative wrt the x and y dimension"""
+        return first_derivative(self, order=int(self.space_order/2), dim=x, side=-1)
+
+    @property
+    def dxr(self):
+        """Symbol for the cross derivative wrt the x and z dimension"""
+        return first_derivative(self, order=int(self.space_order/2), dim=x, side=1)
+
+    @property
+    def dyl(self):
+        """Symbol for the cross derivative wrt the x and y dimension"""
+        return first_derivative(self, order=int(self.space_order/2), dim=y, side=-1)
+
+    @property
+    def dyr(self):
+        """Symbol for the cross derivative wrt the x and z dimension"""
+        return first_derivative(self, order=int(self.space_order/2), dim=y, side=1)    
+		
+    @property
+    def dzl(self):
+        """Symbol for the cross derivative wrt the x and y dimension"""
+        return first_derivative(self, order=int(self.space_order/2), dim=z, side=-1)
+
+    @property
+    def dzr(self):
+        """Symbol for the cross derivative wrt the x and z dimension"""
+        return first_derivative(self, order=int(self.space_order/2), dim=z, side=1)
 
 class TimeData(DenseData):
     """Data object for time-varying data that acts as a Function symbol
