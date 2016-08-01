@@ -142,4 +142,4 @@ def first_derivative(*args, **kwargs):
     for i in range(0, len(ind)):
             var = [a.subs({dim: ind[i]}) for a in args]
             deriv += c[i] * reduce(mul, var, 1)
-    return -deriv
+    return -side*deriv

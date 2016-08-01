@@ -10,8 +10,7 @@ origin = (0., 0.)
 spacing = (20.0, 20.0)
 dtype = np.float32
 t_order = 2
-spc_order = 8
-
+spc_order = 6
 # True velocity
 true_vp = np.ones(dimensions) + 1.0
 true_vp[:, int(dimensions[1] / 3):int(2*dimensions[1]/3)] = 3.0

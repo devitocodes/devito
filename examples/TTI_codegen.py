@@ -28,7 +28,6 @@ class TTI_cg:
         self.model.epsilon = np.pad(self.model.epsilon, tuple(pad_list), 'edge')
         self.model.delta = np.pad(self.model.delta, tuple(pad_list), 'edge')
         self.model.theta = np.pad(self.model.theta, tuple(pad_list), 'edge')
-        self.model.phi = np.pad(self.model.phi, tuple(pad_list), 'edge')
         self.model.set_origin(nbpml)
         self.data.reinterpolate(self.dt)
         self.nrec, self.nt = self.data.traces.shape
@@ -70,9 +69,14 @@ class TTI_cg:
         self.b = DenseData(name="b", shape=self.model.vp.shape, dtype=self.dtype)
         self.b.data[:] = np.sqrt(1.0 + 2.0 * self.model.delta)
         self.th = DenseData(name="th", shape=self.model.vp.shape, dtype=self.dtype)
-        self.ph = DenseData(name="ph", shape=self.model.vp.shape, dtype=self.dtype)
         self.th.data[:] = self.model.theta
-        self.ph.data[:] = self.model.phi
+        if len(dimensions) == 2:
+            self.ph = None
+        else:
+            self.model.phi = np.pad(self.model.phi, tuple(pad_list), 'edge')
+            self.ph = DenseData(name="ph", shape=self.model.vp.shape, dtype=self.dtype)
+            self.ph.data[:] = self.model.phi
+
         self.damp = DenseData(name="damp", shape=self.model.vp.shape, dtype=self.dtype)
         # Initialize damp by calling the function that can precompute damping
         damp_boundary(self.damp.data)
