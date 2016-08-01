@@ -57,6 +57,25 @@ class Compiler(GCCToolchain):
     def __str__(self):
         return self.__class__.__name__
 
+    def set_aligned_pragma(self, stencils, factorized, loop_counters, time_steppers):
+        """
+        Sets the alignment pragma.
+        :param stencils: List of stencils.
+        :param factorized:  dict of factorized elements
+        :param loop_counters: list of loop counter symbols
+        :param time_steppers: list of time stepper symbols
+        """
+        array_names = set()
+        for stencil in stencils:
+            for item in stencil.free_symbols:
+                if str(item) not in factorized.keys() and item not in loop_counters and item not in time_steppers:
+                    array_names.add(item)
+        pragma_str = "omp simd aligned("
+        for name in array_names:
+            pragma_str += "%s, " % name
+        # removes , and white space from the end of a string
+        self.pragma_aligned = Pragma(pragma_str[:-2] + ":64)")
+
 
 class GNUCompiler(Compiler):
     """Set of standard compiler flags for the GCC toolchain

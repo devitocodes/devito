@@ -39,9 +39,8 @@ class Propagator(object):
     :param block_size: Block size used for cache clocking. Can be either a single number used for all dimensions or
                       a list stating block sizes for each dimension. Set block size to None to skip blocking on that dim
     """
-
-    def __init__(self, name, nt, shape, stencils, factorized=None, spc_border=0, time_order=0,
-                 time_dim=None, space_dims=None, dtype=np.float32, forward=True, compiler=None,
+    def __init__(self, name, nt, shape, spc_border=0, time_order=0,
+                 time_dim=None, space_dims=None, forward=True, compiler=None,
                  profile=False, cache_blocking=False, block_size=5):
         self.stencils = stencils
         self.dtype = dtype
@@ -83,6 +82,7 @@ class Propagator(object):
         # Derive JIT compilation infrastructure
         self.compiler = compiler or get_compiler_from_env()
         self.mic_flag = isinstance(self.compiler, IntelMICCompiler)
+        self.sub_stencils = []
 
         # Settings for performance profiling
         self.profile = profile
@@ -279,7 +279,11 @@ class Propagator(object):
             return equality.ccode
         else:
             s_lhs = ccode(self.time_substitutions(equality.lhs).xreplace(self._var_map))
-            s_rhs = ccode(self.time_substitutions(equality.rhs).xreplace(self._var_map))
+            s_rhs = self.time_substitutions(equality.rhs).xreplace(self._var_map)
+
+            self.sub_stencils.append(s_rhs)  # appending substituted stencil,which is used to determine alignment pragma
+
+            s_rhs = ccode(s_rhs)
             if self.dtype is np.float32:
                 s_rhs = str(s_rhs).replace("pow", "powf")
                 s_rhs = str(s_rhs).replace("fabs", "fabsf")
@@ -295,6 +299,9 @@ class Propagator(object):
         :param loop_body: Statement representing the loop body
         :returns: :class:`cgen.Block` representing the loop
         """
+        # Need to set this pragma before generating loops but after stencil substitution
+        self.compiler.set_aligned_pragma(self.sub_stencils, self.factorized, self.loop_counters, self.time_steppers)
+
         # Space loops
         if self.cache_blocking:
             loop_body = self.generate_space_loops_blocking(loop_body)
@@ -377,7 +384,8 @@ class Propagator(object):
             )
 
             if ivdep and len(self.space_dims) > 1:
-                loop_body = cgen.Block(self.compiler.pragma_ivdep + self.compiler.pragma_nontemporal + [loop_body])
+                pragma = self.compiler.pragma_aligned if self.compiler.openmp else self.compiler.openmp + self.compiler.pragma_nontemporal
+                loop_body = cgen.Block([pragma] + [loop_body])
             ivdep = False
         return [loop_body]  # returns body as a list
 
@@ -406,7 +414,8 @@ class Propagator(object):
                                  orig_var + "<" + upper_limit_str, orig_var + "++", loop_body)
 
             if inner_most_dim and len(self.space_dims) > 1:
-                loop_body = cgen.Block(self.compiler.pragma_ivdep + self.compiler.pragma_nontemporal + [loop_body])
+                pragma = self.compiler.pragma_aligned if self.compiler.openmp else self.compiler.openmp + self.compiler.pragma_nontemporal
+                loop_body = cgen.Block([pragma] + [loop_body])
             inner_most_dim = False
 
         remainder_counter = 0  # indicates how many remainder loops we need
@@ -455,7 +464,8 @@ class Propagator(object):
                                           remainder_loop)
 
                 if inner_most_dim and len(self.space_dims) > 1:
-                    remainder_loop = cgen.Block(self.compiler.pragma_ivdep + [remainder_loop])
+                    pragma = self.compiler.pragma_aligned if self.compiler.openmp else self.compiler.openmp + self.compiler.pragma_nontemporal
+                    loop_body = cgen.Block([pragma] + [loop_body])
 
                 inner_most_dim = False
             full_remainder.append(remainder_loop)
