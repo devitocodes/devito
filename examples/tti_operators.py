@@ -231,7 +231,7 @@ class ForwardOperator(Operator):
                     first_derivative(Gx2p * ang1, dim=y, side=-1, order=spc_order/2))
             Gzz2 = (first_derivative(Gz2r * ang1, dim=x, side=-1, order=spc_order/2) +
                     first_derivative(Gz2r * ang0, dim=y, side=-1, order=spc_order/2))
-        
+
         stencilp = 1.0 / (2.0 * m + s * damp) * (4.0 * m * u + (s * damp - 2.0 * m) * u.backward + 2.0 * s**2 * (A * Hp + B * Hzr))
         stencilr = 1.0 / (2.0 * m + s * damp) * (4.0 * m * v + (s * damp - 2.0 * m) * v.backward + 2.0 * s**2 * (B * Hp + Hzr))
         Hp = -(.5 * Gxx1 + .5 * Gxx2 + .5 * Gyy1 + .5 * Gyy2)
