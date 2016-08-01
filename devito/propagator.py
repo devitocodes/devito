@@ -352,17 +352,16 @@ class Propagator(object):
         :param loop_body: Statement representing the loop body
         :returns: :list<cgen.For> a list of for loops
         """
+
         inner_most_dim = True
-        remainder = False
         orig_loop_body = loop_body
-        remainder_loop = None
 
         for spc_var, block_size in reversed(zip(list(self.space_dims), self.block_sizes)):
             dim_var = str(self._var_map[spc_var])
             block_var = dim_var + "b"
             loop_limits = self._space_loop_limits[spc_var]
 
-            if block_size:
+            if block_size is not None:
                 lower_limit_str = block_var
                 upper_limit_str = block_var + "+" + str(block_size)
             else:
@@ -376,9 +375,10 @@ class Propagator(object):
                 loop_body = cgen.Block([self.compiler.pragma_ivdep] + [loop_body])
             inner_most_dim = False
 
+        remainder_list = []  # List indicating how many remainder loops we need.
         for spc_var, block_size in reversed(zip(list(self.space_dims), self.block_sizes)):
             # if block size set to None do not block this dimension
-            if block_size:
+            if block_size is not None:
                 orig_var = str(self._var_map[spc_var])
                 dim_var = orig_var + "b"
                 loop_limits = self._space_loop_limits[spc_var]
@@ -386,12 +386,13 @@ class Propagator(object):
                 loop_limits = (loop_limits[0], loop_limits[1] - (loop_limits[1] - loop_limits[0]) % block_size)
 
                 if old_upper_limit - loop_limits[1] > 0:  # check old vs new upper limit
-                    remainder = True
+                    remainder_list.append(orig_var)
 
                 loop_body = cgen.For(cgen.InlineInitializer(cgen.Value("int", dim_var), str(loop_limits[0])),
                                      str(dim_var) + "<" + str(loop_limits[1]), str(dim_var) + "+=" + str(block_size), loop_body)
 
-        if remainder:
+        full_remainder = []
+        for blocked_dimension in remainder_list:
             remainder_loop = orig_loop_body
             inner_most_dim = True
 
@@ -399,8 +400,7 @@ class Propagator(object):
                 dim_var = str(self._var_map[spc_var])
                 loop_limits = self._space_loop_limits[spc_var]
 
-                # Does not block this dim if block_size is None
-                if block_size:
+                if block_size is not None and dim_var == blocked_dimension:
                     loop_limits = (loop_limits[1] - (loop_limits[1] - loop_limits[0]) % block_size, loop_limits[1])
 
                 remainder_loop = cgen.For(cgen.InlineInitializer(cgen.Value("int", dim_var), str(loop_limits[0])),
@@ -410,8 +410,9 @@ class Propagator(object):
                     remainder_loop = cgen.Block([self.compiler.pragma_ivdep] + [remainder_loop])
 
                 inner_most_dim = False
+            full_remainder.append(remainder_loop)
 
-        return [loop_body, remainder_loop] if remainder_loop else [loop_body]
+        return [loop_body] + full_remainder if full_remainder else [loop_body]
 
     def add_loop_step(self, assign, before=False):
         """Add loop step to loop body"""
