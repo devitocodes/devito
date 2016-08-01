@@ -6,6 +6,7 @@ from random import randint
 import numpy as np
 from sympy import Indexed, IndexedBase, symbols
 from sympy.abc import t, x, y, z
+from sympy.utilities.iterables import postorder_traversal
 
 import cgen_wrapper as cgen
 from codeprinter import ccode
@@ -553,25 +554,6 @@ class Propagator(object):
 
         return body
 
-    def _time_substitutions(self, sympy_expr, subs_dict):
-        if isinstance(sympy_expr, Indexed):
-            array_term = sympy_expr
-
-            if not str(array_term.base.label) in self.save_vars:
-                raise ValueError("Invalid variable '%s' in sympy expression. Did you add it to the operator's params?" %
-                                 str(array_term.base.label))
-
-            if not self.save_vars[str(array_term.base.label)]:
-                array_term = array_term.xreplace(self.t_replace)
-
-            return (subs_dict, array_term)
-        else:
-            for arg in sympy_expr.args:
-                subs_dict, value = self._time_substitutions(arg, subs_dict)
-                subs_dict[arg] = value
-
-        return (subs_dict, sympy_expr)
-
     def time_substitutions(self, sympy_expr):
         """This method checks through the sympy_expr to replace the time index with a cyclic index
         but only for variables which are not being saved in the time domain
@@ -579,7 +561,19 @@ class Propagator(object):
         :param sympy_expr: The Sympy expression to process
         :returns: The expression after the substitutions
         """
-        subs_dict, sympy_expr = self._time_substitutions(sympy_expr, {})
+        subs_dict = {}
+
+        for arg in postorder_traversal(sympy_expr):
+            if isinstance(arg, Indexed):
+                array_term = arg
+
+                if not str(array_term.base.label) in self.save_vars:
+                    raise ValueError("Invalid variable '%s' in sympy expression. Did you add it to the operator's params?" % str(array_term.base.label))
+
+                if not self.save_vars[str(array_term.base.label)]:
+                    array_term = array_term.xreplace(self.t_replace)
+
+                subs_dict[arg] = array_term
 
         return sympy_expr.subs(subs_dict, simultaneous=True)
 
