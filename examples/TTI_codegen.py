@@ -16,8 +16,8 @@ class TTI_cg:
         self.t_order = t_order
         self.s_order = s_order
         self.data = data
-        self.dtype = np.float64
-        self.dt = model.get_critical_dt()
+        self.dtype = np.float32
+        self.dt = self.model.get_critical_dt()
         self.h = model.get_spacing()
         self.nbpml = nbpml
         dimensions = self.model.get_shape()

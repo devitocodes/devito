@@ -150,10 +150,16 @@ class SourceLikeTTI(PointData):
 class ForwardOperator(Operator):
     def __init__(self, m, src, damp, rec, u, v, A, B, th, ph, time_order=2, spc_order=4, **kwargs):
         def Bhaskarasin(angle):
-            return 16 * angle * (3.14 - abs(angle)) / (49.34 - 4 * abs(angle) * (3.14 - abs(angle)))
+            if angle == 0:
+                return 0
+            else:
+                return 16.0 * angle * (3.1416 - abs(angle)) / (49.3483 - 4.0 * abs(angle) * (3.1416 - abs(angle)))
 
         def Bhaskaracos(angle):
-            return Bhaskarasin(angle + 1.57)
+            if angle == 0:
+                return 1.0
+            else:
+                return Bhaskarasin(angle + 1.5708)
 
         Hp, Hzr = symbols('Hp Hzr')
         if len(m.shape) == 3:
@@ -215,20 +221,19 @@ class ForwardOperator(Operator):
             parm = [m, damp, A, B, th, u, v]
             Gx1p = (ang0 * u.dxl - ang1 * u.dyl)
             Gz1r = (ang1 * v.dxl + ang0 * v.dyl)
-            Gxx1 = (first_derivative(Gx1p, ang0, dim=x, side=1, order=spc_order/2) -
-                    first_derivative(Gx1p, ang1, dim=y, side=1, order=spc_order/2))
-            Gzz1 = (first_derivative(Gz1r, ang1, dim=x, side=1, order=spc_order/2) +
-                    first_derivative(Gz1r, ang0, dim=y, side=1, order=spc_order/2))
+            Gxx1 = (first_derivative(Gx1p * ang0, dim=x, side=1, order=spc_order/2) -
+                    first_derivative(Gx1p * ang1, dim=y, side=1, order=spc_order/2))
+            Gzz1 = (first_derivative(Gz1r * ang1, dim=x, side=1, order=spc_order/2) +
+                    first_derivative(Gz1r * ang0, dim=y, side=1, order=spc_order/2))
             Gx2p = (ang0 * u.dxr - ang1 * u.dyr)
             Gz2r = (ang1 * v.dxr + ang0 * v.dyr)
-
-            Gxx2 = (first_derivative(Gx2p, ang0, dim=x, side=-1, order=spc_order/2) -
-                    first_derivative(Gx2p, ang1, dim=y, side=-1, order=spc_order/2))
-            Gzz2 = (first_derivative(Gz2r, ang1, dim=x, side=-1, order=spc_order/2) +
-                    first_derivative(Gz2r, ang0, dim=y, side=-1, order=spc_order/2))
-
-        stencilp = 2 * s**2 / (2 * m + s * damp) * (2 * m / s**2 * u + (s * damp - 2 * m) / (2 * s**2) * u.backward + A * Hp + B * Hzr)
-        stencilr = 2 * s**2 / (2 * m + s * damp) * (2 * m / s**2 * v + (s * damp - 2 * m) / (2 * s**2) * v.backward + B * Hp + Hzr)
+            Gxx2 = (first_derivative(Gx2p * ang0, dim=x, side=-1, order=spc_order/2) -
+                    first_derivative(Gx2p * ang1, dim=y, side=-1, order=spc_order/2))
+            Gzz2 = (first_derivative(Gz2r * ang1, dim=x, side=-1, order=spc_order/2) +
+                    first_derivative(Gz2r * ang0, dim=y, side=-1, order=spc_order/2))
+        
+        stencilp = 1.0 / (2.0 * m + s * damp) * (4.0 * m * u + (s * damp - 2.0 * m) * u.backward + 2.0 * s**2 * (A * Hp + B * Hzr))
+        stencilr = 1.0 / (2.0 * m + s * damp) * (4.0 * m * v + (s * damp - 2.0 * m) * v.backward + 2.0 * s**2 * (B * Hp + Hzr))
         Hp = -(.5 * Gxx1 + .5 * Gxx2 + .5 * Gyy1 + .5 * Gyy2)
         Hzr = -(.5 * Gzz1 + .5 * Gzz2)
         factorized = {"Hp": Hp, "Hzr": Hzr}
