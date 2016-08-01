@@ -4,7 +4,7 @@ import logging
 import sys
 
 
-__all__ = ('set_log_level', 'set_log_noperf', 'log', 'warn',
+__all__ = ('set_log_level', 'set_log_noperf', 'log',
            'DEBUG', 'INFO', 'PERF_OK', 'PERF_WARN', 'WARNING', 'ERROR', 'CRITICAL',
            'log', 'warning', 'error', 'RED', 'GREEN', 'BLUE')
 

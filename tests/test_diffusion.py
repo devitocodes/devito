@@ -59,7 +59,7 @@ def execute_python(ui, dx=0.01, dy=0.01, a=0.5, timesteps=500):
         else:
             single_step(ui, u)
     tfinish = time.time()
-    log("Python: Diffusion with dx=%0.4f, dy=%0.4f, executed %d timesteps in %f seconds"\
+    log("Python: Diffusion with dx=%0.4f, dy=%0.4f, executed %d timesteps in %f seconds"
         % (dx, dy, timesteps, tfinish - tstart))
     return u if ti % 2 == 0 else ui
 
@@ -83,7 +83,7 @@ def execute_numpy(ui, dx=0.01, dy=0.01, a=0.5, timesteps=500):
         else:
             single_step(ui, u)
     tfinish = time.time()
-    log("Numpy: Diffusion with dx=%0.4f, dy=%0.4f, executed %d timesteps in %f seconds"\
+    log("Numpy: Diffusion with dx=%0.4f, dy=%0.4f, executed %d timesteps in %f seconds"
         % (dx, dy, timesteps, tfinish - tstart))
     return u if ti % 2 == 0 else ui
 
@@ -111,7 +111,7 @@ def execute_lambdify(ui, dx=0.01, dy=0.01, a=0.5, timesteps=500):
         else:
             single_step(ui, u)
     tfinish = time.time()
-    log("Lambdify: Diffusion with dx=%0.4f, dy=%0.4f, executed %d timesteps in %f seconds"\
+    log("Lambdify: Diffusion with dx=%0.4f, dy=%0.4f, executed %d timesteps in %f seconds"
         % (dx, dy, timesteps, tfinish - tstart))
     return u if ti % 2 == 0 else ui
 
@@ -136,7 +136,7 @@ def execute_devito(ui, dx=0.01, dy=0.01, a=0.5, timesteps=500):
     tstart = time.time()
     op.apply()
     tfinish = time.time()
-    log("Devito: Diffusion with dx=%0.4f, dy=%0.4f, executed %d timesteps in %f seconds"\
+    log("Devito: Diffusion with dx=%0.4f, dy=%0.4f, executed %d timesteps in %f seconds"
         % (dx, dy, timesteps, tfinish - tstart))
     return u.data[1, :]
 
