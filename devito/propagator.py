@@ -553,13 +553,7 @@ class Propagator(object):
 
         return body
 
-    def time_substitutions(self, sympy_expr):
-        """This method checks through the sympy_expr to replace the time index with a cyclic index
-        but only for variables which are not being saved in the time domain
-
-        :param sympy_expr: The Sympy expression to process
-        :returns: The expression after the substitutions
-        """
+    def _time_substitutions(self, sympy_expr, subs_dict):
         if isinstance(sympy_expr, Indexed):
             array_term = sympy_expr
 
@@ -570,12 +564,24 @@ class Propagator(object):
             if not self.save_vars[str(array_term.base.label)]:
                 array_term = array_term.xreplace(self.t_replace)
 
-            return array_term
+            return (subs_dict, array_term)
         else:
             for arg in sympy_expr.args:
-                sympy_expr = sympy_expr.subs(arg, self.time_substitutions(arg))
+                subs_dict, value = self._time_substitutions(arg, subs_dict)
+                subs_dict[arg] = value
 
-        return sympy_expr
+        return (subs_dict, sympy_expr)
+
+    def time_substitutions(self, sympy_expr):
+        """This method checks through the sympy_expr to replace the time index with a cyclic index
+        but only for variables which are not being saved in the time domain
+
+        :param sympy_expr: The Sympy expression to process
+        :returns: The expression after the substitutions
+        """
+        subs_dict, sympy_expr = self._time_substitutions(sympy_expr, {})
+
+        return sympy_expr.subs(subs_dict, simultaneous=True)
 
     def add_time_loop_stencil(self, stencil, before=False):
         """Add a statement either before or after the main spatial loop, but still inside the time loop.
