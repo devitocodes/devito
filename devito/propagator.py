@@ -568,14 +568,15 @@ class Propagator(object):
                 array_term = arg
 
                 if not str(array_term.base.label) in self.save_vars:
-                    raise ValueError("Invalid variable '%s' in sympy expression. Did you add it to the operator's params?" % str(array_term.base.label))
+                    raise ValueError(
+                        "Invalid variable '%s' in sympy expression. Did you add it to the operator's params?"
+                        % str(array_term.base.label)
+                    )
 
                 if not self.save_vars[str(array_term.base.label)]:
-                    array_term = array_term.xreplace(self.t_replace)
+                    subs_dict[arg] = array_term.xreplace(self.t_replace)
 
-                subs_dict[arg] = array_term
-
-        return sympy_expr.subs(subs_dict, simultaneous=True)
+        return sympy_expr.xreplace(subs_dict)
 
     def add_time_loop_stencil(self, stencil, before=False):
         """Add a statement either before or after the main spatial loop, but still inside the time loop.
