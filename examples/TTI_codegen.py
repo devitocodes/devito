@@ -76,7 +76,6 @@ class TTI_cg:
             self.model.phi = np.pad(self.model.phi, tuple(pad_list), 'edge')
             self.ph = DenseData(name="ph", shape=self.model.vp.shape, dtype=self.dtype)
             self.ph.data[:] = self.model.phi
-
         self.damp = DenseData(name="damp", shape=self.model.vp.shape, dtype=self.dtype)
         # Initialize damp by calling the function that can precompute damping
         damp_boundary(self.damp.data)
@@ -105,9 +104,10 @@ class TTI_cg:
         return (self.rec.data, self.u.data, self.v.data)
 
     def Adjoint(self, rec):
-        adj = AdjointOperator(self.m, self.rec, self.damp, self.srca, time_order=self.t_order, spc_order=self.s_order)
-        v = adj.apply()[0]
-        return (self.srca.data, v)
+        adj = AdjointOperator(self.m, self.rec, self.damp, self.srca, self.u, self.v, self.a,
+                              self.b, self.th, self.ph, time_order=self.t_order, spc_order=self.s_order)
+        adj.apply()
+        return (self.srca.data, self.u.data, self.v.data)
 
     def Gradient(self, rec, u):
         grad_op = GradientOperator(self.u, self.m, self.rec, self.damp, time_order=self.t_order, spc_order=self.s_order)

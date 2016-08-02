@@ -148,8 +148,7 @@ class AdjointOperator(Operator):
 
         # Create v with given time and space orders
         v = TimeData(name="v", shape=m.shape, dtype=m.dtype, time_dim=rec.nt,
-                     time_order=time_order, space_order=spc_order, save=True)
-
+                     time_order=time_order, space_order=spc_order, save=False)
         # Derive stencil from symbolic equation
         eqn = m * v.dt2 - v.laplace - damp * v.dt
         stencil = solve(eqn, v.backward)[0]

@@ -179,7 +179,10 @@ class Operator(object):
 	self.propagator.stencils = self.stencils
 	self.propagator.factorized = factorized
 	for name, val in factorized.items():
+            if forward:
 		self.propagator.factorized[name] = expr_indexify(val.subs(t, t - 1)).subs(substitutions[1])
+	    else:
+		self.propagator.factorized[name] = expr_indexify(val.subs(t, t + 1)).subs(substitutions[1])
 
     @property
     def signature(self):
