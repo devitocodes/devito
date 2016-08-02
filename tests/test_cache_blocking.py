@@ -1,6 +1,7 @@
-from devito.interfaces import DenseData
 import numpy as np
-from sympy import symbols, Eq
+from sympy import Eq, symbols
+
+from devito.interfaces import DenseData
 from devito.operator import SimpleOperator
 
 

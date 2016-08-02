@@ -1,5 +1,6 @@
-import cgen_wrapper as cgen
 import numpy as np
+
+import cgen_wrapper as cgen
 from devito.tools import convert_dtype_to_ctype
 
 
@@ -20,6 +21,7 @@ class FunctionManager(object):
         self.function_descriptors = function_descriptors
         self._defines = []
         self.mic_flag = mic_flag
+
         if openmp:
             self.libraries = self.libraries + ['omp.h']
 
@@ -30,8 +32,10 @@ class FunctionManager(object):
         statements = []
         statements += self._defines
         statements += [cgen.Include(s) for s in self.libraries]
+
         if self.mic_flag:
             statements += [cgen.Include('pymic_kernel.h')]
+
         return cgen.Module(statements)
 
     def add_define(self, name, text):
@@ -47,6 +51,7 @@ class FunctionManager(object):
         """
         statements = [self.includes()]
         statements += [self.process_function(m) for m in self.function_descriptors]
+
         return cgen.Module(statements)
 
     def process_function(self, function_descriptor):
@@ -65,16 +70,22 @@ class FunctionManager(object):
         :returns: :class:`cgen.FunctionDeclaration` -- The function declaration generated from function_descriptor
         """
         function_params = []
+
         for param in function_descriptor.matrix_params:
             param_vec_def = cgen.Pointer(cgen.POD(param['dtype'], param['name']+"_vec"))
             function_params = function_params + [param_vec_def]
+
         if self.mic_flag:
-            function_params += [cgen.Pointer(cgen.POD(type_label, name+"_pointer")) for type_label, name in function_descriptor.value_params]
+            function_params += [cgen.Pointer(cgen.POD(type_label, name+"_pointer"))
+                                for type_label, name in function_descriptor.value_params]
+
             return cgen.FunctionDeclaration(cgen.Value(self._pymic_attribute + '\nint', function_descriptor.name),
                                             function_params)
         else:
             function_params += [cgen.POD(type_label, name) for type_label, name in function_descriptor.value_params]
-            return cgen.Extern("C", cgen.FunctionDeclaration(cgen.Value('int', function_descriptor.name), function_params))
+
+            return cgen.Extern("C",
+                               cgen.FunctionDeclaration(cgen.Value('int', function_descriptor.name), function_params))
 
     def generate_function_body(self, function_descriptor):
         """Generates a function body from a :class:`FunctionDescriptor`
@@ -95,12 +106,15 @@ class FunctionManager(object):
                 '(%s (*)%s) %s' % (cgen.dtype_to_ctype(param['dtype']), arr, param['name']+"_vec")
             )
             statements.append(cast_pointer)
+
         if self.mic_flag:
             for param in function_descriptor.value_params:
                 cast_pointer = cgen.Initializer(cgen.POD(param[0], "(%s)" % (param[1])), '*%s' % (param[1]+"_pointer"))
                 statements.append(cast_pointer)
+
         statements.append(function_descriptor.body)
         statements.append(cgen.Statement("return 0"))
+
         return cgen.Block(statements)
 
 
@@ -167,4 +181,5 @@ class FunctionDescriptor(object):
         argtypes = [np.ctypeslib.ndpointer(dtype=p['dtype'], flags='C')
                     for p in self.matrix_params]
         argtypes += [convert_dtype_to_ctype(p[0]) for p in self.value_params]
+
         return argtypes

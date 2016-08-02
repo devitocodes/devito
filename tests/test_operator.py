@@ -1,8 +1,9 @@
-from devito.interfaces import DenseData
 import numpy as np
-from devito.operator import SimpleOperator
 from sympy import Eq
 from sympy.abc import t, x
+
+from devito.interfaces import DenseData
+from devito.operator import SimpleOperator
 
 
 class Test_Operator(object):

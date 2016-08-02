@@ -1,13 +1,12 @@
 # coding: utf-8
 from __future__ import print_function
 
-from sympy import Function, symbols, init_printing, as_finite_diff, solve, \
-                  lambdify, Matrix
-from sympy.abc import x, y, t, M, E
-
-import sympy
 import numpy as np
+import sympy
 from numpy import linalg
+from sympy import (Function, Matrix, as_finite_diff, init_printing, lambdify,
+                   solve, symbols)
+from sympy.abc import E, M, t, x, y
 
 init_printing()
 
@@ -32,9 +31,12 @@ class AcousticWave2D:
             self.source = source.read()
             self.source.reinterpolate(self.dt)
             source_time = self.source.traces[0, :]
+
             if len(source_time) < self.data.nsamples:
                 source_time = np.append(source_time, [0.0])
+
             self.data.set_source(source_time, self.dt, self.data.source_coords)
+
         # Set up interpolation from grid to receiver position.
         x1, z1, x2, z2, d = symbols('x1, z1, x2, z2, d')
         A = Matrix([[1, x1, z1, x1*z1],
@@ -91,6 +93,7 @@ class AcousticWave2D:
         s12 = b12.subs(((rx, x), (rz, z))).evalf()
         s21 = b21.subs(((rx, x), (rz, z))).evalf()
         s22 = b22.subs(((rx, x), (rz, z))).evalf()
+
         return (i, k), (s11, s12, s21, s22)
 
     def _init_taylor(self, h=None, s=None):
@@ -103,10 +106,13 @@ class AcousticWave2D:
         # with the zero initial conditons to guarantee unicity of the solution
 
         p = Function('p')
+
         if s is None:
             s = symbols('s')
+
         if h is None:
             h = symbols('h')
+
         m = M(x, y)
         e = E(x, y)
 
@@ -136,6 +142,7 @@ class AcousticWave2D:
         # increasing the list of sampling point in the next expression.  Be
         # sure to keep this stencil symmetric and everything else in the
         # notebook will follow.
+
         dxx = as_finite_diff(p(x, y, t).diff(x, x), [x-h, x, x+h])
         dyy = as_finite_diff(p(x, y, t).diff(y, y), [y-h, y, y+h])
 
@@ -156,6 +163,7 @@ class AcousticWave2D:
         # domain to the border
 
         # Forward wave equation
+
         wave_equation = m * dtt - (dxx + dyy) + e * dt
         stencil = solve(wave_equation, p(x, y, t+s))[0]
         self.ts = lambdify((p(x, y, t-s),
@@ -221,6 +229,7 @@ class AcousticWave2D:
         damp = np.zeros((nx, ny), dtype=np.float)
 
         nbpml = self.nbpml
+
         for i in range(nbpml):
             pos = np.abs((nbpml-i)/nbpml)
             val = dampcoeff * (pos - np.sin(2*np.pi*pos)/(2*np.pi))
@@ -247,6 +256,7 @@ class AcousticWave2D:
 
     def add_rec(self, rec, m, dt, u):
         ntraces, nsamples = self.data.traces.shape
+
         for j in range(ntraces):
             rec_add = self.point2grid(self.data.receiver_coords[j, 0],
                                       self.data.receiver_coords[j, 2])
@@ -258,6 +268,7 @@ class AcousticWave2D:
 
     def read_rec(self, rec, u):
         ntraces, nsamples = self.data.traces.shape
+
         for i in range(ntraces):
             rec[i] = self.grid2point(u, self.data.receiver_coords[i, 0],
                                      self.data.receiver_coords[i, 2])
@@ -273,6 +284,7 @@ class AcousticWave2D:
         u = np.zeros((nt, nx, ny))
         damp = self.damp_boundary()
         rec = np.zeros((nt, self.nrec))
+
         for ti in range(0, nt):
             for a in range(1, nx-1):
                 for b in range(1, ny-1):
@@ -294,8 +306,10 @@ class AcousticWave2D:
                                               u[ti - 1, a, b - 1],
                                               u[ti - 1, a, b + 1],
                                               m[a, b], dt, h, damp[a, b])
+
             self.add_source(self.data.get_source(ti), m, dt, u[ti, :, :])
             self.read_rec(rec[ti, :], u[ti, :, :])
+
         return rec, u
 
     def Adjoint(self, rec):
@@ -332,8 +346,10 @@ class AcousticWave2D:
                                                v[ti + 1, a, b - 1],
                                                v[ti + 1, a, b + 1],
                                                m[a, b], dt, h, damp[a, b])
+
             self.add_rec(rec[ti, :], m, dt, v[ti, :, :])
             srca[ti] = self.read_source(v[ti, :, :])
+
         return srca, v
 
     def Gradient(self, rec, u):
@@ -352,6 +368,7 @@ class AcousticWave2D:
         for ti in range(nt-1, -1, -1):
             v3[:, :] = 0.0
             self.add_rec(rec[ti, :], m, dt, v3[:, :])
+
             for a in range(1, nx-1):
                 for b in range(1, ny-1):
                     v3[a, b] = v3[a, b] + self.tsA(v1[a, b],
@@ -363,7 +380,9 @@ class AcousticWave2D:
                                                    m[a, b], dt, h, damp[a, b])
                     grad[a, b] = grad[a, b] - \
                         (v3[a, b] - 2 * v2[a, b] + v1[a, b]) * (u[ti, a, b])
+
             v1, v2, v3 = v2, v3, v1
+
         return (dt**-2)*grad
 
     def Born(self, dm):
@@ -373,15 +392,18 @@ class AcousticWave2D:
         dt = self.dt
         h = self.h
         m = self.model.vp**(-2)
+
         u1 = np.zeros((nx, ny))
         U1 = np.zeros((nx, ny))
         u2 = np.zeros((nx, ny))
         U2 = np.zeros((nx, ny))
         u3 = np.zeros((nx, ny))
         U3 = np.zeros((nx, ny))
+
         rec = np.zeros((nt, self.nrec))
         damp = self.damp_boundary()
         src2 = 0
+
         for ti in range(0, nt):
             for a in range(1, nx-1):
                 for b in range(1, ny-1):
@@ -392,7 +414,9 @@ class AcousticWave2D:
                                        u2[a, b - 1],
                                        u2[a, b + 1],
                                        m[a, b], dt, h, damp[a, b])
+
             self.add_source(self.data.get_source(ti), m, dt, u3)
+
             for a in range(1, nx-1):
                 for b in range(1, ny-1):
                     src2 = -(dt**-2)*(u3[a, b]-2*u2[a, b]+u1[a, b])*dm[a, b]
@@ -404,17 +428,23 @@ class AcousticWave2D:
                                        U2[a, b + 1],
                                        m[a, b], dt, h, damp[a, b])
                     U3[a, b] = U3[a, b] + dt*dt/m[a, b] * src2
+
             self.read_rec(rec[ti, :], U3)
             u1, u2, u3 = u2, u3, u1
             U1, U2, U3 = U2, U3, U1
+
         return rec
 
     def run(self):
         nt = self.data.nsamples
+
         print('Starting forward')
         rec, u = self.Forward(nt)
+
         res = rec - np.transpose(self.data.traces)
         f = 0.5*linalg.norm(res)**2
+
         print('Residual is ', f, 'starting gradient')
         g = self.Gradient(nt, res, u)
+
         return f, g[40:-40, 40:-40]

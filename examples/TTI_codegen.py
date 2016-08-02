@@ -1,8 +1,10 @@
 # coding: utf-8
 from __future__ import print_function
+
 import numpy as np
-from examples.tti_operators import *
+
 from devito.interfaces import DenseData
+from examples.tti_operators import *
 
 
 class TTI_cg:
@@ -110,7 +112,8 @@ class TTI_cg:
         return (dt**-2)*grad
 
     def Born(self):
-        born_op = BornOperator(self.dm, self.m, self.src, self.damp, self.rec, time_order=self.t_order, spc_order=self.s_order)
+        born_op = BornOperator(
+            self.dm, self.m, self.src, self.damp, self.rec, time_order=self.t_order, spc_order=self.s_order)
         born_op.apply()
         return self.rec.data
 

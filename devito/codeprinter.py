@@ -1,6 +1,6 @@
-from sympy.printing.ccode import CCodePrinter
+from mpmath.libmp import prec_to_dps, to_str
 from sympy import Eq
-from mpmath.libmp import to_str, prec_to_dps
+from sympy.printing.ccode import CCodePrinter
 
 
 class CodePrinter(CCodePrinter):
@@ -22,6 +22,7 @@ class CodePrinter(CCodePrinter):
         """
         output = self._print(expr.base.label) \
             + ''.join(['[' + self._print(x) + ']' for x in expr.indices])
+
         return output
 
     def _print_Rational(self, expr):
@@ -38,6 +39,7 @@ class CodePrinter(CCodePrinter):
         # to be 32-bit floats.
         # http://en.cppreference.com/w/cpp/language/floating_literal
         p, q = int(expr.p), int(expr.q)
+
         return '%d.0F/%d.0F' % (p, q)  # float precision by default
 
     def _print_Mod(self, expr):
@@ -48,6 +50,7 @@ class CodePrinter(CCodePrinter):
         """
         args = map(ccode, expr.args)
         args = ['('+x+')' for x in args]
+
         result = '%'.join(args)
         return result
 
@@ -58,6 +61,7 @@ class CodePrinter(CCodePrinter):
         :returns: The resulting code as a string
         """
         prec = expr._prec
+
         if prec < 5:
             dps = 0
         else:
@@ -68,11 +72,14 @@ class CodePrinter(CCodePrinter):
             strip = True
         elif self._settings["full_prec"] == "auto":
             strip = self._print_level > 1
+
         rv = to_str(expr._mpf_, dps, strip_zeros=strip, max_fixed=-2, min_fixed=2)
+
         if rv.startswith('-.0'):
             rv = '-0.' + rv[3:]
         elif rv.startswith('.0'):
             rv = '0.' + rv[2:]
+
         return rv + 'F'
 
 

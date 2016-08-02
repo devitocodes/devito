@@ -29,6 +29,7 @@ class IGrid:
             coeff = 0.38
         else:
             coeff = 0.42
+
         return coeff * self.spacing[0] / (self.scale*np.max(self.vp))
 
     def get_spacing(self):
@@ -50,8 +51,10 @@ class IGrid:
     def set_origin(self, shift):
         norig = len(self.origin)
         aux = []
+
         for i in range(0, norig):
             aux.append(self.origin[i] - shift * self.spacing[i])
+
         self.origin = aux
 
     def get_origin(self):
@@ -95,10 +98,12 @@ class IShot:
     def get_source(self, ti=None):
         if ti is None:
             return self.source_sign
+
         return self.source_sign[ti]
 
     def get_nrec(self):
         ntraces, nsamples = self.traces.shape
+
         return ntraces
 
     def reinterpolate(self, dt):

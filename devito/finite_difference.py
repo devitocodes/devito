@@ -1,8 +1,9 @@
 from __future__ import absolute_import
-from sympy import symbols, finite_diff_weights
+
 from functools import reduce
 from operator import mul
 
+from sympy import finite_diff_weights, symbols
 
 __all__ = ['second_derivative', 'cross_derivative']
 
@@ -44,13 +45,17 @@ def second_derivative(*args, **kwargs):
     order = kwargs.get('order', 2)
     dim = kwargs.get('dim', x)
     diff = kwargs.get('diff', h)
+
     assert(order in fd_coefficients)
+
     coeffs = fd_coefficients[order]
     deriv = coeffs[0] * reduce(mul, args, 1)
+
     for i in range(1, int(order / 2) + 1):
         aux1 = [a.subs(dim, dim + i * diff) for a in args]
         aux2 = [a.subs(dim, dim - i * diff) for a in args]
         deriv += coeffs[i] * (reduce(mul, aux1, 1) + reduce(mul, aux2, 1))
+
     return (1 / diff**2) * deriv
 
 
@@ -75,22 +80,31 @@ def cross_derivative(*args, **kwargs):
     dims = kwargs.get('dims', (x, y))
     diff = kwargs.get('diff', h)
     order = kwargs.get('order', 1)
+
     assert(isinstance(dims, tuple) and len(dims) == 2)
     deriv = 0
+
     # Stencil positions for non-symmetric cross-derivatives with symmetric averaging
-    ind1r = [(dims[0] + i * diff) for i in range(-int(order / 2) + 1 - (order < 4), int((order + 1) / 2) + 2 - (order < 4))]
-    ind2r = [(dims[1] + i * diff) for i in range(-int(order / 2) + 1 - (order < 4), int((order + 1) / 2) + 2 - (order < 4))]
-    ind1l = [(dims[0] - i * diff) for i in range(-int(order / 2) + 1 - (order < 4), int((order + 1) / 2) + 2 - (order < 4))]
-    ind2l = [(dims[1] - i * diff) for i in range(-int(order / 2) + 1 - (order < 4), int((order + 1) / 2) + 2 - (order < 4))]
+    ind1r = [(dims[0] + i * diff)
+             for i in range(-int(order / 2) + 1 - (order < 4), int((order + 1) / 2) + 2 - (order < 4))]
+    ind2r = [(dims[1] + i * diff)
+             for i in range(-int(order / 2) + 1 - (order < 4), int((order + 1) / 2) + 2 - (order < 4))]
+    ind1l = [(dims[0] - i * diff)
+             for i in range(-int(order / 2) + 1 - (order < 4), int((order + 1) / 2) + 2 - (order < 4))]
+    ind2l = [(dims[1] - i * diff)
+             for i in range(-int(order / 2) + 1 - (order < 4), int((order + 1) / 2) + 2 - (order < 4))]
+
     # Finite difference weights from Taylor approximation with this positions
     c1 = finite_diff_weights(1, ind1r, dims[0])
     c1 = c1[-1][-1]
     c2 = finite_diff_weights(1, ind1l, dims[0])
     c2 = c2[-1][-1]
+
     # Diagonal elements
     for i in range(0, len(ind1r)):
         for j in range(0, len(ind2r)):
             var1 = [a.subs({dims[0]: ind1r[i], dims[1]: ind2r[j]}) for a in args]
             var2 = [a.subs({dims[0]: ind1l[i], dims[1]: ind2l[j]}) for a in args]
             deriv += .5 * c1[i] * c1[j] * reduce(mul, var1, 1) + .5 * c2[-(j+1)] * c2[-(i+1)] * reduce(mul, var2, 1)
+
     return -deriv

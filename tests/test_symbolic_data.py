@@ -1,8 +1,9 @@
-from devito import DenseData, TimeData
-from sympy import Derivative, as_finite_diff, simplify
-from sympy.abc import h, x, y, z, t
-import pytest
 import numpy as np
+import pytest
+from sympy import Derivative, as_finite_diff, simplify
+from sympy.abc import h, t, x, y, z
+
+from devito import DenseData, TimeData
 
 
 @pytest.fixture
