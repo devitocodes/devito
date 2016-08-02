@@ -42,11 +42,12 @@ class Propagator(object):
     :param block_size: Block size used for cache clocking. Can be either a single number
                        used for all dimensions or a list stating block sizes for each
                        dimension. Set block size to None to skip blocking on that dim
+     :param auto_tune: Flag to enable auto tuning of block sizes
     """
     def __init__(self, name, nt, shape, stencils, factorized=None, spc_border=0,
                  time_order=0, time_dim=None, space_dims=None, dtype=np.float32,
                  forward=True, compiler=None, profile=False,
-                 cache_blocking=False, block_size=5):
+                 cache_blocking=False, block_size=None, auto_tune=False):
         self.stencils = stencils
         self.dtype = dtype
         self.factorized = factorized or {}
@@ -99,6 +100,8 @@ class Propagator(object):
 
         # Cache blocking and default block sizes
         self.cache_blocking = cache_blocking
+        self.block_size = block_size
+        self.auto_tune = auto_tune
 
         if isinstance(block_size, Iterable):
             if len(block_size) == len(shape):

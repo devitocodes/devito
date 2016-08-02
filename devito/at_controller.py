@@ -68,7 +68,7 @@ class AtController(object):
     at_low_range = 5
     at_high_range = 15
 
-    def __init__(self, function, args, f_name, shape, time_order, spc_border, cb_inner_most=False):
+    def __init__(self, function, args, f_name, shape, time_order, spc_border, block_size):
         """
         Object responsible for auto tuning block sizes. Note this object assumes that cache blocking is in 3d
         :param function: compiled function that is auto tuned
@@ -94,7 +94,7 @@ class AtController(object):
         self.shape = shape
         self.time_order = time_order
         self.spc_border = spc_border
-        self.cb_inner_most = cb_inner_most
+        self.block_size = block_size
         self.report_dir = report_dir
 
         if not os.path.isdir(self.report_dir):  # Creates report dir if does not exist

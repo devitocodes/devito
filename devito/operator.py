@@ -4,6 +4,7 @@ from sympy import (Add, Eq, Function, Indexed, IndexedBase, Symbol, cse,
 from sympy.abc import t
 from sympy.utilities.iterables import numbered_symbols
 
+from at_controller import AtController
 from devito.compiler import get_compiler_from_env
 from devito.interfaces import SymbolicData, TimeData
 from devito.propagator import Propagator
@@ -153,6 +154,7 @@ class Operator(object):
     :param block_size: Block size used for cache clocking. Can be either a single number
                        used for all dimensions or a list stating block sizes for each
                        dimension. Set block size to None to skip blocking on that dim
+    :param auto_tune: Flag to enable auto tuning of block sizes
     :param input_params: List of symbols that are expected as input.
     :param output_params: List of symbols that define operator output.
     :param factorized: A map given by {string_name:sympy_object} for including factorized
@@ -161,8 +163,8 @@ class Operator(object):
 
     def __init__(self, nt, shape, dtype=np.float32, stencils=[],
                  subs=[], spc_border=0, time_order=0,
-                 forward=True, compiler=None, profile=False,
-                 cache_blocking=False, cse=True, block_size=5,
+                 forward=True, compiler=None, profile=False, cse=True,
+                 cache_blocking=False, block_size=None, auto_tune=False,
                  input_params=None, output_params=None, factorized={}):
         # Derive JIT compilation infrastructure
         self.compiler = compiler or get_compiler_from_env()
@@ -229,24 +231,31 @@ class Operator(object):
         for name, value in factorized.items():
             factorized[name] = expr_indexify(value)
 
-        # Apply user-defined substitutions to stencil
+        # Apply user-defined subs to stencil
         self.stencils = [eqn.subs(subs[0]) for eqn in self.stencils]
 
         # Applies CSE
         if cse:
             self.stencils = expr_cse(self.stencils)
 
-        self.propagator = Propagator(
-            self.getName(), nt, shape, self.stencils, factorized=factorized, dtype=dtype,
-            spc_border=spc_border, time_order=time_order, forward=forward,
-            space_dims=self.space_dims, compiler=self.compiler, profile=profile,
-            cache_blocking=cache_blocking, block_size=block_size
-        )
+        self.propagator = Propagator(self.getName(), nt, shape, self.stencils,
+                                     factorized=factorized, dtype=dtype,
+                                     spc_border=spc_border, time_order=time_order,
+                                     forward=forward, space_dims=self.space_dims,
+                                     compiler=self.compiler, profile=profile,
+                                     cache_blocking=cache_blocking, block_size=block_size,
+                                     auto_tune=auto_tune)
         self.dtype = dtype
         self.nt = nt
         self.shape = shape
         self.spc_border = spc_border
+        self.time_order = time_order
         self.symbol_to_data = {}
+
+        self.cache_blocking = cache_blocking
+        self.block_size = block_size
+        self.auto_tune = auto_tune
+
         for param in self.signature:
             self.propagator.add_devito_param(param)
             self.symbol_to_data[param.name] = param
@@ -284,7 +293,13 @@ class Operator(object):
         args = [param.data for param in self.signature]
         self.propagator.run(args)
 
-        return tuple([param for param in self.output_params])
+        if self.cache_blocking and self.auto_tune:
+            at_controller = AtController(f, args, self.getName(), self.shape, self.time_order, self.spc_border,
+                                         self.block_size)
+
+            at_controller.brute_force()  # uses default values
+
+        return tuple([param.data for param in self.output_params])
 
     def apply_python(self):
         """Uses Python to apply the operator
