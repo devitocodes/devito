@@ -81,4 +81,10 @@ devito.tools module
     :undoc-members:
     :show-inheritance:
 
+devito.logger module
+-------------------
 
+.. automodule:: devito.logger
+    :members:
+    :undoc-members:
+    :show-inheritance:

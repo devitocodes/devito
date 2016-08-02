@@ -94,6 +94,7 @@
 <li class="toctree-l2"><a class="reference internal" href="#module-devito.operator">devito.operator module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#module-devito.propagator">devito.propagator module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#module-devito.tools">devito.tools module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#devito-logger-module">devito.logger module</a></li>
 </ul>
 </li>
 </ul>
@@ -1524,6 +1525,81 @@ x1, x2, x3 so that the time index comes first.</p>
 </tbody>
 </table>
 </dd></dl>
+
+</div>
+<div class="section" id="devito-logger-module">
+<h2>devito.logger module<a class="headerlink" href="#devito-logger-module" title="Permalink to this headline">¶</a></h2>
+<span class="target" id="module-devito.logger"></span><p>The Devito logger.</p>
+<dl class="function">
+<dt id="devito.logger.set_log_level">
+<code class="descclassname">devito.logger.</code><code class="descname">set_log_level</code><span class="sig-paren">(</span><em>level</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/logger.html#set_log_level"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.logger.set_log_level" title="Permalink to this definition">¶</a></dt>
+<dd><p>Set the log level of the Devito logger.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>level</strong> &#8211; accepted values are: DEBUG, INFO, PERF_OK, PERF_WARN, WARNING,
+ERROR, CRITICAL</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="function">
+<dt id="devito.logger.set_log_noperf">
+<code class="descclassname">devito.logger.</code><code class="descname">set_log_noperf</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/logger.html#set_log_noperf"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.logger.set_log_noperf" title="Permalink to this definition">¶</a></dt>
+<dd><p>Do not print performance-related messages.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="devito.logger.log">
+<code class="descclassname">devito.logger.</code><code class="descname">log</code><span class="sig-paren">(</span><em>msg</em>, <em>level=20</em>, <em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/logger.html#log"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.logger.log" title="Permalink to this definition">¶</a></dt>
+<dd><p>Wrapper of the main Python&#8217;s logging function. Print &#8216;msg % args&#8217; with
+the severity &#8216;level&#8217;.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>msg</strong> &#8211; the message to be printed.</li>
+<li><strong>level</strong> &#8211; accepted values are: DEBUG, INFO, PERF_OK, PERF_WARN, WARNING,
+ERROR, CRITICAL</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="function">
+<dt>
+<code class="descclassname">devito.logger.</code><code class="descname">log</code><span class="sig-paren">(</span><em>msg</em>, <em>level=20</em>, <em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/logger.html#log"><span class="viewcode-link">[source]</span></a></dt>
+<dd><p>Wrapper of the main Python&#8217;s logging function. Print &#8216;msg % args&#8217; with
+the severity &#8216;level&#8217;.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>msg</strong> &#8211; the message to be printed.</li>
+<li><strong>level</strong> &#8211; accepted values are: DEBUG, INFO, PERF_OK, PERF_WARN, WARNING,
+ERROR, CRITICAL</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="function">
+<dt id="devito.logger.warning">
+<code class="descclassname">devito.logger.</code><code class="descname">warning</code><span class="sig-paren">(</span><em>msg</em>, <em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/logger.html#warning"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.logger.warning" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="function">
+<dt id="devito.logger.error">
+<code class="descclassname">devito.logger.</code><code class="descname">error</code><span class="sig-paren">(</span><em>msg</em>, <em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/logger.html#error"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.logger.error" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
 
 </div>
 </div>
