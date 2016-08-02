@@ -3,6 +3,7 @@ from sympy.abc import *
 
 from devito.finite_difference import first_derivative
 from devito.interfaces import DenseData, PointData, TimeData
+from devito.iteration import Iteration
 from devito.operator import *
 
 
@@ -101,9 +102,9 @@ class SourceLikeTTI(PointData):
         return sum([b.subs(subs) * u.indexed[(t, ) + idx]
                     for idx, b in zip(index_matrix, self.bs)])
 
-    def read(self, u):
+    def read(self, u, v):
         """Iteration loop over points performing grid-to-point interpolation."""
-        interp_expr = Eq(self.indexed[t, p], self.grid2point(u))
+        interp_expr = Eq(self.indexed[t, p], self.grid2point(u) + self.grid2point(v))
         return [Iteration(interp_expr, variable=p, limits=self.shape[1])]
 
     def add(self, m, u):
@@ -211,10 +212,12 @@ class ForwardOperator(Operator):
                                               input_params=parm, factorized=factorized, **kwargs)
 
         # Insert source and receiver terms post-hoc
-        self.input_params += [src, rec]
+        self.input_params += [src, src.coordinates, rec, rec.coordinates]
         self.propagator.time_loop_stencils_a = src.add(m, u) + src.add(m, v) + rec.read(u, v)
         self.propagator.add_devito_param(src)
+        self.propagator.add_devito_param(src.coordinates)
         self.propagator.add_devito_param(rec)
+        self.propagator.add_devito_param(rec.coordinates)        
 
 
 class AdjointOperator(Operator):

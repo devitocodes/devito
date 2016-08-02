@@ -563,7 +563,6 @@ class Propagator(object):
     def time_substitutions(self, sympy_expr):
         """This method checks through the sympy_expr to replace the time index with a cyclic index
         but only for variables which are not being saved in the time domain
-
         :param sympy_expr: The Sympy expression to process
         :returns: The expression after the substitutions
         """
