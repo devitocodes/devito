@@ -38,9 +38,10 @@ class Propagator(object):
     """
 
     def __init__(self, name, nt, shape, stencils, factorized=None, spc_border=0, time_order=0,
-                 time_dim=None, space_dims=None, forward=True, compiler=None,
+                 time_dim=None, space_dims=None, dtype=np.float32, forward=True, compiler=None,
                  profile=False, cache_blocking=False, block_size=5):
         self.stencils = stencils
+        self.dtype = dtype
         self.factorized = factorized or []
         self.time_order = time_order
 
