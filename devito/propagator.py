@@ -98,7 +98,8 @@ class Propagator(object):
             if len(block_size) == len(shape):
                 self.block_sizes = block_size
             else:
-                raise ValueError("Block size should either be a single number or an array of the same size as the spatial domain")
+                raise ValueError("Block size should either be a single number or" +
+                                 " an array of the same size as the spatial domain")
         elif block_size is None:  # Turn off cache blocking if block size set to None
             self.cache_blocking = False
         else:
@@ -389,7 +390,8 @@ class Propagator(object):
                     remainder_counter += 1
 
                 loop_body = cgen.For(cgen.InlineInitializer(cgen.Value("int", block_var), str(loop_limits[0])),
-                                     str(block_var) + "<" + str(loop_limits[1]), str(block_var) + "+=" + str(block_size), loop_body)
+                                     str(block_var) + "<" + str(loop_limits[1]), str(block_var) + "+=" +
+                                     str(block_size), loop_body)
 
         full_remainder = []
         weights = self._decide_weights(self.block_sizes, remainder_counter)  # weights for deciding remainder loop limit
@@ -416,7 +418,8 @@ class Propagator(object):
                         loop_limits = self._space_loop_limits[spc_var]
 
                 remainder_loop = cgen.For(cgen.InlineInitializer(cgen.Value("int", orig_var), str(loop_limits[0])),
-                                          str(orig_var) + "<" + str(loop_limits[1]), str(orig_var) + "++", remainder_loop)
+                                          str(orig_var) + "<" + str(loop_limits[1]), str(orig_var) + "++",
+                                          remainder_loop)
 
                 if inner_most_dim and len(self.space_dims) > 1:
                     remainder_loop = cgen.Block([self.compiler.pragma_ivdep] + [remainder_loop])
