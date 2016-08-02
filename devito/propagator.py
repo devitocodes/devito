@@ -384,7 +384,7 @@ class Propagator(object):
             )
 
             if ivdep and len(self.space_dims) > 1:
-                pragma = self.compiler.pragma_aligned if self.compiler.openmp else self.compiler.openmp + self.compiler.pragma_nontemporal
+                pragma = self.compiler.pragma_aligned if self.compiler.openmp else self.compiler.pragma_ivdep + self.compiler.pragma_nontemporal
                 loop_body = cgen.Block([pragma] + [loop_body])
             ivdep = False
         return [loop_body]  # returns body as a list
