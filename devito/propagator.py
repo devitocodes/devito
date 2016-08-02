@@ -372,7 +372,7 @@ class Propagator(object):
                                  orig_var + "<" + upper_limit_str, orig_var + "++", loop_body)
 
             if inner_most_dim and len(self.space_dims) > 1:
-                loop_body = cgen.Block(self.compiler.pragma_ivdep + self.add_devito_param.pragma_nontemporal + [loop_body])
+                loop_body = cgen.Block(self.compiler.pragma_ivdep + self.compiler.pragma_nontemporal + [loop_body])
             inner_most_dim = False
 
         remainder_counter = 0  # indicates how many remainder loops we need
@@ -421,7 +421,7 @@ class Propagator(object):
                                           remainder_loop)
 
                 if inner_most_dim and len(self.space_dims) > 1:
-                    remainder_loop = cgen.Block([self.compiler.pragma_ivdep] + [remainder_loop])
+                    remainder_loop = cgen.Block(self.compiler.pragma_ivdep + [remainder_loop])
 
                 inner_most_dim = False
             full_remainder.append(remainder_loop)
