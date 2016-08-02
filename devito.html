@@ -374,10 +374,9 @@ we utilise the <cite>pymic</cite> package to manage device streams.</p>
 <col class="field-name" />
 <col class="field-body" />
 <tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
-<li><strong>*args</strong> &#8211; <p>All positional arguments must be fully qualified
-function objects, eg. <cite>f(x, y)</cite> or <cite>g(t, x, y, z)</cite>.</p>
-</li>
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>*args</strong> &#8211; All positional arguments must be fully qualified
+function objects, eg. <cite>f(x, y)</cite> or <cite>g(t, x, y, z)</cite>.</li>
 <li><strong>dim</strong> &#8211; Symbol defininf the dimension wrt. which to
 differentiate, eg. <cite>x</cite>, <cite>y</cite>, <cite>z</cite> or <cite>t</cite>.</li>
 <li><strong>diff</strong> &#8211; Finite Difference symbol to insert, default <cite>h</cite>.</li>
@@ -385,19 +384,16 @@ differentiate, eg. <cite>x</cite>, <cite>y</cite>, <cite>z</cite> or <cite>t</ci
 </ul>
 </td>
 </tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first last">The second derivative</p>
+</td>
+</tr>
 </tbody>
 </table>
 <dl class="docutils">
 <dt>Example: Deriving the second derivative of f(x, y)*g(x, y) wrt. x via</dt>
-<dd><p class="first"><cite>second_derivative(f(x, y), g(x, y), order=2, dim=x)</cite>
-results in
-<a href="#id3"><span class="problematic" id="id4">`</span></a>(-2.0*f(x, y)*g(x, y) + 1.0*f(-h + x, y)*g(-h + x, y)</p>
-<blockquote class="last">
-<div><ul class="simple">
-<li>1.0*f(h + x, y)*g(h + x, y)) / h**2`.</li>
-</ul>
-</div></blockquote>
-</dd>
+<dd><code class="docutils literal"><span class="pre">second_derivative(f(x,</span> <span class="pre">y),</span> <span class="pre">g(x,</span> <span class="pre">y),</span> <span class="pre">order=2,</span> <span class="pre">dim=x)</span></code>
+results in <code class="docutils literal"><span class="pre">(-2.0*f(x,</span> <span class="pre">y)*g(x,</span> <span class="pre">y)</span> <span class="pre">+</span> <span class="pre">1.0*f(-h</span> <span class="pre">+</span> <span class="pre">x,</span> <span class="pre">y)*g(-h</span> <span class="pre">+</span> <span class="pre">x,</span> <span class="pre">y)</span> <span class="pre">+</span>
+<span class="pre">1.0*f(h</span> <span class="pre">+</span> <span class="pre">x,</span> <span class="pre">y)*g(h</span> <span class="pre">+</span> <span class="pre">x,</span> <span class="pre">y))</span> <span class="pre">/</span> <span class="pre">h**2</span></code>.</dd>
 </dl>
 </dd></dl>
 
@@ -409,34 +405,28 @@ results in
 <col class="field-name" />
 <col class="field-body" />
 <tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
-<li><strong>*args</strong> &#8211; <p>All positional arguments must be fully qualified
-function objects, eg. <cite>f(x, y)</cite> or <cite>g(t, x, y, z)</cite>.</p>
-</li>
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>*args</strong> &#8211; All positional arguments must be fully qualified
+function objects, eg. <cite>f(x, y)</cite> or <cite>g(t, x, y, z)</cite>.</li>
 <li><strong>dims</strong> &#8211; 2-tuple of symbols defining the dimension wrt. which
 to differentiate, eg. <cite>x</cite>, <cite>y</cite>, <cite>z</cite> or <cite>t</cite>.</li>
 <li><strong>diff</strong> &#8211; Finite Difference symbol to insert, default <cite>h</cite>.</li>
 </ul>
 </td>
 </tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first last">The cross derivative</p>
+</td>
+</tr>
 </tbody>
 </table>
 <dl class="docutils">
-<dt>Example: Deriving the cross-derivative of f(x, y)*g(x, y)</dt>
-<dd><p class="first">wrt. x and y via:
-<cite>cross_derivative(f(x, y), g(x, y), dims=(x, y))</cite>
-results in
-<a href="#id7"><span class="problematic" id="id8">`</span></a>0.5*(-2.0*f(x, y)*g(x, y) + f(x, -h + y)*g(x, -h + y)</p>
-<blockquote class="last">
-<div><ul class="simple">
-<li>f(x, h + y)*g(x, h + y) + f(-h + x, y)*g(-h + x, y)</li>
-</ul>
-<ul class="simple">
-<li>f(-h + x, h + y)*g(-h + x, h + y) + f(h + x, y)*g(h + x, y)</li>
-<li>f(h + x, -h + y)*g(h + x, -h + y)) / h**2</li>
-</ul>
-</div></blockquote>
-</dd>
+<dt>Example: Deriving the cross-derivative of f(x, y)*g(x, y) wrt. x and y via:</dt>
+<dd><code class="docutils literal"><span class="pre">cross_derivative(f(x,</span> <span class="pre">y),</span> <span class="pre">g(x,</span> <span class="pre">y),</span> <span class="pre">dims=(x,</span> <span class="pre">y))</span></code>
+results in:
+<code class="docutils literal"><span class="pre">0.5*(-2.0*f(x,</span> <span class="pre">y)*g(x,</span> <span class="pre">y)</span> <span class="pre">+</span> <span class="pre">f(x,</span> <span class="pre">-h</span> <span class="pre">+</span> <span class="pre">y)*g(x,</span> <span class="pre">-h</span> <span class="pre">+</span> <span class="pre">y)</span> <span class="pre">+</span></code>
+<code class="docutils literal"><span class="pre">f(x,</span> <span class="pre">h</span> <span class="pre">+</span> <span class="pre">y)*g(x,</span> <span class="pre">h</span> <span class="pre">+</span> <span class="pre">y)</span> <span class="pre">+</span> <span class="pre">f(-h</span> <span class="pre">+</span> <span class="pre">x,</span> <span class="pre">y)*g(-h</span> <span class="pre">+</span> <span class="pre">x,</span> <span class="pre">y)</span> <span class="pre">-</span></code>
+<code class="docutils literal"><span class="pre">f(-h</span> <span class="pre">+</span> <span class="pre">x,</span> <span class="pre">h</span> <span class="pre">+</span> <span class="pre">y)*g(-h</span> <span class="pre">+</span> <span class="pre">x,</span> <span class="pre">h</span> <span class="pre">+</span> <span class="pre">y)</span> <span class="pre">+</span> <span class="pre">f(h</span> <span class="pre">+</span> <span class="pre">x,</span> <span class="pre">y)*g(h</span> <span class="pre">+</span> <span class="pre">x,</span> <span class="pre">y)</span> <span class="pre">-</span></code>
+<code class="docutils literal"><span class="pre">f(h</span> <span class="pre">+</span> <span class="pre">x,</span> <span class="pre">-h</span> <span class="pre">+</span> <span class="pre">y)*g(h</span> <span class="pre">+</span> <span class="pre">x,</span> <span class="pre">-h</span> <span class="pre">+</span> <span class="pre">y))</span> <span class="pre">/</span> <span class="pre">h**2</span></code></dd>
 </dl>
 </dd></dl>
 
@@ -963,7 +953,7 @@ symbolic behaviour follows the use in the current problem.</p>
 <span id="devito-operator-module"></span><h2>devito.operator module<a class="headerlink" href="#module-devito.operator" title="Permalink to this headline">¶</a></h2>
 <dl class="class">
 <dt id="devito.operator.Operator">
-<em class="property">class </em><code class="descclassname">devito.operator.</code><code class="descname">Operator</code><span class="sig-paren">(</span><em>nt</em>, <em>shape</em>, <em>dtype=&lt;type 'numpy.float32'&gt;</em>, <em>stencils=[]</em>, <em>substitutions=[]</em>, <em>spc_border=0</em>, <em>time_order=0</em>, <em>forward=True</em>, <em>compiler=None</em>, <em>profile=False</em>, <em>cache_blocking=False</em>, <em>block_size=5</em>, <em>input_params=None</em>, <em>output_params=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/operator.html#Operator"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.operator.Operator" title="Permalink to this definition">¶</a></dt>
+<em class="property">class </em><code class="descclassname">devito.operator.</code><code class="descname">Operator</code><span class="sig-paren">(</span><em>nt</em>, <em>shape</em>, <em>dtype=&lt;type 'numpy.float32'&gt;</em>, <em>stencils=[]</em>, <em>substitutions=[]</em>, <em>spc_border=0</em>, <em>time_order=0</em>, <em>forward=True</em>, <em>compiler=None</em>, <em>profile=False</em>, <em>cache_blocking=False</em>, <em>block_size=5</em>, <em>input_params=None</em>, <em>output_params=None</em>, <em>factorized={}</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/operator.html#Operator"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.operator.Operator" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">object</span></code></p>
 <p>Class encapsulating a defined operator as defined by the given stencil</p>
 <p>The Operator class is the core abstraction in DeVito that allows
@@ -992,6 +982,7 @@ environment variable DEVITO_ARCH, or default to GNUCompiler.</li>
 <li><strong>block_size</strong> &#8211; Block size used for cache clocking</li>
 <li><strong>input_params</strong> &#8211; List of symbols that are expected as input.</li>
 <li><strong>output_params</strong> &#8211; List of symbols that define operator output.</li>
+<li><strong>factorized</strong> &#8211; A map given by {string_name:sympy_object} for including factorized terms</li>
 </ul>
 </td>
 </tr>

@@ -129,9 +129,9 @@
            <div itemprop="articleBody">
             
   <h1>Source code for devito.codeprinter</h1><div class="highlight"><pre>
-<span></span><span class="kn">from</span> <span class="nn">sympy.printing.ccode</span> <span class="k">import</span> <span class="n">CCodePrinter</span>
+<span></span><span class="kn">from</span> <span class="nn">mpmath.libmp</span> <span class="k">import</span> <span class="n">prec_to_dps</span><span class="p">,</span> <span class="n">to_str</span>
 <span class="kn">from</span> <span class="nn">sympy</span> <span class="k">import</span> <span class="n">Eq</span>
-<span class="kn">from</span> <span class="nn">mpmath.libmp</span> <span class="k">import</span> <span class="n">to_str</span><span class="p">,</span> <span class="n">prec_to_dps</span>
+<span class="kn">from</span> <span class="nn">sympy.printing.ccode</span> <span class="k">import</span> <span class="n">CCodePrinter</span>
 
 
 <div class="viewcode-block" id="CodePrinter"><a class="viewcode-back" href="../../devito.html#devito.codeprinter.CodePrinter">[docs]</a><span class="k">class</span> <span class="nc">CodePrinter</span><span class="p">(</span><span class="n">CCodePrinter</span><span class="p">):</span>
@@ -153,6 +153,7 @@
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="n">output</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_print</span><span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="n">base</span><span class="o">.</span><span class="n">label</span><span class="p">)</span> \
             <span class="o">+</span> <span class="s1">&#39;&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">([</span><span class="s1">&#39;[&#39;</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">_print</span><span class="p">(</span><span class="n">x</span><span class="p">)</span> <span class="o">+</span> <span class="s1">&#39;]&#39;</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">expr</span><span class="o">.</span><span class="n">indices</span><span class="p">])</span>
+
         <span class="k">return</span> <span class="n">output</span>
 
     <span class="k">def</span> <span class="nf">_print_Rational</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">expr</span><span class="p">):</span>
@@ -169,6 +170,7 @@
         <span class="c1"># to be 32-bit floats.</span>
         <span class="c1"># http://en.cppreference.com/w/cpp/language/floating_literal</span>
         <span class="n">p</span><span class="p">,</span> <span class="n">q</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="n">p</span><span class="p">),</span> <span class="nb">int</span><span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="n">q</span><span class="p">)</span>
+
         <span class="k">return</span> <span class="s1">&#39;</span><span class="si">%d</span><span class="s1">.0F/</span><span class="si">%d</span><span class="s1">.0F&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">p</span><span class="p">,</span> <span class="n">q</span><span class="p">)</span>  <span class="c1"># float precision by default</span>
 
     <span class="k">def</span> <span class="nf">_print_Mod</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">expr</span><span class="p">):</span>
@@ -179,6 +181,7 @@
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="n">args</span> <span class="o">=</span> <span class="nb">map</span><span class="p">(</span><span class="n">ccode</span><span class="p">,</span> <span class="n">expr</span><span class="o">.</span><span class="n">args</span><span class="p">)</span>
         <span class="n">args</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;(&#39;</span><span class="o">+</span><span class="n">x</span><span class="o">+</span><span class="s1">&#39;)&#39;</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">args</span><span class="p">]</span>
+
         <span class="n">result</span> <span class="o">=</span> <span class="s1">&#39;%&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">args</span><span class="p">)</span>
         <span class="k">return</span> <span class="n">result</span>
 
@@ -189,6 +192,7 @@
 <span class="sd">        :returns: The resulting code as a string</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="n">prec</span> <span class="o">=</span> <span class="n">expr</span><span class="o">.</span><span class="n">_prec</span>
+
         <span class="k">if</span> <span class="n">prec</span> <span class="o">&lt;</span> <span class="mi">5</span><span class="p">:</span>
             <span class="n">dps</span> <span class="o">=</span> <span class="mi">0</span>
         <span class="k">else</span><span class="p">:</span>
@@ -199,11 +203,14 @@
             <span class="n">strip</span> <span class="o">=</span> <span class="kc">True</span>
         <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">_settings</span><span class="p">[</span><span class="s2">&quot;full_prec&quot;</span><span class="p">]</span> <span class="o">==</span> <span class="s2">&quot;auto&quot;</span><span class="p">:</span>
             <span class="n">strip</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_print_level</span> <span class="o">&gt;</span> <span class="mi">1</span>
+
         <span class="n">rv</span> <span class="o">=</span> <span class="n">to_str</span><span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="n">_mpf_</span><span class="p">,</span> <span class="n">dps</span><span class="p">,</span> <span class="n">strip_zeros</span><span class="o">=</span><span class="n">strip</span><span class="p">,</span> <span class="n">max_fixed</span><span class="o">=-</span><span class="mi">2</span><span class="p">,</span> <span class="n">min_fixed</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span>
+
         <span class="k">if</span> <span class="n">rv</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s1">&#39;-.0&#39;</span><span class="p">):</span>
             <span class="n">rv</span> <span class="o">=</span> <span class="s1">&#39;-0.&#39;</span> <span class="o">+</span> <span class="n">rv</span><span class="p">[</span><span class="mi">3</span><span class="p">:]</span>
         <span class="k">elif</span> <span class="n">rv</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s1">&#39;.0&#39;</span><span class="p">):</span>
             <span class="n">rv</span> <span class="o">=</span> <span class="s1">&#39;0.&#39;</span> <span class="o">+</span> <span class="n">rv</span><span class="p">[</span><span class="mi">2</span><span class="p">:]</span>
+
         <span class="k">return</span> <span class="n">rv</span> <span class="o">+</span> <span class="s1">&#39;F&#39;</span></div>
 
 

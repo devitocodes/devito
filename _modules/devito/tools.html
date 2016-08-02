@@ -130,8 +130,9 @@
             
   <h1>Source code for devito.tools</h1><div class="highlight"><pre>
 <span></span><span class="kn">import</span> <span class="nn">ctypes</span>
-<span class="kn">from</span> <span class="nn">sympy</span> <span class="k">import</span> <span class="n">symbols</span>
+
 <span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">from</span> <span class="nn">sympy</span> <span class="k">import</span> <span class="n">symbols</span>
 
 
 <div class="viewcode-block" id="convert_dtype_to_ctype"><a class="viewcode-back" href="../../devito.html#devito.tools.convert_dtype_to_ctype">[docs]</a><span class="k">def</span> <span class="nf">convert_dtype_to_ctype</span><span class="p">(</span><span class="n">dtype</span><span class="p">):</span>
@@ -142,6 +143,7 @@
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="n">conversion_dict</span> <span class="o">=</span> <span class="p">{</span><span class="n">np</span><span class="o">.</span><span class="n">int32</span><span class="p">:</span> <span class="n">ctypes</span><span class="o">.</span><span class="n">c_int</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">:</span> <span class="n">ctypes</span><span class="o">.</span><span class="n">c_float</span><span class="p">,</span>
                        <span class="n">np</span><span class="o">.</span><span class="n">int64</span><span class="p">:</span> <span class="n">ctypes</span><span class="o">.</span><span class="n">c_int64</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">:</span> <span class="n">ctypes</span><span class="o">.</span><span class="n">c_double</span><span class="p">}</span>
+
     <span class="k">return</span> <span class="n">conversion_dict</span><span class="p">[</span><span class="n">dtype</span><span class="p">]</span></div>
 
 
@@ -160,13 +162,16 @@
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">t</span> <span class="o">=</span> <span class="n">symbols</span><span class="p">(</span><span class="s2">&quot;t&quot;</span><span class="p">)</span>
+
     <span class="k">if</span> <span class="nb">type</span><span class="p">(</span><span class="n">expr</span><span class="p">)</span> <span class="o">==</span> <span class="n">term</span><span class="p">:</span>
         <span class="n">args_wo_t</span> <span class="o">=</span> <span class="p">[</span><span class="n">x</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">expr</span><span class="o">.</span><span class="n">args</span> <span class="k">if</span> <span class="n">x</span> <span class="o">!=</span> <span class="n">t</span> <span class="ow">and</span> <span class="n">t</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">x</span><span class="o">.</span><span class="n">args</span><span class="p">]</span>
         <span class="n">args_t</span> <span class="o">=</span> <span class="p">[</span><span class="n">x</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">expr</span><span class="o">.</span><span class="n">args</span> <span class="k">if</span> <span class="n">x</span> <span class="o">==</span> <span class="n">t</span> <span class="ow">or</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">x</span><span class="o">.</span><span class="n">args</span><span class="p">]</span>
         <span class="n">expr</span> <span class="o">=</span> <span class="n">repl</span><span class="p">[</span><span class="nb">tuple</span><span class="p">(</span><span class="n">args_t</span> <span class="o">+</span> <span class="n">args_wo_t</span><span class="p">)]</span>
+
     <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="s2">&quot;args&quot;</span><span class="p">):</span>
         <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="n">expr</span><span class="o">.</span><span class="n">args</span><span class="p">:</span>
             <span class="n">expr</span> <span class="o">=</span> <span class="n">expr</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">sympy_find</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">term</span><span class="p">,</span> <span class="n">repl</span><span class="p">))</span>
+
     <span class="k">return</span> <span class="n">expr</span></div>
 
 
@@ -185,7 +190,9 @@
     <span class="n">ofs</span> <span class="o">=</span> <span class="p">(</span><span class="o">-</span><span class="n">buf</span><span class="o">.</span><span class="n">ctypes</span><span class="o">.</span><span class="n">data</span> <span class="o">%</span> <span class="n">alignment</span><span class="p">)</span> <span class="o">/</span> <span class="n">a</span><span class="o">.</span><span class="n">itemsize</span>
     <span class="n">aa</span> <span class="o">=</span> <span class="n">buf</span><span class="p">[</span><span class="n">ofs</span><span class="p">:</span><span class="n">ofs</span><span class="o">+</span><span class="n">a</span><span class="o">.</span><span class="n">size</span><span class="p">]</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">a</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
     <span class="n">np</span><span class="o">.</span><span class="n">copyto</span><span class="p">(</span><span class="n">aa</span><span class="p">,</span> <span class="n">a</span><span class="p">)</span>
+
     <span class="k">assert</span> <span class="p">(</span><span class="n">aa</span><span class="o">.</span><span class="n">ctypes</span><span class="o">.</span><span class="n">data</span> <span class="o">%</span> <span class="n">alignment</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span>
+
     <span class="k">return</span> <span class="n">aa</span></div>
 </pre></div>
 
