@@ -28,7 +28,7 @@ class SourceLikeTTI(PointData):
             p = Matrix([[1],
                         [rx],
                         [rz],
-                        [rx * rz]])
+                        [rx*rz]])
         else:
             A = Matrix([[1, x1, y1, z1, x1*y1, x1*z1, y1*z1, x1*y1*z1],
                         [1, x1, y2, z1, x1*y2, x1*z1, y2*z1, x1*y2*z1],
@@ -61,90 +61,54 @@ class SourceLikeTTI(PointData):
         A = A.subs(reference_cell)
         self.bs = A.inv().T.dot(p)
 
-    def point2grid(self, pt_coords):
-        # In: s - Magnitude of the source
-        #     x, z - Position of the source
-        # Returns: (i, k) - Grid coordinate at top left of grid cell.
-        #          (s11, s12, s21, s22) - source values at coordinates
-        #          (i, k), (i, k+1), (i+1, k), (i+1, k+1)
-        if self.ndim == 2:
-            rx, rz = self.rs
-        else:
-            rx, ry, rz = self.rs
+    @property
+    def sym_coordinates(self):
+        """Symbol representing the coordinate values in each dimension"""
+        return tuple([self.coordinates.indexed[p, i]
+                      for i in range(self.ndim)])
 
-        x, y, z = pt_coords
-        i = int(x/self.h)
-        k = int(z/self.h)
-        coords = (i + self.nbpml, k + self.nbpml)
-        subs = []
-        x = x - i*self.h
-        subs.append((rx, x))
+    @property
+    def sym_coord_indices(self):
+        """Symbol for each grid index according to the coordinates"""
+        return tuple([Function('INT')(Function('floor')(x / self.h))
+                      for x in self.sym_coordinates])
 
-        if self.ndim == 3:
-            j = int(y/self.h)
-            y = y - j*self.h
-            subs.append((ry, y))
-            coords = (i + self.nbpml, j + self.nbpml, k + self.nbpml)
+    @property
+    def sym_coord_bases(self):
+        """Symbol for the base coordinates of the reference grid point"""
+        return tuple([Function('FLOAT')(x - idx * self.h)
+                      for x, idx in zip(self.sym_coordinates,
+                                        self.sym_coord_indices)])
 
-        z = z - k*self.h
-        subs.append((rz, z))
-        s = [b.subs(subs).evalf() for b in self.bs]
+    def point2grid(self, u, m):
+        """Generates an expression for generic point-to-grid interpolation"""
+        dt = self.dt
+        subs = dict(zip(self.rs, self.sym_coord_bases))
+        index_matrix = [tuple([idx + ii + self.nbpml for ii, idx
+                               in zip(inc, self.sym_coord_indices)])
+                        for inc in self.increments]
+        eqns = [Eq(u.indexed[(t, ) + idx], u.indexed[(t, ) + idx]
+                   + self.indexed[t, p] * dt * dt / m.indexed[idx] * b.subs(subs))
+                for idx, b in zip(index_matrix, self.bs)]
+        return eqns
 
-        return coords, tuple(s)
+    def grid2point(self, u):
+        """Generates an expression for generic grid-to-point interpolation"""
+        subs = dict(zip(self.rs, self.sym_coord_bases))
+        index_matrix = [tuple([idx + ii + self.nbpml for ii, idx
+                               in zip(inc, self.sym_coord_indices)])
+                        for inc in self.increments]
+        return sum([b.subs(subs) * u.indexed[(t, ) + idx]
+                    for idx, b in zip(index_matrix, self.bs)])
 
-    # Interpolate onto receiver point.
-    def grid2point(self, u, pt_coords):
-        if self.ndim == 2:
-            rx, rz = self.rs
-        else:
-            rx, ry, rz = self.rs
-
-        x, y, z = pt_coords
-        i = int(x/self.h)
-        k = int(z/self.h)
-
-        x = x - i*self.h
-        z = z - k*self.h
-
-        subs = []
-        subs.append((rx, x))
-
-        if self.ndim == 3:
-            j = int(y/self.h)
-            y = y - j*self.h
-            subs.append((ry, y))
-
-        subs.append((rz, z))
-
-        if self.ndim == 2:
-            return sum([b.subs(subs) * u.indexed[t, i+inc[0]+self.nbpml, k+inc[1]+self.nbpml]
-                        for inc, b in zip(self.increments, self.bs)])
-        else:
-            return sum([b.subs(subs) * u.indexed[t, i+inc[0]+self.nbpml, j+inc[1]+self.nbpml, k+inc[2]+self.nbpml]
-                        for inc, b in zip(self.increments, self.bs)])
-
-    def read(self, u, v):
-        eqs = []
-
-        for i in range(self.npoint):
-            eqs.append(Eq(self.indexed[t, i], (self.grid2point(v, self.coordinates.data[i, :])
-                                               + self.grid2point(u, self.coordinates.data[i, :]))))
-        return eqs
+    def read(self, u):
+        """Iteration loop over points performing grid-to-point interpolation."""
+        interp_expr = Eq(self.indexed[t, p], self.grid2point(u))
+        return [Iteration(interp_expr, variable=p, limits=self.shape[1])]
 
     def add(self, m, u):
-        assignments = []
-        dt = self.dt
-
-        for j in range(self.npoint):
-            add = self.point2grid(self.coordinates.data[j, :])
-            coords = add[0]
-            s = add[1]
-            assignments += [Eq(u.indexed[tuple([t] + [coords[i] + inc[i] for i in range(self.ndim)])],
-                               u.indexed[tuple([t] + [coords[i] + inc[i] for i in range(self.ndim)])] +
-                               self.indexed[t, j]*dt*dt/m.indexed[coords]*w) for w, inc in zip(s, self.increments)]
-
-        filtered = [x for x in assignments if isinstance(x, Eq)]
-        return filtered
+        """Iteration loop over points performing point-to-grid interpolation."""
+        return [Iteration(self.point2grid(u, m), variable=p, limits=self.shape[1])]
 
 
 class ForwardOperator(Operator):
