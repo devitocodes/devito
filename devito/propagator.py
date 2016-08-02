@@ -357,8 +357,8 @@ class Propagator(object):
         orig_loop_body = loop_body
 
         for spc_var, block_size in reversed(zip(list(self.space_dims), self.block_sizes)):
-            dim_var = str(self._var_map[spc_var])
-            block_var = dim_var + "b"
+            orig_var = str(self._var_map[spc_var])
+            block_var = orig_var + "b"
             loop_limits = self._space_loop_limits[spc_var]
 
             if block_size is not None:
@@ -368,43 +368,55 @@ class Propagator(object):
                 lower_limit_str = str(loop_limits[0])
                 upper_limit_str = str(loop_limits[1])
 
-            loop_body = cgen.For(cgen.InlineInitializer(cgen.Value("int", dim_var), lower_limit_str),
-                                 dim_var + "<" + upper_limit_str, dim_var + "++", loop_body)
+            loop_body = cgen.For(cgen.InlineInitializer(cgen.Value("int", orig_var), lower_limit_str),
+                                 orig_var + "<" + upper_limit_str, orig_var + "++", loop_body)
 
             if inner_most_dim and len(self.space_dims) > 1:
                 loop_body = cgen.Block([self.compiler.pragma_ivdep] + [loop_body])
             inner_most_dim = False
 
-        remainder_list = []  # List indicating how many remainder loops we need.
+        remainder_counter = 0  # indicates how many remainder loops we need
         for spc_var, block_size in reversed(zip(list(self.space_dims), self.block_sizes)):
             # if block size set to None do not block this dimension
             if block_size is not None:
                 orig_var = str(self._var_map[spc_var])
-                dim_var = orig_var + "b"
+                block_var = orig_var + "b"
                 loop_limits = self._space_loop_limits[spc_var]
                 old_upper_limit = loop_limits[1]                  # sets new upper limit
                 loop_limits = (loop_limits[0], loop_limits[1] - (loop_limits[1] - loop_limits[0]) % block_size)
 
-                if old_upper_limit - loop_limits[1] > 0:  # check old vs new upper limit
-                    remainder_list.append(orig_var)
+                if old_upper_limit - loop_limits[1] > 0:  # check old vs new upper
+                    remainder_counter += 1
 
-                loop_body = cgen.For(cgen.InlineInitializer(cgen.Value("int", dim_var), str(loop_limits[0])),
-                                     str(dim_var) + "<" + str(loop_limits[1]), str(dim_var) + "+=" + str(block_size), loop_body)
+                loop_body = cgen.For(cgen.InlineInitializer(cgen.Value("int", block_var), str(loop_limits[0])),
+                                     str(block_var) + "<" + str(loop_limits[1]), str(block_var) + "+=" + str(block_size), loop_body)
 
         full_remainder = []
-        for blocked_dimension in remainder_list:
+        weights = self._decide_weights(self.block_sizes, remainder_counter)  # weights for deciding remainder loop limit
+        for i in range(0, remainder_counter):
             remainder_loop = orig_loop_body
             inner_most_dim = True
 
             for spc_var, block_size in reversed(zip(list(self.space_dims), self.block_sizes)):
-                dim_var = str(self._var_map[spc_var])
-                loop_limits = self._space_loop_limits[spc_var]
+                orig_var = str(self._var_map[spc_var])
+                loop_limits = self._space_loop_limits[spc_var]  # Full loop limits
 
-                if block_size is not None and dim_var == blocked_dimension:
-                    loop_limits = (loop_limits[1] - (loop_limits[1] - loop_limits[0]) % block_size, loop_limits[1])
+                if block_size is not None:
+                    if weights[orig_var] < 0:
+                        # already blocked loop limits
+                        loop_limits = (loop_limits[0], loop_limits[1] - (loop_limits[1] - loop_limits[0]) % block_size)
+                    elif weights[orig_var] == 0:
+                        # remainder loop limits
+                        loop_limits = (loop_limits[1] - (loop_limits[1] - loop_limits[0]) % block_size, loop_limits[1])
 
-                remainder_loop = cgen.For(cgen.InlineInitializer(cgen.Value("int", dim_var), str(loop_limits[0])),
-                                          str(dim_var) + "<" + str(loop_limits[1]), str(dim_var) + "++", remainder_loop)
+                    weights[orig_var] += 1
+
+                    # If loop limits are equal that means no remainder on that dim, thus we want all iteration space
+                    if loop_limits[0] == loop_limits[1]:
+                        loop_limits = self._space_loop_limits[spc_var]
+
+                remainder_loop = cgen.For(cgen.InlineInitializer(cgen.Value("int", orig_var), str(loop_limits[0])),
+                                          str(orig_var) + "<" + str(loop_limits[1]), str(orig_var) + "++", remainder_loop)
 
                 if inner_most_dim and len(self.space_dims) > 1:
                     remainder_loop = cgen.Block([self.compiler.pragma_ivdep] + [remainder_loop])
@@ -413,6 +425,30 @@ class Propagator(object):
             full_remainder.append(remainder_loop)
 
         return [loop_body] + full_remainder if full_remainder else [loop_body]
+
+    def _decide_weights(self, block_sizes, remainder_counter):
+        """
+        Decided weights which are used for remainder loop limit calculations
+        :param block_sizes: list of block sizes
+        :param remainder_counter: int stating how many remainder loops are needed
+        :return: dict of weights
+        """
+        weights = {'i3': 0, 'i2': 0, 'i1': 0}
+        if len(block_sizes) == 3 and remainder_counter > 1:
+            if block_sizes[0] and block_sizes[1] and block_sizes[2]:
+                weights.update({'i1': -1})
+                if remainder_counter == 3:
+                    weights.update({'i2': -2})
+            elif (block_sizes[0] and block_sizes[1] and not block_sizes[2]) or\
+                 (not block_sizes[0] and block_sizes[1] and block_sizes[2]):
+                weights.update({'i2': -1})
+            else:
+                weights.update({'i1': -1})
+
+        elif len(block_sizes) == 2 and block_sizes[0] and block_sizes[1] and remainder_counter > 1:
+            weights.update({'i1': -1})
+
+        return weights
 
     def add_loop_step(self, assign, before=False):
         """Add loop step to loop body"""
