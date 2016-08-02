@@ -44,7 +44,7 @@ class Propagator(object):
                  profile=False, cache_blocking=False, block_size=5):
         self.stencils = stencils
         self.dtype = dtype
-        self.factorized = factorized or []
+        self.factorized = factorized or {}
         self.time_order = time_order
 
         # Default time and space symbols if not provided
@@ -289,6 +289,26 @@ class Propagator(object):
                 s_rhs = str(s_rhs).replace("fabs", "fabsf")
             return cgen.Assign(s_lhs, s_rhs)
 
+    def set_aligned_pragma(self, stencils, factorized, loop_counters, time_steppers):
+        """
+        Sets the alignment for the pragma.
+        :param stencils: List of stencils.
+        :param factorized:  dict of factorized elements
+        :param loop_counters: list of loop counter symbols
+        :param time_steppers: list of time stepper symbols
+        """
+        array_names = set()
+        for stencil in stencils:
+            for item in stencil.free_symbols:
+                    if str(item) not in factorized.keys() and item not in loop_counters and item not in time_steppers:
+                        array_names.add(item)
+
+        pragma_str = "omp simd aligned("
+        for name in array_names:
+            pragma_str += "%s, " % name
+        # removes , and white space from the end of a string
+        self.compiler.pragma_aligned = cgen.Pragma(pragma_str[:-2] + ":64)")
+
     def generate_loops(self, loop_body):
         """Assuming that the variable order defined in init (#var_order) is the
         order the corresponding dimensions are layout in memory, the last variable
@@ -300,7 +320,7 @@ class Propagator(object):
         :returns: :class:`cgen.Block` representing the loop
         """
         # Need to set this pragma before generating loops but after stencil substitution
-        self.compiler.set_aligned_pragma(self.sub_stencils, self.factorized, self.loop_counters, self.time_steppers)
+        self.set_aligned_pragma(self.sub_stencils, self.factorized, self.loop_counters, self.time_steppers)
 
         # Space loops
         if self.cache_blocking:
