@@ -56,3 +56,23 @@ op = Operator(..., compiler=IntelCompiler)
 
 Thread parallel execution via OpenMP can also be enabled by setting
 `DEVITO_OPENMP=1`.
+
+## Cache Blocking
+
+Devito supports loop cache blocking, which increases the effectiveness
+of memory by reusing the data in the cache. To enable this feature
+set `cache_blocking` flag to `True` in `Operator`. Furthermore you can
+specify the block sizes using `block_size` parameter. It can be a single
+number which will be used for all dimensions or a list explicitly stating
+block sizes for each dim(x,y,z). If you do not want to block some dimensions, 
+set `block_size` to `None` respectively.
+
+Note
+ If `block_size` is set to `None` or list of `None`'s
+ cache blocking will be turned off.
+ 
+Example usage:
+```
+op = Operator(..., cache_blocking=True, block_size=[5, 10, None])
+```
+ 
