@@ -980,7 +980,8 @@ If not provided, the compiler will be inferred from the
 environment variable DEVITO_ARCH, or default to GNUCompiler.</li>
 <li><strong>profile</strong> &#8211; Flag to enable performance profiling</li>
 <li><strong>cache_blocking</strong> &#8211; Flag to enable cache blocking</li>
-<li><strong>block_size</strong> &#8211; Block size used for cache clocking</li>
+<li><strong>block_size</strong> &#8211; Block size used for cache clocking. Can be either a single number used for all dimensions or
+a list stating block sizes for each dimension. Set block size to None to skip blocking on that dim</li>
 <li><strong>input_params</strong> &#8211; List of symbols that are expected as input.</li>
 <li><strong>output_params</strong> &#8211; List of symbols that define operator output.</li>
 <li><strong>factorized</strong> &#8211; A map given by {string_name:sympy_object} for including factorized terms</li>
@@ -1121,7 +1122,8 @@ If not provided, the compiler will be inferred from the
 environment variable DEVITO_ARCH, or default to GNUCompiler</li>
 <li><strong>profile</strong> &#8211; Flag to enable performance profiling</li>
 <li><strong>cache_blocking</strong> &#8211; Flag to enable cache blocking</li>
-<li><strong>block_size</strong> &#8211; Block size used for cache clocking</li>
+<li><strong>block_size</strong> &#8211; Block size used for cache clocking. Can be either a single number used for all dimensions or
+a list stating block sizes for each dimension. Set block size to None to skip blocking on that dim</li>
 </ul>
 </td>
 </tr>
@@ -1312,33 +1314,17 @@ Therefore reverse the list of dimensions, making the last variable in
 <dl class="method">
 <dt id="devito.propagator.Propagator.generate_space_loops">
 <code class="descname">generate_space_loops</code><span class="sig-paren">(</span><em>loop_body</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/propagator.html#Propagator.generate_space_loops"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.propagator.Propagator.generate_space_loops" title="Permalink to this definition">¶</a></dt>
-<dd><p>Generate cgen block for a non cache blocking space loop</p>
-<table class="docutils field-list" frame="void" rules="none">
-<col class="field-name" />
-<col class="field-body" />
-<tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>loop_body</strong> &#8211; Statement representing the loop body</td>
-</tr>
-<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><code class="xref py py-class docutils literal"><span class="pre">cgen.Block</span></code> representing the loop</td>
-</tr>
-</tbody>
-</table>
+<dd><p>Generate list&lt;cgen.For&gt; for a non cache blocking space loop
+:param loop_body: Statement representing the loop body
+:returns: :list&lt;cgen.For&gt; a list of for loops</p>
 </dd></dl>
 
 <dl class="method">
 <dt id="devito.propagator.Propagator.generate_space_loops_blocking">
 <code class="descname">generate_space_loops_blocking</code><span class="sig-paren">(</span><em>loop_body</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/propagator.html#Propagator.generate_space_loops_blocking"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.propagator.Propagator.generate_space_loops_blocking" title="Permalink to this definition">¶</a></dt>
-<dd><p>Generate cgen block for a cache blocking space loop</p>
-<table class="docutils field-list" frame="void" rules="none">
-<col class="field-name" />
-<col class="field-body" />
-<tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>loop_body</strong> &#8211; Statement representing the loop body</td>
-</tr>
-<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><code class="xref py py-class docutils literal"><span class="pre">cgen.Block</span></code> representing the loop</td>
-</tr>
-</tbody>
-</table>
+<dd><p>Generate list&lt;cgen.For&gt; for a cache blocking space loop
+:param loop_body: Statement representing the loop body
+:returns: :list&lt;cgen.For&gt; a list of for loops</p>
 </dd></dl>
 
 <dl class="method">

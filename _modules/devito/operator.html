@@ -215,7 +215,8 @@
 <span class="sd">                     environment variable DEVITO_ARCH, or default to GNUCompiler.</span>
 <span class="sd">    :param profile: Flag to enable performance profiling</span>
 <span class="sd">    :param cache_blocking: Flag to enable cache blocking</span>
-<span class="sd">    :param block_size: Block size used for cache clocking</span>
+<span class="sd">    :param block_size: Block size used for cache clocking. Can be either a single number used for all dimensions or</span>
+<span class="sd">                      a list stating block sizes for each dimension. Set block size to None to skip blocking on that dim</span>
 <span class="sd">    :param input_params: List of symbols that are expected as input.</span>
 <span class="sd">    :param output_params: List of symbols that define operator output.</span>
 <span class="sd">    :param factorized: A map given by {string_name:sympy_object} for including factorized terms</span>
