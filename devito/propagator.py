@@ -277,7 +277,7 @@ class Propagator(object):
         omp_master = [cgen.Pragma("omp master")] if self.compiler.openmp else []
         omp_single = [cgen.Pragma("omp single")] if self.compiler.openmp else []
         omp_parallel = [cgen.Pragma("omp parallel")] if self.compiler.openmp else []
-        omp_for = [cgen.Pragma("omp for")] if self.compiler.openmp else []
+        omp_for = [cgen.Pragma("omp for schedule(static)")] if self.compiler.openmp else []
         t_loop_limits = self.time_loop_limits
         t_var = str(self._var_map[self.time_dim])
         cond_op = "<" if self._forward else ">"
