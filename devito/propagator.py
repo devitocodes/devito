@@ -38,9 +38,10 @@ class Propagator(object):
     """
 
     def __init__(self, name, nt, shape, stencils, factorized=None, spc_border=0, time_order=0,
-                 time_dim=None, space_dims=None, forward=True, compiler=None,
+                 time_dim=None, space_dims=None, dtype=np.float32, forward=True, compiler=None,
                  profile=False, cache_blocking=False, block_size=5):
         self.stencils = stencils
+        self.dtype = dtype
         self.factorized = factorized or []
         self.time_order = time_order
 
@@ -223,15 +224,12 @@ class Propagator(object):
         if len(self.factorized) > 0:
             for name, term in zip(self.factorized.keys(), self.factorized):
                 expr = self.factorized[name]
-                # TODO: add support for double precision
-                self.add_local_var(name, np.float32)
-                # TODO: undo precision enforcing
-                factors.append(
-                    cgen.Assign(
-                        name,
-                        str(ccode(expr.xreplace(self._var_map))).replace("pow", "powf").replace("fabs", "fabsf")
-                    )
-                )
+                self.add_local_var(name, self.dtype)
+                if self.dtype is np.float32:
+                    factors.append(cgen.Assign(name, str(ccode(expr.xreplace(self._var_map))).
+                                               replace("pow", "powf").replace("fabs", "fabsf")))
+                else:
+                    factors.append(cgen.Assign(name, str(ccode(expr.xreplace(self._var_map)))))
         stmts = []
 
         for equality in stencils:
@@ -257,9 +255,9 @@ class Propagator(object):
         else:
             s_lhs = ccode(self.time_substitutions(equality.lhs).xreplace(self._var_map))
             s_rhs = ccode(self.time_substitutions(equality.rhs).xreplace(self._var_map))
-            s_rhs = str(s_rhs).replace("pow", "powf")
-            s_rhs = str(s_rhs).replace("fabs", "fabsf")
-
+            if self.dtype is np.float32:
+                s_rhs = str(s_rhs).replace("pow", "powf")
+                s_rhs = str(s_rhs).replace("fabs", "fabsf")
             return cgen.Assign(s_lhs, s_rhs)
 
     def generate_loops(self, loop_body):
@@ -281,7 +279,7 @@ class Propagator(object):
         omp_master = [cgen.Pragma("omp master")] if self.compiler.openmp else []
         omp_single = [cgen.Pragma("omp single")] if self.compiler.openmp else []
         omp_parallel = [cgen.Pragma("omp parallel")] if self.compiler.openmp else []
-        omp_for = [cgen.Pragma("omp for")] if self.compiler.openmp else []
+        omp_for = [cgen.Pragma("omp for schedule(static)")] if self.compiler.openmp else []
         t_loop_limits = self.time_loop_limits
         t_var = str(self._var_map[self.time_dim])
         cond_op = "<" if self._forward else ">"
@@ -346,8 +344,7 @@ class Propagator(object):
             )
 
             if ivdep and len(self.space_dims) > 1:
-                loop_body = cgen.Block([self.compiler.pragma_ivdep] + [loop_body])
-
+                loop_body = cgen.Block(self.compiler.pragma_ivdep + self.compiler.pragma_nontemporal + [loop_body])
             ivdep = False
         return [loop_body]  # returns body as a list
 
@@ -376,7 +373,7 @@ class Propagator(object):
                                  orig_var + "<" + upper_limit_str, orig_var + "++", loop_body)
 
             if inner_most_dim and len(self.space_dims) > 1:
-                loop_body = cgen.Block([self.compiler.pragma_ivdep] + [loop_body])
+                loop_body = cgen.Block(self.compiler.pragma_ivdep + self.compiler.pragma_nontemporal + [loop_body])
             inner_most_dim = False
 
         remainder_counter = 0  # indicates how many remainder loops we need
@@ -425,7 +422,7 @@ class Propagator(object):
                                           remainder_loop)
 
                 if inner_most_dim and len(self.space_dims) > 1:
-                    remainder_loop = cgen.Block([self.compiler.pragma_ivdep] + [remainder_loop])
+                    remainder_loop = cgen.Block(self.compiler.pragma_ivdep + [remainder_loop])
 
                 inner_most_dim = False
             full_remainder.append(remainder_loop)

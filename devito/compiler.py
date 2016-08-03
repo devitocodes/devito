@@ -48,7 +48,7 @@ class Compiler(GCCToolchain):
         self.undefines = []
         # Devito-specific flags and properties
         self.openmp = openmp
-        self.pragma_ivdep = Pragma('ivdep')
+        self.pragma_ivdep = [Pragma('ivdep')]
         self.pragma_nontemporal = []
         self.pragma_aligned = []
 
@@ -71,8 +71,7 @@ class GNUCompiler(Compiler):
 
         if self.openmp:
             self.ldflags += ['-fopenmp']
-
-        self.pragma_ivdep = Pragma('GCC ivdep')
+        self.pragma_ivdep = [Pragma('GCC ivdep')]
 
 
 class ClangCompiler(Compiler):
@@ -105,7 +104,7 @@ class IntelCompiler(Compiler):
         super(IntelCompiler, self).__init__(*args, **kwargs)
         self.cc = 'icpc'
         self.ld = 'icpc'
-        self.cflags = ['-O3', '-g', '-fPIC', '-Wall', "-mavx"]
+        self.cflags = ['-O3', '-g', '-fPIC', '-Wall', "-xhost"]
         self.ldflags = ['-shared']
 
         if self.openmp:

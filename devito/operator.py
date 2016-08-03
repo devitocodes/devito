@@ -170,7 +170,7 @@ class Operator(object):
 
         # Apply user-defined substitutions to stencil
         self.stencils = [eqn.subs(args) for eqn, args in zip(self.stencils, substitutions)]
-        self.propagator = Propagator(self.getName(), nt, shape, self.stencils, factorized=factorized,
+        self.propagator = Propagator(self.getName(), nt, shape, self.stencils, factorized=factorized, dtype=dtype,
                                      spc_border=spc_border, time_order=time_order, forward=forward,
                                      space_dims=self.space_dims, compiler=self.compiler, profile=profile,
                                      cache_blocking=cache_blocking, block_size=block_size)
