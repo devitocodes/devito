@@ -15,6 +15,7 @@ from devito.compiler import (IntelMICCompiler, get_compiler_from_env,
 from devito.function_manager import FunctionDescriptor, FunctionManager
 from devito.iteration import Iteration
 from devito.profiler import Profiler
+from tools import flatten
 
 
 class Propagator(object):
@@ -39,8 +40,8 @@ class Propagator(object):
     :param block_size: Block size used for cache clocking. Can be either a single number used for all dimensions or
                       a list stating block sizes for each dimension. Set block size to None to skip blocking on that dim
     """
-    def __init__(self, name, nt, shape, spc_border=0, time_order=0,
-                 time_dim=None, space_dims=None, forward=True, compiler=None,
+    def __init__(self, name, nt, shape, stencils, factorized=None, spc_border=0, time_order=0,
+                 time_dim=None, space_dims=None, dtype=np.float32, forward=True, compiler=None,
                  profile=False, cache_blocking=False, block_size=5):
         self.stencils = stencils
         self.dtype = dtype
@@ -297,11 +298,11 @@ class Propagator(object):
         :param loop_counters: list of loop counter symbols
         :param time_steppers: list of time stepper symbols
         """
+
         array_names = set()
-        for stencil in stencils:
-            for item in stencil.free_symbols:
-                    if str(item) not in factorized.keys() and item not in loop_counters and item not in time_steppers:
-                        array_names.add(item)
+        for item in flatten([stencil.free_symbols for stencil in stencils]):
+            if str(item) not in factorized.keys() and item not in loop_counters and item not in time_steppers:
+                array_names.add(item)
 
         pragma_str = "omp simd aligned("
         for name in array_names:
@@ -319,8 +320,10 @@ class Propagator(object):
         :param loop_body: Statement representing the loop body
         :returns: :class:`cgen.Block` representing the loop
         """
-        # Need to set this pragma before generating loops but after stencil substitution
-        self.set_aligned_pragma(self.sub_stencils, self.factorized, self.loop_counters, self.time_steppers)
+        # Need to set this pragma before generating loops but after
+        # stencil substitution
+        self.set_aligned_pragma(self.sub_stencils, self.factorized,
+                                self.loop_counters, self.time_steppers)
 
         # Space loops
         if self.cache_blocking:
@@ -391,7 +394,7 @@ class Propagator(object):
         :param loop_body: Statement representing the loop body
         :returns: :list<cgen.For> a list of for loops
         """
-        ivdep = True
+        inner_most_dim = True
 
         for spc_var in reversed(list(self.space_dims)):
             dim_var = self._var_map[spc_var]
@@ -403,10 +406,8 @@ class Propagator(object):
                 loop_body
             )
 
-            if ivdep and len(self.space_dims) > 1:
-                pragma = self.compiler.pragma_aligned if self.compiler.openmp else self.compiler.pragma_ivdep + self.compiler.pragma_nontemporal
-                loop_body = cgen.Block([pragma] + [loop_body])
-            ivdep = False
+            loop_body = self.add_inner_most_dim_pragma(inner_most_dim, self.space_dims, loop_body)
+            inner_most_dim = False
         return [loop_body]  # returns body as a list
 
     def generate_space_loops_blocking(self, loop_body):
@@ -433,9 +434,7 @@ class Propagator(object):
             loop_body = cgen.For(cgen.InlineInitializer(cgen.Value("int", orig_var), lower_limit_str),
                                  orig_var + "<" + upper_limit_str, orig_var + "++", loop_body)
 
-            if inner_most_dim and len(self.space_dims) > 1:
-                pragma = self.compiler.pragma_aligned if self.compiler.openmp else self.compiler.openmp + self.compiler.pragma_nontemporal
-                loop_body = cgen.Block([pragma] + [loop_body])
+            loop_body = self.add_inner_most_dim_pragma(inner_most_dim, self.space_dims, loop_body)
             inner_most_dim = False
 
         remainder_counter = 0  # indicates how many remainder loops we need
@@ -483,14 +482,26 @@ class Propagator(object):
                                           str(orig_var) + "<" + str(loop_limits[1]), str(orig_var) + "++",
                                           remainder_loop)
 
-                if inner_most_dim and len(self.space_dims) > 1:
-                    pragma = self.compiler.pragma_aligned if self.compiler.openmp else self.compiler.openmp + self.compiler.pragma_nontemporal
-                    loop_body = cgen.Block([pragma] + [loop_body])
-
+                remainder_loop = self.add_inner_most_dim_pragma(inner_most_dim, self.space_dims, remainder_loop)
                 inner_most_dim = False
+
             full_remainder.append(remainder_loop)
 
         return [loop_body] + full_remainder if full_remainder else [loop_body]
+
+    def add_inner_most_dim_pragma(self, inner_most_dim, space_dims, loop_body):
+        """
+        Adds pragma to inner most dim
+        :param inner_most_dim: flag indicating whether its inner most dim
+        :param space_dims: space dimensions of kernel
+        :param loop_body: original loop body
+        :return: cgen.Block - loop body with pragma
+        """
+        if inner_most_dim and len(space_dims) > 1:
+            pragma = [self.compiler.pragma_aligned] if self.compiler.openmp\
+                else self.compiler.pragma_ivdep + self.compiler.pragma_nontemporal
+            loop_body = cgen.Block(pragma + [loop_body])
+        return loop_body
 
     def _decide_weights(self, block_sizes, remainder_counter):
         """
