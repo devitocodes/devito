@@ -85,9 +85,7 @@ class Acoustic_cg:
         self.srca = SourceLike(name="srca", npoint=1, nt=self.nt, dt=self.dt, h=self.h,
                                coordinates=np.array(self.data.source_coords, dtype=self.dtype)[np.newaxis, :],
                                ndim=len(dimensions), dtype=self.dtype, nbpml=nbpml)
-        if dm_initializer is not None:
-            self.dm = DenseData(name="dm", shape=self.model.vp.shape, dtype=self.dtype)
-            self.dm.data[:] = np.pad(dm_initializer, tuple(pad_list), 'edge')
+        self.dm = DenseData(name="dm", shape=self.model.vp.shape, dtype=self.dtype)
 
     def Forward(self):
         fw = ForwardOperator(
@@ -111,9 +109,9 @@ class Acoustic_cg:
         grad = grad_op.apply()[0]
         return grad
 
-    def Born(self):
-        born_op = BornOperator(
-            self.dm, self.m, self.src, self.damp, self.rec, time_order=self.t_order, spc_order=self.s_order)
+    def Born(self, dm):
+        self.dm.data[:] = dm
+        born_op = BornOperator(self.dm, self.m, self.src, self.damp, self.rec, time_order=self.t_order, spc_order=self.s_order)
         born_op.apply()
 
         return self.rec.data

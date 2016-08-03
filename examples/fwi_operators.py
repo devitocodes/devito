@@ -219,15 +219,10 @@ class BornOperator(Operator):
         subs = {s: src.dt, h: src.h}
 
         # Add Born-specific updates and resets
-        total_dim = tuple(u.indices(m.shape))
-        space_dim = tuple(m.indices(m.shape))
-        src2 = -(src.dt**-2) * (u.indexed[total_dim]-2*u.indexed[tuple((t - 1,) + space_dim)]
-                                + u.indexed[tuple((t - 2,) + space_dim)]) * dm.indexed[space_dim]
-        insert_second_source = Eq(U.indexed[total_dim], U.indexed[total_dim] + (src.dt * src.dt)
-                                  / m.indexed[space_dim]*src2)
-        reset_u = Eq(u.indexed[tuple((t - 2,) + space_dim)], 0)
+        src2 = -(src.dt**-2) * (- 2 * u + u.forward + u.backward) * dm
+        insert_second_source = Eq(U, U + (src.dt * src.dt) / m*src2)
         stencils = [Eq(u.forward, first_stencil), Eq(U.forward, second_stencil),
-                    insert_second_source, reset_u]
+                    insert_second_source]
         super(BornOperator, self).__init__(src.nt, m.shape, stencils=stencils,
                                            substitutions=[subs, subs, {}, {}], spc_border=spc_order/2,
                                            time_order=time_order, forward=True, dtype=m.dtype,
@@ -236,7 +231,7 @@ class BornOperator(Operator):
         # Insert source and receiver terms post-hoc
         self.input_params += [dm, src, src.coordinates, rec, rec.coordinates]
         self.output_params += [U]
-        self.propagator.time_loop_stencils_b = src.add(m, u)
+        self.propagator.time_loop_stencils_b = src.add(m, u, t - 1)
         self.propagator.time_loop_stencils_a = rec.read(U)
         self.propagator.add_devito_param(dm)
         self.propagator.add_devito_param(src)
