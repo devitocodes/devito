@@ -165,12 +165,14 @@ class Operator(object):
         self.stencils = [Eq(expr_indexify(eqn.lhs), expr_indexify(eqn.rhs))
                          for eqn in self.stencils]
 
+        for name, value in factorized.items():
+            factorized[name] = expr_indexify(value)
+
         # Apply user-defined substitutions to stencil
         self.stencils = [eqn.subs(args) for eqn, args in zip(self.stencils, substitutions)]
-        self.propagator = Propagator(self.getName(), nt, shape, spc_border=spc_border,
-                                     time_order=time_order, forward=forward,
-                                     space_dims=self.space_dims,
-                                     compiler=self.compiler, profile=profile,
+        self.propagator = Propagator(self.getName(), nt, shape, self.stencils, factorized=factorized,
+                                     spc_border=spc_border, time_order=time_order, forward=forward,
+                                     space_dims=self.space_dims, compiler=self.compiler, profile=profile,
                                      cache_blocking=cache_blocking, block_size=block_size)
         self.dtype = dtype
         self.nt = nt
@@ -181,11 +183,6 @@ class Operator(object):
         for param in self.input_params + self.output_params:
             self.propagator.add_devito_param(param)
             self.symbol_to_data[param.name] = param
-
-        self.propagator.stencils = self.stencils
-        self.propagator.factorized = factorized
-        for name in factorized.keys():
-            self.propagator.factorized[name] = expr_indexify(factorized[name])
 
     def apply(self, debug=False):
         """:param debug: If True, use Python to apply the operator. Default False.
