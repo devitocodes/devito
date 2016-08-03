@@ -226,7 +226,8 @@ class Propagator(object):
                 expr = self.factorized[name]
                 self.add_local_var(name, self.dtype)
                 if self.dtype is np.float32:
-                    factors.append(cgen.Assign(name, str(ccode(expr.xreplace(self._var_map))).replace("pow", "powf").replace("fabs", "fabsf")))
+                    factors.append(cgen.Assign(name, str(ccode(expr.xreplace(self._var_map))).
+                                               replace("pow", "powf").replace("fabs", "fabsf")))
                 else:
                     factors.append(cgen.Assign(name, str(ccode(expr.xreplace(self._var_map)))))
         stmts = []
