@@ -37,11 +37,11 @@ class Propagator(object):
                       a list stating block sizes for each dimension. Set block size to None to skip blocking on that dim
     """
 
-    def __init__(self, name, nt, shape, stencils, factorized=[], spc_border=0, time_order=0,
+    def __init__(self, name, nt, shape, stencils, factorized=None, spc_border=0, time_order=0,
                  time_dim=None, space_dims=None, forward=True, compiler=None,
                  profile=False, cache_blocking=False, block_size=5):
         self.stencils = stencils
-        self.factorized = factorized
+        self.factorized = factorized or []
         self.time_order = time_order
 
         # Default time and space symbols if not provided
