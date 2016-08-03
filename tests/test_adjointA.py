@@ -42,12 +42,12 @@ class Test_AdjointA(object):
         if len(dimensions) == 3:
             location = (location[0], 0., location[1])
         data.set_source(time_series, dt, location)
-        receiver_coords = np.zeros((30, len(dimensions)))
-        receiver_coords[:, 0] = np.linspace(50, origin[0] + dimensions[0]*spacing[0] - 50, num=30)
+        receiver_coords = np.zeros((50, len(dimensions)))
+        receiver_coords[:, 0] = np.linspace(50, origin[0] + dimensions[0]*spacing[0] - 50, num=50)
         receiver_coords[:, -1] = location[-1]
 
         data.set_receiver_pos(receiver_coords)
-        data.set_shape(nt, 30)
+        data.set_shape(nt, 50)
         # Adjoint test
         wave_true = Acoustic_cg(model, data, None, None, t_order=time_order, s_order=space_order, nbpml=10)
         return wave_true
