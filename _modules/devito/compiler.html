@@ -179,7 +179,7 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">undefines</span> <span class="o">=</span> <span class="p">[]</span>
         <span class="c1"># Devito-specific flags and properties</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">openmp</span> <span class="o">=</span> <span class="n">openmp</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">pragma_ivdep</span> <span class="o">=</span> <span class="n">Pragma</span><span class="p">(</span><span class="s1">&#39;ivdep&#39;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">pragma_ivdep</span> <span class="o">=</span> <span class="p">[</span><span class="n">Pragma</span><span class="p">(</span><span class="s1">&#39;ivdep&#39;</span><span class="p">)]</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">pragma_nontemporal</span> <span class="o">=</span> <span class="p">[]</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">pragma_aligned</span> <span class="o">=</span> <span class="p">[]</span>
 
@@ -202,8 +202,7 @@
 
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">openmp</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">ldflags</span> <span class="o">+=</span> <span class="p">[</span><span class="s1">&#39;-fopenmp&#39;</span><span class="p">]</span>
-
-        <span class="bp">self</span><span class="o">.</span><span class="n">pragma_ivdep</span> <span class="o">=</span> <span class="n">Pragma</span><span class="p">(</span><span class="s1">&#39;GCC ivdep&#39;</span><span class="p">)</span></div>
+        <span class="bp">self</span><span class="o">.</span><span class="n">pragma_ivdep</span> <span class="o">=</span> <span class="p">[</span><span class="n">Pragma</span><span class="p">(</span><span class="s1">&#39;GCC ivdep&#39;</span><span class="p">)]</span></div>
 
 
 <span class="k">class</span> <span class="nc">ClangCompiler</span><span class="p">(</span><span class="n">Compiler</span><span class="p">):</span>
@@ -236,7 +235,7 @@
         <span class="nb">super</span><span class="p">(</span><span class="n">IntelCompiler</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">cc</span> <span class="o">=</span> <span class="s1">&#39;icpc&#39;</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">ld</span> <span class="o">=</span> <span class="s1">&#39;icpc&#39;</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">cflags</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;-O3&#39;</span><span class="p">,</span> <span class="s1">&#39;-g&#39;</span><span class="p">,</span> <span class="s1">&#39;-fPIC&#39;</span><span class="p">,</span> <span class="s1">&#39;-Wall&#39;</span><span class="p">,</span> <span class="s2">&quot;-mavx&quot;</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">cflags</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;-O3&#39;</span><span class="p">,</span> <span class="s1">&#39;-g&#39;</span><span class="p">,</span> <span class="s1">&#39;-fPIC&#39;</span><span class="p">,</span> <span class="s1">&#39;-Wall&#39;</span><span class="p">,</span> <span class="s2">&quot;-xhost&quot;</span><span class="p">]</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">ldflags</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;-shared&#39;</span><span class="p">]</span>
 
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">openmp</span><span class="p">:</span>
