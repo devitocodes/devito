@@ -265,6 +265,7 @@ class TimeData(DenseData):
             return
         else:
             super(TimeData, self).__init__(*args, **kwargs)
+            self._full_data = self._data.view() if self._data else None
             time_dim = kwargs.get('time_dim')
             self.time_order = kwargs.get('time_order', 1)
             self.save = kwargs.get('save', False)
@@ -295,8 +296,36 @@ class TimeData(DenseData):
         """function to allocate memmory in terms of numpy ndarrays."""
         super(TimeData, self)._allocate_memory()
 
+        self._full_data = self._data.view()
+
         if self.pad_time:
             self._data = self._data[self.time_order:, :, :]
+
+    def init_data(self, timestep, data):
+        """Function to initialize the initial time steps
+
+        :param timestep: Time step to initialize. Must be negative since calculated timesteps start from 0.
+        :param data: :class:`numpy.ndarray` containing the initial spatial data
+        """
+        if self._full_data is None:
+            self._allocate_memory()
+
+        assert timestep < 0, "Timestep must be negative"
+        assert data.shape == self._full_data[0].shape, "Data must have the same shape as the spatial data"
+
+        # Adds the time_order to the index to access padded indexes
+        timestep += self.time_order
+        self._full_data[timestep] = data
+
+    def get_data(self, timestep=0):
+        """Returns the calculated data at the specified timestep
+
+        :param timestep: The timestep from which we want to retrieve the data.
+                         Specify only in the case :obj:`self.save` is True
+        """
+        timestep += self.time_order
+
+        return self._full_data[timestep, :]
 
     @property
     def dim(self):
