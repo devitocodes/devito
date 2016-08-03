@@ -886,6 +886,21 @@ and whether we want to write intermediate timesteps in the buffer.</p>
 <dd><p>Symbol for the time-forward state of the function</p>
 </dd></dl>
 
+<dl class="method">
+<dt id="devito.interfaces.TimeData.get_data">
+<code class="descname">get_data</code><span class="sig-paren">(</span><em>timestep=0</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/interfaces.html#TimeData.get_data"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.interfaces.TimeData.get_data" title="Permalink to this definition">¶</a></dt>
+<dd><p>Returns the calculated data at the specified timestep</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>timestep</strong> &#8211; The timestep from which we want to retrieve the data.
+Specify only in the case <code class="xref py py-obj docutils literal"><span class="pre">self.save</span></code> is True</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
 <dl class="classmethod">
 <dt id="devito.interfaces.TimeData.indices">
 <em class="property">classmethod </em><code class="descname">indices</code><span class="sig-paren">(</span><em>shape</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/interfaces.html#TimeData.indices"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.interfaces.TimeData.indices" title="Permalink to this definition">¶</a></dt>
@@ -897,6 +912,25 @@ and whether we want to write intermediate timesteps in the buffer.</p>
 <tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>shape</strong> &#8211; Shape of the spatial data</td>
 </tr>
 <tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body">Indices used for axis.</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="devito.interfaces.TimeData.init_data">
+<code class="descname">init_data</code><span class="sig-paren">(</span><em>timestep</em>, <em>data</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/interfaces.html#TimeData.init_data"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.interfaces.TimeData.init_data" title="Permalink to this definition">¶</a></dt>
+<dd><p>Function to initialize the initial time steps</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>timestep</strong> &#8211; Time step to initialize.
+Must be negative since calculated timesteps start from 0.</li>
+<li><strong>data</strong> &#8211; <code class="xref py py-class docutils literal"><span class="pre">numpy.ndarray</span></code> containing the initial spatial data</li>
+</ul>
+</td>
 </tr>
 </tbody>
 </table>
