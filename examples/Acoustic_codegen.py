@@ -109,8 +109,7 @@ class Acoustic_cg:
         grad_op = GradientOperator(self.u, self.m, self.rec, self.damp, time_order=self.t_order, spc_order=self.s_order)
         dt = self.dt
         grad = grad_op.apply()[0]
-
-        return (dt**-2)*grad
+        return grad
 
     def Born(self):
         born_op = BornOperator(

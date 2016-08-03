@@ -6,7 +6,7 @@ import pytest
 
 
 class Test_Gradient(object):
-    @pytest.fixture(params=[(60, 70)])
+    @pytest.fixture(params=[(70, 80), (60, 70, 80)])
     def Acoustic(self, request, time_order, space_order):
         model = IGrid()
         model0 = IGrid()
@@ -19,8 +19,11 @@ class Test_Gradient(object):
         def smooth10(vel):
             out = np.zeros(dimensions)
             out[:] = vel[:]
-            for a in range(5, dimensions[1]-6):
-                out[:, a] = np.sum(vel[:, a - 5:a + 5], axis=1) / 10
+            for a in range(5, dimensions[-1]-6):
+                if len(dimensions) == 2:
+                    out[:, a] = np.sum(vel[:, a - 5:a + 5], axis=1) / 10
+                else:
+                    out[:, :, a] = np.sum(vel[:, :, a - 5:a + 5], axis=2) / 10
             return out
 
         # True velocity
@@ -47,7 +50,7 @@ class Test_Gradient(object):
         f0 = .007
         dt = model.get_critical_dt()
         t0 = 0.0
-        tn = 1000.0
+        tn = 500.0
         nt = int(1+(tn-t0)/dt)
         # Set up the source as Ricker wavelet for f0
         def source(t, f0):
@@ -55,17 +58,21 @@ class Test_Gradient(object):
             return (1-2.*r**2)*np.exp(-r**2)
 
         time_series = source(np.linspace(t0, tn, nt), f0)
-        location = (origin[0] + dimensions[0] * spacing[0] * 0.5, 15.0)
+        location = (origin[0] + dimensions[0] * spacing[0] * 0.5,
+                    origin[-1] + 2 * spacing[-1])
+        if len(dimensions) == 3:
+            location = (location[0], origin[1] + dimensions[1] * spacing[1] * 0.5, location[1])
         data.set_source(time_series, dt, location)
         data0.set_source(time_series, dt, location)
-        receiver_coords = np.zeros((30, 2))
-        receiver_coords[:, 0] = np.linspace(50, origin[0] + dimensions[0]*spacing[0] - 50, num=30)
-        receiver_coords[:, 1] = 15.0
-        #receiver_coords[:, 2] = 0.0 #$location[2]
+        receiver_coords = np.zeros((50, len(dimensions)))
+        receiver_coords[:, 0] = np.linspace(50, origin[0] + dimensions[0]*spacing[0] - 50, num=50)
+        receiver_coords[:, -1] = location[-1]
+        if len(dimensions) == 3:
+            receiver_coords[:, 1] = location[1]
         data.set_receiver_pos(receiver_coords)
         data0.set_receiver_pos(receiver_coords)
-        data.set_shape(nt, 30)
-        data0.set_shape(nt, 30)
+        data.set_shape(nt, 50)
+        data0.set_shape(nt, 50)
         # Adjoint test
         wave_true = Acoustic_cg(model, data, None, None, t_order=time_order, s_order=space_order, nbpml=10)
         wave_0 = Acoustic_cg(model0, data0, None, None, t_order=time_order, s_order=space_order, nbpml=10)
@@ -82,12 +89,12 @@ class Test_Gradient(object):
     def test_Grad(self, Acoustic):
         rec = Acoustic[0].Forward()[0]
         rec0, u0 = Acoustic[1].Forward()
+        F0 = .5*linalg.norm(rec0 - rec)**2
         gradient = Acoustic[1].Gradient(rec0 - rec, u0)
         # Actual Gradient test
         G = np.dot(gradient.reshape(-1), Acoustic[2].reshape(-1))
         # FWI Gradient test
-        F0 = .5*linalg.norm(rec0 - rec)**2
-        print(F0, G)
+        # print(F0, G)
         H = [1, 0.1, 0.01, .001, 0.0001, 0.00001, 0.000001]
         error1 = np.zeros((7))
         error2 = np.zeros((7))
@@ -96,7 +103,7 @@ class Test_Gradient(object):
             d = Acoustic[1].Forward()[0]
             error1[i] = np.absolute(.5*linalg.norm(d - rec)**2 - F0)
             error2[i] = np.absolute(.5*linalg.norm(d - rec)**2 - F0 - H[i] * G)
-            print(F0,.5*linalg.norm(d - rec)**2, H[i] *G)
+            # print(F0,.5*linalg.norm(d - rec)**2, error1[i], H[i] *G, error2[i])
             # print('For h = ', H[i], '\nFirst order errors is : ', error1[i],
             #       '\nSecond order errors is ', error2[i])
 
@@ -109,12 +116,12 @@ class Test_Gradient(object):
         p2 = np.polyfit(np.log10(H), np.log10(error2), 1)
         print(p1)
         print(p2)
-        assert np.isclose(p1[0], 1.0, atol=0.05)
-        assert np.isclose(p2[0], 2.0, atol=0.01)
+        assert np.isclose(p1[0], 1.0, rtol=0.01)
+        assert np.isclose(p2[0], 2.0, rtol=0.01)
 
 if __name__ == "__main__":
     t = Test_Gradient()
     request = type('', (), {})()
-    request.param = (70, 80)
+    request.param = (60, 70, 80)
     ac = t.Acoustic(request, 2, 2)
     t.test_Grad(ac)

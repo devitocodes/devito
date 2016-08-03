@@ -28,7 +28,7 @@ class Test_AdjointA(object):
         f0 = .010
         dt = model.get_critical_dt()
         t0 = 0.0
-        tn = 100.0
+        tn = 500.0
         nt = int(1+(tn-t0)/dt)
 
         # Set up the source as Ricker wavelet for f0
@@ -40,12 +40,13 @@ class Test_AdjointA(object):
         location = (origin[0] + dimensions[0] * spacing[0] * 0.5,
                     origin[-1] + 2 * spacing[-1])
         if len(dimensions) == 3:
-            location = (location[0], 0., location[1])
+            location = (location[0], origin[1] + dimensions[1] * spacing[1] * 0.5, location[1])
         data.set_source(time_series, dt, location)
         receiver_coords = np.zeros((50, len(dimensions)))
         receiver_coords[:, 0] = np.linspace(50, origin[0] + dimensions[0]*spacing[0] - 50, num=50)
         receiver_coords[:, -1] = location[-1]
-
+        if len(dimensions) == 3:
+            receiver_coords[:, -1] = location[1]
         data.set_receiver_pos(receiver_coords)
         data.set_shape(nt, 50)
         # Adjoint test
@@ -75,7 +76,7 @@ class Test_AdjointA(object):
             term1 = term1 + srca[ti] * Acoustic.data.get_source(ti)
         term2 = linalg.norm(rec)**2
         print(term1, term2, term1 - term2, term1 / term2)
-        assert np.isclose(term1 / term2, 1.0)
+        assert np.isclose(term1 / term2, 1.0, atol=0.001)
 
 if __name__ == "__main__":
     t = Test_AdjointA()

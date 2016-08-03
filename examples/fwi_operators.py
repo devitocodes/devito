@@ -79,7 +79,7 @@ class SourceLike(PointData):
                       for x, idx in zip(self.sym_coordinates,
                                         self.sym_coord_indices)])
 
-    def point2grid(self, u, m):
+    def point2grid(self, u, m, t=t):
         """Generates an expression for generic point-to-grid interpolation"""
         dt = self.dt
         subs = dict(zip(self.rs, self.sym_coord_bases))
@@ -91,7 +91,7 @@ class SourceLike(PointData):
                 for idx, b in zip(index_matrix, self.bs)]
         return eqns
 
-    def grid2point(self, u):
+    def grid2point(self, u, t=t):
         """Generates an expression for generic grid-to-point interpolation"""
         subs = dict(zip(self.rs, self.sym_coord_bases))
         index_matrix = [tuple([idx + ii + self.nbpml for ii, idx
@@ -105,9 +105,9 @@ class SourceLike(PointData):
         interp_expr = Eq(self.indexed[t, p], self.grid2point(u))
         return [Iteration(interp_expr, variable=p, limits=self.shape[1])]
 
-    def add(self, m, u):
+    def add(self, m, u, t=t):
         """Iteration loop over points performing point-to-grid interpolation."""
-        return [Iteration(self.point2grid(u, m), variable=p, limits=self.shape[1])]
+        return [Iteration(self.point2grid(u, m, t), variable=p, limits=self.shape[1])]
 
 
 class ForwardOperator(Operator):
@@ -184,24 +184,19 @@ class GradientOperator(Operator):
         # Add substitutions for spacing (temporal and spatial)
         s, h = symbols('s h')
         subs = {s: rec.dt, h: rec.h}
-
-        # Add Gradient-specific updates and resets
-        gradient_update = Eq(grad, grad - (v - 2 * v.forward + v.forward.forward) * u)
-        # reset_v = Eq(v.indexed[tuple((t + 2,) + space_dim)], 0)
-        stencils = [Eq(v.backward, stencil), gradient_update]
-        super(GradientOperator, self).__init__(rec.nt, m.shape, stencils=stencils,
+        # Add Gradient-specific updates. The dt2 is currently hacky as it has to match the cyclic indices
+        gradient_update = Eq(grad, grad - s**-2*(v + v.forward - 2 * v.forward.forward ) * u.forward)
+        stencils = [gradient_update, Eq(v.backward, stencil)]
+        super(GradientOperator, self).__init__(rec.nt - 1, m.shape, stencils=stencils,
                                                substitutions=[subs, subs, {}], spc_border=spc_order/2,
                                                time_order=time_order, forward=False, dtype=m.dtype,
-                                               **kwargs)
-
+                                               input_params=[m, v, damp, u], **kwargs)
         # Insert receiver term post-hoc
-        self.input_params += [u, rec, rec.coordinates]
+        self.input_params += [grad, rec, rec.coordinates]
         self.output_params = [grad]
-        self.propagator.time_loop_stencils_a = rec.add(m, v)
-        self.propagator.add_devito_param(u)
+        self.propagator.time_loop_stencils_b = rec.add(m, v, t + 1)
         self.propagator.add_devito_param(rec)
         self.propagator.add_devito_param(rec.coordinates)
-        self.propagator.add_devito_param(grad)
 
 
 class BornOperator(Operator):
