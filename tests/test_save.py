@@ -21,7 +21,10 @@ def run_simulation(save=False, dx=0.01, dy=0.01, a=0.5, timesteps=100):
     dx2, dy2 = dx**2, dy**2
     dt = dx2 * dy2 / (2 * a * (dx2 + dy2))
 
-    u = TimeData(name='u', shape=(nx, ny), time_dim=timesteps, time_order=1, space_order=2, save=save, pad_time=save)
+    u = TimeData(
+        name='u', shape=(nx, ny), time_dim=timesteps,
+        time_order=1, space_order=2, save=save, pad_time=save
+    )
     u.init_data(-1, initial())
 
     a, h, s = symbols('a h s')
