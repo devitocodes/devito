@@ -38,6 +38,7 @@ class Test_Gradient(object):
         else:
             pad = ((nbpml, nbpml), (nbpml, nbpml), (nbpml, nbpml))
         dm_pad = np.pad(dm, pad, 'edge')
+        initial_vp_pad = np.pad(initial_vp, pad, 'edge')
         model.create_model(origin, spacing, true_vp)
         model0.create_model(origin, spacing, initial_vp)
         # Define seismic data.
@@ -68,7 +69,7 @@ class Test_Gradient(object):
         # Adjoint test
         wave_true = Acoustic_cg(model, data, None, None, t_order=time_order, s_order=space_order, nbpml=10)
         wave_0 = Acoustic_cg(model0, data0, None, None, t_order=time_order, s_order=space_order, nbpml=10)
-        return wave_true, wave_0, dm_pad, model0, dm, initial_vp
+        return wave_true, wave_0, dm_pad, initial_vp_pad
 
     @pytest.fixture(params=[2])
     def time_order(self, request):
@@ -79,7 +80,7 @@ class Test_Gradient(object):
         return request.param
 
     def test_Grad(self, Acoustic):
-        rec, u = Acoustic[0].Forward()
+        rec = Acoustic[0].Forward()[0]
         rec0, u0 = Acoustic[1].Forward()
         gradient = Acoustic[1].Gradient(rec0 - rec, u0)
         # Actual Gradient test
@@ -91,12 +92,13 @@ class Test_Gradient(object):
         error1 = np.zeros((7))
         error2 = np.zeros((7))
         for i in range(0, 7):
-            Acoustic[3].vp = np.sqrt((Acoustic[5]**-2 + H[i] * Acoustic[4])**-1)
-            (d, u) = Acoustic[1].Forward()
+            Acoustic[1].m.data[:] = (Acoustic[3]**-2 + H[i] * Acoustic[2])
+            d = Acoustic[1].Forward()[0]
             error1[i] = np.absolute(.5*linalg.norm(d - rec)**2 - F0)
             error2[i] = np.absolute(.5*linalg.norm(d - rec)**2 - F0 - H[i] * G)
-            print('For h = ', H[i], '\nFirst order errors is : ', error1[i],
-                   '\nSecond order errors is ', error2[i])
+            print(F0,.5*linalg.norm(d - rec)**2, H[i] *G)
+            # print('For h = ', H[i], '\nFirst order errors is : ', error1[i],
+            #       '\nSecond order errors is ', error2[i])
 
         hh = np.zeros((7))
         for i in range(0, 7):
