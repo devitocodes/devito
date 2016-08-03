@@ -53,6 +53,7 @@ class Test_Gradient(object):
         tn = 500.0
         nt = int(1+(tn-t0)/dt)
         # Set up the source as Ricker wavelet for f0
+
         def source(t, f0):
             r = (np.pi * f0 * (t - 1./f0))
             return (1-2.*r**2)*np.exp(-r**2)

@@ -89,7 +89,7 @@ class TTI_cg:
         self.srca = SourceLikeTTI(name="srca", npoint=1, nt=self.nt, dt=self.dt, h=self.h,
                                   coordinates=np.array(self.data.source_coords, dtype=self.dtype)[np.newaxis, :],
                                   ndim=len(dimensions), dtype=self.dtype, nbpml=nbpml)
-         self.dm = DenseData(name="dm", shape=self.model.vp.shape, dtype=self.dtype)
+        self.dm = DenseData(name="dm", shape=self.model.vp.shape, dtype=self.dtype)
 
     def Forward(self):
         fw = ForwardOperator(self.m, self.src, self.damp, self.rec, self.u, self.v, self.a,

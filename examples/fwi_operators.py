@@ -185,7 +185,7 @@ class GradientOperator(Operator):
         s, h = symbols('s h')
         subs = {s: rec.dt, h: rec.h}
         # Add Gradient-specific updates. The dt2 is currently hacky as it has to match the cyclic indices
-        gradient_update = Eq(grad, grad - s**-2*(v + v.forward - 2 * v.forward.forward ) * u.forward)
+        gradient_update = Eq(grad, grad - s**-2*(v + v.forward - 2 * v.forward.forward) * u.forward)
         stencils = [gradient_update, Eq(v.backward, stencil)]
         super(GradientOperator, self).__init__(rec.nt - 1, m.shape, stencils=stencils,
                                                substitutions=[subs, subs, {}], spc_border=spc_order/2,

@@ -105,7 +105,6 @@ class Acoustic_cg:
         self.u.data[:] = u
         self.rec.data[:] = rec
         grad_op = GradientOperator(self.u, self.m, self.rec, self.damp, time_order=self.t_order, spc_order=self.s_order)
-        dt = self.dt
         grad = grad_op.apply()[0]
         return grad
 

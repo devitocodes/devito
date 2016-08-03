@@ -39,7 +39,7 @@ class Test_AdjointJ(object):
             pad = ((nbpml, nbpml), (nbpml, nbpml))
         else:
             pad = ((nbpml, nbpml), (nbpml, nbpml), (nbpml, nbpml))
-        dm_pad = np.pad(dm, pad, 'edge')        
+        dm_pad = np.pad(dm, pad, 'edge')
         model.create_model(origin, spacing, initial_vp)
 
         # Define seismic data.
