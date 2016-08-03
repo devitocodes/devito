@@ -10,7 +10,7 @@ origin = (0., 0.)
 spacing = (20.0, 20.0)
 dtype = np.float32
 t_order = 2
-spc_order = 6
+spc_order = 2
 # True velocity
 true_vp = np.ones(dimensions) + 1.0
 true_vp[:, int(dimensions[1] / 3):int(2*dimensions[1]/3)] = 3.0
@@ -35,12 +35,11 @@ def source(t, f0):
     r = (np.pi * f0 * (t - 1./f0))
     return (1-2.*r**2)*np.exp(-r**2)
 time_series = source(np.linspace(t0, tn, nt), f0)
-location = (origin[0] + dimensions[0] * spacing[0] * 0.5, 40, 40)
+location = (origin[0] + dimensions[0] * spacing[0] * 0.5, 40)
 data.set_source(time_series, dt, location)
-receiver_coords = np.zeros((301, 3))
+receiver_coords = np.zeros((301, 2))
 receiver_coords[:, 0] = np.linspace(50, 2950, num=301)
 receiver_coords[:, 1] = 40
-receiver_coords[:, 2] = 40
 data.set_receiver_pos(receiver_coords)
 data.set_shape(nt, 301)
 

@@ -81,7 +81,7 @@ class Acoustic_cg:
         self.src.data[:] = self.data.get_source()[:, np.newaxis]
 
         self.u = TimeData(name="u", shape=self.m.shape, time_dim=self.src.nt, time_order=t_order,
-                          save=False, dtype=self.m.dtype)
+                          save=True, dtype=self.m.dtype)
         self.srca = SourceLike(name="srca", npoint=1, nt=self.nt, dt=self.dt, h=self.h,
                                coordinates=np.array(self.data.source_coords, dtype=self.dtype)[np.newaxis, :],
                                ndim=len(dimensions), dtype=self.dtype, nbpml=nbpml)
@@ -97,12 +97,15 @@ class Acoustic_cg:
         return (self.rec.data, self.u.data)
 
     def Adjoint(self, rec):
+        self.rec.data[:] = rec
         adj = AdjointOperator(self.m, self.rec, self.damp, self.srca, time_order=self.t_order, spc_order=self.s_order)
         v = adj.apply()[0]
 
         return (self.srca.data, v)
 
     def Gradient(self, rec, u):
+        self.u.data[:] = u
+        self.rec.data[:] = rec
         grad_op = GradientOperator(self.u, self.m, self.rec, self.damp, time_order=self.t_order, spc_order=self.s_order)
         dt = self.dt
         grad = grad_op.apply()[0]

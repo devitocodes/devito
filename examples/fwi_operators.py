@@ -114,8 +114,7 @@ class ForwardOperator(Operator):
     def __init__(self, m, src, damp, rec, u, time_order=2, spc_order=6, **kwargs):
         assert(m.shape == damp.shape)
 
-        u.pad_time = False
-
+        u.pad_time = True
         # Set time and space orders
         u.time_order = time_order
         u.space_order = spc_order
@@ -187,22 +186,18 @@ class GradientOperator(Operator):
         subs = {s: rec.dt, h: rec.h}
 
         # Add Gradient-specific updates and resets
-        total_dim = tuple(v.indices(m.shape))
-        space_dim = tuple(m.indices(m.shape))
-        gradient_update = Eq(grad.indexed[space_dim], grad.indexed[space_dim] -
-                             (v.indexed[total_dim] - 2 * v.indexed[tuple((t + 1,) + space_dim)] +
-                              v.indexed[tuple((t + 2,) + space_dim)]) * u.indexed[total_dim])
-        reset_v = Eq(v.indexed[tuple((t + 2,) + space_dim)], 0)
-        stencils = [Eq(v.backward, stencil), gradient_update, reset_v]
+        gradient_update = Eq(grad, grad - (v - 2 * v.forward + v.forward.forward) * u)
+        # reset_v = Eq(v.indexed[tuple((t + 2,) + space_dim)], 0)
+        stencils = [Eq(v.backward, stencil), gradient_update]
         super(GradientOperator, self).__init__(rec.nt, m.shape, stencils=stencils,
-                                               substitutions=[subs, {}, {}], spc_border=spc_order/2,
+                                               substitutions=[subs, subs, {}], spc_border=spc_order/2,
                                                time_order=time_order, forward=False, dtype=m.dtype,
                                                **kwargs)
 
         # Insert receiver term post-hoc
         self.input_params += [u, rec, rec.coordinates]
-        self.output_params += [grad]
-        self.propagator.time_loop_stencils_b = rec.add(m, v)
+        self.output_params = [grad]
+        self.propagator.time_loop_stencils_a = rec.add(m, v)
         self.propagator.add_devito_param(u)
         self.propagator.add_devito_param(rec)
         self.propagator.add_devito_param(rec.coordinates)
