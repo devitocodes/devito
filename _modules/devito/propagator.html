@@ -144,6 +144,7 @@
 <span class="kn">from</span> <span class="nn">devito.compiler</span> <span class="k">import</span> <span class="p">(</span><span class="n">IntelMICCompiler</span><span class="p">,</span> <span class="n">get_compiler_from_env</span><span class="p">,</span>
                              <span class="n">get_tmp_dir</span><span class="p">,</span> <span class="n">jit_compile_and_load</span><span class="p">)</span>
 <span class="kn">from</span> <span class="nn">devito.function_manager</span> <span class="k">import</span> <span class="n">FunctionDescriptor</span><span class="p">,</span> <span class="n">FunctionManager</span>
+<span class="kn">from</span> <span class="nn">devito.iteration</span> <span class="k">import</span> <span class="n">Iteration</span>
 
 
 <div class="viewcode-block" id="Propagator"><a class="viewcode-back" href="../../devito.html#devito.propagator.Propagator">[docs]</a><span class="k">class</span> <span class="nc">Propagator</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
@@ -384,6 +385,9 @@
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">equality</span><span class="p">,</span> <span class="n">cgen</span><span class="o">.</span><span class="n">Generable</span><span class="p">):</span>
             <span class="k">return</span> <span class="n">equality</span>
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">equality</span><span class="p">,</span> <span class="n">Iteration</span><span class="p">):</span>
+            <span class="n">equality</span><span class="o">.</span><span class="n">substitute</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_var_map</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">equality</span><span class="o">.</span><span class="n">ccode</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="n">s_lhs</span> <span class="o">=</span> <span class="n">ccode</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">time_substitutions</span><span class="p">(</span><span class="n">equality</span><span class="o">.</span><span class="n">lhs</span><span class="p">)</span><span class="o">.</span><span class="n">xreplace</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_var_map</span><span class="p">))</span>
             <span class="n">s_rhs</span> <span class="o">=</span> <span class="n">ccode</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">time_substitutions</span><span class="p">(</span><span class="n">equality</span><span class="o">.</span><span class="n">rhs</span><span class="p">)</span><span class="o">.</span><span class="n">xreplace</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_var_map</span><span class="p">))</span>
@@ -423,9 +427,11 @@
             <span class="n">time_stepping</span> <span class="o">=</span> <span class="p">[]</span>
         <span class="n">loop_body</span> <span class="o">=</span> <span class="p">[</span><span class="n">cgen</span><span class="o">.</span><span class="n">Block</span><span class="p">(</span><span class="n">omp_for</span> <span class="o">+</span> <span class="n">loop_body</span><span class="p">)]</span>
         <span class="c1"># Statements to be inserted into the time loop before the spatial loop</span>
+        <span class="n">time_loop_stencils_b</span> <span class="o">=</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">time_substitutions</span><span class="p">(</span><span class="n">x</span><span class="p">)</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">time_loop_stencils_b</span><span class="p">]</span>
         <span class="n">time_loop_stencils_b</span> <span class="o">=</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">convert_equality_to_cgen</span><span class="p">(</span><span class="n">x</span><span class="p">)</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">time_loop_stencils_b</span><span class="p">]</span>
 
         <span class="c1"># Statements to be inserted into the time loop after the spatial loop</span>
+        <span class="n">time_loop_stencils_a</span> <span class="o">=</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">time_substitutions</span><span class="p">(</span><span class="n">x</span><span class="p">)</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">time_loop_stencils_a</span><span class="p">]</span>
         <span class="n">time_loop_stencils_a</span> <span class="o">=</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">convert_equality_to_cgen</span><span class="p">(</span><span class="n">x</span><span class="p">)</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">time_loop_stencils_a</span><span class="p">]</span>
 
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">profile</span><span class="p">:</span>
@@ -693,6 +699,12 @@
 <span class="sd">        :returns: The expression after the substitutions</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="n">subs_dict</span> <span class="o">=</span> <span class="p">{}</span>
+
+        <span class="c1"># For Iteration objects we apply time subs to the stencil list</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">sympy_expr</span><span class="p">,</span> <span class="n">Iteration</span><span class="p">):</span>
+            <span class="n">sympy_expr</span><span class="o">.</span><span class="n">stencils</span> <span class="o">=</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">time_substitutions</span><span class="p">(</span><span class="n">s</span><span class="p">)</span>
+                                   <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">sympy_expr</span><span class="o">.</span><span class="n">stencils</span><span class="p">]</span>
+            <span class="k">return</span> <span class="n">sympy_expr</span>
 
         <span class="k">for</span> <span class="n">arg</span> <span class="ow">in</span> <span class="n">postorder_traversal</span><span class="p">(</span><span class="n">sympy_expr</span><span class="p">):</span>
             <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">arg</span><span class="p">,</span> <span class="n">Indexed</span><span class="p">):</span>

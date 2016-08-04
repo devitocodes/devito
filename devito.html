@@ -949,7 +949,8 @@ Must be negative since calculated timesteps start from 0.</li>
 <tbody valign="top">
 <tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
 <li><strong>name</strong> &#8211; Name of the resulting <code class="xref py py-class docutils literal"><span class="pre">sympy.Function</span></code> symbol</li>
-<li><strong>point</strong> &#8211; Number of points to sample</li>
+<li><strong>npoint</strong> &#8211; Number of points to sample</li>
+<li><strong>coordinates</strong> &#8211; Coordinates data for the sparse points</li>
 <li><strong>nt</strong> &#8211; Size of the time dimension for point data</li>
 <li><strong>dtype</strong> &#8211; Data type of the buffered data</li>
 </ul>
@@ -1103,6 +1104,20 @@ a list stating block sizes for each dimension. Set block size to None to skip bl
 <dt id="devito.operator.Operator.run_python">
 <code class="descname">run_python</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/operator.html#Operator.run_python"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.operator.Operator.run_python" title="Permalink to this definition">¶</a></dt>
 <dd><p>Executes the operator using Python</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="devito.operator.Operator.signature">
+<code class="descname">signature</code><a class="headerlink" href="#devito.operator.Operator.signature" title="Permalink to this definition">¶</a></dt>
+<dd><p>List of data object parameters that define the operator signature</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Returns:</th><td class="field-body">List of unique input and output data objects</td>
+</tr>
+</tbody>
+</table>
 </dd></dl>
 
 <dl class="method">
