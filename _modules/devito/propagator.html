@@ -137,6 +137,7 @@
 <span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
 <span class="kn">from</span> <span class="nn">sympy</span> <span class="k">import</span> <span class="n">Indexed</span><span class="p">,</span> <span class="n">IndexedBase</span><span class="p">,</span> <span class="n">symbols</span>
 <span class="kn">from</span> <span class="nn">sympy.abc</span> <span class="k">import</span> <span class="n">t</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">z</span>
+<span class="kn">from</span> <span class="nn">sympy.utilities.iterables</span> <span class="k">import</span> <span class="n">postorder_traversal</span>
 
 <span class="kn">import</span> <span class="nn">cgen_wrapper</span> <span class="k">as</span> <span class="nn">cgen</span>
 <span class="kn">from</span> <span class="nn">codeprinter</span> <span class="k">import</span> <span class="n">ccode</span>
@@ -691,22 +692,22 @@
 <span class="sd">        :param sympy_expr: The Sympy expression to process</span>
 <span class="sd">        :returns: The expression after the substitutions</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">sympy_expr</span><span class="p">,</span> <span class="n">Indexed</span><span class="p">):</span>
-            <span class="n">array_term</span> <span class="o">=</span> <span class="n">sympy_expr</span>
+        <span class="n">subs_dict</span> <span class="o">=</span> <span class="p">{}</span>
 
-            <span class="k">if</span> <span class="ow">not</span> <span class="nb">str</span><span class="p">(</span><span class="n">array_term</span><span class="o">.</span><span class="n">base</span><span class="o">.</span><span class="n">label</span><span class="p">)</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">save_vars</span><span class="p">:</span>
-                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Invalid variable &#39;</span><span class="si">%s</span><span class="s2">&#39; in sympy expression. Did you add it to the operator&#39;s params?&quot;</span> <span class="o">%</span>
-                                 <span class="nb">str</span><span class="p">(</span><span class="n">array_term</span><span class="o">.</span><span class="n">base</span><span class="o">.</span><span class="n">label</span><span class="p">))</span>
+        <span class="k">for</span> <span class="n">arg</span> <span class="ow">in</span> <span class="n">postorder_traversal</span><span class="p">(</span><span class="n">sympy_expr</span><span class="p">):</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">arg</span><span class="p">,</span> <span class="n">Indexed</span><span class="p">):</span>
+                <span class="n">array_term</span> <span class="o">=</span> <span class="n">arg</span>
 
-            <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">save_vars</span><span class="p">[</span><span class="nb">str</span><span class="p">(</span><span class="n">array_term</span><span class="o">.</span><span class="n">base</span><span class="o">.</span><span class="n">label</span><span class="p">)]:</span>
-                <span class="n">array_term</span> <span class="o">=</span> <span class="n">array_term</span><span class="o">.</span><span class="n">xreplace</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">t_replace</span><span class="p">)</span>
+                <span class="k">if</span> <span class="ow">not</span> <span class="nb">str</span><span class="p">(</span><span class="n">array_term</span><span class="o">.</span><span class="n">base</span><span class="o">.</span><span class="n">label</span><span class="p">)</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">save_vars</span><span class="p">:</span>
+                    <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                        <span class="s2">&quot;Invalid variable &#39;</span><span class="si">%s</span><span class="s2">&#39; in sympy expression. Did you add it to the operator&#39;s params?&quot;</span>
+                        <span class="o">%</span> <span class="nb">str</span><span class="p">(</span><span class="n">array_term</span><span class="o">.</span><span class="n">base</span><span class="o">.</span><span class="n">label</span><span class="p">)</span>
+                    <span class="p">)</span>
 
-            <span class="k">return</span> <span class="n">array_term</span>
-        <span class="k">else</span><span class="p">:</span>
-            <span class="k">for</span> <span class="n">arg</span> <span class="ow">in</span> <span class="n">sympy_expr</span><span class="o">.</span><span class="n">args</span><span class="p">:</span>
-                <span class="n">sympy_expr</span> <span class="o">=</span> <span class="n">sympy_expr</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">arg</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">time_substitutions</span><span class="p">(</span><span class="n">arg</span><span class="p">))</span>
+                <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">save_vars</span><span class="p">[</span><span class="nb">str</span><span class="p">(</span><span class="n">array_term</span><span class="o">.</span><span class="n">base</span><span class="o">.</span><span class="n">label</span><span class="p">)]:</span>
+                    <span class="n">subs_dict</span><span class="p">[</span><span class="n">arg</span><span class="p">]</span> <span class="o">=</span> <span class="n">array_term</span><span class="o">.</span><span class="n">xreplace</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">t_replace</span><span class="p">)</span>
 
-        <span class="k">return</span> <span class="n">sympy_expr</span></div>
+        <span class="k">return</span> <span class="n">sympy_expr</span><span class="o">.</span><span class="n">xreplace</span><span class="p">(</span><span class="n">subs_dict</span><span class="p">)</span></div>
 
 <div class="viewcode-block" id="Propagator.add_time_loop_stencil"><a class="viewcode-back" href="../../devito.html#devito.propagator.Propagator.add_time_loop_stencil">[docs]</a>    <span class="k">def</span> <span class="nf">add_time_loop_stencil</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">stencil</span><span class="p">,</span> <span class="n">before</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;Add a statement either before or after the main spatial loop, but still inside the time loop.</span>
