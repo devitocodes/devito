@@ -2,6 +2,7 @@
 from __future__ import print_function
 
 import numpy as np
+from examples.tti_operators import *
 from devito.interfaces import DenseData
 from examples.tti_operators import *
 

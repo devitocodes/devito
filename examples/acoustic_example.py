@@ -36,11 +36,13 @@ true_vp[:, :, int(dimensions[0] / 2):int(dimensions[0])] = 4.5
 # Smooth velocity
 initial_vp = smooth10(true_vp, dimensions)
 
-dm_orig = true_vp**-2 - initial_vp**-2
-
-
-def create_dm(dm):
-    np.copyto(dm, dm_orig)
+dm = true_vp**-2 - initial_vp**-2
+nbpml = 10
+if len(dimensions) == 2:
+    pad = ((nbpml, nbpml), (nbpml, nbpml))
+else:
+    pad = ((nbpml, nbpml), (nbpml, nbpml), (nbpml, nbpml))
+dm_pad = np.pad(dm, pad, 'edge')
 
 dv = -true_vp + initial_vp
 
@@ -76,8 +78,7 @@ receiver_coords[:, 1] = 500
 receiver_coords[:, 2] = location[2]
 data.set_receiver_pos(receiver_coords)
 data.set_shape(nt, 101)
-
-Acoustic = Acoustic_cg(model, data, dm_orig, None, nbpml=10, t_order=2, s_order=2)
+Acoustic = Acoustic_cg(model, data, None, None, nbpml=nbpml, t_order=2, s_order=2)
 print("Preparing Forward")
 print("Applying")
 (rec, u) = Acoustic.Forward()
@@ -92,4 +93,4 @@ g = Acoustic.Gradient(rec, u)
 
 print("Preparing Born")
 print("Applying")
-LinRec = Acoustic.Born()
+LinRec = Acoustic.Born(dm_pad)
