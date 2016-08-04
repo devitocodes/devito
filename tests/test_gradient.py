@@ -83,7 +83,7 @@ class Test_Gradient(object):
     def time_order(self, request):
         return request.param
 
-    @pytest.fixture(params=[2, 4, 6, 8, 10])
+    @pytest.fixture(params=[2, 8, 12])
     def space_order(self, request):
         return request.param
 
@@ -100,11 +100,11 @@ class Test_Gradient(object):
         error1 = np.zeros((7))
         error2 = np.zeros((7))
         for i in range(0, 7):
-            Acoustic[0].m.data[:] = (Acoustic[3]**-2 + H[i] * Acoustic[2])
-            d = Acoustic[0].Forward()[0]
+            Acoustic[1].m.data[:] = (Acoustic[3]**-2 + H[i] * Acoustic[2])
+            d = Acoustic[1].Forward()[0]
             error1[i] = np.absolute(.5*linalg.norm(d - rec)**2 - F0)
             error2[i] = np.absolute(.5*linalg.norm(d - rec)**2 - F0 - H[i] * G)
-            # print(F0,.5*linalg.norm(d - rec)**2, error1[i], H[i] *G, error2[i])
+            print(F0,.5*linalg.norm(d - rec)**2, error1[i], H[i] *G, error2[i])
             # print('For h = ', H[i], '\nFirst order errors is : ', error1[i],
             #       '\nSecond order errors is ', error2[i])
 
