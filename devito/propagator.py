@@ -8,6 +8,7 @@ from sympy import Indexed, IndexedBase, preorder_traversal, symbols
 from sympy.abc import t, x, y, z
 from sympy.utilities.iterables import postorder_traversal
 
+from at_controller import get_optimal_block_size, get_at_block_size
 import cgen_wrapper as cgen
 from codeprinter import ccode
 from devito.compiler import (IntelMICCompiler, get_compiler_from_env,
@@ -16,6 +17,7 @@ from devito.function_manager import FunctionDescriptor, FunctionManager
 from devito.iteration import Iteration
 from devito.logger import logger
 from devito.profiler import Profiler
+import logger
 from tools import flatten
 
 
@@ -53,6 +55,8 @@ class Propagator(object):
         self.factorized = factorized or {}
         self.time_order = time_order
         self.spc_border = spc_border
+        cache_blocking = True
+        auto_tune = True
 
         # Default time and space symbols if not provided
         self.time_dim = time_dim or t
@@ -102,19 +106,8 @@ class Propagator(object):
         self.cache_blocking = cache_blocking
         self.block_size = block_size
         self.auto_tune = auto_tune
-
-        if isinstance(block_size, Iterable):
-            if len(block_size) == len(shape):
-                self.block_sizes = block_size
-            else:
-                raise ValueError("Block size should either be a single number or" +
-                                 " an array of the same size as the spatial domain")
-        elif block_size is None:  # Turn off cache blocking if block size set to None
-            self.cache_blocking = False
-        else:
-            # A single block size has been passed.
-            # Broadcast it to a list of the size of shape
-            self.block_sizes = [int(block_size)]*len(shape)
+        self.shape = shape
+        self.spc_border = spc_border
 
         # Cache C code, lib and function objects
         self._ccode = None
@@ -388,8 +381,16 @@ class Propagator(object):
         :param loop_body: Statement representing the loop body
         :returns: :class:`cgen.Block` representing the loop
         """
+
         # Space loops
         if self.cache_blocking:
+            self._decide_block_sizes()
+
+            if self.auto_tune:
+                for i in range(0, len(self.space_dims)):  # add block sizes as parameters
+                    if self.block_sizes[i] is not None:
+                        self.fd.add_value_param(str(self.loop_counters[i]) + "block", np.int32)
+
             loop_body = self.generate_space_loops_blocking(loop_body)
         else:
             loop_body = self.generate_space_loops(loop_body)
@@ -515,7 +516,11 @@ class Propagator(object):
 
             if block_size is not None:
                 lower_limit_str = block_var
-                upper_limit_str = block_var + "+" + str(block_size)
+
+                if self.auto_tune:
+                    upper_limit_str = block_var + "+" + orig_var + "block"
+                else:
+                    upper_limit_str = block_var + "+" + str(block_size)
             else:
                 lower_limit_str = str(loop_limits[0])
                 upper_limit_str = str(loop_limits[1])
@@ -543,10 +548,19 @@ class Propagator(object):
                 if old_upper_limit - loop_limits[1] > 0:  # check old vs new upper
                     remainder_counter += 1
 
-                loop_body = cgen.For(cgen.InlineInitializer(cgen.Value("int", block_var),
-                                                            str(loop_limits[0])),
-                                     str(block_var) + "<" + str(loop_limits[1]),
-                                     str(block_var) + "+=" + str(block_size), loop_body)
+                lower_limit_str = str(loop_limits[0])
+
+                if self.auto_tune:
+                    block_size_str = orig_var + "block"
+                    upper_limit_str = "%d - (%d %% %s)" % (old_upper_limit, old_upper_limit - loop_limits[0],
+                                                           block_size_str)
+                else:
+                    block_size_str = str(block_size)
+                    upper_limit_str = str(loop_limits[1])
+
+                loop_body = cgen.For(cgen.InlineInitializer(cgen.Value("int", block_var), lower_limit_str),
+                                     str(block_var) + "<" + upper_limit_str, str(block_var) + "+=" +
+                                     block_size_str, loop_body)
 
         full_remainder = []
         # weights for deciding remainder loop limit
@@ -559,39 +573,68 @@ class Propagator(object):
                                                     self.block_sizes)):
                 orig_var = str(self._var_map[spc_var])
                 loop_limits = self._space_loop_limits[spc_var]  # Full loop limits
+                lower_limit_str = str(loop_limits[0])
+                upper_limit_str = str(loop_limits[1])
 
                 if block_size is not None:
                     if weights[orig_var] < 0:
                         # already blocked loop limits
-                        loop_limits = (loop_limits[0], loop_limits[1] -
-                                       (loop_limits[1] - loop_limits[0]) % block_size)
+                        if self.auto_tune:
+                            upper_limit_str = "%d - (%d %% %s)" % (loop_limits[1], loop_limits[1] - loop_limits[0],
+                                                                   orig_var + "block")
+                        else:
+                            upper_limit_str = str(loop_limits[1] - (loop_limits[1] - loop_limits[0]) % block_size)
+
                     elif weights[orig_var] == 0:
                         # remainder loop limits
-                        loop_limits = (loop_limits[1] -
-                                       (loop_limits[1] - loop_limits[0]) % block_size,
-                                       loop_limits[1])
+                        # If loop limits are equal that means no remainder on that dim, thus we want all iteration space
+                        if loop_limits[1] - (loop_limits[1] - loop_limits[0]) % block_size != loop_limits[1]:
+                            if self.auto_tune:
+                                lower_limit_str = "%d - (%d %% %s)" % (loop_limits[1], loop_limits[1] - loop_limits[0],
+                                                                       orig_var + "block")
+                            else:
+                                lower_limit_str = str(loop_limits[1] - (loop_limits[1] - loop_limits[0]) % block_size)
 
                     weights[orig_var] += 1
 
-                    # If loop limits are equal that means no remainder on that dim,
-                    #  thus we want all iteration space
-                    if loop_limits[0] == loop_limits[1]:
-                        loop_limits = self._space_loop_limits[spc_var]
+                remainder_loop = cgen.For(cgen.InlineInitializer(cgen.Value("int", orig_var), lower_limit_str),
+                                          str(orig_var) + "<" + upper_limit_str, str(orig_var) + "++", remainder_loop)
 
-                remainder_loop = \
-                    cgen.For(cgen.InlineInitializer(cgen.Value("int", orig_var),
-                                                    str(loop_limits[0])),
-                             str(orig_var) + "<" + str(loop_limits[1]),
-                             str(orig_var) + "++", remainder_loop)
-
-                remainder_loop = self.add_inner_most_dim_pragma(inner_most_dim,
-                                                                self.space_dims,
-                                                                remainder_loop)
+                remainder_loop = self.add_inner_most_dim_pragma(inner_most_dim, self.space_dims, remainder_loop)
                 inner_most_dim = False
 
             full_remainder.append(remainder_loop)
 
         return [loop_body] + full_remainder if full_remainder else [loop_body]
+
+    def get_number_of_loads(self):
+        return len(self._kernel_dic_oi["load_all_list"])
+
+    def _decide_block_sizes(self):
+        """
+        Decides block size if cache blocking. If there is auto tune result otherwise use optimal block size
+        """
+        if self.auto_tune and not self.block_size:
+            # (f_name, shape, time_order, spc_border, block_size):
+            self.block_size = get_at_block_size(self.fd.name, self.shape, self.time_order, self.spc_border, self.block_size)
+        elif not self.block_size:
+            # else if block_sizes not set check if there is best block_sizes from at report else use optimal val
+            optimal_block_size = get_optimal_block_size(self.shape, self.get_number_of_loads())
+
+            if self.block_size:
+                logger.warning("Using block sizes found in auto tune report - %s" % str(self.block_size))
+            else:
+                self.block_size = optimal_block_size  # use optimal block size
+
+        if isinstance(self.block_size, Iterable):
+            if len(self.block_size) == len(self.shape):
+                self.block_sizes = self.block_size
+            else:
+                raise ValueError("Block size should either be a single number" +
+                                 " or an array of the same size as the blocked spacial domain")
+        else:
+            # A single block size has been passed. Broadcast it to a list of the size of shape
+            self.block_sizes = [int(self.block_size)] * len(self.shape)
 
     def add_inner_most_dim_pragma(self, inner_most_dim, space_dims, loop_body):
         """

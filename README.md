@@ -75,3 +75,17 @@ Example usage:
 ```
 op = Operator(..., cache_blocking=True, block_size=[5, 10, None])
 ```
+ 
+## Auto tuning block sizes
+
+Devito supports automatic auto tuning of block sizes when cache blocking.
+
+To enable auto tuning set auto_tune flag to True in Operator. It will run the compiled file multiple times with different block sizes, trying to find most effective option and will write the result into report file.
+
+If auto tuning has completed and you are running with cache_blocking set to True and block_size not set. Devito will attempt to read the auto tuning report and will select best block_size based on it. If report is not found it will chose one based on architecture.
+
+Note: This feature has to be used in conjunction with cache_blocking flag. This feature needs to run only once for each model. You can specify tuning range by using tune_range parameter in form of (min, max) You can specify auto tuning report path by setting environment variable AT_REPORT_DIR=your_report_directory
+
+Example usage:
+
+op = Operator(..., cache_blocking=True, auto_tune=True, tune_range=(5, 15))
