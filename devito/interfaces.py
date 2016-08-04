@@ -281,6 +281,12 @@ class TimeData(DenseData):
             # Store final instance in symbol cache
             self._cache_put(self)
 
+    def initialize(self):
+        if self.initializer is not None:
+            if self._full_data is None:
+                self._allocate_memory()
+            self.initializer(self._full_data)
+
     @classmethod
     def indices(cls, shape):
         """Return the default dimension indices for a given data shape
@@ -300,34 +306,6 @@ class TimeData(DenseData):
 
         if self.pad_time:
             self._data = self._data[self.time_order:, :, :]
-
-    def init_data(self, timestep, data):
-        """Function to initialize the initial time steps
-
-        :param timestep: Time step to initialize.
-                         Must be negative since calculated timesteps start from 0.
-        :param data: :class:`numpy.ndarray` containing the initial spatial data
-        """
-        if self._full_data is None:
-            self._allocate_memory()
-
-        assert timestep < 0, "Timestep must be negative"
-        assert data.shape == self._full_data[0].shape, \
-            "Data must have the same shape as the spatial data"
-
-        # Adds the time_order to the index to access padded indexes
-        timestep += self.time_order
-        self._full_data[timestep] = data
-
-    def get_data(self, timestep=0):
-        """Returns the calculated data at the specified timestep
-
-        :param timestep: The timestep from which we want to retrieve the data.
-                         Specify only in the case :obj:`self.save` is True
-        """
-        timestep += self.time_order
-
-        return self._full_data[timestep, :]
 
     @property
     def dim(self):
