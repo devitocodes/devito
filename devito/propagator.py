@@ -13,6 +13,7 @@ from codeprinter import ccode
 from devito.compiler import (IntelMICCompiler, get_compiler_from_env,
                              get_tmp_dir, jit_compile_and_load)
 from devito.function_manager import FunctionDescriptor, FunctionManager
+from devito.iteration import Iteration
 
 
 class Propagator(object):
@@ -253,6 +254,9 @@ class Propagator(object):
         """
         if isinstance(equality, cgen.Generable):
             return equality
+        elif isinstance(equality, Iteration):
+            equality.substitute(self._var_map)
+            return equality.ccode
         else:
             s_lhs = ccode(self.time_substitutions(equality.lhs).xreplace(self._var_map))
             s_rhs = ccode(self.time_substitutions(equality.rhs).xreplace(self._var_map))
@@ -292,9 +296,11 @@ class Propagator(object):
             time_stepping = []
         loop_body = [cgen.Block(omp_for + loop_body)]
         # Statements to be inserted into the time loop before the spatial loop
+        time_loop_stencils_b = [self.time_substitutions(x) for x in self.time_loop_stencils_b]
         time_loop_stencils_b = [self.convert_equality_to_cgen(x) for x in self.time_loop_stencils_b]
 
         # Statements to be inserted into the time loop after the spatial loop
+        time_loop_stencils_a = [self.time_substitutions(x) for x in self.time_loop_stencils_a]
         time_loop_stencils_a = [self.convert_equality_to_cgen(x) for x in self.time_loop_stencils_a]
 
         if self.profile:
@@ -562,6 +568,12 @@ class Propagator(object):
         :returns: The expression after the substitutions
         """
         subs_dict = {}
+
+        # For Iteration objects we apply time subs to the stencil list
+        if isinstance(sympy_expr, Iteration):
+            sympy_expr.stencils = [self.time_substitutions(s)
+                                   for s in sympy_expr.stencils]
+            return sympy_expr
 
         for arg in postorder_traversal(sympy_expr):
             if isinstance(arg, Indexed):

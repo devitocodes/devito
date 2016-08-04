@@ -77,10 +77,10 @@ class TTI_cg:
         # Initialize damp by calling the function that can precompute damping
         damp_boundary(self.damp.data)
         self.src = SourceLikeTTI(name="src", npoint=1, nt=self.nt, dt=self.dt, h=self.h,
-                                 data=np.array(self.data.source_coords, dtype=self.dtype)[np.newaxis, :],
+                                 coordinates=np.array(self.data.source_coords, dtype=self.dtype)[np.newaxis, :],
                                  ndim=len(dimensions), dtype=self.dtype, nbpml=nbpml)
         self.rec = SourceLikeTTI(name="rec", npoint=self.nrec, nt=self.nt, dt=self.dt, h=self.h,
-                                 data=self.data.receiver_coords, ndim=len(dimensions), dtype=self.dtype,
+                                 coordinates=self.data.receiver_coords, ndim=len(dimensions), dtype=self.dtype,
                                  nbpml=nbpml)
         self.src.data[:] = self.data.get_source()[:, np.newaxis]
         self.u = TimeData(name="u", shape=self.m.shape, time_dim=self.src.nt, time_order=t_order,
@@ -88,7 +88,7 @@ class TTI_cg:
         self.v = TimeData(name="v", shape=self.m.shape, time_dim=self.src.nt, time_order=t_order,
                           save=False, dtype=self.m.dtype)
         self.srca = SourceLikeTTI(name="srca", npoint=1, nt=self.nt, dt=self.dt, h=self.h,
-                                  data=np.array(self.data.source_coords, dtype=self.dtype)[np.newaxis, :],
+                                  coordinates=np.array(self.data.source_coords, dtype=self.dtype)[np.newaxis, :],
                                   ndim=len(dimensions), dtype=self.dtype, nbpml=nbpml)
         if dm_initializer is not None:
             self.dm = DenseData(name="dm", shape=self.model.vp.shape, dtype=self.dtype)

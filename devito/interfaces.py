@@ -6,7 +6,7 @@ from tempfile import gettempdir
 
 import numpy as np
 from sympy import Function, IndexedBase, as_finite_diff
-from sympy.abc import h, s, t, x, y, z
+from sympy.abc import h, p, s, t, x, y, z
 
 from devito.finite_difference import cross_derivative
 from tools import aligned
@@ -369,11 +369,55 @@ class TimeData(DenseData):
         return as_finite_diff(self.diff(t, t), indt)
 
 
+class CoordinateData(SymbolicData):
+    """Data object for sparse coordinate data that acts as a Function symbol
+
+    """
+
+    def __init__(self, *args, **kwargs):
+        if self._cached():
+            # Initialise instance from symbol cache
+            SymbolicData.__init__(self)
+            return
+        else:
+            self.name = kwargs.get('name')
+            self.ndim = kwargs.get('ndim')
+            self.npoint = kwargs.get('npoint')
+            self.shape = (self.npoint, self.ndim)
+            self.dtype = kwargs.get('dtype', np.float32)
+            self.data = aligned(np.zeros(self.shape, self.dtype,
+                                         order='C'), alignment=64)
+            # Store final instance in symbol cache
+            self._cache_put(self)
+
+    def __new__(cls, *args, **kwargs):
+        ndim = kwargs.get('ndim')
+        npoint = kwargs.get('npoint')
+        kwargs['shape'] = (npoint, ndim)
+        return SymbolicData.__new__(cls, *args, **kwargs)
+
+    @classmethod
+    def indices(cls, shape):
+        """Return the default dimension indices for a given data shape
+
+        :param shape: Shape of the spatial data
+        :return: indices used for axis.
+        """
+        _indices = [p]
+        return _indices
+
+    @property
+    def indexed(self):
+        """:return: Base symbol as sympy.IndexedBase"""
+        return IndexedBase(self.name, shape=self.shape)
+
+
 class PointData(DenseData):
     """Data object for sparse point data that acts as a Function symbol
 
     :param name: Name of the resulting :class:`sympy.Function` symbol
-    :param point: Number of points to sample
+    :param npoint: Number of points to sample
+    :param coordinates: Coordinates data for the sparse points
     :param nt: Size of the time dimension for point data
     :param dtype: Data type of the buffered data
 
@@ -390,8 +434,14 @@ class PointData(DenseData):
         else:
             self.nt = kwargs.get('nt')
             self.npoint = kwargs.get('npoint')
+            ndim = kwargs.get('ndim')
             kwargs['shape'] = (self.nt, self.npoint)
-            DenseData.__init__(self, *args, **kwargs)
+            super(PointData, self).__init__(self, *args, **kwargs)
+            coordinates = kwargs.get('coordinates')
+            self.coordinates = CoordinateData(name='%s_coords' % self.name,
+                                              data=coordinates, ndim=ndim,
+                                              nt=self.nt, npoint=self.npoint)
+            self.coordinates.data[:] = kwargs.get('coordinates')[:]
             # Store final instance in symbol cache
             self._cache_put(self)
 
