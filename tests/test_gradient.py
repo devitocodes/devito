@@ -104,7 +104,7 @@ class Test_Gradient(object):
             d = Acoustic[1].Forward()[0]
             error1[i] = np.absolute(.5*linalg.norm(d - rec)**2 - F0)
             error2[i] = np.absolute(.5*linalg.norm(d - rec)**2 - F0 - H[i] * G)
-            print(F0,.5*linalg.norm(d - rec)**2, error1[i], H[i] *G, error2[i])
+            # print(F0,.5*linalg.norm(d - rec)**2, error1[i], H[i] *G, error2[i])
             # print('For h = ', H[i], '\nFirst order errors is : ', error1[i],
             #       '\nSecond order errors is ', error2[i])
 
