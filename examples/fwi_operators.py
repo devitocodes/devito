@@ -113,7 +113,7 @@ class SourceLike(PointData):
 class ForwardOperator(Operator):
     def __init__(self, m, src, damp, rec, u, time_order=2, spc_order=6, **kwargs):
         assert(m.shape == damp.shape)
-        u.pad_time = True
+        u.pad_time = u.save
         # Set time and space orders
         u.time_order = time_order
         u.space_order = spc_order

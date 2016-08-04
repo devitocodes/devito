@@ -158,9 +158,8 @@ class ForwardOperator(Operator):
 
         ang0, ang1, ang2, ang3 = symbols('ang0 ang1 ang2 ang3')
         assert(m.shape == damp.shape)
-        u.pad_time = False
-        v.pad_time = False
-
+        u.pad_time = u.save
+        v.pad_time = u.save
         # Set time and space orders
         u.time_order = time_order
         u.space_order = spc_order

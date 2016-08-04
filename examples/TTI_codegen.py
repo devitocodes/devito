@@ -11,7 +11,7 @@ class TTI_cg:
     """ Class to setup the problem for the Acoustic Wave
         Note: s_order must always be greater than t_order
     """
-    def __init__(self, model, data, dm_initializer=None, source=None, t_order=2, s_order=2, nbpml=40):
+    def __init__(self, model, data, dm_initializer=None, source=None, t_order=2, s_order=2, nbpml=40, save=False):
         self.model = model
         self.t_order = t_order
         self.s_order = s_order
@@ -84,9 +84,9 @@ class TTI_cg:
                                  nbpml=nbpml)
         self.src.data[:] = self.data.get_source()[:, np.newaxis]
         self.u = TimeData(name="u", shape=self.m.shape, time_dim=self.src.nt, time_order=t_order,
-                          save=False, dtype=self.m.dtype)
+                          save=save, dtype=self.m.dtype)
         self.v = TimeData(name="v", shape=self.m.shape, time_dim=self.src.nt, time_order=t_order,
-                          save=False, dtype=self.m.dtype)
+                          save=save, dtype=self.m.dtype)
         self.srca = SourceLikeTTI(name="srca", npoint=1, nt=self.nt, dt=self.dt, h=self.h,
                                   coordinates=np.array(self.data.source_coords, dtype=self.dtype)[np.newaxis, :],
                                   ndim=len(dimensions), dtype=self.dtype, nbpml=nbpml)

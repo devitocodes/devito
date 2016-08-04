@@ -76,7 +76,7 @@ class Test_Gradient(object):
         data0.set_shape(nt, 50)
         # Adjoint test
         wave_true = Acoustic_cg(model, data, None, None, t_order=time_order, s_order=space_order, nbpml=10)
-        wave_0 = Acoustic_cg(model0, data0, None, None, t_order=time_order, s_order=space_order, nbpml=10)
+        wave_0 = Acoustic_cg(model0, data0, None, None, t_order=time_order, s_order=space_order, nbpml=10, save=True)
         return wave_true, wave_0, dm_pad, initial_vp_pad
 
     @pytest.fixture(params=[2])
