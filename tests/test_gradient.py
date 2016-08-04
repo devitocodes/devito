@@ -83,7 +83,7 @@ class Test_Gradient(object):
     def time_order(self, request):
         return request.param
 
-    @pytest.fixture(params=[2, 8, 12])
+    @pytest.fixture(params=[2, 4])
     def space_order(self, request):
         return request.param
 
@@ -124,5 +124,5 @@ if __name__ == "__main__":
     t = Test_Gradient()
     request = type('', (), {})()
     request.param = (60, 70, 80)
-    ac = t.Acoustic(request, 2, 2)
+    ac = t.Acoustic(request, 2, 12)
     t.test_Grad(ac)
