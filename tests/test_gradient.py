@@ -100,8 +100,8 @@ class Test_Gradient(object):
         error1 = np.zeros((7))
         error2 = np.zeros((7))
         for i in range(0, 7):
-            Acoustic[1].m.data[:] = (Acoustic[3]**-2 + H[i] * Acoustic[2])
-            d = Acoustic[1].Forward()[0]
+            Acoustic[0].m.data[:] = (Acoustic[3]**-2 + H[i] * Acoustic[2])
+            d = Acoustic[0].Forward()[0]
             error1[i] = np.absolute(.5*linalg.norm(d - rec)**2 - F0)
             error2[i] = np.absolute(.5*linalg.norm(d - rec)**2 - F0 - H[i] * G)
             # print(F0,.5*linalg.norm(d - rec)**2, error1[i], H[i] *G, error2[i])
