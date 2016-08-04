@@ -57,7 +57,7 @@ class Test_AdjointA(object):
     def time_order(self, request):
         return request.param
 
-    @pytest.fixture(params=[4, 6, 8, 10])
+    @pytest.fixture(params=[2, 4, 6, 8, 10])
     def space_order(self, request):
         return request.param
 
