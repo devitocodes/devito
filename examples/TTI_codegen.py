@@ -103,6 +103,8 @@ class TTI_cg:
         return (self.srca.data, v)
 
     def Gradient(self, rec, u):
+        self.rec.data[:] = rec
+        self.u.data[:] = u
         grad_op = GradientOperator(self.u, self.m, self.rec, self.damp, time_order=self.t_order, spc_order=self.s_order)
         dt = self.dt
         grad = grad_op.apply()[0]
