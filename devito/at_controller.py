@@ -1,9 +1,11 @@
-from collections import Iterable
-from os import path, mkdir
 import math
-import time
 import random
+import time
+from collections import Iterable
+from os import mkdir, path
+
 import cpuinfo
+
 import logger
 
 # global vars
@@ -33,7 +35,7 @@ def get_at_block_size(f_name, time_order, spc_border, shape, block_dims, at_repo
 
     # model description string
     model_descr_str = "%s %d %d %s %s" % (f_name, time_order, spc_border,
-                                         str(shape).replace(" ", ''), str(block_dims).replace(" ", ''))
+                                          str(shape).replace(" ", ''), str(block_dims).replace(" ", ''))
 
     with open(final_report_path, 'r') as f:
         for line in f.readlines():
@@ -41,9 +43,9 @@ def get_at_block_size(f_name, time_order, spc_border, shape, block_dims, at_repo
             if model_descr_str in line:
 
                 blocks_str = line.split(' ')[5]
-                block_split = blocks_str[1:len(blocks_str) - 1].split(',')
+                block_split = blocks_str[1:len(blocks_str) - 2].split(',')
 
-                return [int(block) if block != "None"  else None for block in block_split]
+                return [int(block) if block != "None" else None for block in block_split]
 
     return None  # returns none if no matching block size was found
 
@@ -65,7 +67,7 @@ def get_optimal_block_size(cache_blocking, shape, load_c):
     #  This gives us the X*Y block space, of which we take the square root to get the size of our blocks.
     # ((C size / cores) / (4 * length inner most * kernel loads)
     optimal_b_size = math.sqrt(((1000 * cache_s) / core_c) / (4 * shape[len(shape) - 1] * load_c))
-    optimal_b_size = int(round(optimal_b_size)) # rounds to the nearest integer
+    optimal_b_size = int(round(optimal_b_size))  # rounds to the nearest integer
 
     if isinstance(cache_blocking, Iterable):
         # set which dims not to block and return a list
@@ -139,15 +141,15 @@ class AutoTuner(object):
                     if len(blocks) > 2:
                         for z in range(minimum, maximum):
                             blocks[2] = z if org_block_sizes[2] else None
-                            block_list = block_list.append(blocks) if blocks not in block_list else block_list
+                            block_list = block_list + [list(blocks)] if blocks not in block_list else block_list
                     else:
-                        block_list = block_list.append(blocks) if blocks not in block_list else block_list
+                        block_list = block_list + [list(blocks)] if blocks not in block_list else block_list
             else:
-                block_list = block_list.append(blocks) if blocks not in block_list else block_list
+                block_list = block_list + [list(blocks)] if blocks not in block_list else block_list
 
         # runs function for each block_size
         for block in block_list:
-            times.append(self._time_blocks(f, args, block))
+            times.append((block, self._time_blocks(f, args, block)))
 
         logger.log("Auto tuning using brute force complete")
 
@@ -168,7 +170,7 @@ class AutoTuner(object):
 
             blocks = []
             for block in self.op.propagator.block_sizes:
-                blocks = blocks.append(random.randrange(minimum, maximum)) if block else blocks.append(None)
+                blocks = blocks.append(random.randrange(minimum, maximum + 1)) if block else blocks.append(None)
 
             timing_run += self._time_blocks(f, args, blocks)
 
@@ -241,4 +243,4 @@ class AutoTuner(object):
                 final_report.writelines(lines)
 
         except IOError as e:
-            print "Failed to write auto tuning report because %s" % e.message
+            logger.error("Failed to write auto tuning report because %s" % e.message)

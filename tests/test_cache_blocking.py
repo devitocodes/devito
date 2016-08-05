@@ -1,4 +1,5 @@
 from collections import Iterable
+
 import numpy as np
 import pytest
 from sympy import Eq, symbols
@@ -52,10 +53,12 @@ class Test_Cache_Blocking(object):
             size *= element
 
         # cast cache_blocking flags based on block_size argument
-        cache_blocking = list(block_size)
         if isinstance(block_size, Iterable):
+            cache_blocking = list(block_size)
             for i in range(0, len(block_size)):
                 cache_blocking[i] = True if block_size[i] else False
+        else:
+            cache_blocking = True
 
         input_grid = DenseData(name="input_grid", shape=shape, dtype=np.float64)
         input_grid.data[:] = np.arange(size, dtype=np.float64).reshape(shape)
