@@ -3,7 +3,7 @@ from sympy import (Eq, Function, Indexed, Symbol, lambdify, preorder_traversal,
                    solve, symbols)
 from sympy.abc import t
 
-from devito.compiler import IntelMICCompiler, get_compiler_from_env
+from devito.compiler import get_compiler_from_env
 from devito.interfaces import SymbolicData, TimeData
 from devito.propagator import Propagator
 
@@ -194,18 +194,12 @@ class Operator(object):
         if debug:
             return self.apply_python()
 
-        f = self.propagator.cfunction
-
         for param in self.input_params:
             if hasattr(param, 'initialize'):
                 param.initialize()
+
         args = [param.data for param in self.signature]
-        if isinstance(self.compiler, IntelMICCompiler):
-            # Off-load propagator kernel via pymic stream
-            self.compiler._stream.invoke(f, *args)
-            self.compiler._stream.sync()
-        else:
-            f(*args)
+        self.propagator.run(args)
 
         return tuple([param.data for param in self.output_params])
 
