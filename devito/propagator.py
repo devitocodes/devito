@@ -53,7 +53,7 @@ class Propagator(object):
         self.space_dims = space_dims or (x, z) if len(shape) == 2 else (x, y, z)[:len(shape)]
 
         # Internal flags and meta-data
-        self.loop_counters = symbols("i1 i2 i3 i4")
+        self.loop_counters = list(symbols("i1 i2 i3 i4"))
         self._pre_kernel_steps = []
         self._post_kernel_steps = []
         self._forward = forward
@@ -301,14 +301,11 @@ class Propagator(object):
 
         array_names = set()
         for item in flatten([stencil.free_symbols for stencil in stencils]):
-            if str(item) not in factorized.keys() and item not in loop_counters and item not in time_steppers:
+            if str(item) not in factorized and item not in loop_counters + time_steppers:
                 array_names.add(item)
 
-        pragma_str = "omp simd aligned("
-        for name in array_names:
-            pragma_str += "%s, " % name
-        # removes , and white space from the end of a string
-        self.compiler.pragma_aligned = cgen.Pragma(pragma_str[:-2] + ":64)")
+        pragma = "omp simd aligned(%s:64)" % ", ".join([str(i) for i in array_names])
+        self.compiler.pragma_aligned = cgen.Pragma(pragma)
 
     def generate_loops(self, loop_body):
         """Assuming that the variable order defined in init (#var_order) is the
