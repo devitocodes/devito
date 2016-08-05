@@ -37,12 +37,6 @@ true_vp[:, :, int(dimensions[0] / 2):int(dimensions[0])] = 4.5
 initial_vp = smooth10(true_vp, dimensions)
 
 dm = true_vp**-2 - initial_vp**-2
-nbpml = 10
-if len(dimensions) == 2:
-    pad = ((nbpml, nbpml), (nbpml, nbpml))
-else:
-    pad = ((nbpml, nbpml), (nbpml, nbpml), (nbpml, nbpml))
-dm_pad = np.pad(dm, pad, 'edge')
 
 dv = -true_vp + initial_vp
 
@@ -57,7 +51,6 @@ t0 = 0.0
 tn = 250.0
 nt = int(1+(tn-t0)/dt)
 h = model.get_spacing()
-data.reinterpolate(dt)
 
 
 # Set up the source as Ricker wavelet for f0
@@ -78,11 +71,10 @@ receiver_coords[:, 1] = 500
 receiver_coords[:, 2] = location[2]
 data.set_receiver_pos(receiver_coords)
 data.set_shape(nt, 101)
-Acoustic = Acoustic_cg(model, data, None, nbpml=nbpml, t_order=2, s_order=2)
+Acoustic = Acoustic_cg(model, data)
 print("Preparing Forward")
 print("Applying")
 (rec, u) = Acoustic.Forward(save=True)
-
 print("Preparing adjoint")
 print("Applying")
 srca = Acoustic.Adjoint(rec)
@@ -93,4 +85,4 @@ g = Acoustic.Gradient(rec, u)
 
 print("Preparing Born")
 print("Applying")
-LinRec = Acoustic.Born(dm_pad)
+LinRec = Acoustic.Born(dm)

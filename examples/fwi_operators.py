@@ -115,18 +115,14 @@ class ForwardOperator(Operator):
         nrec, nt = data.traces.shape
         dt = model.get_critical_dt()
         u = TimeData(name="u", shape=model.get_shape_comp(), time_dim=nt, time_order=time_order,
-                          save=save, dtype=damp.dtype)
+                          space_order=spc_order, save=save, dtype=damp.dtype)
         m = DenseData(name="m", shape=model.get_shape_comp(), dtype=damp.dtype)
-        m.data[:] = model.get_m_comp()
+        m.data[:] = model.padm()
         u.pad_time = save
         rec = SourceLike(name="rec", npoint=nrec, nt=nt, dt=dt, h=model.get_spacing(),
                               coordinates=data.receiver_coords, ndim=len(damp.shape), dtype=damp.dtype,
                               nbpml=0)
         src.data[:] = data.get_source()[:,np.newaxis]
-        # Set time and space orders
-        u.time_order = time_order
-        u.space_order = spc_order
-
         # Derive stencil from symbolic equation
         eqn = m * u.dt2 - u.laplace + damp * u.dt
         stencil = solve(eqn, u.forward)[0]
@@ -141,8 +137,7 @@ class ForwardOperator(Operator):
 
         # Insert source and receiver terms post-hoc
         self.input_params += [src, src.coordinates, rec, rec.coordinates]
-        if save:
-            self.output_params += [u]
+        self.output_params = [u, rec]
         self.propagator.time_loop_stencils_a = src.add(m, u) + rec.read(u)
         self.propagator.add_devito_param(src)
         self.propagator.add_devito_param(src.coordinates)
@@ -155,20 +150,18 @@ class AdjointOperator(Operator):
         nrec, nt = data.traces.shape
         dt = model.get_critical_dt()
         v = TimeData(name="v", shape=model.get_shape_comp(), time_dim=nt, time_order=time_order,
-                          save=False, dtype=damp.dtype)
+                          space_order=spc_order, save=False, dtype=damp.dtype)
         m = DenseData(name="m", shape=model.get_shape_comp(), dtype=damp.dtype)
-        m.data[:] = model.get_m_comp()
+        m.data[:] = model.padm()
         v.pad_time = False
-        srca = SourceLike(name="rec", npoint=1, nt=nt, dt=dt, h=model.get_spacing(),
-                              coordinates=data.receiver_coords, ndim=len(damp.shape), dtype=damp.dtype,
+        srca = SourceLike(name="srca", npoint=1, nt=nt, dt=dt, h=model.get_spacing(),
+                              coordinates=np.array(data.source_coords, dtype=damp.dtype)[np.newaxis, :],
+                              ndim=len(damp.shape), dtype=damp.dtype,
                               nbpml=0)
         rec = SourceLike(name="rec", npoint=nrec, nt=nt, dt=dt, h=model.get_spacing(),
                               coordinates=data.receiver_coords, ndim=len(damp.shape), dtype=damp.dtype,
                               nbpml=0)
         rec.data[:] = recin
-        # Set time and space orders
-        v.time_order = time_order
-        v.space_order = spc_order
         # Derive stencil from symbolic equation
         eqn = m * v.dt2 - v.laplace - damp * v.dt
         stencil = solve(eqn, v.backward)[0]
@@ -184,6 +177,7 @@ class AdjointOperator(Operator):
         # Insert source and receiver terms post-hoc
         self.input_params += [srca, srca.coordinates, rec, rec.coordinates]
         self.propagator.time_loop_stencils_a = rec.add(m, v) + srca.read(v)
+        self.output_params = [srca]
         self.propagator.add_devito_param(srca)
         self.propagator.add_devito_param(srca.coordinates)
         self.propagator.add_devito_param(rec)
@@ -191,11 +185,22 @@ class AdjointOperator(Operator):
 
 
 class GradientOperator(Operator):
-    def __init__(self, u, m, rec, damp, time_order=2, spc_order=6, **kwargs):
-        assert(m.shape == damp.shape)
-
-        v = TimeData(name="v", shape=m.shape, dtype=m.dtype, time_dim=rec.nt,
-                     time_order=time_order, space_order=spc_order, save=False, )
+    def __init__(self, model, damp, data, recin, uin, time_order=2, spc_order=6, **kwargs):
+        nrec, nt = data.traces.shape
+        dt = model.get_critical_dt()
+        u = TimeData(name="u", shape=model.get_shape_comp(), time_dim=nt, time_order=time_order,
+                          space_order=spc_order, save=True, dtype=damp.dtype)
+        u.pad_time = True
+        u.data[:] = uin
+        v = TimeData(name="v", shape=model.get_shape_comp(), time_dim=nt, time_order=time_order,
+                          space_order=spc_order, save=False, dtype=damp.dtype)
+        m = DenseData(name="m", shape=model.get_shape_comp(), dtype=damp.dtype)
+        m.data[:] = model.padm()
+        v.pad_time = False
+        rec = SourceLike(name="rec", npoint=nrec, nt=nt, dt=dt, h=model.get_spacing(),
+                              coordinates=data.receiver_coords, ndim=len(damp.shape), dtype=damp.dtype,
+                              nbpml=0)
+        rec.data[:] = recin
         grad = DenseData(name="grad", shape=m.shape, dtype=m.dtype)
 
         # Derive stencil from symbolic equation
@@ -204,7 +209,7 @@ class GradientOperator(Operator):
 
         # Add substitutions for spacing (temporal and spatial)
         s, h = symbols('s h')
-        subs = {s: rec.dt, h: rec.h}
+        subs = {s: model.get_critical_dt(), h: model.get_spacing()}
         # Add Gradient-specific updates. The dt2 is currently hacky as it has to match the cyclic indices
         gradient_update = Eq(grad, grad - s**-2*(v + v.forward - 2 * v.forward.forward) * u.forward)
         stencils = [gradient_update, Eq(v.backward, stencil)]
@@ -221,14 +226,24 @@ class GradientOperator(Operator):
 
 
 class BornOperator(Operator):
-    def __init__(self, dm, m, src, damp, rec, time_order=2, spc_order=6, **kwargs):
-        assert(m.shape == damp.shape)
+    def __init__(self, model, src, damp, data, dmin, time_order=2, spc_order=6, **kwargs):
+        nrec, nt = data.traces.shape
+        dt = model.get_critical_dt()
+        u = TimeData(name="u", shape=model.get_shape_comp(), time_dim=nt, time_order=time_order,
+                          space_order=spc_order, save=False, dtype=damp.dtype)
+        U = TimeData(name="U", shape=model.get_shape_comp(), time_dim=nt, time_order=time_order,
+                          space_order=spc_order, save=False, dtype=damp.dtype)
+        m = DenseData(name="m", shape=model.get_shape_comp(), dtype=damp.dtype)
+        m.data[:] = model.padm()
+        
+	dm = DenseData(name="dm", shape=model.get_shape_comp(), dtype=damp.dtype)
+        dm.data[:] = model.pad(dmin)
+	
+        rec = SourceLike(name="rec", npoint=nrec, nt=nt, dt=dt, h=model.get_spacing(),
+                              coordinates=data.receiver_coords, ndim=len(damp.shape), dtype=damp.dtype,
+                              nbpml=0)
 
-        u = TimeData(name="u", shape=m.shape, dtype=m.dtype, time_dim=src.nt,
-                     time_order=time_order, space_order=spc_order, save=False)
-        U = TimeData(name="U", shape=m.shape, dtype=m.dtype, time_dim=src.nt,
-                     time_order=time_order, space_order=spc_order, save=False)
-
+        src.data[:] = data.get_source()[:,np.newaxis]
         # Derive stencils from symbolic equation
         first_eqn = m * u.dt2 - u.laplace - damp * u.dt
         first_stencil = solve(first_eqn, u.forward)[0]
@@ -250,8 +265,8 @@ class BornOperator(Operator):
                                            **kwargs)
 
         # Insert source and receiver terms post-hoc
-        self.input_params += [dm, src, src.coordinates, rec, rec.coordinates]
-        self.output_params += [U]
+        self.input_params += [dm, src, src.coordinates, rec, rec.coordinates, U]
+        self.output_params = [rec]
         self.propagator.time_loop_stencils_b = src.add(m, u, t - 1)
         self.propagator.time_loop_stencils_a = rec.read(U)
         self.propagator.add_devito_param(dm)

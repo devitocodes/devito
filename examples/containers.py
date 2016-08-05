@@ -61,12 +61,16 @@ class IGrid:
     def get_origin(self):
         return self.origin
 
-    def get_m_comp(self):
+
+    def padm(self):
+        return self.pad(self.vp**(-2))
+
+    def pad(self, m):
         pad_list = []
         for dim_index in range(len(self.vp.shape)):
             pad_list.append((self.nbpml, self.nbpml))
-        return np.pad(self.vp**(-2), pad_list, 'edge')
-
+        return np.pad(m, pad_list, 'edge')
+   
     def get_shape_comp(self):
         dim = self.dimensions
         if len(dim) == 3:

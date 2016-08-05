@@ -13,7 +13,7 @@ class Test_AdjointA(object):
         dimensions = request.param
         # dimensions are (x,z) and (x, y, z)
         origin = tuple([0]*len(dimensions))
-        spacing = tuple([25]*len(dimensions))
+        spacing = tuple([15]*len(dimensions))
 
         # True velocity
         true_vp = np.ones(dimensions) + 2.0
@@ -50,7 +50,7 @@ class Test_AdjointA(object):
         data.set_receiver_pos(receiver_coords)
         data.set_shape(nt, 50)
         # Adjoint test
-        wave_true = Acoustic_cg(model, data, None, None, t_order=time_order, s_order=space_order, nbpml=10)
+        wave_true = Acoustic_cg(model, data, t_order=time_order, s_order=space_order, nbpml=10)
         return wave_true
 
     @pytest.fixture(params=[2])
@@ -63,13 +63,15 @@ class Test_AdjointA(object):
 
     @pytest.fixture
     def forward(self, Acoustic):
-        (rec, u) = Acoustic.Forward()
-        return (rec, u)
+        rec, u = Acoustic.Forward()
+        return rec
 
     def test_adjoint(self, Acoustic, forward):
-        rec = forward[0]
-        srca, v = Acoustic.Adjoint(rec)
-        nt = Acoustic.nt
+        rec = forward
+        print(linalg.norm(rec))
+        srca = Acoustic.Adjoint(rec)
+        print(linalg.norm(srca))
+        nt = srca.shape[0]
         # Actual adjoint test
         term1 = 0
         for ti in range(0, nt):
