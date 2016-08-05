@@ -1,3 +1,4 @@
+from collections import Iterable
 import numpy as np
 import pytest
 from sympy import Eq, symbols
@@ -29,10 +30,17 @@ class Test_Cache_Blocking(object):
         ((10, 25, 25, 46), 2, 3, [2, 4, 8]),
         ((10, 25, 25, 46), 2, 3, [4, 8, 2]),
         ((10, 25, 46), 2, 3, [None, 7]),
-        ((10, 25, 46), 2, 3, [7, None]),
-        ((10, 25, 46), 2, 3, None)
+        ((10, 25, 46), 2, 3, [7, None])
     ])
     def test_cache_blocking_edge_cases(self, shape, time_order, spc_border, block_size):
+        self.cache_blocking_test(shape, time_order, spc_border, block_size)
+
+    # Negative tests. Test cases that are expected to fail
+    @pytest.mark.parametrize("shape,time_order,spc_border,block_size", [
+        pytest.mark.xfail(((10, 25, 46), 2, 3, [None]), strict=True),
+        pytest.mark.xfail(((10, 25, 46), 2, 3, [4, 4, 5]), strict=True)
+    ])
+    def test_cache_blocking_negative_tests(self, shape, time_order, spc_border, block_size):
         self.cache_blocking_test(shape, time_order, spc_border, block_size)
 
     def cache_blocking_test(self, shape, time_order, spc_border, block_size):
@@ -42,6 +50,12 @@ class Test_Cache_Blocking(object):
         size = 1
         for element in shape:
             size *= element
+
+        # cast cache_blocking flags based on block_size argument
+        cache_blocking = list(block_size)
+        if isinstance(block_size, Iterable):
+            for i in range(0, len(block_size)):
+                cache_blocking[i] = True if block_size[i] else False
 
         input_grid = DenseData(name="input_grid", shape=shape, dtype=np.float64)
         input_grid.data[:] = np.arange(size, dtype=np.float64).reshape(shape)

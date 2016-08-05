@@ -4,7 +4,6 @@ from sympy import (Add, Eq, Function, Indexed, IndexedBase, Symbol, cse,
 from sympy.abc import t
 from sympy.utilities.iterables import numbered_symbols
 
-from at_controller import AtController
 from devito.compiler import get_compiler_from_env
 from devito.interfaces import SymbolicData, TimeData
 from devito.propagator import Propagator
@@ -151,10 +150,11 @@ class Operator(object):
     :param profile: Flag to enable performance profiling
     :param cache_blocking: Flag to enable cache blocking
     :param cse: Flag to enable common subexpression elimination
-    :param block_size: Block size used for cache clocking. Can be either a single number
-                       used for all dimensions or a list stating block sizes for each
-                       dimension. Set block size to None to skip blocking on that dim
-    :param auto_tune: Flag to enable auto tuning of block sizes
+    :param block_size: Block size used for cache clocking. Can be either a single number used for all dimensions or
+                      a list stating block sizes for each dimension. Set block size to None to skip blocking on that dim
+    :param at_report: string - indicating path to auto tuning report directory.
+                    If used together with cache blocking, block sizes will be retrieved
+                    from auto tuning report.
     :param input_params: List of symbols that are expected as input.
     :param output_params: List of symbols that define operator output.
     :param factorized: A map given by {string_name:sympy_object} for including factorized
@@ -164,7 +164,7 @@ class Operator(object):
     def __init__(self, nt, shape, dtype=np.float32, stencils=[],
                  subs=[], spc_border=0, time_order=0,
                  forward=True, compiler=None, profile=False, cse=True,
-                 cache_blocking=False, block_size=None, auto_tune=False,
+                 cache_blocking=False, block_size=None, at_report=None,
                  input_params=None, output_params=None, factorized={}):
         # Derive JIT compilation infrastructure
         self.compiler = compiler or get_compiler_from_env()
@@ -244,17 +244,13 @@ class Operator(object):
                                      forward=forward, space_dims=self.space_dims,
                                      compiler=self.compiler, profile=profile,
                                      cache_blocking=cache_blocking, block_size=block_size,
-                                     auto_tune=auto_tune)
+                                     at_report=at_report)
         self.dtype = dtype
         self.nt = nt
         self.shape = shape
         self.spc_border = spc_border
         self.time_order = time_order
         self.symbol_to_data = {}
-
-        self.cache_blocking = cache_blocking
-        self.block_size = block_size
-        self.auto_tune = auto_tune
 
         for param in self.signature:
             self.propagator.add_devito_param(param)
@@ -278,10 +274,12 @@ class Operator(object):
         return self.input_params + [param for param in self.output_params
                                     if param not in self.input_params]
 
-    def apply(self, debug=False):
-        """:param debug: If True, use Python to apply the operator. Default False.
+    def apply(self, debug=False, auto_tune=False):
+        """
+        :param debug: If True, use Python to apply the operator. Default False.
+        :param auto_tune: If true return compiled function and its parameters. Default False
 
-        :returns: A tuple containing the values of the operator outputs
+        :returns: A tuple containing the values of the operator outputs or compiled function and its args
         """
         if debug:
             return self.apply_python()
@@ -293,11 +291,9 @@ class Operator(object):
         args = [param.data for param in self.signature]
         self.propagator.run(args)
 
-        if self.cache_blocking and self.auto_tune:
-            at_controller = AtController(f, args, self.getName(), self.shape, self.time_order, self.spc_border,
-                                         self.block_size)
-
-            at_controller.brute_force()  # uses default values
+        # if auto tuning block sizes return compiled function and its arguments to AutoTuner
+        if auto_tune:
+            return f, args
 
         return tuple([param.data for param in self.output_params])
 

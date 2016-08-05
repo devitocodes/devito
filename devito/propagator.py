@@ -41,22 +41,21 @@ class Propagator(object):
                      environment variable DEVITO_ARCH, or default to GNUCompiler
     :param profile: Flag to enable performance profiling
     :param cache_blocking: Flag to enable cache blocking
-    :param block_size: Block size used for cache clocking. Can be either a single number
-                       used for all dimensions or a list stating block sizes for each
-                       dimension. Set block size to None to skip blocking on that dim
-     :param auto_tune: Flag to enable auto tuning of block sizes
+    :param block_size: Block size used for cache clocking. Can be either a single number used for all dimensions or
+                      a list stating block sizes for each dimension. Set block size to None to skip blocking on that dim
+    :param at_report: string - indicating path to auto tuning report directory.
+                    If used together with cache blocking, block sizes will be retrieved
+                    from auto tuning report.
     """
     def __init__(self, name, nt, shape, stencils, factorized=None, spc_border=0,
                  time_order=0, time_dim=None, space_dims=None, dtype=np.float32,
                  forward=True, compiler=None, profile=False,
-                 cache_blocking=False, block_size=None, auto_tune=False):
+                 cache_blocking=False, block_size=None,  at_report=None):
         self.stencils = stencils
         self.dtype = dtype
         self.factorized = factorized or {}
         self.time_order = time_order
         self.spc_border = spc_border
-        cache_blocking = True
-        auto_tune = True
 
         # Default time and space symbols if not provided
         self.time_dim = time_dim or t
@@ -104,10 +103,12 @@ class Propagator(object):
 
         # Cache blocking and default block sizes
         self.cache_blocking = cache_blocking
-        self.block_size = block_size
-        self.auto_tune = auto_tune
+        self.block_sizes = block_size
         self.shape = shape
         self.spc_border = spc_border
+
+        self.auto_tune = False  # Flag for auto tuning. Gets set to true by auto tuner
+        self.at_report = at_report  # Path to auto tuning report
 
         # Cache C code, lib and function objects
         self._ccode = None
@@ -386,11 +387,6 @@ class Propagator(object):
         if self.cache_blocking:
             self._decide_block_sizes()
 
-            if self.auto_tune:
-                for i in range(0, len(self.space_dims)):  # add block sizes as parameters
-                    if self.block_sizes[i] is not None:
-                        self.fd.add_value_param(str(self.loop_counters[i]) + "block", np.int32)
-
             loop_body = self.generate_space_loops_blocking(loop_body)
         else:
             loop_body = self.generate_space_loops(loop_body)
@@ -608,33 +604,47 @@ class Propagator(object):
         return [loop_body] + full_remainder if full_remainder else [loop_body]
 
     def get_number_of_loads(self):
+        """Gets number of loads in the kernel"""
         return len(self._kernel_dic_oi["load_all_list"])
 
     def _decide_block_sizes(self):
         """
-        Decides block size if cache blocking. If there is auto tune result otherwise use optimal block size
+        Decides block size if cache blocking and checks whether args have been provided correctly
+        :raises ValueError: If cache blocking parameters where passed incorrectly
         """
-        if self.auto_tune and not self.block_size:
-            # (f_name, shape, time_order, spc_border, block_size):
-            self.block_size = get_at_block_size(self.fd.name, self.shape, self.time_order, self.spc_border, self.block_size)
-        elif not self.block_size:
-            # else if block_sizes not set check if there is best block_sizes from at report else use optimal val
-            optimal_block_size = get_optimal_block_size(self.shape, self.get_number_of_loads())
+        if self.auto_tune:
+            if self.block_sizes:
+                raise ValueError("Auto tuning of block sizes has to be started with block_sizes set to None")
 
-            if self.block_size:
-                logger.warning("Using block sizes found in auto tune report - %s" % str(self.block_size))
-            else:
-                self.block_size = optimal_block_size  # use optimal block size
+            # add block sizes as parameters to function descriptor and sets block sizes
+            self.block_sizes = get_optimal_block_size(self.cache_blocking, self.shape, self.get_number_of_loads())
+            for i in range(0, len(self.space_dims)):  # add block sizes as parameters
+                if self.block_sizes[i] is not None:
+                    self.fd.add_value_param(str(self.loop_counters[i]) + "block", np.int32)
 
-        if isinstance(self.block_size, Iterable):
-            if len(self.block_size) == len(self.shape):
-                self.block_sizes = self.block_size
+        elif self.at_report:  # if auto tuning report path has been passed. Set block sizes based on at report
+            self.block_sizes = get_at_block_size(self.fd.name, self.time_order, self.spc_border,
+                                                 self.shape, self.cache_blocking, self.at_report)
+            if self.block_sizes:
+                logger.log("Using block size values found in auto tuning report: %s" % str(self.block_sizes))
             else:
-                raise ValueError("Block size should either be a single number" +
-                                 " or an array of the same size as the blocked spacial domain")
+                self.block_sizes = get_optimal_block_size(self.cache_blocking, self.shape, self.get_number_of_loads())
+                logger.warning("Block sizes for this model not found in auto tuning report."
+                               " Using best guess based on architecture: %s" % str(self.block_sizes))
+
+        # Checks whether block sizes and cache blocking args were provided correctly if auto tuning is not involved
+        elif isinstance(self.block_sizes, Iterable) or isinstance(self.cache_blocking, Iterable):
+            if (isinstance(self.block_sizes, Iterable) and isinstance(self.cache_blocking, Iterable)) \
+                    and len(self.block_sizes) == len(self.cache_blocking) and len(self.block_sizes) == len(self.shape):
+
+                for i in range(0, len(self.cache_blocking)):  # Sets block sizes to None based on which dim to block
+                    self.block_sizes[i] = None if self.cache_blocking[i] is None else self.block_sizes[i]
+            else:
+                raise ValueError("Cache blocking and block sizes have to both be an arrays of the same size"
+                                 " as the spacial domain or single bool/int instances")
         else:
             # A single block size has been passed. Broadcast it to a list of the size of shape
-            self.block_sizes = [int(self.block_size)] * len(self.shape)
+            self.block_sizes = [int(self.block_sizes)] * len(self.shape)
 
     def add_inner_most_dim_pragma(self, inner_most_dim, space_dims, loop_body):
         """
