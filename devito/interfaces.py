@@ -246,6 +246,8 @@ class TimeData(DenseData):
     :param dtype: Data type of the buffered data
     :param save: Save the intermediate results to the data buffer. Defaults
                  to `False`, indicating the use of alternating buffers.
+    :param pad_time: Set to `True` if save is True and you want to initialize
+                     the first :obj:`time_order` timesteps.
     :param time_dim: Size of the time dimension that dictates the leading
                      dimension of the data buffer if :param save: is True.
     :param time_order: Order of the time discretization which affects the
