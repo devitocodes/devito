@@ -42,6 +42,7 @@ class IGrid:
         self.theta = theta
         self.phi = phi
         self.spacing = spacing
+        self.dimensions = vp.shape
         if epsilon is not None:
             self.scale = np.sqrt(1 + 2 * np.max(self.epsilon))
         else:
@@ -60,6 +61,18 @@ class IGrid:
     def get_origin(self):
         return self.origin
 
+    def get_m_comp(self):
+        pad_list = []
+        for dim_index in range(len(self.vp.shape)):
+            pad_list.append((self.nbpml, self.nbpml))
+        return np.pad(self.vp**(-2), pad_list, 'edge')
+
+    def get_shape_comp(self):
+        dim = self.dimensions
+        if len(dim) == 3:
+            return (dim[0] + 2 * self.nbpml, dim[1] + 2 * self.nbpml, dim[2] + 2 * self.nbpml)
+        else:
+            return (dim[0] + 2 * self.nbpml, dim[1] + 2 * self.nbpml)
 
 class ISource:
     def get_source(self):

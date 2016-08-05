@@ -4,7 +4,7 @@ from sympy.abc import p, t
 from devito.interfaces import DenseData, PointData, TimeData
 from devito.iteration import Iteration
 from devito.operator import *
-
+import numpy as np
 
 class SourceLike(PointData):
     """Defines the behaviour of sources and receivers.
@@ -111,9 +111,18 @@ class SourceLike(PointData):
 
 
 class ForwardOperator(Operator):
-    def __init__(self, m, src, damp, rec, u, time_order=2, spc_order=6, **kwargs):
-        assert(m.shape == damp.shape)
-        u.pad_time = u.save
+    def __init__(self, model, src, damp, data, time_order=2, spc_order=6, save=False, **kwargs):
+        nrec, nt = data.traces.shape
+        dt = model.get_critical_dt()
+        u = TimeData(name="u", shape=model.get_shape_comp(), time_dim=nt, time_order=time_order,
+                          save=save, dtype=damp.dtype)
+        m = DenseData(name="m", shape=model.get_shape_comp(), dtype=damp.dtype)
+        m.data[:] = model.get_m_comp()
+        u.pad_time = save
+        rec = SourceLike(name="rec", npoint=nrec, nt=nt, dt=dt, h=model.get_spacing(),
+                              coordinates=data.receiver_coords, ndim=len(damp.shape), dtype=damp.dtype,
+                              nbpml=0)
+        src.data[:] = data.get_source()[:,np.newaxis]
         # Set time and space orders
         u.time_order = time_order
         u.space_order = spc_order
@@ -124,15 +133,16 @@ class ForwardOperator(Operator):
 
         # Add substitutions for spacing (temporal and spatial)
         s, h = symbols('s h')
-        subs = {s: src.dt, h: src.h}
-
-        super(ForwardOperator, self).__init__(src.nt, m.shape, stencils=Eq(u.forward, stencil),
+        subs = {s: dt, h: model.get_spacing()}
+        super(ForwardOperator, self).__init__(data.traces.shape[1], m.shape, stencils=Eq(u.forward, stencil),
                                               substitutions=subs, spc_border=spc_order/2,
                                               time_order=time_order, forward=True, dtype=m.dtype,
                                               **kwargs)
 
         # Insert source and receiver terms post-hoc
         self.input_params += [src, src.coordinates, rec, rec.coordinates]
+        if save:
+            self.output_params += [u]
         self.propagator.time_loop_stencils_a = src.add(m, u) + rec.read(u)
         self.propagator.add_devito_param(src)
         self.propagator.add_devito_param(src.coordinates)
@@ -141,20 +151,31 @@ class ForwardOperator(Operator):
 
 
 class AdjointOperator(Operator):
-    def __init__(self, m, rec, damp, srca, time_order=2, spc_order=6, **kwargs):
-        assert(m.shape == damp.shape)
-
-        # Create v with given time and space orders
-        v = TimeData(name="v", shape=m.shape, dtype=m.dtype, time_dim=rec.nt,
-                     time_order=time_order, space_order=spc_order, save=True)
-
+    def __init__(self, model, damp, data, recin, time_order=2, spc_order=6, **kwargs):
+        nrec, nt = data.traces.shape
+        dt = model.get_critical_dt()
+        v = TimeData(name="v", shape=model.get_shape_comp(), time_dim=nt, time_order=time_order,
+                          save=False, dtype=damp.dtype)
+        m = DenseData(name="m", shape=model.get_shape_comp(), dtype=damp.dtype)
+        m.data[:] = model.get_m_comp()
+        v.pad_time = False
+        srca = SourceLike(name="rec", npoint=1, nt=nt, dt=dt, h=model.get_spacing(),
+                              coordinates=data.receiver_coords, ndim=len(damp.shape), dtype=damp.dtype,
+                              nbpml=0)
+        rec = SourceLike(name="rec", npoint=nrec, nt=nt, dt=dt, h=model.get_spacing(),
+                              coordinates=data.receiver_coords, ndim=len(damp.shape), dtype=damp.dtype,
+                              nbpml=0)
+        rec.data[:] = recin
+        # Set time and space orders
+        v.time_order = time_order
+        v.space_order = spc_order
         # Derive stencil from symbolic equation
         eqn = m * v.dt2 - v.laplace - damp * v.dt
         stencil = solve(eqn, v.backward)[0]
 
         # Add substitutions for spacing (temporal and spatial)
         s, h = symbols('s h')
-        subs = {s: rec.dt, h: rec.h}
+        subs = {s: model.get_critical_dt(), h: model.get_spacing()}
         super(AdjointOperator, self).__init__(rec.nt, m.shape, stencils=Eq(v.backward, stencil),
                                               substitutions=subs, spc_border=spc_order/2,
                                               time_order=time_order, forward=False, dtype=m.dtype,
