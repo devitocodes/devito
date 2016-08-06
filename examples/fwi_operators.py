@@ -161,7 +161,7 @@ class AdjointOperator(Operator):
         rec = SourceLike(name="rec", npoint=nrec, nt=nt, dt=dt, h=model.get_spacing(),
                               coordinates=data.receiver_coords, ndim=len(damp.shape), dtype=damp.dtype,
                               nbpml=model.nbpml)
-        rec.data[:] = recin
+        rec.data[:] = recin[:]
         # Derive stencil from symbolic equation
         eqn = m * v.dt2 - v.laplace - damp * v.dt
         stencil = solve(eqn, v.backward)[0]
@@ -238,7 +238,7 @@ class BornOperator(Operator):
         
         dm = DenseData(name="dm", shape=model.get_shape_comp(), dtype=damp.dtype)
         dm.data[:] = model.pad(dmin)
-	
+
         rec = SourceLike(name="rec", npoint=nrec, nt=nt, dt=dt, h=model.get_spacing(),
                               coordinates=data.receiver_coords, ndim=len(damp.shape), dtype=damp.dtype,
                               nbpml=model.nbpml)
