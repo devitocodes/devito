@@ -121,7 +121,7 @@ class ForwardOperator(Operator):
         u.pad_time = save
         rec = SourceLike(name="rec", npoint=nrec, nt=nt, dt=dt, h=model.get_spacing(),
                               coordinates=data.receiver_coords, ndim=len(damp.shape), dtype=damp.dtype,
-                              nbpml=0)
+                              nbpml=model.nbpml)
         src.data[:] = data.get_source()[:,np.newaxis]
         # Derive stencil from symbolic equation
         eqn = m * u.dt2 - u.laplace + damp * u.dt
@@ -130,7 +130,7 @@ class ForwardOperator(Operator):
         # Add substitutions for spacing (temporal and spatial)
         s, h = symbols('s h')
         subs = {s: dt, h: model.get_spacing()}
-        super(ForwardOperator, self).__init__(data.traces.shape[1], m.shape, stencils=Eq(u.forward, stencil),
+        super(ForwardOperator, self).__init__(nt, m.shape, stencils=Eq(u.forward, stencil),
                                               substitutions=subs, spc_border=spc_order/2,
                                               time_order=time_order, forward=True, dtype=m.dtype,
                                               **kwargs)
@@ -157,10 +157,10 @@ class AdjointOperator(Operator):
         srca = SourceLike(name="srca", npoint=1, nt=nt, dt=dt, h=model.get_spacing(),
                               coordinates=np.array(data.source_coords, dtype=damp.dtype)[np.newaxis, :],
                               ndim=len(damp.shape), dtype=damp.dtype,
-                              nbpml=0)
+                              nbpml=model.nbpml)
         rec = SourceLike(name="rec", npoint=nrec, nt=nt, dt=dt, h=model.get_spacing(),
                               coordinates=data.receiver_coords, ndim=len(damp.shape), dtype=damp.dtype,
-                              nbpml=0)
+                              nbpml=model.nbpml)
         rec.data[:] = recin
         # Derive stencil from symbolic equation
         eqn = m * v.dt2 - v.laplace - damp * v.dt
@@ -169,7 +169,7 @@ class AdjointOperator(Operator):
         # Add substitutions for spacing (temporal and spatial)
         s, h = symbols('s h')
         subs = {s: model.get_critical_dt(), h: model.get_spacing()}
-        super(AdjointOperator, self).__init__(rec.nt, m.shape, stencils=Eq(v.backward, stencil),
+        super(AdjointOperator, self).__init__(nt, m.shape, stencils=Eq(v.backward, stencil),
                                               substitutions=subs, spc_border=spc_order/2,
                                               time_order=time_order, forward=False, dtype=m.dtype,
                                               **kwargs)
@@ -199,7 +199,7 @@ class GradientOperator(Operator):
         v.pad_time = False
         rec = SourceLike(name="rec", npoint=nrec, nt=nt, dt=dt, h=model.get_spacing(),
                               coordinates=data.receiver_coords, ndim=len(damp.shape), dtype=damp.dtype,
-                              nbpml=0)
+                              nbpml=model.nbpml)
         rec.data[:] = recin
         grad = DenseData(name="grad", shape=m.shape, dtype=m.dtype)
 
@@ -236,12 +236,12 @@ class BornOperator(Operator):
         m = DenseData(name="m", shape=model.get_shape_comp(), dtype=damp.dtype)
         m.data[:] = model.padm()
         
-	dm = DenseData(name="dm", shape=model.get_shape_comp(), dtype=damp.dtype)
+        dm = DenseData(name="dm", shape=model.get_shape_comp(), dtype=damp.dtype)
         dm.data[:] = model.pad(dmin)
 	
         rec = SourceLike(name="rec", npoint=nrec, nt=nt, dt=dt, h=model.get_spacing(),
                               coordinates=data.receiver_coords, ndim=len(damp.shape), dtype=damp.dtype,
-                              nbpml=0)
+                              nbpml=model.nbpml)
 
         src.data[:] = data.get_source()[:,np.newaxis]
         # Derive stencils from symbolic equation

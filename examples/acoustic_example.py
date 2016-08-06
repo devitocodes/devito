@@ -1,5 +1,4 @@
 import numpy as np
-
 from Acoustic_codegen import Acoustic_cg
 from containers import IGrid, IShot
 

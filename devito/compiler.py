@@ -90,7 +90,7 @@ class ClangCompiler(Compiler):
         self.ldflags = ['-shared']
 
         if self.openmp:
-            print "WARNING: Disabling OpenMP because clang does not support it."
+            print("WARNING: Disabling OpenMP because clang does not support it.")
             self.openmp = False
 
 
@@ -131,7 +131,6 @@ class IntelMICCompiler(Compiler):
             self.ldflags += ['-qopenmp']
         else:
             print "WARNING: Running on Intel MIC without OpenMP is highly discouraged"
-
         self._mic = __import__('pymic')
 
 
@@ -147,7 +146,7 @@ class IntelKNLCompiler(Compiler):
         if self.openmp:
             self.ldflags += ['-qopenmp']
         else:
-            print "WARNING: Running on Intel KNL without OpenMP is highly discouraged"
+            print("WARNING: Running on Intel KNL without OpenMP is highly discouraged")
 
 # Registry dict for deriving Compiler classes according to
 # environment variable DEVITO_ARCH. Developers should add
@@ -206,7 +205,7 @@ def jit_compile(ccode, basename, compiler=GNUCompiler):
     """
     src_file = "%s.cpp" % basename
     lib_file = "%s.so" % basename
-    print "%s: Compiling %s" % (compiler, src_file)
+    print("%s: Compiling %s" % (compiler, src_file))
     extension_file_from_string(toolchain=compiler, ext_file=lib_file,
                                source_string=ccode, source_name=src_file)
 

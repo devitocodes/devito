@@ -1,5 +1,4 @@
 import numpy as np
-
 from containers import IGrid, IShot
 from TTI_codegen import TTI_cg
 
