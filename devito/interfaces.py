@@ -104,6 +104,7 @@ class DenseData(SymbolicData):
     :param shape: Shape of the spatial data grid
     :param dtype: Data type of the buffered data
     :param space_order: Discretisation order for space derivatives
+    :param initializer: Function to initializes the data, optional
 
     Note: :class:`DenseData` objects are assumed to be constant in time and
     therefore do not support time derivatives. Use :class:`TimeData` for
@@ -119,8 +120,11 @@ class DenseData(SymbolicData):
             self.shape = kwargs.get('shape')
             self.dtype = kwargs.get('dtype', np.float32)
             self.space_order = kwargs.get('space_order', 1)
+            initializer = kwargs.get('initializer', None)
+            if initializer is not None:
+                assert(callable(initializer))
+            self.initializer = initializer
             self._data = kwargs.get('_data', None)
-            self.initializer = None
             MemmapManager.setup(self, *args, **kwargs)
             # Store new instance in symbol cache
             self._cache_put(self)
@@ -154,15 +158,6 @@ class DenseData(SymbolicData):
         indices = [a.subs({h: 1, s: 1}) for a in self.args]
 
         return self.indexed[indices]
-
-    def set_initializer(self, lambda_initializer):
-        """Set data intialising function to given lambda function.
-
-        :param lambda_initializer: Given lambda function.
-        """
-        assert(callable(lambda_initializer))
-
-        self.initializer = lambda_initializer
 
     def _allocate_memory(self):
         """Function to allocate memmory in terms of numpy ndarrays.
