@@ -1,5 +1,4 @@
 import atexit
-from devito.finite_difference import cross_derivative, first_derivative
 import os
 import sys
 from signal import SIGABRT, SIGINT, SIGSEGV, SIGTERM, signal
@@ -9,7 +8,7 @@ import numpy as np
 from sympy import Function, IndexedBase, as_finite_diff
 from sympy.abc import h, p, s, t, x, y, z
 
-from devito.finite_difference import cross_derivative
+from devito.finite_difference import cross_derivative, first_derivative
 from tools import aligned
 
 __all__ = ['DenseData', 'TimeData', 'PointData']
