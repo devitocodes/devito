@@ -104,7 +104,7 @@ class DenseData(SymbolicData):
     :param shape: Shape of the spatial data grid
     :param dtype: Data type of the buffered data
     :param space_order: Discretisation order for space derivatives
-    :param initializer: Function to initializes the data, optional
+    :param initializer: Function to initialize the data, optional
 
     Note: :class:`DenseData` objects are assumed to be constant in time and
     therefore do not support time derivatives. Use :class:`TimeData` for

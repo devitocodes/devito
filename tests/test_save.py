@@ -40,7 +40,7 @@ def run_simulation(save=False, dx=0.01, dy=0.01, a=0.5, timesteps=100):
     if save:
         return u.data[timesteps - 1, :]
     else:
-        return u.data[0, :]
+        return u.data[timesteps % 2, :]
 
 
 def test_save():
