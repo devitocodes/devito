@@ -57,18 +57,20 @@ class Test_AdjointA(object):
     def time_order(self, request):
         return request.param
 
-    @pytest.fixture(params=[2, 4, 6, 8, 10])
+    @pytest.fixture(params=[2, 2, 2, 2, 2, 2, 2, 4, 6, 8, 10])
     def space_order(self, request):
         return request.param
 
     @pytest.fixture
     def forward(self, Acoustic):
-        rec, u = Acoustic.Forward()
+        rec, u = Acoustic.Forward(save=False)
+        print(np.max(u), np.max(rec))
         return rec
 
     def test_adjoint(self, Acoustic, forward):
         rec = forward
         srca = Acoustic.Adjoint(rec)
+        print(linalg.norm(rec), linalg.norm(srca))
         nt = srca.shape[0]
         # Actual adjoint test
         term1 = 0

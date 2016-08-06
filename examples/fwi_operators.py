@@ -122,7 +122,6 @@ class ForwardOperator(Operator):
         rec = SourceLike(name="rec", npoint=nrec, nt=nt, dt=dt, h=model.get_spacing(),
                               coordinates=data.receiver_coords, ndim=len(damp.shape), dtype=damp.dtype,
                               nbpml=model.nbpml)
-        src.data[:] = data.get_source()[:,np.newaxis]
         # Derive stencil from symbolic equation
         eqn = m * u.dt2 - u.laplace + damp * u.dt
         stencil = solve(eqn, u.forward)[0]
@@ -243,7 +242,6 @@ class BornOperator(Operator):
                               coordinates=data.receiver_coords, ndim=len(damp.shape), dtype=damp.dtype,
                               nbpml=model.nbpml)
 
-        src.data[:] = data.get_source()[:,np.newaxis]
         # Derive stencils from symbolic equation
         first_eqn = m * u.dt2 - u.laplace - damp * u.dt
         first_stencil = solve(first_eqn, u.forward)[0]

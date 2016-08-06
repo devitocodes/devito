@@ -58,10 +58,12 @@ class Acoustic_cg:
         self.src = SourceLike(name="src", npoint=1, nt=data.traces.shape[1], dt=self.dt, h=self.model.get_spacing(),
                               coordinates=np.array(self.data.source_coords, dtype=self.dtype)[np.newaxis, :],
                               ndim=len(self.damp.shape), dtype=self.dtype, nbpml=nbpml)
+        self.src.data[:] = data.get_source()[:, np.newaxis]
 
     def Forward(self, save=False):
         fw = ForwardOperator(self.model, self.src, self.damp, self.data, time_order=self.t_order, spc_order=self.s_order, save=save)
         u, rec = fw.apply()
+        print(np.max(u), np.max(rec))
         return rec, u
 
     def Adjoint(self, rec):
