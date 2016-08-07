@@ -315,10 +315,10 @@ class Propagator(object):
             end_time_stmt = []
 
         initial_block = (omp_single + [cgen.Block(time_stepping + time_loop_stencils_b)]
-                                      if time_stepping or time_loop_stencils_b else [])
+                         if time_stepping or time_loop_stencils_b else [])
         initial_block = initial_block + start_time_stmt
         end_block = end_time_stmt + (omp_single + [cgen.Block(time_loop_stencils_a)]
-                                                  if time_loop_stencils_a else end_time_stmt)
+                                     if time_loop_stencils_a else end_time_stmt)
         loop_body = cgen.Block(initial_block + loop_body + end_block)
         loop_body = cgen.For(
             cgen.InlineInitializer(cgen.Value("int", t_var), str(t_loop_limits[0])),
