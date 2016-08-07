@@ -49,6 +49,9 @@ class IGrid:
             self.scale = 1
         self.origin = origin
 
+    def set_vp(self, vp):
+        self.vp = vp
+
     def set_origin(self, shift):
         norig = len(self.origin)
         aux = []

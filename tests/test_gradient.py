@@ -1,8 +1,9 @@
-from examples.Acoustic_codegen import Acoustic_cg
 import numpy as np
-from numpy import linalg
-from examples.containers import IGrid, IShot
 import pytest
+from numpy import linalg
+
+from examples.Acoustic_codegen import Acoustic_cg
+from examples.containers import IGrid, IShot
 
 
 class Test_Gradient(object):
@@ -35,22 +36,15 @@ class Test_Gradient(object):
         # Smooth velocity
         initial_vp = smooth10(true_vp)
         dm = true_vp**-2 - initial_vp**-2
-        nbpml = 10
-        if len(dimensions) == 2:
-            pad = ((nbpml, nbpml), (nbpml, nbpml))
-        else:
-            pad = ((nbpml, nbpml), (nbpml, nbpml), (nbpml, nbpml))
-        dm_pad = np.pad(dm, pad, 'edge')
-        initial_vp_pad = np.pad(initial_vp, pad, 'edge')
         model.create_model(origin, spacing, true_vp)
         model0.create_model(origin, spacing, initial_vp)
         # Define seismic data.
         data = IShot()
         data0 = IShot()
-        f0 = .007
+        f0 = .010
         dt = model.get_critical_dt()
         t0 = 0.0
-        tn = 500.0
+        tn = 750.0
         nt = int(1+(tn-t0)/dt)
         # Set up the source as Ricker wavelet for f0
 
@@ -75,9 +69,9 @@ class Test_Gradient(object):
         data.set_shape(nt, 50)
         data0.set_shape(nt, 50)
         # Adjoint test
-        wave_true = Acoustic_cg(model, data, None, None, t_order=time_order, s_order=space_order, nbpml=10)
-        wave_0 = Acoustic_cg(model0, data0, None, None, t_order=time_order, s_order=space_order, nbpml=10, save=True)
-        return wave_true, wave_0, dm_pad, initial_vp_pad
+        wave_true = Acoustic_cg(model, data, None, t_order=time_order, s_order=space_order, nbpml=10)
+        wave_0 = Acoustic_cg(model0, data0, None, t_order=time_order, s_order=space_order, nbpml=10)
+        return wave_true, wave_0, dm, initial_vp
 
     @pytest.fixture(params=[2])
     def time_order(self, request):
@@ -89,22 +83,22 @@ class Test_Gradient(object):
 
     def test_Grad(self, Acoustic):
         rec = Acoustic[0].Forward()[0]
-        rec0, u0 = Acoustic[1].Forward()
+        rec0, u0 = Acoustic[1].Forward(save=True)
         F0 = .5*linalg.norm(rec0 - rec)**2
         gradient = Acoustic[1].Gradient(rec0 - rec, u0)
         # Actual Gradient test
-        G = np.dot(gradient.reshape(-1), Acoustic[2].reshape(-1))
+        G = np.dot(gradient.reshape(-1), Acoustic[1].model.pad(Acoustic[2]).reshape(-1))
         # FWI Gradient test
         # print(F0, G)
         H = [1, 0.1, 0.01, .001, 0.0001, 0.00001, 0.000001]
         error1 = np.zeros((7))
         error2 = np.zeros((7))
         for i in range(0, 7):
-            Acoustic[1].m.data[:] = (Acoustic[3]**-2 + H[i] * Acoustic[2])
+            Acoustic[1].model.set_vp(np.sqrt((Acoustic[3]**-2 + H[i] * Acoustic[2])**(-1)))
             d = Acoustic[1].Forward()[0]
             error1[i] = np.absolute(.5*linalg.norm(d - rec)**2 - F0)
             error2[i] = np.absolute(.5*linalg.norm(d - rec)**2 - F0 - H[i] * G)
-            # print(F0,.5*linalg.norm(d - rec)**2, error1[i], H[i] *G, error2[i])
+            print(F0, .5*linalg.norm(d - rec)**2, error1[i], H[i] *G, error2[i])
             # print('For h = ', H[i], '\nFirst order errors is : ', error1[i],
             #       '\nSecond order errors is ', error2[i])
 

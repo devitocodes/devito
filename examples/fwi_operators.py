@@ -1,10 +1,10 @@
+import numpy as np
 from sympy import Eq, Function, Matrix, solve, symbols
 from sympy.abc import p, t
 
 from devito.interfaces import DenseData, PointData, TimeData
 from devito.iteration import Iteration
 from devito.operator import *
-import numpy as np
 
 
 class SourceLike(PointData):

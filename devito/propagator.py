@@ -282,7 +282,7 @@ class Propagator(object):
             loop_body = self.generate_space_loops(loop_body)
 
         omp_master = [cgen.Pragma("omp master")] if self.compiler.openmp else []
-        omp_single = [cgen.Pragma("omp single")] if self.compiler.openmp else []
+        omp_single = [cgen.Pragma("omp single")] if self.compiler.openmp and (not(self.save) or self.time_loop_stencils_b) else []
         omp_parallel = [cgen.Pragma("omp parallel")] if self.compiler.openmp else []
         omp_for = [cgen.Pragma("omp for schedule(static)")] if self.compiler.openmp else []
         t_loop_limits = self.time_loop_limits
@@ -317,7 +317,7 @@ class Propagator(object):
         initial_block = omp_single + ([cgen.Block(time_stepping + time_loop_stencils_b)]
                                       if time_stepping or time_loop_stencils_b else [])
         initial_block = initial_block + start_time_stmt
-        end_block = end_time_stmt + omp_single + ([cgen.Block(time_loop_stencils_a)]
+        end_block = end_time_stmt + (omp_single + [cgen.Block(time_loop_stencils_a)]
                                                   if time_loop_stencils_a else end_time_stmt)
         loop_body = cgen.Block(initial_block + loop_body + end_block)
         loop_body = cgen.For(
