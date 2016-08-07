@@ -19,14 +19,13 @@ class Acoustic_cg:
         self.dtype = np.float64
         self.dt = model.get_critical_dt()
         self.model.nbpml = nbpml
+        self.model.set_origin(nbpml)
         if source is not None:
             self.source = source.read()
             self.source.reinterpolate(self.dt)
             source_time = self.source.traces[0, :]
-
             while len(source_time) < self.data.nsamples:
                 source_time = np.append(source_time, [0.0])
-
             self.data.set_source(source_time, self.dt, self.data.source_coords)
 
         def damp_boundary(damp):
@@ -51,7 +50,7 @@ class Acoustic_cg:
                     damp[:, -(i + 1), :] += val
                     damp[:, :, i] += val
                     damp[:, :, -(i + 1)] += val
-        self.damp = DenseData(name="damp", shape=self.model.vp.shape, dtype=self.dtype)
+        self.damp = DenseData(name="damp", shape=self.model.get_shape_comp(), dtype=self.dtype)
 
         # Initialize damp by calling the function that can precompute damping
         damp_boundary(self.damp.data)
@@ -62,8 +61,7 @@ class Acoustic_cg:
 
     def Forward(self, save=False):
         fw = ForwardOperator(self.model, self.src, self.damp, self.data, time_order=self.t_order, spc_order=self.s_order, save=save)
-        u, rec = fw.apply()
-        print(np.max(u), np.max(rec))
+        u, rec =fw.apply()
         return rec, u
 
     def Adjoint(self, rec):

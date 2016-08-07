@@ -125,7 +125,6 @@ class ForwardOperator(Operator):
         # Derive stencil from symbolic equation
         eqn = m * u.dt2 - u.laplace + damp * u.dt
         stencil = solve(eqn, u.forward)[0]
-
         # Add substitutions for spacing (temporal and spatial)
         s, h = symbols('s h')
         subs = {s: dt, h: model.get_spacing()}
@@ -136,7 +135,7 @@ class ForwardOperator(Operator):
 
         # Insert source and receiver terms post-hoc
         self.input_params += [src, src.coordinates, rec, rec.coordinates]
-        self.output_params = [u, rec]
+        self.output_params += [rec]
         self.propagator.time_loop_stencils_a = src.add(m, u) + rec.read(u)
         self.propagator.add_devito_param(src)
         self.propagator.add_devito_param(src.coordinates)

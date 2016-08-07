@@ -7,20 +7,20 @@ from examples.containers import IGrid, IShot
 
 
 class Test_AdjointA(object):
-    @pytest.fixture(params=[(60, 70), (50, 60, 70)])
+    @pytest.fixture(params=[(60, 70), (60, 70, 80)])
     def Acoustic(self, request, time_order, space_order):
         model = IGrid()
         dimensions = request.param
         # dimensions are (x,z) and (x, y, z)
-        origin = tuple([0]*len(dimensions))
-        spacing = tuple([15]*len(dimensions))
+        origin = tuple([0.0]*len(dimensions))
+        spacing = tuple([15.0]*len(dimensions))
 
         # True velocity
-        true_vp = np.ones(dimensions) + 2.0
+        true_vp = np.ones(dimensions) + .5
         if len(dimensions) == 2:
-            true_vp[:, int(dimensions[0] / 2):dimensions[0]] = 4.5
+            true_vp[:, int(dimensions[0] / 2):dimensions[0]] = 2.5
         else:
-            true_vp[:, :, int(dimensions[0] / 2):dimensions[0]] = 4.5
+            true_vp[:, :, int(dimensions[0] / 2):dimensions[0]] = 2.5
         model.create_model(origin, spacing, true_vp)
         # Define seismic data.
         data = IShot()
@@ -57,20 +57,18 @@ class Test_AdjointA(object):
     def time_order(self, request):
         return request.param
 
-    @pytest.fixture(params=[2, 2, 2, 2, 2, 2, 2, 4, 6, 8, 10])
+    @pytest.fixture(params=[2, 4, 6, 8, 10, 12])
     def space_order(self, request):
         return request.param
 
     @pytest.fixture
     def forward(self, Acoustic):
         rec, u = Acoustic.Forward(save=False)
-        print(np.max(u), np.max(rec))
         return rec
 
     def test_adjoint(self, Acoustic, forward):
         rec = forward
         srca = Acoustic.Adjoint(rec)
-        print(linalg.norm(rec), linalg.norm(srca))
         nt = srca.shape[0]
         # Actual adjoint test
         term1 = 0
