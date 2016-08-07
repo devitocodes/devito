@@ -43,7 +43,7 @@ class Test_Gradient(object):
         f0 = .010
         dt = model.get_critical_dt()
         t0 = 0.0
-        tn = 1000.0
+        tn = 500.0
         nt = int(1+(tn-t0)/dt)
         # Set up the source as Ricker wavelet for f0
 
