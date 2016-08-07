@@ -113,7 +113,8 @@ class TTI_cg:
 
     def Born(self, dm):
         self.dm.data[:] = dm
-        born_op = BornOperator(self.dm, self.m, self.src, self.damp, self.rec, time_order=self.t_order, spc_order=self.s_order)
+        born_op = BornOperator(self.dm, self.m, self.src, self.damp, self.rec,
+                               time_order=self.t_order, spc_order=self.s_order)
         born_op.apply()
         return self.rec.data
 

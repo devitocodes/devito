@@ -6,6 +6,7 @@ from devito.iteration import Iteration
 from devito.operator import *
 import numpy as np
 
+
 class SourceLike(PointData):
     """Defines the behaviour of sources and receivers.
     """
@@ -153,12 +154,12 @@ class AdjointOperator(Operator):
         m.data[:] = model.padm()
         v.pad_time = False
         srca = SourceLike(name="srca", npoint=1, nt=nt, dt=dt, h=model.get_spacing(),
-                              coordinates=np.array(data.source_coords, dtype=damp.dtype)[np.newaxis, :],
-                              ndim=len(damp.shape), dtype=damp.dtype,
-                              nbpml=model.nbpml)
+                          coordinates=np.array(data.source_coords, dtype=damp.dtype)[np.newaxis, :],
+                          ndim=len(damp.shape), dtype=damp.dtype,
+                          nbpml=model.nbpml)
         rec = SourceLike(name="rec", npoint=nrec, nt=nt, dt=dt, h=model.get_spacing(),
-                              coordinates=data.receiver_coords, ndim=len(damp.shape), dtype=damp.dtype,
-                              nbpml=model.nbpml)
+                         coordinates=data.receiver_coords, ndim=len(damp.shape), dtype=damp.dtype,
+                         nbpml=model.nbpml)
         rec.data[:] = recin[:]
         # Derive stencil from symbolic equation
         eqn = m * v.dt2 - v.laplace - damp * v.dt
@@ -233,7 +234,7 @@ class BornOperator(Operator):
                           space_order=spc_order, save=False, dtype=damp.dtype)
         m = DenseData(name="m", shape=model.get_shape_comp(), dtype=damp.dtype)
         m.data[:] = model.padm()
-        
+
         dm = DenseData(name="dm", shape=model.get_shape_comp(), dtype=damp.dtype)
         dm.data[:] = model.pad(dmin)
 

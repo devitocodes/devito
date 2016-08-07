@@ -61,7 +61,6 @@ class IGrid:
     def get_origin(self):
         return self.origin
 
-
     def padm(self):
         return self.pad(self.vp**(-2))
 
@@ -70,13 +69,14 @@ class IGrid:
         for dim_index in range(len(self.vp.shape)):
             pad_list.append((self.nbpml, self.nbpml))
         return np.pad(m, pad_list, 'edge')
-   
+
     def get_shape_comp(self):
         dim = self.dimensions
         if len(dim) == 3:
             return (dim[0] + 2 * self.nbpml, dim[1] + 2 * self.nbpml, dim[2] + 2 * self.nbpml)
         else:
             return (dim[0] + 2 * self.nbpml, dim[1] + 2 * self.nbpml)
+
 
 class ISource:
     def get_source(self):
