@@ -40,11 +40,10 @@ class Test_Gradient(object):
         model0.create_model(origin, spacing, initial_vp)
         # Define seismic data.
         data = IShot()
-        data0 = IShot()
         f0 = .010
         dt = model.get_critical_dt()
         t0 = 0.0
-        tn = 750.0
+        tn = 1000.0
         nt = int(1+(tn-t0)/dt)
         # Set up the source as Ricker wavelet for f0
 
@@ -58,19 +57,16 @@ class Test_Gradient(object):
         if len(dimensions) == 3:
             location = (location[0], origin[1] + dimensions[1] * spacing[1] * 0.5, location[1])
         data.set_source(time_series, dt, location)
-        data0.set_source(time_series, dt, location)
         receiver_coords = np.zeros((50, len(dimensions)))
         receiver_coords[:, 0] = np.linspace(50, origin[0] + dimensions[0]*spacing[0] - 50, num=50)
         receiver_coords[:, -1] = location[-1]
         if len(dimensions) == 3:
             receiver_coords[:, 1] = location[1]
         data.set_receiver_pos(receiver_coords)
-        data0.set_receiver_pos(receiver_coords)
         data.set_shape(nt, 50)
-        data0.set_shape(nt, 50)
         # Adjoint test
         wave_true = Acoustic_cg(model, data, None, t_order=time_order, s_order=space_order, nbpml=10)
-        wave_0 = Acoustic_cg(model0, data0, None, t_order=time_order, s_order=space_order, nbpml=10)
+        wave_0 = Acoustic_cg(model0, data, None, t_order=time_order, s_order=space_order, nbpml=10)
         return wave_true, wave_0, dm, initial_vp
 
     @pytest.fixture(params=[2])
@@ -89,7 +85,6 @@ class Test_Gradient(object):
         # Actual Gradient test
         G = np.dot(gradient.reshape(-1), Acoustic[1].model.pad(Acoustic[2]).reshape(-1))
         # FWI Gradient test
-        # print(F0, G)
         H = [1, 0.1, 0.01, .001, 0.0001, 0.00001, 0.000001]
         error1 = np.zeros((7))
         error2 = np.zeros((7))
@@ -98,7 +93,7 @@ class Test_Gradient(object):
             d = Acoustic[1].Forward()[0]
             error1[i] = np.absolute(.5*linalg.norm(d - rec)**2 - F0)
             error2[i] = np.absolute(.5*linalg.norm(d - rec)**2 - F0 - H[i] * G)
-            print(F0, .5*linalg.norm(d - rec)**2, error1[i], H[i] *G, error2[i])
+            # print(F0, .5*linalg.norm(d - rec)**2, error1[i], H[i] *G, error2[i])
             # print('For h = ', H[i], '\nFirst order errors is : ', error1[i],
             #       '\nSecond order errors is ', error2[i])
 
