@@ -73,7 +73,7 @@ class Test_Gradient(object):
     def time_order(self, request):
         return request.param
 
-    @pytest.fixture(params=[2, 4])
+    @pytest.fixture(params=[2])
     def space_order(self, request):
         return request.param
 

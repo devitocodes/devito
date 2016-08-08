@@ -216,7 +216,7 @@ class ForwardOperator(Operator):
 
         # Insert source and receiver terms post-hoc
         self.input_params += [src, src.coordinates, rec, rec.coordinates]
-        self.propagator.time_loop_stencils_a = src.add(m, u) + src.add(m, v) + rec.read(u, v)
+        self.propagator.time_loop_stencils_a = src.add(m, u) + src.add(m, v) + rec.read2(u, v)
         self.propagator.add_devito_param(src)
         self.propagator.add_devito_param(src.coordinates)
         self.propagator.add_devito_param(rec)

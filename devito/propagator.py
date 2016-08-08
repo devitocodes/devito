@@ -232,7 +232,7 @@ class Propagator(object):
                                                replace("pow", "powf").replace("fabs", "fabsf")))
                 else:
                     factors.append(cgen.Assign(name, str(ccode(self.time_substitutions(expr).xreplace(self._var_map)))))
-        stmts = []
+
         stmts = []
 
         for equality in stencils:

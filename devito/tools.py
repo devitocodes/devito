@@ -1,7 +1,6 @@
+import ctypes
 import numpy as np
 from sympy import symbols
-
-import ctypes
 
 
 def convert_dtype_to_ctype(dtype):
