@@ -682,6 +682,7 @@ function represented by it</p>
 <li><strong>shape</strong> &#8211; Shape of the spatial data grid</li>
 <li><strong>dtype</strong> &#8211; Data type of the buffered data</li>
 <li><strong>space_order</strong> &#8211; Discretisation order for space derivatives</li>
+<li><strong>initializer</strong> &#8211; Function to initialize the data, optional</li>
 </ul>
 </td>
 </tr>
@@ -842,20 +843,6 @@ time-varying griad data.</p>
 <dd><p>Symbol for the second derivative wrt all spatial dimenions</p>
 </dd></dl>
 
-<dl class="method">
-<dt id="devito.interfaces.DenseData.set_initializer">
-<code class="descname">set_initializer</code><span class="sig-paren">(</span><em>lambda_initializer</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/interfaces.html#DenseData.set_initializer"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.interfaces.DenseData.set_initializer" title="Permalink to this definition">¶</a></dt>
-<dd><p>Set data intialising function to given lambda function.</p>
-<table class="docutils field-list" frame="void" rules="none">
-<col class="field-name" />
-<col class="field-body" />
-<tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>lambda_initializer</strong> &#8211; Given lambda function.</td>
-</tr>
-</tbody>
-</table>
-</dd></dl>
-
 </dd></dl>
 
 <dl class="class">
@@ -873,6 +860,8 @@ time-varying griad data.</p>
 <li><strong>dtype</strong> &#8211; Data type of the buffered data</li>
 <li><strong>save</strong> &#8211; Save the intermediate results to the data buffer. Defaults
 to <cite>False</cite>, indicating the use of alternating buffers.</li>
+<li><strong>pad_time</strong> &#8211; Set to <cite>True</cite> if save is True and you want to initialize
+the first <code class="xref py py-obj docutils literal"><span class="pre">time_order</span></code> timesteps.</li>
 <li><strong>time_dim</strong> &#8211; Size of the time dimension that dictates the leading
 dimension of the data buffer if :param save: is True.</li>
 <li><strong>time_order</strong> &#8211; Order of the time discretization which affects the
@@ -922,21 +911,6 @@ and whether we want to write intermediate timesteps in the buffer.</p>
 <dd><p>Symbol for the time-forward state of the function</p>
 </dd></dl>
 
-<dl class="method">
-<dt id="devito.interfaces.TimeData.get_data">
-<code class="descname">get_data</code><span class="sig-paren">(</span><em>timestep=0</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/interfaces.html#TimeData.get_data"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.interfaces.TimeData.get_data" title="Permalink to this definition">¶</a></dt>
-<dd><p>Returns the calculated data at the specified timestep</p>
-<table class="docutils field-list" frame="void" rules="none">
-<col class="field-name" />
-<col class="field-body" />
-<tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>timestep</strong> &#8211; The timestep from which we want to retrieve the data.
-Specify only in the case <code class="xref py py-obj docutils literal"><span class="pre">self.save</span></code> is True</td>
-</tr>
-</tbody>
-</table>
-</dd></dl>
-
 <dl class="classmethod">
 <dt id="devito.interfaces.TimeData.indices">
 <em class="property">classmethod </em><code class="descname">indices</code><span class="sig-paren">(</span><em>shape</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/interfaces.html#TimeData.indices"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.interfaces.TimeData.indices" title="Permalink to this definition">¶</a></dt>
@@ -954,23 +928,9 @@ Specify only in the case <code class="xref py py-obj docutils literal"><span cla
 </dd></dl>
 
 <dl class="method">
-<dt id="devito.interfaces.TimeData.init_data">
-<code class="descname">init_data</code><span class="sig-paren">(</span><em>timestep</em>, <em>data</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/interfaces.html#TimeData.init_data"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.interfaces.TimeData.init_data" title="Permalink to this definition">¶</a></dt>
-<dd><p>Function to initialize the initial time steps</p>
-<table class="docutils field-list" frame="void" rules="none">
-<col class="field-name" />
-<col class="field-body" />
-<tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
-<li><strong>timestep</strong> &#8211; Time step to initialize.
-Must be negative since calculated timesteps start from 0.</li>
-<li><strong>data</strong> &#8211; <code class="xref py py-class docutils literal"><span class="pre">numpy.ndarray</span></code> containing the initial spatial data</li>
-</ul>
-</td>
-</tr>
-</tbody>
-</table>
-</dd></dl>
+<dt id="devito.interfaces.TimeData.initialize">
+<code class="descname">initialize</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/interfaces.html#TimeData.initialize"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.interfaces.TimeData.initialize" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
 
 </dd></dl>
 

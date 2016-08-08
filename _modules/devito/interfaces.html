@@ -235,6 +235,7 @@
 <span class="sd">    :param shape: Shape of the spatial data grid</span>
 <span class="sd">    :param dtype: Data type of the buffered data</span>
 <span class="sd">    :param space_order: Discretisation order for space derivatives</span>
+<span class="sd">    :param initializer: Function to initialize the data, optional</span>
 
 <span class="sd">    Note: :class:`DenseData` objects are assumed to be constant in time and</span>
 <span class="sd">    therefore do not support time derivatives. Use :class:`TimeData` for</span>
@@ -250,8 +251,11 @@
             <span class="bp">self</span><span class="o">.</span><span class="n">shape</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;shape&#39;</span><span class="p">)</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">dtype</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;dtype&#39;</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">space_order</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;space_order&#39;</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+            <span class="n">initializer</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;initializer&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">initializer</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="k">assert</span><span class="p">(</span><span class="n">callable</span><span class="p">(</span><span class="n">initializer</span><span class="p">))</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">initializer</span> <span class="o">=</span> <span class="n">initializer</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_data</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;_data&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">initializer</span> <span class="o">=</span> <span class="kc">None</span>
             <span class="n">MemmapManager</span><span class="o">.</span><span class="n">setup</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
             <span class="c1"># Store new instance in symbol cache</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_cache_put</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
@@ -285,15 +289,6 @@
         <span class="n">indices</span> <span class="o">=</span> <span class="p">[</span><span class="n">a</span><span class="o">.</span><span class="n">subs</span><span class="p">({</span><span class="n">h</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span> <span class="n">s</span><span class="p">:</span> <span class="mi">1</span><span class="p">})</span> <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">args</span><span class="p">]</span>
 
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">indexed</span><span class="p">[</span><span class="n">indices</span><span class="p">]</span></div>
-
-<div class="viewcode-block" id="DenseData.set_initializer"><a class="viewcode-back" href="../../devito.html#devito.interfaces.DenseData.set_initializer">[docs]</a>    <span class="k">def</span> <span class="nf">set_initializer</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">lambda_initializer</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;Set data intialising function to given lambda function.</span>
-
-<span class="sd">        :param lambda_initializer: Given lambda function.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">assert</span><span class="p">(</span><span class="n">callable</span><span class="p">(</span><span class="n">lambda_initializer</span><span class="p">))</span>
-
-        <span class="bp">self</span><span class="o">.</span><span class="n">initializer</span> <span class="o">=</span> <span class="n">lambda_initializer</span></div>
 
     <span class="k">def</span> <span class="nf">_allocate_memory</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;Function to allocate memmory in terms of numpy ndarrays.</span>
@@ -407,6 +402,8 @@
 <span class="sd">    :param dtype: Data type of the buffered data</span>
 <span class="sd">    :param save: Save the intermediate results to the data buffer. Defaults</span>
 <span class="sd">                 to `False`, indicating the use of alternating buffers.</span>
+<span class="sd">    :param pad_time: Set to `True` if save is True and you want to initialize</span>
+<span class="sd">                     the first :obj:`time_order` timesteps.</span>
 <span class="sd">    :param time_dim: Size of the time dimension that dictates the leading</span>
 <span class="sd">                     dimension of the data buffer if :param save: is True.</span>
 <span class="sd">    :param time_order: Order of the time discretization which affects the</span>
@@ -442,6 +439,12 @@
             <span class="c1"># Store final instance in symbol cache</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_cache_put</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
 
+<div class="viewcode-block" id="TimeData.initialize"><a class="viewcode-back" href="../../devito.html#devito.interfaces.TimeData.initialize">[docs]</a>    <span class="k">def</span> <span class="nf">initialize</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">initializer</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_full_data</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_allocate_memory</span><span class="p">()</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">initializer</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_full_data</span><span class="p">)</span></div>
+
     <span class="nd">@classmethod</span>
 <div class="viewcode-block" id="TimeData.indices"><a class="viewcode-back" href="../../devito.html#devito.interfaces.TimeData.indices">[docs]</a>    <span class="k">def</span> <span class="nf">indices</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">shape</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;Return the default dimension indices for a given data shape</span>
@@ -461,34 +464,6 @@
 
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">pad_time</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_data</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">time_order</span><span class="p">:,</span> <span class="p">:,</span> <span class="p">:]</span>
-
-<div class="viewcode-block" id="TimeData.init_data"><a class="viewcode-back" href="../../devito.html#devito.interfaces.TimeData.init_data">[docs]</a>    <span class="k">def</span> <span class="nf">init_data</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">timestep</span><span class="p">,</span> <span class="n">data</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;Function to initialize the initial time steps</span>
-
-<span class="sd">        :param timestep: Time step to initialize.</span>
-<span class="sd">                         Must be negative since calculated timesteps start from 0.</span>
-<span class="sd">        :param data: :class:`numpy.ndarray` containing the initial spatial data</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_full_data</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">_allocate_memory</span><span class="p">()</span>
-
-        <span class="k">assert</span> <span class="n">timestep</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">,</span> <span class="s2">&quot;Timestep must be negative&quot;</span>
-        <span class="k">assert</span> <span class="n">data</span><span class="o">.</span><span class="n">shape</span> <span class="o">==</span> <span class="bp">self</span><span class="o">.</span><span class="n">_full_data</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span> \
-            <span class="s2">&quot;Data must have the same shape as the spatial data&quot;</span>
-
-        <span class="c1"># Adds the time_order to the index to access padded indexes</span>
-        <span class="n">timestep</span> <span class="o">+=</span> <span class="bp">self</span><span class="o">.</span><span class="n">time_order</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_full_data</span><span class="p">[</span><span class="n">timestep</span><span class="p">]</span> <span class="o">=</span> <span class="n">data</span></div>
-
-<div class="viewcode-block" id="TimeData.get_data"><a class="viewcode-back" href="../../devito.html#devito.interfaces.TimeData.get_data">[docs]</a>    <span class="k">def</span> <span class="nf">get_data</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">timestep</span><span class="o">=</span><span class="mi">0</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;Returns the calculated data at the specified timestep</span>
-
-<span class="sd">        :param timestep: The timestep from which we want to retrieve the data.</span>
-<span class="sd">                         Specify only in the case :obj:`self.save` is True</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="n">timestep</span> <span class="o">+=</span> <span class="bp">self</span><span class="o">.</span><span class="n">time_order</span>
-
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_full_data</span><span class="p">[</span><span class="n">timestep</span><span class="p">,</span> <span class="p">:]</span></div>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">dim</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
