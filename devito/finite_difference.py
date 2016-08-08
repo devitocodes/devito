@@ -108,3 +108,40 @@ def cross_derivative(*args, **kwargs):
             deriv += .5 * c1[i] * c1[j] * reduce(mul, var1, 1) + .5 * c2[-(j+1)] * c2[-(i+1)] * reduce(mul, var2, 1)
 
     return -deriv
+
+
+def first_derivative(*args, **kwargs):
+    """Derives corss derivative for a product of given functions.
+
+    :param \*args: All positional arguments must be fully qualified
+       function objects, eg. `f(x, y)` or `g(t, x, y, z)`.
+    :param dims: 2-tuple of symbols defining the dimension wrt. which
+       to differentiate, eg. `x`, `y`, `z` or `t`.
+    :param diff: Finite Difference symbol to insert, default `h`.
+    :returns: The cross derivative
+
+    Example: Deriving the first-derivative of f(x)*g(x) wrt. x via:
+       ``cross_derivative(f(x), g(x), dim=x, side=1, order=1)``
+       results in:
+       ``*(-f(x)*g(x) + f(x + h)*g(x + h) ) / h``
+    """
+    dim = kwargs.get('dim', x)
+    diff = kwargs.get('diff', h)
+    order = kwargs.get('order', 1)
+    side = kwargs.get('side', 1)
+    deriv = 0
+    # Stencil positions for non-symmetric cross-derivatives with symmetric averaging
+    if side == 1:
+        ind = [(dim + i * diff) for i in range(-int(order / 2) + 1 - (order % 2),
+                                               int((order + 1) / 2) + 2 - (order % 2))]
+    else:
+        ind = [(dim - i * diff) for i in range(-int(order / 2) + 1 - (order % 2),
+                                               int((order + 1) / 2) + 2 - (order % 2))]
+    # Finite difference weights from Taylor approximation with this positions
+    c = finite_diff_weights(1, ind, dim)
+    c = c[-1][-1]
+    # Diagonal elements
+    for i in range(0, len(ind)):
+            var = [a.subs({dim: ind[i]}) for a in args]
+            deriv += c[i] * reduce(mul, var, 1)
+    return -side*deriv
