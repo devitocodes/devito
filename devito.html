@@ -722,6 +722,18 @@ time-varying griad data.</p>
 </dd></dl>
 
 <dl class="attribute">
+<dt id="devito.interfaces.DenseData.dxl">
+<code class="descname">dxl</code><a class="headerlink" href="#devito.interfaces.DenseData.dxl" title="Permalink to this definition">¶</a></dt>
+<dd><p>Symbol for the derivative wrt to x with a left stencil</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="devito.interfaces.DenseData.dxr">
+<code class="descname">dxr</code><a class="headerlink" href="#devito.interfaces.DenseData.dxr" title="Permalink to this definition">¶</a></dt>
+<dd><p>Symbol for the derivative wrt to x with a right stencil</p>
+</dd></dl>
+
+<dl class="attribute">
 <dt id="devito.interfaces.DenseData.dxy">
 <code class="descname">dxy</code><a class="headerlink" href="#devito.interfaces.DenseData.dxy" title="Permalink to this definition">¶</a></dt>
 <dd><p>Symbol for the cross derivative wrt the x and y dimension</p>
@@ -740,6 +752,18 @@ time-varying griad data.</p>
 </dd></dl>
 
 <dl class="attribute">
+<dt id="devito.interfaces.DenseData.dyl">
+<code class="descname">dyl</code><a class="headerlink" href="#devito.interfaces.DenseData.dyl" title="Permalink to this definition">¶</a></dt>
+<dd><p>Symbol for the derivative wrt to y with a left stencil</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="devito.interfaces.DenseData.dyr">
+<code class="descname">dyr</code><a class="headerlink" href="#devito.interfaces.DenseData.dyr" title="Permalink to this definition">¶</a></dt>
+<dd><p>Symbol for the derivative wrt to y with a right stencil</p>
+</dd></dl>
+
+<dl class="attribute">
 <dt id="devito.interfaces.DenseData.dyz">
 <code class="descname">dyz</code><a class="headerlink" href="#devito.interfaces.DenseData.dyz" title="Permalink to this definition">¶</a></dt>
 <dd><p>Symbol for the cross derivative wrt the y and z dimension</p>
@@ -749,6 +773,18 @@ time-varying griad data.</p>
 <dt id="devito.interfaces.DenseData.dz2">
 <code class="descname">dz2</code><a class="headerlink" href="#devito.interfaces.DenseData.dz2" title="Permalink to this definition">¶</a></dt>
 <dd><p>Symbol for the second derivative wrt the z dimension</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="devito.interfaces.DenseData.dzl">
+<code class="descname">dzl</code><a class="headerlink" href="#devito.interfaces.DenseData.dzl" title="Permalink to this definition">¶</a></dt>
+<dd><p>Symbol for the derivative wrt to z with a left stencil</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="devito.interfaces.DenseData.dzr">
+<code class="descname">dzr</code><a class="headerlink" href="#devito.interfaces.DenseData.dzr" title="Permalink to this definition">¶</a></dt>
+<dd><p>Symbol for the derivative wrt to z with a right stencil</p>
 </dd></dl>
 
 <dl class="attribute">
@@ -1482,17 +1518,9 @@ Weighted OI, OI_w = (ADD+MUL)/(2*Max(ADD,MUL)) * OI</p>
 <dt id="devito.propagator.Propagator.time_substitutions">
 <code class="descname">time_substitutions</code><span class="sig-paren">(</span><em>sympy_expr</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/propagator.html#Propagator.time_substitutions"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.propagator.Propagator.time_substitutions" title="Permalink to this definition">¶</a></dt>
 <dd><p>This method checks through the sympy_expr to replace the time index with a cyclic index
-but only for variables which are not being saved in the time domain</p>
-<table class="docutils field-list" frame="void" rules="none">
-<col class="field-name" />
-<col class="field-body" />
-<tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>sympy_expr</strong> &#8211; The Sympy expression to process</td>
-</tr>
-<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body">The expression after the substitutions</td>
-</tr>
-</tbody>
-</table>
+but only for variables which are not being saved in the time domain
+:param sympy_expr: The Sympy expression to process
+:returns: The expression after the substitutions</p>
 </dd></dl>
 
 </dd></dl>

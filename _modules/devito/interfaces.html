@@ -139,7 +139,7 @@
 <span class="kn">from</span> <span class="nn">sympy</span> <span class="k">import</span> <span class="n">Function</span><span class="p">,</span> <span class="n">IndexedBase</span><span class="p">,</span> <span class="n">as_finite_diff</span>
 <span class="kn">from</span> <span class="nn">sympy.abc</span> <span class="k">import</span> <span class="n">h</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">z</span>
 
-<span class="kn">from</span> <span class="nn">devito.finite_difference</span> <span class="k">import</span> <span class="n">cross_derivative</span>
+<span class="kn">from</span> <span class="nn">devito.finite_difference</span> <span class="k">import</span> <span class="n">cross_derivative</span><span class="p">,</span> <span class="n">first_derivative</span>
 <span class="kn">from</span> <span class="nn">tools</span> <span class="k">import</span> <span class="n">aligned</span>
 
 <span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;DenseData&#39;</span><span class="p">,</span> <span class="s1">&#39;TimeData&#39;</span><span class="p">,</span> <span class="s1">&#39;PointData&#39;</span><span class="p">]</span>
@@ -366,7 +366,37 @@
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">dyz</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;Symbol for the cross derivative wrt the y and z dimension&quot;&quot;&quot;</span>
-        <span class="k">return</span> <span class="n">cross_derivative</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">order</span><span class="o">=</span><span class="nb">int</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">space_order</span><span class="o">/</span><span class="mi">2</span><span class="p">),</span> <span class="n">dims</span><span class="o">=</span><span class="p">(</span><span class="n">y</span><span class="p">,</span> <span class="n">z</span><span class="p">))</span></div>
+        <span class="k">return</span> <span class="n">cross_derivative</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">order</span><span class="o">=</span><span class="nb">int</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">space_order</span><span class="o">/</span><span class="mi">2</span><span class="p">),</span> <span class="n">dims</span><span class="o">=</span><span class="p">(</span><span class="n">y</span><span class="p">,</span> <span class="n">z</span><span class="p">))</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">dxl</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Symbol for the derivative wrt to x with a left stencil&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">first_derivative</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">order</span><span class="o">=</span><span class="nb">int</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">space_order</span><span class="o">/</span><span class="mi">2</span><span class="p">),</span> <span class="n">dim</span><span class="o">=</span><span class="n">x</span><span class="p">,</span> <span class="n">side</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">dxr</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Symbol for the derivative wrt to x with a right stencil&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">first_derivative</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">order</span><span class="o">=</span><span class="nb">int</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">space_order</span><span class="o">/</span><span class="mi">2</span><span class="p">),</span> <span class="n">dim</span><span class="o">=</span><span class="n">x</span><span class="p">,</span> <span class="n">side</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">dyl</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Symbol for the derivative wrt to y with a left stencil&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">first_derivative</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">order</span><span class="o">=</span><span class="nb">int</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">space_order</span><span class="o">/</span><span class="mi">2</span><span class="p">),</span> <span class="n">dim</span><span class="o">=</span><span class="n">y</span><span class="p">,</span> <span class="n">side</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">dyr</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Symbol for the derivative wrt to y with a right stencil&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">first_derivative</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">order</span><span class="o">=</span><span class="nb">int</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">space_order</span><span class="o">/</span><span class="mi">2</span><span class="p">),</span> <span class="n">dim</span><span class="o">=</span><span class="n">y</span><span class="p">,</span> <span class="n">side</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">dzl</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Symbol for the derivative wrt to z with a left stencil&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">first_derivative</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">order</span><span class="o">=</span><span class="nb">int</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">space_order</span><span class="o">/</span><span class="mi">2</span><span class="p">),</span> <span class="n">dim</span><span class="o">=</span><span class="n">z</span><span class="p">,</span> <span class="n">side</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">dzr</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Symbol for the derivative wrt to z with a right stencil&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">first_derivative</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">order</span><span class="o">=</span><span class="nb">int</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">space_order</span><span class="o">/</span><span class="mi">2</span><span class="p">),</span> <span class="n">dim</span><span class="o">=</span><span class="n">z</span><span class="p">,</span> <span class="n">side</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span></div>
 
 
 <div class="viewcode-block" id="TimeData"><a class="viewcode-back" href="../../devito.html#devito.interfaces.TimeData">[docs]</a><span class="k">class</span> <span class="nc">TimeData</span><span class="p">(</span><span class="n">DenseData</span><span class="p">):</span>

@@ -239,6 +239,43 @@
             <span class="n">deriv</span> <span class="o">+=</span> <span class="o">.</span><span class="mi">5</span> <span class="o">*</span> <span class="n">c1</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">*</span> <span class="n">c1</span><span class="p">[</span><span class="n">j</span><span class="p">]</span> <span class="o">*</span> <span class="n">reduce</span><span class="p">(</span><span class="n">mul</span><span class="p">,</span> <span class="n">var1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span> <span class="o">+</span> <span class="o">.</span><span class="mi">5</span> <span class="o">*</span> <span class="n">c2</span><span class="p">[</span><span class="o">-</span><span class="p">(</span><span class="n">j</span><span class="o">+</span><span class="mi">1</span><span class="p">)]</span> <span class="o">*</span> <span class="n">c2</span><span class="p">[</span><span class="o">-</span><span class="p">(</span><span class="n">i</span><span class="o">+</span><span class="mi">1</span><span class="p">)]</span> <span class="o">*</span> <span class="n">reduce</span><span class="p">(</span><span class="n">mul</span><span class="p">,</span> <span class="n">var2</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
 
     <span class="k">return</span> <span class="o">-</span><span class="n">deriv</span></div>
+
+
+<span class="k">def</span> <span class="nf">first_derivative</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Derives corss derivative for a product of given functions.</span>
+
+<span class="sd">    :param \*args: All positional arguments must be fully qualified</span>
+<span class="sd">       function objects, eg. `f(x, y)` or `g(t, x, y, z)`.</span>
+<span class="sd">    :param dims: 2-tuple of symbols defining the dimension wrt. which</span>
+<span class="sd">       to differentiate, eg. `x`, `y`, `z` or `t`.</span>
+<span class="sd">    :param diff: Finite Difference symbol to insert, default `h`.</span>
+<span class="sd">    :returns: The cross derivative</span>
+
+<span class="sd">    Example: Deriving the first-derivative of f(x)*g(x) wrt. x via:</span>
+<span class="sd">       ``cross_derivative(f(x), g(x), dim=x, side=1, order=1)``</span>
+<span class="sd">       results in:</span>
+<span class="sd">       ``*(-f(x)*g(x) + f(x + h)*g(x + h) ) / h``</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">dim</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;dim&#39;</span><span class="p">,</span> <span class="n">x</span><span class="p">)</span>
+    <span class="n">diff</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;diff&#39;</span><span class="p">,</span> <span class="n">h</span><span class="p">)</span>
+    <span class="n">order</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;order&#39;</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="n">side</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;side&#39;</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="n">deriv</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="c1"># Stencil positions for non-symmetric cross-derivatives with symmetric averaging</span>
+    <span class="k">if</span> <span class="n">side</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="n">ind</span> <span class="o">=</span> <span class="p">[(</span><span class="n">dim</span> <span class="o">+</span> <span class="n">i</span> <span class="o">*</span> <span class="n">diff</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="o">-</span><span class="nb">int</span><span class="p">(</span><span class="n">order</span> <span class="o">/</span> <span class="mi">2</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span> <span class="o">-</span> <span class="p">(</span><span class="n">order</span> <span class="o">%</span> <span class="mi">2</span><span class="p">),</span>
+                                               <span class="nb">int</span><span class="p">((</span><span class="n">order</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span> <span class="o">/</span> <span class="mi">2</span><span class="p">)</span> <span class="o">+</span> <span class="mi">2</span> <span class="o">-</span> <span class="p">(</span><span class="n">order</span> <span class="o">%</span> <span class="mi">2</span><span class="p">))]</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">ind</span> <span class="o">=</span> <span class="p">[(</span><span class="n">dim</span> <span class="o">-</span> <span class="n">i</span> <span class="o">*</span> <span class="n">diff</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="o">-</span><span class="nb">int</span><span class="p">(</span><span class="n">order</span> <span class="o">/</span> <span class="mi">2</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span> <span class="o">-</span> <span class="p">(</span><span class="n">order</span> <span class="o">%</span> <span class="mi">2</span><span class="p">),</span>
+                                               <span class="nb">int</span><span class="p">((</span><span class="n">order</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span> <span class="o">/</span> <span class="mi">2</span><span class="p">)</span> <span class="o">+</span> <span class="mi">2</span> <span class="o">-</span> <span class="p">(</span><span class="n">order</span> <span class="o">%</span> <span class="mi">2</span><span class="p">))]</span>
+    <span class="c1"># Finite difference weights from Taylor approximation with this positions</span>
+    <span class="n">c</span> <span class="o">=</span> <span class="n">finite_diff_weights</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">ind</span><span class="p">,</span> <span class="n">dim</span><span class="p">)</span>
+    <span class="n">c</span> <span class="o">=</span> <span class="n">c</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">][</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+    <span class="c1"># Diagonal elements</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">ind</span><span class="p">)):</span>
+            <span class="n">var</span> <span class="o">=</span> <span class="p">[</span><span class="n">a</span><span class="o">.</span><span class="n">subs</span><span class="p">({</span><span class="n">dim</span><span class="p">:</span> <span class="n">ind</span><span class="p">[</span><span class="n">i</span><span class="p">]})</span> <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="n">args</span><span class="p">]</span>
+            <span class="n">deriv</span> <span class="o">+=</span> <span class="n">c</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">*</span> <span class="n">reduce</span><span class="p">(</span><span class="n">mul</span><span class="p">,</span> <span class="n">var</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="k">return</span> <span class="o">-</span><span class="n">side</span><span class="o">*</span><span class="n">deriv</span>
 </pre></div>
 
            </div>
