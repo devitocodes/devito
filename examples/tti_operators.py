@@ -1,9 +1,9 @@
 from sympy import *
-from sympy import Eq, Function, symbols
 from sympy.abc import *
-from sympy.abc import t
 
+from devito.finite_difference import first_derivative
 from devito.interfaces import DenseData, PointData, TimeData
+from devito.iteration import Iteration
 from devito.operator import *
 
 
@@ -29,7 +29,7 @@ class SourceLikeTTI(PointData):
             p = Matrix([[1],
                         [rx],
                         [rz],
-                        [rx * rz]])
+                        [rx*rz]])
         else:
             A = Matrix([[1, x1, y1, z1, x1*y1, x1*z1, y1*z1, x1*y1*z1],
                         [1, x1, y2, z1, x1*y2, x1*z1, y2*z1, x1*y2*z1],
@@ -62,101 +62,79 @@ class SourceLikeTTI(PointData):
         A = A.subs(reference_cell)
         self.bs = A.inv().T.dot(p)
 
-    def point2grid(self, pt_coords):
-        # In: s - Magnitude of the source
-        #     x, z - Position of the source
-        # Returns: (i, k) - Grid coordinate at top left of grid cell.
-        #          (s11, s12, s21, s22) - source values at coordinates
-        #          (i, k), (i, k+1), (i+1, k), (i+1, k+1)
-        if self.ndim == 2:
-            rx, rz = self.rs
-        else:
-            rx, ry, rz = self.rs
+    @property
+    def sym_coordinates(self):
+        """Symbol representing the coordinate values in each dimension"""
+        return tuple([self.coordinates.indexed[p, i]
+                      for i in range(self.ndim)])
 
-        x, y, z = pt_coords
-        i = int(x/self.h)
-        k = int(z/self.h)
-        coords = (i + self.nbpml, k + self.nbpml)
-        subs = []
-        x = x - i*self.h
-        subs.append((rx, x))
+    @property
+    def sym_coord_indices(self):
+        """Symbol for each grid index according to the coordinates"""
+        return tuple([Function('INT')(Function('floor')(x / self.h))
+                      for x in self.sym_coordinates])
 
-        if self.ndim == 3:
-            j = int(y/self.h)
-            y = y - j*self.h
-            subs.append((ry, y))
-            coords = (i + self.nbpml, j + self.nbpml, k + self.nbpml)
+    @property
+    def sym_coord_bases(self):
+        """Symbol for the base coordinates of the reference grid point"""
+        return tuple([Function('FLOAT')(x - idx * self.h)
+                      for x, idx in zip(self.sym_coordinates,
+                                        self.sym_coord_indices)])
 
-        z = z - k*self.h
-        subs.append((rz, z))
-        s = [b.subs(subs).evalf() for b in self.bs]
+    def point2grid(self, u, m):
+        """Generates an expression for generic point-to-grid interpolation"""
+        dt = self.dt
+        subs = dict(zip(self.rs, self.sym_coord_bases))
+        index_matrix = [tuple([idx + ii + self.nbpml for ii, idx
+                               in zip(inc, self.sym_coord_indices)])
+                        for inc in self.increments]
+        eqns = [Eq(u.indexed[(t, ) + idx], u.indexed[(t, ) + idx]
+                   + self.indexed[t, p] * dt * dt / m.indexed[idx] * b.subs(subs))
+                for idx, b in zip(index_matrix, self.bs)]
+        return eqns
 
-        return coords, tuple(s)
-
-    # Interpolate onto receiver point.
-    def grid2point(self, u, pt_coords):
-        if self.ndim == 2:
-            rx, rz = self.rs
-        else:
-            rx, ry, rz = self.rs
-
-        x, y, z = pt_coords
-        i = int(x/self.h)
-        k = int(z/self.h)
-
-        x = x - i*self.h
-        z = z - k*self.h
-
-        subs = []
-        subs.append((rx, x))
-
-        if self.ndim == 3:
-            j = int(y/self.h)
-            y = y - j*self.h
-            subs.append((ry, y))
-
-        subs.append((rz, z))
-
-        if self.ndim == 2:
-            return sum([b.subs(subs) * u.indexed[t, i+inc[0]+self.nbpml, k+inc[1]+self.nbpml]
-                        for inc, b in zip(self.increments, self.bs)])
-        else:
-            return sum([b.subs(subs) * u.indexed[t, i+inc[0]+self.nbpml, j+inc[1]+self.nbpml, k+inc[2]+self.nbpml]
-                        for inc, b in zip(self.increments, self.bs)])
+    def grid2point(self, u):
+        """Generates an expression for generic grid-to-point interpolation"""
+        subs = dict(zip(self.rs, self.sym_coord_bases))
+        index_matrix = [tuple([idx + ii + self.nbpml for ii, idx
+                               in zip(inc, self.sym_coord_indices)])
+                        for inc in self.increments]
+        return sum([b.subs(subs) * u.indexed[(t, ) + idx]
+                    for idx, b in zip(index_matrix, self.bs)])
 
     def read(self, u, v):
-        eqs = []
-
-        for i in range(self.npoint):
-            eqs.append(Eq(self.indexed[t, i], (self.grid2point(v, self.coordinates.data[i, :])
-                                               + self.grid2point(u, self.coordinates.data[i, :]))))
-        return eqs
+        """Iteration loop over points performing grid-to-point interpolation."""
+        interp_expr = Eq(self.indexed[t, p], self.grid2point(u) + self.grid2point(v))
+        return [Iteration(interp_expr, variable=p, limits=self.shape[1])]
 
     def add(self, m, u):
-        assignments = []
-        dt = self.dt
-
-        for j in range(self.npoint):
-            add = self.point2grid(self.coordinates.data[j, :])
-            coords = add[0]
-            s = add[1]
-            assignments += [Eq(u.indexed[tuple([t] + [coords[i] + inc[i] for i in range(self.ndim)])],
-                               u.indexed[tuple([t] + [coords[i] + inc[i] for i in range(self.ndim)])] +
-                               self.indexed[t, j]*dt*dt/m.indexed[coords]*w) for w, inc in zip(s, self.increments)]
-
-        filtered = [x for x in assignments if isinstance(x, Eq)]
-        return filtered
+        """Iteration loop over points performing point-to-grid interpolation."""
+        return [Iteration(self.point2grid(u, m), variable=p, limits=self.shape[1])]
 
 
 class ForwardOperator(Operator):
     def __init__(self, m, src, damp, rec, u, v, A, B, th, ph, time_order=2, spc_order=4, **kwargs):
         def Bhaskarasin(angle):
-            return 16 * angle * (3.14 - abs(angle)) / (49.34 - 4 * abs(angle) * (3.14 - abs(angle)))
+            if angle == 0:
+                return 0
+            else:
+                return 16.0 * angle * (3.1416 - abs(angle)) / (49.3483 - 4.0 * abs(angle) * (3.1416 - abs(angle)))
 
         def Bhaskaracos(angle):
-            return Bhaskarasin(angle + 1.57)
+            if angle == 0:
+                return 1.0
+            else:
+                return Bhaskarasin(angle + 1.5708)
 
-        ang0, ang1, ang2, ang3 = symbols('ang0 ang1 ang2 ang3')
+        Hp, Hzr = symbols('Hp Hzr')
+        if len(m.shape) == 3:
+            ang0 = Function('ang0')(x, y, z)
+            ang1 = Function('ang1')(x, y, z)
+            ang2 = Function('ang2')(x, y, z)
+            ang3 = Function('ang3')(x, y, z)
+        else:
+            ang0 = Function('ang0')(x, y)
+            ang1 = Function('ang1')(x, y)
         assert(m.shape == damp.shape)
         u.pad_time = False
         v.pad_time = False
@@ -168,46 +146,81 @@ class ForwardOperator(Operator):
         v.space_order = spc_order
         s, h = symbols('s h')
 
-        if len(m.shape) == 3:
-            Gxxp = (ang2**2 * ang0**2 * u.dx2 + ang3**2 * ang0**2 * u.dy2 + ang1**2 * u.dz2 + 2 * ang3 * ang2 * ang0**2
-                    * u.dxy - ang3 * 2 * ang1 * ang0 * u.dyz - ang2 * 2 * ang1 * ang0 * u.dxz)
-            Gyyp = ang1**2 * u.dx2 + ang2**2 * u.dy2 - (2 * ang3 * ang2)**2 * u.dxy
-            Gzzr = (ang2**2 * ang1**2 * v.dx2 + ang3**2 * ang1**2 * v.dy2 + ang0**2 * v.dz2 + 2 * ang3 * ang2 * ang1**2
-                    * v.dxy + ang3 * 2 * ang1 * ang0 * v.dyz + ang2 * 2 * ang1 * ang0 * v.dxz)
-        else:
-            Gyyp = 0
-            Gxxp = ang0**2 * u.dx2 + ang1**2 * u.dy2 - 2 * ang0 * ang1 * u.dxy
-            Gzzr = ang1**2 * v.dx2 + ang0**2 * v.dy2 + 2 * ang0 * ang1 * v.dxy
-
-        # Derive stencil from symbolic equation
-        stencilp = 2 * s**2 / (2 * m + s * damp) * (2 * m / s**2 * u +
-                                                    (s * damp - 2 * m) / (2 * s**2) * u.backward +
-                                                    A * (Gxxp + Gyyp) + B * Gzzr)
-        stencilr = 2 * s**2 / (2 * m + s * damp) * (2 * m / s**2 * v +
-                                                    (s * damp - 2 * m) / (2 * s**2) * v.backward +
-                                                    B * (Gxxp + Gyyp) + Gzzr)
-
         ang0 = Bhaskaracos(th)
         ang1 = Bhaskarasin(th)
-        ang2 = Bhaskaracos(ph)
-        ang3 = Bhaskarasin(ph)
-        factorized = {"ang0": ang0, "ang1": ang1, "ang2": ang2, "ang3": ang3}
+        # Derive stencil from symbolic equation
+        if len(m.shape) == 3:
+            ang2 = Bhaskaracos(ph)
+            ang3 = Bhaskarasin(ph)
 
+            Gy1p = (ang3 * u.dxl - ang2 * u.dyl)
+            Gyy1 = (first_derivative(Gy1p, ang3, dim=x, side=1, order=spc_order/2) -
+                    first_derivative(Gy1p, ang2, dim=y, side=1, order=spc_order/2))
+
+            Gy2p = (ang3 * u.dxr - ang2 * u.dyr)
+            Gyy2 = (first_derivative(Gy2p, ang3, dim=x, side=-1, order=spc_order/2) -
+                    first_derivative(Gy2p, ang2, dim=y, side=-1, order=spc_order/2))
+
+            Gx1p = (ang0 * ang2 * u.dxl + ang0 * ang3 * u.dyl - ang1 * u.dzl)
+            Gz1r = (ang1 * ang2 * v.dxl + ang1 * ang3 * v.dyl + ang0 * v.dzl)
+            Gxx1 = (first_derivative(Gx1p, ang0, ang2, dim=x, side=1, order=spc_order/2) +
+                    first_derivative(Gx1p, ang0, ang3, dim=y, side=1, order=spc_order/2) -
+                    first_derivative(Gx1p, ang1, dim=z, side=1, order=spc_order/2))
+            Gzz1 = (first_derivative(Gz1r, ang1, ang2, dim=x, side=1, order=spc_order/2) +
+                    first_derivative(Gz1r, ang1, ang3, dim=y, side=1, order=spc_order/2) +
+                    first_derivative(Gz1r, ang0, dim=z, side=1, order=spc_order/2))
+
+            Gx2p = (ang0 * ang2 * u.dxr + ang0 * ang3 * u.dyr - ang1 * u.dzr)
+            Gz2r = (ang1 * ang2 * v.dxr + ang1 * ang3 * v.dyr + ang0 * v.dzr)
+
+            Gxx2 = (first_derivative(Gx2p, ang0, ang2, dim=x, side=-1, order=spc_order/2) +
+                    first_derivative(Gx2p, ang0, ang3, dim=y, side=-1, order=spc_order/2) -
+                    first_derivative(Gx2p, ang1, dim=z, side=-1, order=spc_order/2))
+            Gzz2 = (first_derivative(Gz2r, ang1, ang2, dim=x, side=-1, order=spc_order/2) +
+                    first_derivative(Gz2r, ang1, ang3, dim=y, side=-1, order=spc_order/2) +
+                    first_derivative(Gz2r, ang0, dim=z, side=-1, order=spc_order/2))
+            parm = [m, damp, A, B, th, ph, u, v]
+        else:
+            Gyy2 = 0
+            Gyy1 = 0
+            parm = [m, damp, A, B, th, u, v]
+            Gx1p = (ang0 * u.dxl - ang1 * u.dyl)
+            Gz1r = (ang1 * v.dxl + ang0 * v.dyl)
+            Gxx1 = (first_derivative(Gx1p * ang0, dim=x, side=1, order=spc_order/2) -
+                    first_derivative(Gx1p * ang1, dim=y, side=1, order=spc_order/2))
+            Gzz1 = (first_derivative(Gz1r * ang1, dim=x, side=1, order=spc_order/2) +
+                    first_derivative(Gz1r * ang0, dim=y, side=1, order=spc_order/2))
+            Gx2p = (ang0 * u.dxr - ang1 * u.dyr)
+            Gz2r = (ang1 * v.dxr + ang0 * v.dyr)
+            Gxx2 = (first_derivative(Gx2p * ang0, dim=x, side=-1, order=spc_order/2) -
+                    first_derivative(Gx2p * ang1, dim=y, side=-1, order=spc_order/2))
+            Gzz2 = (first_derivative(Gz2r * ang1, dim=x, side=-1, order=spc_order/2) +
+                    first_derivative(Gz2r * ang0, dim=y, side=-1, order=spc_order/2))
+
+        stencilp = 1.0 / (2.0 * m + s * damp) * (4.0 * m * u + (s * damp - 2.0 * m) * u.backward +
+                                                 2.0 * s**2 * (A * Hp + B * Hzr))
+        stencilr = 1.0 / (2.0 * m + s * damp) * (4.0 * m * v + (s * damp - 2.0 * m) * v.backward +
+                                                 2.0 * s**2 * (B * Hp + Hzr))
+        Hp = -(.5 * Gxx1 + .5 * Gxx2 + .5 * Gyy1 + .5 * Gyy2)
+        Hzr = -(.5 * Gzz1 + .5 * Gzz2)
+        factorized = {"Hp": Hp, "Hzr": Hzr}
         # Add substitutions for spacing (temporal and spatial)
         subs = [{s: src.dt, h: src.h}, {s: src.dt, h: src.h}]
         first_stencil = Eq(u.forward, stencilp)
         second_stencil = Eq(v.forward, stencilr)
         stencils = [first_stencil, second_stencil]
-        super(ForwardOperator, self).__init__(
-            src.nt, m.shape, stencils=stencils, substitutions=subs, spc_border=spc_order/2, time_order=time_order,
-            forward=True, dtype=m.dtype, input_params=[m, damp, A, B, th, ph, u, v], factorized=factorized, **kwargs
-        )
+        super(ForwardOperator, self).__init__(src.nt, m.shape, stencils=stencils, substitutions=subs,
+                                              spc_border=spc_order/2, time_order=time_order, forward=True,
+                                              dtype=m.dtype,
+                                              input_params=parm, factorized=factorized, **kwargs)
 
         # Insert source and receiver terms post-hoc
-        self.input_params += [src, rec]
+        self.input_params += [src, src.coordinates, rec, rec.coordinates]
         self.propagator.time_loop_stencils_a = src.add(m, u) + src.add(m, v) + rec.read(u, v)
         self.propagator.add_devito_param(src)
+        self.propagator.add_devito_param(src.coordinates)
         self.propagator.add_devito_param(rec)
+        self.propagator.add_devito_param(rec.coordinates)
 
 
 class AdjointOperator(Operator):
