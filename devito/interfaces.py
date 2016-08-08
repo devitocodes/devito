@@ -104,6 +104,7 @@ class DenseData(SymbolicData):
     :param shape: Shape of the spatial data grid
     :param dtype: Data type of the buffered data
     :param space_order: Discretisation order for space derivatives
+    :param initializer: Function to initialize the data, optional
 
     Note: :class:`DenseData` objects are assumed to be constant in time and
     therefore do not support time derivatives. Use :class:`TimeData` for
@@ -119,8 +120,11 @@ class DenseData(SymbolicData):
             self.shape = kwargs.get('shape')
             self.dtype = kwargs.get('dtype', np.float32)
             self.space_order = kwargs.get('space_order', 1)
+            initializer = kwargs.get('initializer', None)
+            if initializer is not None:
+                assert(callable(initializer))
+            self.initializer = initializer
             self._data = kwargs.get('_data', None)
-            self.initializer = None
             MemmapManager.setup(self, *args, **kwargs)
             # Store new instance in symbol cache
             self._cache_put(self)
@@ -154,15 +158,6 @@ class DenseData(SymbolicData):
         indices = [a.subs({h: 1, s: 1}) for a in self.args]
 
         return self.indexed[indices]
-
-    def set_initializer(self, lambda_initializer):
-        """Set data intialising function to given lambda function.
-
-        :param lambda_initializer: Given lambda function.
-        """
-        assert(callable(lambda_initializer))
-
-        self.initializer = lambda_initializer
 
     def _allocate_memory(self):
         """Function to allocate memmory in terms of numpy ndarrays.
@@ -276,6 +271,8 @@ class TimeData(DenseData):
     :param dtype: Data type of the buffered data
     :param save: Save the intermediate results to the data buffer. Defaults
                  to `False`, indicating the use of alternating buffers.
+    :param pad_time: Set to `True` if save is True and you want to initialize
+                     the first :obj:`time_order` timesteps.
     :param time_dim: Size of the time dimension that dictates the leading
                      dimension of the data buffer if :param save: is True.
     :param time_order: Order of the time discretization which affects the
@@ -311,6 +308,12 @@ class TimeData(DenseData):
             # Store final instance in symbol cache
             self._cache_put(self)
 
+    def initialize(self):
+        if self.initializer is not None:
+            if self._full_data is None:
+                self._allocate_memory()
+            self.initializer(self._full_data)
+
     @classmethod
     def indices(cls, shape):
         """Return the default dimension indices for a given data shape
@@ -330,34 +333,6 @@ class TimeData(DenseData):
 
         if self.pad_time:
             self._data = self._data[self.time_order:, :, :]
-
-    def init_data(self, timestep, data):
-        """Function to initialize the initial time steps
-
-        :param timestep: Time step to initialize.
-                         Must be negative since calculated timesteps start from 0.
-        :param data: :class:`numpy.ndarray` containing the initial spatial data
-        """
-        if self._full_data is None:
-            self._allocate_memory()
-
-        assert timestep < 0, "Timestep must be negative"
-        assert data.shape == self._full_data[0].shape, \
-            "Data must have the same shape as the spatial data"
-
-        # Adds the time_order to the index to access padded indexes
-        timestep += self.time_order
-        self._full_data[timestep] = data
-
-    def get_data(self, timestep=0):
-        """Returns the calculated data at the specified timestep
-
-        :param timestep: The timestep from which we want to retrieve the data.
-                         Specify only in the case :obj:`self.save` is True
-        """
-        timestep += self.time_order
-
-        return self._full_data[timestep, :]
 
     @property
     def dim(self):
