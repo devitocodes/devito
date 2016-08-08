@@ -189,13 +189,9 @@ class AdjointOperator(Operator):
 
 
 class GradientOperator(Operator):
-    def __init__(self, model, damp, data, recin, uin, time_order=2, spc_order=6, **kwargs):
+    def __init__(self, model, damp, data, recin, u, time_order=2, spc_order=6, **kwargs):
         nrec, nt = data.traces.shape
         dt = model.get_critical_dt()
-        u = TimeData(name="u", shape=model.get_shape_comp(), time_dim=nt, time_order=time_order,
-                          space_order=spc_order, save=True, dtype=damp.dtype)
-        u.pad_time = True
-        u.data[:] = uin
         v = TimeData(name="v", shape=model.get_shape_comp(), time_dim=nt, time_order=time_order,
                           space_order=spc_order, save=False, dtype=damp.dtype)
         m = DenseData(name="m", shape=model.get_shape_comp(), dtype=damp.dtype)

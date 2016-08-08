@@ -63,24 +63,24 @@ class Acoustic_cg:
         fw = ForwardOperator(self.model, self.src, self.damp, self.data, time_order=self.t_order,
                              spc_order=self.s_order, save=save)
         u, rec = fw.apply()
-        return rec, u
+        return rec.data, u
 
     def Adjoint(self, rec):
         adj = AdjointOperator(self.model, self.damp, self.data, rec, time_order=self.t_order, spc_order=self.s_order)
         v = adj.apply()[0]
-        return v
+        return v.data
 
     def Gradient(self, rec, u):
         grad_op = GradientOperator(self.model, self.damp, self.data, rec, u,
                                    time_order=self.t_order, spc_order=self.s_order)
         grad = grad_op.apply()[0]
-        return grad
+        return grad.data
 
     def Born(self, dm):
         born_op = BornOperator(self.model, self.src, self.damp, self.data, dm,
                                time_order=self.t_order, spc_order=self.s_order)
         rec = born_op.apply()[0]
-        return rec
+        return rec.data
 
     def run(self):
         print('Starting forward')
