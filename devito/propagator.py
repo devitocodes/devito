@@ -85,12 +85,7 @@ class Propagator(object):
 
         # Settings for performance profiling
         self.profile = profile
-
-        if self.profile:
-            self.add_local_var("time", "double")
-            self.pre_loop.append(cgen.Statement("struct timeval start, end"))
-            self.pre_loop.append(cgen.Assign("time", 0))
-            self.post_loop.append(cgen.PrintStatement("time: %f\n", "time"))
+        self.timings = np.zeros(4)
 
         # Kernel operational intensity dictionary
         self._kernel_dic_oi = {'add': 0, 'mul': 0, 'load': 0, 'store': 0,
@@ -116,6 +111,20 @@ class Propagator(object):
         self._ccode = None
         self._lib = None
         self._cfunction = None
+
+    def run(self, args):
+        if self.profile:
+            args.append(self.timings)
+            self.add_param("timings", (4,), np.float64)
+
+        f = self.cfunction
+
+        if isinstance(self.compiler, IntelMICCompiler):
+            # Off-load propagator kernel via pymic stream
+            self.compiler._stream.invoke(f, *args)
+            self.compiler._stream.sync()
+        else:
+            f(*args)
 
     @property
     def basename(self):
@@ -294,6 +303,22 @@ class Propagator(object):
             time_stepping = self.get_time_stepping()
         else:
             time_stepping = []
+
+        if self.profile:
+            self.pre_loop += [
+                cgen.Statement("struct timeval start_kernel, end_kernel"),
+                cgen.Statement("struct timeval start_loops, end_loops"),
+                cgen.Statement("struct timeval start_pre, end_pre"),
+                cgen.Statement("struct timeval start_post, end_post"),
+            ] + omp_master + [cgen.Statement("gettimeofday(&start_kernel, NULL)")]
+            self.post_loop += omp_master + [
+                cgen.Block([
+                    cgen.Statement("gettimeofday(&end_kernel, NULL)"),
+                    cgen.Statement("timings[0] = ((end_kernel.tv_sec - start_kernel.tv_sec) * " +
+                                   "1000000u + end_kernel.tv_usec - start_kernel.tv_usec) / 1.e6"),
+                ])
+            ]
+
         loop_body = [cgen.Block(omp_for + loop_body)]
         # Statements to be inserted into the time loop before the spatial loop
         time_loop_stencils_b = [self.time_substitutions(x) for x in self.time_loop_stencils_b]
@@ -304,21 +329,35 @@ class Propagator(object):
         time_loop_stencils_a = [self.convert_equality_to_cgen(x) for x in self.time_loop_stencils_a]
 
         if self.profile:
-            start_time_stmt = omp_master + [cgen.Block([cgen.Statement("gettimeofday(&start, NULL)")])]
-            end_time_stmt = omp_master + [cgen.Block(
-                [cgen.Statement("gettimeofday(&end, NULL)")] +
-                [cgen.Statement("time += ((end.tv_sec - start.tv_sec) * ",
-                                "1000000u + end.tv_usec - start.tv_usec) / 1.e6")]
-            )]
-        else:
-            start_time_stmt = []
-            end_time_stmt = []
+            time_loop_stencils_b = [cgen.Statement("gettimeofday(&start_pre, NULL)")] + time_loop_stencils_b
+            time_loop_stencils_a = [cgen.Statement("gettimeofday(&start_post, NULL)")] + time_loop_stencils_a
 
-        initial_block = omp_single + ([cgen.Block(time_stepping + time_loop_stencils_b)]
-                                      if time_stepping or time_loop_stencils_b else [])
-        initial_block = initial_block + start_time_stmt
-        end_block = end_time_stmt + omp_single + ([cgen.Block(time_loop_stencils_a)]
-                                                  if time_loop_stencils_a else end_time_stmt)
+            time_loop_stencils_b += [
+                cgen.Statement("gettimeofday(&end_pre, NULL)"),
+                cgen.Statement("timings[2] += ((end_pre.tv_sec - start_pre.tv_sec) * " +
+                               "1000000u + end_pre.tv_usec - start_pre.tv_usec) / 1.e6"),
+            ]
+            time_loop_stencils_a += [
+                cgen.Statement("gettimeofday(&end_post, NULL)"),
+                cgen.Statement("timings[3] += ((end_post.tv_sec - start_post.tv_sec) * " +
+                               "1000000u + end_post.tv_usec - start_post.tv_usec) / 1.e6"),
+            ]
+
+        initial_block = time_stepping + time_loop_stencils_b + ([cgen.Statement("gettimeofday(&start_loops, NULL)")]
+                                                                if self.profile else [])
+
+        if initial_block:
+            initial_block = omp_single + [cgen.Block(initial_block)]
+
+        end_block = time_loop_stencils_a + ([cgen.Statement("gettimeofday(&end_loops, NULL)"),
+                                             cgen.Statement(
+                                                 "timings[1] += ((end_loops.tv_sec - start_loops.tv_sec) * " +
+                                                 "1000000u + end_loops.tv_usec - start_loops.tv_usec) / 1.e6"),
+                                             ] if self.profile else [])
+
+        if end_block:
+            end_block = omp_single + [cgen.Block(end_block)]
+
         loop_body = cgen.Block(initial_block + loop_body + end_block)
         loop_body = cgen.For(
             cgen.InlineInitializer(cgen.Value("int", t_var), str(t_loop_limits[0])),
