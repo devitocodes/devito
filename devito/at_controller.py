@@ -87,7 +87,6 @@ class AutoTuner(object):
                               If not set default at report directory is used
         :raises ValueError: if operator is not of Operator type
         """
-
         global final_report_name, default_at_dir
 
         from operator import Operator

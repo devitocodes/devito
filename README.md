@@ -62,30 +62,46 @@ Thread parallel execution via OpenMP can also be enabled by setting
 Devito supports loop cache blocking, which increases the effectiveness
 of memory by reusing the data in the cache. To enable this feature
 set `cache_blocking` flag to `True` in `Operator`. Furthermore you can
-specify the block sizes using `block_size` parameter. It can be a single
-number which will be used for all dimensions or a list explicitly stating
-block sizes for each dim(x,y,z). If you do not want to block some dimensions, 
-set `block_size` to `None` respectively.
+specify the block sizes using `block_size` parameter. Both `cache_blocking`
+and `block_size` can be a single bool/int values which will block
+all dimensions or a lists of same size explicitly stating which dims
+to block (x,y,z). If you do not want to block some dimension, 
+set `cache_blocking` to `False` and `block_size` to `None` respectively.
 
 Note
- If `block_size` is set to `None` or list of `None`'s
- cache blocking will be turned off.
+ `cache_blocking` argument takes priority, so if you pass `block_size`
+ to a dim which is set to `False` in `cache_blocking`, it will
+ be ignored.
  
 Example usage:
 ```
-op = Operator(..., cache_blocking=True, block_size=[5, 10, None])
+op = Operator(..., cache_blocking=[True, True, False], block_size=[5, 10, None])
 ```
  
 ## Auto tuning block sizes
 
 Devito supports automatic auto tuning of block sizes when cache blocking.
+To enable auto tuning create `AutoTuner` object while passing `Operator`
+and `auto_tuning_report_dir_path` as its arguments.
+`AutoTuner` will run the compiled file multiple times with different block sizes,
+trying to find most effective option, which will be written into report file.
 
-To enable auto tuning set auto_tune flag to True in Operator. It will run the compiled file multiple times with different block sizes, trying to find most effective option and will write the result into report file.
+If auto tuning has completed and you want to use best block sizes, initialise 
+`Operator`  with `cache_blocking` set to  `True` and `at_report` arg 
+pointing to your auto tuning report directory. Devito will attempt to 
+read the auto tuning report and will select best `block_size` based on it.
+If corresponding value is not found, sub optimal `block_size` will be chosen 
+based on architecture.
 
-If auto tuning has completed and you are running with cache_blocking set to True and block_size not set. Devito will attempt to read the auto tuning report and will select best block_size based on it. If report is not found it will chose one based on architecture.
-
-Note: This feature has to be used in conjunction with cache_blocking flag. This feature needs to run only once for each model. You can specify tuning range by using tune_range parameter in form of (min, max) You can specify auto tuning report path by setting environment variable AT_REPORT_DIR=your_report_directory
+Note: 
+ This feature has to be used in conjunction with `cache_blocking` flag.
+ This feature needs to run only once for each model. 
+ You can specify tuning range when calling `auto_tune_blocks(min, max)`
+ function.
 
 Example usage:
-
-op = Operator(..., cache_blocking=True, auto_tune=True, tune_range=(5, 15))
+```
+op = Operator(..., cache_blocking=True)
+at = AutoTuner(op, <at_report_directory_path>)
+at.auto_tune_blocks(min_block_size, max_block_size)
+```

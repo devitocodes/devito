@@ -30,16 +30,47 @@ class Test_Auto_Tuning(object):
         ([False, True, False], None, (5, 6), [None, 5, None])
     ])
     def test_auto_tuning_blocks(self, cache_blocking, block_size, tune_range, expected_result):
-        self.auto_tuning_test(cache_blocking, block_size, tune_range, expected_result)
+        self.auto_tuning_test_general(cache_blocking, block_size, tune_range, expected_result)
 
     @pytest.mark.parametrize("cache_blocking,block_size,tune_range,expected_result", [
         pytest.mark.xfail((True, 5, (5, 6), [5, 5, 5]), strict=True),
         pytest.mark.xfail(([True, True, False], [5, 5, None], (5, 6), [5, 5, 5]), strict=True)
     ])
     def test_auto_tuning_b_negative(self, cache_blocking, block_size, tune_range, expected_result):
-        self.auto_tuning_test(cache_blocking, block_size, tune_range, expected_result)
+        self.auto_tuning_test_general(cache_blocking, block_size, tune_range, expected_result)
 
-    def auto_tuning_test(self, cache_blocking, block_size, tune_range, expected_result):
+    def test_auto_tuning_correctness(self):
+
+        shape = (50, 50, 50, 50)
+        indexes = symbols("t x y z")
+
+        size = 1
+        for element in shape:
+            size *= element
+
+        input_grid = DenseData(name="input_grid", shape=shape, dtype=np.float64)
+        input_grid.data[:] = np.arange(size, dtype=np.float64).reshape(shape)
+
+        output_grid_noat = DenseData(name="output_grid", shape=shape, dtype=np.float64)
+        eq_noat = Eq(output_grid_noat.indexed[indexes],
+                     output_grid_noat.indexed[indexes] + input_grid.indexed[indexes] + 3)
+        op_noat = SimpleOperator(input_grid, output_grid_noat, [eq_noat], time_order=2, spc_border=2)
+        op_noat.apply()
+
+        output_grid_at = DenseData(name="output_grid", shape=shape, dtype=np.float64)
+        eq_block = Eq(output_grid_at.indexed[indexes],
+                      output_grid_at.indexed[indexes] + input_grid.indexed[indexes] + 3)
+        op_at = SimpleOperator(input_grid, output_grid_at, [eq_block],
+                               cache_blocking=True, time_order=2, spc_border=2)
+        op_at.propagator.auto_tune = True
+
+        f, args = op_at.apply(auto_tune=True)
+        args += [5, 5, 5]
+        f(*args)
+
+        assert np.equal(output_grid_noat.data, output_grid_at.data).all()
+
+    def auto_tuning_test_general(self, cache_blocking, block_size, tune_range, expected_result):
         shape = (50, 50, 50, 50)
         input_grid = DenseData(name="input_grid", shape=shape, dtype=np.float64)
         input_grid.data[:] = np.arange(6250000, dtype=np.float64).reshape(shape)

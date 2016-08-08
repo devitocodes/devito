@@ -1,8 +1,10 @@
-from AcousticWave2D_codegen import AcousticWave2D_cg
-import numpy as np
 import time
 from math import floor
-from containers import IShot, IGrid
+
+import numpy as np
+
+from AcousticWave2D_codegen import AcousticWave2D_cg
+from containers import IGrid, IShot
 
 
 # Velocity models
