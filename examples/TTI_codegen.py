@@ -1,7 +1,7 @@
 # coding: utf-8
 from __future__ import print_function
 import numpy as np
-from examples.tti_operators2 import *
+from examples.tti_operators import *
 from examples.fwi_operators import SourceLike
 
 class TTI_cg:
@@ -94,3 +94,10 @@ class TTI_cg:
                              self.b, self.th, self.ph, time_order=self.t_order, spc_order=self.s_order)
         fw.apply()
         return (self.rec.data, self.u.data, self.v.data)
+
+    def Adjoint(self, rec):
+        self.rec.data[:] = rec
+        adj = AdjointOperator(self.m, self.srca, self.damp, self.rec, self.u, self.v, self.a,
+                              self.b, self.th, self.ph, time_order=self.t_order, spc_order=self.s_order)
+        adj.apply()
+        return self.srca.data
