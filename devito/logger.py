@@ -72,6 +72,10 @@ def log(msg, level=INFO, *args, **kwargs):
     logger.log(level, color % msg, *args, **kwargs)
 
 
+def info(msg, *args, **kwargs):
+    log(msg, INFO, *args, **kwargs)
+
+
 def warning(msg, *args, **kwargs):
     log(msg, WARNING, *args, **kwargs)
 
