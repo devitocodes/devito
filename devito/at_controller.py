@@ -115,7 +115,7 @@ class AutoTuner(object):
         if not self.op.propagator.cache_blocking:
             raise EnvironmentError("Invalid parameters. Cache_blocking is set to False")
 
-        logger.log("Starting auto tuning of block sizes using brute force")
+        logger.info("Starting auto tuning of block sizes using brute force")
 
         self.op.auto_tune = True
         self.op.propagator.auto_tune = True
@@ -150,7 +150,7 @@ class AutoTuner(object):
         for block in block_list:
             times.append((block, self._time_blocks(f, args, block)))
 
-        logger.log("Auto tuning using brute force complete")
+        logger.info("Auto tuning using brute force complete")
 
         times = sorted(times, key=lambda element: element[1])  # sorts the list of tuples based on time
         self._write_b_report(times)  # writes the report
@@ -165,15 +165,15 @@ class AutoTuner(object):
         """
         timing_run = 0  # estimating run time
         for i in range(0, 5):
-            logger.log('Estimating auto-tuning runtime...sample %d/5' % (i + 1))
+            logger.info('Estimating auto-tuning runtime...sample %d/5' % (i + 1))
 
             blocks = []
             for block in self.op.propagator.block_sizes:
-                blocks = blocks.append(random.randrange(minimum, maximum + 1)) if block else blocks.append(None)
+                blocks = blocks + [random.randrange(minimum, maximum)] if block else blocks + [None]
 
             timing_run += self._time_blocks(f, args, blocks)
 
-        logger.log("Estimated runtime: %f minutes." % float(
+        logger.info("Estimated runtime: %f minutes." % float(
             timing_run / 5 * ((maximum - minimum) * (maximum - minimum)) / 600))
 
     def _time_blocks(self, f, args, block_sizes):

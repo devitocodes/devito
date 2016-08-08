@@ -627,7 +627,7 @@ class Propagator(object):
             self.block_sizes = get_at_block_size(self.fd.name, self.time_order, self.spc_border,
                                                  self.shape, self.cache_blocking, self.at_report)
             if self.block_sizes:
-                logger.log("Using block size values found in auto tuning report: %s" % str(self.block_sizes))
+                logger.info("Using block size values found in auto tuning report: %s" % str(self.block_sizes))
             else:
                 self.block_sizes = get_optimal_block_size(self.cache_blocking, self.shape, self.get_number_of_loads())
                 logger.warning("Block sizes for this model not found in auto tuning report."
