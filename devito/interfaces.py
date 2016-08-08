@@ -8,7 +8,7 @@ import numpy as np
 from sympy import Function, IndexedBase, as_finite_diff
 from sympy.abc import h, p, s, t, x, y, z
 
-from devito.finite_difference import cross_derivative
+from devito.finite_difference import cross_derivative, first_derivative
 from tools import aligned
 
 __all__ = ['DenseData', 'TimeData', 'PointData']
@@ -236,6 +236,36 @@ class DenseData(SymbolicData):
     def dyz(self):
         """Symbol for the cross derivative wrt the y and z dimension"""
         return cross_derivative(self, order=int(self.space_order/2), dims=(y, z))
+
+    @property
+    def dxl(self):
+        """Symbol for the derivative wrt to x with a left stencil"""
+        return first_derivative(self, order=int(self.space_order/2), dim=x, side=-1)
+
+    @property
+    def dxr(self):
+        """Symbol for the derivative wrt to x with a right stencil"""
+        return first_derivative(self, order=int(self.space_order/2), dim=x, side=1)
+
+    @property
+    def dyl(self):
+        """Symbol for the derivative wrt to y with a left stencil"""
+        return first_derivative(self, order=int(self.space_order/2), dim=y, side=-1)
+
+    @property
+    def dyr(self):
+        """Symbol for the derivative wrt to y with a right stencil"""
+        return first_derivative(self, order=int(self.space_order/2), dim=y, side=1)
+
+    @property
+    def dzl(self):
+        """Symbol for the derivative wrt to z with a left stencil"""
+        return first_derivative(self, order=int(self.space_order/2), dim=z, side=-1)
+
+    @property
+    def dzr(self):
+        """Symbol for the derivative wrt to z with a right stencil"""
+        return first_derivative(self, order=int(self.space_order/2), dim=z, side=1)
 
 
 class TimeData(DenseData):
