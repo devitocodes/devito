@@ -434,17 +434,3 @@ class AcousticWave2D:
             U1, U2, U3 = U2, U3, U1
 
         return rec
-
-    def run(self):
-        nt = self.data.nsamples
-
-        print('Starting forward')
-        rec, u = self.Forward(nt)
-
-        res = rec - np.transpose(self.data.traces)
-        f = 0.5*linalg.norm(res)**2
-
-        print('Residual is ', f, 'starting gradient')
-        g = self.Gradient(nt, res, u)
-
-        return f, g[40:-40, 40:-40]

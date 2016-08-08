@@ -146,7 +146,7 @@ class ForwardOperator(Operator):
         v.space_order = spc_order
         s, h = symbols('s h')
 
-	ang0 = Bhaskaracos(th)
+        ang0 = Bhaskaracos(th)
         ang1 = Bhaskarasin(th)
         # Derive stencil from symbolic equation
         if len(m.shape) == 3:
@@ -197,8 +197,10 @@ class ForwardOperator(Operator):
             Gzz2 = (first_derivative(Gz2r * ang1, dim=x, side=-1, order=spc_order/2) +
                     first_derivative(Gz2r * ang0, dim=y, side=-1, order=spc_order/2))
 
-        stencilp = 1.0 / (2.0 * m + s * damp) * (4.0 * m * u + (s * damp - 2.0 * m) * u.backward + 2.0 * s**2 * (A * Hp + B * Hzr))
-        stencilr = 1.0 / (2.0 * m + s * damp) * (4.0 * m * v + (s * damp - 2.0 * m) * v.backward + 2.0 * s**2 * (B * Hp + Hzr))
+        stencilp = 1.0 / (2.0 * m + s * damp) * (4.0 * m * u + (s * damp - 2.0 * m) * u.backward +
+                                                 2.0 * s**2 * (A * Hp + B * Hzr))
+        stencilr = 1.0 / (2.0 * m + s * damp) * (4.0 * m * v + (s * damp - 2.0 * m) * v.backward +
+                                                 2.0 * s**2 * (B * Hp + Hzr))
         Hp = -(.5 * Gxx1 + .5 * Gxx2 + .5 * Gyy1 + .5 * Gyy2)
         Hzr = -(.5 * Gzz1 + .5 * Gzz2)
         factorized = {"Hp": Hp, "Hzr": Hzr}
@@ -208,7 +210,8 @@ class ForwardOperator(Operator):
         second_stencil = Eq(v.forward, stencilr)
         stencils = [first_stencil, second_stencil]
         super(ForwardOperator, self).__init__(src.nt, m.shape, stencils=stencils, substitutions=subs,
-                                              spc_border=spc_order/2, time_order=time_order, forward=True, dtype=m.dtype,
+                                              spc_border=spc_order/2, time_order=time_order, forward=True,
+                                              dtype=m.dtype,
                                               input_params=parm, factorized=factorized, **kwargs)
 
         # Insert source and receiver terms post-hoc

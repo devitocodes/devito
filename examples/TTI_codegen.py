@@ -4,6 +4,7 @@ import numpy as np
 from examples.tti_operators import *
 from examples.fwi_operators import SourceLike
 
+
 class TTI_cg:
     """ Class to setup the problem for the Acoustic Wave
         Note: s_order must always be greater than t_order
@@ -74,19 +75,19 @@ class TTI_cg:
         # Initialize damp by calling the function that can precompute damping
         damp_boundary(self.damp.data)
         self.src = SourceLike(name="src", npoint=1, nt=self.nt, dt=self.dt, h=self.h,
-                                 coordinates=np.array(self.data.source_coords, dtype=self.dtype)[np.newaxis, :],
-                                 ndim=len(dimensions), dtype=self.dtype, nbpml=nbpml)
+                              coordinates=np.array(self.data.source_coords, dtype=self.dtype)[np.newaxis, :],
+                              ndim=len(dimensions), dtype=self.dtype, nbpml=nbpml)
         self.rec = SourceLike(name="rec", npoint=self.nrec, nt=self.nt, dt=self.dt, h=self.h,
-                                 coordinates=self.data.receiver_coords, ndim=len(dimensions), dtype=self.dtype,
-                                 nbpml=nbpml)
+                              coordinates=self.data.receiver_coords, ndim=len(dimensions), dtype=self.dtype,
+                              nbpml=nbpml)
         self.src.data[:] = self.data.get_source()[:, np.newaxis]
         self.u = TimeData(name="u", shape=self.m.shape, time_dim=self.src.nt, time_order=t_order,
                           save=save, dtype=self.m.dtype)
         self.v = TimeData(name="v", shape=self.m.shape, time_dim=self.src.nt, time_order=t_order,
                           save=save, dtype=self.m.dtype)
         self.srca = SourceLike(name="srca", npoint=1, nt=self.nt, dt=self.dt, h=self.h,
-                                  coordinates=np.array(self.data.source_coords, dtype=self.dtype)[np.newaxis, :],
-                                  ndim=len(dimensions), dtype=self.dtype, nbpml=nbpml)
+                               coordinates=np.array(self.data.source_coords, dtype=self.dtype)[np.newaxis, :],
+                               ndim=len(dimensions), dtype=self.dtype, nbpml=nbpml)
         self.dm = DenseData(name="dm", shape=self.model.vp.shape, dtype=self.dtype)
 
     def Forward(self):
