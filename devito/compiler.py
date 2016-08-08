@@ -1,4 +1,4 @@
-from os import environ, mkdir, path
+from os import environ, mkdir, getuid, path
 from tempfile import gettempdir
 
 import numpy.ctypeslib as npct
@@ -187,7 +187,7 @@ def get_tmp_dir():
 
     :return: Path to a devito-specific tmp directory
     """
-    tmpdir = path.join(gettempdir(), "devito")
+    tmpdir = path.join(gettempdir(), "devito-%s" % getuid())
 
     if not path.exists(tmpdir):
         mkdir(tmpdir)
