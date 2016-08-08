@@ -1,7 +1,8 @@
-from os import environ, mkdir, getuid, path
+from os import environ, getuid, mkdir, path
 from tempfile import gettempdir
 
 import numpy.ctypeslib as npct
+
 from cgen import Pragma
 from codepy.jit import extension_file_from_string
 from codepy.toolchain import GCCToolchain

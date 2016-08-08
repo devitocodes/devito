@@ -1,8 +1,10 @@
 # coding: utf-8
 from __future__ import print_function
+
 import numpy as np
-from examples.tti_operators import *
+
 from examples.fwi_operators import SourceLike
+from examples.tti_operators import *
 
 
 class TTI_cg:

@@ -1,7 +1,6 @@
 from collections import Iterable
 
 import cgen
-
 from devito.codeprinter import ccode
 
 __all__ = ['Iteration']

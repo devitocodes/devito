@@ -220,7 +220,7 @@ class ForwardOperator(Operator):
         self.propagator.add_devito_param(src)
         self.propagator.add_devito_param(src.coordinates)
         self.propagator.add_devito_param(rec)
-        self.propagator.add_devito_param(rec.coordinates)        
+        self.propagator.add_devito_param(rec.coordinates)
 
 
 class AdjointOperator(Operator):
