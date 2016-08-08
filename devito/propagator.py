@@ -343,22 +343,20 @@ class Propagator(object):
                                "1000000u + end_post.tv_usec - start_post.tv_usec) / 1.e6"),
             ]
 
-        initial_block = omp_single + [
-            cgen.Block(
-                time_stepping + time_loop_stencils_b +
-                ([cgen.Statement("gettimeofday(&start_loops, NULL)")] if self.profile else [])
-            )
-        ]
-        end_block = omp_single + [
-            cgen.Block(
-                time_loop_stencils_a +
-                ([
-                    cgen.Statement("gettimeofday(&end_loops, NULL)"),
-                    cgen.Statement("timings[1] += ((end_loops.tv_sec - start_loops.tv_sec) * " +
-                                   "1000000u + end_loops.tv_usec - start_loops.tv_usec) / 1.e6"),
-                ] if self.profile else [])
-            )
-        ]
+        initial_block = time_stepping + time_loop_stencils_b + ([cgen.Statement("gettimeofday(&start_loops, NULL)")]
+                                                                if self.profile else [])
+
+        if initial_block:
+            initial_block = omp_single + [cgen.Block(initial_block)]
+
+        end_block = time_loop_stencils_a + ([cgen.Statement("gettimeofday(&end_loops, NULL)"),
+                                             cgen.Statement(
+                                                 "timings[1] += ((end_loops.tv_sec - start_loops.tv_sec) * " +
+                                                 "1000000u + end_loops.tv_usec - start_loops.tv_usec) / 1.e6"),
+                                             ] if self.profile else [])
+
+        if end_block:
+            end_block = omp_single + [cgen.Block(end_block)]
 
         loop_body = cgen.Block(initial_block + loop_body + end_block)
         loop_body = cgen.For(
