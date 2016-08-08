@@ -1,9 +1,8 @@
 # coding: utf-8
 from __future__ import print_function
 import numpy as np
-from devito.interfaces import DenseData
-from examples.tti_operators import *
-
+from examples.tti_operators2 import *
+from examples.fwi_operators import SourceLike
 
 class TTI_cg:
     """ Class to setup the problem for the Acoustic Wave
@@ -74,10 +73,10 @@ class TTI_cg:
         self.damp = DenseData(name="damp", shape=self.model.vp.shape, dtype=self.dtype)
         # Initialize damp by calling the function that can precompute damping
         damp_boundary(self.damp.data)
-        self.src = SourceLikeTTI(name="src", npoint=1, nt=self.nt, dt=self.dt, h=self.h,
+        self.src = SourceLike(name="src", npoint=1, nt=self.nt, dt=self.dt, h=self.h,
                                  coordinates=np.array(self.data.source_coords, dtype=self.dtype)[np.newaxis, :],
                                  ndim=len(dimensions), dtype=self.dtype, nbpml=nbpml)
-        self.rec = SourceLikeTTI(name="rec", npoint=self.nrec, nt=self.nt, dt=self.dt, h=self.h,
+        self.rec = SourceLike(name="rec", npoint=self.nrec, nt=self.nt, dt=self.dt, h=self.h,
                                  coordinates=self.data.receiver_coords, ndim=len(dimensions), dtype=self.dtype,
                                  nbpml=nbpml)
         self.src.data[:] = self.data.get_source()[:, np.newaxis]
@@ -85,7 +84,7 @@ class TTI_cg:
                           save=save, dtype=self.m.dtype)
         self.v = TimeData(name="v", shape=self.m.shape, time_dim=self.src.nt, time_order=t_order,
                           save=save, dtype=self.m.dtype)
-        self.srca = SourceLikeTTI(name="srca", npoint=1, nt=self.nt, dt=self.dt, h=self.h,
+        self.srca = SourceLike(name="srca", npoint=1, nt=self.nt, dt=self.dt, h=self.h,
                                   coordinates=np.array(self.data.source_coords, dtype=self.dtype)[np.newaxis, :],
                                   ndim=len(dimensions), dtype=self.dtype, nbpml=nbpml)
         self.dm = DenseData(name="dm", shape=self.model.vp.shape, dtype=self.dtype)
@@ -95,32 +94,3 @@ class TTI_cg:
                              self.b, self.th, self.ph, time_order=self.t_order, spc_order=self.s_order)
         fw.apply()
         return (self.rec.data, self.u.data, self.v.data)
-
-    def Adjoint(self, rec):
-        adj = AdjointOperator(self.m, self.rec, self.damp, self.srca, time_order=self.t_order, spc_order=self.s_order)
-        v = adj.apply()[0]
-        return (self.srca.data, v)
-
-    def Gradient(self, rec, u):
-        self.rec.data[:] = rec
-        self.u.data[:] = u
-        grad_op = GradientOperator(self.u, self.m, self.rec, self.damp, time_order=self.t_order, spc_order=self.s_order)
-        dt = self.dt
-        grad = grad_op.apply()[0]
-        return (dt**-2)*grad
-
-    def Born(self, dm):
-        self.dm.data[:] = dm
-        born_op = BornOperator(self.dm, self.m, self.src, self.damp, self.rec,
-                               time_order=self.t_order, spc_order=self.s_order)
-        born_op.apply()
-        return self.rec.data
-
-    def run(self):
-        print('Starting forward')
-        rec, u = self.Forward()
-        res = rec - np.transpose(self.data.traces)
-        f = 0.5*np.linalg.norm(res)**2
-        print('Residual is ', f, 'starting gradient')
-        g = self.Gradient(res, u)
-        return f, g[self.nbpml:-self.nbpml, self.nbpml:-self.nbpml]

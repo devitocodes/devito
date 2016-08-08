@@ -106,6 +106,11 @@ class SourceLike(PointData):
         interp_expr = Eq(self.indexed[t, p], self.grid2point(u))
         return [Iteration(interp_expr, variable=p, limits=self.shape[1])]
 
+    def read2(self, u, v):
+        """Iteration loop over points performing grid-to-point interpolation."""
+        interp_expr = Eq(self.indexed[t, p], self.grid2point(u) + self.grid2point(v))
+        return [Iteration(interp_expr, variable=p, limits=self.shape[1])]
+
     def add(self, m, u, t=t):
         """Iteration loop over points performing point-to-grid interpolation."""
         return [Iteration(self.point2grid(u, m, t), variable=p, limits=self.shape[1])]
