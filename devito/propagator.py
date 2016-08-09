@@ -248,10 +248,10 @@ class Propagator(object):
                 expr = self.factorized[name]
                 self.add_local_var(name, self.dtype)
                 if self.dtype is np.float32:
-                    factors.append(cgen.Assign(name, str(ccode(expr.xreplace(self._var_map))).
+                    factors.append(cgen.Assign(name, str(ccode(self.time_substitutions(expr).xreplace(self._var_map))).
                                                replace("pow", "powf").replace("fabs", "fabsf")))
                 else:
-                    factors.append(cgen.Assign(name, str(ccode(expr.xreplace(self._var_map)))))
+                    factors.append(cgen.Assign(name, str(ccode(self.time_substitutions(expr).xreplace(self._var_map)))))
         stmts = []
 
         for equality in stencils:
@@ -589,7 +589,6 @@ class Propagator(object):
     def time_substitutions(self, sympy_expr):
         """This method checks through the sympy_expr to replace the time index with a cyclic index
         but only for variables which are not being saved in the time domain
-
         :param sympy_expr: The Sympy expression to process
         :returns: The expression after the substitutions
         """

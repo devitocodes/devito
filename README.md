@@ -75,4 +75,3 @@ Example usage:
 ```
 op = Operator(..., cache_blocking=True, block_size=[5, 10, None])
 ```
- 
