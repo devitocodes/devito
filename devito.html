@@ -487,6 +487,24 @@ given body of statements inside the loop</p>
 </dd></dl>
 
 <dl class="method">
+<dt id="devito.function_manager.FunctionDescriptor.add_struct_param">
+<code class="descname">add_struct_param</code><span class="sig-paren">(</span><em>name</em>, <em>stype</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/function_manager.html#FunctionDescriptor.add_struct_param"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.function_manager.FunctionDescriptor.add_struct_param" title="Permalink to this definition">¶</a></dt>
+<dd><p>Declare a new struct parameter for this function</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>name</strong> &#8211; The name of the struct object</li>
+<li><strong>stype</strong> &#8211; The struct type as a string</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
 <dt id="devito.function_manager.FunctionDescriptor.add_value_param">
 <code class="descname">add_value_param</code><span class="sig-paren">(</span><em>name</em>, <em>dtype</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/function_manager.html#FunctionDescriptor.add_value_param"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.function_manager.FunctionDescriptor.add_value_param" title="Permalink to this definition">¶</a></dt>
 <dd><p>Declare a new value (scalar) parameter for this function</p>
@@ -579,6 +597,20 @@ function represented by it</p>
 <li><strong>text</strong> &#8211; The value that replaces it</li>
 </ul>
 </td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="devito.function_manager.FunctionManager.add_struct_definition">
+<code class="descname">add_struct_definition</code><span class="sig-paren">(</span><em>struct</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/function_manager.html#FunctionManager.add_struct_definition"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.function_manager.FunctionManager.add_struct_definition" title="Permalink to this definition">¶</a></dt>
+<dd><p>Adds a structure definition</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Params struct:</th><td class="field-body">The <code class="xref py py-class docutils literal"><span class="pre">cgen.Struct</span></code> to add</td>
 </tr>
 </tbody>
 </table>
@@ -1430,6 +1462,11 @@ Weighted OI, OI_w = (ADD+MUL)/(2*Max(ADD,MUL)) * OI</p>
 <p>For now, i1 i2 i3 are assigned in the order the variables were defined in init( #var_order)</p>
 </dd></dl>
 
+<dl class="method">
+<dt id="devito.propagator.Propagator.run">
+<code class="descname">run</code><span class="sig-paren">(</span><em>args</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/propagator.html#Propagator.run"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.propagator.Propagator.run" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
 <dl class="attribute">
 <dt id="devito.propagator.Propagator.save">
 <code class="descname">save</code><a class="headerlink" href="#devito.propagator.Propagator.save" title="Permalink to this definition">¶</a></dt>
@@ -1482,6 +1519,11 @@ but only for variables which are not being saved in the time domain
 :param sympy_expr: The Sympy expression to process
 :returns: The expression after the substitutions</p>
 </dd></dl>
+
+<dl class="attribute">
+<dt id="devito.propagator.Propagator.timings">
+<code class="descname">timings</code><a class="headerlink" href="#devito.propagator.Propagator.timings" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
 
 </dd></dl>
 

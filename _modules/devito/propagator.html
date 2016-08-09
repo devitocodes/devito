@@ -145,6 +145,7 @@
                              <span class="n">get_tmp_dir</span><span class="p">,</span> <span class="n">jit_compile_and_load</span><span class="p">)</span>
 <span class="kn">from</span> <span class="nn">devito.function_manager</span> <span class="k">import</span> <span class="n">FunctionDescriptor</span><span class="p">,</span> <span class="n">FunctionManager</span>
 <span class="kn">from</span> <span class="nn">devito.iteration</span> <span class="k">import</span> <span class="n">Iteration</span>
+<span class="kn">from</span> <span class="nn">devito.profiler</span> <span class="k">import</span> <span class="n">Profiler</span>
 
 
 <div class="viewcode-block" id="Propagator"><a class="viewcode-back" href="../../devito.html#devito.propagator.Propagator">[docs]</a><span class="k">class</span> <span class="nc">Propagator</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
@@ -216,12 +217,7 @@
 
         <span class="c1"># Settings for performance profiling</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">profile</span> <span class="o">=</span> <span class="n">profile</span>
-
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">profile</span><span class="p">:</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">add_local_var</span><span class="p">(</span><span class="s2">&quot;time&quot;</span><span class="p">,</span> <span class="s2">&quot;double&quot;</span><span class="p">)</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">pre_loop</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">cgen</span><span class="o">.</span><span class="n">Statement</span><span class="p">(</span><span class="s2">&quot;struct timeval start, end&quot;</span><span class="p">))</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">pre_loop</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">cgen</span><span class="o">.</span><span class="n">Assign</span><span class="p">(</span><span class="s2">&quot;time&quot;</span><span class="p">,</span> <span class="mi">0</span><span class="p">))</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">post_loop</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">cgen</span><span class="o">.</span><span class="n">PrintStatement</span><span class="p">(</span><span class="s2">&quot;time: </span><span class="si">%f</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">,</span> <span class="s2">&quot;time&quot;</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">profiler</span> <span class="o">=</span> <span class="n">Profiler</span><span class="p">()</span>
 
         <span class="c1"># Kernel operational intensity dictionary</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_kernel_dic_oi</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;add&#39;</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span> <span class="s1">&#39;mul&#39;</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span> <span class="s1">&#39;load&#39;</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span> <span class="s1">&#39;store&#39;</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span>
@@ -248,6 +244,22 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">_lib</span> <span class="o">=</span> <span class="kc">None</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_cfunction</span> <span class="o">=</span> <span class="kc">None</span>
 
+<div class="viewcode-block" id="Propagator.run"><a class="viewcode-back" href="../../devito.html#devito.propagator.Propagator.run">[docs]</a>    <span class="k">def</span> <span class="nf">run</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">args</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">profile</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">fd</span><span class="o">.</span><span class="n">add_struct_param</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">profiler</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="s2">&quot;profiler&quot;</span><span class="p">)</span>
+
+        <span class="n">f</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfunction</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">profile</span><span class="p">:</span>
+            <span class="n">args</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">profiler</span><span class="o">.</span><span class="n">as_ctypes_pointer</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">compiler</span><span class="p">,</span> <span class="n">IntelMICCompiler</span><span class="p">):</span>
+            <span class="c1"># Off-load propagator kernel via pymic stream</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">compiler</span><span class="o">.</span><span class="n">_stream</span><span class="o">.</span><span class="n">invoke</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">compiler</span><span class="o">.</span><span class="n">_stream</span><span class="o">.</span><span class="n">sync</span><span class="p">()</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">f</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">)</span></div>
+
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">basename</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;Generate a unique basename path for auto-generated files</span>
@@ -271,6 +283,10 @@
                                       <span class="n">openmp</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">compiler</span><span class="o">.</span><span class="n">openmp</span><span class="p">)</span>
             <span class="c1"># For some reason we need this call to trigger fd.body</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">get_fd</span><span class="p">()</span>
+
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">profile</span><span class="p">:</span>
+                <span class="n">manager</span><span class="o">.</span><span class="n">add_struct_definition</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">profiler</span><span class="o">.</span><span class="n">as_cgen_struct</span><span class="p">)</span>
+
             <span class="bp">self</span><span class="o">.</span><span class="n">_ccode</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">manager</span><span class="o">.</span><span class="n">generate</span><span class="p">())</span>
 
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ccode</span>
@@ -294,6 +310,10 @@
                 <span class="bp">self</span><span class="o">.</span><span class="n">_cfunction</span><span class="o">.</span><span class="n">argtypes</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">fd</span><span class="o">.</span><span class="n">argtypes</span>
 
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cfunction</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">timings</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">profiler</span><span class="o">.</span><span class="n">as_dictionary</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">save</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
@@ -425,6 +445,7 @@
             <span class="n">time_stepping</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_time_stepping</span><span class="p">()</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="n">time_stepping</span> <span class="o">=</span> <span class="p">[]</span>
+
         <span class="n">loop_body</span> <span class="o">=</span> <span class="p">[</span><span class="n">cgen</span><span class="o">.</span><span class="n">Block</span><span class="p">(</span><span class="n">omp_for</span> <span class="o">+</span> <span class="n">loop_body</span><span class="p">)]</span>
         <span class="c1"># Statements to be inserted into the time loop before the spatial loop</span>
         <span class="n">time_loop_stencils_b</span> <span class="o">=</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">time_substitutions</span><span class="p">(</span><span class="n">x</span><span class="p">)</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">time_loop_stencils_b</span><span class="p">]</span>
@@ -435,22 +456,24 @@
         <span class="n">time_loop_stencils_a</span> <span class="o">=</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">convert_equality_to_cgen</span><span class="p">(</span><span class="n">x</span><span class="p">)</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">time_loop_stencils_a</span><span class="p">]</span>
 
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">profile</span><span class="p">:</span>
-            <span class="n">start_time_stmt</span> <span class="o">=</span> <span class="n">omp_master</span> <span class="o">+</span> <span class="p">[</span><span class="n">cgen</span><span class="o">.</span><span class="n">Block</span><span class="p">([</span><span class="n">cgen</span><span class="o">.</span><span class="n">Statement</span><span class="p">(</span><span class="s2">&quot;gettimeofday(&amp;start, NULL)&quot;</span><span class="p">)])]</span>
-            <span class="n">end_time_stmt</span> <span class="o">=</span> <span class="n">omp_master</span> <span class="o">+</span> <span class="p">[</span><span class="n">cgen</span><span class="o">.</span><span class="n">Block</span><span class="p">(</span>
-                <span class="p">[</span><span class="n">cgen</span><span class="o">.</span><span class="n">Statement</span><span class="p">(</span><span class="s2">&quot;gettimeofday(&amp;end, NULL)&quot;</span><span class="p">)]</span> <span class="o">+</span>
-                <span class="p">[</span><span class="n">cgen</span><span class="o">.</span><span class="n">Statement</span><span class="p">(</span><span class="s2">&quot;time += ((end.tv_sec - start.tv_sec) * &quot;</span><span class="p">,</span>
-                                <span class="s2">&quot;1000000u + end.tv_usec - start.tv_usec) / 1.e6&quot;</span><span class="p">)]</span>
-            <span class="p">)]</span>
-        <span class="k">else</span><span class="p">:</span>
-            <span class="n">start_time_stmt</span> <span class="o">=</span> <span class="p">[]</span>
-            <span class="n">end_time_stmt</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="n">time_loop_stencils_a</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">profiler</span><span class="o">.</span><span class="n">add_profiling</span><span class="p">(</span><span class="n">time_loop_stencils_a</span><span class="p">,</span> <span class="s2">&quot;loop_stencils_a&quot;</span><span class="p">)</span>
+            <span class="n">time_loop_stencils_b</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">profiler</span><span class="o">.</span><span class="n">add_profiling</span><span class="p">(</span><span class="n">time_loop_stencils_b</span><span class="p">,</span> <span class="s2">&quot;loop_stencils_b&quot;</span><span class="p">)</span>
 
-        <span class="n">initial_block</span> <span class="o">=</span> <span class="n">omp_single</span> <span class="o">+</span> <span class="p">([</span><span class="n">cgen</span><span class="o">.</span><span class="n">Block</span><span class="p">(</span><span class="n">time_stepping</span> <span class="o">+</span> <span class="n">time_loop_stencils_b</span><span class="p">)]</span>
-                                      <span class="k">if</span> <span class="n">time_stepping</span> <span class="ow">or</span> <span class="n">time_loop_stencils_b</span> <span class="k">else</span> <span class="p">[])</span>
-        <span class="n">initial_block</span> <span class="o">=</span> <span class="n">initial_block</span> <span class="o">+</span> <span class="n">start_time_stmt</span>
-        <span class="n">end_block</span> <span class="o">=</span> <span class="n">end_time_stmt</span> <span class="o">+</span> <span class="n">omp_single</span> <span class="o">+</span> <span class="p">([</span><span class="n">cgen</span><span class="o">.</span><span class="n">Block</span><span class="p">(</span><span class="n">time_loop_stencils_a</span><span class="p">)]</span>
-                                                  <span class="k">if</span> <span class="n">time_loop_stencils_a</span> <span class="k">else</span> <span class="n">end_time_stmt</span><span class="p">)</span>
+        <span class="n">initial_block</span> <span class="o">=</span> <span class="n">time_stepping</span> <span class="o">+</span> <span class="n">time_loop_stencils_b</span>
+
+        <span class="k">if</span> <span class="n">initial_block</span><span class="p">:</span>
+            <span class="n">initial_block</span> <span class="o">=</span> <span class="n">omp_single</span> <span class="o">+</span> <span class="p">[</span><span class="n">cgen</span><span class="o">.</span><span class="n">Block</span><span class="p">(</span><span class="n">initial_block</span><span class="p">)]</span>
+
+        <span class="n">end_block</span> <span class="o">=</span> <span class="n">time_loop_stencils_a</span>
+
+        <span class="k">if</span> <span class="n">end_block</span><span class="p">:</span>
+            <span class="n">end_block</span> <span class="o">=</span> <span class="n">omp_single</span> <span class="o">+</span> <span class="p">[</span><span class="n">cgen</span><span class="o">.</span><span class="n">Block</span><span class="p">(</span><span class="n">end_block</span><span class="p">)]</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">profile</span><span class="p">:</span>
+            <span class="n">loop_body</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">profiler</span><span class="o">.</span><span class="n">add_profiling</span><span class="p">(</span><span class="n">loop_body</span><span class="p">,</span> <span class="s2">&quot;loop_body&quot;</span><span class="p">)</span>
+
         <span class="n">loop_body</span> <span class="o">=</span> <span class="n">cgen</span><span class="o">.</span><span class="n">Block</span><span class="p">(</span><span class="n">initial_block</span> <span class="o">+</span> <span class="n">loop_body</span> <span class="o">+</span> <span class="n">end_block</span><span class="p">)</span>
+
         <span class="n">loop_body</span> <span class="o">=</span> <span class="n">cgen</span><span class="o">.</span><span class="n">For</span><span class="p">(</span>
             <span class="n">cgen</span><span class="o">.</span><span class="n">InlineInitializer</span><span class="p">(</span><span class="n">cgen</span><span class="o">.</span><span class="n">Value</span><span class="p">(</span><span class="s2">&quot;int&quot;</span><span class="p">,</span> <span class="n">t_var</span><span class="p">),</span> <span class="nb">str</span><span class="p">(</span><span class="n">t_loop_limits</span><span class="p">[</span><span class="mi">0</span><span class="p">])),</span>
             <span class="n">t_var</span> <span class="o">+</span> <span class="n">cond_op</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">t_loop_limits</span><span class="p">[</span><span class="mi">1</span><span class="p">]),</span>
@@ -461,6 +484,9 @@
         <span class="c1"># Code to declare the time stepping variables (outside the time loop)</span>
         <span class="n">def_time_step</span> <span class="o">=</span> <span class="p">[</span><span class="n">cgen</span><span class="o">.</span><span class="n">Value</span><span class="p">(</span><span class="s2">&quot;int&quot;</span><span class="p">,</span> <span class="n">t_var_def</span><span class="o">.</span><span class="n">name</span><span class="p">)</span> <span class="k">for</span> <span class="n">t_var_def</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">time_steppers</span><span class="p">]</span>
         <span class="n">body</span> <span class="o">=</span> <span class="n">def_time_step</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">pre_loop</span> <span class="o">+</span> <span class="n">omp_parallel</span> <span class="o">+</span> <span class="p">[</span><span class="n">loop_body</span><span class="p">]</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">post_loop</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">profile</span><span class="p">:</span>
+            <span class="n">body</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">profiler</span><span class="o">.</span><span class="n">add_profiling</span><span class="p">(</span><span class="n">body</span><span class="p">,</span> <span class="s2">&quot;kernel&quot;</span><span class="p">,</span> <span class="n">omp_master</span><span class="p">)</span>
 
         <span class="k">return</span> <span class="n">cgen</span><span class="o">.</span><span class="n">Block</span><span class="p">(</span><span class="n">body</span><span class="p">)</span></div>
 
