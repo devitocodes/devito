@@ -14,6 +14,7 @@ from devito.compiler import (IntelMICCompiler, get_compiler_from_env,
                              get_tmp_dir, jit_compile_and_load)
 from devito.function_manager import FunctionDescriptor, FunctionManager
 from devito.iteration import Iteration
+from devito.profiler import Profiler
 
 
 class Propagator(object):
@@ -85,12 +86,7 @@ class Propagator(object):
 
         # Settings for performance profiling
         self.profile = profile
-
-        if self.profile:
-            self.add_local_var("time", "double")
-            self.pre_loop.append(cgen.Statement("struct timeval start, end"))
-            self.pre_loop.append(cgen.Assign("time", 0))
-            self.post_loop.append(cgen.PrintStatement("time: %f\n", "time"))
+        self.profiler = Profiler()
 
         # Kernel operational intensity dictionary
         self._kernel_dic_oi = {'add': 0, 'mul': 0, 'load': 0, 'store': 0,
@@ -117,6 +113,22 @@ class Propagator(object):
         self._lib = None
         self._cfunction = None
 
+    def run(self, args):
+        if self.profile:
+            self.fd.add_struct_param(self.profiler.name, "profiler")
+
+        f = self.cfunction
+
+        if self.profile:
+            args.append(self.profiler.as_ctypes_pointer)
+
+        if isinstance(self.compiler, IntelMICCompiler):
+            # Off-load propagator kernel via pymic stream
+            self.compiler._stream.invoke(f, *args)
+            self.compiler._stream.sync()
+        else:
+            f(*args)
+
     @property
     def basename(self):
         """Generate a unique basename path for auto-generated files
@@ -140,6 +152,10 @@ class Propagator(object):
                                       openmp=self.compiler.openmp)
             # For some reason we need this call to trigger fd.body
             self.get_fd()
+
+            if self.profile:
+                manager.add_struct_definition(self.profiler.as_cgen_struct)
+
             self._ccode = str(manager.generate())
 
         return self._ccode
@@ -163,6 +179,10 @@ class Propagator(object):
                 self._cfunction.argtypes = self.fd.argtypes
 
         return self._cfunction
+
+    @property
+    def timings(self):
+        return self.profiler.as_dictionary
 
     @property
     def save(self):
@@ -294,6 +314,7 @@ class Propagator(object):
             time_stepping = self.get_time_stepping()
         else:
             time_stepping = []
+
         loop_body = [cgen.Block(omp_for + loop_body)]
         # Statements to be inserted into the time loop before the spatial loop
         time_loop_stencils_b = [self.time_substitutions(x) for x in self.time_loop_stencils_b]
@@ -304,22 +325,24 @@ class Propagator(object):
         time_loop_stencils_a = [self.convert_equality_to_cgen(x) for x in self.time_loop_stencils_a]
 
         if self.profile:
-            start_time_stmt = omp_master + [cgen.Block([cgen.Statement("gettimeofday(&start, NULL)")])]
-            end_time_stmt = omp_master + [cgen.Block(
-                [cgen.Statement("gettimeofday(&end, NULL)")] +
-                [cgen.Statement("time += ((end.tv_sec - start.tv_sec) * ",
-                                "1000000u + end.tv_usec - start.tv_usec) / 1.e6")]
-            )]
-        else:
-            start_time_stmt = []
-            end_time_stmt = []
+            time_loop_stencils_a = self.profiler.add_profiling(time_loop_stencils_a, "loop_stencils_a")
+            time_loop_stencils_b = self.profiler.add_profiling(time_loop_stencils_b, "loop_stencils_b")
 
-        initial_block = omp_single + ([cgen.Block(time_stepping + time_loop_stencils_b)]
-                                      if time_stepping or time_loop_stencils_b else [])
-        initial_block = initial_block + start_time_stmt
-        end_block = end_time_stmt + omp_single + ([cgen.Block(time_loop_stencils_a)]
-                                                  if time_loop_stencils_a else end_time_stmt)
+        initial_block = time_stepping + time_loop_stencils_b
+
+        if initial_block:
+            initial_block = omp_single + [cgen.Block(initial_block)]
+
+        end_block = time_loop_stencils_a
+
+        if end_block:
+            end_block = omp_single + [cgen.Block(end_block)]
+
+        if self.profile:
+            loop_body = self.profiler.add_profiling(loop_body, "loop_body")
+
         loop_body = cgen.Block(initial_block + loop_body + end_block)
+
         loop_body = cgen.For(
             cgen.InlineInitializer(cgen.Value("int", t_var), str(t_loop_limits[0])),
             t_var + cond_op + str(t_loop_limits[1]),
@@ -330,6 +353,9 @@ class Propagator(object):
         # Code to declare the time stepping variables (outside the time loop)
         def_time_step = [cgen.Value("int", t_var_def.name) for t_var_def in self.time_steppers]
         body = def_time_step + self.pre_loop + omp_parallel + [loop_body] + self.post_loop
+
+        if self.profile:
+            body = self.profiler.add_profiling(body, "kernel", omp_master)
 
         return cgen.Block(body)
 
