@@ -3,13 +3,6 @@ from ctypes import Structure, byref, c_double
 from cgen_wrapper import Block, Statement, Struct, Value
 
 
-def _get_timings_class(fields):
-    """Returns a :class:`ctypes.Structure` subclass defining our structure
-    """
-
-    return type("Timings", (Structure,), {"_fields_": fields})
-
-
 class Profiler(Structure):
     """The Profiler class is used to manage profiling information for Devito
     generated C code.
@@ -31,7 +24,7 @@ class Profiler(Structure):
         :returns: A list of :class:`cgen.Generable` with the added profiling
                   code.
         """
-        self.fields.append(name)
+        self.fields.append((name, c_double))
 
         omp_flag = omp_flag or []
 
@@ -51,6 +44,14 @@ class Profiler(Structure):
         return init + block + end
 
     @property
+    def get_timings_class(self):
+        """Returns a :class:`ctypes.Structure` subclass defining our structure
+
+        :returns: A :class:`Timings` class definition
+        """
+        return type("Timings", (Structure,), {"_fields_": self.fields})
+
+    @property
     def as_cgen_struct(self):
         """Returns the :class:`cgen.Struct` relative to the profiler
 
@@ -58,7 +59,7 @@ class Profiler(Structure):
         """
         fields = []
 
-        for name in self.fields:
+        for name, _ in self.fields:
             fields.append(Value("double", name))
 
         return Struct("profiler", fields)
@@ -69,14 +70,7 @@ class Profiler(Structure):
 
         :returns: The pointer
         """
-        fields = []
-
-        for name in self.fields:
-            fields.append((name, c_double))
-
-        timings_class = _get_timings_class(fields)
-
-        self.timings = timings_class()
+        self.timings = self.get_timings_class()
 
         return byref(self.timings)
 
