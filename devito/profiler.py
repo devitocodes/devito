@@ -18,6 +18,7 @@ class Profiler(Structure):
     def __init__(self):
         self.name = "timings"
         self.fields = []
+        self.timings = None
 
     def add_profiling(self, block, name, omp_flag=None):
         """Function to add profiling code to the given :class:`cgen.Block`.
@@ -85,4 +86,7 @@ class Profiler(Structure):
 
         :returns: A dictionary containing the timings
         """
+        if not self.timings:
+            return {}
+
         return dict((field, getattr(self.timings, field)) for field, _ in self.timings._fields_)
