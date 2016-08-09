@@ -20,6 +20,7 @@ class FunctionManager(object):
     def __init__(self, function_descriptors, mic_flag=False, openmp=False):
         self.function_descriptors = function_descriptors
         self._defines = []
+        self._structs = []
         self.mic_flag = mic_flag
 
         if openmp:
@@ -36,6 +37,8 @@ class FunctionManager(object):
         if self.mic_flag:
             statements += [cgen.Include('pymic_kernel.h')]
 
+        statements += self._structs
+
         return cgen.Module(statements)
 
     def add_define(self, name, text):
@@ -45,6 +48,13 @@ class FunctionManager(object):
         :param text: The value that replaces it
         """
         self._defines.append(cgen.Define(name, text))
+
+    def add_struct_definition(self, struct):
+        """Adds a structure definition
+
+        :params struct: The :class:`cgen.Struct` to add
+        """
+        self._structs.append(struct)
 
     def generate(self):
         """:returns: :class:`cgen.Module` -- A module containing the includes and the generated functions
@@ -73,7 +83,13 @@ class FunctionManager(object):
 
         for param in function_descriptor.matrix_params:
             param_vec_def = cgen.Pointer(cgen.POD(param['dtype'], param['name']+"_vec"))
-            function_params = function_params + [param_vec_def]
+            function_params.append(param_vec_def)
+
+        for param in function_descriptor.value_params:
+            function_params.append(cgen.Value(param['dtype'], param['name']))
+
+        for param in function_descriptor.struct_params:
+            function_params.append(cgen.Pointer(cgen.Value("struct %s" % (param['stype']), param['name'])))
 
         if self.mic_flag:
             function_params += [cgen.Pointer(cgen.POD(type_label, name+"_pointer"))
@@ -130,6 +146,7 @@ class FunctionDescriptor(object):
         self.matrix_params = []
         self.value_params = []
         self.local_vars = []
+        self.struct_params = []
 
     def add_matrix_param(self, name, shape, dtype):
         """Add a matrix parameter to the function
@@ -146,7 +163,15 @@ class FunctionDescriptor(object):
         :param name: The name of the scalar
         :param dtype: The :class:`numpy.dtype` of the scalar
         """
-        self.value_params.append((np.dtype(dtype), name))
+        self.value_params.append({'name': name, 'dtype': dtype})
+
+    def add_struct_param(self, name, stype):
+        """Declare a new struct parameter for this function
+
+        :param name: The name of the struct object
+        :param stype: The struct type as a string
+        """
+        self.struct_params.append({'name': name, 'stype': stype})
 
     def add_local_variable(self, name, dtype):
         """Add a local variable to the function
