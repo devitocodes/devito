@@ -37,8 +37,8 @@ class IGrid:
 
     def create_model(self, origin, spacing, vp, epsilon=None, delta=None, theta=None, phi=None):
         self.vp = vp
-        self.epsilon = epsilon
-        self.delta = delta
+        self.epsilon = 1 + 2 * epsilon
+        self.delta = np.sqrt(1 + 2 * delta)
         self.theta = theta
         self.phi = phi
         self.spacing = spacing

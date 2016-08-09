@@ -3,7 +3,6 @@ from __future__ import print_function
 
 import numpy as np
 
-from examples.fwi_operators import SourceLike
 from examples.tti_operators import *
 
 
@@ -11,29 +10,18 @@ class TTI_cg:
     """ Class to setup the problem for the Acoustic Wave
         Note: s_order must always be greater than t_order
     """
-    def __init__(self, model, data, dm_initializer=None, source=None, t_order=2, s_order=2, nbpml=40, save=False):
+    def __init__(self, model, data, source=None, t_order=2, s_order=2, nbpml=40, save=False):
         self.model = model
         self.t_order = t_order
         self.s_order = s_order
         self.data = data
         self.dtype = np.float32
         self.dt = model.get_critical_dt()
-        self.h = model.get_spacing()
-        self.nbpml = nbpml
+        self.model.nbpml = nbpml
         dimensions = self.model.get_shape()
-        pad_list = []
-        for dim_index in range(len(dimensions)):
-            pad_list.append((nbpml, nbpml))
-        self.model.vp = np.pad(self.model.vp, tuple(pad_list), 'edge')
-        self.model.epsilon = np.pad(self.model.epsilon, tuple(pad_list), 'edge')
-        self.model.delta = np.pad(self.model.delta, tuple(pad_list), 'edge')
-        self.model.theta = np.pad(self.model.theta, tuple(pad_list), 'edge')
-        self.model.phi = np.pad(self.model.phi, tuple(pad_list), 'edge')
         self.model.set_origin(nbpml)
         self.data.reinterpolate(self.dt)
-        self.nrec, self.nt = self.data.traces.shape
-        self.model.set_origin(nbpml)
-        self.dm_initializer = dm_initializer
+
         if source is not None:
             self.source = source.read()
             self.source.reinterpolate(self.dt)
@@ -43,9 +31,9 @@ class TTI_cg:
             self.data.set_source(source_time, self.dt, self.data.source_coords)
 
         def damp_boundary(damp):
-            h = self.h
+            h = self.model.get_spacing()
             dampcoeff = 1.5 * np.log(1.0 / 0.001) / (40 * h)
-            nbpml = self.nbpml
+            nbpml = self.model.nbpml
             num_dim = len(damp.shape)
             for i in range(nbpml):
                 pos = np.abs((nbpml-i)/float(nbpml))
@@ -63,44 +51,22 @@ class TTI_cg:
                     damp[:, :, i] += val
                     damp[:, :, -(i + 1)] += val
 
-        self.m = DenseData(name="m", shape=self.model.vp.shape, dtype=self.dtype)
-        self.m.data[:] = self.model.vp**(-2)
-        self.a = DenseData(name="a", shape=self.model.vp.shape, dtype=self.dtype)
-        self.a.data[:] = 1.0 + 2.0 * self.model.epsilon
-        self.b = DenseData(name="b", shape=self.model.vp.shape, dtype=self.dtype)
-        self.b.data[:] = np.sqrt(1.0 + 2.0 * self.model.delta)
-        self.th = DenseData(name="th", shape=self.model.vp.shape, dtype=self.dtype)
-        self.ph = DenseData(name="ph", shape=self.model.vp.shape, dtype=self.dtype)
-        self.th.data[:] = self.model.theta
-        self.ph.data[:] = self.model.phi
-        self.damp = DenseData(name="damp", shape=self.model.vp.shape, dtype=self.dtype)
+        self.damp = DenseData(name="damp", shape=self.model.get_shape_comp(), dtype=self.dtype)
         # Initialize damp by calling the function that can precompute damping
         damp_boundary(self.damp.data)
-        self.src = SourceLike(name="src", npoint=1, nt=self.nt, dt=self.dt, h=self.h,
+        self.src = SourceLike(name="src", npoint=1, nt=data.traces.shape[1], dt=self.dt, h=self.model.get_spacing(),
                               coordinates=np.array(self.data.source_coords, dtype=self.dtype)[np.newaxis, :],
-                              ndim=len(dimensions), dtype=self.dtype, nbpml=nbpml)
-        self.rec = SourceLike(name="rec", npoint=self.nrec, nt=self.nt, dt=self.dt, h=self.h,
-                              coordinates=self.data.receiver_coords, ndim=len(dimensions), dtype=self.dtype,
-                              nbpml=nbpml)
+                              ndim=len(self.damp.shape), dtype=self.dtype, nbpml=nbpml)
         self.src.data[:] = self.data.get_source()[:, np.newaxis]
-        self.u = TimeData(name="u", shape=self.m.shape, time_dim=self.src.nt, time_order=t_order,
-                          save=save, dtype=self.m.dtype)
-        self.v = TimeData(name="v", shape=self.m.shape, time_dim=self.src.nt, time_order=t_order,
-                          save=save, dtype=self.m.dtype)
-        self.srca = SourceLike(name="srca", npoint=1, nt=self.nt, dt=self.dt, h=self.h,
-                               coordinates=np.array(self.data.source_coords, dtype=self.dtype)[np.newaxis, :],
-                               ndim=len(dimensions), dtype=self.dtype, nbpml=nbpml)
-        self.dm = DenseData(name="dm", shape=self.model.vp.shape, dtype=self.dtype)
 
-    def Forward(self):
-        fw = ForwardOperator(self.m, self.src, self.damp, self.rec, self.u, self.v, self.a,
-                             self.b, self.th, self.ph, time_order=self.t_order, spc_order=self.s_order)
-        fw.apply()
-        return (self.rec.data, self.u.data, self.v.data)
+    def Forward(self, save=False):
+        fw = ForwardOperator(self.model, self.src, self.damp, self.data,
+                             time_order=self.t_order, spc_order=self.s_order, save=save)
+        u, v, rec = fw.apply()
+        return (rec.data, u.data, v.data)
 
     def Adjoint(self, rec):
-        self.rec.data[:] = rec
-        adj = AdjointOperator(self.m, self.srca, self.damp, self.rec, self.u, self.v, self.a,
-                              self.b, self.th, self.ph, time_order=self.t_order, spc_order=self.s_order)
-        adj.apply()
-        return self.srca.data
+        adj = AdjointOperator(self.model, self.damp, self.data, rec,
+                              time_order=self.t_order, spc_order=self.s_order)
+        srca = adj.apply()[0]
+        return srca.data

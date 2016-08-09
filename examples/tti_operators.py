@@ -2,118 +2,36 @@ from sympy import *
 from sympy.abc import *
 
 from devito.finite_difference import first_derivative
-from devito.interfaces import DenseData, PointData, TimeData
-from devito.iteration import Iteration
+from devito.interfaces import DenseData, TimeData
 from devito.operator import *
-
-
-class SourceLikeTTI(PointData):
-    """Defines the behaviour of sources and receivers.
-    """
-    def __init__(self, *args, **kwargs):
-        self.dt = kwargs.get('dt')
-        self.h = kwargs.get('h')
-        self.ndim = kwargs.get('ndim')
-        self.nbpml = kwargs.get('nbpml')
-        PointData.__init__(self, *args, **kwargs)
-        x1, y1, z1, x2, y2, z2 = symbols('x1, y1, z1, x2, y2, z2')
-
-        if self.ndim == 2:
-            A = Matrix([[1, x1, z1, x1*z1],
-                        [1, x1, z2, x1*z2],
-                        [1, x2, z1, x2*z1],
-                        [1, x2, z2, x2*z2]])
-            self.increments = (0, 0), (0, 1), (1, 0), (1, 1)
-            self.rs = symbols('rx, rz')
-            rx, rz = self.rs
-            p = Matrix([[1],
-                        [rx],
-                        [rz],
-                        [rx*rz]])
-        else:
-            A = Matrix([[1, x1, y1, z1, x1*y1, x1*z1, y1*z1, x1*y1*z1],
-                        [1, x1, y2, z1, x1*y2, x1*z1, y2*z1, x1*y2*z1],
-                        [1, x2, y1, z1, x2*y1, x2*z1, y2*z1, x2*y1*z1],
-                        [1, x1, y1, z2, x1*y1, x1*z2, y1*z2, x1*y1*z2],
-                        [1, x2, y2, z1, x2*y2, x2*z1, y2*z1, x2*y2*z1],
-                        [1, x1, y2, z2, x1*y2, x1*z2, y2*z2, x1*y2*z2],
-                        [1, x2, y1, z2, x2*y1, x2*z2, y1*z2, x2*y1*z2],
-                        [1, x2, y2, z2, x2*y2, x2*z2, y2*z2, x2*y2*z2]])
-            self.increments = (0, 0, 0), (0, 1, 0), (1, 0, 0), (0, 0, 1), (1, 1, 0), (0, 1, 1), (1, 0, 1), (1, 1, 1)
-            self.rs = symbols('rx, ry, rz')
-            rx, ry, rz = self.rs
-            p = Matrix([[1],
-                        [rx],
-                        [ry],
-                        [rz],
-                        [rx*ry],
-                        [rx*rz],
-                        [ry*rz],
-                        [rx*ry*rz]])
-
-        # Map to reference cell
-        reference_cell = [(x1, 0),
-                          (y1, 0),
-                          (z1, 0),
-                          (x2, self.h),
-                          (y2, self.h),
-                          (z2, self.h)]
-
-        A = A.subs(reference_cell)
-        self.bs = A.inv().T.dot(p)
-
-    @property
-    def sym_coordinates(self):
-        """Symbol representing the coordinate values in each dimension"""
-        return tuple([self.coordinates.indexed[p, i]
-                      for i in range(self.ndim)])
-
-    @property
-    def sym_coord_indices(self):
-        """Symbol for each grid index according to the coordinates"""
-        return tuple([Function('INT')(Function('floor')(x / self.h))
-                      for x in self.sym_coordinates])
-
-    @property
-    def sym_coord_bases(self):
-        """Symbol for the base coordinates of the reference grid point"""
-        return tuple([Function('FLOAT')(x - idx * self.h)
-                      for x, idx in zip(self.sym_coordinates,
-                                        self.sym_coord_indices)])
-
-    def point2grid(self, u, m):
-        """Generates an expression for generic point-to-grid interpolation"""
-        dt = self.dt
-        subs = dict(zip(self.rs, self.sym_coord_bases))
-        index_matrix = [tuple([idx + ii + self.nbpml for ii, idx
-                               in zip(inc, self.sym_coord_indices)])
-                        for inc in self.increments]
-        eqns = [Eq(u.indexed[(t, ) + idx], u.indexed[(t, ) + idx]
-                   + self.indexed[t, p] * dt * dt / m.indexed[idx] * b.subs(subs))
-                for idx, b in zip(index_matrix, self.bs)]
-        return eqns
-
-    def grid2point(self, u):
-        """Generates an expression for generic grid-to-point interpolation"""
-        subs = dict(zip(self.rs, self.sym_coord_bases))
-        index_matrix = [tuple([idx + ii + self.nbpml for ii, idx
-                               in zip(inc, self.sym_coord_indices)])
-                        for inc in self.increments]
-        return sum([b.subs(subs) * u.indexed[(t, ) + idx]
-                    for idx, b in zip(index_matrix, self.bs)])
-
-    def read(self, u, v):
-        """Iteration loop over points performing grid-to-point interpolation."""
-        interp_expr = Eq(self.indexed[t, p], self.grid2point(u) + self.grid2point(v))
-        return [Iteration(interp_expr, variable=p, limits=self.shape[1])]
-
-    def add(self, m, u):
-        """Iteration loop over points performing point-to-grid interpolation."""
-        return [Iteration(self.point2grid(u, m), variable=p, limits=self.shape[1])]
+from examples.fwi_operators import SourceLike
 
 
 class ForwardOperator(Operator):
-    def __init__(self, m, src, damp, rec, u, v, A, B, th, ph, time_order=2, spc_order=4, **kwargs):
+    def __init__(self, model, src, damp, data, time_order=2, spc_order=4, save=False, **kwargs):
+        nrec, nt = data.traces.shape
+        dt = model.get_critical_dt()
+        u = TimeData(name="u", shape=model.get_shape_comp(), time_dim=nt, time_order=time_order,
+                     space_order=spc_order, save=save, dtype=damp.dtype)
+        v = TimeData(name="v", shape=model.get_shape_comp(), time_dim=nt, time_order=time_order,
+                     space_order=spc_order, save=save, dtype=damp.dtype)
+        m = DenseData(name="m", shape=model.get_shape_comp(), dtype=damp.dtype)
+        m.data[:] = model.padm()
+        epsilon = DenseData(name="epsilon", shape=model.get_shape_comp(), dtype=damp.dtype)
+        epsilon.data[:] = model.pad(model.epsilon)
+        delta = DenseData(name="delta", shape=model.get_shape_comp(), dtype=damp.dtype)
+        delta.data[:] = model.pad(model.delta)
+        theta = DenseData(name="theta", shape=model.get_shape_comp(), dtype=damp.dtype)
+        theta.data[:] = model.pad(model.theta)
+        if len(model.get_shape_comp()) == 3:
+            phi = DenseData(name="phi", shape=model.get_shape_comp(), dtype=damp.dtype)
+            phi.data[:] = model.pad(model.phi)
+
+        u.pad_time = save
+        v.pad_time = save
+        rec = SourceLike(name="rec", npoint=nrec, nt=nt, dt=dt, h=model.get_spacing(),
+                         coordinates=data.receiver_coords, ndim=len(damp.shape), dtype=damp.dtype,
+                         nbpml=model.nbpml)
         def Bhaskarasin(angle):
             if angle == 0:
                 return 0
@@ -135,23 +53,15 @@ class ForwardOperator(Operator):
         else:
             ang0 = Function('ang0')(x, y)
             ang1 = Function('ang1')(x, y)
-        assert(m.shape == damp.shape)
-        u.pad_time = False
-        v.pad_time = False
 
-        # Set time and space orders
-        u.time_order = time_order
-        u.space_order = spc_order
-        v.time_order = time_order
-        v.space_order = spc_order
         s, h = symbols('s h')
 
-        ang0 = Bhaskaracos(th)
-        ang1 = Bhaskarasin(th)
+        ang0 = Bhaskaracos(theta)
+        ang1 = Bhaskarasin(theta)
         # Derive stencil from symbolic equation
         if len(m.shape) == 3:
-            ang2 = Bhaskaracos(ph)
-            ang3 = Bhaskarasin(ph)
+            ang2 = Bhaskaracos(phi)
+            ang3 = Bhaskarasin(phi)
 
             Gy1p = (ang3 * u.dxl - ang2 * u.dyl)
             Gyy1 = (first_derivative(Gy1p, ang3, dim=x, side=1, order=spc_order/2) -
@@ -179,11 +89,11 @@ class ForwardOperator(Operator):
             Gzz2 = (first_derivative(Gz2r, ang1, ang2, dim=x, side=-1, order=spc_order/2) +
                     first_derivative(Gz2r, ang1, ang3, dim=y, side=-1, order=spc_order/2) +
                     first_derivative(Gz2r, ang0, dim=z, side=-1, order=spc_order/2))
-            parm = [m, damp, A, B, th, ph, u, v]
+            parm = [m, damp, epsilon, delta, theta, phi, u, v]
         else:
             Gyy2 = 0
             Gyy1 = 0
-            parm = [m, damp, A, B, th, u, v]
+            parm = [m, damp, epsilon, delta, theta, u, v]
             Gx1p = (ang0 * u.dxl - ang1 * u.dyl)
             Gz1r = (ang1 * v.dxl + ang0 * v.dyl)
             Gxx1 = (first_derivative(Gx1p * ang0, dim=x, side=1, order=spc_order/2) -
@@ -198,9 +108,9 @@ class ForwardOperator(Operator):
                     first_derivative(Gz2r * ang0, dim=y, side=-1, order=spc_order/2))
 
         stencilp = 1.0 / (2.0 * m + s * damp) * (4.0 * m * u + (s * damp - 2.0 * m) * u.backward +
-                                                 2.0 * s**2 * (A * Hp + B * Hzr))
+                                                 2.0 * s**2 * (epsilon * Hp + delta * Hzr))
         stencilr = 1.0 / (2.0 * m + s * damp) * (4.0 * m * v + (s * damp - 2.0 * m) * v.backward +
-                                                 2.0 * s**2 * (B * Hp + Hzr))
+                                                 2.0 * s**2 * (delta * Hp + Hzr))
         Hp = -(.5 * Gxx1 + .5 * Gxx2 + .5 * Gyy1 + .5 * Gyy2)
         Hzr = -(.5 * Gzz1 + .5 * Gzz2)
         factorized = {"Hp": Hp, "Hzr": Hzr}
@@ -216,6 +126,7 @@ class ForwardOperator(Operator):
 
         # Insert source and receiver terms post-hoc
         self.input_params += [src, src.coordinates, rec, rec.coordinates]
+        self.output_params += [v, rec]
         self.propagator.time_loop_stencils_a = src.add(m, u) + src.add(m, v) + rec.read2(u, v)
         self.propagator.add_devito_param(src)
         self.propagator.add_devito_param(src.coordinates)
