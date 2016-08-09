@@ -54,7 +54,7 @@ class TTI_cg:
                               dtype=self.dtype)
         # Initialize damp by calling the function that can precompute damping
         damp_boundary(self.damp.data)
-        srccoord=np.array(self.data.source_coords, dtype=self.dtype)[np.newaxis, :]
+        srccoord = np.array(self.data.source_coords, dtype=self.dtype)[np.newaxis, :]
         self.src = SourceLike(name="src", npoint=1, nt=data.traces.shape[1],
                               dt=self.dt, h=self.model.get_spacing(),
                               coordinates=srccoord, ndim=len(self.damp.shape),

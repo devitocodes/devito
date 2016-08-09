@@ -163,8 +163,7 @@ class ForwardOperator(Operator):
         # Insert source and receiver terms post-hoc
         self.input_params += [src, src.coordinates, rec, rec.coordinates]
         self.output_params += [v, rec]
-        self.propagator.time_loop_stencils_a = src.add(m, u) + src.add(m, v) +\
-                                               rec.read2(u, v)
+        self.propagator.time_loop_stencils_a = src.add(m, u) + src.add(m, v) + rec.read2(u, v)
         self.propagator.add_devito_param(src)
         self.propagator.add_devito_param(src.coordinates)
         self.propagator.add_devito_param(rec)
@@ -269,7 +268,7 @@ class BornOperator(Operator):
                 u.indexed[tuple((t - 2,) + space_dim)])*dm.indexed[space_dim])
         second_stencil_args = [m.indexed[space_dim], dt, h, damp.indexed[space_dim]]
         second_update = Eq(U.indexed[total_dim], second_stencil)
-        insert_second_source = Eq(U.indexed[total_dim], U.indexed[total_dim]+
+        insert_second_source = Eq(U.indexed[total_dim], U.indexed[total_dim] +
                                   (dt*dt)/m.indexed[space_dim]*src2)
         reset_u = Eq(u.indexed[tuple((t - 2,) + space_dim)], 0)
         stencils = [first_update, second_update, insert_second_source, reset_u]

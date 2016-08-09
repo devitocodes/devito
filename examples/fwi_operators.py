@@ -169,7 +169,7 @@ class AdjointOperator(Operator):
                           ndim=len(damp.shape), dtype=damp.dtype, nbpml=model.nbpml)
         rec = SourceLike(name="rec", npoint=nrec, nt=nt, dt=dt, h=model.get_spacing(),
                          coordinates=data.receiver_coords, ndim=len(damp.shape),
-                         dtype=damp.dtype,nbpml=model.nbpml)
+                         dtype=damp.dtype, nbpml=model.nbpml)
         rec.data[:] = recin[:]
         # Derive stencil from symbolic equation
         eqn = m * v.dt2 - v.laplace - damp * v.dt
