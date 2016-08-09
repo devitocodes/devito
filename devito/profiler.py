@@ -35,8 +35,10 @@ class Profiler(Structure):
         end = omp_flag + [
             Block([
                 Statement("gettimeofday(&end_%s, NULL)" % name),
-                Statement(("%(sn)s->%(n)s += (end_%(n)s.tv_sec - start_%(n)s.tv_sec) * " +
-                           "1000000u + (end_%(n)s.tv_usec - start_%(n)s.tv_usec)") %
+                Statement(("%(sn)s->%(n)s += " +
+                           "(double)(end_%(n)s.tv_sec-start_%(n)s.tv_sec)+" +
+                           "(double)(end_%(n)s.tv_usec-start_%(n)s.tv_usec)" +
+                           "/1000000") %
                           {"sn": self.name, "n": name}),
             ])
         ]
