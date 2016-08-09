@@ -37,16 +37,20 @@ class IGrid:
 
     def create_model(self, origin, spacing, vp, epsilon=None, delta=None, theta=None, phi=None):
         self.vp = vp
-        self.epsilon = 1 + 2 * epsilon
-        self.delta = np.sqrt(1 + 2 * delta)
-        self.theta = theta
-        self.phi = phi
         self.spacing = spacing
         self.dimensions = vp.shape
         if epsilon is not None:
+            self.epsilon = 1 + 2 * epsilon
             self.scale = np.sqrt(1 + 2 * np.max(self.epsilon))
         else:
             self.scale = 1
+        if delta is not None:
+            self.delta = np.sqrt(1 + 2 * delta)
+        if phi is not None:
+            self.theta = theta
+        if theta is not None:
+            self.phi = phi
+
         self.origin = origin
 
     def set_vp(self, vp):

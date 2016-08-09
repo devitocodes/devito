@@ -18,7 +18,6 @@ class TTI_cg:
         self.dtype = np.float32
         self.dt = model.get_critical_dt()
         self.model.nbpml = nbpml
-        dimensions = self.model.get_shape()
         self.model.set_origin(nbpml)
         self.data.reinterpolate(self.dt)
 

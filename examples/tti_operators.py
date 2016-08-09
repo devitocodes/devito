@@ -17,21 +17,37 @@ class ForwardOperator(Operator):
                      space_order=spc_order, save=save, dtype=damp.dtype)
         m = DenseData(name="m", shape=model.get_shape_comp(), dtype=damp.dtype)
         m.data[:] = model.padm()
-        epsilon = DenseData(name="epsilon", shape=model.get_shape_comp(), dtype=damp.dtype)
-        epsilon.data[:] = model.pad(model.epsilon)
-        delta = DenseData(name="delta", shape=model.get_shape_comp(), dtype=damp.dtype)
-        delta.data[:] = model.pad(model.delta)
-        theta = DenseData(name="theta", shape=model.get_shape_comp(), dtype=damp.dtype)
-        theta.data[:] = model.pad(model.theta)
+
+        if model.epsilon is not None:
+            epsilon = DenseData(name="epsilon", shape=model.get_shape_comp(), dtype=damp.dtype)
+            epsilon.data[:] = model.pad(model.epsilon)
+        else:
+            epsilon = 1.0
+
+        if model.delta is not None:
+            delta = DenseData(name="delta", shape=model.get_shape_comp(), dtype=damp.dtype)
+            delta.data[:] = model.pad(model.delta)
+        else:
+            delta = 1.0
+        if model.theta is not None:
+            theta = DenseData(name="theta", shape=model.get_shape_comp(), dtype=damp.dtype)
+            theta.data[:] = model.pad(model.theta)
+        else:
+            theta = 0
+
         if len(model.get_shape_comp()) == 3:
-            phi = DenseData(name="phi", shape=model.get_shape_comp(), dtype=damp.dtype)
-            phi.data[:] = model.pad(model.phi)
+            if model.phi is not None:
+                phi = DenseData(name="phi", shape=model.get_shape_comp(), dtype=damp.dtype)
+                phi.data[:] = model.pad(model.phi)
+            else:
+                phi = 0
 
         u.pad_time = save
         v.pad_time = save
         rec = SourceLike(name="rec", npoint=nrec, nt=nt, dt=dt, h=model.get_spacing(),
                          coordinates=data.receiver_coords, ndim=len(damp.shape), dtype=damp.dtype,
                          nbpml=model.nbpml)
+
         def Bhaskarasin(angle):
             if angle == 0:
                 return 0
