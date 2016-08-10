@@ -482,11 +482,13 @@ class MemmapManager():
     _delete_file = True
     # flag for registering exit func
     _registered = False
+    # default directory to store memmap file
     _default_disk_path = os.path.join(gettempdir(), "devito_disk")
     # contains str name of all memmap file created
     _created_data = {}
     # unique id
     _id = 0
+    # exit code used for normal exiting
     _default_exit_code = 0
 
     @staticmethod
@@ -545,6 +547,8 @@ class MemmapManager():
                 except OSError:
                     print("error removing " + f + " it may be already removed, skipping")
                     pass
+            else:
+                print("file " + f + " has been left")
 
     @staticmethod
     def _remove_memmap_file_on_signal(*args):
