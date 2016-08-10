@@ -273,11 +273,9 @@ class Operator(object):
         return self.input_params + [param for param in self.output_params
                                     if param not in self.input_params]
 
-    def apply(self, debug=False, auto_tune=False):
+    def apply(self, debug=False):
         """
         :param debug: If True, use Python to apply the operator. Default False.
-        :param auto_tune: If true return compiled function and its parameters. Default False
-
         :returns: A tuple containing the values of the operator outputs or compiled function and its args
         """
         if debug:
@@ -289,10 +287,6 @@ class Operator(object):
 
         args = [param.data for param in self.signature]
         self.propagator.run(args)
-
-        # if auto tuning block sizes return compiled function and its arguments to AutoTuner
-        if auto_tune:
-            return f, args
 
         return tuple([param.data for param in self.output_params])
 

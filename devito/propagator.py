@@ -44,8 +44,6 @@ class Propagator(object):
     :param cache_blocking: Block sizes used for cache clocking. Can be either a single number used for all dimensions
                         except outer most or a list stating block sizes for each dimension.
                         Set block size to None to skip blocking on that dim
-    :param block_size: Block size used for cache clocking. Can be either a single number used for all dimensions or
-                      a list stating block sizes for each dimension. Set block size to None to skip blocking on that dim
     :param at_report: string - indicating path to auto tuning report directory.
                     If used together with cache blocking, block sizes will be retrieved
                     from auto tuning report.
@@ -110,7 +108,6 @@ class Propagator(object):
         self.shape = shape
         self.spc_border = spc_border
 
-        self.auto_tune = False  # Flag for auto tuning. Gets set to true by auto tuner
         self.at_report = at_report  # Path to auto tuning report
 
         # Cache C code, lib and function objects
@@ -128,6 +125,11 @@ class Propagator(object):
         if self.profile:
             args.append(self.profiler.as_ctypes_pointer(Profiler.TIME))
             args.append(self.profiler.as_ctypes_pointer(Profiler.FLOP))
+
+        # appends block sizes if cache blocking
+        for block in self.block_sizes:
+            if block is not None:
+                args.append(block)
 
         if isinstance(self.compiler, IntelMICCompiler):
             # Off-load propagator kernel via pymic stream
@@ -514,12 +516,8 @@ class Propagator(object):
             loop_limits = self._space_loop_limits[spc_var]
 
             if block_size is not None:
+                upper_limit_str = block_var + "+" + orig_var + "block"
                 lower_limit_str = block_var
-
-                if self.auto_tune:
-                    upper_limit_str = block_var + "+" + orig_var + "block"
-                else:
-                    upper_limit_str = block_var + "+" + str(block_size)
             else:
                 lower_limit_str = str(loop_limits[0])
                 upper_limit_str = str(loop_limits[1])
@@ -540,26 +538,15 @@ class Propagator(object):
                 orig_var = str(self._var_map[spc_var])
                 block_var = orig_var + "b"
                 loop_limits = self._space_loop_limits[spc_var]
-                old_upper_limit = loop_limits[1]                  # sets new upper limit
-                loop_limits = (loop_limits[0], loop_limits[1] -
-                               (loop_limits[1] - loop_limits[0]) % block_size)
 
-                if old_upper_limit - loop_limits[1] > 0:  # check old vs new upper
-                    remainder_counter += 1
+                block_size_str = orig_var + "block"
+                upper_limit_str = "%d - (%d %% %s)" % (loop_limits[1], loop_limits[1] - loop_limits[0],
+                                                       block_size_str)
 
-                lower_limit_str = str(loop_limits[0])
-
-                if self.auto_tune:
-                    block_size_str = orig_var + "block"
-                    upper_limit_str = "%d - (%d %% %s)" % (old_upper_limit, old_upper_limit - loop_limits[0],
-                                                           block_size_str)
-                else:
-                    block_size_str = str(block_size)
-                    upper_limit_str = str(loop_limits[1])
-
-                loop_body = cgen.For(cgen.InlineInitializer(cgen.Value("int", block_var), lower_limit_str),
+                loop_body = cgen.For(cgen.InlineInitializer(cgen.Value("int", block_var), str(loop_limits[0])),
                                      str(block_var) + "<" + upper_limit_str, str(block_var) + "+=" +
                                      block_size_str, loop_body)
+                remainder_counter += 1
 
         full_remainder = []
         # weights for deciding remainder loop limit
@@ -578,22 +565,12 @@ class Propagator(object):
                 if block_size is not None:
                     if weights[orig_var] < 0:
                         # already blocked loop limits
-                        if self.auto_tune:
-                            upper_limit_str = "%d - (%d %% %s)" % (loop_limits[1], loop_limits[1] - loop_limits[0],
-                                                                   orig_var + "block")
-                        else:
-                            upper_limit_str = str(loop_limits[1] - (loop_limits[1] - loop_limits[0]) % block_size)
-
+                        upper_limit_str = "%d - (%d %% %s)" % (loop_limits[1], loop_limits[1] - loop_limits[0],
+                                                               orig_var + "block")
                     elif weights[orig_var] == 0:
                         # remainder loop limits
-                        # If loop limits are equal that means no remainder on that dim, thus we want all iteration space
-                        if loop_limits[1] - (loop_limits[1] - loop_limits[0]) % block_size != loop_limits[1]:
-                            if self.auto_tune:
-                                lower_limit_str = "%d - (%d %% %s)" % (loop_limits[1], loop_limits[1] - loop_limits[0],
-                                                                       orig_var + "block")
-                            else:
-                                lower_limit_str = str(loop_limits[1] - (loop_limits[1] - loop_limits[0]) % block_size)
-
+                        lower_limit_str = "%d - (%d %% %s)" % (loop_limits[1], loop_limits[1] - loop_limits[0],
+                                                               orig_var + "block")
                     weights[orig_var] += 1
 
                 remainder_loop = cgen.For(cgen.InlineInitializer(cgen.Value("int", orig_var), lower_limit_str),
@@ -615,25 +592,21 @@ class Propagator(object):
         Decides block size if cache blocking and checks whether args have been provided correctly
         :raises ValueError: If cache blocking parameters where passed incorrectly
         """
-        if self.auto_tune:
-
-            # add block sizes as parameters to function descriptor and sets block sizes
-            self.block_sizes = AutoTuner.get_optimal_block_size(self.shape, self.get_number_of_loads())
-
-            # TODO: move this somewhere else
-            for i in range(0, len(self.space_dims)):  # add block sizes as parameters
-                if self.block_sizes[i] is not None:
-                    self.fd.add_value_param(str(self.loop_counters[i]) + "block", np.int32)
-
-        elif self.at_report:  # if auto tuning report path has been passed. Set block sizes based on at report
+        if self.at_report:  # if auto tuning report path has been passed. Set block sizes based on at report
             self.block_sizes = AutoTuner.get_at_block_size(self.fd.name, self.time_order, self.spc_border,
                                                            self.shape, self.cache_blocking, self.at_report)
             if self.block_sizes:
                 logger.info("Using block size values found in auto tuning report: %s" % str(self.block_sizes))
             else:
-                optimal_block_size = AutoTuner.get_optimal_block_size(self.shape, self.get_number_of_loads())
                 logger.warning("Block sizes for this model not found in auto tuning report."
-                               " Using best guess based on architecture: %s" % str(self.block_sizes))
+                               " Using best guess based on architecture")
+
+                # sets cache blocking values to 0 so that optimal values would be used
+                if isinstance(self.cache_blocking, Iterable):
+                    for i in range(0, len(self.cache_blocking)):
+                        self.cache_blocking[i] = 0 if self.cache_blocking[i] is not None else None
+                else:
+                    self.cache_blocking = 0
 
         # Checks whether block sizes and cache blocking args were provided correctly if auto tuning is not involved
         if isinstance(self.cache_blocking, Iterable):
@@ -641,7 +614,7 @@ class Propagator(object):
                 self.block_sizes = self.cache_blocking
             else:
                 raise ValueError("Cache blocking/block sizes have to be an array of the same size"
-                                 " as the spacial domain or single int instances")
+                                 " as the spacial domain or single int instance")
         else:
             # A single block size has been passed. Broadcast it to a list of the size of shape - 1
             # We do not want to cache block outer most dim if one int value was passed
