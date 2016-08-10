@@ -131,6 +131,9 @@ class Propagator(object):
             if block is not None:
                 args.append(block)
 
+        if self.profile:
+            args.append(self.profiler.as_ctypes_pointer)
+
         if isinstance(self.compiler, IntelMICCompiler):
             # Off-load propagator kernel via pymic stream
             self.compiler._stream.invoke(f, *args)
@@ -592,22 +595,6 @@ class Propagator(object):
         Decides block size if cache blocking and checks whether args have been provided correctly
         :raises ValueError: If cache blocking parameters where passed incorrectly
         """
-        if self.at_report:  # if auto tuning report path has been passed. Set block sizes based on at report
-            self.block_sizes = AutoTuner.get_at_block_size(self.fd.name, self.time_order, self.spc_border,
-                                                           self.shape, self.cache_blocking, self.at_report)
-            if self.block_sizes:
-                logger.info("Using block size values found in auto tuning report: %s" % str(self.block_sizes))
-            else:
-                logger.warning("Block sizes for this model not found in auto tuning report."
-                               " Using best guess based on architecture")
-
-                # sets cache blocking values to 0 so that optimal values would be used
-                if isinstance(self.cache_blocking, Iterable):
-                    for i in range(0, len(self.cache_blocking)):
-                        self.cache_blocking[i] = 0 if self.cache_blocking[i] is not None else None
-                else:
-                    self.cache_blocking = 0
-
         # Checks whether block sizes and cache blocking args were provided correctly if auto tuning is not involved
         if isinstance(self.cache_blocking, Iterable):
             if len(self.cache_blocking) == len(self.shape):
@@ -621,10 +608,25 @@ class Propagator(object):
             self.block_sizes = [int(self.cache_blocking)] * (len(self.shape) - 1)
             self.block_sizes.append(None)
 
+        if self.at_report:  # if auto tuning report path has been passed. Set block sizes based on at report
+            at_block_size = AutoTuner.get_at_block_size(self.fd.name, self.time_order, self.spc_border,
+                                                        self.shape, self.block_sizes, self.at_report)
+            if at_block_size:
+                logger.info("Using block size values found in auto tuning report: %s" % str(at_block_size))
+                self.block_sizes = at_block_size
+            else:
+                logger.warning("Block sizes for this model not found in auto tuning report."
+                               " Using best guess based on architecture")
+                # sets block_size values to 0 so that optimal values would be used
+                for i in range(self.block_sizes):
+                    self.block_sizes[i] = 0 if self.block_sizes[i] is not None else None
+
         # replace 0 values with optimal block sizes
         optimal_block_size = AutoTuner.get_optimal_block_size(self.shape, self.get_number_of_loads())
         for i in range(0, len(self.block_sizes)):
-            self.block_sizes[i] = optimal_block_size if self.block_sizes[i] == 0 else self.block_sizes[i]
+            if self.block_sizes[i] is not None:  # replace 0 values with optimal block sizes
+                self.block_sizes[i] = optimal_block_size if self.block_sizes[i] == 0 else self.block_sizes[i]
+                self.fd.add_value_param(str(self.loop_counters[i]) + "block", np.int64)  # add block size as parameter
 
     def add_inner_most_dim_pragma(self, inner_most_dim, space_dims, loop_body):
         """

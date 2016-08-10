@@ -1,5 +1,3 @@
-from collections import Iterable
-
 import numpy as np
 import pytest
 from sympy import Eq, symbols

@@ -1,7 +1,5 @@
 import math
 import random
-import time
-from collections import Iterable
 from os import mkdir, path
 
 import cpuinfo
@@ -25,11 +23,13 @@ class AutoTuner(object):
         global final_report_name, default_at_dir
 
         from operator import Operator
-
         if not isinstance(operator, Operator):
             raise ValueError("Auto tuner requires Operator object to be passed as an argument")
 
         self.op = operator
+        self.op.propagator.profile = True
+        self.op.apply()  # want to run function at least once to set the arguments
+
         self.report_dir = at_report_dir if at_report_dir is not None else default_at_dir
         self.final_report_path = path.join(self.report_dir, final_report_name)
 
@@ -44,7 +44,7 @@ class AutoTuner(object):
         :param time_order: int - time order of kernel
         :param spc_border: int - space border of kernel
         :param shape: list - shape of the data buffer
-        :param block_dims: list/int - indicating which dims are blocked.
+        :param block_dims: list - indicating which dims are blocked.
         :param at_report_dir: string - indicating path to auto tuning report directory.
                               If not set default at report directory is used
         :raises ValueError: if auto tuning report is not found
@@ -57,9 +57,11 @@ class AutoTuner(object):
         if not path.isfile(final_report_path):
             raise ValueError("Auto tuning report at %s not found" % final_report_path)
 
+        # Cache blocking dimensions
+        cb_dims = str([True if block else False for block in block_dims]).replace(" ", '')
         # model description string
         model_descr_str = "%s %d %d %s %s" % (f_name, time_order, spc_border,
-                                              str(shape).replace(" ", ''), str(block_dims).replace(" ", ''))
+                                              str(shape).replace(" ", ''), cb_dims)
 
         with open(final_report_path, 'r') as f:
             for line in f.readlines():
@@ -80,7 +82,6 @@ class AutoTuner(object):
         :param load_c: int - load count
         :return: optimal block size
         """
-
         cache_s = int(cpuinfo.get_cpu_info()['l2_cache_size'].split(' ')[0])  # cache size
         core_c = cpuinfo.get_cpu_info()['count']  # number of cores
 
@@ -107,13 +108,8 @@ class AutoTuner(object):
 
         logger.info("Starting auto tuning of block sizes using brute force")
 
-        self.op.auto_tune = True
-        self.op.propagator.auto_tune = True
-
-        f, args = self.op.apply(auto_tune=True)
-
         if maximum - minimum > 2:  # No point to estimate if diff is below 2.
-            self._estimate_b_run_time(f, args, minimum, maximum)
+            self._estimate_run_time(minimum, maximum)
 
         times = []  # list where times and block sizes will be kept
         block_list = []  # used to make sure we do not test the same block sizes
@@ -138,18 +134,17 @@ class AutoTuner(object):
 
         # runs function for each block_size
         for block in block_list:
-            times.append((block, self._time_blocks(f, args, block)))
+            self.op.propagator.block_sizes = block
+            times.append((block, self.get_execution_time()))
 
         logger.info("Auto tuning using brute force complete")
 
         times = sorted(times, key=lambda element: element[1])  # sorts the list of tuples based on time
-        self._write_b_report(times)  # writes the report
+        self._write_block_report(times)  # writes the report
 
-    def _estimate_b_run_time(self, f, args, minimum, maximum):
+    def _estimate_run_time(self, minimum, maximum):
         """
         Estimates run time for auto tuning
-        :param f: compiled function that we are auto tuning
-        :param args: arguments for that function
         :param minimum: int - minimum tune range
         :param maximum: int - maximum tune range
         """
@@ -161,30 +156,21 @@ class AutoTuner(object):
             for block in self.op.propagator.block_sizes:
                 blocks = blocks + [random.randrange(minimum, maximum)] if block else blocks + [None]
 
-            timing_run += self._time_blocks(f, args, blocks)
+            self.op.propagator.block_sizes = blocks
+            timing_run += self.get_execution_time()
 
         logger.info("Estimated runtime: %f minutes." % float(
             timing_run / 5 * ((maximum - minimum) * (maximum - minimum)) / 600))
 
-    def _time_blocks(self, f, args, block_sizes):
+    def get_execution_time(self):
         """
-        Runs and times the function with given block size
-        :param f: compiled function that we are auto tuning
-        :param args: arguments for that function
-        :param block_sizes: list|int - block sizes to be passed as arguments to the function
-        :return: time - how long it took to execute with given block sizes
+        Runs and times the function
+        :return: time - how long it took to execute
         """
-        start = time.clock()
+        self.op.propagator.run(self.op.get_args())
+        return self.op.propagator.timings['kernel']
 
-        for block in block_sizes:  # appends the block size
-            if block is not None:
-                args += [int(block)]
-
-        f(*args)  # run function
-
-        return time.clock() - start  # returns elapsed time
-
-    def _write_b_report(self, times):
+    def _write_block_report(self, times):
         """
         Writes auto tuning report for block sizes
         :param times: sorted list - times with block sizes
@@ -194,7 +180,8 @@ class AutoTuner(object):
             full_report_text = ["%s %f\n" % (str(block), timee) for block, timee in times]
 
             # Cache blocking dimensions
-            cb_dims = str(self.op.propagator.cache_blocking).replace(" ", '')
+            cb_dims = [True if block else False for block in self.op.propagator.block_sizes]
+            cb_dims = str(cb_dims).replace(" ", '')
             shape = str(self.op.shape).replace(" ", '')
 
             # Writes all auto tuning information into full report

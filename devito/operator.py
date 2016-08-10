@@ -281,12 +281,7 @@ class Operator(object):
         if debug:
             return self.apply_python()
 
-        for param in self.input_params:
-            if hasattr(param, 'initialize'):
-                param.initialize()
-
-        args = [param.data for param in self.signature]
-        self.propagator.run(args)
+        self.propagator.run(self.get_args())
 
         return tuple([param.data for param in self.output_params])
 
@@ -428,6 +423,16 @@ class Operator(object):
         :returns: The name of the class
         """
         return self.__class__.__name__
+
+    def get_args(self):
+        """
+        Initialises all the input args and returns them
+        :return: a list of input params
+        """
+        for param in self.input_params:
+            if hasattr(param, 'initialize'):
+                param.initialize()
+        return [param.data for param in self.signature]
 
 
 class SimpleOperator(Operator):
