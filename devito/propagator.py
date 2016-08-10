@@ -290,7 +290,7 @@ class Propagator(object):
                 s_rhs = str(s_rhs).replace("fabs", "fabsf")
             return cgen.Assign(s_lhs, s_rhs)
 
-    def set_aligned_pragma(self, stencils, factorized, loop_counters, time_steppers):
+    def get_aligned_pragma(self, stencils, factorized, loop_counters, time_steppers):
         """
         Sets the alignment for the pragma.
         :param stencils: List of stencils.
@@ -298,14 +298,13 @@ class Propagator(object):
         :param loop_counters: list of loop counter symbols
         :param time_steppers: list of time stepper symbols
         """
-
         array_names = set()
         for item in flatten([stencil.free_symbols for stencil in stencils]):
             if str(item) not in factorized and item not in loop_counters + time_steppers:
                 array_names.add(item)
 
-        pragma = "omp simd aligned(%s:64)" % ", ".join([str(i) for i in array_names])
-        self.compiler.pragma_aligned = cgen.Pragma(pragma)
+        return cgen.Pragma("%s(%s:64)" % (self.compiler.pragma_aligned,
+                                          ", ".join([str(i) for i in array_names])))
 
     def generate_loops(self, loop_body):
         """Assuming that the variable order defined in init (#var_order) is the
@@ -317,11 +316,6 @@ class Propagator(object):
         :param loop_body: Statement representing the loop body
         :returns: :class:`cgen.Block` representing the loop
         """
-        # Need to set this pragma before generating loops but after
-        # stencil substitution
-        self.set_aligned_pragma(self.sub_stencils, self.factorized,
-                                self.loop_counters, self.time_steppers)
-
         # Space loops
         if self.cache_blocking:
             loop_body = self.generate_space_loops_blocking(loop_body)
@@ -495,7 +489,8 @@ class Propagator(object):
         :return: cgen.Block - loop body with pragma
         """
         if inner_most_dim and len(space_dims) > 1:
-            pragma = [self.compiler.pragma_aligned] if self.compiler.openmp\
+            pragma = [self.get_aligned_pragma(self.sub_stencils, self.factorized,
+                                              self.loop_counters, self.time_steppers)] if self.compiler.openmp\
                 else self.compiler.pragma_ivdep + self.compiler.pragma_nontemporal
             loop_body = cgen.Block(pragma + [loop_body])
         return loop_body
