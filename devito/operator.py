@@ -150,17 +150,18 @@ class Operator(object):
     :param profile: Flag to enable performance profiling
      :param cse: Flag to enable common subexpression elimination
     :param cache_blocking: Block sizes used for cache clocking. Can be either a single number used for all dimensions
-                        except outer most or a list stating block sizes for each dimension.
-                        Set block size to None to skip blocking on that dim
+                           except inner most or a list explicitly stating block sizes for each dimension.
+                           Set cache_blocking to None to skip blocking on that dim.
+                           Set cache_blocking to None to skip blocking on that dim.
+                           Set cache_blocking to 0 to use best guess based on architecture.
     :param at_report: string - indicating path to auto tuning report directory.
-                    If used together with cache blocking, block sizes will be retrieved
-                    from auto tuning report.
+                      If used together with cache blocking, block sizes will be retrieved
+                      from auto tuning report.
     :param input_params: List of symbols that are expected as input.
     :param output_params: List of symbols that define operator output.
     :param factorized: A map given by {string_name:sympy_object} for including factorized
                        terms
     """
-
     def __init__(self, nt, shape, dtype=np.float32, stencils=[],
                  subs=[], spc_border=0, time_order=0,
                  forward=True, compiler=None, profile=False, cse=True,
@@ -283,7 +284,7 @@ class Operator(object):
 
         self.propagator.run(self.get_args())
 
-        return tuple([param.data for param in self.output_params])
+        return tuple([param for param in self.output_params])
 
     def apply_python(self):
         """Uses Python to apply the operator

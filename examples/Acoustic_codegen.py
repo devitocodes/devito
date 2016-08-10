@@ -3,7 +3,7 @@ from __future__ import print_function
 
 import numpy as np
 
-from devito.interfaces import DenseData
+from devito.at_controller import AutoTuner
 from examples.fwi_operators import *
 
 
@@ -62,29 +62,48 @@ class Acoustic_cg:
                               dtype=self.dtype, nbpml=nbpml)
         self.src.data[:] = data.get_source()[:, np.newaxis]
 
-    def Forward(self, save=False, cse=True):
+    def Forward(self, save=False, cache_blocking=None, auto_tune=False, cse=True):
         fw = ForwardOperator(self.model, self.src, self.damp, self.data,
                              time_order=self.t_order, spc_order=self.s_order,
-                             save=save, cse=cse)
+                             save=save, cache_blocking=cache_blocking, cse=cse)
         u, rec = fw.apply()
+        if auto_tune:
+            at = AutoTuner(fw)
+            at.auto_tune_blocks()
+
         return rec.data, u
 
-    def Adjoint(self, rec):
+    def Adjoint(self, rec, cache_blocking=None, auto_tune=False):
         adj = AdjointOperator(self.model, self.damp, self.data, rec,
-                              time_order=self.t_order, spc_order=self.s_order)
+                              time_order=self.t_order, spc_order=self.s_order,
+                              cache_blocking=cache_blocking)
         v = adj.apply()[0]
+        if auto_tune:
+            at = AutoTuner(adj)
+            at.auto_tune_blocks()
+
         return v.data
 
-    def Gradient(self, rec, u):
+    def Gradient(self, rec, u, cache_blocking=None, auto_tune=False):
         grad_op = GradientOperator(self.model, self.damp, self.data, rec, u,
-                                   time_order=self.t_order, spc_order=self.s_order)
+                                   time_order=self.t_order, spc_order=self.s_order,
+                                   cache_blocking=cache_blocking)
         grad = grad_op.apply()[0]
+        if auto_tune:
+            at = AutoTuner(grad_op)
+            at.auto_tune_blocks()
+
         return grad.data
 
-    def Born(self, dm):
+    def Born(self, dm, cache_blocking=None, auto_tune=False):
         born_op = BornOperator(self.model, self.src, self.damp, self.data, dm,
-                               time_order=self.t_order, spc_order=self.s_order)
+                               time_order=self.t_order, spc_order=self.s_order,
+                               cache_blocking=cache_blocking)
         rec = born_op.apply()[0]
+        if auto_tune:
+            at = AutoTuner(born_op)
+            at.auto_tune_blocks()
+
         return rec.data
 
     def run(self):

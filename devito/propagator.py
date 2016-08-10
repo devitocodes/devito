@@ -42,11 +42,12 @@ class Propagator(object):
                      environment variable DEVITO_ARCH, or default to GNUCompiler
     :param profile: Flag to enable performance profiling
     :param cache_blocking: Block sizes used for cache clocking. Can be either a single number used for all dimensions
-                        except outer most or a list stating block sizes for each dimension.
-                        Set block size to None to skip blocking on that dim
+                           except inner most or a list explicitly stating block sizes for each dimension.
+                           Set cache_blocking to None to skip blocking on that dim.
+                           Set cache_blocking to 0 to use best guess based on architecture.
     :param at_report: string - indicating path to auto tuning report directory.
-                    If used together with cache blocking, block sizes will be retrieved
-                    from auto tuning report.
+                      If used together with cache blocking, block sizes will be retrieved
+                      from auto tuning report.
     """
     def __init__(self, name, nt, shape, stencils, factorized=None, spc_border=0,
                  time_order=0, time_dim=None, space_dims=None, dtype=np.float32,
@@ -127,9 +128,7 @@ class Propagator(object):
             args.append(self.profiler.as_ctypes_pointer(Profiler.FLOP))
 
         # appends block sizes if cache blocking
-        for block in self.block_sizes:
-            if block is not None:
-                args.append(block)
+        args += [block for block in self.block_sizes if block]
 
         if self.profile:
             args.append(self.profiler.as_ctypes_pointer)
@@ -519,7 +518,7 @@ class Propagator(object):
             loop_limits = self._space_loop_limits[spc_var]
 
             if block_size is not None:
-                upper_limit_str = block_var + "+" + orig_var + "block"
+                upper_limit_str = "%s+%sblock" % (block_var, orig_var)
                 lower_limit_str = block_var
             else:
                 lower_limit_str = str(loop_limits[0])
@@ -618,7 +617,7 @@ class Propagator(object):
                 logger.warning("Block sizes for this model not found in auto tuning report."
                                " Using best guess based on architecture")
                 # sets block_size values to 0 so that optimal values would be used
-                for i in range(self.block_sizes):
+                for i in range(0, len(self.block_sizes)):
                     self.block_sizes[i] = 0 if self.block_sizes[i] is not None else None
 
         # replace 0 values with optimal block sizes

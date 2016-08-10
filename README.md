@@ -63,13 +63,15 @@ Devito supports loop cache blocking, which increases the effectiveness
 of memory by reusing the data in the cache. To enable this feature
 in `Operator` set `cache_blocking` to the size of the block you want to use.
 `cache_blocking` can be a single `int` value which will block all dimensions
-except outer most or a `list` of same size as spacial domain explicitly
+except inner most or a `list` of same size as spacial domain explicitly
 stating which dims to block (x,y,z). If you do not want to block some
-dimension, set `cache_blocking` to `None` respectively.
+dimension, set `cache_blocking` to `None` respectively. Furthermore, if
+you want Devito to guess sub-optimal block size set `cache_blocking` or
+a respective dimension to `0`.
 
 Example usage:
 ```
-op = Operator(..., cache_blocking=[5, 10, None])
+op = Operator(..., cache_blocking=[5, 0, None])
 ```
  
 ## Auto tuning block sizes

@@ -9,6 +9,8 @@ import logger
 # global vars
 final_report_name = "final_report.txt"
 default_at_dir = path.join(path.dirname(path.realpath(__file__)), "At Report")
+model_descr_template = "%s %d %d %s %s"
+
 
 class AutoTuner(object):
 
@@ -49,7 +51,7 @@ class AutoTuner(object):
                               If not set default at report directory is used
         :raises ValueError: if auto tuning report is not found
         """
-        global final_report_name, default_at_dir
+        global final_report_name, default_at_dir, model_descr_template
 
         report_dir = at_report_dir if at_report_dir is not None else default_at_dir
         final_report_path = path.join(report_dir, final_report_name)
@@ -60,8 +62,8 @@ class AutoTuner(object):
         # Cache blocking dimensions
         cb_dims = str([True if block else False for block in block_dims]).replace(" ", '')
         # model description string
-        model_descr_str = "%s %d %d %s %s" % (f_name, time_order, spc_border,
-                                              str(shape).replace(" ", ''), cb_dims)
+        model_descr_str = model_descr_template % (f_name, time_order, spc_border,
+                                                  str(shape).replace(" ", ''), cb_dims)
 
         with open(final_report_path, 'r') as f:
             for line in f.readlines():
@@ -112,25 +114,24 @@ class AutoTuner(object):
             self._estimate_run_time(minimum, maximum)
 
         times = []  # list where times and block sizes will be kept
-        block_list = []  # used to make sure we do not test the same block sizes
-        org_block_sizes = self.op.propagator.block_sizes
+        block_list = set()  # used to make sure we do not test the same block sizes
         blocks = list(self.op.propagator.block_sizes)
 
         for x in range(minimum, maximum):
-            blocks[0] = x if org_block_sizes[0] else None
+            blocks[0] = x if blocks[0] else None
 
             if len(blocks) > 1:
                 for y in range(minimum, maximum):
-                    blocks[1] = y if org_block_sizes[1] else None
+                    blocks[1] = y if blocks[1] else None
 
                     if len(blocks) > 2:
                         for z in range(minimum, maximum):
-                            blocks[2] = z if org_block_sizes[2] else None
-                            block_list = block_list + [list(blocks)] if blocks not in block_list else block_list
+                            blocks[2] = z if blocks[2] else None
+                            block_list.add((tuple(blocks)))
                     else:
-                        block_list = block_list + [list(blocks)] if blocks not in block_list else block_list
+                        block_list.add(tuple(blocks))
             else:
-                block_list = block_list + [list(blocks)] if blocks not in block_list else block_list
+                block_list.add(tuple(blocks))
 
         # runs function for each block_size
         for block in block_list:
@@ -154,7 +155,7 @@ class AutoTuner(object):
 
             blocks = []
             for block in self.op.propagator.block_sizes:
-                blocks = blocks + [random.randrange(minimum, maximum)] if block else blocks + [None]
+                blocks += [random.randrange(minimum, maximum)] if block else [None]
 
             self.op.propagator.block_sizes = blocks
             timing_run += self.get_execution_time()
@@ -176,12 +177,12 @@ class AutoTuner(object):
         :param times: sorted list - times with block sizes
         :raises IOError: if fails to write report
         """
+        global model_descr_template
         try:
             full_report_text = ["%s %f\n" % (str(block), timee) for block, timee in times]
 
             # Cache blocking dimensions
-            cb_dims = [True if block else False for block in self.op.propagator.block_sizes]
-            cb_dims = str(cb_dims).replace(" ", '')
+            cb_dims = str([True if block else False for block in self.op.propagator.block_sizes]).replace(" ", '')
             shape = str(self.op.shape).replace(" ", '')
 
             # Writes all auto tuning information into full report
@@ -190,8 +191,8 @@ class AutoTuner(object):
                 f.writelines(full_report_text)
 
             # string that describes the model
-            model_descr_str = "%s %d %d %s %s" % (self.op.getName(), self.op.time_order,
-                                                  self.op.spc_border, shape, cb_dims)
+            model_descr_str = model_descr_template % (self.op.getName(), self.op.time_order,
+                                                      self.op.spc_border, shape, cb_dims)
             str_to_write = "%s %s\n" % (model_descr_str, str(times[0][0]).replace(" ", ''))
 
             if not path.isfile(self.final_report_path):  # initialises report file if it does not exist
