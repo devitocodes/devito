@@ -148,10 +148,10 @@ class Operator(object):
                      If not provided, the compiler will be inferred from the
                      environment variable DEVITO_ARCH, or default to GNUCompiler.
     :param profile: Flag to enable performance profiling
-    :param cache_blocking: Flag to enable cache blocking
-    :param cse: Flag to enable common subexpression elimination
-    :param block_size: Block size used for cache clocking. Can be either a single number used for all dimensions or
-                      a list stating block sizes for each dimension. Set block size to None to skip blocking on that dim
+     :param cse: Flag to enable common subexpression elimination
+    :param cache_blocking: Block sizes used for cache clocking. Can be either a single number used for all dimensions
+                        except outer most or a list stating block sizes for each dimension.
+                        Set block size to None to skip blocking on that dim
     :param at_report: string - indicating path to auto tuning report directory.
                     If used together with cache blocking, block sizes will be retrieved
                     from auto tuning report.
@@ -164,7 +164,7 @@ class Operator(object):
     def __init__(self, nt, shape, dtype=np.float32, stencils=[],
                  subs=[], spc_border=0, time_order=0,
                  forward=True, compiler=None, profile=False, cse=True,
-                 cache_blocking=False, block_size=None, at_report=None,
+                 cache_blocking=None, at_report=None,
                  input_params=None, output_params=None, factorized={}):
         # Derive JIT compilation infrastructure
         self.compiler = compiler or get_compiler_from_env()
@@ -243,8 +243,7 @@ class Operator(object):
                                      spc_border=spc_border, time_order=time_order,
                                      forward=forward, space_dims=self.space_dims,
                                      compiler=self.compiler, profile=profile,
-                                     cache_blocking=cache_blocking, block_size=block_size,
-                                     at_report=at_report)
+                                     cache_blocking=cache_blocking,  at_report=at_report)
         self.dtype = dtype
         self.nt = nt
         self.shape = shape

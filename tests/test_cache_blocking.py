@@ -14,12 +14,12 @@ class Test_Cache_Blocking(object):
     @pytest.mark.parametrize("shape", [(10, 45), (10, 31, 45), (10, 45, 31, 45)])
     @pytest.mark.parametrize("time_order", [2])
     @pytest.mark.parametrize("spc_border", [0, 1, 2, 3, 4, 5, 6, 7, 8])
-    @pytest.mark.parametrize("block_size", [2, 3, 4, 5, 6, 7, 8])
-    def test_cache_blocking_full_range(self, shape, time_order, spc_border, block_size):
-        self.cache_blocking_test(shape, time_order, spc_border, block_size)
+    @pytest.mark.parametrize("cache_blocking", [2, 3, 4, 5, 6, 7, 8])
+    def test_cache_blocking_full_range(self, shape, time_order, spc_border, cache_blocking):
+        self.cache_blocking_test(shape, time_order, spc_border, cache_blocking)
 
     # Edge cases. Different block sizes, etc
-    @pytest.mark.parametrize("shape,time_order,spc_border,block_size", [
+    @pytest.mark.parametrize("shape,time_order,spc_border,cache_blocking", [
         ((10, 25, 25, 46), 2, 3, [None, None, None]),
         ((10, 25, 25, 46), 2, 3, [7, None, None]),
         ((10, 25, 25, 46), 2, 3, [None, None, 7]),
@@ -33,32 +33,24 @@ class Test_Cache_Blocking(object):
         ((10, 25, 46), 2, 3, [None, 7]),
         ((10, 25, 46), 2, 3, [7, None])
     ])
-    def test_cache_blocking_edge_cases(self, shape, time_order, spc_border, block_size):
-        self.cache_blocking_test(shape, time_order, spc_border, block_size)
+    def test_cache_blocking_edge_cases(self, shape, time_order, spc_border, cache_blocking):
+        self.cache_blocking_test(shape, time_order, spc_border, cache_blocking)
 
     # Negative tests. Test cases that are expected to fail
-    @pytest.mark.parametrize("shape,time_order,spc_border,block_size", [
+    @pytest.mark.parametrize("shape,time_order,spc_border,cache_blocking", [
         pytest.mark.xfail(((10, 25, 46), 2, 3, [None]), strict=True),
         pytest.mark.xfail(((10, 25, 46), 2, 3, [4, 4, 5]), strict=True)
     ])
-    def test_cache_blocking_negative_tests(self, shape, time_order, spc_border, block_size):
-        self.cache_blocking_test(shape, time_order, spc_border, block_size)
+    def test_cache_blocking_negative_tests(self, shape, time_order, spc_border, cache_blocking):
+        self.cache_blocking_test(shape, time_order, spc_border, cache_blocking)
 
-    def cache_blocking_test(self, shape, time_order, spc_border, block_size):
+    def cache_blocking_test(self, shape, time_order, spc_border, cache_blocking):
         symbols_combinations = ['t', 't x', 't x z', 't x y z']
         indexes = symbols(symbols_combinations[len(shape) - 1])
 
         size = 1
         for element in shape:
             size *= element
-
-        # cast cache_blocking flags based on block_size argument
-        if isinstance(block_size, Iterable):
-            cache_blocking = list(block_size)
-            for i in range(0, len(block_size)):
-                cache_blocking[i] = True if block_size[i] else False
-        else:
-            cache_blocking = True
 
         input_grid = DenseData(name="input_grid", shape=shape, dtype=np.float64)
         input_grid.data[:] = np.arange(size, dtype=np.float64).reshape(shape)
@@ -76,7 +68,7 @@ class Test_Cache_Blocking(object):
                       output_grid_block.indexed[indexes] +
                       input_grid.indexed[indexes] + 3)
         op_block = SimpleOperator(input_grid, output_grid_block, [eq_block],
-                                  cache_blocking=True, block_size=block_size,
+                                  cache_blocking=cache_blocking,
                                   time_order=time_order, spc_border=spc_border)
         op_block.apply()
         assert np.equal(output_grid_block.data, output_grid_noblock.data).all()

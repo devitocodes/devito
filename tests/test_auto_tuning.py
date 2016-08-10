@@ -21,23 +21,23 @@ class Test_Auto_Tuning(object):
         if path.isdir(self.test_dir):
             rmtree(self.test_dir)
 
-    @pytest.mark.parametrize("cache_blocking,block_size,tune_range,expected_result", [
-        (True, None, (5, 6), [5, 5, 5]),
-        ([True, True, False], None, (5, 6), [5, 5, None]),
-        ([True, False, True], None, (5, 6), [5, None, 5]),
-        ([False, True, True], None, (5, 6), [None, 5, 5]),
-        ([True, False, False], None, (5, 6), [5, None, None]),
-        ([False, True, False], None, (5, 6), [None, 5, None])
+    @pytest.mark.parametrize("cache_blocking,tune_range,expected_result", [
+        (5, (5, 6), [5, 5, None]),
+        ([5, 5, None], (5, 6), [5, 5, None]),
+        ([5, None, 5], (5, 6), [5, None, 5]),
+        ([None, 5, 5], (5, 6), [None, 5, 5]),
+        ([5, None, None], (5, 6), [5, None, None]),
+        ([None, 5, None], (5, 6), [None, 5, None])
     ])
-    def test_auto_tuning_blocks(self, cache_blocking, block_size, tune_range, expected_result):
-        self.auto_tuning_test_general(cache_blocking, block_size, tune_range, expected_result)
+    def test_auto_tuning_blocks(self, cache_blocking, tune_range, expected_result):
+        self.auto_tuning_test_general(cache_blocking, tune_range, expected_result)
 
-    @pytest.mark.parametrize("cache_blocking,block_size,tune_range,expected_result", [
-        pytest.mark.xfail((True, 5, (5, 6), [5, 5, 5]), strict=True),
-        pytest.mark.xfail(([True, True, False], [5, 5, None], (5, 6), [5, 5, 5]), strict=True)
+    @pytest.mark.parametrize("cache_blocking,tune_range,expected_result", [
+        pytest.mark.xfail((5, (5, 6), [5, 5, 5]), strict=True),
+        pytest.mark.xfail(([5, 5, None], (5, 6), [5, 5, 5]), strict=True)
     ])
-    def test_auto_tuning_b_negative(self, cache_blocking, block_size, tune_range, expected_result):
-        self.auto_tuning_test_general(cache_blocking, block_size, tune_range, expected_result)
+    def test_auto_tuning_b_negative(self, cache_blocking, tune_range, expected_result):
+        self.auto_tuning_test_general(cache_blocking, tune_range, expected_result)
 
     def test_auto_tuning_correctness(self):
 
@@ -61,7 +61,7 @@ class Test_Auto_Tuning(object):
         eq_block = Eq(output_grid_at.indexed[indexes],
                       output_grid_at.indexed[indexes] + input_grid.indexed[indexes] + 3)
         op_at = SimpleOperator(input_grid, output_grid_at, [eq_block],
-                               cache_blocking=True, time_order=2, spc_border=2)
+                               cache_blocking=[5, 5, 5], time_order=2, spc_border=2)
         op_at.propagator.auto_tune = True
 
         f, args = op_at.apply(auto_tune=True)
@@ -70,7 +70,7 @@ class Test_Auto_Tuning(object):
 
         assert np.equal(output_grid_noat.data, output_grid_at.data).all()
 
-    def auto_tuning_test_general(self, cache_blocking, block_size, tune_range, expected_result):
+    def auto_tuning_test_general(self, cache_blocking, tune_range, expected_result):
         shape = (50, 50, 50, 50)
         input_grid = DenseData(name="input_grid", shape=shape, dtype=np.float64)
         input_grid.data[:] = np.arange(6250000, dtype=np.float64).reshape(shape)
@@ -79,7 +79,7 @@ class Test_Auto_Tuning(object):
         eq = Eq(output_grid.indexed[indexes],
                 output_grid.indexed[indexes] + input_grid.indexed[indexes] + 3)
         op = SimpleOperator(input_grid, output_grid, [eq], time_order=2, spc_border=2,
-                            cache_blocking=cache_blocking, block_size=block_size)
+                            cache_blocking=cache_blocking)
 
         auto_tuner = AutoTuner(op, self.test_dir)
         auto_tuner.auto_tune_blocks(tune_range[0], tune_range[1])

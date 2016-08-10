@@ -10,7 +10,7 @@ from sympy.utilities.iterables import postorder_traversal
 
 import cgen_wrapper as cgen
 import logger
-from at_controller import get_at_block_size, get_optimal_block_size
+from at_controller import AutoTuner
 from codeprinter import ccode
 from devito.compiler import (IntelMICCompiler, get_compiler_from_env,
                              get_tmp_dir, jit_compile_and_load)
@@ -41,7 +41,9 @@ class Propagator(object):
                      If not provided, the compiler will be inferred from the
                      environment variable DEVITO_ARCH, or default to GNUCompiler
     :param profile: Flag to enable performance profiling
-    :param cache_blocking: Flag to enable cache blocking
+    :param cache_blocking: Block sizes used for cache clocking. Can be either a single number used for all dimensions
+                        except outer most or a list stating block sizes for each dimension.
+                        Set block size to None to skip blocking on that dim
     :param block_size: Block size used for cache clocking. Can be either a single number used for all dimensions or
                       a list stating block sizes for each dimension. Set block size to None to skip blocking on that dim
     :param at_report: string - indicating path to auto tuning report directory.
@@ -51,7 +53,7 @@ class Propagator(object):
     def __init__(self, name, nt, shape, stencils, factorized=None, spc_border=0,
                  time_order=0, time_dim=None, space_dims=None, dtype=np.float32,
                  forward=True, compiler=None, profile=False,
-                 cache_blocking=False, block_size=None,  at_report=None):
+                 cache_blocking=None, at_report=None):
         self.stencils = stencils
         self.dtype = dtype
         self.factorized = factorized or {}
@@ -102,9 +104,9 @@ class Propagator(object):
         # Profiler needs to know whether openmp is set
         self.profiler = Profiler(self.compiler.openmp)
 
-        # Cache blocking and default block sizes
+        # Cache blocking and block sizes
         self.cache_blocking = cache_blocking
-        self.block_sizes = block_size
+        self.block_sizes = []
         self.shape = shape
         self.spc_border = spc_border
 
@@ -385,7 +387,7 @@ class Propagator(object):
         """
 
         # Space loops
-        if self.cache_blocking:
+        if self.cache_blocking is not None:
             self._decide_block_sizes()
 
             loop_body = self.generate_space_loops_blocking(loop_body)
@@ -614,38 +616,42 @@ class Propagator(object):
         :raises ValueError: If cache blocking parameters where passed incorrectly
         """
         if self.auto_tune:
-            if self.block_sizes:
-                raise ValueError("Auto tuning of block sizes has to be started with block_sizes set to None")
 
             # add block sizes as parameters to function descriptor and sets block sizes
-            self.block_sizes = get_optimal_block_size(self.cache_blocking, self.shape, self.get_number_of_loads())
+            self.block_sizes = AutoTuner.get_optimal_block_size(self.shape, self.get_number_of_loads())
+
+            # TODO: move this somewhere else
             for i in range(0, len(self.space_dims)):  # add block sizes as parameters
                 if self.block_sizes[i] is not None:
                     self.fd.add_value_param(str(self.loop_counters[i]) + "block", np.int32)
 
         elif self.at_report:  # if auto tuning report path has been passed. Set block sizes based on at report
-            self.block_sizes = get_at_block_size(self.fd.name, self.time_order, self.spc_border,
-                                                 self.shape, self.cache_blocking, self.at_report)
+            self.block_sizes = AutoTuner.get_at_block_size(self.fd.name, self.time_order, self.spc_border,
+                                                           self.shape, self.cache_blocking, self.at_report)
             if self.block_sizes:
                 logger.info("Using block size values found in auto tuning report: %s" % str(self.block_sizes))
             else:
-                self.block_sizes = get_optimal_block_size(self.cache_blocking, self.shape, self.get_number_of_loads())
+                optimal_block_size = AutoTuner.get_optimal_block_size(self.shape, self.get_number_of_loads())
                 logger.warning("Block sizes for this model not found in auto tuning report."
                                " Using best guess based on architecture: %s" % str(self.block_sizes))
 
         # Checks whether block sizes and cache blocking args were provided correctly if auto tuning is not involved
-        elif isinstance(self.block_sizes, Iterable) or isinstance(self.cache_blocking, Iterable):
-            if (isinstance(self.block_sizes, Iterable) and isinstance(self.cache_blocking, Iterable)) \
-                    and len(self.block_sizes) == len(self.cache_blocking) and len(self.block_sizes) == len(self.shape):
-
-                for i in range(0, len(self.cache_blocking)):  # Sets block sizes to None based on which dim to block
-                    self.block_sizes[i] = None if self.cache_blocking[i] is None else self.block_sizes[i]
+        if isinstance(self.cache_blocking, Iterable):
+            if len(self.cache_blocking) == len(self.shape):
+                self.block_sizes = self.cache_blocking
             else:
-                raise ValueError("Cache blocking and block sizes have to both be an arrays of the same size"
-                                 " as the spacial domain or single bool/int instances")
+                raise ValueError("Cache blocking/block sizes have to be an array of the same size"
+                                 " as the spacial domain or single int instances")
         else:
-            # A single block size has been passed. Broadcast it to a list of the size of shape
-            self.block_sizes = [int(self.block_sizes)] * len(self.shape)
+            # A single block size has been passed. Broadcast it to a list of the size of shape - 1
+            # We do not want to cache block outer most dim if one int value was passed
+            self.block_sizes = [int(self.cache_blocking)] * (len(self.shape) - 1)
+            self.block_sizes.append(None)
+
+        # replace 0 values with optimal block sizes
+        optimal_block_size = AutoTuner.get_optimal_block_size(self.shape, self.get_number_of_loads())
+        for i in range(0, len(self.block_sizes)):
+            self.block_sizes[i] = optimal_block_size if self.block_sizes[i] == 0 else self.block_sizes[i]
 
     def add_inner_most_dim_pragma(self, inner_most_dim, space_dims, loop_body):
         """

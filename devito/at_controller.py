@@ -12,71 +12,6 @@ import logger
 final_report_name = "final_report.txt"
 default_at_dir = path.join(path.dirname(path.realpath(__file__)), "At Report")
 
-
-def get_at_block_size(f_name, time_order, spc_border, shape, block_dims, at_report_dir=None):
-    """
-    Gets block size from auto tuning report
-    :param f_name: str - function name. Used for naming
-    :param time_order: int - time order of kernel
-    :param spc_border: int - space border of kernel
-    :param shape: list - shape of the data buffer
-    :param block_dims: list/int - indicating which dims are blocked.
-    :param at_report_dir: string - indicating path to auto tuning report directory.
-                          If not set default at report directory is used
-    :raises ValueError: if auto tuning report is not found
-    """
-    global final_report_name, default_at_dir
-
-    report_dir = at_report_dir if at_report_dir is not None else default_at_dir
-    final_report_path = path.join(report_dir, final_report_name)
-
-    if not path.isfile(final_report_path):
-        raise ValueError("Auto tuning report at %s not found" % final_report_path)
-
-    # model description string
-    model_descr_str = "%s %d %d %s %s" % (f_name, time_order, spc_border,
-                                          str(shape).replace(" ", ''), str(block_dims).replace(" ", ''))
-
-    with open(final_report_path, 'r') as f:
-        for line in f.readlines():
-
-            if model_descr_str in line:
-
-                blocks_str = line.split(' ')[5]
-                block_split = blocks_str[1:len(blocks_str) - 2].split(',')
-
-                return [int(block) if block != "None" else None for block in block_split]
-
-    return None  # returns none if no matching block size was found
-
-
-def get_optimal_block_size(cache_blocking, shape, load_c):
-    """
-    Gets optimal block size based on architecture
-    :param cache_blocking: Flags indicating which dims to block
-    :param shape: list - shape of the data buffer
-    :param load_c: int - load count
-    :return: list of optimal block sizes
-    """
-
-    cache_s = int(cpuinfo.get_cpu_info()['l2_cache_size'].split(' ')[0])  # cache size
-    core_c = cpuinfo.get_cpu_info()['count']  # number of cores
-
-    # assuming no prefetching, square block will give the most cache reuse.
-    # We then take the cache/core divide by the size of the inner most dimension in which we do not block.
-    #  This gives us the X*Y block space, of which we take the square root to get the size of our blocks.
-    # ((C size / cores) / (4 * length inner most * kernel loads)
-    optimal_b_size = math.sqrt(((1000 * cache_s) / core_c) / (4 * shape[len(shape) - 1] * load_c))
-    optimal_b_size = int(round(optimal_b_size))  # rounds to the nearest integer
-
-    if isinstance(cache_blocking, Iterable):
-        # set which dims not to block and return a list
-        return [optimal_b_size if item else None for item in cache_blocking]
-    else:
-        # if a cache block is not a list. Cast optimal_b_size to the list same len as spacial domain
-        return [optimal_b_size] * len(shape)
-
-
 class AutoTuner(object):
 
     def __init__(self, operator, at_report_dir=None):
@@ -100,6 +35,61 @@ class AutoTuner(object):
 
         if not path.isdir(self.report_dir):  # Creates report dir if does not exist
             mkdir(self.report_dir)
+
+    @staticmethod
+    def get_at_block_size(f_name, time_order, spc_border, shape, block_dims, at_report_dir=None):
+        """
+        Gets block size from auto tuning report
+        :param f_name: str - function name. Used for naming
+        :param time_order: int - time order of kernel
+        :param spc_border: int - space border of kernel
+        :param shape: list - shape of the data buffer
+        :param block_dims: list/int - indicating which dims are blocked.
+        :param at_report_dir: string - indicating path to auto tuning report directory.
+                              If not set default at report directory is used
+        :raises ValueError: if auto tuning report is not found
+        """
+        global final_report_name, default_at_dir
+
+        report_dir = at_report_dir if at_report_dir is not None else default_at_dir
+        final_report_path = path.join(report_dir, final_report_name)
+
+        if not path.isfile(final_report_path):
+            raise ValueError("Auto tuning report at %s not found" % final_report_path)
+
+        # model description string
+        model_descr_str = "%s %d %d %s %s" % (f_name, time_order, spc_border,
+                                              str(shape).replace(" ", ''), str(block_dims).replace(" ", ''))
+
+        with open(final_report_path, 'r') as f:
+            for line in f.readlines():
+
+                if model_descr_str in line:
+                    blocks_str = line.split(' ')[5]
+                    block_split = blocks_str[1:len(blocks_str) - 2].split(',')
+
+                    return [int(block) if block != "None" else None for block in block_split]
+
+        return None  # returns none if no matching block size was found
+
+    @staticmethod
+    def get_optimal_block_size(shape, load_c):
+        """
+        Gets optimal block size based on architecture
+        :param shape: list - shape of the data buffer
+        :param load_c: int - load count
+        :return: optimal block size
+        """
+
+        cache_s = int(cpuinfo.get_cpu_info()['l2_cache_size'].split(' ')[0])  # cache size
+        core_c = cpuinfo.get_cpu_info()['count']  # number of cores
+
+        # assuming no prefetching, square block will give the most cache reuse.
+        # We then take the cache/core divide by the size of the inner most dimension in which we do not block.
+        #  This gives us the X*Y block space, of which we take the square root to get the size of our blocks.
+        # ((C size / cores) / (4 * length inner most * kernel loads)
+        optimal_b_size = math.sqrt(((1000 * cache_s) / core_c) / (4 * shape[len(shape) - 1] * load_c))
+        return int(round(optimal_b_size))  # rounds to the nearest integer
 
     def auto_tune_blocks(self, minimum=5, maximum=20):
         """
