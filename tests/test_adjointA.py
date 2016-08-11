@@ -6,9 +6,9 @@ from examples.Acoustic_codegen import Acoustic_cg
 from examples.containers import IGrid, IShot
 
 
-class Test_AdjointA(object):
+class TestAdjointA(object):
     @pytest.fixture(params=[(60, 70), (60, 70, 80)])
-    def Acoustic(self, request, time_order, space_order):
+    def acoustic(self, request, time_order, space_order):
         model = IGrid()
         dimensions = request.param
         # dimensions are (x,z) and (x, y, z)
@@ -62,26 +62,26 @@ class Test_AdjointA(object):
         return request.param
 
     @pytest.fixture
-    def forward(self, Acoustic):
-        rec, u = Acoustic.Forward(save=False)
+    def forward(self, acoustic):
+        rec, u = acoustic.Forward(save=False)
         return rec
 
-    def test_adjoint(self, Acoustic, forward):
+    def test_adjoint(self, acoustic, forward):
         rec = forward
-        srca = Acoustic.Adjoint(rec)
+        srca = acoustic.Adjoint(rec)
         nt = srca.shape[0]
         # Actual adjoint test
         term1 = 0
         for ti in range(0, nt):
-            term1 = term1 + srca[ti] * Acoustic.data.get_source(ti)
+            term1 = term1 + srca[ti] * acoustic.data.get_source(ti)
         term2 = linalg.norm(rec)**2
         print(term1, term2, term1 - term2, term1 / term2)
         assert np.isclose(term1 / term2, 1.0, atol=0.001)
 
 if __name__ == "__main__":
-    t = Test_AdjointA()
+    t = TestAdjointA()
     request = type('', (), {})()
     request.param = (60, 70, 80)
-    ac = t.Acoustic(request, 2, 12)
+    ac = t.acoustic(request, 2, 12)
     fw = t.forward(ac)
     t.test_adjoint(ac, fw)

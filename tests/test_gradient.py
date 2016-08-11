@@ -6,9 +6,9 @@ from examples.Acoustic_codegen import Acoustic_cg
 from examples.containers import IGrid, IShot
 
 
-class Test_Gradient(object):
+class TestGradient(object):
     @pytest.fixture(params=[(70, 80), (60, 70, 80)])
-    def Acoustic(self, request, time_order, space_order):
+    def acoustic(self, request, time_order, space_order):
         model = IGrid()
         model0 = IGrid()
         dimensions = request.param
@@ -16,7 +16,7 @@ class Test_Gradient(object):
         origin = tuple([0]*len(dimensions))
         spacing = tuple([15]*len(dimensions))
 
-        # velociity models
+        # velocity models
         def smooth10(vel):
             out = np.zeros(dimensions)
             out[:] = vel[:]
@@ -77,27 +77,27 @@ class Test_Gradient(object):
     def space_order(self, request):
         return request.param
 
-    def test_Grad(self, Acoustic):
-        rec = Acoustic[0].Forward()[0]
-        rec0, u0 = Acoustic[1].Forward(save=True)
+    def test_grad(self, acoustic):
+        rec = acoustic[0].Forward()[0]
+        rec0, u0 = acoustic[1].Forward(save=True)
         F0 = .5*linalg.norm(rec0 - rec)**2
-        gradient = Acoustic[1].Gradient(rec0 - rec, u0)
+        gradient = acoustic[1].Gradient(rec0 - rec, u0)
         # Actual Gradient test
-        G = np.dot(gradient.reshape(-1), Acoustic[1].model.pad(Acoustic[2]).reshape(-1))
+        G = np.dot(gradient.reshape(-1), acoustic[1].model.pad(acoustic[2]).reshape(-1))
         # FWI Gradient test
         H = [1, 0.1, 0.01, .001, 0.0001, 0.00001, 0.000001]
-        error1 = np.zeros((7))
-        error2 = np.zeros((7))
+        error1 = 0 * H
+        error2 = 0 * H
         for i in range(0, 7):
-            Acoustic[1].model.set_vp(np.sqrt((Acoustic[3]**-2 + H[i] * Acoustic[2])**(-1)))
-            d = Acoustic[1].Forward()[0]
+            acoustic[1].model.set_vp(np.sqrt((acoustic[3]**-2 + H[i] * acoustic[2])**(-1)))
+            d = acoustic[1].Forward()[0]
             error1[i] = np.absolute(.5*linalg.norm(d - rec)**2 - F0)
             error2[i] = np.absolute(.5*linalg.norm(d - rec)**2 - F0 - H[i] * G)
             # print(F0, .5*linalg.norm(d - rec)**2, error1[i], H[i] *G, error2[i])
             # print('For h = ', H[i], '\nFirst order errors is : ', error1[i],
             #       '\nSecond order errors is ', error2[i])
 
-        hh = np.zeros((7))
+        hh = 0 * H
         for i in range(0, 7):
             hh[i] = H[i] * H[i]
 
@@ -110,8 +110,8 @@ class Test_Gradient(object):
         assert np.isclose(p2[0], 2.0, rtol=0.05)
 
 if __name__ == "__main__":
-    t = Test_Gradient()
+    t = TestGradient()
     request = type('', (), {})()
     request.param = (60, 70, 80)
-    ac = t.Acoustic(request, 2, 12)
-    t.test_Grad(ac)
+    ac = t.acoustic(request, 2, 12)
+    t.test_grad(ac)
