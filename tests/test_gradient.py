@@ -86,8 +86,8 @@ class TestGradient(object):
         G = np.dot(gradient.reshape(-1), acoustic[1].model.pad(acoustic[2]).reshape(-1))
         # FWI Gradient test
         H = [1, 0.1, 0.01, .001, 0.0001, 0.00001, 0.000001]
-        error1 = 0 * H
-        error2 = 0 * H
+        error1 = np.zeros(7)
+        error2 = np.zeros(7)
         for i in range(0, 7):
             acoustic[1].model.set_vp(np.sqrt((acoustic[3]**-2 + H[i] * acoustic[2])**(-1)))
             d = acoustic[1].Forward()[0]
@@ -97,7 +97,7 @@ class TestGradient(object):
             # print('For h = ', H[i], '\nFirst order errors is : ', error1[i],
             #       '\nSecond order errors is ', error2[i])
 
-        hh = 0 * H
+        hh = np.zeros(7)
         for i in range(0, 7):
             hh[i] = H[i] * H[i]
 
