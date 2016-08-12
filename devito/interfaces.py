@@ -51,7 +51,7 @@ class SymbolicData(Function):
     """
 
     def __new__(cls, *args, **kwargs):
-        if cls not in _SymbolCache:
+        if cls not in _SymbolCache.keys():
             name = kwargs.get('name')
             shape = kwargs.get('shape')
 
@@ -71,13 +71,15 @@ class SymbolicData(Function):
 
     def __init__(self):
         """Initialise from a cached instance by shallow copying __dict__."""
-        original = _SymbolCache[self.__class__]
-        self.__dict__ = original.__dict__.copy()
+        for key in _SymbolCache.keys():
+            if self.__class__ == key:
+                original = _SymbolCache[key]
+                self.__dict__ = original.__dict__.copy()
 
     @classmethod
     def _cached(cls):
         """Test if current class is already in the symbol cache."""
-        return cls in _SymbolCache
+        return cls in _SymbolCache.keys()
 
     @classmethod
     def _cache_put(cls, obj):
