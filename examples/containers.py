@@ -37,16 +37,24 @@ class IGrid:
 
     def create_model(self, origin, spacing, vp, epsilon=None, delta=None, theta=None, phi=None):
         self.vp = vp
-        self.epsilon = epsilon
-        self.delta = delta
-        self.theta = theta
-        self.phi = phi
         self.spacing = spacing
+        self.dimensions = vp.shape
         if epsilon is not None:
+            self.epsilon = 1 + 2 * epsilon
             self.scale = np.sqrt(1 + 2 * np.max(self.epsilon))
         else:
             self.scale = 1
+        if delta is not None:
+            self.delta = np.sqrt(1 + 2 * delta)
+        if phi is not None:
+            self.theta = theta
+        if theta is not None:
+            self.phi = phi
+
         self.origin = origin
+
+    def set_vp(self, vp):
+        self.vp = vp
 
     def set_origin(self, shift):
         norig = len(self.origin)
@@ -59,6 +67,22 @@ class IGrid:
 
     def get_origin(self):
         return self.origin
+
+    def padm(self):
+        return self.pad(self.vp**(-2))
+
+    def pad(self, m):
+        pad_list = []
+        for dim_index in range(len(self.vp.shape)):
+            pad_list.append((self.nbpml, self.nbpml))
+        return np.pad(m, pad_list, 'edge')
+
+    def get_shape_comp(self):
+        dim = self.dimensions
+        if len(dim) == 3:
+            return (dim[0] + 2 * self.nbpml, dim[1] + 2 * self.nbpml, dim[2] + 2 * self.nbpml)
+        else:
+            return (dim[0] + 2 * self.nbpml, dim[1] + 2 * self.nbpml)
 
 
 class ISource:

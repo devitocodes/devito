@@ -2,9 +2,11 @@ from os import environ, getuid, mkdir, path
 from tempfile import gettempdir
 
 import numpy.ctypeslib as npct
+
 from cgen import Pragma
 from codepy.jit import extension_file_from_string
 from codepy.toolchain import GCCToolchain
+from devito.logger import log
 
 __all__ = ['get_tmp_dir', 'get_compiler_from_env',
            'jit_compile', 'load', 'jit_compile_and_load',
@@ -90,7 +92,7 @@ class ClangCompiler(Compiler):
         self.ldflags = ['-shared']
 
         if self.openmp:
-            print "WARNING: Disabling OpenMP because clang does not support it."
+            log("WARNING: Disabling OpenMP because clang does not support it.")
             self.openmp = False
 
 
@@ -130,8 +132,7 @@ class IntelMICCompiler(Compiler):
         if self.openmp:
             self.ldflags += ['-qopenmp']
         else:
-            print "WARNING: Running on Intel MIC without OpenMP is highly discouraged"
-
+            log("WARNING: Running on Intel MIC without OpenMP is highly discouraged")
         self._mic = __import__('pymic')
 
 
@@ -147,7 +148,7 @@ class IntelKNLCompiler(Compiler):
         if self.openmp:
             self.ldflags += ['-qopenmp']
         else:
-            print "WARNING: Running on Intel KNL without OpenMP is highly discouraged"
+            log("WARNING: Running on Intel KNL without OpenMP is highly discouraged")
 
 # Registry dict for deriving Compiler classes according to
 # environment variable DEVITO_ARCH. Developers should add
@@ -206,7 +207,7 @@ def jit_compile(ccode, basename, compiler=GNUCompiler):
     """
     src_file = "%s.cpp" % basename
     lib_file = "%s.so" % basename
-    print "%s: Compiling %s" % (compiler, src_file)
+    log("%s: Compiling %s" % (compiler, src_file))
     extension_file_from_string(toolchain=compiler, ext_file=lib_file,
                                source_string=ccode, source_name=src_file)
 

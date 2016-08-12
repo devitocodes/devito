@@ -36,11 +36,7 @@ true_vp[:, :, int(dimensions[0] / 2):int(dimensions[0])] = 4.5
 # Smooth velocity
 initial_vp = smooth10(true_vp, dimensions)
 
-dm_orig = true_vp**-2 - initial_vp**-2
-
-
-def create_dm(dm):
-    np.copyto(dm, dm_orig)
+dm = true_vp**-2 - initial_vp**-2
 
 dv = -true_vp + initial_vp
 
@@ -55,7 +51,6 @@ t0 = 0.0
 tn = 250.0
 nt = int(1+(tn-t0)/dt)
 h = model.get_spacing()
-data.reinterpolate(dt)
 
 
 # Set up the source as Ricker wavelet for f0
@@ -76,15 +71,11 @@ receiver_coords[:, 1] = 500
 receiver_coords[:, 2] = location[2]
 data.set_receiver_pos(receiver_coords)
 data.set_shape(nt, 101)
-
-Acoustic = Acoustic_cg(model, data, dm_orig, None, nbpml=10, t_order=2, s_order=2)
-print("Preparing Forward")
-print("Applying")
-(rec, u) = Acoustic.Forward()
-
+Acoustic = Acoustic_cg(model, data)
+(rec, u) = Acoustic.Forward(save=True)
 print("Preparing adjoint")
 print("Applying")
-(srca, v) = Acoustic.Adjoint(rec)
+srca = Acoustic.Adjoint(rec)
 
 print("Preparing Gradient")
 print("Applying")
@@ -92,4 +83,4 @@ g = Acoustic.Gradient(rec, u)
 
 print("Preparing Born")
 print("Applying")
-LinRec = Acoustic.Born()
+LinRec = Acoustic.Born(dm)

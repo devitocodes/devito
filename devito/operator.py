@@ -208,7 +208,7 @@ class Operator(object):
         args = [param.data for param in self.signature]
         self.propagator.run(args)
 
-        return tuple([param.data for param in self.output_params])
+        return tuple([param for param in self.output_params])
 
     def apply_python(self):
         """Uses Python to apply the operator
