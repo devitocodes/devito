@@ -85,21 +85,19 @@ class FunctionManager(object):
             param_vec_def = cgen.Pointer(cgen.POD(param['dtype'], param['name']+"_vec"))
             function_params.append(param_vec_def)
 
-        for param in function_descriptor.value_params:
-            function_params.append(cgen.Value(param['dtype'], param['name']))
+        if self.mic_flag:
+            function_params += [cgen.Pointer(cgen.POD(param['dtype'], param['name']+"_pointer"))
+                                for param in function_descriptor.value_params]
+        else:
+            function_params += [cgen.POD(param['dtype'], param['name']) for param in function_descriptor.value_params]
 
         for param in function_descriptor.struct_params:
             function_params.append(cgen.Pointer(cgen.Value("struct %s" % (param['stype']), param['name'])))
 
         if self.mic_flag:
-            function_params += [cgen.Pointer(cgen.POD(type_label, name+"_pointer"))
-                                for type_label, name in function_descriptor.value_params]
-
             return cgen.FunctionDeclaration(cgen.Value(self._pymic_attribute + '\nint', function_descriptor.name),
                                             function_params)
         else:
-            function_params += [cgen.POD(type_label, name) for type_label, name in function_descriptor.value_params]
-
             return cgen.Extern("C",
                                cgen.FunctionDeclaration(cgen.Value('int', function_descriptor.name), function_params))
 
@@ -205,6 +203,6 @@ class FunctionDescriptor(object):
         """
         argtypes = [np.ctypeslib.ndpointer(dtype=p['dtype'], flags='C')
                     for p in self.matrix_params]
-        argtypes += [convert_dtype_to_ctype(p[0]) for p in self.value_params]
+        argtypes += [convert_dtype_to_ctype(p['dtype']) for p in self.value_params]
 
         return argtypes
