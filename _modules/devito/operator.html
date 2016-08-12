@@ -339,7 +339,7 @@
         <span class="n">args</span> <span class="o">=</span> <span class="p">[</span><span class="n">param</span><span class="o">.</span><span class="n">data</span> <span class="k">for</span> <span class="n">param</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">signature</span><span class="p">]</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">propagator</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">args</span><span class="p">)</span>
 
-        <span class="k">return</span> <span class="nb">tuple</span><span class="p">([</span><span class="n">param</span><span class="o">.</span><span class="n">data</span> <span class="k">for</span> <span class="n">param</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">output_params</span><span class="p">])</span></div>
+        <span class="k">return</span> <span class="nb">tuple</span><span class="p">([</span><span class="n">param</span> <span class="k">for</span> <span class="n">param</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">output_params</span><span class="p">])</span></div>
 
 <div class="viewcode-block" id="Operator.apply_python"><a class="viewcode-back" href="../../devito.html#devito.operator.Operator.apply_python">[docs]</a>    <span class="k">def</span> <span class="nf">apply_python</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;Uses Python to apply the operator</span>

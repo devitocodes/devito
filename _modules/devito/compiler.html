@@ -133,9 +133,11 @@
 <span class="kn">from</span> <span class="nn">tempfile</span> <span class="k">import</span> <span class="n">gettempdir</span>
 
 <span class="kn">import</span> <span class="nn">numpy.ctypeslib</span> <span class="k">as</span> <span class="nn">npct</span>
+
 <span class="kn">from</span> <span class="nn">cgen</span> <span class="k">import</span> <span class="n">Pragma</span>
 <span class="kn">from</span> <span class="nn">codepy.jit</span> <span class="k">import</span> <span class="n">extension_file_from_string</span>
 <span class="kn">from</span> <span class="nn">codepy.toolchain</span> <span class="k">import</span> <span class="n">GCCToolchain</span>
+<span class="kn">from</span> <span class="nn">devito.logger</span> <span class="k">import</span> <span class="n">log</span>
 
 <span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;get_tmp_dir&#39;</span><span class="p">,</span> <span class="s1">&#39;get_compiler_from_env&#39;</span><span class="p">,</span>
            <span class="s1">&#39;jit_compile&#39;</span><span class="p">,</span> <span class="s1">&#39;load&#39;</span><span class="p">,</span> <span class="s1">&#39;jit_compile_and_load&#39;</span><span class="p">,</span>
@@ -221,7 +223,7 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">ldflags</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;-shared&#39;</span><span class="p">]</span>
 
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">openmp</span><span class="p">:</span>
-            <span class="nb">print</span> <span class="s2">&quot;WARNING: Disabling OpenMP because clang does not support it.&quot;</span>
+            <span class="n">log</span><span class="p">(</span><span class="s2">&quot;WARNING: Disabling OpenMP because clang does not support it.&quot;</span><span class="p">)</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">openmp</span> <span class="o">=</span> <span class="kc">False</span>
 
 
@@ -261,8 +263,7 @@
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">openmp</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">ldflags</span> <span class="o">+=</span> <span class="p">[</span><span class="s1">&#39;-qopenmp&#39;</span><span class="p">]</span>
         <span class="k">else</span><span class="p">:</span>
-            <span class="nb">print</span> <span class="s2">&quot;WARNING: Running on Intel MIC without OpenMP is highly discouraged&quot;</span>
-
+            <span class="n">log</span><span class="p">(</span><span class="s2">&quot;WARNING: Running on Intel MIC without OpenMP is highly discouraged&quot;</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_mic</span> <span class="o">=</span> <span class="nb">__import__</span><span class="p">(</span><span class="s1">&#39;pymic&#39;</span><span class="p">)</span>
 
 
@@ -278,7 +279,7 @@
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">openmp</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">ldflags</span> <span class="o">+=</span> <span class="p">[</span><span class="s1">&#39;-qopenmp&#39;</span><span class="p">]</span>
         <span class="k">else</span><span class="p">:</span>
-            <span class="nb">print</span> <span class="s2">&quot;WARNING: Running on Intel KNL without OpenMP is highly discouraged&quot;</span>
+            <span class="n">log</span><span class="p">(</span><span class="s2">&quot;WARNING: Running on Intel KNL without OpenMP is highly discouraged&quot;</span><span class="p">)</span>
 
 <span class="c1"># Registry dict for deriving Compiler classes according to</span>
 <span class="c1"># environment variable DEVITO_ARCH. Developers should add</span>
@@ -337,7 +338,7 @@
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="n">src_file</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="si">%s</span><span class="s2">.cpp&quot;</span> <span class="o">%</span> <span class="n">basename</span>
     <span class="n">lib_file</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="si">%s</span><span class="s2">.so&quot;</span> <span class="o">%</span> <span class="n">basename</span>
-    <span class="nb">print</span> <span class="s2">&quot;</span><span class="si">%s</span><span class="s2">: Compiling </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">compiler</span><span class="p">,</span> <span class="n">src_file</span><span class="p">)</span>
+    <span class="n">log</span><span class="p">(</span><span class="s2">&quot;</span><span class="si">%s</span><span class="s2">: Compiling </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">compiler</span><span class="p">,</span> <span class="n">src_file</span><span class="p">))</span>
     <span class="n">extension_file_from_string</span><span class="p">(</span><span class="n">toolchain</span><span class="o">=</span><span class="n">compiler</span><span class="p">,</span> <span class="n">ext_file</span><span class="o">=</span><span class="n">lib_file</span><span class="p">,</span>
                                <span class="n">source_string</span><span class="o">=</span><span class="n">ccode</span><span class="p">,</span> <span class="n">source_name</span><span class="o">=</span><span class="n">src_file</span><span class="p">)</span>
 
