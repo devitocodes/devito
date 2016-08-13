@@ -376,7 +376,7 @@ class Propagator(object):
 
         for item in cse_temp_vars:
             left, right=item
-            print '%s %s \n' % (left,right)
+            #print '%s %s \n' % (left,right)
             self.add_local_var(left, right)
         #return csed
         return stmts
