@@ -251,6 +251,7 @@ class Propagator(object):
                 cse_map[left]=right
             return cse_map
 
+        cse_temp_vars=[('testtt',self.dtype)]
         csed=[]
         stmts=[]
         cse_this = []
@@ -298,7 +299,9 @@ class Propagator(object):
                     for i_replacements,replacement in enumerate(list(zip(*cses[0])[0])): # list of rhs replacements
                         if(str(i_index) is str(replacement)):
                             index_replace[i_index]=cses[0][i_replacements][1]
-                            self.add_local_var(str(replacement), np.int)
+                            if str(replacement) is 'x8': embed()
+                            if str(replacement) not in list(zip(*cse_temp_vars)[0]):
+                                cse_temp_vars.append((str(replacement),np.int))
                             cse_map = cse_map_update()
                 cses[0][i]=(left,right.xreplace(index_replace))
                 for key in list(index_replace.keys()):
@@ -342,6 +345,11 @@ class Propagator(object):
                         print 'Failed to generate C code for %s' % arg
                         embed()
                 elif isinstance(arg, Indexed):
+                    for i_index in list(arg.indices):
+                        for i_replacements,replacement in enumerate(list(zip(*cses[0])[0])): # list of rhs replacements
+                            if(str(i_index) is str(replacement)):
+                                if str(replacement) not in list(zip(*cse_temp_vars)[0]):
+                                    cse_temp_vars.append((str(replacement), np.int))
                     try:
                         ccode(arg)
                     except:
@@ -355,7 +363,8 @@ class Propagator(object):
 #            if isinstance(left, Indexed) or isinstance(left, IndexedBase):
 #                self.add_param(str(left), shape=left.shape, dtype=self.dtype, save=True)
             eq_t =Eq(left.xreplace(self.t_replace).xreplace(self._var_map),right.xreplace(cse_bad).xreplace(self.t_replace).xreplace(self._var_map))
-            self.add_local_var(str(left),self.dtype)
+            if str(left) not in list(zip(*cse_temp_vars)[0]):
+                cse_temp_vars.append((str(left), np.float64))
             stmts.append(cgen.Assign(ccode(eq_t.lhs), ccode(eq_t.rhs)))
             csed.append(eq_t)
 
@@ -365,6 +374,10 @@ class Propagator(object):
             csed.append(eq_t)
 
 
+        for item in cse_temp_vars:
+            left, right=item
+            print '%s %s \n' % (left,right)
+            self.add_local_var(left, right)
         #return csed
         return stmts
 
