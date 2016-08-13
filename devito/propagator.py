@@ -2,9 +2,10 @@ from collections import Iterable
 from hashlib import sha1
 from os import path
 from random import randint
-
+from IPython import embed
 import numpy as np
-from sympy import Indexed, IndexedBase, symbols
+from sympy import Indexed, IndexedBase, symbols, cse, Eq, Symbol
+import sympy as sp
 from sympy.abc import t, x, y, z
 from sympy.utilities.iterables import postorder_traversal
 
@@ -235,6 +236,138 @@ class Propagator(object):
         var_map[self.time_dim] = symbols("i%d" % (i + 1))
         self._var_map = var_map
 
+    def factorise(self, stencils):
+        """Given a stencil list, this fuction returns a list of equations with the
+        common subexpressions factored out
+
+        :param stencils: A list of stencils to be factorised
+        :returns: :list containing the factorised kernel
+        """
+
+        def cse_map_update():
+            cse_map={}
+            for i,item in enumerate(cses[0]):
+                left, right = item
+                cse_map[left]=right
+            return cse_map
+
+        csed=[]
+        stmts=[]
+        cse_this = []
+        for equality in stencils:
+            # Get common sub expressions
+            cse_this.append(equality.rhs) # append all right hand sides to a list
+
+        # cses[0] contains a list of tuples (name of temporary, temporary expression)
+        # cses[1] contains a list of expressions with temporaries
+        bad = {}
+        cses = cse(cse_this)  # CSE on all of those right hand sides
+        cse_map={}
+        cse_bad={}
+
+        # undo x2->u
+        for i,item in enumerate(cses[0]):
+            left, right = item
+            if isinstance(right, IndexedBase):
+                rep = IndexedBase(str(left), shape=right.shape)
+
+                # unsub in temporaries
+                for j,item_r in enumerate(cses[0]):
+                    left_r, right_r = item_r
+                    if isinstance(right_r, Indexed) and str(right_r.base) is str(left):
+                        rep_r = IndexedBase(str(right), shape=right.shape)
+                        left_rep = IndexedBase(str(left_r), shape=right.shape)
+                        left_shapeless = IndexedBase(str(left))
+                        left_shape_none = IndexedBase(str(left), shape=None)
+                        cses[0][j] = (left_rep, right_r.xreplace({right_r.base:rep_r}) )
+                        cse_bad[left] = right
+                        cse_bad[left_shapeless] = right
+                        cse_bad[left_shape_none] = right
+                # remove from temporaries
+                cse_bad[cses[0][i][0]]=cses[0][i][1]
+                cses[0].remove(cses[0][i])
+
+
+        cse_map=cse_map_update()
+        # unsub all indices
+        for i,item in enumerate(cses[0]):
+            left, right = item
+            if isinstance(right, Indexed):
+                index_replace={}
+                for i_index in list(right.indices):
+                    for i_replacements,replacement in enumerate(list(zip(*cses[0])[0])): # list of rhs replacements
+                        if(str(i_index) is str(replacement)):
+                            index_replace[i_index]=cses[0][i_replacements][1]
+                            self.add_local_var(str(replacement), np.int)
+                            cse_map = cse_map_update()
+                cses[0][i]=(left,right.xreplace(index_replace))
+                for key in list(index_replace.keys()):
+                    left = key
+                    right = index_replace[key]
+                    # remove from temporaries
+                    cse_bad[cses[0][i][0]]=cses[0][i][1]
+                    cse_bad[left]=right
+                    cses[0].remove((left,right))
+                    cse_map = cse_map_update()
+
+
+        for i,item in enumerate(cses[0]):
+            left, right = item
+            if isinstance(right, Indexed):
+                assert(right.shape is not None)
+            elif isinstance(right, IndexedBase):
+                assert(right.shape is not None)
+
+        # x3=x1[x2,x,y,z]
+        # cses have had pointer aliases undone: x3=u[x2,x,y,z]
+        # cses have had indices unsubbed: x3=u[t-1,x,y,z]
+        # cses have had shapes fixed: x3.shape = (151,50,50,50)
+
+
+        for key in list(cse_bad.keys()):
+            symb = symbols(str(key))
+            cse_bad[symb] = cse_bad[key]
+
+            indexedbase = IndexedBase(str(key))
+            cse_bad[indexedbase] = cse_bad[key]
+
+        # go through cse'ed kernel list and rebuild missing shapes
+        kernel_sub_map={}
+        for idx,term in enumerate(cses[1]): # go through a list of new kernels
+            for arg in postorder_traversal(cses[1][idx]):
+                if isinstance(arg, IndexedBase):
+                    try:
+                        ccode(arg)
+                    except:
+                        print 'Failed to generate C code for %s' % arg
+                        embed()
+                elif isinstance(arg, Indexed):
+                    try:
+                        ccode(arg)
+                    except:
+                        print 'Failed to generate C code for %s' % arg
+                        embed()
+                else:
+                    ccode(arg)
+
+        for i,item in enumerate(cses[0]):
+            left, right = item
+#            if isinstance(left, Indexed) or isinstance(left, IndexedBase):
+#                self.add_param(str(left), shape=left.shape, dtype=self.dtype, save=True)
+            eq_t =Eq(left.xreplace(self.t_replace).xreplace(self._var_map),right.xreplace(cse_bad).xreplace(self.t_replace).xreplace(self._var_map))
+            self.add_local_var(str(left),self.dtype)
+            stmts.append(cgen.Assign(ccode(eq_t.lhs), ccode(eq_t.rhs)))
+            csed.append(eq_t)
+
+        for idx,term in enumerate(cses[1]): # go through a list of new kernels
+            eq_t = Eq(stencils[idx].lhs.xreplace(self.t_replace).xreplace(self._var_map), term.xreplace(cse_bad).xreplace(self.t_replace).xreplace(self._var_map))
+            stmts.append(cgen.Assign(ccode(eq_t.lhs), ccode(eq_t.rhs)))
+            csed.append(eq_t)
+
+
+        #return csed
+        return stmts
+
     def sympy_to_cgen(self, stencils):
         """Converts sympy stencils to cgen statements
 
@@ -242,29 +375,27 @@ class Propagator(object):
         :returns: :class:`cgen.Block` containing the converted kernel
         """
 
-        factors = []
-        if len(self.factorized) > 0:
-            for name, term in zip(self.factorized.keys(), self.factorized):
-                expr = self.factorized[name]
-                self.add_local_var(name, self.dtype)
-                if self.dtype is np.float32:
-                    factors.append(cgen.Assign(name, str(ccode(self.time_substitutions(expr).xreplace(self._var_map))).
-                                               replace("pow", "powf").replace("fabs", "fabsf")))
-                else:
-                    factors.append(cgen.Assign(name, str(ccode(self.time_substitutions(expr).xreplace(self._var_map)))))
         stmts = []
+        if True:
+            #stencils = self.factorise(stencils)
+            stmts = self.factorise(stencils)
 
-        for equality in stencils:
-            self._kernel_dic_oi = self._get_ops_expr(equality.rhs, self._kernel_dic_oi, False)
-            self._kernel_dic_oi = self._get_ops_expr(equality.lhs, self._kernel_dic_oi, True)
-            stencil = self.convert_equality_to_cgen(equality)
-            stmts.append(stencil)
+            kernel = self._pre_kernel_steps
+            kernel += stmts
+            kernel += self._post_kernel_steps
 
-        kernel = self._pre_kernel_steps
-        kernel += stmts
-        kernel += self._post_kernel_steps
+        else:
+            for equality in stencils:
+                self._kernel_dic_oi = self._get_ops_expr(equality.rhs, self._kernel_dic_oi, False)
+                self._kernel_dic_oi = self._get_ops_expr(equality.lhs, self._kernel_dic_oi, True)
+                stencil = self.convert_equality_to_cgen(equality)
+                stmts.append(stencil)
 
-        return cgen.Block(factors+kernel)
+            kernel = self._pre_kernel_steps
+            kernel += stmts
+            kernel += self._post_kernel_steps
+
+        return cgen.Block(kernel)
 
     def convert_equality_to_cgen(self, equality):
         """Convert given equality to :class:`cgen.Generable` statement
