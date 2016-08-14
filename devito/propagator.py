@@ -26,7 +26,6 @@ class Propagator(object):
     :param nt: Number of timesteps to execute
     :param shape: Shape of the data buffer over which to execute
     :param stencils: List of :class:`sympy.Eq` used to create the kernel
-    :param factorized: A map given by {string_name:sympy_object} for including factorized terms
     :param spc_border: Number of spatial padding layers
     :param time_order: Order of the time discretisation
     :param time_dim: Symbol that defines the time dimension
@@ -41,12 +40,11 @@ class Propagator(object):
                       a list stating block sizes for each dimension. Set block size to None to skip blocking on that dim
     """
 
-    def __init__(self, name, nt, shape, stencils, factorized=None, spc_border=0, time_order=0,
+    def __init__(self, name, nt, shape, stencils, spc_border=0, time_order=0,
                  time_dim=None, space_dims=None, dtype=np.float32, forward=True, compiler=None,
                  profile=False, cache_blocking=False, block_size=5):
         self.stencils = stencils
         self.dtype = dtype
-        self.factorized = factorized or []
         self.time_order = time_order
 
         # Default time and space symbols if not provided
@@ -79,7 +77,7 @@ class Propagator(object):
         self._space_loop_limits = {}
 
         for i, dim in enumerate(self.space_dims):
-            self._space_loop_limits[dim] = (spc_border, shape[i] - spc_border)
+            self._space_loop_limiTS[Dim] = (spc_border, shape[i] - spc_border)
 
         # Derive JIT compilation infrastructure
         self.compiler = compiler or get_compiler_from_env()
