@@ -1,6 +1,7 @@
 import atexit
 import os
 import sys
+import weakref
 from signal import SIGABRT, SIGINT, SIGSEGV, SIGTERM, signal
 from tempfile import gettempdir
 
@@ -72,7 +73,7 @@ class SymbolicData(Function):
     def __init__(self):
         """Initialise from a cached instance by shallow copying __dict__."""
         original = _SymbolCache[self.__class__]
-        self.__dict__ = original.__dict__.copy()
+        self.__dict__ = original().__dict__.copy()
 
     @classmethod
     def _cached(cls):
@@ -85,7 +86,7 @@ class SymbolicData(Function):
 
         :param obj: Object to be cached.
         """
-        _SymbolCache[cls] = obj
+        _SymbolCache[cls] = weakref.ref(obj)
 
     @classmethod
     def indices(cls, shape):
