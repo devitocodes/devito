@@ -121,12 +121,14 @@ class Propagator(object):
 
     def run(self, args):
         if self.profile:
-            self.fd.add_struct_param(self.profiler.name, "profiler")
+            self.fd.add_struct_param("timings", "profiler")
+            self.fd.add_struct_param("ois", "profiler")
 
         f = self.cfunction
 
         if self.profile:
-            args.append(self.profiler.as_ctypes_pointer)
+            args.append(self.profiler.timings_as_ctypes_pointer)
+            args.append(self.profiler.ois_as_ctypes_pointer)
 
         if isinstance(self.compiler, IntelMICCompiler):
             # Off-load propagator kernel via pymic stream

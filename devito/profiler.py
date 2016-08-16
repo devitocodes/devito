@@ -1,22 +1,28 @@
-from ctypes import Structure, byref, c_double
+from ctypes import Structure, byref, c_double, c_longlong
 
 from cgen_wrapper import Block, Statement, Struct, Value
+from devito.logger import error
 
 
-class Profiler(Structure):
+class Profiler(object):
     """The Profiler class is used to manage profiling information for Devito
     generated C code.
     """
+    TIMINGS = 1
+    OIS = 2
 
     def __init__(self):
-        self.name = "timings"
-        self.fields = []
+        self.t_fields = []
+        self.o_fields = []
         self.timings = None
+        self.ois = None
+        self.gflops = None
+        self.oi_defaults = {}
 
-    def add_profiling(self, block, name, omp_flag=None):
+    def add_profiling(self, code, name, omp_flag=None):
         """Function to add profiling code to the given :class:`cgen.Block`.
 
-        :param block: A list of :class:`cgen.Generable` with the code to be
+        :param code: A list of :class:`cgen.Generable` with the code to be
                       profiled.
         :param name: The name of the field that will contain the timings.
         :param omp_flag: OpenMP flag to add before profiling operations,
@@ -24,7 +30,9 @@ class Profiler(Structure):
         :returns: A list of :class:`cgen.Generable` with the added profiling
                   code.
         """
-        self.fields.append((name, c_double))
+        self.t_fields.append((name, c_double))
+        self.o_fields.append((name, c_longlong))
+        self.oi_defaults[name] = self.get_oi(name, code)
 
         omp_flag = omp_flag or []
 
@@ -43,41 +51,77 @@ class Profiler(Structure):
             ])
         ]
 
-        return init + block + end
+        return init + code + end
 
-    @property
-    def get_timings_class(self):
-        """Returns a :class:`ctypes.Structure` subclass defining our structure
-
-        :returns: A :class:`Timings` class definition
+    def get_oi(self, code):
+        """Calculates the total operation intensity of the code provided.
+        If needed, injects the code with operations for runtime calculation.
         """
-        return type("Timings", (Structure,), {"_fields_": self.fields})
+        # TODO: Add the fixed OIs to self.ois_defaults. Inject code to calculate
+        #       OIs in loops
+        pass
 
     @property
-    def as_cgen_struct(self):
+    def get_class(self, choice):
+        """Returns a :class:`ctypes.Structure` subclass defining our structure
+        for Ois or Timings
+
+        :param choice: Profiler.OIS or Profiler.TIMINGS
+
+        :returns: A class definition
+        """
+        if choice == Profiler.OIS:
+            name = "Ois"
+            fields = self.t_fields
+        elif choice == Profiler.TIMINGS:
+            name = "Timings"
+            fields = self.o_fields
+        else:
+            error("Wrong choice")
+
+        return type(name, (Structure,), {"_fields_": fields})
+
+    @property
+    def as_cgen_struct(self, choice):
         """Returns the :class:`cgen.Struct` relative to the profiler
 
         :returns: The struct
         """
         fields = []
 
-        for name, _ in self.fields:
-            fields.append(Value("double", name))
+        if choice == Profiler.TIMINGS:
+            for name, _ in self.t_fields:
+                fields.append(Value("double", name))
+        elif choice == Profiler.OIS:
+            for name, _ in self.o_fields:
+                fields.append(Value("long long", name))
+        else:
+            error("Wrong choice")
 
         return Struct("profiler", fields)
 
     @property
-    def as_ctypes_pointer(self):
-        """Returns a pointer to the ctypes structure
+    def timings_as_ctypes_pointer(self):
+        """Returns a pointer to the ctypes structure for the timings
 
         :returns: The pointer
         """
-        self.timings = self.get_timings_class()
+        self.timings = self.get_class(Profiler.TIMINGS)
 
         return byref(self.timings)
 
     @property
-    def as_dictionary(self):
+    def ois_as_ctypes_pointer(self):
+        """Returns a pointer to the ctypes structure for the OIs
+
+        :returns: The pointer
+        """
+        self.ois = self.get_class(Profiler.OIS)
+
+        return byref(self.ois)
+
+    @property
+    def timings_as_dictionary(self):
         """Returns the timings as a python dictionary
 
         :returns: A dictionary containing the timings
@@ -87,3 +131,31 @@ class Profiler(Structure):
 
         return dict((field, getattr(self.timings, field))
                     for field, _ in self.timings._fields_)
+
+    @property
+    def ois_as_dictionary(self):
+        """Returns the operation intensities as a dictionary
+
+        :returns: A dictionary containing the OIs
+        """
+        if not self.ois:
+            return {}
+
+        return dict((field, getattr(self.ois, field)) for field, _ in self.ois._fields_)
+
+    @property
+    def get_gflops(self):
+        """Returns the GFLOPS of the profiled codes
+
+        :return: A dictionary containing the GFLOPS
+        """
+        if self.gflops:
+            return self.gflops
+
+        self.gflops = {}
+
+        for name, oi in self.ois_as_dictionary.items():
+            self.gflops[name] = ((self.oi_defaults[name] + oi) /
+                                 (self.timings_as_dictionary[name] * 10**9))
+
+        return self.gflops
