@@ -14,6 +14,7 @@ from devito.compiler import (IntelMICCompiler, get_compiler_from_env,
                              get_tmp_dir, jit_compile_and_load)
 from devito.function_manager import FunctionDescriptor, FunctionManager
 from devito.iteration import Iteration
+from devito.logger import logger
 from devito.profiler import Profiler
 from tools import flatten
 
@@ -50,11 +51,13 @@ class Propagator(object):
         self.dtype = dtype
         self.factorized = factorized or {}
         self.time_order = time_order
+        self.spc_border = spc_border
 
         # Default time and space symbols if not provided
         self.time_dim = time_dim or t
         self.space_dims = \
             space_dims or (x, z) if len(shape) == 2 else (x, y, z)[:len(shape)]
+        self.shape = shape
 
         # Internal flags and meta-data
         self.loop_counters = list(symbols("i1 i2 i3 i4"))
@@ -132,6 +135,19 @@ class Propagator(object):
             self.compiler._stream.sync()
         else:
             f(*args)
+
+        if self.profile:
+            self.log_performance()
+
+    @property
+    def mcells(self):
+        """Calculates MCELLS
+
+        :returns: Mcells as int
+        """
+        iteration_space = map(lambda dim: dim - self.spc_border * 2, self.shape)
+        return int(round(self.nt * np.prod(iteration_space)) /
+                   (self.timings['kernel'] * 10 ** 6))
 
     @property
     def basename(self):
@@ -236,6 +252,16 @@ class Propagator(object):
             loop_limits = (self.nt-1, -1)
 
         return loop_limits
+
+    def log_performance(self):
+        """Logs performance metrics"""
+        shape_str = str(self.shape).replace(', ', ' x ')
+        cb_str = ", blocks - %s " % str(self.cache_blocking) \
+            if self.cache_blocking else ' '
+
+        logger.info("shape - %s%s:: %f sec - %s MCells/s - %.2f GFLOPS" %
+                    (shape_str, cb_str, self.timings['kernel'],
+                     self.mcells, self.gflops['kernel']))
 
     def prep_variable_map(self):
         """Mapping from model variables (x, y, z, t) to loop variables (i1, i2, i3, i4)
