@@ -18,7 +18,6 @@ from devito.function_manager import FunctionDescriptor, FunctionManager
 from devito.iteration import Iteration
 from devito.logger import logger
 from devito.profiler import Profiler
-import logger
 from tools import flatten
 
 

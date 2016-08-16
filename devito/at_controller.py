@@ -133,6 +133,8 @@ class AutoTuner(object):
             else:
                 block_list.add(tuple(blocks))
 
+        logger.info("Total number of block size permutations = %d" % len(block_list))
+
         # runs function for each block_size
         for block in block_list:
             self.op.propagator.block_sizes = block
