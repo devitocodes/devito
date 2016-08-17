@@ -103,8 +103,10 @@ class Profiler(object):
         elif isinstance(loop.body, For):
             loop_oi_f = self._get_for_flops(name, loop.body, loads)
 
-        flops_calc_stmt = Statement("%s->%s += %f" % (self.f_name, name, loop_flops))
+        if loop_flops == 0:
+            return loop_oi_f
 
+        flops_calc_stmt = Statement("%s->%s += %f" % (self.f_name, name, loop_flops))
         loop.body = Block([flops_calc_stmt, loop.body])
 
         return loop_oi_f
