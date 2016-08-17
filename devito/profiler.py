@@ -70,67 +70,76 @@ class Profiler(object):
         if name not in self.flops_defaults:
             self.flops_defaults[name] = 0
 
+        loads = {"stores": 0}
+
         for elem in code:
             if isinstance(elem, Assign):
-                assign_oi, assign_flops = self._get_assign_oi(elem, size)
-                self.oi[name] += assign_oi
+                assign_flops = self._get_assign_flops(elem, loads)
+                self.oi[name] += assign_flops
                 self.flops_defaults[name] += assign_flops
             elif isinstance(elem, For):
-                self._get_for_oi_and_flops(name, elem, size)
+                for_flops = self._get_for_flops(name, elem, loads)
+                self.oi[name] += for_flops
             elif isinstance(elem, Block):
-                block_oi, block_flops = self._get_block_oi_and_flops(name, elem, size)
+                block_oi, block_flops = self._get_block_oi_and_flops(name, elem, loads)
                 self.oi[name] += block_oi
                 self.flops_defaults[name] += block_flops
 
-    def _get_for_oi_and_flops(self, name, loop, size):
-        loop_oi = 0
+        self.oi[name] = float(self.oi[name]) / size*(len(loads) + loads["stores"] - 1)
+
+    def _get_for_flops(self, name, loop, loads):
         loop_flops = 0
+        loop_oi_f = 0
 
         if isinstance(loop.body, Assign):
-            loop_oi, loop_flops = self._get_assign_oi_and_flops(loop.body, size)
+            loop_flops = self._get_assign_flops(loop.body, loads)
         elif isinstance(loop.body, Block):
-            loop_oi, loop_flops = self._get_block_oi_and_flops(name, loop.body, size)
+            loop_oi_f, loop_flops = self._get_block_oi_and_flops(name, loop.body, loads)
         elif isinstance(loop.body, For):
-            self._get_for_oi_and_flops(name, loop.body, size)
+            loop_oi_f = self._get_for_flops(name, loop.body, loads)
 
-        self.oi[name] += loop_oi
         flops_calc_stmt = Statement("%s->%s += %f" % (self.f_name, name, loop_flops))
 
         loop.body = Block([flops_calc_stmt, loop.body])
 
-    def _get_block_oi_and_flops(self, name, block, size):
-        block_oi = float(0)
+        return loop_oi_f + loop_flops
+
+    def _get_block_oi_and_flops(self, name, block, loads):
         block_flops = 0
+        block_oi = 0
         for elem in block.contents:
             if isinstance(elem, Assign):
-                assign_oi, assign_flops = self._get_assign_oi_and_flops(elem, size)
-                block_oi += assign_oi
-                block_flops += assign_flops
+                block_flops += self._get_assign_flops(elem, loads)
             elif isinstance(elem, Block):
-                n_block_oi, n_block_flops = self._get_block_oi_and_flops(name, elem, size)
-                block_oi += n_block_oi
-                block_flops += n_block_flops
+                nblock_oi, nblock_flops = self._get_block_oi_and_flops(name, elem, loads)
+                block_oi += nblock_oi
+                block_flops += nblock_flops
             elif isinstance(elem, For):
-                self._get_for_oi_and_flops(name, elem, size)
+                block_oi += self._get_for_flops(name, elem, loads)
 
-        return block_oi, block_flops
+        return block_oi + block_flops, block_flops
 
-    def _get_assign_oi_and_flops(self, assign, size):
-        loads = {}
+    def _get_assign_flops(self, assign, loads):
         flops = 0
         cur_load = ""
+        loads["stores"] += 1
 
         idx = 0
         brackets = 0
-        while idx < len(assign.rvalue):
-            char = assign.rvalue[idx]
+        # removing casting statements and function calls to floor that can confuse the parser
+        string = assign.rvalue.replace("float", '').replace("int", '').replace("floor", '')
+        while idx < len(string):
+            char = string[idx]
             if len(cur_load) == 0:
-                if char in "+-*/" and assign.rvalue[idx - 1] is not 'e':
+                if char in "+-*/" and string[idx - 1] is not 'e':
                     flops += 1
-                if char.isalpha() and not assign.rvalue[idx - 1].isdigit():
+                if char.isalpha() and not string[idx - 1].isdigit():
                     cur_load += char
                 idx += 1
             else:
+                if char is ']':
+                    brackets -= 1
+
                 if char is '[':
                     cur_load += char
                     brackets += 1
@@ -140,21 +149,18 @@ class Profiler(object):
                     loads[cur_load] = True
                     cur_load = ""
                     idx += 1
-                elif char is ']' and idx == len(assign.rvalue) - 1:
+                elif char is ']' and idx == len(string) - 1:
                     cur_load += char
                     loads[cur_load] = True
                     idx += 1
-                elif cur_load[-1] is ']' and char is not '[':
+                elif cur_load[-1] is ']' and char is not '[' and brackets == 0:
                     loads[cur_load] = True
                     cur_load = ""
-                    brackets = 0
                 else:
                     cur_load += char
                     idx += 1
 
-        oi = float(flops) / float(size * (len(loads) + 1))
-
-        return oi, flops
+        return flops
 
     def get_class(self, choice):
         """Returns a :class:`ctypes.Structure` subclass defining our structure
