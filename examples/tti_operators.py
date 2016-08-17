@@ -137,10 +137,13 @@ class ForwardOperator(Operator):
 
         Hp = -(.5 * Gxx1 + .5 * Gxx2 + .5 * Gyy1 + .5 * Gyy2)
         Hzr = -(.5 * Gzz1 + .5 * Gzz2)
+
+
+
         stencilp = 1.0 / (2.0 * m + s * damp) * (4.0 * m * u + (s * damp - 2.0 * m) * u.backward +
-                                                 2.0 * s**2 * (A * Hp + B * Hzr))
+                                                 2.0 * s**2 * (epsilon * Hp + delta * Hzr))
         stencilr = 1.0 / (2.0 * m + s * damp) * (4.0 * m * v + (s * damp - 2.0 * m) * v.backward +
-                                                 2.0 * s**2 * (B * Hp + Hzr))
+                                                 2.0 * s**2 * (delta * Hp + Hzr))
         # Add substitutions for spacing (temporal and spatial)
         subs = [{s: src.dt, h: src.h}, {s: src.dt, h: src.h}]
         first_stencil = Eq(u.forward, stencilp)

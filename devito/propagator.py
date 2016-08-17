@@ -77,7 +77,7 @@ class Propagator(object):
         self._space_loop_limits = {}
 
         for i, dim in enumerate(self.space_dims):
-            self._space_loop_limiTS[Dim] = (spc_border, shape[i] - spc_border)
+            self._space_loop_limits[dim] = (spc_border, shape[i] - spc_border)
 
         # Derive JIT compilation infrastructure
         self.compiler = compiler or get_compiler_from_env()
@@ -299,7 +299,7 @@ class Propagator(object):
                             index_replace[i_index]=cses[0][i_replacements][1]
                             if str(replacement) is 'x8': embed()
                             if str(replacement) not in list(zip(*cse_temp_vars)[0]):
-                                cse_temp_vars.append((str(replacement),np.int))
+                                cse_temp_vars.append((str(replacement),np.int32))
                             cse_map = cse_map_update()
                 cses[0][i]=(left,right.xreplace(index_replace))
                 for key in list(index_replace.keys()):
@@ -347,7 +347,7 @@ class Propagator(object):
                         for i_replacements,replacement in enumerate(list(zip(*cses[0])[0])): # list of rhs replacements
                             if(str(i_index) is str(replacement)):
                                 if str(replacement) not in list(zip(*cse_temp_vars)[0]):
-                                    cse_temp_vars.append((str(replacement), np.int))
+                                    cse_temp_vars.append((str(replacement), np.int32))
                     try:
                         ccode(arg)
                     except:
@@ -362,7 +362,7 @@ class Propagator(object):
 #                self.add_param(str(left), shape=left.shape, dtype=self.dtype, save=True)
             eq_t =Eq(left.xreplace(self.t_replace).xreplace(self._var_map),right.xreplace(cse_bad).xreplace(self.t_replace).xreplace(self._var_map))
             if str(left) not in list(zip(*cse_temp_vars)[0]):
-                cse_temp_vars.append((str(left), np.float64))
+                cse_temp_vars.append((str(left), self.dtype))
             stmts.append(cgen.Assign(ccode(eq_t.lhs), ccode(eq_t.rhs)))
             csed.append(eq_t)
 
