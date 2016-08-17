@@ -35,8 +35,12 @@ class Profiler(object):
         :returns: A list of :class:`cgen.Generable` with the added profiling
                   code.
         """
+        if code == []:
+            return []
+
         self.t_fields.append((name, c_double))
         self.f_fields.append((name, c_longlong))
+
         self.get_oi_and_flops(name, code, byte_size)
 
         omp_flag = omp_flag or []
@@ -85,7 +89,7 @@ class Profiler(object):
                 self.oi[name] += block_oi
                 self.flops_defaults[name] += block_flops
 
-        self.oi[name] = float(self.oi[name]) / size*(len(loads) + loads["stores"] - 1)
+        self.oi[name] = float(self.oi[name]) / (size*(len(loads) + loads["stores"] - 1))
 
     def _get_for_flops(self, name, loop, loads):
         loop_flops = 0
@@ -93,6 +97,7 @@ class Profiler(object):
 
         if isinstance(loop.body, Assign):
             loop_flops = self._get_assign_flops(loop.body, loads)
+            loop_oi_f = loop_flops
         elif isinstance(loop.body, Block):
             loop_oi_f, loop_flops = self._get_block_oi_and_flops(name, loop.body, loads)
         elif isinstance(loop.body, For):
@@ -102,14 +107,17 @@ class Profiler(object):
 
         loop.body = Block([flops_calc_stmt, loop.body])
 
-        return loop_oi_f + loop_flops
+        return loop_oi_f
 
     def _get_block_oi_and_flops(self, name, block, loads):
         block_flops = 0
         block_oi = 0
+
         for elem in block.contents:
             if isinstance(elem, Assign):
-                block_flops += self._get_assign_flops(elem, loads)
+                a_flops = self._get_assign_flops(elem, loads)
+                block_flops += a_flops
+                block_oi += a_flops
             elif isinstance(elem, Block):
                 nblock_oi, nblock_flops = self._get_block_oi_and_flops(name, elem, loads)
                 block_oi += nblock_oi
@@ -117,7 +125,7 @@ class Profiler(object):
             elif isinstance(elem, For):
                 block_oi += self._get_for_flops(name, elem, loads)
 
-        return block_oi + block_flops, block_flops
+        return block_oi, block_flops
 
     def _get_assign_flops(self, assign, loads):
         flops = 0
@@ -127,38 +135,36 @@ class Profiler(object):
         idx = 0
         brackets = 0
         # removing casting statements and function calls to floor that can confuse the parser
-        string = assign.rvalue.replace("float", '').replace("int", '').replace("floor", '')
+        string = (assign.lvalue + " " + assign.rvalue).replace("float", '').replace("int", '').replace("floor", '')
+
         while idx < len(string):
             char = string[idx]
             if len(cur_load) == 0:
-                if char in "+-*/" and string[idx - 1] is not 'e':
+                if char == '[':
+                    brackets += 1
+                elif char == ']':
+                    brackets -= 1
+                elif char in "+-*/" and string[idx - 1] is not 'e' and not string[idx + 1].isdigit() and brackets == 0:
                     flops += 1
-                if char.isalpha() and not string[idx - 1].isdigit():
+                elif char.isalpha() and not string[idx - 1].isdigit() and char not in "it":
                     cur_load += char
                 idx += 1
             else:
-                if char is ']':
-                    brackets -= 1
-
                 if char is '[':
-                    cur_load += char
+                    loads[cur_load] = True
+                    cur_load = ""
                     brackets += 1
                     idx += 1
-                elif char is ' ' and brackets == 0:
-                    cur_load += char
+                elif char is ' ' and brackets == 0 and len(cur_load) > 0:
                     loads[cur_load] = True
                     cur_load = ""
                     idx += 1
-                elif char is ']' and idx == len(string) - 1:
-                    cur_load += char
-                    loads[cur_load] = True
-                    idx += 1
-                elif cur_load[-1] is ']' and char is not '[' and brackets == 0:
-                    loads[cur_load] = True
-                    cur_load = ""
                 else:
                     cur_load += char
                     idx += 1
+
+        if len(cur_load) > 0:
+            loads[cur_load] = True
 
         return flops
 
