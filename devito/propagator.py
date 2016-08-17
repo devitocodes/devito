@@ -88,11 +88,6 @@ class Propagator(object):
         self.profile = profile
         self.profiler = Profiler()
 
-        # Kernel operational intensity dictionary
-        self._kernel_dic_oi = {'add': 0, 'mul': 0, 'load': 0, 'store': 0,
-                               'load_list': [], 'load_all_list': [], 'oi_high': 0,
-                               'oi_high_weighted': 0, 'oi_low': 0, 'oi_low_weighted': 0}
-
         # Cache blocking and default block sizes
         self.cache_blocking = cache_blocking
 
@@ -115,14 +110,16 @@ class Propagator(object):
 
     def run(self, args):
         if self.profile:
-            self.fd.add_struct_param("timings", "profiler")
-            self.fd.add_struct_param("ois", "profiler")
+            self.fd.add_struct_param(self.profiler.t_name, "profiler")
+            self.fd.add_struct_param(self.profiler.o_name, "profiler")
+            self.fd.add_struct_param(self.profiler.f_name, "flops")
 
         f = self.cfunction
 
         if self.profile:
-            args.append(self.profiler.timings_as_ctypes_pointer)
-            args.append(self.profiler.ois_as_ctypes_pointer)
+            args.append(self.profiler.as_ctypes_pointer(Profiler.TIME))
+            args.append(self.profiler.as_ctypes_pointer(Profiler.OI))
+            args.append(self.profiler.as_ctypes_pointer(Profiler.FLOP))
 
         if isinstance(self.compiler, IntelMICCompiler):
             # Off-load propagator kernel via pymic stream
@@ -156,7 +153,8 @@ class Propagator(object):
             self.get_fd()
 
             if self.profile:
-                manager.add_struct_definition(self.profiler.as_cgen_struct)
+                manager.add_struct_definition(self.profiler.as_cgen_struct(Profiler.TIME))
+                manager.add_struct_definition(self.profiler.as_cgen_struct(Profiler.FLOP))
 
             self._ccode = str(manager.generate())
 
@@ -184,7 +182,15 @@ class Propagator(object):
 
     @property
     def timings(self):
-        return self.profiler.as_dictionary
+        return self.profiler.timings
+
+    @property
+    def oi(self):
+        return self.profiler.oi
+
+    @property
+    def gflops(self):
+        return self.profiler.gflops
 
     @property
     def save(self):
@@ -257,8 +263,6 @@ class Propagator(object):
         stmts = []
 
         for equality in stencils:
-            self._kernel_dic_oi = self._get_ops_expr(equality.rhs, self._kernel_dic_oi, False)
-            self._kernel_dic_oi = self._get_ops_expr(equality.lhs, self._kernel_dic_oi, True)
             stencil = self.convert_equality_to_cgen(equality)
             stmts.append(stencil)
 
@@ -357,7 +361,7 @@ class Propagator(object):
         body = def_time_step + self.pre_loop + omp_parallel + [loop_body] + self.post_loop
 
         if self.profile:
-            body = self.profiler.add_profiling(body, "kernel", omp_master)
+            body = self.profiler.add_profiling(body, "kernel", omp_flag=omp_master)
 
         return cgen.Block(body)
 
@@ -627,73 +631,3 @@ class Propagator(object):
             self.time_loop_stencils_b.append(stencil)
         else:
             self.time_loop_stencils_a.append(stencil)
-
-    def _get_ops_expr(self, expr, dict1, is_lhs=False):
-        """Get number of different operations in expression expr
-
-        Types of operations are ADD (inc -) and MUL (inc /), arrays (IndexedBase objects) in expr that are not in list
-        arrays are added to the list.
-
-        :param expr: The expression to process
-        :returns: Dictionary of (#ADD, #MUL, list of unique names of fields, list of unique field elements)
-        """
-        result = dict1  # dictionary to return
-
-        # add array to list arrays if it is not in it
-        if isinstance(expr, Indexed):
-                base = expr.base.label
-
-                if is_lhs:
-                        result['store'] += 1
-                if base not in result['load_list']:
-                        result['load_list'] += [base]  # accumulate distinct array
-                if expr not in result['load_all_list']:
-                        result['load_all_list'] += [expr]  # accumulate distinct array elements
-
-                return result
-
-        if expr.is_Mul or expr.is_Add or expr.is_Pow:
-                args = expr.args
-
-                # increment MUL or ADD by # arguments less 1
-                # sympy multiplication and addition can have multiple arguments
-                if expr.is_Mul:
-                        result['mul'] += len(args)-1
-                else:
-                        if expr.is_Add:
-                                result['add'] += len(args)-1
-
-                # recursive call of all arguments
-                for expr2 in args:
-                        result2 = self._get_ops_expr(expr2, result, is_lhs)
-
-                return result2
-
-        # return zero and unchanged array if execution gets here
-        return result
-
-    def get_kernel_oi(self, dtype=np.float32):
-        """Get the operation intensity of the kernel. The types of operations are ADD (inc -), MUL (inc /), LOAD, STORE.
-        #LOAD = number of unique fields in the kernel
-
-        Operation intensity OI = (ADD+MUL)/[(LOAD+STORE)*word_size]
-        Weighted OI, OI_w = (ADD+MUL)/(2*Max(ADD,MUL)) * OI
-
-        :param dtype: :class:`numpy.dtype` used to specify the word size
-        :returns: A tuple (#ADD, #MUL, #LOAD, #STORE) containing the operation intensity
-        """
-        load = 0
-        load_all = 0
-        word_size = np.dtype(dtype).itemsize
-        load += len(self._kernel_dic_oi['load_list'])
-        store = self._kernel_dic_oi['store']
-        load_all += len(self._kernel_dic_oi['load_all_list'])
-        self._kernel_dic_oi['load'] = load_all
-        add = self._kernel_dic_oi['add']
-        mul = self._kernel_dic_oi['mul']
-        self._kernel_dic_oi['oi_high'] = float(add+mul)/(load+store)/word_size
-        self._kernel_dic_oi['oi_high_weighted'] = self._kernel_dic_oi['oi_high']*(add+mul)/max(add, mul)/2.0
-        self._kernel_dic_oi['oi_low'] = float(add+mul)/(load_all+store)/word_size
-        self._kernel_dic_oi['oi_low_weighted'] = self._kernel_dic_oi['oi_low']*(add+mul)/max(add, mul)/2.0
-
-        return self._kernel_dic_oi['oi_high']
