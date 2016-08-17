@@ -61,13 +61,8 @@ class SymbolicData(Function, CachedSymbol):
     object should implement `__init__` in the following format:
 
     def __init__(self, \*args, \*\*kwargs):
-        if self._cached():
-            SymbolicData.__init__(self)
-            return
-        else:
+        if not self._cached():
             ... # Initialise object properties from kwargs
-
-            self._cache_put(self)
 
     Note: The parameters :param name: and :param shape: must always be
     present and given as keyword arguments, since SymPy uses `*args`
@@ -75,7 +70,10 @@ class SymbolicData(Function, CachedSymbol):
     """
 
     def __new__(cls, *args, **kwargs):
-        if cls not in _SymbolCache:
+        if cls in _SymbolCache:
+            newobj = Function.__new__(cls, *args)
+            newobj._cached_init()
+        else:
             name = kwargs.get('name')
             shape = kwargs.get('shape')
             if len(args) < 1:
@@ -85,12 +83,9 @@ class SymbolicData(Function, CachedSymbol):
             newcls = cls._symbol_type(name)
             newobj = Function.__new__(newcls, *args)
             newobj.__init__(*args, **kwargs)
-            return newobj
-
-        return Function.__new__(cls, *args)
-
-    def __init__(self):
-        self._cached_init()
+            # Store new instance in symbol cache
+            newcls._cache_put(newobj)
+        return newobj
 
     @classmethod
     def indices(cls, shape):
@@ -118,11 +113,7 @@ class DenseData(SymbolicData):
     time-varying griad data.
     """
     def __init__(self, *args, **kwargs):
-        if self._cached():
-            # Initialise instance from symbol cache
-            SymbolicData.__init__(self)
-            return
-        else:
+        if not self._cached():
             self.name = kwargs.get('name')
             self.shape = kwargs.get('shape')
             self.dtype = kwargs.get('dtype', np.float32)
@@ -133,8 +124,6 @@ class DenseData(SymbolicData):
             self.initializer = initializer
             self._data = kwargs.get('_data', None)
             MemmapManager.setup(self, *args, **kwargs)
-            # Store new instance in symbol cache
-            self._cache_put(self)
 
     @classmethod
     def indices(cls, shape):
@@ -295,11 +284,7 @@ class TimeData(DenseData):
     """
 
     def __init__(self, *args, **kwargs):
-        if self._cached():
-            # Initialise instance from symbol cache
-            SymbolicData.__init__(self)
-            return
-        else:
+        if not self._cached():
             super(TimeData, self).__init__(*args, **kwargs)
             self._full_data = self._data.view() if self._data else None
             time_dim = kwargs.get('time_dim')
@@ -313,9 +298,6 @@ class TimeData(DenseData):
                 time_dim = self.time_order + 1
 
             self.shape = (time_dim,) + self.shape
-
-            # Store final instance in symbol cache
-            self._cache_put(self)
 
     def initialize(self):
         if self.initializer is not None:
@@ -389,11 +371,7 @@ class CoordinateData(SymbolicData):
     """
 
     def __init__(self, *args, **kwargs):
-        if self._cached():
-            # Initialise instance from symbol cache
-            SymbolicData.__init__(self)
-            return
-        else:
+        if not self._cached():
             self.name = kwargs.get('name')
             self.ndim = kwargs.get('ndim')
             self.npoint = kwargs.get('npoint')
@@ -401,8 +379,6 @@ class CoordinateData(SymbolicData):
             self.dtype = kwargs.get('dtype', np.float32)
             self.data = aligned(np.zeros(self.shape, self.dtype,
                                          order='C'), alignment=64)
-            # Store final instance in symbol cache
-            self._cache_put(self)
 
     def __new__(cls, *args, **kwargs):
         ndim = kwargs.get('ndim')
@@ -441,11 +417,7 @@ class PointData(DenseData):
     """
 
     def __init__(self, *args, **kwargs):
-        if self._cached():
-            # Initialise instance from symbol cache
-            SymbolicData.__init__(self)
-            return
-        else:
+        if not self._cached():
             self.nt = kwargs.get('nt')
             self.npoint = kwargs.get('npoint')
             ndim = kwargs.get('ndim')
@@ -456,8 +428,6 @@ class PointData(DenseData):
                                               data=coordinates, ndim=ndim,
                                               nt=self.nt, npoint=self.npoint)
             self.coordinates.data[:] = kwargs.get('coordinates')[:]
-            # Store final instance in symbol cache
-            self._cache_put(self)
 
     def __new__(cls, *args, **kwargs):
         nt = kwargs.get('nt')
