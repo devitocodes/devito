@@ -10,19 +10,16 @@ class Profiler(object):
     """
     TIME = 1
     FLOP = 2
-    OI = 3
 
     def __init__(self):
         self.t_name = "timings"
         self.o_name = "oi"
         self.f_name = "flops"
         self.t_fields = []
-        # no need for OI fields since they are the same as time fields
         self.f_fields = []
+        self.oi = {}
         self._timings = None
-        self._oi = None
         self._flops = None
-        self.oi_defaults = {}
         self.flops_defaults = {}
 
     def add_profiling(self, code, name, byte_size=4, omp_flag=None):
@@ -68,21 +65,21 @@ class Profiler(object):
         :param name: The name of the field to be populated
         :param code: The code to be profiled.
         """
-        if name not in self.oi_defaults:
-            self.oi_defaults[name] = 0
+        if name not in self.oi:
+            self.oi[name] = 0
         if name not in self.flops_defaults:
             self.flops_defaults[name] = 0
 
         for elem in code:
             if isinstance(elem, Assign):
                 assign_oi, assign_flops = self._get_assign_oi(elem, size)
-                self.oi_defaults[name] += assign_oi
+                self.oi[name] += assign_oi
                 self.flops_defaults[name] += assign_flops
             elif isinstance(elem, For):
                 self._get_for_oi_and_flops(name, elem, size)
             elif isinstance(elem, Block):
                 block_oi, block_flops = self._get_block_oi_and_flops(name, elem, size)
-                self.oi_defaults[name] += block_oi
+                self.oi[name] += block_oi
                 self.flops_defaults[name] += block_flops
 
     def _get_for_oi_and_flops(self, name, loop, size):
@@ -96,10 +93,10 @@ class Profiler(object):
         elif isinstance(loop.body, For):
             self._get_for_oi_and_flops(name, loop.body, size)
 
-        oi_calc_stmt = Statement("%s->%s += %f" % (self.o_name, name, loop_oi))
+        self.oi[name] += loop_oi
         flops_calc_stmt = Statement("%s->%s += %f" % (self.f_name, name, loop_flops))
 
-        loop.body = Block([oi_calc_stmt, flops_calc_stmt, loop.body])
+        loop.body = Block([flops_calc_stmt, loop.body])
 
     def _get_block_oi_and_flops(self, name, block, size):
         block_oi = float(0)
@@ -124,6 +121,7 @@ class Profiler(object):
         cur_load = ""
 
         idx = 0
+        brackets = 0
         while idx < len(assign.rvalue):
             char = assign.rvalue[idx]
             if len(cur_load) == 0:
@@ -133,11 +131,23 @@ class Profiler(object):
                     cur_load += char
                 idx += 1
             else:
-                if char is ']' and idx == len(assign.rvalue) - 1:
+                if char is '[':
                     cur_load += char
-                if cur_load[-1] is ']' and char is not '[':
+                    brackets += 1
+                    idx += 1
+                elif char is ' ' and brackets == 0:
+                    cur_load += char
                     loads[cur_load] = True
                     cur_load = ""
+                    idx += 1
+                elif char is ']' and idx == len(assign.rvalue) - 1:
+                    cur_load += char
+                    loads[cur_load] = True
+                    idx += 1
+                elif cur_load[-1] is ']' and char is not '[':
+                    loads[cur_load] = True
+                    cur_load = ""
+                    brackets = 0
                 else:
                     cur_load += char
                     idx += 1
@@ -154,10 +164,7 @@ class Profiler(object):
 
         :returns: A class definition
         """
-        if choice == Profiler.OI:
-            name = "Ois"
-            fields = self.t_fields
-        elif choice == Profiler.TIME:
+        if choice == Profiler.TIME:
             name = "Timings"
             fields = self.t_fields
         elif choice == Profiler.FLOP:
@@ -176,7 +183,7 @@ class Profiler(object):
         fields = []
         s_name = None
 
-        if choice == Profiler.TIME or choice == Profiler.OI:
+        if choice == Profiler.TIME:
             s_name = "profiler"
             for name, _ in self.t_fields:
                 fields.append(Value("double", name))
@@ -199,9 +206,7 @@ class Profiler(object):
         """
         struct = self.get_class(choice)()
 
-        if choice == Profiler.OI:
-            self._oi = struct
-        elif choice == Profiler.TIME:
+        if choice == Profiler.TIME:
             self._timings = struct
         elif choice == Profiler.FLOP:
             self._flops = struct
@@ -219,18 +224,6 @@ class Profiler(object):
 
         return dict((field, getattr(self._timings, field))
                     for field, _ in self._timings._fields_)
-
-    @property
-    def oi(self):
-        """Returns the operation intensities as a dictionary
-
-        :returns: A dictionary containing the OIs
-        """
-        if not self._oi:
-            return {}
-
-        return dict((field, getattr(self._oi, field))
-                    for field, _ in self._oi._fields_)
 
     @property
     def gflops(self):
