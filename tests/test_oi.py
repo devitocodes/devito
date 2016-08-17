@@ -17,23 +17,22 @@ class Test_OI_Calculation(object):
         dtype = np.float32
         i1, i2 = symbols('i1 i2')
         data = np.arange(50, dtype=np.float32).reshape((10, 5))
+        arr = np.empty_like(data)
         v1 = IndexedBase('v1')
         v2 = IndexedBase('v2')
         v3 = IndexedBase('v3')
         eq = Eq(v1[i2, i1], 3*v2[i2, i1] + 2*v3[i2, i1])
 
-        propagator = Propagator("process", 10, (5,), 0)
+        propagator = Propagator("process", 10, (5,), 0, profile=True)
         propagator.stencils = (eq,)
         propagator.add_param("v1", data.shape, data.dtype)
         propagator.add_param("v2", data.shape, data.dtype)
         propagator.add_param("v3", data.shape, data.dtype)
-        f = propagator.cfunction
+        propagator.run([data, data, arr])
 
-        propagator_oi = propagator.get_kernel_oi(dtype)
+        propagator_oi = propagator.oi["kernel"]
         hand_oi = (mul+add)/((load+store)*np.dtype(dtype).itemsize)
 
-        arr = np.empty_like(data)
-        f(data, data, arr)
         assert(propagator_oi == hand_oi)
 
     def test_oi_2(self):
@@ -47,25 +46,24 @@ class Test_OI_Calculation(object):
         dtype = np.float32
         i1, i2 = symbols('i1 i2')
         data = np.arange(50, dtype=np.float32).reshape((10, 5))
+        arr = np.empty_like(data)
         v1 = IndexedBase('v1')
         v2 = IndexedBase('v2')
         v3 = IndexedBase('v3')
         v4 = IndexedBase('v4')
         eq = Eq(v1[i2, i1], (v1[i2, i1] - 1.1*v2[i2, i1])/(0.7*v4[i2, i1] + v3[i2, i1]))
 
-        propagator = Propagator("process", 10, (5,), 0)
+        propagator = Propagator("process", 10, (5,), 0, profile=True)
         propagator.stencils = (eq, )
         propagator.add_param("v1", data.shape, data.dtype)
         propagator.add_param("v2", data.shape, data.dtype)
         propagator.add_param("v3", data.shape, data.dtype)
         propagator.add_param("v4", data.shape, data.dtype)
-        f = propagator.cfunction
+        propagator.run([data, data, data, arr])
 
-        propagator_oi = propagator.get_kernel_oi(dtype)
+        propagator_oi = propagator.oi["kernel"]
         hand_oi = (mul+add)/((load+store)*np.dtype(dtype).itemsize)
 
-        arr = np.empty_like(data)
-        f(data, data, data, arr)
         assert(propagator_oi == hand_oi)
 
     def test_oi_3(self):
@@ -83,6 +81,7 @@ class Test_OI_Calculation(object):
         dtype = np.float32
         i1, i2 = symbols('i1 i2')
         data = np.arange(100, dtype=np.float32).reshape((10, 10))
+        arr = np.empty_like(data)
         v1 = IndexedBase('v1')
         v2 = IndexedBase('v2')
         v3 = IndexedBase('v3')
@@ -91,17 +90,15 @@ class Test_OI_Calculation(object):
                 / ((0.7*v4[i2, i1] - 0.333*v4[i2, i1-1] - 0.15*v4[i2, i1-2])
                    + v3[i2, i1] + v3[i2, i1-1] / 2 + v3[i2, i1-2] / 4))
 
-        propagator = Propagator("process", 10, (10,), 2)
+        propagator = Propagator("process", 10, (10,), 2, profile=True)
         propagator.stencils = (eq, )
         propagator.add_param("v1", data.shape, data.dtype)
         propagator.add_param("v2", data.shape, data.dtype)
         propagator.add_param("v3", data.shape, data.dtype)
         propagator.add_param("v4", data.shape, data.dtype)
-        f = propagator.cfunction
+        propagator.run([data, data, data, arr])
 
-        propagator_oi = propagator.get_kernel_oi(dtype)
+        propagator_oi = propagator.oi["kernel"]
         hand_oi = (mul+add)/((load+store)*np.dtype(dtype).itemsize)
 
-        arr = np.empty_like(data)
-        f(data, data, data, arr)
         assert(propagator_oi == hand_oi)
