@@ -146,8 +146,8 @@ class DenseData(SymbolicData):
 
     @property
     def indexed(self):
-        """:return: Base symbol as sympy.IndexedBase"""
-        return IndexedBase(self.name, shape=self.shape)
+        """:return: Base symbol as devito.IndexedData"""
+        return IndexedData(self.name, shape=self.shape, function=self)
 
     def indexify(self):
         """Convert base symbol and dimensions to indexed data accesses
@@ -414,8 +414,8 @@ class CoordinateData(SymbolicData):
 
     @property
     def indexed(self):
-        """:return: Base symbol as sympy.IndexedBase"""
-        return IndexedBase(self.name, shape=self.shape)
+        """:return: Base symbol as devito.IndexedData"""
+        return IndexedData(self.name, shape=self.shape, function=self)
 
 
 class PointData(DenseData):
@@ -468,3 +468,11 @@ class PointData(DenseData):
         _indices = [t, x, y, z]
 
         return _indices[:len(shape) + 1]
+
+
+class IndexedData(IndexedBase):
+    """Wrapper class that inserts a pointer to the symbolic data object"""
+    def __new__(self, name, shape, function):
+        indexed = IndexedBase(name, shape=shape)
+        indexed.function = function
+        return indexed
