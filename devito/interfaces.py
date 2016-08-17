@@ -17,7 +17,34 @@ __all__ = ['DenseData', 'TimeData', 'PointData']
 _SymbolCache = {}
 
 
-class SymbolicData(Function):
+class CachedSymbol(object):
+    """Base class for symbolic objects that caches on the class type."""
+
+    @classmethod
+    def _cached(cls):
+        """Test if current class is already in the symbol cache."""
+        return cls in _SymbolCache
+
+    @classmethod
+    def _cache_put(cls, obj):
+        """Store given object instance in symbol cache.
+
+        :param obj: Object to be cached.
+        """
+        _SymbolCache[cls] = weakref.ref(obj)
+
+    @classmethod
+    def _symbol_type(cls, name):
+        """Create new type instance from cls and inject symbol name"""
+        return type(name, (cls, ), dict(cls.__dict__))
+
+    def _cached_init(self):
+        """Initialise symbolic object with a cached object state"""
+        original = _SymbolCache[self.__class__]
+        self.__dict__ = original().__dict__.copy()
+
+
+class SymbolicData(Function, CachedSymbol):
     """Base class for data classes that provides symbolic behaviour.
 
     :param name: Symbolic name to give to the resulting function. Must
@@ -51,38 +78,19 @@ class SymbolicData(Function):
         if cls not in _SymbolCache:
             name = kwargs.get('name')
             shape = kwargs.get('shape')
-
             if len(args) < 1:
                 args = cls.indices(shape)
 
-            # Create a new type instance from cls and inject name
-            newcls = type(name, (cls, ), dict(cls.__dict__))
-
             # Create the new Function object and invoke __init__
+            newcls = cls._symbol_type(name)
             newobj = Function.__new__(newcls, *args)
             newobj.__init__(*args, **kwargs)
-
             return newobj
 
         return Function.__new__(cls, *args)
 
     def __init__(self):
-        """Initialise from a cached instance by shallow copying __dict__."""
-        original = _SymbolCache[self.__class__]
-        self.__dict__ = original().__dict__.copy()
-
-    @classmethod
-    def _cached(cls):
-        """Test if current class is already in the symbol cache."""
-        return cls in _SymbolCache
-
-    @classmethod
-    def _cache_put(cls, obj):
-        """Store given object instance in symbol cache.
-
-        :param obj: Object to be cached.
-        """
-        _SymbolCache[cls] = weakref.ref(obj)
+        self._cached_init()
 
     @classmethod
     def indices(cls, shape):
