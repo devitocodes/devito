@@ -117,14 +117,12 @@ class Propagator(object):
     def run(self, args):
         if self.profile:
             self.fd.add_struct_param(self.profiler.t_name, "profiler")
-            self.fd.add_struct_param(self.profiler.o_name, "profiler")
             self.fd.add_struct_param(self.profiler.f_name, "flops")
 
         f = self.cfunction
 
         if self.profile:
             args.append(self.profiler.as_ctypes_pointer(Profiler.TIME))
-            args.append(self.profiler.as_ctypes_pointer(Profiler.OI))
             args.append(self.profiler.as_ctypes_pointer(Profiler.FLOP))
 
         if isinstance(self.compiler, IntelMICCompiler):
