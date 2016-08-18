@@ -12,6 +12,7 @@ from codeprinter import ccode
 from devito.compiler import (IntelMICCompiler, get_compiler_from_env,
                              get_tmp_dir, jit_compile_and_load)
 from devito.dimension import t, x, y, z
+from devito.expression import Expression
 from devito.function_manager import FunctionDescriptor, FunctionManager
 from devito.iteration import Iteration
 from devito.logger import logger
@@ -787,8 +788,8 @@ class Propagator(object):
 
         # For Iteration objects we apply time subs to the stencil list
         if isinstance(sympy_expr, Iteration):
-            sympy_expr.stencils = [self.time_substitutions(s)
-                                   for s in sympy_expr.stencils]
+            sympy_expr.expressions = [Expression(self.time_substitutions(s.stencil))
+                                      for s in sympy_expr.expressions]
             return sympy_expr
 
         for arg in postorder_traversal(sympy_expr):
