@@ -8,7 +8,7 @@
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
-  <title>Overview: module code &mdash; Devito 1 documentation</title>
+  <title>devito &mdash; Devito 1 documentation</title>
   
 
   
@@ -30,7 +30,8 @@
   
 
   
-    <link rel="top" title="Devito 1 documentation" href="../index.html"/> 
+    <link rel="top" title="Devito 1 documentation" href="../index.html"/>
+        <link rel="up" title="Module code" href="index.html"/> 
 
   
   <script src="../_static/js/modernizr.min.js"></script>
@@ -113,7 +114,9 @@
   <ul class="wy-breadcrumbs">
     <li><a href="../index.html">Docs</a> &raquo;</li>
       
-    <li>Overview: module code</li>
+          <li><a href="index.html">Module code</a> &raquo;</li>
+      
+    <li>devito</li>
       <li class="wy-breadcrumbs-aside">
         
           
@@ -125,20 +128,27 @@
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
            <div itemprop="articleBody">
             
-  <h1>All modules for which code is available</h1>
-<ul><li><a href="devito.html">devito</a></li>
-<ul><li><a href="devito/cgen_wrapper.html">devito.cgen_wrapper</a></li>
-<li><a href="devito/codeprinter.html">devito.codeprinter</a></li>
-<li><a href="devito/compiler.html">devito.compiler</a></li>
-<li><a href="devito/finite_difference.html">devito.finite_difference</a></li>
-<li><a href="devito/function_manager.html">devito.function_manager</a></li>
-<li><a href="devito/interfaces.html">devito.interfaces</a></li>
-<li><a href="devito/logger.html">devito.logger</a></li>
-<li><a href="devito/operator.html">devito.operator</a></li>
-<li><a href="devito/propagator.html">devito.propagator</a></li>
-<li><a href="devito/tools.html">devito.tools</a></li>
-</ul><li><a href="sympy/core/assumptions.html">sympy.core.assumptions</a></li>
-</ul>
+  <h1>Source code for devito</h1><div class="highlight"><pre>
+<span></span><span class="kn">from</span> <span class="nn">__future__</span> <span class="k">import</span> <span class="n">absolute_import</span>
+<span class="kn">import</span> <span class="nn">gc</span>
+
+<span class="kn">from</span> <span class="nn">sympy.core</span> <span class="k">import</span> <span class="n">cache</span>
+
+<span class="kn">from</span> <span class="nn">devito.interfaces</span> <span class="k">import</span> <span class="o">*</span>  <span class="c1"># noqa</span>
+<span class="kn">from</span> <span class="nn">devito.interfaces</span> <span class="k">import</span> <span class="n">_SymbolCache</span>
+<span class="kn">from</span> <span class="nn">devito.operator</span> <span class="k">import</span> <span class="o">*</span>  <span class="c1"># noqa</span>
+<span class="kn">from</span> <span class="nn">devito.finite_difference</span> <span class="k">import</span> <span class="o">*</span>  <span class="c1"># noqa</span>
+<span class="kn">from</span> <span class="nn">devito.iteration</span> <span class="k">import</span> <span class="o">*</span>  <span class="c1"># noqa</span>
+
+
+<div class="viewcode-block" id="clear_cache"><a class="viewcode-back" href="../devito.html#devito.clear_cache">[docs]</a><span class="k">def</span> <span class="nf">clear_cache</span><span class="p">():</span>
+    <span class="n">cache</span><span class="o">.</span><span class="n">clear_cache</span><span class="p">()</span>
+    <span class="n">gc</span><span class="o">.</span><span class="n">collect</span><span class="p">()</span>
+
+    <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">val</span> <span class="ow">in</span> <span class="n">_SymbolCache</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="k">if</span> <span class="n">val</span><span class="p">()</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">del</span> <span class="n">_SymbolCache</span><span class="p">[</span><span class="n">key</span><span class="p">]</span></div>
+</pre></div>
 
            </div>
           </div>

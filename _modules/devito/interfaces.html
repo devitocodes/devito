@@ -31,7 +31,7 @@
 
   
     <link rel="top" title="Devito 1 documentation" href="../../index.html"/>
-        <link rel="up" title="Module code" href="../index.html"/> 
+        <link rel="up" title="devito" href="../devito.html"/> 
 
   
   <script src="../../_static/js/modernizr.min.js"></script>
@@ -116,6 +116,8 @@
       
           <li><a href="../index.html">Module code</a> &raquo;</li>
       
+          <li><a href="../devito.html">devito</a> &raquo;</li>
+      
     <li>devito.interfaces</li>
       <li class="wy-breadcrumbs-aside">
         
@@ -132,6 +134,7 @@
 <span></span><span class="kn">import</span> <span class="nn">atexit</span>
 <span class="kn">import</span> <span class="nn">os</span>
 <span class="kn">import</span> <span class="nn">sys</span>
+<span class="kn">import</span> <span class="nn">weakref</span>
 <span class="kn">from</span> <span class="nn">signal</span> <span class="k">import</span> <span class="n">SIGABRT</span><span class="p">,</span> <span class="n">SIGINT</span><span class="p">,</span> <span class="n">SIGSEGV</span><span class="p">,</span> <span class="n">SIGTERM</span><span class="p">,</span> <span class="n">signal</span>
 <span class="kn">from</span> <span class="nn">tempfile</span> <span class="k">import</span> <span class="n">gettempdir</span>
 
@@ -203,7 +206,7 @@
     <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;Initialise from a cached instance by shallow copying __dict__.&quot;&quot;&quot;</span>
         <span class="n">original</span> <span class="o">=</span> <span class="n">_SymbolCache</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">__class__</span><span class="p">]</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">__dict__</span> <span class="o">=</span> <span class="n">original</span><span class="o">.</span><span class="n">__dict__</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">__dict__</span> <span class="o">=</span> <span class="n">original</span><span class="p">()</span><span class="o">.</span><span class="n">__dict__</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
 
     <span class="nd">@classmethod</span>
     <span class="k">def</span> <span class="nf">_cached</span><span class="p">(</span><span class="n">cls</span><span class="p">):</span>
@@ -216,7 +219,7 @@
 
 <span class="sd">        :param obj: Object to be cached.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="n">_SymbolCache</span><span class="p">[</span><span class="n">cls</span><span class="p">]</span> <span class="o">=</span> <span class="n">obj</span>
+        <span class="n">_SymbolCache</span><span class="p">[</span><span class="n">cls</span><span class="p">]</span> <span class="o">=</span> <span class="n">weakref</span><span class="o">.</span><span class="n">ref</span><span class="p">(</span><span class="n">obj</span><span class="p">)</span>
 
     <span class="nd">@classmethod</span>
     <span class="k">def</span> <span class="nf">indices</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">shape</span><span class="p">):</span>
