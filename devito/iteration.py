@@ -26,6 +26,11 @@ class Iteration(object):
         else:
             self.limits = (0, limits, 1)
 
+    def __repr__(self):
+        str_stencils = "\n\t".join([str(s) for s in self.stencils])
+        return "Iteration<%s; %s>::\n\t%s" % (self.variable, self.limits,
+                                              str_stencils)
+
     def substitute(self, substitutions):
         """Apply substitutions to loop stencils via sympy.subs()
 
