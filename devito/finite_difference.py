@@ -2,6 +2,7 @@ from __future__ import absolute_import
 
 from functools import reduce
 from operator import mul
+from devito.dimension import x, y
 
 from sympy import finite_diff_weights, symbols
 
@@ -24,8 +25,8 @@ fd_coefficients = {
 }
 
 
-# Default function and dimension symbol
-x, y, h = symbols('x y h')
+# Default spacing symbol
+h = symbols('h')
 
 
 def second_derivative(*args, **kwargs):

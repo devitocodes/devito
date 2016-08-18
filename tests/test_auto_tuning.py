@@ -3,9 +3,10 @@ from shutil import rmtree
 
 import numpy as np
 import pytest
-from sympy import Eq, symbols
+from sympy import Eq
 
 from devito.at_controller import AutoTuner
+from devito.dimension import t, x, y, z
 from devito.interfaces import DenseData
 from devito.operator import SimpleOperator
 
@@ -36,7 +37,7 @@ class Test_Auto_Tuning(object):
         input_grid = DenseData(name="input_grid", shape=shape, dtype=np.float64)
         input_grid.data[:] = np.arange(6250000, dtype=np.float64).reshape(shape)
         output_grid = DenseData(name="output_grid", shape=shape, dtype=np.float64)
-        indexes = symbols("t x y z")
+        indexes = (t, x, y, z)
         eq = Eq(output_grid.indexed[indexes],
                 output_grid.indexed[indexes] + input_grid.indexed[indexes] + 3)
 

@@ -1,10 +1,10 @@
 import numpy as np
 from sympy import (Add, Eq, Function, Indexed, IndexedBase, Symbol, cse,
                    lambdify, preorder_traversal, solve, symbols)
-from sympy.abc import t
 from sympy.utilities.iterables import numbered_symbols
 
 from devito.compiler import get_compiler_from_env
+from devito.dimension import t, x, y, z
 from devito.interfaces import SymbolicData, TimeData
 from devito.propagator import Propagator
 
@@ -199,7 +199,7 @@ class Operator(object):
             dimensions.update(set(expr_dimensions(eqn.rhs)))
 
         # Time dimension is fixed for now
-        time_dim = symbols("t")
+        time_dim = t
 
         # Derive space dimensions from expression
         self.space_dims = None
@@ -211,7 +211,7 @@ class Operator(object):
                 self.space_dims.remove(time_dim)
         else:
             # Default space dimension symbols
-            self.space_dims = symbols("x z" if len(shape) == 2 else "x y z")[:len(shape)]
+            self.space_dims = ((x, z) if len(shape) == 2 else (x, y, z))[:len(shape)]
 
         # Remove known dimensions from undefined symbols
         for d in dimensions:
@@ -323,7 +323,7 @@ class Operator(object):
         num_ind = []
 
         for ind in term.indices:
-            ind = ind.subs({symbols("t"): ti}).subs(tuple(zip(self.space_dims, indices)))
+            ind = ind.subs({t: ti}).subs(tuple(zip(self.space_dims, indices)))
             num_ind.append(ind)
 
         return (arr, tuple(num_ind))
@@ -365,8 +365,8 @@ class Operator(object):
                 arr_lhs, ind_lhs = self.symbol_to_var(expr.lhs, ti)
                 args = []
 
-                for x in subs:
-                    arr, ind = self.symbol_to_var(x, ti)
+                for sub in subs:
+                    arr, ind = self.symbol_to_var(sub, ti)
                     args.append(arr[ind])
 
                 arr_lhs[ind_lhs] = lamda(*args)
