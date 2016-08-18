@@ -9,6 +9,7 @@ from devito.operator import *  # noqa
 from devito.finite_difference import *  # noqa
 from devito.iteration import *  # noqa
 from devito.dimension import *  # noqa
+from devito.expression import *  # noqa
 
 
 def clear_cache():
