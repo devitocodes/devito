@@ -6,6 +6,7 @@ from sympy.abc import h, p, s
 from devito.dimension import t, x, y, z
 
 from devito.finite_difference import cross_derivative, first_derivative
+from devito.logger import error
 from devito.memmap_manager import MemmapManager
 from tools import aligned
 
@@ -77,7 +78,7 @@ class SymbolicData(Function, CachedSymbol):
         else:
             name = kwargs.get('name')
             if len(args) < 1:
-                args = cls.indices(**kwargs)
+                args = cls._indices(**kwargs)
 
             # Create the new Function object and invoke __init__
             newcls = cls._symbol_type(name)
@@ -88,7 +89,7 @@ class SymbolicData(Function, CachedSymbol):
         return newobj
 
     @classmethod
-    def indices(cls, **kwargs):
+    def _indices(cls, **kwargs):
         """Abstract class method to determine the default dimension indices.
 
         :param shape: Given shape of the data.
@@ -115,7 +116,11 @@ class DenseData(SymbolicData):
     def __init__(self, *args, **kwargs):
         if not self._cached():
             self.name = kwargs.get('name')
-            self.shape = kwargs.get('shape')
+            self.shape = kwargs.get('shape', None)
+            if self.shape is None:
+                dimensions = kwargs.get('dimensions')
+                self.shape = tuple([d.size for d in dimensions])
+            self.indices = self._indices(**kwargs)
             self.dtype = kwargs.get('dtype', np.float32)
             self.space_order = kwargs.get('space_order', 1)
             initializer = kwargs.get('initializer', None)
@@ -126,15 +131,27 @@ class DenseData(SymbolicData):
             MemmapManager.setup(self, *args, **kwargs)
 
     @classmethod
-    def indices(cls, **kwargs):
+    def _indices(cls, **kwargs):
         """Return the default dimension indices for a given data shape
 
-        :param shape: Shape of the spatial data
-        :return: Indices used for axis.
+
+        :param dimensions: Optional, list of :class:`Dimension`
+                           objects that defines data layout.
+        :param shape: Optional, shape of the spatial data to
+                      automatically infer dimension symbols.
+        :return: Dimension indices used for each axis.
         """
-        _indices = [x, y, z]
-        shape = kwargs.get('shape')
-        return _indices[:len(shape)]
+        dimensions = kwargs.get('dimensions', None)
+        if dimensions is None:
+            # Infer dimensions from default and data shape
+            if 'shape' not in kwargs:
+                error("Creating symbolic data objects requries either"
+                      "a 'shape' or 'dimensions' argument")
+                raise ValueError("Unknown symbol dimensions or shape")
+            _indices = [x, y, z]
+            shape = kwargs.get('shape')
+            dimensions = _indices[:len(shape)]
+        return dimensions
 
     @property
     def dim(self):
@@ -306,15 +323,22 @@ class TimeData(DenseData):
             self.initializer(self._full_data)
 
     @classmethod
-    def indices(cls, **kwargs):
+    def _indices(cls, **kwargs):
         """Return the default dimension indices for a given data shape
 
-        :param shape: Shape of the spatial data
-        :return: Indices used for axis.
+        :param dimensions: Optional, list of :class:`Dimension`
+                           objects that defines data layout.
+        :param shape: Optional, shape of the spatial data to
+                      automatically infer dimension symbols.
+        :return: Dimension indices used for each axis.
         """
-        _indices = [t, x, y, z]
-        shape = kwargs.get('shape')
-        return _indices[:len(shape) + 1]
+        dimensions = kwargs.get('dimensions', None)
+        if dimensions is None:
+            # Infer dimensions from default and data shape
+            _indices = [t, x, y, z]
+            shape = kwargs.get('shape')
+            dimensions = _indices[:len(shape) + 1]
+        return dimensions
 
     def _allocate_memory(self):
         """function to allocate memmory in terms of numpy ndarrays."""
@@ -376,6 +400,7 @@ class CoordinateData(SymbolicData):
             self.ndim = kwargs.get('ndim')
             self.npoint = kwargs.get('npoint')
             self.shape = (self.npoint, self.ndim)
+            self.indices = self._indices(**kwargs)
             self.dtype = kwargs.get('dtype', np.float32)
             self.data = aligned(np.zeros(self.shape, self.dtype,
                                          order='C'), alignment=64)
@@ -387,7 +412,7 @@ class CoordinateData(SymbolicData):
         return SymbolicData.__new__(cls, *args, **kwargs)
 
     @classmethod
-    def indices(cls, **kwargs):
+    def _indices(cls, **kwargs):
         """Return the default dimension indices for a given data shape
 
         :param shape: Shape of the spatial data
@@ -437,7 +462,7 @@ class PointData(DenseData):
         return DenseData.__new__(cls, *args, **kwargs)
 
     @classmethod
-    def indices(cls, **kwargs):
+    def _indices(cls, **kwargs):
         """Return the default dimension indices for a given data shape
 
         :param shape: Shape of the spatial data
