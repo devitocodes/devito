@@ -17,9 +17,9 @@ def expr_dimensions(expr):
 
     for e in preorder_traversal(expr):
         if isinstance(e, TimeData):
-            dimensions += e.indices(e.shape[1:])
+            dimensions += e.indices(shape=e.shape[1:])
         elif isinstance(e, SymbolicData):
-            dimensions += e.indices(e.shape)
+            dimensions += e.indices(shape=e.shape)
 
     return list(set(dimensions))
 
@@ -38,9 +38,9 @@ def expr_symbols(expr):
 
     for e in preorder_traversal(expr):
         if isinstance(e, TimeData):
-            defined.add(e.func(*e.indices(e.shape[1:])))
+            defined.add(e.func(*e.indices(shape=e.shape[1:])))
         elif isinstance(e, SymbolicData):
-            defined.add(e.func(*e.indices(e.shape)))
+            defined.add(e.func(*e.indices(shape=e.shape)))
         elif isinstance(e, Function):
             undefined.add(e)
         elif isinstance(e, Symbol):

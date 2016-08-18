@@ -75,9 +75,8 @@ class SymbolicData(Function, CachedSymbol):
             newobj._cached_init()
         else:
             name = kwargs.get('name')
-            shape = kwargs.get('shape')
             if len(args) < 1:
-                args = cls.indices(shape)
+                args = cls.indices(**kwargs)
 
             # Create the new Function object and invoke __init__
             newcls = cls._symbol_type(name)
@@ -88,7 +87,7 @@ class SymbolicData(Function, CachedSymbol):
         return newobj
 
     @classmethod
-    def indices(cls, shape):
+    def indices(cls, **kwargs):
         """Abstract class method to determine the default dimension indices.
 
         :param shape: Given shape of the data.
@@ -126,14 +125,14 @@ class DenseData(SymbolicData):
             MemmapManager.setup(self, *args, **kwargs)
 
     @classmethod
-    def indices(cls, shape):
+    def indices(cls, **kwargs):
         """Return the default dimension indices for a given data shape
 
         :param shape: Shape of the spatial data
         :return: Indices used for axis.
         """
         _indices = [x, y, z]
-
+        shape = kwargs.get('shape')
         return _indices[:len(shape)]
 
     @property
@@ -306,14 +305,14 @@ class TimeData(DenseData):
             self.initializer(self._full_data)
 
     @classmethod
-    def indices(cls, shape):
+    def indices(cls, **kwargs):
         """Return the default dimension indices for a given data shape
 
         :param shape: Shape of the spatial data
         :return: Indices used for axis.
         """
         _indices = [t, x, y, z]
-
+        shape = kwargs.get('shape')
         return _indices[:len(shape) + 1]
 
     def _allocate_memory(self):
@@ -387,7 +386,7 @@ class CoordinateData(SymbolicData):
         return SymbolicData.__new__(cls, *args, **kwargs)
 
     @classmethod
-    def indices(cls, shape):
+    def indices(cls, **kwargs):
         """Return the default dimension indices for a given data shape
 
         :param shape: Shape of the spatial data
@@ -437,14 +436,14 @@ class PointData(DenseData):
         return DenseData.__new__(cls, *args, **kwargs)
 
     @classmethod
-    def indices(cls, shape):
+    def indices(cls, **kwargs):
         """Return the default dimension indices for a given data shape
 
         :param shape: Shape of the spatial data
         :return: indices used for axis.
         """
         _indices = [t, x, y, z]
-
+        shape = kwargs.get('shape')
         return _indices[:len(shape) + 1]
 
 
