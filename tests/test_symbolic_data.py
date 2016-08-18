@@ -3,7 +3,8 @@ import pytest
 from sympy import Derivative, as_finite_diff, simplify
 from sympy.abc import h, t, x, y, z
 
-from devito import DenseData, TimeData
+from devito import DenseData, TimeData, clear_cache
+from devito.interfaces import _SymbolCache
 
 
 @pytest.fixture
@@ -60,3 +61,12 @@ def test_second_derivatives_space(derivative, dimension, order):
     s_expr = as_finite_diff(u.diff(dimension, dimension), indices)
     assert(simplify(expr - s_expr) == 0)  # Symbolic equality
     assert(expr == s_expr)  # Exact equailty
+
+
+def test_clear_cache(nx=1000, ny=1000):
+    for i in range(10):
+        clear_cache()
+
+        DenseData(name='u', shape=(nx, ny), dtype=np.float64, space_order=2)
+
+        assert(len(_SymbolCache) == 1)
