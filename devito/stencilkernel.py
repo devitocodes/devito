@@ -2,7 +2,11 @@ from itertools import chain
 from devito.iteration import Iteration
 from devito.expression import Expression
 from devito.tools import filter_ordered
+from devito.compiler import (get_tmp_dir, get_compiler_from_env,
+                             jit_compile_and_load)
 import cgen as c
+from os import path
+from hashlib import sha1
 
 __all__ = ['StencilKernel']
 
@@ -10,8 +14,12 @@ __all__ = ['StencilKernel']
 class StencilKernel(object):
     """Code generation class, alternative to Propagator"""
 
-    def __init__(self, stencils, name='Kernel'):
+    def __init__(self, stencils, name="Kernel", compiler=None):
+        # Default attributes required for compilation
         self.name = name
+        self.compiler = compiler or get_compiler_from_env()
+        self._lib = None
+        self._cfunction = None
 
         # Ensure we always deal with Expression lists
         stencils = stencils if isinstance(stencils, list) else [stencils]
@@ -63,3 +71,34 @@ class StencilKernel(object):
         body = [e.ccode for e in self.expressions]
         ret = [c.Statement("return 0")]
         return c.FunctionBody(header, c.Block(casts + body + ret))
+
+    @property
+    def basename(self):
+        """Generate the file basename path for auto-generated files
+
+        The basename is generated from the hash string of the kernel,
+        which is base on the final expressions and iteration symbols.
+
+        :returns: The basename path as a string
+        """
+        expr_string = "\n".join([str(e) for e in self.expressions])
+        hash_key = sha1(expr_string).hexdigest()
+
+        return path.join(get_tmp_dir(), hash_key)
+
+    @property
+    def cfunction(self):
+        """Returns the JIT-compiled C function as a ctypes.FuncPtr object
+
+        Note that this invokes the JIT compilation toolchain with the
+        compiler class derived in the constructor
+
+        :returns: The generated C function
+        """
+        if self._lib is None:
+            self._lib = jit_compile_and_load(self.ccode, self.basename,
+                                             self.compiler)
+        if self._cfunction is None:
+            self._cfunction = getattr(self._lib, self.name)
+
+        return self._cfunction
