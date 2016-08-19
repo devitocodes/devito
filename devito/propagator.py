@@ -249,7 +249,7 @@ class Propagator(object):
                 cse_map[left]=right
             return cse_map
 
-        cse_temp_vars=[('testtt',self.dtype)]
+        cse_temp_vars={}
         csed=[]
         stmts=[]
         cse_this = []
@@ -296,10 +296,10 @@ class Propagator(object):
                 for i_index in list(right.indices):
                     for i_replacements,replacement in enumerate(list(zip(*cses[0])[0])): # list of rhs replacements
                         if(str(i_index) is str(replacement)):
+                            embed()
                             index_replace[i_index]=cses[0][i_replacements][1]
-                            if str(replacement) is 'x8': embed()
-                            if str(replacement) not in list(zip(*cse_temp_vars)[0]):
-                                cse_temp_vars.append((str(replacement),np.int32))
+                            if str(replacement) not in list(cse_temp_vars.keys()):
+                                cse_temp_vars[str(replacement)] = self.dtype
                             cse_map = cse_map_update()
                 cses[0][i]=(left,right.xreplace(index_replace))
                 for key in list(index_replace.keys()):
@@ -346,8 +346,8 @@ class Propagator(object):
                     for i_index in list(arg.indices):
                         for i_replacements,replacement in enumerate(list(zip(*cses[0])[0])): # list of rhs replacements
                             if(str(i_index) is str(replacement)):
-                                if str(replacement) not in list(zip(*cse_temp_vars)[0]):
-                                    cse_temp_vars.append((str(replacement), np.int32))
+                                if str(replacement) not in list(cse_temp_vars.keys()):
+                                    cse_temp_vars[str(replacement)] = 'int '
                     try:
                         ccode(arg)
                     except:
@@ -360,10 +360,15 @@ class Propagator(object):
             left, right = item
 #            if isinstance(left, Indexed) or isinstance(left, IndexedBase):
 #                self.add_param(str(left), shape=left.shape, dtype=self.dtype, save=True)
-            eq_t =Eq(left.xreplace(self.t_replace).xreplace(self._var_map),right.xreplace(cse_bad).xreplace(self.t_replace).xreplace(self._var_map))
-            if str(left) not in list(zip(*cse_temp_vars)[0]):
-                cse_temp_vars.append((str(left), self.dtype))
-            stmts.append(cgen.Assign(ccode(eq_t.lhs), ccode(eq_t.rhs)))
+            if str(left) not in list(cse_temp_vars.keys()):
+                if self.dtype is np.float32: cse_temp_vars[str(left)] = 'float '
+                if self.dtype is np.float64: cse_temp_vars[str(left)] = 'double '
+
+            eq_t_lhs = left.xreplace(self.t_replace).xreplace(self._var_map)
+            eq_t_rhs =right.xreplace(cse_bad).xreplace(self.t_replace).xreplace(self._var_map)
+            eq_t =Eq(eq_t_lhs,eq_t_rhs)
+
+            stmts.append(cgen.Assign(cse_temp_vars[str(eq_t_lhs)] + ccode(eq_t_lhs), ccode(eq_t_rhs)))
             csed.append(eq_t)
 
         for idx,term in enumerate(cses[1]): # go through a list of new kernels
@@ -371,12 +376,11 @@ class Propagator(object):
             stmts.append(cgen.Assign(ccode(eq_t.lhs), ccode(eq_t.rhs)))
             csed.append(eq_t)
 
-
-        for item in cse_temp_vars:
-            left, right=item
-            #print '%s %s \n' % (left,right)
-            self.add_local_var(left, right)
-        #return csed
+#        for item in cse_temp_vars:
+#            left, right=item
+#            #print '%s %s \n' % (left,right)
+#            #self.add_local_var(left, right)
+#        #return csed
         return stmts
 
     def sympy_to_cgen(self, stencils):
