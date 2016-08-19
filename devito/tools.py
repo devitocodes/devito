@@ -10,6 +10,12 @@ def flatten(l):
     return [item for sublist in l for item in sublist]
 
 
+def filter_ordered(elements):
+    """Filter elements in a list while preserving order"""
+    seen = set()
+    return [e for e in elements if not (e in seen or seen.add(e))]
+
+
 def convert_dtype_to_ctype(dtype):
     """Maps numpy types to C types.
 

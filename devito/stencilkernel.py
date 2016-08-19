@@ -1,5 +1,7 @@
+from itertools import chain
 from devito.iteration import Iteration
 from devito.expression import Expression
+from devito.tools import filter_ordered
 import cgen
 
 __all__ = ['StencilKernel']
@@ -28,6 +30,15 @@ class StencilKernel(object):
     def apply(self, *args, **kwargs):
         """Apply defined stenicl kernel to a set of data objects"""
         raise NotImplementedError("StencilKernel - Codegen and apply() missing")
+
+    @property
+    def signature(self):
+        """List of data objects that define the kernel signature
+
+        :returns: List of unique data objects required by the kernel
+        """
+        signatures = [e.signature for e in self.expressions]
+        return filter_ordered(chain(*signatures))
 
     @property
     def ccode(self):

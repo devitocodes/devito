@@ -1,5 +1,6 @@
 from sympy import Eq, preorder_traversal, IndexedBase
 from devito.codeprinter import ccode
+from devito.tools import filter_ordered
 import cgen as c
 
 __all__ = ['Expression']
@@ -12,15 +13,16 @@ class Expression(object):
         assert isinstance(stencil, Eq)
         self.stencil = stencil
 
-        # Traverse stencil to determine dimensions
         self.dimensions = []
-        for e in preorder_traversal(self.stencil.lhs):
+        self.functions = []
+        # Traverse stencil to determine meta information
+        for e in preorder_traversal(self.stencil):
             if isinstance(e, IndexedBase):
                 self.dimensions += list(e.function.indices)
-        # Filter collected dimensions while preserving order
-        seen = set()
-        self.dimensions = [d for d in self.dimensions
-                           if not (d in seen or seen.add(d))]
+                self.functions += [e.function]
+        # Filter collected dimensions and functions
+        self.dimensions = filter_ordered(self.dimensions)
+        self.functions = filter_ordered(self.functions)
 
     def __repr__(self):
         return "Expression<%s = %s>" % (self.stencil.lhs, self.stencil.rhs)
@@ -36,3 +38,11 @@ class Expression(object):
     @property
     def ccode(self):
         return c.Assign(ccode(self.stencil.lhs), ccode(self.stencil.rhs))
+
+    @property
+    def signature(self):
+        """List of data objects used by the expression
+
+        :returns: List of unique data objects required by the expression
+        """
+        return self.functions

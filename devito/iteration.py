@@ -1,5 +1,8 @@
 from collections import Iterable
+
+from itertools import chain
 from devito.expression import Expression
+from devito.tools import filter_ordered
 
 import cgen
 
@@ -60,3 +63,12 @@ class Iteration(Expression):
             loop_inc = '%s %s %s' % (self.variable, '+=' if forward else '-=',
                                      self.limits[2])
         return cgen.For(loop_init, loop_cond, loop_inc, loop_body)
+
+    @property
+    def signature(self):
+        """List of data objects used by the loop and it's body
+
+        :returns: List of unique data objects required by the loop
+        """
+        signatures = [e.signature for e in self.expressions]
+        return filter_ordered(chain(*signatures))
