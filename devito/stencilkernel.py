@@ -1,10 +1,13 @@
 from itertools import chain
+from devito.interfaces import SymbolicData
 from devito.iteration import Iteration
 from devito.expression import Expression
 from devito.tools import filter_ordered
 from devito.compiler import (get_tmp_dir, get_compiler_from_env,
                              jit_compile_and_load)
+from devito.logger import error
 import cgen as c
+import numpy as np
 from os import path
 from hashlib import sha1
 
@@ -38,8 +41,20 @@ class StencilKernel(object):
         self.apply(*args, **kwargs)
 
     def apply(self, *args, **kwargs):
-        """Apply defined stenicl kernel to a set of data objects"""
-        raise NotImplementedError("StencilKernel - Codegen and apply() missing")
+        """Apply defined stencil kernel to a set of data objects"""
+        if len(args) <= 0:
+            args = self.signature
+        args = [a.data if isinstance(a, SymbolicData) else a for a in args]
+        # Check shape of argument data
+        for arg, v in zip(args, self.signature):
+            if not isinstance(arg, np.ndarray):
+                raise TypeError('No array data found for argument %s' % v.name)
+            if arg.shape != v.shape:
+                error('Expected argument %s with shape %s, but got shape %s'
+                      % (v.name, v.shape, arg))
+                raise ValueError('Argument with wrong shape')
+        # Invoke kernel function with args
+        self.cfunction(*args)
 
     @property
     def signature(self):
@@ -100,5 +115,15 @@ class StencilKernel(object):
                                              self.compiler)
         if self._cfunction is None:
             self._cfunction = getattr(self._lib, self.name)
+            self._cfunction.argtypes = self.argtypes
 
         return self._cfunction
+
+    @property
+    def argtypes(self):
+        """Create argument types for defining function signatures via ctypes
+
+        :returns: A list of ctypes of the matrix parameters and scalar parameters
+        """
+        return [np.ctypeslib.ndpointer(dtype=v.dtype, flags='C')
+                for v in self.signature]
