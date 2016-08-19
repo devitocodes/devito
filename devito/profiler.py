@@ -152,12 +152,12 @@ class Profiler(object):
                     cur_load += char
                 idx += 1
             else:
-                if char is '[':
+                if char is '[' or char is ']':
                     loads[cur_load] = True
                     cur_load = ""
-                    brackets += 1
+                    brackets += 1 if char is '[' else -1
                     idx += 1
-                elif char is ' ' and brackets == 0 and len(cur_load) > 0:
+                elif char is ' ' and brackets == 0:
                     loads[cur_load] = True
                     cur_load = ""
                     idx += 1
