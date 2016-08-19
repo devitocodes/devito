@@ -6,7 +6,7 @@ import cgen
 __all__ = ['Iteration']
 
 
-class Iteration(object):
+class Iteration(Expression):
     """Iteration object that encapsualtes a single loop over sympy expressions.
 
     :param expressions: Single or list of SymPy expressions or :class:`Expression`

@@ -10,6 +10,7 @@ from devito.finite_difference import *  # noqa
 from devito.iteration import *  # noqa
 from devito.dimension import *  # noqa
 from devito.expression import *  # noqa
+from devito.stencilkernel import *  # noqa
 
 
 def clear_cache():
