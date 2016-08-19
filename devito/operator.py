@@ -88,7 +88,6 @@ class Operator(object):
                       a list stating block sizes for each dimension. Set block size to None to skip blocking on that dim
     :param input_params: List of symbols that are expected as input.
     :param output_params: List of symbols that define operator output.
-    :param factorized: A map given by {string_name:sympy_object} for including factorized terms
     """
 
     _ENV_VAR_OPENMP = "DEVITO_OPENMP"
@@ -97,7 +96,7 @@ class Operator(object):
                  substitutions=[], spc_border=0, time_order=0,
                  forward=True, compiler=None, profile=False,
                  cache_blocking=False, block_size=5,
-                 input_params=None, output_params=None, factorized={}):
+                 input_params=None, output_params=None):
         # Derive JIT compilation infrastructure
         self.compiler = compiler or get_compiler_from_env()
 
@@ -159,12 +158,10 @@ class Operator(object):
         self.stencils = [Eq(expr_indexify(eqn.lhs), expr_indexify(eqn.rhs))
                          for eqn in self.stencils]
 
-        for name, value in factorized.items():
-            factorized[name] = expr_indexify(value)
 
         # Apply user-defined substitutions to stencil
         self.stencils = [eqn.subs(args) for eqn, args in zip(self.stencils, substitutions)]
-        self.propagator = Propagator(self.getName(), nt, shape, self.stencils, factorized=factorized, dtype=dtype,
+        self.propagator = Propagator(self.getName(), nt, shape, self.stencils,  dtype=dtype,
                                      spc_border=spc_border, time_order=time_order, forward=forward,
                                      space_dims=self.space_dims, compiler=self.compiler, profile=profile,
                                      cache_blocking=cache_blocking, block_size=block_size)
@@ -177,12 +174,6 @@ class Operator(object):
             self.propagator.add_devito_param(param)
             self.symbol_to_data[param.name] = param
         self.propagator.stencils = self.stencils
-        self.propagator.factorized = factorized
-        for name, val in factorized.items():
-            if forward:
-                self.propagator.factorized[name] = expr_indexify(val.subs(t, t - 1)).subs(substitutions[1])
-            else:
-                self.propagator.factorized[name] = expr_indexify(val.subs(t, t + 1)).subs(substitutions[1])
 
     @property
     def signature(self):
