@@ -1,10 +1,10 @@
 from collections import Iterable
-
 from itertools import chain
-from devito.expression import Expression
-from devito.tools import filter_ordered
 
 import cgen
+
+from devito.expression import Expression
+from devito.tools import filter_ordered
 
 __all__ = ['Iteration']
 

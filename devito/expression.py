@@ -1,7 +1,8 @@
-from sympy import Eq, preorder_traversal, IndexedBase
+import cgen as c
+from sympy import Eq, IndexedBase, preorder_traversal
+
 from devito.codeprinter import ccode
 from devito.tools import filter_ordered
-import cgen as c
 
 __all__ = ['Expression']
 

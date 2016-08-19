@@ -1,6 +1,7 @@
-import pytest
 import numpy as np
+import pytest
 from sympy import Eq  # noqa
+
 from devito import DenseData, Dimension, StencilKernel
 
 

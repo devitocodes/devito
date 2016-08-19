@@ -3,8 +3,8 @@ import weakref
 import numpy as np
 from sympy import Function, IndexedBase, as_finite_diff
 from sympy.abc import h, p, s
-from devito.dimension import t, x, y, z
 
+from devito.dimension import t, x, y, z
 from devito.finite_difference import cross_derivative, first_derivative
 from devito.logger import error
 from devito.memmap_manager import MemmapManager

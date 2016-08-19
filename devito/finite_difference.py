@@ -2,9 +2,10 @@ from __future__ import absolute_import
 
 from functools import reduce
 from operator import mul
-from devito.dimension import x, y
 
 from sympy import finite_diff_weights, symbols
+
+from devito.dimension import x, y
 
 __all__ = ['second_derivative', 'cross_derivative']
 

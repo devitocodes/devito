@@ -2,9 +2,9 @@ import numpy as np
 import pytest
 from sympy import Eq
 
+from devito.dimension import t, x, y, z
 from devito.interfaces import DenseData
 from devito.operator import SimpleOperator
-from devito.dimension import t, x, y, z
 
 
 class Test_Cache_Blocking(object):

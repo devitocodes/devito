@@ -1,15 +1,17 @@
+from hashlib import sha1
 from itertools import chain
-from devito.interfaces import SymbolicData
-from devito.iteration import Iteration
-from devito.expression import Expression
-from devito.tools import filter_ordered
-from devito.compiler import (get_tmp_dir, get_compiler_from_env,
-                             jit_compile_and_load)
-from devito.logger import error
+from os import path
+
 import cgen as c
 import numpy as np
-from os import path
-from hashlib import sha1
+
+from devito.compiler import (get_compiler_from_env, get_tmp_dir,
+                             jit_compile_and_load)
+from devito.expression import Expression
+from devito.interfaces import SymbolicData
+from devito.iteration import Iteration
+from devito.logger import error
+from devito.tools import filter_ordered
 
 __all__ = ['StencilKernel']
 
