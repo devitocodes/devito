@@ -15,6 +15,7 @@ from devito.compiler import (IntelMICCompiler, get_compiler_from_env,
 from devito.function_manager import FunctionDescriptor, FunctionManager
 from devito.iteration import Iteration
 from devito.profiler import Profiler
+from tools import flatten
 
 
 class Propagator(object):
@@ -39,13 +40,12 @@ class Propagator(object):
     :param block_size: Block size used for cache clocking. Can be either a single number used for all dimensions or
                       a list stating block sizes for each dimension. Set block size to None to skip blocking on that dim
     """
-
     def __init__(self, name, nt, shape, stencils, factorized=None, spc_border=0, time_order=0,
                  time_dim=None, space_dims=None, dtype=np.float32, forward=True, compiler=None,
                  profile=False, cache_blocking=False, block_size=5):
         self.stencils = stencils
         self.dtype = dtype
-        self.factorized = factorized or []
+        self.factorized = factorized or {}
         self.time_order = time_order
 
         # Default time and space symbols if not provided
@@ -53,7 +53,7 @@ class Propagator(object):
         self.space_dims = space_dims or (x, z) if len(shape) == 2 else (x, y, z)[:len(shape)]
 
         # Internal flags and meta-data
-        self.loop_counters = symbols("i1 i2 i3 i4")
+        self.loop_counters = list(symbols("i1 i2 i3 i4"))
         self._pre_kernel_steps = []
         self._post_kernel_steps = []
         self._forward = forward
@@ -83,6 +83,7 @@ class Propagator(object):
         # Derive JIT compilation infrastructure
         self.compiler = compiler or get_compiler_from_env()
         self.mic_flag = isinstance(self.compiler, IntelMICCompiler)
+        self.sub_stencils = []
 
         # Settings for performance profiling
         self.profile = profile
@@ -279,11 +280,31 @@ class Propagator(object):
             return equality.ccode
         else:
             s_lhs = ccode(self.time_substitutions(equality.lhs).xreplace(self._var_map))
-            s_rhs = ccode(self.time_substitutions(equality.rhs).xreplace(self._var_map))
+            s_rhs = self.time_substitutions(equality.rhs).xreplace(self._var_map)
+
+            self.sub_stencils.append(s_rhs)  # appending substituted stencil,which is used to determine alignment pragma
+
+            s_rhs = ccode(s_rhs)
             if self.dtype is np.float32:
                 s_rhs = str(s_rhs).replace("pow", "powf")
                 s_rhs = str(s_rhs).replace("fabs", "fabsf")
             return cgen.Assign(s_lhs, s_rhs)
+
+    def get_aligned_pragma(self, stencils, factorized, loop_counters, time_steppers):
+        """
+        Sets the alignment for the pragma.
+        :param stencils: List of stencils.
+        :param factorized:  dict of factorized elements
+        :param loop_counters: list of loop counter symbols
+        :param time_steppers: list of time stepper symbols
+        """
+        array_names = set()
+        for item in flatten([stencil.free_symbols for stencil in stencils]):
+            if str(item) not in factorized and item not in loop_counters + time_steppers:
+                array_names.add(item)
+
+        return cgen.Pragma("%s(%s:64)" % (self.compiler.pragma_aligned,
+                                          ", ".join([str(i) for i in array_names])))
 
     def generate_loops(self, loop_body):
         """Assuming that the variable order defined in init (#var_order) is the
@@ -364,7 +385,7 @@ class Propagator(object):
         :param loop_body: Statement representing the loop body
         :returns: :list<cgen.For> a list of for loops
         """
-        ivdep = True
+        inner_most_dim = True
 
         for spc_var in reversed(list(self.space_dims)):
             dim_var = self._var_map[spc_var]
@@ -376,9 +397,8 @@ class Propagator(object):
                 loop_body
             )
 
-            if ivdep and len(self.space_dims) > 1:
-                loop_body = cgen.Block(self.compiler.pragma_ivdep + self.compiler.pragma_nontemporal + [loop_body])
-            ivdep = False
+            loop_body = self.add_inner_most_dim_pragma(inner_most_dim, self.space_dims, loop_body)
+            inner_most_dim = False
         return [loop_body]  # returns body as a list
 
     def generate_space_loops_blocking(self, loop_body):
@@ -405,8 +425,7 @@ class Propagator(object):
             loop_body = cgen.For(cgen.InlineInitializer(cgen.Value("int", orig_var), lower_limit_str),
                                  orig_var + "<" + upper_limit_str, orig_var + "++", loop_body)
 
-            if inner_most_dim and len(self.space_dims) > 1:
-                loop_body = cgen.Block(self.compiler.pragma_ivdep + self.compiler.pragma_nontemporal + [loop_body])
+            loop_body = self.add_inner_most_dim_pragma(inner_most_dim, self.space_dims, loop_body)
             inner_most_dim = False
 
         remainder_counter = 0  # indicates how many remainder loops we need
@@ -454,13 +473,27 @@ class Propagator(object):
                                           str(orig_var) + "<" + str(loop_limits[1]), str(orig_var) + "++",
                                           remainder_loop)
 
-                if inner_most_dim and len(self.space_dims) > 1:
-                    remainder_loop = cgen.Block(self.compiler.pragma_ivdep + [remainder_loop])
-
+                remainder_loop = self.add_inner_most_dim_pragma(inner_most_dim, self.space_dims, remainder_loop)
                 inner_most_dim = False
+
             full_remainder.append(remainder_loop)
 
         return [loop_body] + full_remainder if full_remainder else [loop_body]
+
+    def add_inner_most_dim_pragma(self, inner_most_dim, space_dims, loop_body):
+        """
+        Adds pragma to inner most dim
+        :param inner_most_dim: flag indicating whether its inner most dim
+        :param space_dims: space dimensions of kernel
+        :param loop_body: original loop body
+        :return: cgen.Block - loop body with pragma
+        """
+        if inner_most_dim and len(space_dims) > 1:
+            pragma = [self.get_aligned_pragma(self.sub_stencils, self.factorized,
+                                              self.loop_counters, self.time_steppers)] if self.compiler.openmp\
+                else self.compiler.pragma_ivdep + self.compiler.pragma_nontemporal
+            loop_body = cgen.Block(pragma + [loop_body])
+        return loop_body
 
     def _decide_weights(self, block_sizes, remainder_counter):
         """

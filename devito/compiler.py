@@ -52,7 +52,7 @@ class Compiler(GCCToolchain):
         self.openmp = openmp
         self.pragma_ivdep = [Pragma('ivdep')]
         self.pragma_nontemporal = []
-        self.pragma_aligned = []
+        self.pragma_aligned = "omp simd aligned"
 
     def __str__(self):
         return self.__class__.__name__

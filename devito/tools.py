@@ -3,6 +3,10 @@ import numpy as np
 from sympy import symbols
 
 
+def flatten(l):
+    return [item for sublist in l for item in sublist]
+
+
 def convert_dtype_to_ctype(dtype):
     """Maps numpy types to C types.
 
