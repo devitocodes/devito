@@ -1228,6 +1228,16 @@ a list stating block sizes for each dimension. Set block size to None to skip bl
 </dd></dl>
 
 <dl class="method">
+<dt id="devito.propagator.Propagator.add_inner_most_dim_pragma">
+<code class="descname">add_inner_most_dim_pragma</code><span class="sig-paren">(</span><em>inner_most_dim</em>, <em>space_dims</em>, <em>loop_body</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/propagator.html#Propagator.add_inner_most_dim_pragma"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.propagator.Propagator.add_inner_most_dim_pragma" title="Permalink to this definition">¶</a></dt>
+<dd><p>Adds pragma to inner most dim
+:param inner_most_dim: flag indicating whether its inner most dim
+:param space_dims: space dimensions of kernel
+:param loop_body: original loop body
+:return: cgen.Block - loop body with pragma</p>
+</dd></dl>
+
+<dl class="method">
 <dt id="devito.propagator.Propagator.add_local_var">
 <code class="descname">add_local_var</code><span class="sig-paren">(</span><em>name</em>, <em>dtype</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/propagator.html#Propagator.add_local_var"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.propagator.Propagator.add_local_var" title="Permalink to this definition">¶</a></dt>
 <dd><p>Add a local scalar parameter</p>
@@ -1412,6 +1422,16 @@ Therefore reverse the list of dimensions, making the last variable in
 </dd></dl>
 
 <dl class="method">
+<dt id="devito.propagator.Propagator.get_aligned_pragma">
+<code class="descname">get_aligned_pragma</code><span class="sig-paren">(</span><em>stencils</em>, <em>factorized</em>, <em>loop_counters</em>, <em>time_steppers</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/propagator.html#Propagator.get_aligned_pragma"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.propagator.Propagator.get_aligned_pragma" title="Permalink to this definition">¶</a></dt>
+<dd><p>Sets the alignment for the pragma.
+:param stencils: List of stencils.
+:param factorized:  dict of factorized elements
+:param loop_counters: list of loop counter symbols
+:param time_steppers: list of time stepper symbols</p>
+</dd></dl>
+
+<dl class="method">
 <dt id="devito.propagator.Propagator.get_fd">
 <code class="descname">get_fd</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/propagator.html#Propagator.get_fd"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.propagator.Propagator.get_fd" title="Permalink to this definition">¶</a></dt>
 <dd><p>Get a FunctionDescriptor that describes the code represented by this Propagator
@@ -1571,6 +1591,11 @@ but only for variables which are not being saved in the time domain
 </tbody>
 </table>
 </dd></dl>
+
+<dl class="function">
+<dt id="devito.tools.flatten">
+<code class="descclassname">devito.tools.</code><code class="descname">flatten</code><span class="sig-paren">(</span><em>l</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/tools.html#flatten"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.tools.flatten" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
 
 <dl class="function">
 <dt id="devito.tools.sympy_find">
