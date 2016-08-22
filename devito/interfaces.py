@@ -93,9 +93,11 @@ class SymbolicData(Function):
         """Abstract class method to determine the default dimension indices.
 
         :param shape: Given shape of the data.
-        :raises NotImplementedError: 'Abstract class `SymbolicData` does not have default indices'.
+        :raises NotImplementedError: 'Abstract class `SymbolicData` does not have
+        default indices'.
         """
-        raise NotImplementedError('Abstract class `SymbolicData` does not have default indices')
+        raise NotImplementedError('Abstract class'
+                                  ' `SymbolicData` does not have default indices')
 
 
 class DenseData(SymbolicData):
@@ -166,9 +168,11 @@ class DenseData(SymbolicData):
         Note: memmap is a subclass of ndarray.
         """
         if self.memmap:
-            self._data = np.memmap(filename=self.f, dtype=self.dtype, mode='w+', shape=self.shape, order='C')
+            self._data = np.memmap(filename=self.f, dtype=self.dtype, mode='w+',
+                                   shape=self.shape, order='C')
         else:
-            self._data = aligned(np.zeros(self.shape, self.dtype, order='C'), alignment=64)
+            self._data = aligned(np.zeros(self.shape, self.dtype, order='C'),
+                                 alignment=64)
 
     @property
     def data(self):

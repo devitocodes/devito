@@ -8,12 +8,13 @@ class FunctionManager(object):
     """Class that accepts a list of :class:`FunctionDescriptor` objects and generates the C
     function represented by it
 
-    :param function_descriptor: The list of :class:`FunctionDescriptor` objects
+    :param function_descriptors: The list of :class:`FunctionDescriptor` objects
     :param mic_flag: True if using MIC. Default is False
     :param openmp: True if using OpenMP. Default is False
     """
     libraries = ['cassert', 'cstdlib', 'cmath', 'iostream',
-                 'fstream', 'vector', 'cstdio', 'string', 'inttypes.h', 'sys/time.h', 'math.h']
+                 'fstream', 'vector', 'cstdio', 'string',
+                 'inttypes.h', 'sys/time.h', 'math.h']
 
     _pymic_attribute = 'PYMIC_KERNEL'
 
@@ -28,7 +29,8 @@ class FunctionManager(object):
 
     def includes(self):
         """
-        :returns: :class:`cgen.Module` -- A module containing all the preprocessor directives
+        :returns: :class:`cgen.Module` -- A module containing all the preprocessor
+         directives
         """
         statements = []
         statements += self._defines
@@ -57,7 +59,8 @@ class FunctionManager(object):
         self._structs.append(struct)
 
     def generate(self):
-        """:returns: :class:`cgen.Module` -- A module containing the includes and the generated functions
+        """:returns: :class:`cgen.Module` -- A module containing the includes
+         and the generated functions
         """
         statements = [self.includes()]
         statements += [self.process_function(m) for m in self.function_descriptors]
@@ -68,7 +71,8 @@ class FunctionManager(object):
         """Generates a function signature and body from a :class:`FunctionDescriptor`
 
         :param function_descriptor: The :class:`FunctionDescriptor` to process
-        :returns: :class:`cgen.FunctionBody` -- The function body generated from the function_descriptor
+        :returns: :class:`cgen.FunctionBody` -- The function body generated
+        from the function_descriptor
         """
         return cgen.FunctionBody(self.generate_function_signature(function_descriptor),
                                  self.generate_function_body(function_descriptor))
@@ -77,7 +81,8 @@ class FunctionManager(object):
         """Generates a function signature from a :class:`FunctionDescriptor`
 
         :param function_descriptor: The :class:`FunctionDescriptor` to process
-        :returns: :class:`cgen.FunctionDeclaration` -- The function declaration generated from function_descriptor
+        :returns: :class:`cgen.FunctionDeclaration` -- The function declaration generated
+         from the function_descriptor
         """
         function_params = []
 
@@ -86,20 +91,26 @@ class FunctionManager(object):
             function_params.append(param_vec_def)
 
         if self.mic_flag:
-            function_params += [cgen.Pointer(cgen.POD(param['dtype'], param['name']+"_pointer"))
+            function_params += [cgen.Pointer(cgen.POD(param['dtype'],
+                                                      param['name'] + "_pointer"))
                                 for param in function_descriptor.value_params]
         else:
-            function_params += [cgen.POD(param['dtype'], param['name']) for param in function_descriptor.value_params]
+            function_params += [cgen.POD(param['dtype'], param['name'])
+                                for param in function_descriptor.value_params]
 
         for param in function_descriptor.struct_params:
-            function_params.append(cgen.Pointer(cgen.Value("struct %s" % (param['stype']), param['name'])))
+            function_params.append(cgen.Pointer(cgen.Value("struct %s" % (param['stype']),
+                                                           param['name'])))
 
         if self.mic_flag:
-            return cgen.FunctionDeclaration(cgen.Value(self._pymic_attribute + '\nint', function_descriptor.name),
-                                            function_params)
+            return cgen.FunctionDeclaration(
+                cgen.Value(self._pymic_attribute + '\nint', function_descriptor.name),
+                function_params)
         else:
             return cgen.Extern("C",
-                               cgen.FunctionDeclaration(cgen.Value('int', function_descriptor.name), function_params))
+                               cgen.FunctionDeclaration(
+                                   cgen.Value('int', function_descriptor.name),
+                                   function_params))
 
     def generate_function_body(self, function_descriptor):
         """Generates a function body from a :class:`FunctionDescriptor`
@@ -117,13 +128,15 @@ class FunctionManager(object):
             )
             cast_pointer = cgen.Initializer(
                 cgen.POD(param['dtype'], "(*%s)%s" % (param['name'], arr)),
-                '(%s (*)%s) %s' % (cgen.dtype_to_ctype(param['dtype']), arr, param['name']+"_vec")
+                '(%s (*)%s) %s' % (cgen.dtype_to_ctype(param['dtype']), arr,
+                                   param['name']+"_vec")
             )
             statements.append(cast_pointer)
 
         if self.mic_flag:
             for param in function_descriptor.value_params:
-                cast_pointer = cgen.Initializer(cgen.POD(param[0], "(%s)" % (param[1])), '*%s' % (param[1]+"_pointer"))
+                cast_pointer = cgen.Initializer(cgen.POD(param[0], "(%s)" % (param[1])),
+                                                '*%s' % (param[1]+"_pointer"))
                 statements.append(cast_pointer)
 
         statements.append(function_descriptor.body)

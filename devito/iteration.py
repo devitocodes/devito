@@ -43,10 +43,12 @@ class Iteration(object):
         forward = self.limits[1] >= self.limits[0]
         loop_body = cgen.Block([ccode(cgen.Assign(ccode(eq.lhs), ccode(eq.rhs)))
                                 for eq in self.stencils])
-        loop_init = cgen.InlineInitializer(cgen.Value("int", self.variable), self.limits[0])
+        loop_init = cgen.InlineInitializer(
+            cgen.Value("int", self.variable), self.limits[0])
         loop_cond = '%s %s %s' % (self.variable, '<' if forward else '>', self.limits[1])
         if self.limits[2] == 1:
             loop_inc = '%s%s' % (self.variable, '++' if forward else '--')
         else:
-            loop_inc = '%s %s %s' % (self.variable, '+=' if forward else '-=', self.limits[2])
+            loop_inc = '%s %s %s' % (self.variable, '+=' if forward else '-=',
+                                     self.limits[2])
         return cgen.For(loop_init, loop_cond, loop_inc, loop_body)

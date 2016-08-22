@@ -9,7 +9,8 @@ class IGrid:
         return self.vp.shape
 
     def get_critical_dt(self):
-        # limit for infinite stencil of √(a1/a2) where a1 is the sum of absolute values of the time discretisation
+        # limit for infinite stencil of √(a1/a2) where a1 is the
+        #  sum of absolute values of the time discretisation
         # and a2 is the sum of the absolute values of the space discretisation
         #
         # example, 2nd order in time and space in 2D
@@ -35,7 +36,8 @@ class IGrid:
     def get_spacing(self):
         return self.spacing[0]
 
-    def create_model(self, origin, spacing, vp, epsilon=None, delta=None, theta=None, phi=None):
+    def create_model(self, origin, spacing, vp, epsilon=None,
+                     delta=None, theta=None, phi=None):
         self.vp = vp
         self.spacing = spacing
         self.dimensions = vp.shape
@@ -80,7 +82,8 @@ class IGrid:
     def get_shape_comp(self):
         dim = self.dimensions
         if len(dim) == 3:
-            return (dim[0] + 2 * self.nbpml, dim[1] + 2 * self.nbpml, dim[2] + 2 * self.nbpml)
+            return (dim[0] + 2 * self.nbpml, dim[1] + 2 * self.nbpml,
+                    dim[2] + 2 * self.nbpml)
         else:
             return (dim[0] + 2 * self.nbpml, dim[1] + 2 * self.nbpml)
 

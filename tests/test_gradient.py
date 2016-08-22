@@ -55,18 +55,22 @@ class TestGradient(object):
         location = (origin[0] + dimensions[0] * spacing[0] * 0.5,
                     origin[-1] + 2 * spacing[-1])
         if len(dimensions) == 3:
-            location = (location[0], origin[1] + dimensions[1] * spacing[1] * 0.5, location[1])
+            location = (location[0], origin[1] + dimensions[1] * spacing[1] * 0.5,
+                        location[1])
         data.set_source(time_series, dt, location)
         receiver_coords = np.zeros((50, len(dimensions)))
-        receiver_coords[:, 0] = np.linspace(50, origin[0] + dimensions[0]*spacing[0] - 50, num=50)
+        receiver_coords[:, 0] = np.linspace(50, origin[0] + dimensions[0]*spacing[0] - 50,
+                                            num=50)
         receiver_coords[:, -1] = location[-1]
         if len(dimensions) == 3:
             receiver_coords[:, 1] = location[1]
         data.set_receiver_pos(receiver_coords)
         data.set_shape(nt, 50)
         # Adjoint test
-        wave_true = Acoustic_cg(model, data, None, t_order=time_order, s_order=space_order, nbpml=10)
-        wave_0 = Acoustic_cg(model0, data, None, t_order=time_order, s_order=space_order, nbpml=10)
+        wave_true = Acoustic_cg(model, data, None, t_order=time_order,
+                                s_order=space_order, nbpml=10)
+        wave_0 = Acoustic_cg(model0, data, None, t_order=time_order,
+                             s_order=space_order, nbpml=10)
         return wave_true, wave_0, dm, initial_vp
 
     @pytest.fixture(params=[2])
@@ -89,7 +93,8 @@ class TestGradient(object):
         error1 = np.zeros(7)
         error2 = np.zeros(7)
         for i in range(0, 7):
-            acoustic[1].model.set_vp(np.sqrt((acoustic[3]**-2 + H[i] * acoustic[2])**(-1)))
+            acoustic[1].model.set_vp(np.sqrt((acoustic[3]**-2 + H[i] *
+                                              acoustic[2])**(-1)))
             d = acoustic[1].Forward()[0]
             error1[i] = np.absolute(.5*linalg.norm(d - rec)**2 - F0)
             error2[i] = np.absolute(.5*linalg.norm(d - rec)**2 - F0 - H[i] * G)
