@@ -34,14 +34,6 @@ class Test_Cache_Blocking(object):
     def test_cache_blocking_edge_cases(self, shape, time_order, spc_border, cache_blocking):
         self.cache_blocking_test(shape, time_order, spc_border, cache_blocking)
 
-    # Negative tests. Test cases that are expected to fail
-    @pytest.mark.parametrize("shape,time_order,spc_border,cache_blocking", [
-        pytest.mark.xfail(((10, 25, 46), 2, 3, [None]), strict=True),
-        pytest.mark.xfail(((10, 25, 46), 2, 3, [4, 4, 5]), strict=True)
-    ])
-    def test_cache_blocking_negative_tests(self, shape, time_order, spc_border, cache_blocking):
-        self.cache_blocking_test(shape, time_order, spc_border, cache_blocking)
-
     def cache_blocking_test(self, shape, time_order, spc_border, cache_blocking):
         symbols_combinations = ['t', 't x', 't x z', 't x y z']
         indexes = symbols(symbols_combinations[len(shape) - 1])

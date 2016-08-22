@@ -32,13 +32,6 @@ class Test_Auto_Tuning(object):
     def test_auto_tuning_blocks(self, cache_blocking, tune_range, expected_result):
         self.auto_tuning_test_general(cache_blocking, tune_range, expected_result)
 
-    @pytest.mark.parametrize("cache_blocking,tune_range,expected_result", [
-        pytest.mark.xfail((None, (5, 6), [5, 5, 5]), strict=True),
-        pytest.mark.xfail(([5, 5, None], (5, 6), [5, 5, 5]), strict=True)
-    ])
-    def test_auto_tuning_b_negative(self, cache_blocking, tune_range, expected_result):
-        self.auto_tuning_test_general(cache_blocking, tune_range, expected_result)
-
     def auto_tuning_test_general(self, cache_blocking, tune_range, expected_result):
         shape = (50, 50, 50, 50)
         input_grid = DenseData(name="input_grid", shape=shape, dtype=np.float64)
