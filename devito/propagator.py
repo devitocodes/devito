@@ -383,7 +383,7 @@ class Propagator(object):
             end_block = omp_single + [cgen.Block(end_block)]
 
         if self.profile:
-            loop_body = self.profiler.add_profiling(loop_body, "loop_body")
+            loop_body = self.profiler.add_profiling(loop_body, "loop_body", omp_flag=omp_master)
 
         loop_body = cgen.Block(initial_block + loop_body + end_block)
 
