@@ -68,7 +68,13 @@ def expr_cse(expr):
 
     :param expr: Sympy expression on which CSE needs to be performed
     """
+    expr = expr if isinstance(expr, list) else [expr]
+
     temps, stencils = cse(expr, numbered_symbols("temp"))
+
+    # Restores the LHS
+    for i in range(len(expr)):
+        stencils[i] = Eq(expr[i].lhs, stencils[i].rhs)
 
     to_revert = {}
     to_keep = []
