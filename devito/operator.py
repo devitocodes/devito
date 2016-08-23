@@ -148,15 +148,14 @@ class Operator(object):
                      If not provided, the compiler will be inferred from the
                      environment variable DEVITO_ARCH, or default to GNUCompiler.
     :param profile: Flag to enable performance profiling
-     :param cse: Flag to enable common subexpression elimination
-    :param cache_blocking: Block sizes used for cache clocking. Can be either a single number used for all dimensions
-                           except inner most or a list explicitly stating block sizes for each dimension.
-                           Set cache_blocking to None to skip blocking on that dim.
-                           Set cache_blocking to None to skip blocking on that dim.
-                           Set cache_blocking to 0 to use best guess based on architecture.
-    :param at_report: string - indicating path to auto tuning report directory.
-                      If used together with cache blocking, block sizes will be retrieved
-                      from auto tuning report.
+    :param cse: Flag to enable common subexpression elimination
+    :param cache_blocking: Block sizes used for cache clocking. Can be either a single
+                           number used for all dimensions except inner most or a list
+                           explicitly stating block sizes for each dimension
+                           Set cache_blocking to None to skip blocking on that dim
+                           Set cache_blocking to 0 to use best guess based on architecture
+                           Set cache_blocking to AutoTuner instance, to use auto tuned
+                           tuned block sizes
     :param input_params: List of symbols that are expected as input.
     :param output_params: List of symbols that define operator output.
     :param factorized: A map given by {string_name:sympy_object} for including factorized
@@ -165,8 +164,8 @@ class Operator(object):
     def __init__(self, nt, shape, dtype=np.float32, stencils=[],
                  subs=[], spc_border=0, time_order=0,
                  forward=True, compiler=None, profile=False, cse=True,
-                 cache_blocking=None, at_report=None,
-                 input_params=None, output_params=None, factorized={}):
+                 cache_blocking=None, input_params=None,
+                 output_params=None, factorized={}):
         # Derive JIT compilation infrastructure
         self.compiler = compiler or get_compiler_from_env()
 
@@ -244,7 +243,7 @@ class Operator(object):
                                      spc_border=spc_border, time_order=time_order,
                                      forward=forward, space_dims=self.space_dims,
                                      compiler=self.compiler, profile=profile,
-                                     cache_blocking=cache_blocking,  at_report=at_report)
+                                     cache_blocking=cache_blocking)
         self.dtype = dtype
         self.nt = nt
         self.shape = shape
@@ -277,7 +276,8 @@ class Operator(object):
     def apply(self, debug=False):
         """
         :param debug: If True, use Python to apply the operator. Default False.
-        :returns: A tuple containing the values of the operator outputs or compiled function and its args
+        :returns: A tuple containing the values of the operator outputs or compiled
+                  function and its args
         """
         if debug:
             return self.apply_python()

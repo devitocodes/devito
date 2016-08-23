@@ -1,117 +1,95 @@
-import math
 import random
 from os import mkdir, path
 
-import cpuinfo
-
 import logger
-
-# global vars
-final_report_name = "final_report.txt"
-default_at_dir = path.join(path.dirname(path.realpath(__file__)), "At Report")
-model_descr_template = "%s %d %d %s %s"
 
 
 class AutoTuner(object):
 
-    def __init__(self, operator, at_report_dir=None):
-        """
-        Object responsible for auto tuning block sizes.
-        :param operator: Operator object.
+    def __init__(self, op, blocked_dims=None, at_report_dir=None):
+        """Object responsible for auto tuning block sizes.
+
+        :param op: Operator object.
+        :param blocked_dims: list indicating which dims are blocked and we want to tune
+                             Default all except inner most.
         :param at_report_dir: string - indicating path to auto tuning report directory.
-                              If not set default at report directory is used
+                              If not set current directory is used
+        :param blocked_dims: list indicating which dimensions we want to auto tune
         :raises ValueError: if operator is not of Operator type
         """
-        global final_report_name, default_at_dir
 
         from operator import Operator
-        if not isinstance(operator, Operator):
-            raise ValueError("Auto tuner requires Operator object to be passed as an argument")
+        if not isinstance(op, Operator):
+            raise ValueError("AT requires Operator object to be passed as an argument")
 
-        self.op = operator
+        self.op = op
         self.op.propagator.profile = True
-        self.op.apply()  # want to run function at least once to set the arguments
 
-        self.report_dir = at_report_dir if at_report_dir is not None else default_at_dir
-        self.final_report_path = path.join(self.report_dir, final_report_name)
+        default_blocked_dims = ([True] * (len(self.op.shape) - 1))
+        default_blocked_dims.append(False)  # By default we dont auto tune inner most dim
+        self.blocked_dims = blocked_dims or default_blocked_dims
+
+        default_at_dir = path.join(path.dirname(path.realpath(__file__)), "At Report")
+        self.report_dir = at_report_dir or default_at_dir
+        self.final_report_path = path.join(self.report_dir, "final_report.txt")
+        self.model_desc_template = "%s %d %d %s %s"
 
         if not path.isdir(self.report_dir):  # Creates report dir if does not exist
             mkdir(self.report_dir)
 
-    @staticmethod
-    def get_at_block_size(f_name, time_order, spc_border, shape, block_dims, at_report_dir=None):
+    def set_report_dir(self, report_path):
+        """Sets report directory path
+
+        :param report_path: path to report directory"""
+        self.report_dir = report_path
+        self.final_report_path = path.join(self.report_dir, "final_report.txt")
+
+    def get_at_block_size(self):
+        """ Gets block size from auto tuning report
+
+        :returns: auto tuned block size
+        :raises ValueError: if auto tuning report not found
+        :raises EnvironmentError: if matching model for auto tuned block size not found
         """
-        Gets block size from auto tuning report
-        :param f_name: str - function name. Used for naming
-        :param time_order: int - time order of kernel
-        :param spc_border: int - space border of kernel
-        :param shape: list - shape of the data buffer
-        :param block_dims: list - indicating which dims are blocked.
-        :param at_report_dir: string - indicating path to auto tuning report directory.
-                              If not set default at report directory is used
-        :raises ValueError: if auto tuning report is not found
-        """
-        global final_report_name, default_at_dir, model_descr_template
+        if not path.isfile(self.final_report_path):
+            raise ValueError("AT report at %s not found" % self.final_report_path)
 
-        report_dir = at_report_dir if at_report_dir is not None else default_at_dir
-        final_report_path = path.join(report_dir, final_report_name)
-
-        if not path.isfile(final_report_path):
-            raise ValueError("Auto tuning report at %s not found" % final_report_path)
-
-        # Cache blocking dimensions
-        cb_dims = str([True if block else False for block in block_dims]).replace(" ", '')
         # model description string
-        model_descr_str = model_descr_template % (f_name, time_order, spc_border,
-                                                  str(shape).replace(" ", ''), cb_dims)
-
-        with open(final_report_path, 'r') as f:
+        model_desc_str = self.model_desc_template % (self.op.getName(),
+                                                     self.op.time_order,
+                                                     self.op.spc_border,
+                                                     str(self.op.shape).replace(" ", ''),
+                                                     str(self.blocked_dims).replace(" ",
+                                                                                    ''))
+        with open(self.final_report_path, 'r') as f:
             for line in f.readlines():
 
-                if model_descr_str in line:
+                if model_desc_str in line:
                     blocks_str = line.split(' ')[5]
                     block_split = blocks_str[1:len(blocks_str) - 2].split(',')
 
-                    return [int(block) if block != "None" else None for block in block_split]
+                    return [int(block) if block != "None" else None
+                            for block in block_split]
 
-        return None  # returns none if no matching block size was found
-
-    @staticmethod
-    def get_optimal_block_size(shape, load_c):
-        """
-        Gets optimal block size based on architecture
-        :param shape: list - shape of the data buffer
-        :param load_c: int - load count
-        :return: optimal block size
-        """
-        cache_s = int(cpuinfo.get_cpu_info()['l2_cache_size'].split(' ')[0])  # cache size
-        core_c = cpuinfo.get_cpu_info()['count']  # number of cores
-
-        # assuming no prefetching, square block will give the most cache reuse.
-        # We then take the cache/core divide by the size of the inner most dimension in which we do not block.
-        #  This gives us the X*Y block space, of which we take the square root to get the size of our blocks.
-        # ((C size / cores) / (4 * length inner most * kernel loads)
-        optimal_b_size = math.sqrt(((1000 * cache_s) / core_c) / (4 * shape[len(shape) - 1] * load_c))
-        return int(round(optimal_b_size))  # rounds to the nearest integer
+        raise EnvironmentError("Matching model with auto tuned block size not found.")
 
     def auto_tune_blocks(self, minimum=5, maximum=20):
-        """
-        Auto tunes block sizes. Times all block size combinations withing given range and writes it into report
+        """Auto tunes block sizes. Times all block size combinations withing given range
+           and writes it into report
+
         :param minimum: int (optional) - minimum value for auto tuning range. Default 5
         :param maximum: int (optional) - maximum value for auto tuning range. Default 20
         :raises ValueError: if  minimum is >= maximum
-        :raises EnvironmentError: If cache blocking is not set inside the Operator object
         """
         if minimum >= maximum:
-            raise ValueError("Invalid parameters. Minimum tune range has to be less than maximum")
+            raise ValueError("Invalid parameters. Min tune range has to be less than Max")
 
-        if not self.op.propagator.cache_blocking:
-            raise EnvironmentError("Invalid parameters. Cache_blocking is set to False")
-
+        self.op.propagator.cache_blocking = [0 if dim else None
+                                             for dim in self.blocked_dims]
+        # want to run function at least once to make sure block_sizes are not
+        # overwritten
+        self.get_execution_time()
         logger.info("Starting auto tuning of block sizes using brute force")
-
-        if maximum - minimum > 2:  # No point to estimate if diff is below 2.
-            self._estimate_run_time(minimum, maximum)
 
         times = []  # list where times and block sizes will be kept
         block_list = set()  # used to make sure we do not test the same block sizes
@@ -134,6 +112,8 @@ class AutoTuner(object):
                 block_list.add(tuple(blocks))
 
         logger.info("Total number of block size permutations = %d" % len(block_list))
+        if maximum - minimum > 2:  # No point to estimate if diff is below 2.
+            self._estimate_run_time(minimum, maximum, len(block_list))
 
         # runs function for each block_size
         for block in block_list:
@@ -142,83 +122,89 @@ class AutoTuner(object):
 
         logger.info("Auto tuning using brute force complete")
 
-        times = sorted(times, key=lambda element: element[1])  # sorts the list of tuples based on time
+        # sorts the list of tuples based on time
+        times = sorted(times, key=lambda element: element[1])
         self._write_block_report(times)  # writes the report
 
-    def _estimate_run_time(self, minimum, maximum):
-        """
-        Estimates run time for auto tuning
+    def _estimate_run_time(self, minimum, maximum, n):
+        """Estimates run time for auto tuning
+
         :param minimum: int - minimum tune range
         :param maximum: int - maximum tune range
+        :param n: number of permutations that are run
         """
         timing_run = 0  # estimating run time
         for i in range(0, 5):
             logger.info('Estimating auto-tuning runtime...sample %d/5' % (i + 1))
 
             blocks = []
-            for block in self.op.propagator.block_sizes:
-                blocks += [random.randrange(minimum, maximum)] if block else [None]
+            blocks += [random.randrange(minimum, maximum) if block else None
+                       for block in self.op.propagator.block_sizes]
 
             self.op.propagator.block_sizes = blocks
             timing_run += self.get_execution_time()
 
-        logger.info("Estimated runtime: %f minutes." % float(
-            timing_run / 5 * ((maximum - minimum) * (maximum - minimum)) / 600))
+        logger.info("Estimated runtime: %f minutes." % float(timing_run / 5 * n / 60))
 
     def get_execution_time(self):
-        """
-        Runs and times the function
+        """Runs and times the function
+
         :return: time - how long it took to execute
         """
         self.op.propagator.run(self.op.get_args())
         return self.op.propagator.timings['kernel']
 
     def _write_block_report(self, times):
-        """
-        Writes auto tuning report for block sizes
+        """Writes auto tuning report for block sizes
+
         :param times: sorted list - times with block sizes
         :raises IOError: if fails to write report
         """
-        global model_descr_template
         try:
             full_report_text = ["%s %f\n" % (str(block), timee) for block, timee in times]
 
             # Cache blocking dimensions
-            cb_dims = str([True if block else False for block in self.op.propagator.block_sizes]).replace(" ", '')
+            cb_dims = str(self.blocked_dims).replace(" ", '')
             shape = str(self.op.shape).replace(" ", '')
 
             # Writes all auto tuning information into full report
-            with open(path.join(self.report_dir, "%s_time_o_%s_spc_bo_%s_shp_%s_b_%s_report.txt" %
-                      (self.op.getName(), self.op.time_order, self.op.spc_border, shape, cb_dims)), 'w') as f:
+            with open(path.join(self.report_dir,
+                                "%s_time_o_%s_spc_bo_%s_shp_%s_b_%s_report.txt" %
+                      (self.op.getName(), self.op.time_order,
+                       self.op.spc_border, shape, cb_dims)), 'w') as f:
                 f.writelines(full_report_text)
 
             # string that describes the model
-            model_descr_str = model_descr_template % (self.op.getName(), self.op.time_order,
-                                                      self.op.spc_border, shape, cb_dims)
-            str_to_write = "%s %s\n" % (model_descr_str, str(times[0][0]).replace(" ", ''))
+            model_desc_str = self.model_desc_template % (self.op.getName(),
+                                                         self.op.time_order,
+                                                         self.op.spc_border,
+                                                         shape, cb_dims)
+            str_to_write = "%s %s\n" % (model_desc_str, str(times[0][0]).replace(" ", ''))
 
-            if not path.isfile(self.final_report_path):  # initialises report file if it does not exist
+            # initialises report file if it does not exist
+            if not path.isfile(self.final_report_path):
                 with open(self.final_report_path, 'w') as final_report:
-                    final_report.write("f name, time o, space bo ,shape, block dims, best block size\n")
+                    final_report.write("f name, time o, space bo ,"
+                                       "shape, block dims, best block size\n")
                     final_report.write(str_to_write)  # writes the string
                 return
             else:
-                with open(self.final_report_path, 'r') as final_report:  # reads all the contents
+                # reads all the contents, checks whether entry already exist and updates.
+                # Otherwise appends to the end of the file
+                with open(self.final_report_path, 'r') as final_report:
                     lines = final_report.readlines()
-
-                # checks whether entry already exist and updates it. Otherwise appends to the end of the file
                 entry_found = False
 
                 for i in range(1, len(lines)):
-                    if model_descr_str in lines[i]:
+                    if model_desc_str in lines[i]:
                         lines[i] = str_to_write
                         entry_found = True
                         break
 
             if not entry_found:  # if entry not found append string to the end of file
                 lines.append(str_to_write)
-
-            with open(self.final_report_path, 'w') as final_report:  # writes all the contents
+            # writes all the contents
+            with open(self.final_report_path, 'w') as final_report:
                 final_report.writelines(lines)
 
         except IOError as e:

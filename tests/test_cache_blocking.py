@@ -13,7 +13,8 @@ class Test_Cache_Blocking(object):
     @pytest.mark.parametrize("time_order", [2])
     @pytest.mark.parametrize("spc_border", [0, 1, 2, 3, 4, 5, 6, 7, 8])
     @pytest.mark.parametrize("cache_blocking", [2, 3, 4, 5, 6, 7, 8])
-    def test_cache_blocking_full_range(self, shape, time_order, spc_border, cache_blocking):
+    def test_cache_blocking_full_range(self, shape, time_order,
+                                       spc_border, cache_blocking):
         self.cache_blocking_test(shape, time_order, spc_border, cache_blocking)
 
     # Edge cases. Different block sizes, etc
@@ -31,7 +32,8 @@ class Test_Cache_Blocking(object):
         ((10, 25, 46), 2, 3, [None, 7]),
         ((10, 25, 46), 2, 3, [7, None])
     ])
-    def test_cache_blocking_edge_cases(self, shape, time_order, spc_border, cache_blocking):
+    def test_cache_blocking_edge_cases(self, shape, time_order,
+                                       spc_border, cache_blocking):
         self.cache_blocking_test(shape, time_order, spc_border, cache_blocking)
 
     def cache_blocking_test(self, shape, time_order, spc_border, cache_blocking):

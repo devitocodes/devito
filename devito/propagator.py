@@ -18,7 +18,7 @@ from devito.function_manager import FunctionDescriptor, FunctionManager
 from devito.iteration import Iteration
 from devito.logger import logger
 from devito.profiler import Profiler
-from tools import flatten
+from tools import flatten, get_optimal_block_size
 
 
 class Propagator(object):
@@ -40,18 +40,18 @@ class Propagator(object):
                      If not provided, the compiler will be inferred from the
                      environment variable DEVITO_ARCH, or default to GNUCompiler
     :param profile: Flag to enable performance profiling
-    :param cache_blocking: Block sizes used for cache clocking. Can be either a single number used for all dimensions
-                           except inner most or a list explicitly stating block sizes for each dimension.
-                           Set cache_blocking to None to skip blocking on that dim.
-                           Set cache_blocking to 0 to use best guess based on architecture.
-    :param at_report: string - indicating path to auto tuning report directory.
-                      If used together with cache blocking, block sizes will be retrieved
-                      from auto tuning report.
+    :param cache_blocking: Block sizes used for cache clocking. Can be either a single
+                           number used for all dimensions except inner most or a list
+                           explicitly stating block sizes for each dimension
+                           Set cache_blocking to None to skip blocking on that dim
+                           Set cache_blocking to 0 to use best guess based on architecture
+                           Set cache_blocking to AutoTuner instance, to use auto tuned
+                           tune block sizes
     """
     def __init__(self, name, nt, shape, stencils, factorized=None, spc_border=0,
                  time_order=0, time_dim=None, space_dims=None, dtype=np.float32,
                  forward=True, compiler=None, profile=False,
-                 cache_blocking=None, at_report=None):
+                 cache_blocking=None):
         self.stencils = stencils
         self.dtype = dtype
         self.factorized = factorized or {}
@@ -107,8 +107,6 @@ class Propagator(object):
         self.block_sizes = []
         self.shape = shape
         self.spc_border = spc_border
-
-        self.at_report = at_report  # Path to auto tuning report
 
         # Cache C code, lib and function objects
         self._ccode = None
@@ -541,12 +539,14 @@ class Propagator(object):
                 loop_limits = self._space_loop_limits[spc_var]
 
                 block_size_str = orig_var + "block"
-                upper_limit_str = "%d - (%d %% %s)" % (loop_limits[1], loop_limits[1] - loop_limits[0],
+                upper_limit_str = "%d - (%d %% %s)" % (loop_limits[1],
+                                                       loop_limits[1] - loop_limits[0],
                                                        block_size_str)
 
-                loop_body = cgen.For(cgen.InlineInitializer(cgen.Value("int", block_var), str(loop_limits[0])),
-                                     str(block_var) + "<" + upper_limit_str, str(block_var) + "+=" +
-                                     block_size_str, loop_body)
+                loop_body = cgen.For(cgen.InlineInitializer(cgen.Value("int", block_var),
+                                                            str(loop_limits[0])),
+                                     str(block_var) + "<" + upper_limit_str,
+                                     str(block_var) + "+=" + block_size_str, loop_body)
                 remainder_counter += 1
 
         full_remainder = []
@@ -566,18 +566,27 @@ class Propagator(object):
                 if block_size is not None:
                     if weights[orig_var] < 0:
                         # already blocked loop limits
-                        upper_limit_str = "%d - (%d %% %s)" % (loop_limits[1], loop_limits[1] - loop_limits[0],
+                        upper_limit_str = "%d - (%d %% %s)" % (loop_limits[1],
+                                                               loop_limits[1] -
+                                                               loop_limits[0],
                                                                orig_var + "block")
                     elif weights[orig_var] == 0:
                         # remainder loop limits
-                        lower_limit_str = "%d - (%d %% %s)" % (loop_limits[1], loop_limits[1] - loop_limits[0],
+                        lower_limit_str = "%d - (%d %% %s)" % (loop_limits[1],
+                                                               loop_limits[1] -
+                                                               loop_limits[0],
                                                                orig_var + "block")
                     weights[orig_var] += 1
 
-                remainder_loop = cgen.For(cgen.InlineInitializer(cgen.Value("int", orig_var), lower_limit_str),
-                                          str(orig_var) + "<" + upper_limit_str, str(orig_var) + "++", remainder_loop)
+                remainder_loop = cgen.For(cgen.InlineInitializer(cgen.Value("int",
+                                                                            orig_var),
+                                                                 lower_limit_str),
+                                          str(orig_var) + "<" + upper_limit_str,
+                                          str(orig_var) + "++", remainder_loop)
 
-                remainder_loop = self.add_inner_most_dim_pragma(inner_most_dim, self.space_dims, remainder_loop)
+                remainder_loop = self.add_inner_most_dim_pragma(inner_most_dim,
+                                                                self.space_dims,
+                                                                remainder_loop)
                 inner_most_dim = False
 
             full_remainder.append(remainder_loop)
@@ -585,46 +594,40 @@ class Propagator(object):
         return [loop_body] + full_remainder if full_remainder else [loop_body]
 
     def get_number_of_loads(self):
-        """Gets number of loads in the kernel"""
+        """Gets number of loads in the kernel
+
+        :returns: int - number of loads
+        """
         return len(self._kernel_dic_oi["load_all_list"])
 
     def _decide_block_sizes(self):
-        """
-        Decides block size if cache blocking and checks whether args have been provided correctly
+        """Decides block size checks whether args have been provided correctly
+
         :raises ValueError: If cache blocking parameters where passed incorrectly
         """
-        # Checks whether block sizes and cache blocking args were provided correctly if auto tuning is not involved
-        if isinstance(self.cache_blocking, Iterable):
+        if isinstance(self.cache_blocking, AutoTuner):
+            self.block_sizes = self.cache_blocking.get_at_block_size()
+            logger.info("Using auto tuned block sizes - %s" % self.block_sizes)
+
+        elif isinstance(self.cache_blocking, Iterable):
             if len(self.cache_blocking) == len(self.shape):
                 self.block_sizes = self.cache_blocking
             else:
-                raise ValueError("Cache blocking/block sizes have to be an array of the same size"
-                                 " as the spacial domain or single int instance")
+                raise ValueError("Cache blocking/block sizes have to be an array of the "
+                                 "same size as the spacial domain or single int instance")
         else:
-            # A single block size has been passed. Broadcast it to a list of the size of shape - 1
+            # A single block size has been passed. Broadcast it to a list
             # We do not want to cache block outer most dim if one int value was passed
             self.block_sizes = [int(self.cache_blocking)] * (len(self.shape) - 1)
             self.block_sizes.append(None)
 
-        if self.at_report:  # if auto tuning report path has been passed. Set block sizes based on at report
-            at_block_size = AutoTuner.get_at_block_size(self.fd.name, self.time_order, self.spc_border,
-                                                        self.shape, self.block_sizes, self.at_report)
-            if at_block_size:
-                logger.info("Using block size values found in auto tuning report: %s" % str(at_block_size))
-                self.block_sizes = at_block_size
-            else:
-                logger.warning("Block sizes for this model not found in auto tuning report."
-                               " Using best guess based on architecture")
-                # sets block_size values to 0 so that optimal values would be used
-                for i in range(0, len(self.block_sizes)):
-                    self.block_sizes[i] = 0 if self.block_sizes[i] is not None else None
-
         # replace 0 values with optimal block sizes
-        optimal_block_size = AutoTuner.get_optimal_block_size(self.shape, self.get_number_of_loads())
+        opt_block_size = get_optimal_block_size(self.shape, self.get_number_of_loads())
         for i in range(0, len(self.block_sizes)):
-            if self.block_sizes[i] is not None:  # replace 0 values with optimal block sizes
-                self.block_sizes[i] = optimal_block_size if self.block_sizes[i] == 0 else self.block_sizes[i]
-                self.fd.add_value_param(str(self.loop_counters[i]) + "block", np.int64)  # add block size as parameter
+            if self.block_sizes[i] is not None:  # replace 0 values with optimal
+                self.block_sizes[i] = (opt_block_size if self.block_sizes[i] == 0
+                                       else self.block_sizes[i])
+                self.fd.add_value_param(str(self.loop_counters[i]) + "block", np.int64)
 
     def add_inner_most_dim_pragma(self, inner_most_dim, space_dims, loop_body):
         """

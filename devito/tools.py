@@ -1,4 +1,7 @@
 import ctypes
+import math
+
+import cpuinfo
 import numpy as np
 from sympy import symbols
 
@@ -66,3 +69,25 @@ def aligned(a, alignment=16):
     assert (aa.ctypes.data % alignment) == 0
 
     return aa
+
+
+def get_optimal_block_size(shape, load_c):
+    """Gets optimal block size based on architecture
+
+    :param shape: list - shape of the data buffer
+    :param load_c: int - load count
+    :return: optimal block size
+
+    Assuming no prefetching, square block will give the most cache reuse.
+    We then take the cache/core divide by the size of the inner most dimension in which
+    we do not block. This gives us the X*Y block space, of which we take the square root
+     to get the size of our blocks.
+
+    ((C size / cores) / (4 * length inner most * kernel loads)
+    """
+    cache_s = int(cpuinfo.get_cpu_info()['l2_cache_size'].split(' ')[0])  # cache size
+    core_c = cpuinfo.get_cpu_info()['count']  # number of cores
+
+    optimal_b_size = math.sqrt(
+        ((1000 * cache_s) / core_c) / (4 * shape[len(shape) - 1] * load_c))
+    return int(round(optimal_b_size))  # rounds to the nearest integer

@@ -77,27 +77,32 @@ op = Operator(..., cache_blocking=[5, 0, None])
 ## Auto tuning block sizes
 
 Devito supports automatic auto tuning of block sizes when cache blocking.
-To enable auto tuning create `AutoTuner` object while passing `Operator`
-and `auto_tuning_report_dir_path` as its arguments.
+To enable auto tuning create `AutoTuner` object while passing `Operator` as its 
+argument. It also takes `blocked_dims` and `auto_tune_report_path` as optional args.
 `AutoTuner` will run the compiled file multiple times with different block sizes,
 trying to find most effective option, which will be written into report file.
 
-If auto tuning has completed and you want to use best block sizes, initialise 
-`Operator`  with `cache_blocking` set to as before and `at_report` arg 
-pointing to your auto tuning report directory. Devito will attempt to 
-read the auto tuning report and will select best `block_size` based on it.
-If corresponding value is not found, sub optimal `block_size` will be chosen 
-based on architecture.
+If auto tuning has completed and you want to use best block sizes, initialise
+new `Operator` and pass previously created `AutoTuner` as `cache_blocking` 
+argument or explicitly set `operator.propagator.cache_blocking = AutoTuner`
+Devito will attempt to read the auto tuning report and will select best 
+`block_size` based on it. If corresponding value is not found or report does
+not exist exception will be thrown
 
 Note: 
- This feature has to be used in conjunction with `cache_blocking` parameter.
- This feature needs to run only once for each model. 
+ This feature needs to run only once for each model. Thus you can pass `AutoTuner`
+ as `cache_blocking` arg without auto tuning again on separate runs as long as
+ `at_report_dir` is provided correctly.
+ `AutoTuner` has to run before `operator.apply()` is called.
  You can specify tuning range when calling `auto_tune_blocks(min, max)`
  function.
 
 Example usage:
 ```
-op = Operator(..., cache_blocking=[5, 10, None])
-at = AutoTuner(op, <at_report_directory_path>)
+op = Operator(...)
+at = AutoTuner(op, [True, True, False], <at_report_directory_path>)
 at.auto_tune_blocks(min_block_size, max_block_size)
+
+#using auto tuned block size
+new_op = Operator(..., cache_blocking=at)
 ```
