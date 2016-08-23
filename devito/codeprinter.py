@@ -1,5 +1,5 @@
 from mpmath.libmp import prec_to_dps, to_str
-from sympy import Eq
+from sympy import Eq, preorder_traversal
 from sympy.printing.ccode import CCodePrinter
 
 
@@ -26,7 +26,7 @@ class CodePrinter(CCodePrinter):
         :returns: The resulting string
         """
         output = self._print(expr.base.label) \
-            + ''.join(['[' + self._print(x) + ']' for x in expr.indices])
+            + ''.join(['[(int)(' + self._print(x) + ')]' for x in expr.indices])
 
         return output
 

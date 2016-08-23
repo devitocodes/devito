@@ -1,7 +1,8 @@
 import numpy as np
-from sympy import (Eq, Function, Indexed, Symbol, lambdify, preorder_traversal,
+from sympy import (cse, Eq, Function, Indexed, IndexedBase, Symbol, lambdify, preorder_traversal,
                    solve, symbols)
 from sympy.abc import t
+from sympy.utilities.iterables import numbered_symbols
 
 from devito.compiler import get_compiler_from_env
 from devito.interfaces import SymbolicData, TimeData
@@ -62,6 +63,38 @@ def expr_indexify(expr):
     return expr.xreplace(replacements)
 
 
+def expr_cse(expr):
+    """Performs common subexpression elimination on expressio
+
+    :param expr: Sympy expression on which CSE needs to be performed
+    """
+    temps, stencils = cse(expr, numbered_symbols("temp"))
+
+    to_revert = {}
+    to_keep = []
+
+    for temp, value in temps:
+        if isinstance(value, IndexedBase):
+            to_revert[temp] = value
+        else:
+            to_keep.append((temp, value))
+
+    subs_dict = {}
+
+    for expr in stencils + [assign for temp, assign in to_keep]:
+        for arg in preorder_traversal(expr):
+            if isinstance(arg, Indexed):
+                if arg.base.label in to_revert:
+                    subs_dict[arg] = Indexed(to_revert[arg.base.label], *arg.indices)
+
+    stencils = [stencil.xreplace(subs_dict) for stencil in stencils]
+
+    for i in range(len(to_keep)):
+        to_keep[i] = Eq(to_keep[i][0], to_keep[i][1].xreplace(subs_dict))
+
+    return to_keep + stencils
+
+
 class Operator(object):
     """Class encapsulating a defined operator as defined by the given stencil
 
@@ -107,6 +140,22 @@ class Operator(object):
         self.input_params = input_params
         self.output_params = output_params
 
+        # Get functions and symbols in LHS/RHS and update params
+        sym_undef = set()
+
+        for eqn in self.stencils:
+            lhs_def, lhs_undef = expr_symbols(eqn.lhs)
+            sym_undef.update(lhs_undef)
+
+            if self.output_params is None:
+                self.output_params = list(lhs_def)
+
+            rhs_def, rhs_undef = expr_symbols(eqn.rhs)
+            sym_undef.update(rhs_undef)
+
+            if self.input_params is None:
+                self.input_params = list(rhs_def)
+
         # Pull all dimension indices from the incoming stencil
         dimensions = set()
 
@@ -129,21 +178,6 @@ class Operator(object):
             # Default space dimension symbols
             self.space_dims = symbols("x z" if len(shape) == 2 else "x y z")[:len(shape)]
 
-        # Get functions and symbols in LHS/RHS and update params
-        sym_undef = set()
-
-        for eqn in self.stencils:
-            lhs_def, lhs_undef = expr_symbols(eqn.lhs)
-            sym_undef.update(lhs_undef)
-
-            if self.output_params is None:
-                self.output_params = list(lhs_def)
-
-            rhs_def, rhs_undef = expr_symbols(eqn.rhs)
-            sym_undef.update(rhs_undef)
-
-            if self.input_params is None:
-                self.input_params = list(rhs_def)
         # Remove known dimensions from undefined symbols
         for d in dimensions:
             sym_undef.remove(d)
@@ -162,14 +196,18 @@ class Operator(object):
         for name, value in factorized.items():
             factorized[name] = expr_indexify(value)
 
-        # Apply user-defined subs to stencil
-        self.stencils = [eqn.subs(args) for eqn, args in zip(self.stencils, subs)]
-        self.propagator = Propagator(self.getName(), nt, shape, self.stencils,
-                                     factorized=factorized, dtype=dtype,
-                                     spc_border=spc_border, time_order=time_order,
-                                     forward=forward, space_dims=self.space_dims,
-                                     compiler=self.compiler, profile=profile,
-                                     cache_blocking=cache_blocking, block_size=block_size)
+        # Apply user-defined substitutions to stencil
+        self.stencils = [eqn.subs(subs[0]) for eqn in self.stencils]
+
+        # Applies CSE
+        self.stencils = expr_cse(self.stencils)
+
+        self.propagator = Propagator(
+            self.getName(), nt, shape, self.stencils, factorized=factorized, dtype=dtype,
+            spc_border=spc_border, time_order=time_order, forward=forward,
+            space_dims=self.space_dims, compiler=self.compiler, profile=profile,
+            cache_blocking=cache_blocking, block_size=block_size
+        )
         self.dtype = dtype
         self.nt = nt
         self.shape = shape
