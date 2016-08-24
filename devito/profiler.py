@@ -85,4 +85,5 @@ class Profiler(Structure):
         if not self.timings:
             return {}
 
-        return dict((field, getattr(self.timings, field)) for field, _ in self.timings._fields_)
+        return dict((field, getattr(self.timings, field))
+                    for field, _ in self.timings._fields_)

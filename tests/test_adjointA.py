@@ -40,17 +40,20 @@ class TestAdjointA(object):
         location = (origin[0] + dimensions[0] * spacing[0] * 0.5,
                     origin[-1] + 2 * spacing[-1])
         if len(dimensions) == 3:
-            location = (location[0], origin[1] + dimensions[1] * spacing[1] * 0.5, location[1])
+            location = (location[0], origin[1] + dimensions[1] * spacing[1] * 0.5,
+                        location[1])
         data.set_source(time_series, dt, location)
         receiver_coords = np.zeros((50, len(dimensions)))
-        receiver_coords[:, 0] = np.linspace(50, origin[0] + dimensions[0]*spacing[0] - 50, num=50)
+        receiver_coords[:, 0] = np.linspace(50, origin[0] + dimensions[0]*spacing[0] - 50,
+                                            num=50)
         receiver_coords[:, -1] = location[-1]
         if len(dimensions) == 3:
             receiver_coords[:, -1] = location[1]
         data.set_receiver_pos(receiver_coords)
         data.set_shape(nt, 50)
         # Adjoint test
-        wave_true = Acoustic_cg(model, data, t_order=time_order, s_order=space_order, nbpml=10)
+        wave_true = Acoustic_cg(model, data, t_order=time_order, s_order=space_order,
+                                nbpml=10)
         return wave_true
 
     @pytest.fixture(params=[2])

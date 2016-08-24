@@ -40,7 +40,8 @@ def source(t, f0):
     return (1-2.*r**2)*np.exp(-r**2)
 
 time_series = source(np.linspace(t0, tn, nt), f0)
-location = (origin[0] + dimensions[0] * spacing[0] * 0.5, origin[1] + dimensions[1] * spacing[1] * 0.5,
+location = (origin[0] + dimensions[0] * spacing[0] * 0.5,
+            origin[1] + dimensions[1] * spacing[1] * 0.5,
             origin[1] + 2 * spacing[1])
 data.set_source(time_series, dt, location)
 receiver_coords = np.zeros((101, 3))

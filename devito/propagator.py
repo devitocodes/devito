@@ -26,7 +26,8 @@ class Propagator(object):
     :param nt: Number of timesteps to execute
     :param shape: Shape of the data buffer over which to execute
     :param stencils: List of :class:`sympy.Eq` used to create the kernel
-    :param factorized: A map given by {string_name:sympy_object} for including factorized terms
+    :param factorized: A map given by {string_name:sympy_object} for including factorized
+                       terms
     :param spc_border: Number of spatial padding layers
     :param time_order: Order of the time discretisation
     :param time_dim: Symbol that defines the time dimension
@@ -37,12 +38,14 @@ class Propagator(object):
                      environment variable DEVITO_ARCH, or default to GNUCompiler
     :param profile: Flag to enable performance profiling
     :param cache_blocking: Flag to enable cache blocking
-    :param block_size: Block size used for cache clocking. Can be either a single number used for all dimensions or
-                      a list stating block sizes for each dimension. Set block size to None to skip blocking on that dim
+    :param block_size: Block size used for cache clocking. Can be either a single number
+                       used for all dimensions or a list stating block sizes for each
+                       dimension. Set block size to None to skip blocking on that dim
     """
-    def __init__(self, name, nt, shape, stencils, factorized=None, spc_border=0, time_order=0,
-                 time_dim=None, space_dims=None, dtype=np.float32, forward=True, compiler=None,
-                 profile=False, cache_blocking=False, block_size=5):
+    def __init__(self, name, nt, shape, stencils, factorized=None, spc_border=0,
+                 time_order=0, time_dim=None, space_dims=None, dtype=np.float32,
+                 forward=True, compiler=None, profile=False,
+                 cache_blocking=False, block_size=5):
         self.stencils = stencils
         self.dtype = dtype
         self.factorized = factorized or {}
@@ -50,7 +53,8 @@ class Propagator(object):
 
         # Default time and space symbols if not provided
         self.time_dim = time_dim or t
-        self.space_dims = space_dims or (x, z) if len(shape) == 2 else (x, y, z)[:len(shape)]
+        self.space_dims = \
+            space_dims or (x, z) if len(shape) == 2 else (x, y, z)[:len(shape)]
 
         # Internal flags and meta-data
         self.loop_counters = list(symbols("i1 i2 i3 i4"))
@@ -106,7 +110,8 @@ class Propagator(object):
         elif block_size is None:  # Turn off cache blocking if block size set to None
             self.cache_blocking = False
         else:
-            # A single block size has been passed. Broadcast it to a list of the size of shape
+            # A single block size has been passed.
+            # Broadcast it to a list of the size of shape
             self.block_sizes = [int(block_size)]*len(shape)
 
         # Cache C code, lib and function objects
@@ -223,8 +228,8 @@ class Propagator(object):
 
     def prep_variable_map(self):
         """Mapping from model variables (x, y, z, t) to loop variables (i1, i2, i3, i4)
-
-        For now, i1 i2 i3 are assigned in the order the variables were defined in init( #var_order)
+        For now, i1 i2 i3 are assigned in the order the variables were
+        defined in init( #var_order)
         """
         var_map = {}
         i = 0
@@ -248,16 +253,19 @@ class Propagator(object):
             for name, term in zip(self.factorized.keys(), self.factorized):
                 expr = self.factorized[name]
                 self.add_local_var(name, self.dtype)
+                sub = str(ccode(self.time_substitutions(expr).xreplace(self._var_map)))
                 if self.dtype is np.float32:
-                    factors.append(cgen.Assign(name, str(ccode(self.time_substitutions(expr).xreplace(self._var_map))).
-                                               replace("pow", "powf").replace("fabs", "fabsf")))
+                    factors.append(cgen.Assign(name, (sub.replace("pow", "powf")
+                                                      .replace("fabs", "fabsf"))))
                 else:
-                    factors.append(cgen.Assign(name, str(ccode(self.time_substitutions(expr).xreplace(self._var_map)))))
+                    factors.append(cgen.Assign(name, sub))
         stmts = []
 
         for equality in stencils:
-            self._kernel_dic_oi = self._get_ops_expr(equality.rhs, self._kernel_dic_oi, False)
-            self._kernel_dic_oi = self._get_ops_expr(equality.lhs, self._kernel_dic_oi, True)
+            self._kernel_dic_oi = self._get_ops_expr(equality.rhs,
+                                                     self._kernel_dic_oi, False)
+            self._kernel_dic_oi = self._get_ops_expr(equality.lhs,
+                                                     self._kernel_dic_oi, True)
             stencil = self.convert_equality_to_cgen(equality)
             stmts.append(stencil)
 
@@ -282,7 +290,8 @@ class Propagator(object):
             s_lhs = ccode(self.time_substitutions(equality.lhs).xreplace(self._var_map))
             s_rhs = self.time_substitutions(equality.rhs).xreplace(self._var_map)
 
-            self.sub_stencils.append(s_rhs)  # appending substituted stencil,which is used to determine alignment pragma
+            # appending substituted stencil,which is used to determine alignment pragma
+            self.sub_stencils.append(s_rhs)
 
             s_rhs = ccode(s_rhs)
             if self.dtype is np.float32:
@@ -325,7 +334,9 @@ class Propagator(object):
         omp_master = [cgen.Pragma("omp master")] if self.compiler.openmp else []
         omp_single = [cgen.Pragma("omp single")] if self.compiler.openmp else []
         omp_parallel = [cgen.Pragma("omp parallel")] if self.compiler.openmp else []
-        omp_for = [cgen.Pragma("omp for schedule(static)")] if self.compiler.openmp else []
+        omp_for = [cgen.Pragma("omp for schedule(static)")]\
+            if self.compiler.openmp else []
+
         t_loop_limits = self.time_loop_limits
         t_var = str(self._var_map[self.time_dim])
         cond_op = "<" if self._forward else ">"
@@ -338,16 +349,22 @@ class Propagator(object):
 
         loop_body = [cgen.Block(omp_for + loop_body)]
         # Statements to be inserted into the time loop before the spatial loop
-        time_loop_stencils_b = [self.time_substitutions(x) for x in self.time_loop_stencils_b]
-        time_loop_stencils_b = [self.convert_equality_to_cgen(x) for x in self.time_loop_stencils_b]
+        time_loop_stencils_b = [self.time_substitutions(x)
+                                for x in self.time_loop_stencils_b]
+        time_loop_stencils_b = [self.convert_equality_to_cgen(x)
+                                for x in self.time_loop_stencils_b]
 
         # Statements to be inserted into the time loop after the spatial loop
-        time_loop_stencils_a = [self.time_substitutions(x) for x in self.time_loop_stencils_a]
-        time_loop_stencils_a = [self.convert_equality_to_cgen(x) for x in self.time_loop_stencils_a]
+        time_loop_stencils_a = [self.time_substitutions(x)
+                                for x in self.time_loop_stencils_a]
+        time_loop_stencils_a = [self.convert_equality_to_cgen(x)
+                                for x in self.time_loop_stencils_a]
 
         if self.profile:
-            time_loop_stencils_a = self.profiler.add_profiling(time_loop_stencils_a, "loop_stencils_a")
-            time_loop_stencils_b = self.profiler.add_profiling(time_loop_stencils_b, "loop_stencils_b")
+            time_loop_stencils_a = self.profiler.add_profiling(time_loop_stencils_a,
+                                                               "loop_stencils_a")
+            time_loop_stencils_b = self.profiler.add_profiling(time_loop_stencils_b,
+                                                               "loop_stencils_b")
 
         initial_block = time_stepping + time_loop_stencils_b
 
@@ -372,7 +389,8 @@ class Propagator(object):
         )
 
         # Code to declare the time stepping variables (outside the time loop)
-        def_time_step = [cgen.Value("int", t_var_def.name) for t_var_def in self.time_steppers]
+        def_time_step = [cgen.Value("int", t_var_def.name)
+                         for t_var_def in self.time_steppers]
         body = def_time_step + self.pre_loop + omp_parallel + [loop_body] + self.post_loop
 
         if self.profile:
@@ -397,7 +415,8 @@ class Propagator(object):
                 loop_body
             )
 
-            loop_body = self.add_inner_most_dim_pragma(inner_most_dim, self.space_dims, loop_body)
+            loop_body = self.add_inner_most_dim_pragma(inner_most_dim, self.space_dims,
+                                                       loop_body)
             inner_most_dim = False
         return [loop_body]  # returns body as a list
 
@@ -422,10 +441,13 @@ class Propagator(object):
                 lower_limit_str = str(loop_limits[0])
                 upper_limit_str = str(loop_limits[1])
 
-            loop_body = cgen.For(cgen.InlineInitializer(cgen.Value("int", orig_var), lower_limit_str),
-                                 orig_var + "<" + upper_limit_str, orig_var + "++", loop_body)
+            loop_body = cgen.For(cgen.InlineInitializer(cgen.Value("int", orig_var),
+                                                        lower_limit_str),
+                                 orig_var + "<" + upper_limit_str,
+                                 orig_var + "++", loop_body)
 
-            loop_body = self.add_inner_most_dim_pragma(inner_most_dim, self.space_dims, loop_body)
+            loop_body = self.add_inner_most_dim_pragma(inner_most_dim, self.space_dims,
+                                                       loop_body)
             inner_most_dim = False
 
         remainder_counter = 0  # indicates how many remainder loops we need
@@ -436,44 +458,56 @@ class Propagator(object):
                 block_var = orig_var + "b"
                 loop_limits = self._space_loop_limits[spc_var]
                 old_upper_limit = loop_limits[1]                  # sets new upper limit
-                loop_limits = (loop_limits[0], loop_limits[1] - (loop_limits[1] - loop_limits[0]) % block_size)
+                loop_limits = (loop_limits[0], loop_limits[1] -
+                               (loop_limits[1] - loop_limits[0]) % block_size)
 
                 if old_upper_limit - loop_limits[1] > 0:  # check old vs new upper
                     remainder_counter += 1
 
-                loop_body = cgen.For(cgen.InlineInitializer(cgen.Value("int", block_var), str(loop_limits[0])),
-                                     str(block_var) + "<" + str(loop_limits[1]), str(block_var) + "+=" +
-                                     str(block_size), loop_body)
+                loop_body = cgen.For(cgen.InlineInitializer(cgen.Value("int", block_var),
+                                                            str(loop_limits[0])),
+                                     str(block_var) + "<" + str(loop_limits[1]),
+                                     str(block_var) + "+=" + str(block_size), loop_body)
 
         full_remainder = []
-        weights = self._decide_weights(self.block_sizes, remainder_counter)  # weights for deciding remainder loop limit
+        # weights for deciding remainder loop limit
+        weights = self._decide_weights(self.block_sizes, remainder_counter)
         for i in range(0, remainder_counter):
             remainder_loop = orig_loop_body
             inner_most_dim = True
 
-            for spc_var, block_size in reversed(zip(list(self.space_dims), self.block_sizes)):
+            for spc_var, block_size in reversed(zip(list(self.space_dims),
+                                                    self.block_sizes)):
                 orig_var = str(self._var_map[spc_var])
                 loop_limits = self._space_loop_limits[spc_var]  # Full loop limits
 
                 if block_size is not None:
                     if weights[orig_var] < 0:
                         # already blocked loop limits
-                        loop_limits = (loop_limits[0], loop_limits[1] - (loop_limits[1] - loop_limits[0]) % block_size)
+                        loop_limits = (loop_limits[0], loop_limits[1] -
+                                       (loop_limits[1] - loop_limits[0]) % block_size)
                     elif weights[orig_var] == 0:
                         # remainder loop limits
-                        loop_limits = (loop_limits[1] - (loop_limits[1] - loop_limits[0]) % block_size, loop_limits[1])
+                        loop_limits = (loop_limits[1] -
+                                       (loop_limits[1] - loop_limits[0]) % block_size,
+                                       loop_limits[1])
 
                     weights[orig_var] += 1
 
-                    # If loop limits are equal that means no remainder on that dim, thus we want all iteration space
+                    # If loop limits are equal that means no remainder on that dim,
+                    #  thus we want all iteration space
                     if loop_limits[0] == loop_limits[1]:
                         loop_limits = self._space_loop_limits[spc_var]
 
-                remainder_loop = cgen.For(cgen.InlineInitializer(cgen.Value("int", orig_var), str(loop_limits[0])),
-                                          str(orig_var) + "<" + str(loop_limits[1]), str(orig_var) + "++",
-                                          remainder_loop)
+                remainder_loop = \
+                    cgen.For(cgen.InlineInitializer(cgen.Value("int", orig_var),
+                                                    str(loop_limits[0])),
+                             str(orig_var) + "<" + str(loop_limits[1]),
+                             str(orig_var) + "++", remainder_loop)
 
-                remainder_loop = self.add_inner_most_dim_pragma(inner_most_dim, self.space_dims, remainder_loop)
+                remainder_loop = self.add_inner_most_dim_pragma(inner_most_dim,
+                                                                self.space_dims,
+                                                                remainder_loop)
                 inner_most_dim = False
 
             full_remainder.append(remainder_loop)
@@ -490,8 +524,9 @@ class Propagator(object):
         """
         if inner_most_dim and len(space_dims) > 1:
             pragma = [self.get_aligned_pragma(self.sub_stencils, self.factorized,
-                                              self.loop_counters, self.time_steppers)] if self.compiler.openmp\
-                else self.compiler.pragma_ivdep + self.compiler.pragma_nontemporal
+                                              self.loop_counters, self.time_steppers)]\
+                if self.compiler.openmp else (self.compiler.pragma_ivdep +
+                                              self.compiler.pragma_nontemporal)
             loop_body = cgen.Block(pragma + [loop_body])
         return loop_body
 
@@ -514,7 +549,8 @@ class Propagator(object):
             else:
                 weights.update({'i1': -1})
 
-        elif len(block_sizes) == 2 and block_sizes[0] and block_sizes[1] and remainder_counter > 1:
+        elif (len(block_sizes) == 2 and remainder_counter > 1 and
+              block_sizes[0] and block_sizes[1]):
             weights.update({'i1': -1})
 
         return weights
@@ -578,8 +614,9 @@ class Propagator(object):
 
     def get_fd(self):
         """Get a FunctionDescriptor that describes the code represented by this Propagator
-        in the format that FunctionManager and JitManager can deal with it. Before calling,
-        make sure you have either called set_jit_params or set_jit_simple already
+        in the format that FunctionManager and JitManager can deal with it.
+        Before calling, make sure you have either called set_jit_params
+        or set_jit_simple already
 
         :returns: The resulting :class:`devito.function_manager.FunctionDescriptor`
         """
@@ -613,15 +650,16 @@ class Propagator(object):
             if i == first_time_index:
                 rhs = ccode(ti % (self.time_order+1))
             else:
-                rhs = ccode((self.time_steppers[i+step_backwards]+1) % (self.time_order+1))
+                rhs = ccode((self.time_steppers[i+step_backwards]+1) %
+                            (self.time_order+1))
 
             body.append(cgen.Assign(lhs, rhs))
 
         return body
 
     def time_substitutions(self, sympy_expr):
-        """This method checks through the sympy_expr to replace the time index with a cyclic index
-        but only for variables which are not being saved in the time domain
+        """This method checks through the sympy_expr to replace the time index with
+        a cyclic index but only for variables which are not being saved in the time domain
         :param sympy_expr: The Sympy expression to process
         :returns: The expression after the substitutions
         """
@@ -639,7 +677,8 @@ class Propagator(object):
 
                 if not str(array_term.base.label) in self.save_vars:
                     raise ValueError(
-                        "Invalid variable '%s' in sympy expression. Did you add it to the operator's params?"
+                        "Invalid variable '%s' in sympy expression."
+                        " Did you add it to the operator's params?"
                         % str(array_term.base.label)
                     )
 
@@ -649,10 +688,12 @@ class Propagator(object):
         return sympy_expr.xreplace(subs_dict)
 
     def add_time_loop_stencil(self, stencil, before=False):
-        """Add a statement either before or after the main spatial loop, but still inside the time loop.
+        """Add a statement either before or after the main spatial loop, but still inside
+        the time loop.
 
         :param stencil: Given stencil
-        :param before: Flag indicating whether the statement should be inserted before, False by default
+        :param before: Flag indicating whether the statement should be inserted before,
+                       False by default
         """
         if before:
             self.time_loop_stencils_b.append(stencil)
@@ -662,11 +703,12 @@ class Propagator(object):
     def _get_ops_expr(self, expr, dict1, is_lhs=False):
         """Get number of different operations in expression expr
 
-        Types of operations are ADD (inc -) and MUL (inc /), arrays (IndexedBase objects) in expr that are not in list
-        arrays are added to the list.
+        Types of operations are ADD (inc -) and MUL (inc /), arrays (IndexedBase objects)
+        in expr that are not in list arrays are added to the list.
 
         :param expr: The expression to process
-        :returns: Dictionary of (#ADD, #MUL, list of unique names of fields, list of unique field elements)
+        :returns: Dictionary of (#ADD, #MUL, list of unique names of fields,
+                                             list of unique field elements)
         """
         result = dict1  # dictionary to return
 
@@ -675,11 +717,13 @@ class Propagator(object):
                 base = expr.base.label
 
                 if is_lhs:
-                        result['store'] += 1
+                    result['store'] += 1
                 if base not in result['load_list']:
-                        result['load_list'] += [base]  # accumulate distinct array
+                    # accumulate distinct array
+                    result['load_list'] += [base]
                 if expr not in result['load_all_list']:
-                        result['load_all_list'] += [expr]  # accumulate distinct array elements
+                    # accumulate distinct array elements
+                    result['load_all_list'] += [expr]
 
                 return result
 
@@ -689,14 +733,14 @@ class Propagator(object):
                 # increment MUL or ADD by # arguments less 1
                 # sympy multiplication and addition can have multiple arguments
                 if expr.is_Mul:
-                        result['mul'] += len(args)-1
+                    result['mul'] += len(args)-1
                 else:
-                        if expr.is_Add:
-                                result['add'] += len(args)-1
+                    if expr.is_Add:
+                        result['add'] += len(args)-1
 
                 # recursive call of all arguments
                 for expr2 in args:
-                        result2 = self._get_ops_expr(expr2, result, is_lhs)
+                    result2 = self._get_ops_expr(expr2, result, is_lhs)
 
                 return result2
 
@@ -704,7 +748,8 @@ class Propagator(object):
         return result
 
     def get_kernel_oi(self, dtype=np.float32):
-        """Get the operation intensity of the kernel. The types of operations are ADD (inc -), MUL (inc /), LOAD, STORE.
+        """Get the operation intensity of the kernel. The types of operations are
+         ADD (inc -), MUL (inc /), LOAD, STORE.
         #LOAD = number of unique fields in the kernel
 
         Operation intensity OI = (ADD+MUL)/[(LOAD+STORE)*word_size]
@@ -723,8 +768,10 @@ class Propagator(object):
         add = self._kernel_dic_oi['add']
         mul = self._kernel_dic_oi['mul']
         self._kernel_dic_oi['oi_high'] = float(add+mul)/(load+store)/word_size
-        self._kernel_dic_oi['oi_high_weighted'] = self._kernel_dic_oi['oi_high']*(add+mul)/max(add, mul)/2.0
+        self._kernel_dic_oi['oi_high_weighted'] = \
+            self._kernel_dic_oi['oi_high']*(add+mul)/max(add, mul)/2.0
         self._kernel_dic_oi['oi_low'] = float(add+mul)/(load_all+store)/word_size
-        self._kernel_dic_oi['oi_low_weighted'] = self._kernel_dic_oi['oi_low']*(add+mul)/max(add, mul)/2.0
+        self._kernel_dic_oi['oi_low_weighted'] = \
+            self._kernel_dic_oi['oi_low']*(add+mul)/max(add, mul)/2.0
 
         return self._kernel_dic_oi['oi_high']

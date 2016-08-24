@@ -39,7 +39,8 @@ class SourceLike(PointData):
                         [1, x1, y2, z2, x1*y2, x1*z2, y2*z2, x1*y2*z2],
                         [1, x2, y1, z2, x2*y1, x2*z2, y1*z2, x2*y1*z2],
                         [1, x2, y2, z2, x2*y2, x2*z2, y2*z2, x2*y2*z2]])
-            self.increments = (0, 0, 0), (0, 1, 0), (1, 0, 0), (0, 0, 1), (1, 1, 0), (0, 1, 1), (1, 0, 1), (1, 1, 1)
+            self.increments = (0, 0, 0), (0, 1, 0), (1, 0, 0), (0, 0, 1), (1, 1, 0), \
+                              (0, 1, 1), (1, 0, 1), (1, 1, 1)
             self.rs = symbols('rx, ry, rz')
             rx, ry, rz = self.rs
             p = Matrix([[1],
@@ -117,7 +118,8 @@ class SourceLike(PointData):
 
 
 class ForwardOperator(Operator):
-    def __init__(self, model, src, damp, data, time_order=2, spc_order=6, save=False, **kwargs):
+    def __init__(self, model, src, damp, data, time_order=2, spc_order=6,
+                 save=False, **kwargs):
         nrec, nt = data.traces.shape
         dt = model.get_critical_dt()
         u = TimeData(name="u", shape=model.get_shape_comp(), time_dim=nt,
@@ -137,7 +139,7 @@ class ForwardOperator(Operator):
         subs = {s: dt, h: model.get_spacing()}
         super(ForwardOperator, self).__init__(nt, m.shape,
                                               stencils=Eq(u.forward, stencil),
-                                              substitutions=subs,
+                                              subs=subs,
                                               spc_border=spc_order/2,
                                               time_order=time_order,
                                               forward=True,
@@ -165,7 +167,8 @@ class AdjointOperator(Operator):
         m.data[:] = model.padm()
         v.pad_time = False
         srca = SourceLike(name="srca", npoint=1, nt=nt, dt=dt, h=model.get_spacing(),
-                          coordinates=np.array(data.source_coords, dtype=damp.dtype)[np.newaxis, :],
+                          coordinates=np.array(data.source_coords,
+                                               dtype=damp.dtype)[np.newaxis, :],
                           ndim=len(damp.shape), dtype=damp.dtype, nbpml=model.nbpml)
         rec = SourceLike(name="rec", npoint=nrec, nt=nt, dt=dt, h=model.get_spacing(),
                          coordinates=data.receiver_coords, ndim=len(damp.shape),
@@ -180,7 +183,7 @@ class AdjointOperator(Operator):
         subs = {s: model.get_critical_dt(), h: model.get_spacing()}
         super(AdjointOperator, self).__init__(nt, m.shape,
                                               stencils=Eq(v.backward, stencil),
-                                              substitutions=subs,
+                                              subs=subs,
                                               spc_border=spc_order/2,
                                               time_order=time_order,
                                               forward=False,
@@ -220,12 +223,14 @@ class GradientOperator(Operator):
         # Add substitutions for spacing (temporal and spatial)
         s, h = symbols('s h')
         subs = {s: model.get_critical_dt(), h: model.get_spacing()}
-        # Add Gradient-specific updates. The dt2 is currently hacky as it has to match the cyclic indices
-        gradient_update = Eq(grad, grad - s**-2*(v + v.forward - 2 * v.forward.forward) * u.forward)
+        # Add Gradient-specific updates. The dt2 is currently hacky
+        #  as it has to match the cyclic indices
+        gradient_update = Eq(grad, grad - s**-2*(v + v.forward - 2 * v.forward.forward) *
+                             u.forward)
         stencils = [gradient_update, Eq(v.backward, stencil)]
         super(GradientOperator, self).__init__(rec.nt - 1, m.shape,
                                                stencils=stencils,
-                                               substitutions=[subs, subs, {}],
+                                               subs=[subs, subs, {}],
                                                spc_border=spc_order/2,
                                                time_order=time_order,
                                                forward=False,
@@ -277,7 +282,7 @@ class BornOperator(Operator):
                     insert_second_source]
         super(BornOperator, self).__init__(src.nt, m.shape,
                                            stencils=stencils,
-                                           substitutions=[subs, subs, {}, {}],
+                                           subs=[subs, subs, {}, {}],
                                            spc_border=spc_order/2,
                                            time_order=time_order,
                                            forward=True,

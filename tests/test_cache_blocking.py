@@ -8,7 +8,7 @@ from devito.operator import SimpleOperator
 
 class Test_Cache_Blocking(object):
 
-    # Full range testing.            This syntax tests all possible permutations of parameters
+    # Full range testing.   This syntax tests all possible permutations of parameters
     @pytest.mark.parametrize("shape", [(10, 45), (10, 31, 45), (10, 45, 31, 45)])
     @pytest.mark.parametrize("time_order", [2])
     @pytest.mark.parametrize("spc_border", [0, 1, 2, 3, 4, 5, 6, 7, 8])
@@ -48,15 +48,18 @@ class Test_Cache_Blocking(object):
 
         output_grid_noblock = DenseData(name="output_grid", shape=shape, dtype=np.float64)
         eq_noblock = Eq(output_grid_noblock.indexed[indexes],
-                        output_grid_noblock.indexed[indexes] + input_grid.indexed[indexes] + 3)
+                        output_grid_noblock.indexed[indexes] +
+                        input_grid.indexed[indexes] + 3)
         op_noblock = SimpleOperator(input_grid, output_grid_noblock, [eq_noblock],
                                     time_order=time_order, spc_border=spc_border)
         op_noblock.apply()
 
         output_grid_block = DenseData(name="output_grid", shape=shape, dtype=np.float64)
         eq_block = Eq(output_grid_block.indexed[indexes],
-                      output_grid_block.indexed[indexes] + input_grid.indexed[indexes] + 3)
-        op_block = SimpleOperator(input_grid, output_grid_block, [eq_block], cache_blocking=True,
-                                  block_size=block_size, time_order=time_order, spc_border=spc_border)
+                      output_grid_block.indexed[indexes] +
+                      input_grid.indexed[indexes] + 3)
+        op_block = SimpleOperator(input_grid, output_grid_block, [eq_block],
+                                  cache_blocking=True, block_size=block_size,
+                                  time_order=time_order, spc_border=spc_border)
         op_block.apply()
         assert np.equal(output_grid_block.data, output_grid_noblock.data).all()

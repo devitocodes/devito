@@ -38,7 +38,8 @@ class Test_OI_Calculation(object):
 
     def test_oi_2(self):
         '''OI = (ADD+MUL)/[(LOAD+STORE)*word_size]; word_size=8(double),4(float)
-        Equation = v1[i2][i1] = (v1[i2][i1] - 1.1F*v2[i2][i1])/(v3[i2][i1] + 7.0e-1F*v4[i2][i1]);
+        Equation = v1[i2][i1] = (v1[i2][i1] - 1.1F*v2[i2][i1])/(v3[i2][i1] +
+                   7.0e-1F*v4[i2][i1]);
         '''
         load = 4.0
         store = 1.0

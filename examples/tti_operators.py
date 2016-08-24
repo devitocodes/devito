@@ -8,7 +8,8 @@ from examples.fwi_operators import SourceLike
 
 
 class ForwardOperator(Operator):
-    def __init__(self, model, src, damp, data, time_order=2, spc_order=4, save=False, **kwargs):
+    def __init__(self, model, src, damp, data, time_order=2, spc_order=4, save=False,
+                 **kwargs):
         nrec, nt = data.traces.shape
         dt = model.get_critical_dt()
         u = TimeData(name="u", shape=model.get_shape_comp(),
@@ -64,7 +65,8 @@ class ForwardOperator(Operator):
             if angle == 0:
                 return 0
             else:
-                return 16.0 * angle * (3.1416 - abs(angle)) / (49.3483 - 4.0 * abs(angle) * (3.1416 - abs(angle)))
+                return (16.0 * angle * (3.1416 - abs(angle)) /
+                        49.3483 - 4.0 * abs(angle) * (3.1416 - abs(angle)))
 
         def Bhaskaracos(angle):
             if angle == 0:
@@ -86,37 +88,37 @@ class ForwardOperator(Operator):
 
         ang0 = Bhaskaracos(theta)
         ang1 = Bhaskarasin(theta)
+        spc_brd = spc_order / 2
         # Derive stencil from symbolic equation
         if len(m.shape) == 3:
             ang2 = Bhaskaracos(phi)
             ang3 = Bhaskarasin(phi)
 
             Gy1p = (ang3 * u.dxl - ang2 * u.dyl)
-            Gyy1 = (first_derivative(Gy1p, ang3, dim=x, side=1, order=spc_order/2) -
-                    first_derivative(Gy1p, ang2, dim=y, side=1, order=spc_order/2))
+            Gyy1 = (first_derivative(Gy1p, ang3, dim=x, side=1, order=spc_brd) -
+                    first_derivative(Gy1p, ang2, dim=y, side=1, order=spc_brd))
 
             Gy2p = (ang3 * u.dxr - ang2 * u.dyr)
-            Gyy2 = (first_derivative(Gy2p, ang3, dim=x, side=-1, order=spc_order/2) -
-                    first_derivative(Gy2p, ang2, dim=y, side=-1, order=spc_order/2))
+            Gyy2 = (first_derivative(Gy2p, ang3, dim=x, side=-1, order=spc_brd) -
+                    first_derivative(Gy2p, ang2, dim=y, side=-1, order=spc_brd))
 
             Gx1p = (ang0 * ang2 * u.dxl + ang0 * ang3 * u.dyl - ang1 * u.dzl)
             Gz1r = (ang1 * ang2 * v.dxl + ang1 * ang3 * v.dyl + ang0 * v.dzl)
-            Gxx1 = (first_derivative(Gx1p, ang0, ang2, dim=x, side=1, order=spc_order/2) +
-                    first_derivative(Gx1p, ang0, ang3, dim=y, side=1, order=spc_order/2) -
-                    first_derivative(Gx1p, ang1, dim=z, side=1, order=spc_order/2))
-            Gzz1 = (first_derivative(Gz1r, ang1, ang2, dim=x, side=1, order=spc_order/2) +
-                    first_derivative(Gz1r, ang1, ang3, dim=y, side=1, order=spc_order/2) +
-                    first_derivative(Gz1r, ang0, dim=z, side=1, order=spc_order/2))
+            Gxx1 = (first_derivative(Gx1p, ang0, ang2, dim=x, side=1, order=spc_brd) +
+                    first_derivative(Gx1p, ang0, ang3, dim=y, side=1, order=spc_brd) -
+                    first_derivative(Gx1p, ang1, dim=z, side=1, order=spc_brd))
+            Gzz1 = (first_derivative(Gz1r, ang1, ang2, dim=x, side=1, order=spc_brd) +
+                    first_derivative(Gz1r, ang1, ang3, dim=y, side=1, order=spc_brd) +
+                    first_derivative(Gz1r, ang0, dim=z, side=1, order=spc_brd))
 
             Gx2p = (ang0 * ang2 * u.dxr + ang0 * ang3 * u.dyr - ang1 * u.dzr)
             Gz2r = (ang1 * ang2 * v.dxr + ang1 * ang3 * v.dyr + ang0 * v.dzr)
-
-            Gxx2 = (first_derivative(Gx2p, ang0, ang2, dim=x, side=-1, order=spc_order/2) +
-                    first_derivative(Gx2p, ang0, ang3, dim=y, side=-1, order=spc_order/2) -
-                    first_derivative(Gx2p, ang1, dim=z, side=-1, order=spc_order/2))
-            Gzz2 = (first_derivative(Gz2r, ang1, ang2, dim=x, side=-1, order=spc_order/2) +
-                    first_derivative(Gz2r, ang1, ang3, dim=y, side=-1, order=spc_order/2) +
-                    first_derivative(Gz2r, ang0, dim=z, side=-1, order=spc_order/2))
+            Gxx2 = (first_derivative(Gx2p, ang0, ang2, dim=x, side=-1, order=spc_brd) +
+                    first_derivative(Gx2p, ang0, ang3, dim=y, side=-1, order=spc_brd) -
+                    first_derivative(Gx2p, ang1, dim=z, side=-1, order=spc_brd))
+            Gzz2 = (first_derivative(Gz2r, ang1, ang2, dim=x, side=-1, order=spc_brd) +
+                    first_derivative(Gz2r, ang1, ang3, dim=y, side=-1, order=spc_brd) +
+                    first_derivative(Gz2r, ang0, dim=z, side=-1, order=spc_brd))
             parm = [m, damp, epsilon, delta, theta, phi, u, v]
         else:
             Gyy2 = 0
@@ -124,23 +126,24 @@ class ForwardOperator(Operator):
             parm = [m, damp, epsilon, delta, theta, u, v]
             Gx1p = (ang0 * u.dxl - ang1 * u.dyl)
             Gz1r = (ang1 * v.dxl + ang0 * v.dyl)
-            Gxx1 = (first_derivative(Gx1p * ang0, dim=x, side=1, order=spc_order/2) -
-                    first_derivative(Gx1p * ang1, dim=y, side=1, order=spc_order/2))
-            Gzz1 = (first_derivative(Gz1r * ang1, dim=x, side=1, order=spc_order/2) +
-                    first_derivative(Gz1r * ang0, dim=y, side=1, order=spc_order/2))
+            Gxx1 = (first_derivative(Gx1p * ang0, dim=x, side=1, order=spc_brd) -
+                    first_derivative(Gx1p * ang1, dim=y, side=1, order=spc_brd))
+            Gzz1 = (first_derivative(Gz1r * ang1, dim=x, side=1, order=spc_brd) +
+                    first_derivative(Gz1r * ang0, dim=y, side=1, order=spc_brd))
             Gx2p = (ang0 * u.dxr - ang1 * u.dyr)
             Gz2r = (ang1 * v.dxr + ang0 * v.dyr)
-            Gxx2 = (first_derivative(Gx2p * ang0, dim=x, side=-1, order=spc_order/2) -
-                    first_derivative(Gx2p * ang1, dim=y, side=-1, order=spc_order/2))
-            Gzz2 = (first_derivative(Gz2r * ang1, dim=x, side=-1, order=spc_order/2) +
-                    first_derivative(Gz2r * ang0, dim=y, side=-1, order=spc_order/2))
+            Gxx2 = (first_derivative(Gx2p * ang0, dim=x, side=-1, order=spc_brd) -
+                    first_derivative(Gx2p * ang1, dim=y, side=-1, order=spc_brd))
+            Gzz2 = (first_derivative(Gz2r * ang1, dim=x, side=-1, order=spc_brd) +
+                    first_derivative(Gz2r * ang0, dim=y, side=-1, order=spc_brd))
 
-        stencilp = 1.0 / (2.0 * m + s * damp) * (4.0 * m * u +
-                                                 (s * damp - 2.0 * m) * u.backward +
-                                                 2.0 * s**2 * (epsilon * Hp + delta * Hzr))
-        stencilr = 1.0 / (2.0 * m + s * damp) * (4.0 * m * v +
-                                                 (s * damp - 2.0 * m) * v.backward +
-                                                 2.0 * s**2 * (delta * Hp + Hzr))
+        stencilp = 1.0 / (2.0 * m + s * damp) * \
+            (4.0 * m * u + (s * damp - 2.0 * m) *
+             u.backward + 2.0 * s**2 * (epsilon * Hp + delta * Hzr))
+        stencilr = 1.0 / (2.0 * m + s * damp) * \
+            (4.0 * m * v + (s * damp - 2.0 * m) *
+             v.backward + 2.0 * s**2 * (delta * Hp + Hzr))
+
         Hp = -(.5 * Gxx1 + .5 * Gxx2 + .5 * Gyy1 + .5 * Gyy2)
         Hzr = -(.5 * Gzz1 + .5 * Gzz2)
         factorized = {"Hp": Hp, "Hzr": Hzr}
@@ -151,7 +154,7 @@ class ForwardOperator(Operator):
         stencils = [first_stencil, second_stencil]
         super(ForwardOperator, self).__init__(src.nt, m.shape,
                                               stencils=stencils,
-                                              substitutions=subs,
+                                              subs=subs,
                                               spc_border=spc_order/2,
                                               time_order=time_order,
                                               forward=True,
@@ -163,7 +166,8 @@ class ForwardOperator(Operator):
         # Insert source and receiver terms post-hoc
         self.input_params += [src, src.coordinates, rec, rec.coordinates]
         self.output_params += [v, rec]
-        self.propagator.time_loop_stencils_a = src.add(m, u) + src.add(m, v) + rec.read2(u, v)
+        self.propagator.time_loop_stencils_a = (src.add(m, u) + src.add(m, v) +
+                                                rec.read2(u, v))
         self.propagator.add_devito_param(src)
         self.propagator.add_devito_param(src.coordinates)
         self.propagator.add_devito_param(rec)
@@ -193,7 +197,7 @@ class AdjointOperator(Operator):
 
         super(AdjointOperator, self).__init__(rec.nt, m.shape,
                                               stencils=stencils,
-                                              substitutions=substitutions,
+                                              subs=substitutions,
                                               spc_border=spc_order/2,
                                               time_order=time_order,
                                               forward=False, dtype=m.dtype,
@@ -225,15 +229,17 @@ class GradientOperator(Operator):
         main_stencil = Eq(lhs, lhs + stencil)
         gradient_update = Eq(grad.indexed[space_dim],
                              grad.indexed[space_dim] -
-                             (v.indexed[total_dim] - 2 * v.indexed[tuple((t + 1,) + space_dim)] +
-                                 v.indexed[tuple((t + 2,) + space_dim)]) * u.indexed[total_dim])
+                             (v.indexed[total_dim] - 2 *
+                              v.indexed[tuple((t + 1,) + space_dim)] +
+                              v.indexed[tuple((t + 2,) + space_dim)]) *
+                             u.indexed[total_dim])
         reset_v = Eq(v.indexed[tuple((t + 2,) + space_dim)], 0)
         stencils = [main_stencil, gradient_update, reset_v]
         substitutions = [dict(zip(subs, stencil_args)), {}, {}]
 
         super(GradientOperator, self).__init__(rec.nt, m.shape,
                                                stencils=stencils,
-                                               substitutions=substitutions,
+                                               subs=substitutions,
                                                spc_border=spc_order/2,
                                                time_order=time_order,
                                                forward=False, dtype=m.dtype,
@@ -260,8 +266,10 @@ class BornOperator(Operator):
         dt = src.dt
         h = src.h
         stencil, subs = self._init_taylor(dim, time_order, spc_order)[0]
-        first_stencil = self.smart_sympy_replace(dim, time_order, stencil, Function('p'), u, fw=True)
-        second_stencil = self.smart_sympy_replace(dim, time_order, stencil, Function('p'), U, fw=True)
+        first_stencil = self.smart_sympy_replace(dim, time_order, stencil, Function('p'),
+                                                 u, fw=True)
+        second_stencil = self.smart_sympy_replace(dim, time_order, stencil, Function('p'),
+                                                  U, fw=True)
         first_stencil_args = [m.indexed[space_dim], dt, h, damp.indexed[space_dim]]
         first_update = Eq(u.indexed[total_dim], u.indexed[total_dim]+first_stencil)
         src2 = (-(dt**-2)*(u.indexed[total_dim]-2*u.indexed[tuple((t - 1,) + space_dim)] +
@@ -277,7 +285,7 @@ class BornOperator(Operator):
 
         super(BornOperator, self).__init__(src.nt, m.shape,
                                            stencils=stencils,
-                                           substitutions=substitutions,
+                                           subs=substitutions,
                                            spc_border=spc_order/2,
                                            time_order=time_order,
                                            forward=True,

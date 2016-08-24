@@ -11,8 +11,10 @@ __all__ = ['second_derivative', 'cross_derivative']
 # Explicitly derived Finite Difference coefficients for
 # symmetric derivative stencils.
 fd_coefficients = {
-    16: [-3.054844, 1.777778, -0.311111, 0.075421, -0.017677, 0.003481, -0.000518, 0.000051, -0.000002],
-    14: [-3.023594, 1.750000, -0.291667, 0.064815, -0.013258, 0.002121, -0.000227, 0.000012],
+    16: [-3.054844, 1.777778, -0.311111, 0.075421, -0.017677, 0.003481, -0.000518,
+         0.000051, -0.000002],
+    14: [-3.023594, 1.750000, -0.291667, 0.064815, -0.013258, 0.002121, -0.000227,
+         0.000012],
     12: [-2.982778, 1.714286, -0.267857, 0.052910, -0.008929, 0.001039, -0.000060],
     10: [-2.927222, 1.666667, -0.238095, 0.039683, -0.004960, 0.000317],
     8: [-2.847222, 1.600000, -0.200000, 0.025397, -0.001786],
@@ -86,13 +88,17 @@ def cross_derivative(*args, **kwargs):
 
     # Stencil positions for non-symmetric cross-derivatives with symmetric averaging
     ind1r = [(dims[0] + i * diff)
-             for i in range(-int(order / 2) + 1 - (order < 4), int((order + 1) / 2) + 2 - (order < 4))]
+             for i in range(-int(order / 2) + 1 - (order < 4),
+                            int((order + 1) / 2) + 2 - (order < 4))]
     ind2r = [(dims[1] + i * diff)
-             for i in range(-int(order / 2) + 1 - (order < 4), int((order + 1) / 2) + 2 - (order < 4))]
+             for i in range(-int(order / 2) + 1 - (order < 4),
+                            int((order + 1) / 2) + 2 - (order < 4))]
     ind1l = [(dims[0] - i * diff)
-             for i in range(-int(order / 2) + 1 - (order < 4), int((order + 1) / 2) + 2 - (order < 4))]
+             for i in range(-int(order / 2) + 1 - (order < 4),
+                            int((order + 1) / 2) + 2 - (order < 4))]
     ind2l = [(dims[1] - i * diff)
-             for i in range(-int(order / 2) + 1 - (order < 4), int((order + 1) / 2) + 2 - (order < 4))]
+             for i in range(-int(order / 2) + 1 - (order < 4),
+                            int((order + 1) / 2) + 2 - (order < 4))]
 
     # Finite difference weights from Taylor approximation with this positions
     c1 = finite_diff_weights(1, ind1r, dims[0])
@@ -105,7 +111,8 @@ def cross_derivative(*args, **kwargs):
         for j in range(0, len(ind2r)):
             var1 = [a.subs({dims[0]: ind1r[i], dims[1]: ind2r[j]}) for a in args]
             var2 = [a.subs({dims[0]: ind1l[i], dims[1]: ind2l[j]}) for a in args]
-            deriv += .5 * c1[i] * c1[j] * reduce(mul, var1, 1) + .5 * c2[-(j+1)] * c2[-(i+1)] * reduce(mul, var2, 1)
+            deriv += (.5 * c1[i] * c1[j] * reduce(mul, var1, 1) +
+                      .5 * c2[-(j+1)] * c2[-(i+1)] * reduce(mul, var2, 1))
 
     return -deriv
 
