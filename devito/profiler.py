@@ -1,3 +1,4 @@
+from collections import defaultdict
 from ctypes import Structure, byref, c_double, c_longlong
 
 from cgen_wrapper import Assign, Block, For, Statement, Struct, Value
@@ -10,17 +11,61 @@ class Profiler(object):
     """
     TIME = 1
     FLOP = 2
+    t_name = "timings"
+    f_name = "flops"
+    loop_temp_prefix = "temp_"
 
-    def __init__(self):
-        self.t_name = "timings"
-        self.o_name = "oi"
-        self.f_name = "flops"
+    def __init__(self, openmp=False):
+        self.openmp = openmp
         self.t_fields = []
         self.f_fields = []
-        self.oi = {}
-        self._timings = None
-        self._flops = None
-        self.flops_defaults = {}
+        self.oi = defaultdict(int)
+        # _C_ fields are ctypes structs used for code generation
+        self._C_timings = None
+        self._C_flops = None
+        self.flops_defaults = defaultdict(int)
+
+    def get_loop_reduction(self, op, variables):
+        """Function to generate reduction pragma, used for profiling under
+        OpenMP settings.
+
+        :param op: The reduction operator.
+        :param varaiables: A list of string, each is the name of a variable
+                           to be reduced.
+        :returns: String representing the reduction pragma
+        """
+        if len(variables) <= 0:
+            return ""
+        return " reduction(%s:%s%s%s)" % (op, self.loop_temp_prefix, variables[0],
+                                          "".join([(", %s%s" % (self.loop_temp_prefix, v))
+                                                  for v in variables[1:]]))
+
+    def get_loop_temp_var_decl(self, value, variables):
+        """Function to generate the declariation and initialisation of the
+        temporary variables used for reduction for loop profiling.
+
+        :param value: String represeting the initial value of temporary
+                      varaibles.
+        :param variables: A list of string, each is the name of a variable to
+                          be declaried
+        :returns: String representing the declariation statement
+        """
+        if len(variables) <= 0:
+            return ""
+        return "long long %s%s = %s%s" % (self.loop_temp_prefix, variables[0], value,
+                                          "".join([(", %s%s = %s" % (self.loop_temp_prefix, v, value))
+                                                  for v in variables[1:]]))
+
+    def get_loop_flop_update(self, variables):
+        """Function to generate a list of statement representing the amount
+        of flops update per iteration of the loop.
+
+        :param variables: A list of string, each is the suffix of the
+                          temperary variables used for update
+        :returns: A list of string representing statements used as updating
+                  statements
+        """
+        return ["%s->%s+=%s%s" % (self.f_name, v, self.loop_temp_prefix, v) for v in variables]
 
     def add_profiling(self, code, name, byte_size=4, omp_flag=None):
         """Function to add profiling code to the given :class:`cgen.Block`.
@@ -69,11 +114,6 @@ class Profiler(object):
         :param name: The name of the field to be populated
         :param code: The code to be profiled.
         """
-        if name not in self.oi:
-            self.oi[name] = 0
-        if name not in self.flops_defaults:
-            self.flops_defaults[name] = 0
-
         loads = {"stores": 0}
 
         for elem in code:
@@ -88,6 +128,9 @@ class Profiler(object):
                 block_oi, block_flops = self._get_block_oi_and_flops(name, elem, loads)
                 self.oi[name] += block_oi
                 self.flops_defaults[name] += block_flops
+            else:
+                # no op
+                pass
 
         self.oi[name] = float(self.oi[name]) / (size*(len(loads) + loads["stores"] - 1))
 
@@ -102,11 +145,15 @@ class Profiler(object):
             loop_oi_f, loop_flops = self._get_block_oi_and_flops(name, loop.body, loads)
         elif isinstance(loop.body, For):
             loop_oi_f = self._get_for_flops(name, loop.body, loads)
+        else:
+            # no op
+            pass
 
         if loop_flops == 0:
             return loop_oi_f
 
-        flops_calc_stmt = Statement("%s->%s += %f" % (self.f_name, name, loop_flops))
+        flops_calc_stmt = Statement("%s%s += %f" % (self.loop_temp_prefix, name, loop_flops)) if self.openmp else\
+            Statement("%s->%s += %f" % (self.f_name, name, loop_flops))
         loop.body = Block([flops_calc_stmt, loop.body])
 
         return loop_oi_f
@@ -126,6 +173,9 @@ class Profiler(object):
                 block_flops += nblock_flops
             elif isinstance(elem, For):
                 block_oi += self._get_for_flops(name, elem, loads)
+            else:
+                # no op
+                pass
 
         return block_oi, block_flops
 
@@ -152,12 +202,12 @@ class Profiler(object):
                     cur_load += char
                 idx += 1
             else:
-                if char is '[' or char is ']':
+                if char is '[':
                     loads[cur_load] = True
                     cur_load = ""
-                    brackets += 1 if char is '[' else -1
+                    brackets += 1
                     idx += 1
-                elif char is ' ' and brackets == 0:
+                elif char is ' ' and brackets == 0 and len(cur_load) > 0:
                     loads[cur_load] = True
                     cur_load = ""
                     idx += 1
@@ -221,9 +271,9 @@ class Profiler(object):
         struct = self.get_class(choice)()
 
         if choice == Profiler.TIME:
-            self._timings = struct
+            self._C_timings = struct
         elif choice == Profiler.FLOP:
-            self._flops = struct
+            self._C_flops = struct
 
         return byref(struct)
 
@@ -233,11 +283,11 @@ class Profiler(object):
 
         :returns: A dictionary containing the timings
         """
-        if not self._timings:
+        if not self._C_timings:
             return {}
 
-        return dict((field, getattr(self._timings, field))
-                    for field, _ in self._timings._fields_)
+        return dict((field, getattr(self._C_timings, field))
+                    for field, _ in self._C_timings._fields_)
 
     @property
     def gflops(self):
@@ -245,11 +295,11 @@ class Profiler(object):
 
         :returns: A dictionary containing the calculated GFLOPS
         """
-        if not self._flops:
+        if not self._C_flops:
             return {}
 
         return dict((field,
                      float(
-                         getattr(self._flops, field) + self.flops_defaults[field]
+                         getattr(self._C_flops, field) + self.flops_defaults[field]
                      )/self.timings[field]/10**9)
-                    for field, _ in self._flops._fields_)
+                    for field, _ in self._C_flops._fields_)
