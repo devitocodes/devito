@@ -312,7 +312,7 @@ class Propagator(object):
     def expr_dtype(self, expr):
         """Gets the resulting dtype of an expression.
 
-        :returns: The dtype. Defaults to `np.float64` if none found.
+        :returns: The dtype. Defaults to `self.dtype` if none found.
         """
         dtypes = []
 
@@ -323,7 +323,7 @@ class Propagator(object):
         if dtypes:
             return np.find_common_type(dtypes, [])
         else:
-            return np.float64
+            return self.dtype
 
     def convert_equality_to_cgen(self, equality):
         """Convert given equality to :class:`cgen.Generable` statement
@@ -341,7 +341,7 @@ class Propagator(object):
             s_rhs = self.time_substitutions(equality.rhs).xreplace(self._var_map)
 
             if s_lhs.find("temp") != -1:
-                s_lhs = "double" + " " + s_lhs
+                s_lhs = cgen.dtype_to_ctype(self.expr_dtype(equality.rhs)) + " " + s_lhs
 
             # appending substituted stencil,which is used to determine alignment pragma
             self.sub_stencils.append(s_rhs)
