@@ -312,6 +312,8 @@ class Propagator(object):
     def expr_dtype(self, expr):
         """Gets the resulting dtype of an expression.
 
+        :param expr: The expression
+
         :returns: The dtype. Defaults to `self.dtype` if none found.
         """
         dtypes = []

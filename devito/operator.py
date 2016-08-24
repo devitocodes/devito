@@ -64,9 +64,11 @@ def expr_indexify(expr):
 
 
 def expr_cse(expr):
-    """Performs common subexpression elimination on expressio
+    """Performs common subexpression elimination on expressions
 
-    :param expr: Sympy expression on which CSE needs to be performed
+    :param expr: Sympy equation or list of equations on which CSE needs to be performed
+
+    :return: A list of the resulting equations after performing CSE
     """
     expr = expr if isinstance(expr, list) else [expr]
 
