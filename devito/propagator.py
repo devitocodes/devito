@@ -363,7 +363,11 @@ class Propagator(object):
         """
         array_names = set()
         for item in flatten([stencil.free_symbols for stencil in stencils]):
-            if str(item) not in factorized and item not in loop_counters + time_steppers:
+            if (
+                str(item) not in factorized
+                and item not in loop_counters + time_steppers
+                and str(item).find("temp") == -1
+            ):
                 array_names.add(item)
 
         return cgen.Pragma("%s(%s:64)" % (self.compiler.pragma_aligned,
