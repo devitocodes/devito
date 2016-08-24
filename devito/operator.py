@@ -1,5 +1,5 @@
 import numpy as np
-from sympy import (cse, Eq, Function, Indexed, IndexedBase, Symbol, lambdify, preorder_traversal,
+from sympy import (cse, Eq, Function, Idx, Indexed, IndexedBase, Symbol, lambdify, preorder_traversal,
                    solve, symbols)
 from sympy.abc import t
 from sympy.utilities.iterables import numbered_symbols
@@ -82,6 +82,8 @@ def expr_cse(expr):
     for temp, value in temps:
         if isinstance(value, IndexedBase):
             to_revert[temp] = value
+        elif t in value.args:
+            to_revert[temp] = value
         else:
             to_keep.append((temp, value))
 
@@ -90,8 +92,16 @@ def expr_cse(expr):
     for expr in stencils + [assign for temp, assign in to_keep]:
         for arg in preorder_traversal(expr):
             if isinstance(arg, Indexed):
+                new_indices = []
+                for index in arg.indices:
+                    if index in to_revert:
+                        new_indices.append(to_revert[index])
+                    else:
+                        new_indices.append(index)
                 if arg.base.label in to_revert:
-                    subs_dict[arg] = Indexed(to_revert[arg.base.label], *arg.indices)
+                    subs_dict[arg] = Indexed(to_revert[arg.base.label], *new_indices)
+                elif tuple(new_indices) != arg.indices:
+                    subs_dict[arg] = Indexed(arg.base, *new_indices)
 
     stencils = [stencil.xreplace(subs_dict) for stencil in stencils]
 

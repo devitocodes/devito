@@ -754,8 +754,6 @@ class Propagator(object):
 
                 if not self.save_vars[str(array_term.base.label)]:
                     subs_dict[arg] = array_term.xreplace(self.t_replace)
-            elif arg in self.t_replace:
-                subs_dict[arg] = arg.xreplace(self.t_replace)
 
         return sympy_expr.xreplace(subs_dict)
 
