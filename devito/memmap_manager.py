@@ -1,6 +1,7 @@
 import atexit
 import os
 import sys
+from devito.logger import warning
 from signal import SIGABRT, SIGINT, SIGSEGV, SIGTERM, signal
 from tempfile import gettempdir
 
@@ -76,9 +77,9 @@ class MemmapManager():
                 try:
                     os.remove(f)
                 except OSError:
-                    print("error removing " + f + " it may be already removed, skipping")
+                    warning("error removing %s it may be already removed, skipping", f)
             else:
-                print("file " + f + " has been left")
+                warning("file %s has been left", f)
 
     @staticmethod
     def _remove_memmap_file_on_signal(*args):
