@@ -131,18 +131,14 @@
            <div itemprop="articleBody">
             
   <h1>Source code for devito.interfaces</h1><div class="highlight"><pre>
-<span></span><span class="kn">import</span> <span class="nn">atexit</span>
-<span class="kn">import</span> <span class="nn">os</span>
-<span class="kn">import</span> <span class="nn">sys</span>
-<span class="kn">import</span> <span class="nn">weakref</span>
-<span class="kn">from</span> <span class="nn">signal</span> <span class="k">import</span> <span class="n">SIGABRT</span><span class="p">,</span> <span class="n">SIGINT</span><span class="p">,</span> <span class="n">SIGSEGV</span><span class="p">,</span> <span class="n">SIGTERM</span><span class="p">,</span> <span class="n">signal</span>
-<span class="kn">from</span> <span class="nn">tempfile</span> <span class="k">import</span> <span class="n">gettempdir</span>
+<span></span><span class="kn">import</span> <span class="nn">weakref</span>
 
 <span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
 <span class="kn">from</span> <span class="nn">sympy</span> <span class="k">import</span> <span class="n">Function</span><span class="p">,</span> <span class="n">IndexedBase</span><span class="p">,</span> <span class="n">as_finite_diff</span>
 <span class="kn">from</span> <span class="nn">sympy.abc</span> <span class="k">import</span> <span class="n">h</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">z</span>
 
 <span class="kn">from</span> <span class="nn">devito.finite_difference</span> <span class="k">import</span> <span class="n">cross_derivative</span><span class="p">,</span> <span class="n">first_derivative</span>
+<span class="kn">from</span> <span class="nn">devito.memmap_manager</span> <span class="k">import</span> <span class="n">MemmapManager</span>
 <span class="kn">from</span> <span class="nn">tools</span> <span class="k">import</span> <span class="n">aligned</span>
 
 <span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;DenseData&#39;</span><span class="p">,</span> <span class="s1">&#39;TimeData&#39;</span><span class="p">,</span> <span class="s1">&#39;PointData&#39;</span><span class="p">]</span>
@@ -605,77 +601,6 @@
         <span class="n">_indices</span> <span class="o">=</span> <span class="p">[</span><span class="n">t</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">z</span><span class="p">]</span>
 
         <span class="k">return</span> <span class="n">_indices</span><span class="p">[:</span><span class="nb">len</span><span class="p">(</span><span class="n">shape</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span><span class="p">]</span></div></div>
-
-
-<span class="k">class</span> <span class="nc">MemmapManager</span><span class="p">():</span>
-    <span class="sd">&quot;&quot;&quot;Class for managing all memmap related settings&quot;&quot;&quot;</span>
-    <span class="c1"># used to enable memmap as default</span>
-    <span class="n">_use_memmap</span> <span class="o">=</span> <span class="kc">False</span>
-    <span class="c1"># flag for registering exit func</span>
-    <span class="n">_registered</span> <span class="o">=</span> <span class="kc">False</span>
-    <span class="n">_default_disk_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">gettempdir</span><span class="p">(),</span> <span class="s2">&quot;devito_disk&quot;</span><span class="p">)</span>
-    <span class="c1"># contains str name of all memmap file created</span>
-    <span class="n">_created_data</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
-    <span class="n">_default_exit_code</span> <span class="o">=</span> <span class="mi">0</span>
-
-    <span class="nd">@staticmethod</span>
-    <span class="k">def</span> <span class="nf">set_memmap</span><span class="p">(</span><span class="n">memmap</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;Call this method to set default value of memmap&quot;&quot;&quot;</span>
-        <span class="n">MemmapManager</span><span class="o">.</span><span class="n">_use_memmap</span> <span class="o">=</span> <span class="n">memmap</span>
-
-    <span class="nd">@staticmethod</span>
-    <span class="k">def</span> <span class="nf">set_default_disk_path</span><span class="p">(</span><span class="n">default_disk_path</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;Call this method to change the default disk path for memmap&quot;&quot;&quot;</span>
-        <span class="n">MemmapManager</span><span class="o">.</span><span class="n">_default_disk_path</span> <span class="o">=</span> <span class="n">default_disk_path</span>
-
-    <span class="nd">@staticmethod</span>
-    <span class="k">def</span> <span class="nf">setup</span><span class="p">(</span><span class="n">data_self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;This method is used to setup memmap parameters for data classes.</span>
-
-<span class="sd">        :param name: Name of data, must be unique</span>
-<span class="sd">        :param memmap: Boolean indicates whether memmap is used. Optional</span>
-<span class="sd">        :param disk_path: String indicates path to create memmap file. Optional</span>
-
-<span class="sd">        Note: If memmap or disk_path are not provided, the default values</span>
-<span class="sd">        are used.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="n">data_self</span><span class="o">.</span><span class="n">memmap</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;memmap&#39;</span><span class="p">,</span> <span class="n">MemmapManager</span><span class="o">.</span><span class="n">_use_memmap</span><span class="p">)</span>
-
-        <span class="k">if</span> <span class="n">data_self</span><span class="o">.</span><span class="n">memmap</span><span class="p">:</span>
-            <span class="n">disk_path</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;disk_path&#39;</span><span class="p">,</span> <span class="n">MemmapManager</span><span class="o">.</span><span class="n">_default_disk_path</span><span class="p">)</span>
-
-            <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">disk_path</span><span class="p">):</span>
-                <span class="n">os</span><span class="o">.</span><span class="n">makedirs</span><span class="p">(</span><span class="n">disk_path</span><span class="p">)</span>
-
-            <span class="n">data_self</span><span class="o">.</span><span class="n">f</span> <span class="o">=</span> <span class="n">disk_path</span> <span class="o">+</span> <span class="s2">&quot;/data_&quot;</span> <span class="o">+</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;name&#39;</span><span class="p">)</span>
-            <span class="n">MemmapManager</span><span class="o">.</span><span class="n">_created_data</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">data_self</span><span class="o">.</span><span class="n">f</span><span class="p">)</span>
-
-            <span class="k">if</span> <span class="ow">not</span> <span class="n">MemmapManager</span><span class="o">.</span><span class="n">_registered</span><span class="p">:</span>
-                <span class="n">MemmapManager</span><span class="o">.</span><span class="n">_register_remove_memmap_file_signal</span><span class="p">()</span>
-                <span class="n">MemmapManager</span><span class="o">.</span><span class="n">_registered</span> <span class="o">=</span> <span class="kc">True</span>
-
-    <span class="nd">@staticmethod</span>
-    <span class="k">def</span> <span class="nf">_reomve_memmap_file</span><span class="p">():</span>
-        <span class="sd">&quot;&quot;&quot;This method is used to clean up memmap file&quot;&quot;&quot;</span>
-        <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">MemmapManager</span><span class="o">.</span><span class="n">_created_data</span><span class="p">:</span>
-            <span class="k">try</span><span class="p">:</span>
-                <span class="n">os</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span><span class="n">f</span><span class="p">)</span>
-            <span class="k">except</span> <span class="ne">OSError</span><span class="p">:</span>
-                <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;error removing &quot;</span> <span class="o">+</span> <span class="n">f</span> <span class="o">+</span> <span class="s2">&quot; it may be already removed, skipping&quot;</span><span class="p">)</span>
-                <span class="k">pass</span>
-
-    <span class="nd">@staticmethod</span>
-    <span class="k">def</span> <span class="nf">_remove_memmap_file_on_signal</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;This method is used to clean memmap file on signal, internal method&quot;&quot;&quot;</span>
-        <span class="n">sys</span><span class="o">.</span><span class="n">exit</span><span class="p">(</span><span class="n">MemmapManager</span><span class="o">.</span><span class="n">_default_exit_code</span><span class="p">)</span>
-
-    <span class="nd">@staticmethod</span>
-    <span class="k">def</span> <span class="nf">_register_remove_memmap_file_signal</span><span class="p">():</span>
-        <span class="sd">&quot;&quot;&quot;This method is used to register clean up method for chosen signals&quot;&quot;&quot;</span>
-        <span class="n">atexit</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="n">MemmapManager</span><span class="o">.</span><span class="n">_reomve_memmap_file</span><span class="p">)</span>
-
-        <span class="k">for</span> <span class="n">sig</span> <span class="ow">in</span> <span class="p">(</span><span class="n">SIGABRT</span><span class="p">,</span> <span class="n">SIGINT</span><span class="p">,</span> <span class="n">SIGSEGV</span><span class="p">,</span> <span class="n">SIGTERM</span><span class="p">):</span>
-            <span class="n">signal</span><span class="p">(</span><span class="n">sig</span><span class="p">,</span> <span class="n">MemmapManager</span><span class="o">.</span><span class="n">_remove_memmap_file_on_signal</span><span class="p">)</span>
 </pre></div>
 
            </div>
