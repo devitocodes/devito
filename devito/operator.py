@@ -88,9 +88,12 @@ def expr_cse(expr):
             to_keep.append((temp, value))
 
     for temp, value in to_revert.items():
-        if isinstance(value, Indexed):
-            if value.base.label in to_revert:
-                to_revert[temp] = Indexed(to_revert[value.base.label], *value.indices)
+        s_dict = {}
+        for arg in preorder_traversal(value):
+            if isinstance(value, Indexed):
+                if value.base.label in to_revert:
+                    s_dict[arg] = Indexed(to_revert[value.base.label], *value.indices)
+        to_revert[temp] = value.xreplace(s_dict)
 
     subs_dict = {}
 
@@ -107,6 +110,8 @@ def expr_cse(expr):
                     subs_dict[arg] = Indexed(to_revert[arg.base.label], *new_indices)
                 elif tuple(new_indices) != arg.indices:
                     subs_dict[arg] = Indexed(arg.base, *new_indices)
+            if arg in to_revert:
+                subs_dict[arg] = to_revert[arg]
 
     stencils = [stencil.xreplace(subs_dict) for stencil in stencils]
 
