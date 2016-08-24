@@ -211,6 +211,10 @@ class Propagator(object):
             for i, t_var in enumerate(reversed(self.time_steppers)):
                 self.t_replace[self.time_dim - i*self._time_step] = t_var
 
+            for i in range(1, len(self.time_steppers)):
+                idx = self.time_dim + i*self._time_step
+                self.t_replace[idx] = self.time_steppers[i - abs(self._time_step)]
+
         self._save = self._save and save
 
     @property
