@@ -141,12 +141,13 @@
     <span class="sd">&quot;&quot;&quot;Class that accepts a list of :class:`FunctionDescriptor` objects and generates the C</span>
 <span class="sd">    function represented by it</span>
 
-<span class="sd">    :param function_descriptor: The list of :class:`FunctionDescriptor` objects</span>
+<span class="sd">    :param function_descriptors: The list of :class:`FunctionDescriptor` objects</span>
 <span class="sd">    :param mic_flag: True if using MIC. Default is False</span>
 <span class="sd">    :param openmp: True if using OpenMP. Default is False</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="n">libraries</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;cassert&#39;</span><span class="p">,</span> <span class="s1">&#39;cstdlib&#39;</span><span class="p">,</span> <span class="s1">&#39;cmath&#39;</span><span class="p">,</span> <span class="s1">&#39;iostream&#39;</span><span class="p">,</span>
-                 <span class="s1">&#39;fstream&#39;</span><span class="p">,</span> <span class="s1">&#39;vector&#39;</span><span class="p">,</span> <span class="s1">&#39;cstdio&#39;</span><span class="p">,</span> <span class="s1">&#39;string&#39;</span><span class="p">,</span> <span class="s1">&#39;inttypes.h&#39;</span><span class="p">,</span> <span class="s1">&#39;sys/time.h&#39;</span><span class="p">,</span> <span class="s1">&#39;math.h&#39;</span><span class="p">]</span>
+                 <span class="s1">&#39;fstream&#39;</span><span class="p">,</span> <span class="s1">&#39;vector&#39;</span><span class="p">,</span> <span class="s1">&#39;cstdio&#39;</span><span class="p">,</span> <span class="s1">&#39;string&#39;</span><span class="p">,</span>
+                 <span class="s1">&#39;inttypes.h&#39;</span><span class="p">,</span> <span class="s1">&#39;sys/time.h&#39;</span><span class="p">,</span> <span class="s1">&#39;math.h&#39;</span><span class="p">]</span>
 
     <span class="n">_pymic_attribute</span> <span class="o">=</span> <span class="s1">&#39;PYMIC_KERNEL&#39;</span>
 
@@ -161,7 +162,8 @@
 
 <div class="viewcode-block" id="FunctionManager.includes"><a class="viewcode-back" href="../../devito.html#devito.function_manager.FunctionManager.includes">[docs]</a>    <span class="k">def</span> <span class="nf">includes</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        :returns: :class:`cgen.Module` -- A module containing all the preprocessor directives</span>
+<span class="sd">        :returns: :class:`cgen.Module` -- A module containing all the preprocessor</span>
+<span class="sd">         directives</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="n">statements</span> <span class="o">=</span> <span class="p">[]</span>
         <span class="n">statements</span> <span class="o">+=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_defines</span>
@@ -190,7 +192,8 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">_structs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">struct</span><span class="p">)</span></div>
 
 <div class="viewcode-block" id="FunctionManager.generate"><a class="viewcode-back" href="../../devito.html#devito.function_manager.FunctionManager.generate">[docs]</a>    <span class="k">def</span> <span class="nf">generate</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;:returns: :class:`cgen.Module` -- A module containing the includes and the generated functions</span>
+        <span class="sd">&quot;&quot;&quot;:returns: :class:`cgen.Module` -- A module containing the includes</span>
+<span class="sd">         and the generated functions</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="n">statements</span> <span class="o">=</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">includes</span><span class="p">()]</span>
         <span class="n">statements</span> <span class="o">+=</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">process_function</span><span class="p">(</span><span class="n">m</span><span class="p">)</span> <span class="k">for</span> <span class="n">m</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">function_descriptors</span><span class="p">]</span>
@@ -201,7 +204,8 @@
         <span class="sd">&quot;&quot;&quot;Generates a function signature and body from a :class:`FunctionDescriptor`</span>
 
 <span class="sd">        :param function_descriptor: The :class:`FunctionDescriptor` to process</span>
-<span class="sd">        :returns: :class:`cgen.FunctionBody` -- The function body generated from the function_descriptor</span>
+<span class="sd">        :returns: :class:`cgen.FunctionBody` -- The function body generated</span>
+<span class="sd">        from the function_descriptor</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="n">cgen</span><span class="o">.</span><span class="n">FunctionBody</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">generate_function_signature</span><span class="p">(</span><span class="n">function_descriptor</span><span class="p">),</span>
                                  <span class="bp">self</span><span class="o">.</span><span class="n">generate_function_body</span><span class="p">(</span><span class="n">function_descriptor</span><span class="p">))</span></div>
@@ -210,7 +214,8 @@
         <span class="sd">&quot;&quot;&quot;Generates a function signature from a :class:`FunctionDescriptor`</span>
 
 <span class="sd">        :param function_descriptor: The :class:`FunctionDescriptor` to process</span>
-<span class="sd">        :returns: :class:`cgen.FunctionDeclaration` -- The function declaration generated from function_descriptor</span>
+<span class="sd">        :returns: :class:`cgen.FunctionDeclaration` -- The function declaration generated</span>
+<span class="sd">         from the function_descriptor</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="n">function_params</span> <span class="o">=</span> <span class="p">[]</span>
 
@@ -219,20 +224,26 @@
             <span class="n">function_params</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">param_vec_def</span><span class="p">)</span>
 
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">mic_flag</span><span class="p">:</span>
-            <span class="n">function_params</span> <span class="o">+=</span> <span class="p">[</span><span class="n">cgen</span><span class="o">.</span><span class="n">Pointer</span><span class="p">(</span><span class="n">cgen</span><span class="o">.</span><span class="n">POD</span><span class="p">(</span><span class="n">param</span><span class="p">[</span><span class="s1">&#39;dtype&#39;</span><span class="p">],</span> <span class="n">param</span><span class="p">[</span><span class="s1">&#39;name&#39;</span><span class="p">]</span><span class="o">+</span><span class="s2">&quot;_pointer&quot;</span><span class="p">))</span>
+            <span class="n">function_params</span> <span class="o">+=</span> <span class="p">[</span><span class="n">cgen</span><span class="o">.</span><span class="n">Pointer</span><span class="p">(</span><span class="n">cgen</span><span class="o">.</span><span class="n">POD</span><span class="p">(</span><span class="n">param</span><span class="p">[</span><span class="s1">&#39;dtype&#39;</span><span class="p">],</span>
+                                                      <span class="n">param</span><span class="p">[</span><span class="s1">&#39;name&#39;</span><span class="p">]</span> <span class="o">+</span> <span class="s2">&quot;_pointer&quot;</span><span class="p">))</span>
                                 <span class="k">for</span> <span class="n">param</span> <span class="ow">in</span> <span class="n">function_descriptor</span><span class="o">.</span><span class="n">value_params</span><span class="p">]</span>
         <span class="k">else</span><span class="p">:</span>
-            <span class="n">function_params</span> <span class="o">+=</span> <span class="p">[</span><span class="n">cgen</span><span class="o">.</span><span class="n">POD</span><span class="p">(</span><span class="n">param</span><span class="p">[</span><span class="s1">&#39;dtype&#39;</span><span class="p">],</span> <span class="n">param</span><span class="p">[</span><span class="s1">&#39;name&#39;</span><span class="p">])</span> <span class="k">for</span> <span class="n">param</span> <span class="ow">in</span> <span class="n">function_descriptor</span><span class="o">.</span><span class="n">value_params</span><span class="p">]</span>
+            <span class="n">function_params</span> <span class="o">+=</span> <span class="p">[</span><span class="n">cgen</span><span class="o">.</span><span class="n">POD</span><span class="p">(</span><span class="n">param</span><span class="p">[</span><span class="s1">&#39;dtype&#39;</span><span class="p">],</span> <span class="n">param</span><span class="p">[</span><span class="s1">&#39;name&#39;</span><span class="p">])</span>
+                                <span class="k">for</span> <span class="n">param</span> <span class="ow">in</span> <span class="n">function_descriptor</span><span class="o">.</span><span class="n">value_params</span><span class="p">]</span>
 
         <span class="k">for</span> <span class="n">param</span> <span class="ow">in</span> <span class="n">function_descriptor</span><span class="o">.</span><span class="n">struct_params</span><span class="p">:</span>
-            <span class="n">function_params</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">cgen</span><span class="o">.</span><span class="n">Pointer</span><span class="p">(</span><span class="n">cgen</span><span class="o">.</span><span class="n">Value</span><span class="p">(</span><span class="s2">&quot;struct </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">param</span><span class="p">[</span><span class="s1">&#39;stype&#39;</span><span class="p">]),</span> <span class="n">param</span><span class="p">[</span><span class="s1">&#39;name&#39;</span><span class="p">])))</span>
+            <span class="n">function_params</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">cgen</span><span class="o">.</span><span class="n">Pointer</span><span class="p">(</span><span class="n">cgen</span><span class="o">.</span><span class="n">Value</span><span class="p">(</span><span class="s2">&quot;struct </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">param</span><span class="p">[</span><span class="s1">&#39;stype&#39;</span><span class="p">]),</span>
+                                                           <span class="n">param</span><span class="p">[</span><span class="s1">&#39;name&#39;</span><span class="p">])))</span>
 
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">mic_flag</span><span class="p">:</span>
-            <span class="k">return</span> <span class="n">cgen</span><span class="o">.</span><span class="n">FunctionDeclaration</span><span class="p">(</span><span class="n">cgen</span><span class="o">.</span><span class="n">Value</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_pymic_attribute</span> <span class="o">+</span> <span class="s1">&#39;</span><span class="se">\n</span><span class="s1">int&#39;</span><span class="p">,</span> <span class="n">function_descriptor</span><span class="o">.</span><span class="n">name</span><span class="p">),</span>
-                                            <span class="n">function_params</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">cgen</span><span class="o">.</span><span class="n">FunctionDeclaration</span><span class="p">(</span>
+                <span class="n">cgen</span><span class="o">.</span><span class="n">Value</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_pymic_attribute</span> <span class="o">+</span> <span class="s1">&#39;</span><span class="se">\n</span><span class="s1">int&#39;</span><span class="p">,</span> <span class="n">function_descriptor</span><span class="o">.</span><span class="n">name</span><span class="p">),</span>
+                <span class="n">function_params</span><span class="p">)</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="k">return</span> <span class="n">cgen</span><span class="o">.</span><span class="n">Extern</span><span class="p">(</span><span class="s2">&quot;C&quot;</span><span class="p">,</span>
-                               <span class="n">cgen</span><span class="o">.</span><span class="n">FunctionDeclaration</span><span class="p">(</span><span class="n">cgen</span><span class="o">.</span><span class="n">Value</span><span class="p">(</span><span class="s1">&#39;int&#39;</span><span class="p">,</span> <span class="n">function_descriptor</span><span class="o">.</span><span class="n">name</span><span class="p">),</span> <span class="n">function_params</span><span class="p">))</span></div>
+                               <span class="n">cgen</span><span class="o">.</span><span class="n">FunctionDeclaration</span><span class="p">(</span>
+                                   <span class="n">cgen</span><span class="o">.</span><span class="n">Value</span><span class="p">(</span><span class="s1">&#39;int&#39;</span><span class="p">,</span> <span class="n">function_descriptor</span><span class="o">.</span><span class="n">name</span><span class="p">),</span>
+                                   <span class="n">function_params</span><span class="p">))</span></div>
 
 <div class="viewcode-block" id="FunctionManager.generate_function_body"><a class="viewcode-back" href="../../devito.html#devito.function_manager.FunctionManager.generate_function_body">[docs]</a>    <span class="k">def</span> <span class="nf">generate_function_body</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">function_descriptor</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;Generates a function body from a :class:`FunctionDescriptor`</span>
@@ -250,13 +261,15 @@
             <span class="p">)</span>
             <span class="n">cast_pointer</span> <span class="o">=</span> <span class="n">cgen</span><span class="o">.</span><span class="n">Initializer</span><span class="p">(</span>
                 <span class="n">cgen</span><span class="o">.</span><span class="n">POD</span><span class="p">(</span><span class="n">param</span><span class="p">[</span><span class="s1">&#39;dtype&#39;</span><span class="p">],</span> <span class="s2">&quot;(*</span><span class="si">%s</span><span class="s2">)</span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">param</span><span class="p">[</span><span class="s1">&#39;name&#39;</span><span class="p">],</span> <span class="n">arr</span><span class="p">)),</span>
-                <span class="s1">&#39;(</span><span class="si">%s</span><span class="s1"> (*)</span><span class="si">%s</span><span class="s1">) </span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">cgen</span><span class="o">.</span><span class="n">dtype_to_ctype</span><span class="p">(</span><span class="n">param</span><span class="p">[</span><span class="s1">&#39;dtype&#39;</span><span class="p">]),</span> <span class="n">arr</span><span class="p">,</span> <span class="n">param</span><span class="p">[</span><span class="s1">&#39;name&#39;</span><span class="p">]</span><span class="o">+</span><span class="s2">&quot;_vec&quot;</span><span class="p">)</span>
+                <span class="s1">&#39;(</span><span class="si">%s</span><span class="s1"> (*)</span><span class="si">%s</span><span class="s1">) </span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">cgen</span><span class="o">.</span><span class="n">dtype_to_ctype</span><span class="p">(</span><span class="n">param</span><span class="p">[</span><span class="s1">&#39;dtype&#39;</span><span class="p">]),</span> <span class="n">arr</span><span class="p">,</span>
+                                   <span class="n">param</span><span class="p">[</span><span class="s1">&#39;name&#39;</span><span class="p">]</span><span class="o">+</span><span class="s2">&quot;_vec&quot;</span><span class="p">)</span>
             <span class="p">)</span>
             <span class="n">statements</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">cast_pointer</span><span class="p">)</span>
 
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">mic_flag</span><span class="p">:</span>
             <span class="k">for</span> <span class="n">param</span> <span class="ow">in</span> <span class="n">function_descriptor</span><span class="o">.</span><span class="n">value_params</span><span class="p">:</span>
-                <span class="n">cast_pointer</span> <span class="o">=</span> <span class="n">cgen</span><span class="o">.</span><span class="n">Initializer</span><span class="p">(</span><span class="n">cgen</span><span class="o">.</span><span class="n">POD</span><span class="p">(</span><span class="n">param</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="s2">&quot;(</span><span class="si">%s</span><span class="s2">)&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">param</span><span class="p">[</span><span class="mi">1</span><span class="p">])),</span> <span class="s1">&#39;*</span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">param</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">+</span><span class="s2">&quot;_pointer&quot;</span><span class="p">))</span>
+                <span class="n">cast_pointer</span> <span class="o">=</span> <span class="n">cgen</span><span class="o">.</span><span class="n">Initializer</span><span class="p">(</span><span class="n">cgen</span><span class="o">.</span><span class="n">POD</span><span class="p">(</span><span class="n">param</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="s2">&quot;(</span><span class="si">%s</span><span class="s2">)&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">param</span><span class="p">[</span><span class="mi">1</span><span class="p">])),</span>
+                                                <span class="s1">&#39;*</span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">param</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">+</span><span class="s2">&quot;_pointer&quot;</span><span class="p">))</span>
                 <span class="n">statements</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">cast_pointer</span><span class="p">)</span>
 
         <span class="n">statements</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">function_descriptor</span><span class="o">.</span><span class="n">body</span><span class="p">)</span>

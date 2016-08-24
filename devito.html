@@ -581,7 +581,7 @@ function represented by it</p>
 <col class="field-body" />
 <tbody valign="top">
 <tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
-<li><strong>function_descriptor</strong> &#8211; The list of <a class="reference internal" href="#devito.function_manager.FunctionDescriptor" title="devito.function_manager.FunctionDescriptor"><code class="xref py py-class docutils literal"><span class="pre">FunctionDescriptor</span></code></a> objects</li>
+<li><strong>function_descriptors</strong> &#8211; The list of <a class="reference internal" href="#devito.function_manager.FunctionDescriptor" title="devito.function_manager.FunctionDescriptor"><code class="xref py py-class docutils literal"><span class="pre">FunctionDescriptor</span></code></a> objects</li>
 <li><strong>mic_flag</strong> &#8211; True if using MIC. Default is False</li>
 <li><strong>openmp</strong> &#8211; True if using OpenMP. Default is False</li>
 </ul>
@@ -628,10 +628,11 @@ function represented by it</p>
 <col class="field-name" />
 <col class="field-body" />
 <tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Returns:</th><td class="field-body"><code class="xref py py-class docutils literal"><span class="pre">cgen.Module</span></code> &#8211; A module containing the includes and the generated functions</td>
+<tr class="field-odd field"><th class="field-name">Returns:</th><td class="field-body"><code class="xref py py-class docutils literal"><span class="pre">cgen.Module</span></code> &#8211; A module containing the includes</td>
 </tr>
 </tbody>
 </table>
+<p>and the generated functions</p>
 </dd></dl>
 
 <dl class="method">
@@ -660,7 +661,8 @@ function represented by it</p>
 <tbody valign="top">
 <tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>function_descriptor</strong> &#8211; The <a class="reference internal" href="#devito.function_manager.FunctionDescriptor" title="devito.function_manager.FunctionDescriptor"><code class="xref py py-class docutils literal"><span class="pre">FunctionDescriptor</span></code></a> to process</td>
 </tr>
-<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><code class="xref py py-class docutils literal"><span class="pre">cgen.FunctionDeclaration</span></code> &#8211; The function declaration generated from function_descriptor</td>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><code class="xref py py-class docutils literal"><span class="pre">cgen.FunctionDeclaration</span></code> &#8211; The function declaration generated
+from the function_descriptor</td>
 </tr>
 </tbody>
 </table>
@@ -673,7 +675,8 @@ function represented by it</p>
 <col class="field-name" />
 <col class="field-body" />
 <tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Returns:</th><td class="field-body"><code class="xref py py-class docutils literal"><span class="pre">cgen.Module</span></code> &#8211; A module containing all the preprocessor directives</td>
+<tr class="field-odd field"><th class="field-name">Returns:</th><td class="field-body"><code class="xref py py-class docutils literal"><span class="pre">cgen.Module</span></code> &#8211; A module containing all the preprocessor
+directives</td>
 </tr>
 </tbody>
 </table>
@@ -694,10 +697,11 @@ function represented by it</p>
 <tbody valign="top">
 <tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>function_descriptor</strong> &#8211; The <a class="reference internal" href="#devito.function_manager.FunctionDescriptor" title="devito.function_manager.FunctionDescriptor"><code class="xref py py-class docutils literal"><span class="pre">FunctionDescriptor</span></code></a> to process</td>
 </tr>
-<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><code class="xref py py-class docutils literal"><span class="pre">cgen.FunctionBody</span></code> &#8211; The function body generated from the function_descriptor</td>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><code class="xref py py-class docutils literal"><span class="pre">cgen.FunctionBody</span></code> &#8211; The function body generated</td>
 </tr>
 </tbody>
 </table>
+<p>from the function_descriptor</p>
 </dd></dl>
 
 </dd></dl>
@@ -1022,7 +1026,7 @@ symbolic behaviour follows the use in the current problem.</p>
 <span id="devito-operator-module"></span><h2>devito.operator module<a class="headerlink" href="#module-devito.operator" title="Permalink to this headline">¶</a></h2>
 <dl class="class">
 <dt id="devito.operator.Operator">
-<em class="property">class </em><code class="descclassname">devito.operator.</code><code class="descname">Operator</code><span class="sig-paren">(</span><em>nt</em>, <em>shape</em>, <em>dtype=&lt;type 'numpy.float32'&gt;</em>, <em>stencils=[]</em>, <em>substitutions=[]</em>, <em>spc_border=0</em>, <em>time_order=0</em>, <em>forward=True</em>, <em>compiler=None</em>, <em>profile=False</em>, <em>cache_blocking=False</em>, <em>block_size=5</em>, <em>input_params=None</em>, <em>output_params=None</em>, <em>factorized={}</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/operator.html#Operator"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.operator.Operator" title="Permalink to this definition">¶</a></dt>
+<em class="property">class </em><code class="descclassname">devito.operator.</code><code class="descname">Operator</code><span class="sig-paren">(</span><em>nt</em>, <em>shape</em>, <em>dtype=&lt;type 'numpy.float32'&gt;</em>, <em>stencils=[]</em>, <em>subs=[]</em>, <em>spc_border=0</em>, <em>time_order=0</em>, <em>forward=True</em>, <em>compiler=None</em>, <em>profile=False</em>, <em>cache_blocking=False</em>, <em>block_size=5</em>, <em>input_params=None</em>, <em>output_params=None</em>, <em>factorized={}</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/operator.html#Operator"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.operator.Operator" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">object</span></code></p>
 <p>Class encapsulating a defined operator as defined by the given stencil</p>
 <p>The Operator class is the core abstraction in DeVito that allows
@@ -1038,7 +1042,7 @@ a stencil definition defined from SymPy equations.</p>
 <li><strong>dtype</strong> &#8211; Data type for the grid buffer</li>
 <li><strong>stencils</strong> &#8211; SymPy equation or list of equations that define the
 stencil used to create the kernel of this Operator.</li>
-<li><strong>substitutions</strong> &#8211; Dict or list of dicts containing the SymPy symbol
+<li><strong>subs</strong> &#8211; Dict or list of dicts containing the SymPy symbol
 substitutions for each stencil respectively.</li>
 <li><strong>spc_border</strong> &#8211; Number of spatial padding layers</li>
 <li><strong>time_order</strong> &#8211; Order of the time discretisation</li>
@@ -1048,11 +1052,13 @@ If not provided, the compiler will be inferred from the
 environment variable DEVITO_ARCH, or default to GNUCompiler.</li>
 <li><strong>profile</strong> &#8211; Flag to enable performance profiling</li>
 <li><strong>cache_blocking</strong> &#8211; Flag to enable cache blocking</li>
-<li><strong>block_size</strong> &#8211; Block size used for cache clocking. Can be either a single number used for all dimensions or
-a list stating block sizes for each dimension. Set block size to None to skip blocking on that dim</li>
+<li><strong>block_size</strong> &#8211; Block size used for cache clocking. Can be either a single number
+used for all dimensions or a list stating block sizes for each
+dimension. Set block size to None to skip blocking on that dim</li>
 <li><strong>input_params</strong> &#8211; List of symbols that are expected as input.</li>
 <li><strong>output_params</strong> &#8211; List of symbols that define operator output.</li>
-<li><strong>factorized</strong> &#8211; A map given by {string_name:sympy_object} for including factorized terms</li>
+<li><strong>factorized</strong> &#8211; A map given by {string_name:sympy_object} for including factorized
+terms</li>
 </ul>
 </td>
 </tr>
@@ -1195,7 +1201,8 @@ to a given set of stencils, variables and time-stepping options</p>
 <li><strong>nt</strong> &#8211; Number of timesteps to execute</li>
 <li><strong>shape</strong> &#8211; Shape of the data buffer over which to execute</li>
 <li><strong>stencils</strong> &#8211; List of <code class="xref py py-class docutils literal"><span class="pre">sympy.Eq</span></code> used to create the kernel</li>
-<li><strong>factorized</strong> &#8211; A map given by {string_name:sympy_object} for including factorized terms</li>
+<li><strong>factorized</strong> &#8211; A map given by {string_name:sympy_object} for including factorized
+terms</li>
 <li><strong>spc_border</strong> &#8211; Number of spatial padding layers</li>
 <li><strong>time_order</strong> &#8211; Order of the time discretisation</li>
 <li><strong>time_dim</strong> &#8211; Symbol that defines the time dimension</li>
@@ -1206,8 +1213,9 @@ If not provided, the compiler will be inferred from the
 environment variable DEVITO_ARCH, or default to GNUCompiler</li>
 <li><strong>profile</strong> &#8211; Flag to enable performance profiling</li>
 <li><strong>cache_blocking</strong> &#8211; Flag to enable cache blocking</li>
-<li><strong>block_size</strong> &#8211; Block size used for cache clocking. Can be either a single number used for all dimensions or
-a list stating block sizes for each dimension. Set block size to None to skip blocking on that dim</li>
+<li><strong>block_size</strong> &#8211; Block size used for cache clocking. Can be either a single number
+used for all dimensions or a list stating block sizes for each
+dimension. Set block size to None to skip blocking on that dim</li>
 </ul>
 </td>
 </tr>
@@ -1308,14 +1316,16 @@ a list stating block sizes for each dimension. Set block size to None to skip bl
 <dl class="method">
 <dt id="devito.propagator.Propagator.add_time_loop_stencil">
 <code class="descname">add_time_loop_stencil</code><span class="sig-paren">(</span><em>stencil</em>, <em>before=False</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/propagator.html#Propagator.add_time_loop_stencil"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.propagator.Propagator.add_time_loop_stencil" title="Permalink to this definition">¶</a></dt>
-<dd><p>Add a statement either before or after the main spatial loop, but still inside the time loop.</p>
+<dd><p>Add a statement either before or after the main spatial loop, but still inside
+the time loop.</p>
 <table class="docutils field-list" frame="void" rules="none">
 <col class="field-name" />
 <col class="field-body" />
 <tbody valign="top">
 <tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
 <li><strong>stencil</strong> &#8211; Given stencil</li>
-<li><strong>before</strong> &#8211; Flag indicating whether the statement should be inserted before, False by default</li>
+<li><strong>before</strong> &#8211; Flag indicating whether the statement should be inserted before,
+False by default</li>
 </ul>
 </td>
 </tr>
@@ -1435,8 +1445,9 @@ Therefore reverse the list of dimensions, making the last variable in
 <dt id="devito.propagator.Propagator.get_fd">
 <code class="descname">get_fd</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/propagator.html#Propagator.get_fd"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.propagator.Propagator.get_fd" title="Permalink to this definition">¶</a></dt>
 <dd><p>Get a FunctionDescriptor that describes the code represented by this Propagator
-in the format that FunctionManager and JitManager can deal with it. Before calling,
-make sure you have either called set_jit_params or set_jit_simple already</p>
+in the format that FunctionManager and JitManager can deal with it.
+Before calling, make sure you have either called set_jit_params
+or set_jit_simple already</p>
 <table class="docutils field-list" frame="void" rules="none">
 <col class="field-name" />
 <col class="field-body" />
@@ -1450,8 +1461,11 @@ make sure you have either called set_jit_params or set_jit_simple already</p>
 <dl class="method">
 <dt id="devito.propagator.Propagator.get_kernel_oi">
 <code class="descname">get_kernel_oi</code><span class="sig-paren">(</span><em>dtype=&lt;type 'numpy.float32'&gt;</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/propagator.html#Propagator.get_kernel_oi"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.propagator.Propagator.get_kernel_oi" title="Permalink to this definition">¶</a></dt>
-<dd><p>Get the operation intensity of the kernel. The types of operations are ADD (inc -), MUL (inc /), LOAD, STORE.
-#LOAD = number of unique fields in the kernel</p>
+<dd><dl class="docutils">
+<dt>Get the operation intensity of the kernel. The types of operations are</dt>
+<dd>ADD (inc -), MUL (inc /), LOAD, STORE.</dd>
+</dl>
+<p>#LOAD = number of unique fields in the kernel</p>
 <p>Operation intensity OI = (ADD+MUL)/[(LOAD+STORE)*word_size]
 Weighted OI, OI_w = (ADD+MUL)/(2*Max(ADD,MUL)) * OI</p>
 <table class="docutils field-list" frame="void" rules="none">
@@ -1483,8 +1497,9 @@ Weighted OI, OI_w = (ADD+MUL)/(2*Max(ADD,MUL)) * OI</p>
 <dl class="method">
 <dt id="devito.propagator.Propagator.prep_variable_map">
 <code class="descname">prep_variable_map</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/propagator.html#Propagator.prep_variable_map"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.propagator.Propagator.prep_variable_map" title="Permalink to this definition">¶</a></dt>
-<dd><p>Mapping from model variables (x, y, z, t) to loop variables (i1, i2, i3, i4)</p>
-<p>For now, i1 i2 i3 are assigned in the order the variables were defined in init( #var_order)</p>
+<dd><p>Mapping from model variables (x, y, z, t) to loop variables (i1, i2, i3, i4)
+For now, i1 i2 i3 are assigned in the order the variables were
+defined in init( #var_order)</p>
 </dd></dl>
 
 <dl class="method">
@@ -1539,8 +1554,8 @@ Weighted OI, OI_w = (ADD+MUL)/(2*Max(ADD,MUL)) * OI</p>
 <dl class="method">
 <dt id="devito.propagator.Propagator.time_substitutions">
 <code class="descname">time_substitutions</code><span class="sig-paren">(</span><em>sympy_expr</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/propagator.html#Propagator.time_substitutions"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.propagator.Propagator.time_substitutions" title="Permalink to this definition">¶</a></dt>
-<dd><p>This method checks through the sympy_expr to replace the time index with a cyclic index
-but only for variables which are not being saved in the time domain
+<dd><p>This method checks through the sympy_expr to replace the time index with
+a cyclic index but only for variables which are not being saved in the time domain
 :param sympy_expr: The Sympy expression to process
 :returns: The expression after the substitutions</p>
 </dd></dl>

@@ -207,8 +207,8 @@
 <span class="sd">    :param dtype: Data type for the grid buffer</span>
 <span class="sd">    :param stencils: SymPy equation or list of equations that define the</span>
 <span class="sd">                     stencil used to create the kernel of this Operator.</span>
-<span class="sd">    :param substitutions: Dict or list of dicts containing the SymPy symbol</span>
-<span class="sd">                          substitutions for each stencil respectively.</span>
+<span class="sd">    :param subs: Dict or list of dicts containing the SymPy symbol</span>
+<span class="sd">                 substitutions for each stencil respectively.</span>
 <span class="sd">    :param spc_border: Number of spatial padding layers</span>
 <span class="sd">    :param time_order: Order of the time discretisation</span>
 <span class="sd">    :param forward: Flag indicating whether to execute forward in time</span>
@@ -217,17 +217,17 @@
 <span class="sd">                     environment variable DEVITO_ARCH, or default to GNUCompiler.</span>
 <span class="sd">    :param profile: Flag to enable performance profiling</span>
 <span class="sd">    :param cache_blocking: Flag to enable cache blocking</span>
-<span class="sd">    :param block_size: Block size used for cache clocking. Can be either a single number used for all dimensions or</span>
-<span class="sd">                      a list stating block sizes for each dimension. Set block size to None to skip blocking on that dim</span>
+<span class="sd">    :param block_size: Block size used for cache clocking. Can be either a single number</span>
+<span class="sd">                       used for all dimensions or a list stating block sizes for each</span>
+<span class="sd">                       dimension. Set block size to None to skip blocking on that dim</span>
 <span class="sd">    :param input_params: List of symbols that are expected as input.</span>
 <span class="sd">    :param output_params: List of symbols that define operator output.</span>
-<span class="sd">    :param factorized: A map given by {string_name:sympy_object} for including factorized terms</span>
+<span class="sd">    :param factorized: A map given by {string_name:sympy_object} for including factorized</span>
+<span class="sd">                       terms</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="n">_ENV_VAR_OPENMP</span> <span class="o">=</span> <span class="s2">&quot;DEVITO_OPENMP&quot;</span>
-
     <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">nt</span><span class="p">,</span> <span class="n">shape</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">,</span> <span class="n">stencils</span><span class="o">=</span><span class="p">[],</span>
-                 <span class="n">substitutions</span><span class="o">=</span><span class="p">[],</span> <span class="n">spc_border</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">time_order</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
+                 <span class="n">subs</span><span class="o">=</span><span class="p">[],</span> <span class="n">spc_border</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">time_order</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
                  <span class="n">forward</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">compiler</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">profile</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
                  <span class="n">cache_blocking</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">block_size</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span>
                  <span class="n">input_params</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">output_params</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">factorized</span><span class="o">=</span><span class="p">{}):</span>
@@ -236,7 +236,7 @@
 
         <span class="c1"># Ensure stencil and substititutions are lists internally</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">stencils</span> <span class="o">=</span> <span class="n">stencils</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">stencils</span><span class="p">,</span> <span class="nb">list</span><span class="p">)</span> <span class="k">else</span> <span class="p">[</span><span class="n">stencils</span><span class="p">]</span>
-        <span class="n">substitutions</span> <span class="o">=</span> <span class="n">substitutions</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">substitutions</span><span class="p">,</span> <span class="nb">list</span><span class="p">)</span> <span class="k">else</span> <span class="p">[</span><span class="n">substitutions</span><span class="p">]</span>
+        <span class="n">subs</span> <span class="o">=</span> <span class="n">subs</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">subs</span><span class="p">,</span> <span class="nb">list</span><span class="p">)</span> <span class="k">else</span> <span class="p">[</span><span class="n">subs</span><span class="p">]</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">input_params</span> <span class="o">=</span> <span class="n">input_params</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">output_params</span> <span class="o">=</span> <span class="n">output_params</span>
 
@@ -281,7 +281,7 @@
         <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">dimensions</span><span class="p">:</span>
             <span class="n">sym_undef</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span><span class="n">d</span><span class="p">)</span>
 
-        <span class="c1"># TODO: We should check that all undfined symbols have known substitutions</span>
+        <span class="c1"># TODO: We should check that all undfined symbols have known subs</span>
         <span class="c1"># Shift time indices so that LHS writes into t only,</span>
         <span class="c1"># eg. u[t+2] = u[t+1] + u[t]  -&gt; u[t] = u[t-1] + u[t-2]</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">stencils</span> <span class="o">=</span> <span class="p">[</span><span class="n">eqn</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">t</span><span class="p">,</span> <span class="n">t</span> <span class="o">+</span> <span class="n">solve</span><span class="p">(</span><span class="n">eqn</span><span class="o">.</span><span class="n">lhs</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">t</span><span class="p">)[</span><span class="mi">0</span><span class="p">])</span>
@@ -295,11 +295,13 @@
         <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">factorized</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
             <span class="n">factorized</span><span class="p">[</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="n">expr_indexify</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
 
-        <span class="c1"># Apply user-defined substitutions to stencil</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">stencils</span> <span class="o">=</span> <span class="p">[</span><span class="n">eqn</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">args</span><span class="p">)</span> <span class="k">for</span> <span class="n">eqn</span><span class="p">,</span> <span class="n">args</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">stencils</span><span class="p">,</span> <span class="n">substitutions</span><span class="p">)]</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">propagator</span> <span class="o">=</span> <span class="n">Propagator</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">getName</span><span class="p">(),</span> <span class="n">nt</span><span class="p">,</span> <span class="n">shape</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">stencils</span><span class="p">,</span> <span class="n">factorized</span><span class="o">=</span><span class="n">factorized</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">dtype</span><span class="p">,</span>
-                                     <span class="n">spc_border</span><span class="o">=</span><span class="n">spc_border</span><span class="p">,</span> <span class="n">time_order</span><span class="o">=</span><span class="n">time_order</span><span class="p">,</span> <span class="n">forward</span><span class="o">=</span><span class="n">forward</span><span class="p">,</span>
-                                     <span class="n">space_dims</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">space_dims</span><span class="p">,</span> <span class="n">compiler</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">compiler</span><span class="p">,</span> <span class="n">profile</span><span class="o">=</span><span class="n">profile</span><span class="p">,</span>
+        <span class="c1"># Apply user-defined subs to stencil</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">stencils</span> <span class="o">=</span> <span class="p">[</span><span class="n">eqn</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">args</span><span class="p">)</span> <span class="k">for</span> <span class="n">eqn</span><span class="p">,</span> <span class="n">args</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">stencils</span><span class="p">,</span> <span class="n">subs</span><span class="p">)]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">propagator</span> <span class="o">=</span> <span class="n">Propagator</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">getName</span><span class="p">(),</span> <span class="n">nt</span><span class="p">,</span> <span class="n">shape</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">stencils</span><span class="p">,</span>
+                                     <span class="n">factorized</span><span class="o">=</span><span class="n">factorized</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">dtype</span><span class="p">,</span>
+                                     <span class="n">spc_border</span><span class="o">=</span><span class="n">spc_border</span><span class="p">,</span> <span class="n">time_order</span><span class="o">=</span><span class="n">time_order</span><span class="p">,</span>
+                                     <span class="n">forward</span><span class="o">=</span><span class="n">forward</span><span class="p">,</span> <span class="n">space_dims</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">space_dims</span><span class="p">,</span>
+                                     <span class="n">compiler</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">compiler</span><span class="p">,</span> <span class="n">profile</span><span class="o">=</span><span class="n">profile</span><span class="p">,</span>
                                      <span class="n">cache_blocking</span><span class="o">=</span><span class="n">cache_blocking</span><span class="p">,</span> <span class="n">block_size</span><span class="o">=</span><span class="n">block_size</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">dtype</span> <span class="o">=</span> <span class="n">dtype</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">nt</span> <span class="o">=</span> <span class="n">nt</span>
@@ -313,9 +315,11 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">propagator</span><span class="o">.</span><span class="n">factorized</span> <span class="o">=</span> <span class="n">factorized</span>
         <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">val</span> <span class="ow">in</span> <span class="n">factorized</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
             <span class="k">if</span> <span class="n">forward</span><span class="p">:</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">propagator</span><span class="o">.</span><span class="n">factorized</span><span class="p">[</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="n">expr_indexify</span><span class="p">(</span><span class="n">val</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">t</span><span class="p">,</span> <span class="n">t</span> <span class="o">-</span> <span class="mi">1</span><span class="p">))</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">substitutions</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">propagator</span><span class="o">.</span><span class="n">factorized</span><span class="p">[</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> \
+                    <span class="n">expr_indexify</span><span class="p">(</span><span class="n">val</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">t</span><span class="p">,</span> <span class="n">t</span> <span class="o">-</span> <span class="mi">1</span><span class="p">))</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">subs</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
             <span class="k">else</span><span class="p">:</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">propagator</span><span class="o">.</span><span class="n">factorized</span><span class="p">[</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="n">expr_indexify</span><span class="p">(</span><span class="n">val</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">t</span><span class="p">,</span> <span class="n">t</span> <span class="o">+</span> <span class="mi">1</span><span class="p">))</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">substitutions</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">propagator</span><span class="o">.</span><span class="n">factorized</span><span class="p">[</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> \
+                    <span class="n">expr_indexify</span><span class="p">(</span><span class="n">val</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">t</span><span class="p">,</span> <span class="n">t</span> <span class="o">+</span> <span class="mi">1</span><span class="p">))</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">subs</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">signature</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
@@ -415,7 +419,8 @@
 
         <span class="k">for</span> <span class="n">ti</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="o">*</span><span class="n">time_loop_limits</span><span class="p">):</span>
             <span class="c1"># Run time loop stencils before space loop</span>
-            <span class="k">for</span> <span class="n">lams</span><span class="p">,</span> <span class="n">expr</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">time_loop_lambdas_b</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">propagator</span><span class="o">.</span><span class="n">time_loop_stencils_b</span><span class="p">):</span>
+            <span class="k">for</span> <span class="n">lams</span><span class="p">,</span> <span class="n">expr</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">time_loop_lambdas_b</span><span class="p">,</span>
+                                  <span class="bp">self</span><span class="o">.</span><span class="n">propagator</span><span class="o">.</span><span class="n">time_loop_stencils_b</span><span class="p">):</span>
                 <span class="n">lamda</span> <span class="o">=</span> <span class="n">lams</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
                 <span class="n">subs</span> <span class="o">=</span> <span class="n">lams</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
                 <span class="n">arr_lhs</span><span class="p">,</span> <span class="n">ind_lhs</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">symbol_to_var</span><span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="n">lhs</span><span class="p">,</span> <span class="n">ti</span><span class="p">)</span>
@@ -461,7 +466,8 @@
                     <span class="n">arr_lhs</span><span class="p">[</span><span class="n">ind_lhs</span><span class="p">]</span> <span class="o">=</span> <span class="n">lamda</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">)</span>
 
             <span class="c1"># Time loop stencils for after space loop</span>
-            <span class="k">for</span> <span class="n">lams</span><span class="p">,</span> <span class="n">expr</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">time_loop_lambdas_a</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">propagator</span><span class="o">.</span><span class="n">time_loop_stencils_a</span><span class="p">):</span>
+            <span class="k">for</span> <span class="n">lams</span><span class="p">,</span> <span class="n">expr</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">time_loop_lambdas_a</span><span class="p">,</span>
+                                  <span class="bp">self</span><span class="o">.</span><span class="n">propagator</span><span class="o">.</span><span class="n">time_loop_stencils_a</span><span class="p">):</span>
                 <span class="n">lamda</span> <span class="o">=</span> <span class="n">lams</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
                 <span class="n">subs</span> <span class="o">=</span> <span class="n">lams</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
                 <span class="n">arr_lhs</span><span class="p">,</span> <span class="n">ind_lhs</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">symbol_to_var</span><span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="n">lhs</span><span class="p">,</span> <span class="n">ti</span><span class="p">)</span>
@@ -491,7 +497,7 @@
         <span class="n">output_params</span> <span class="o">=</span> <span class="p">[</span><span class="n">output_grid</span><span class="p">]</span>
 
         <span class="nb">super</span><span class="p">(</span><span class="n">SimpleOperator</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="n">nt</span><span class="p">,</span> <span class="n">shape</span><span class="p">,</span> <span class="n">stencils</span><span class="o">=</span><span class="n">kernel</span><span class="p">,</span>
-                                             <span class="n">substitutions</span><span class="o">=</span><span class="p">{},</span>
+                                             <span class="n">subs</span><span class="o">=</span><span class="p">{},</span>
                                              <span class="n">input_params</span><span class="o">=</span><span class="n">input_params</span><span class="p">,</span>
                                              <span class="n">output_params</span><span class="o">=</span><span class="n">output_params</span><span class="p">,</span>
                                              <span class="n">dtype</span><span class="o">=</span><span class="n">input_grid</span><span class="o">.</span><span class="n">dtype</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
