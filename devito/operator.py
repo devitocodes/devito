@@ -79,6 +79,8 @@ def expr_cse(expr):
     to_revert = {}
     to_keep = []
 
+    # Restores IndexedBases if they are collected by CSE and
+    # reverts changes to simple index operations (eg: t - 1)
     for temp, value in temps:
         if isinstance(value, IndexedBase):
             to_revert[temp] = value
@@ -87,6 +89,7 @@ def expr_cse(expr):
         else:
             to_keep.append((temp, value))
 
+    # Restores the IndexedBases in the assignments to revert
     for temp, value in to_revert.items():
         s_dict = {}
         for arg in preorder_traversal(value):
@@ -97,6 +100,7 @@ def expr_cse(expr):
 
     subs_dict = {}
 
+    # Builds a dictionary of the replacements
     for expr in stencils + [assign for temp, assign in to_keep]:
         for arg in preorder_traversal(expr):
             if isinstance(arg, Indexed):
