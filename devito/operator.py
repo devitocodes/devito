@@ -1,6 +1,6 @@
 import numpy as np
-from sympy import (cse, Eq, Function, Idx, Indexed, IndexedBase, Symbol, lambdify, preorder_traversal,
-                   solve, symbols)
+from sympy import (Add, Eq, Function, Indexed, IndexedBase, Symbol, cse,
+                   lambdify, preorder_traversal, solve, symbols)
 from sympy.abc import t
 from sympy.utilities.iterables import numbered_symbols
 
@@ -82,10 +82,15 @@ def expr_cse(expr):
     for temp, value in temps:
         if isinstance(value, IndexedBase):
             to_revert[temp] = value
-        elif t in value.args:
+        elif isinstance(value, Add):
             to_revert[temp] = value
         else:
             to_keep.append((temp, value))
+
+    for temp, value in to_revert.items():
+        if isinstance(value, Indexed):
+            if value.base.label in to_revert:
+                to_revert[temp] = Indexed(to_revert[value.base.label], *value.indices)
 
     subs_dict = {}
 
