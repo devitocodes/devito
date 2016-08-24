@@ -5,8 +5,8 @@ from sympy import Function, IndexedBase, as_finite_diff
 from sympy.abc import h, p, s, t, x, y, z
 
 from devito.finite_difference import cross_derivative, first_derivative
-from tools import aligned
 from devito.memmap_manager import MemmapManager
+from tools import aligned
 
 __all__ = ['DenseData', 'TimeData', 'PointData']
 

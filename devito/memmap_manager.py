@@ -1,9 +1,10 @@
 import atexit
 import os
 import sys
-from devito.logger import warning
 from signal import SIGABRT, SIGINT, SIGSEGV, SIGTERM, signal
 from tempfile import gettempdir
+
+from devito.logger import warning
 
 
 class MemmapManager():
@@ -60,7 +61,8 @@ class MemmapManager():
             if not os.path.exists(disk_path):
                 os.makedirs(disk_path)
 
-            data_self.f = disk_path + "/data_" + kwargs.get('name') + "_" + str(MemmapManager._id)
+            data_self.f = "%s/data_%s_%s" % (disk_path, kwargs.get('name'),
+                                             str(MemmapManager._id))
             MemmapManager._id += 1
             data_self.delete_file = kwargs.get('delete_file', MemmapManager._delete_file)
             MemmapManager._created_data[data_self.f] = data_self.delete_file
