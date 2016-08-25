@@ -1,6 +1,7 @@
 # coding: utf-8
 from __future__ import print_function
 
+from devito.at_controller import AutoTuner
 from examples.fwi_operators import *
 
 
@@ -8,7 +9,8 @@ class Acoustic_cg:
     """ Class to setup the problem for the Acoustic Wave
         Note: s_order must always be greater than t_order
     """
-    def __init__(self, model, data, source=None, nbpml=40, t_order=2, s_order=2):
+    def __init__(self, model, data, source=None, nbpml=40, t_order=2, s_order=2,
+                 auto_tune=False):
         self.model = model
         self.t_order = t_order
         self.s_order = s_order
@@ -59,10 +61,22 @@ class Acoustic_cg:
                               dtype=self.dtype, nbpml=nbpml)
         self.src.data[:] = data.get_source()[:, np.newaxis]
 
-    def Forward(self, save=False, cache_blocking=None, cse=True):
+        if auto_tune:  # auto tuning with dummy forward operator
+            fw = ForwardOperator(self.model, self.src, self.damp, self.data,
+                                 time_order=self.t_order, spc_order=self.s_order,
+                                 save=False)
+            self.at = AutoTuner(fw)
+            self.at.auto_tune_blocks(self.s_order + 1, self.s_order * 4 + 2)
+
+    def Forward(self, save=False, cache_blocking=None, use_at_blocks=False, cse=True):
         fw = ForwardOperator(self.model, self.src, self.damp, self.data,
                              time_order=self.t_order, spc_order=self.s_order,
                              save=save, cache_blocking=cache_blocking, cse=cse)
+        at = AutoTuner(fw)
+
+        if use_at_blocks:
+            fw.propagator.cache_blocking = at.block_size
+
         u, rec = fw.apply()
         return rec.data, u
 
