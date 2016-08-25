@@ -82,17 +82,17 @@ argument. It also takes `blocked_dims` and `auto_tune_report_path` as optional a
 `AutoTuner` will run the compiled file multiple times with different block sizes,
 trying to find most effective option, which will be written into report file.
 
-If auto tuning has completed and you want to use best block sizes, initialise
-new `Operator` and pass previously created `AutoTuner` as `cache_blocking` 
-argument or explicitly set `operator.propagator.cache_blocking = AutoTuner`
+If auto tuning has completed and you want to use best block size, pass
+`cache_blocking` arg to `Operator` as `AutoTuner.block_size`
+or explicitly set `operator.propagator.cache_blocking = AutoTuner.block_size`
 Devito will attempt to read the auto tuning report and will select best 
 `block_size` based on it. If corresponding value is not found or report does
 not exist exception will be thrown
 
 Note: 
- This feature needs to run only once for each model. Thus you can pass `AutoTuner`
- as `cache_blocking` arg without auto tuning again on separate runs as long as
- `at_report_dir` is provided correctly.
+ This feature needs to run only once for each model. Thus, you can pass 
+ `AutoTuner.block_size` as `cache_blocking` arg without running auto tuning
+  again as long as `at_report_dir` is provided correctly.
  `AutoTuner` has to run before `operator.apply()` is called.
  You can specify tuning range when calling `auto_tune_blocks(min, max)`
  function.
@@ -104,5 +104,5 @@ at = AutoTuner(op, [True, True, False], <at_report_directory_path>)
 at.auto_tune_blocks(min_block_size, max_block_size)
 
 #using auto tuned block size
-new_op = Operator(..., cache_blocking=at)
+new_op = Operator(..., cache_blocking=at.block_size)
 ```

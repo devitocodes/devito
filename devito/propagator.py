@@ -9,8 +9,6 @@ from sympy.abc import t, x, y, z
 from sympy.utilities.iterables import postorder_traversal
 
 import cgen_wrapper as cgen
-import logger
-from at_controller import AutoTuner
 from codeprinter import ccode
 from devito.compiler import (IntelMICCompiler, get_compiler_from_env,
                              get_tmp_dir, jit_compile_and_load)
@@ -605,11 +603,7 @@ class Propagator(object):
 
         :raises ValueError: If cache blocking parameters where passed incorrectly
         """
-        if isinstance(self.cache_blocking, AutoTuner):
-            self.block_sizes = self.cache_blocking.get_at_block_size()
-            logger.info("Using auto tuned block sizes - %s" % self.block_sizes)
-
-        elif isinstance(self.cache_blocking, Iterable):
+        if isinstance(self.cache_blocking, Iterable):
             if len(self.cache_blocking) == len(self.shape):
                 self.block_sizes = self.cache_blocking
             else:

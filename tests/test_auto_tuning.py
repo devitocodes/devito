@@ -44,6 +44,5 @@ class Test_Auto_Tuning(object):
 
         auto_tuner = AutoTuner(op, block_dims, self.test_dir)
         auto_tuner.auto_tune_blocks(tune_range[0], tune_range[1])
-        at_block_sizes = auto_tuner.get_at_block_size()
 
-        assert at_block_sizes == expected_result
+        assert auto_tuner.block_size == expected_result

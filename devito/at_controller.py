@@ -2,6 +2,7 @@ import random
 from os import mkdir, path
 
 import logger
+from devito.operator import Operator
 
 
 class AutoTuner(object):
@@ -18,7 +19,6 @@ class AutoTuner(object):
         :raises ValueError: if operator is not of Operator type
         """
 
-        from operator import Operator
         if not isinstance(op, Operator):
             raise ValueError("AT requires Operator object to be passed as an argument")
 
@@ -26,7 +26,7 @@ class AutoTuner(object):
         self.op.propagator.profile = True
 
         default_blocked_dims = ([True] * (len(self.op.shape) - 1))
-        default_blocked_dims.append(False)  # By default we dont auto tune inner most dim
+        default_blocked_dims.append(False)  # By default we don't auto tune inner most dim
         self.blocked_dims = blocked_dims or default_blocked_dims
 
         default_at_dir = path.join(path.dirname(path.realpath(__file__)), "At Report")
@@ -37,14 +37,8 @@ class AutoTuner(object):
         if not path.isdir(self.report_dir):  # Creates report dir if does not exist
             mkdir(self.report_dir)
 
-    def set_report_dir(self, report_path):
-        """Sets report directory path
-
-        :param report_path: path to report directory"""
-        self.report_dir = report_path
-        self.final_report_path = path.join(self.report_dir, "final_report.txt")
-
-    def get_at_block_size(self):
+    @property
+    def block_size(self):
         """ Gets block size from auto tuning report
 
         :returns: auto tuned block size
@@ -67,11 +61,20 @@ class AutoTuner(object):
                 if model_desc_str in line:
                     blocks_str = line.split(' ')[5]
                     block_split = blocks_str[1:len(blocks_str) - 2].split(',')
+                    block_size = [int(block) if block != "None" else None
+                                  for block in block_split]
 
-                    return [int(block) if block != "None" else None
-                            for block in block_split]
+                    logger.info("Using auto tuned block sizes - %s" % block_size)
+                    return block_size
 
         raise EnvironmentError("Matching model with auto tuned block size not found.")
+
+    def set_report_dir(self, report_path):
+        """Sets report directory path
+
+        :param report_path: path to report directory"""
+        self.report_dir = report_path
+        self.final_report_path = path.join(self.report_dir, "final_report.txt")
 
     def auto_tune_blocks(self, minimum=5, maximum=20):
         """Auto tunes block sizes. Times all block size combinations withing given range
