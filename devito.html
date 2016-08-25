@@ -1459,28 +1459,6 @@ or set_jit_simple already</p>
 </dd></dl>
 
 <dl class="method">
-<dt id="devito.propagator.Propagator.get_kernel_oi">
-<code class="descname">get_kernel_oi</code><span class="sig-paren">(</span><em>dtype=&lt;type 'numpy.float32'&gt;</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/propagator.html#Propagator.get_kernel_oi"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.propagator.Propagator.get_kernel_oi" title="Permalink to this definition">¶</a></dt>
-<dd><dl class="docutils">
-<dt>Get the operation intensity of the kernel. The types of operations are</dt>
-<dd>ADD (inc -), MUL (inc /), LOAD, STORE.</dd>
-</dl>
-<p>#LOAD = number of unique fields in the kernel</p>
-<p>Operation intensity OI = (ADD+MUL)/[(LOAD+STORE)*word_size]
-Weighted OI, OI_w = (ADD+MUL)/(2*Max(ADD,MUL)) * OI</p>
-<table class="docutils field-list" frame="void" rules="none">
-<col class="field-name" />
-<col class="field-body" />
-<tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>dtype</strong> &#8211; <code class="xref py py-class docutils literal"><span class="pre">numpy.dtype</span></code> used to specify the word size</td>
-</tr>
-<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body">A tuple (#ADD, #MUL, #LOAD, #STORE) containing the operation intensity</td>
-</tr>
-</tbody>
-</table>
-</dd></dl>
-
-<dl class="method">
 <dt id="devito.propagator.Propagator.get_time_stepping">
 <code class="descname">get_time_stepping</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/propagator.html#Propagator.get_time_stepping"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.propagator.Propagator.get_time_stepping" title="Permalink to this definition">¶</a></dt>
 <dd><p>Add the time stepping code to the loop</p>
@@ -1494,12 +1472,22 @@ Weighted OI, OI_w = (ADD+MUL)/(2*Max(ADD,MUL)) * OI</p>
 </table>
 </dd></dl>
 
+<dl class="attribute">
+<dt id="devito.propagator.Propagator.gflops">
+<code class="descname">gflops</code><a class="headerlink" href="#devito.propagator.Propagator.gflops" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="devito.propagator.Propagator.oi">
+<code class="descname">oi</code><a class="headerlink" href="#devito.propagator.Propagator.oi" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
 <dl class="method">
 <dt id="devito.propagator.Propagator.prep_variable_map">
 <code class="descname">prep_variable_map</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/propagator.html#Propagator.prep_variable_map"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.propagator.Propagator.prep_variable_map" title="Permalink to this definition">¶</a></dt>
-<dd><p>Mapping from model variables (x, y, z, t) to loop variables (i1, i2, i3, i4)
-For now, i1 i2 i3 are assigned in the order the variables were
-defined in init( #var_order)</p>
+<dd><p>Mapping from model variables (x, y, z, t) to loop variables (i1, i2, i3, i4)</p>
+<p>For now, i1 i2 i3 are assigned in the order
+the variables were defined in init( #var_order)</p>
 </dd></dl>
 
 <dl class="method">

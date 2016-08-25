@@ -224,12 +224,8 @@
 
         <span class="c1"># Settings for performance profiling</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">profile</span> <span class="o">=</span> <span class="n">profile</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">profiler</span> <span class="o">=</span> <span class="n">Profiler</span><span class="p">()</span>
-
-        <span class="c1"># Kernel operational intensity dictionary</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_kernel_dic_oi</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;add&#39;</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span> <span class="s1">&#39;mul&#39;</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span> <span class="s1">&#39;load&#39;</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span> <span class="s1">&#39;store&#39;</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span>
-                               <span class="s1">&#39;load_list&#39;</span><span class="p">:</span> <span class="p">[],</span> <span class="s1">&#39;load_all_list&#39;</span><span class="p">:</span> <span class="p">[],</span> <span class="s1">&#39;oi_high&#39;</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span>
-                               <span class="s1">&#39;oi_high_weighted&#39;</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span> <span class="s1">&#39;oi_low&#39;</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span> <span class="s1">&#39;oi_low_weighted&#39;</span><span class="p">:</span> <span class="mi">0</span><span class="p">}</span>
+        <span class="c1"># Profiler needs to know whether openmp is set</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">profiler</span> <span class="o">=</span> <span class="n">Profiler</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">compiler</span><span class="o">.</span><span class="n">openmp</span><span class="p">)</span>
 
         <span class="c1"># Cache blocking and default block sizes</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">cache_blocking</span> <span class="o">=</span> <span class="n">cache_blocking</span>
@@ -254,12 +250,14 @@
 
 <div class="viewcode-block" id="Propagator.run"><a class="viewcode-back" href="../../devito.html#devito.propagator.Propagator.run">[docs]</a>    <span class="k">def</span> <span class="nf">run</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">args</span><span class="p">):</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">profile</span><span class="p">:</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">fd</span><span class="o">.</span><span class="n">add_struct_param</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">profiler</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="s2">&quot;profiler&quot;</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">fd</span><span class="o">.</span><span class="n">add_struct_param</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">profiler</span><span class="o">.</span><span class="n">t_name</span><span class="p">,</span> <span class="s2">&quot;profiler&quot;</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">fd</span><span class="o">.</span><span class="n">add_struct_param</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">profiler</span><span class="o">.</span><span class="n">f_name</span><span class="p">,</span> <span class="s2">&quot;flops&quot;</span><span class="p">)</span>
 
         <span class="n">f</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfunction</span>
 
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">profile</span><span class="p">:</span>
-            <span class="n">args</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">profiler</span><span class="o">.</span><span class="n">as_ctypes_pointer</span><span class="p">)</span>
+            <span class="n">args</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">profiler</span><span class="o">.</span><span class="n">as_ctypes_pointer</span><span class="p">(</span><span class="n">Profiler</span><span class="o">.</span><span class="n">TIME</span><span class="p">))</span>
+            <span class="n">args</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">profiler</span><span class="o">.</span><span class="n">as_ctypes_pointer</span><span class="p">(</span><span class="n">Profiler</span><span class="o">.</span><span class="n">FLOP</span><span class="p">))</span>
 
         <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">compiler</span><span class="p">,</span> <span class="n">IntelMICCompiler</span><span class="p">):</span>
             <span class="c1"># Off-load propagator kernel via pymic stream</span>
@@ -293,7 +291,8 @@
             <span class="bp">self</span><span class="o">.</span><span class="n">get_fd</span><span class="p">()</span>
 
             <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">profile</span><span class="p">:</span>
-                <span class="n">manager</span><span class="o">.</span><span class="n">add_struct_definition</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">profiler</span><span class="o">.</span><span class="n">as_cgen_struct</span><span class="p">)</span>
+                <span class="n">manager</span><span class="o">.</span><span class="n">add_struct_definition</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">profiler</span><span class="o">.</span><span class="n">as_cgen_struct</span><span class="p">(</span><span class="n">Profiler</span><span class="o">.</span><span class="n">TIME</span><span class="p">))</span>
+                <span class="n">manager</span><span class="o">.</span><span class="n">add_struct_definition</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">profiler</span><span class="o">.</span><span class="n">as_cgen_struct</span><span class="p">(</span><span class="n">Profiler</span><span class="o">.</span><span class="n">FLOP</span><span class="p">))</span>
 
             <span class="bp">self</span><span class="o">.</span><span class="n">_ccode</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">manager</span><span class="o">.</span><span class="n">generate</span><span class="p">())</span>
 
@@ -321,7 +320,15 @@
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">timings</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">profiler</span><span class="o">.</span><span class="n">as_dictionary</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">profiler</span><span class="o">.</span><span class="n">timings</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">oi</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">profiler</span><span class="o">.</span><span class="n">oi</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">gflops</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">profiler</span><span class="o">.</span><span class="n">gflops</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">save</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
@@ -365,8 +372,9 @@
 
 <div class="viewcode-block" id="Propagator.prep_variable_map"><a class="viewcode-back" href="../../devito.html#devito.propagator.Propagator.prep_variable_map">[docs]</a>    <span class="k">def</span> <span class="nf">prep_variable_map</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;Mapping from model variables (x, y, z, t) to loop variables (i1, i2, i3, i4)</span>
-<span class="sd">        For now, i1 i2 i3 are assigned in the order the variables were</span>
-<span class="sd">        defined in init( #var_order)</span>
+
+<span class="sd">        For now, i1 i2 i3 are assigned in the order</span>
+<span class="sd">        the variables were defined in init( #var_order)</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="n">var_map</span> <span class="o">=</span> <span class="p">{}</span>
         <span class="n">i</span> <span class="o">=</span> <span class="mi">0</span>
@@ -399,10 +407,6 @@
         <span class="n">stmts</span> <span class="o">=</span> <span class="p">[]</span>
 
         <span class="k">for</span> <span class="n">equality</span> <span class="ow">in</span> <span class="n">stencils</span><span class="p">:</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">_kernel_dic_oi</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_ops_expr</span><span class="p">(</span><span class="n">equality</span><span class="o">.</span><span class="n">rhs</span><span class="p">,</span>
-                                                     <span class="bp">self</span><span class="o">.</span><span class="n">_kernel_dic_oi</span><span class="p">,</span> <span class="kc">False</span><span class="p">)</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">_kernel_dic_oi</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_ops_expr</span><span class="p">(</span><span class="n">equality</span><span class="o">.</span><span class="n">lhs</span><span class="p">,</span>
-                                                     <span class="bp">self</span><span class="o">.</span><span class="n">_kernel_dic_oi</span><span class="p">,</span> <span class="kc">True</span><span class="p">)</span>
             <span class="n">stencil</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">convert_equality_to_cgen</span><span class="p">(</span><span class="n">equality</span><span class="p">)</span>
             <span class="n">stmts</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">stencil</span><span class="p">)</span>
 
@@ -471,7 +475,12 @@
         <span class="n">omp_master</span> <span class="o">=</span> <span class="p">[</span><span class="n">cgen</span><span class="o">.</span><span class="n">Pragma</span><span class="p">(</span><span class="s2">&quot;omp master&quot;</span><span class="p">)]</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">compiler</span><span class="o">.</span><span class="n">openmp</span> <span class="k">else</span> <span class="p">[]</span>
         <span class="n">omp_single</span> <span class="o">=</span> <span class="p">[</span><span class="n">cgen</span><span class="o">.</span><span class="n">Pragma</span><span class="p">(</span><span class="s2">&quot;omp single&quot;</span><span class="p">)]</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">compiler</span><span class="o">.</span><span class="n">openmp</span> <span class="k">else</span> <span class="p">[]</span>
         <span class="n">omp_parallel</span> <span class="o">=</span> <span class="p">[</span><span class="n">cgen</span><span class="o">.</span><span class="n">Pragma</span><span class="p">(</span><span class="s2">&quot;omp parallel&quot;</span><span class="p">)]</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">compiler</span><span class="o">.</span><span class="n">openmp</span> <span class="k">else</span> <span class="p">[]</span>
-        <span class="n">omp_for</span> <span class="o">=</span> <span class="p">[</span><span class="n">cgen</span><span class="o">.</span><span class="n">Pragma</span><span class="p">(</span><span class="s2">&quot;omp for schedule(static)&quot;</span><span class="p">)]</span>\
+        <span class="c1"># suffix of temp variable used for loop reduction of corrosponding struct</span>
+        <span class="c1"># member in Profiler struct when openmp is on</span>
+        <span class="n">reduction_list</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;kernel&quot;</span><span class="p">,</span> <span class="s2">&quot;loop_body&quot;</span><span class="p">]</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">compiler</span><span class="o">.</span><span class="n">openmp</span> <span class="k">else</span> <span class="p">[]</span>
+        <span class="n">omp_for</span> <span class="o">=</span> <span class="p">[</span><span class="n">cgen</span><span class="o">.</span><span class="n">Pragma</span><span class="p">(</span><span class="s2">&quot;omp for schedule(static)&quot;</span>
+                   <span class="o">+</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">profiler</span><span class="o">.</span><span class="n">get_loop_reduction</span><span class="p">(</span><span class="s2">&quot;+&quot;</span><span class="p">,</span> <span class="n">reduction_list</span><span class="p">)</span>
+                      <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">profile</span> <span class="k">else</span> <span class="s2">&quot;&quot;</span><span class="p">))]</span>\
             <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">compiler</span><span class="o">.</span><span class="n">openmp</span> <span class="k">else</span> <span class="p">[]</span>
 
         <span class="n">t_loop_limits</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">time_loop_limits</span>
@@ -514,7 +523,8 @@
             <span class="n">end_block</span> <span class="o">=</span> <span class="n">omp_single</span> <span class="o">+</span> <span class="p">[</span><span class="n">cgen</span><span class="o">.</span><span class="n">Block</span><span class="p">(</span><span class="n">end_block</span><span class="p">)]</span>
 
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">profile</span><span class="p">:</span>
-            <span class="n">loop_body</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">profiler</span><span class="o">.</span><span class="n">add_profiling</span><span class="p">(</span><span class="n">loop_body</span><span class="p">,</span> <span class="s2">&quot;loop_body&quot;</span><span class="p">)</span>
+            <span class="n">loop_body</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">profiler</span><span class="o">.</span><span class="n">add_profiling</span><span class="p">(</span><span class="n">loop_body</span><span class="p">,</span> <span class="s2">&quot;loop_body&quot;</span><span class="p">,</span>
+                                                    <span class="n">omp_flag</span><span class="o">=</span><span class="n">omp_master</span><span class="p">)</span>
 
         <span class="n">loop_body</span> <span class="o">=</span> <span class="n">cgen</span><span class="o">.</span><span class="n">Block</span><span class="p">(</span><span class="n">initial_block</span> <span class="o">+</span> <span class="n">loop_body</span> <span class="o">+</span> <span class="n">end_block</span><span class="p">)</span>
 
@@ -528,10 +538,20 @@
         <span class="c1"># Code to declare the time stepping variables (outside the time loop)</span>
         <span class="n">def_time_step</span> <span class="o">=</span> <span class="p">[</span><span class="n">cgen</span><span class="o">.</span><span class="n">Value</span><span class="p">(</span><span class="s2">&quot;int&quot;</span><span class="p">,</span> <span class="n">t_var_def</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
                          <span class="k">for</span> <span class="n">t_var_def</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">time_steppers</span><span class="p">]</span>
-        <span class="n">body</span> <span class="o">=</span> <span class="n">def_time_step</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">pre_loop</span> <span class="o">+</span> <span class="n">omp_parallel</span> <span class="o">+</span> <span class="p">[</span><span class="n">loop_body</span><span class="p">]</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">post_loop</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">profile</span><span class="p">:</span>
+            <span class="n">body</span> <span class="o">=</span> <span class="n">def_time_step</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">pre_loop</span> <span class="o">+</span>\
+                <span class="p">[</span><span class="n">cgen</span><span class="o">.</span><span class="n">Statement</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">profiler</span>
+                                <span class="o">.</span><span class="n">get_loop_temp_var_decl</span><span class="p">(</span><span class="s2">&quot;0&quot;</span><span class="p">,</span> <span class="n">reduction_list</span><span class="p">))]</span>\
+                <span class="o">+</span> <span class="n">omp_parallel</span> <span class="o">+</span> <span class="p">[</span><span class="n">loop_body</span><span class="p">]</span> <span class="o">+</span>\
+                <span class="p">[</span><span class="n">cgen</span><span class="o">.</span><span class="n">Statement</span><span class="p">(</span><span class="n">s</span><span class="p">)</span> <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span>
+                 <span class="bp">self</span><span class="o">.</span><span class="n">profiler</span><span class="o">.</span><span class="n">get_loop_flop_update</span><span class="p">(</span><span class="n">reduction_list</span><span class="p">)]</span>\
+                <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">post_loop</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">body</span> <span class="o">=</span> <span class="n">def_time_step</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">pre_loop</span>\
+                <span class="o">+</span> <span class="n">omp_parallel</span> <span class="o">+</span> <span class="p">[</span><span class="n">loop_body</span><span class="p">]</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">post_loop</span>
 
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">profile</span><span class="p">:</span>
-            <span class="n">body</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">profiler</span><span class="o">.</span><span class="n">add_profiling</span><span class="p">(</span><span class="n">body</span><span class="p">,</span> <span class="s2">&quot;kernel&quot;</span><span class="p">,</span> <span class="n">omp_master</span><span class="p">)</span>
+            <span class="n">body</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">profiler</span><span class="o">.</span><span class="n">add_profiling</span><span class="p">(</span><span class="n">body</span><span class="p">,</span> <span class="s2">&quot;kernel&quot;</span><span class="p">)</span>
 
         <span class="k">return</span> <span class="n">cgen</span><span class="o">.</span><span class="n">Block</span><span class="p">(</span><span class="n">body</span><span class="p">)</span></div>
 
@@ -835,83 +855,7 @@
         <span class="k">if</span> <span class="n">before</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">time_loop_stencils_b</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">stencil</span><span class="p">)</span>
         <span class="k">else</span><span class="p">:</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">time_loop_stencils_a</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">stencil</span><span class="p">)</span></div>
-
-    <span class="k">def</span> <span class="nf">_get_ops_expr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">expr</span><span class="p">,</span> <span class="n">dict1</span><span class="p">,</span> <span class="n">is_lhs</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;Get number of different operations in expression expr</span>
-
-<span class="sd">        Types of operations are ADD (inc -) and MUL (inc /), arrays (IndexedBase objects)</span>
-<span class="sd">        in expr that are not in list arrays are added to the list.</span>
-
-<span class="sd">        :param expr: The expression to process</span>
-<span class="sd">        :returns: Dictionary of (#ADD, #MUL, list of unique names of fields,</span>
-<span class="sd">                                             list of unique field elements)</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="n">result</span> <span class="o">=</span> <span class="n">dict1</span>  <span class="c1"># dictionary to return</span>
-
-        <span class="c1"># add array to list arrays if it is not in it</span>
-        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">Indexed</span><span class="p">):</span>
-                <span class="n">base</span> <span class="o">=</span> <span class="n">expr</span><span class="o">.</span><span class="n">base</span><span class="o">.</span><span class="n">label</span>
-
-                <span class="k">if</span> <span class="n">is_lhs</span><span class="p">:</span>
-                    <span class="n">result</span><span class="p">[</span><span class="s1">&#39;store&#39;</span><span class="p">]</span> <span class="o">+=</span> <span class="mi">1</span>
-                <span class="k">if</span> <span class="n">base</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">result</span><span class="p">[</span><span class="s1">&#39;load_list&#39;</span><span class="p">]:</span>
-                    <span class="c1"># accumulate distinct array</span>
-                    <span class="n">result</span><span class="p">[</span><span class="s1">&#39;load_list&#39;</span><span class="p">]</span> <span class="o">+=</span> <span class="p">[</span><span class="n">base</span><span class="p">]</span>
-                <span class="k">if</span> <span class="n">expr</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">result</span><span class="p">[</span><span class="s1">&#39;load_all_list&#39;</span><span class="p">]:</span>
-                    <span class="c1"># accumulate distinct array elements</span>
-                    <span class="n">result</span><span class="p">[</span><span class="s1">&#39;load_all_list&#39;</span><span class="p">]</span> <span class="o">+=</span> <span class="p">[</span><span class="n">expr</span><span class="p">]</span>
-
-                <span class="k">return</span> <span class="n">result</span>
-
-        <span class="k">if</span> <span class="n">expr</span><span class="o">.</span><span class="n">is_Mul</span> <span class="ow">or</span> <span class="n">expr</span><span class="o">.</span><span class="n">is_Add</span> <span class="ow">or</span> <span class="n">expr</span><span class="o">.</span><span class="n">is_Pow</span><span class="p">:</span>
-                <span class="n">args</span> <span class="o">=</span> <span class="n">expr</span><span class="o">.</span><span class="n">args</span>
-
-                <span class="c1"># increment MUL or ADD by # arguments less 1</span>
-                <span class="c1"># sympy multiplication and addition can have multiple arguments</span>
-                <span class="k">if</span> <span class="n">expr</span><span class="o">.</span><span class="n">is_Mul</span><span class="p">:</span>
-                    <span class="n">result</span><span class="p">[</span><span class="s1">&#39;mul&#39;</span><span class="p">]</span> <span class="o">+=</span> <span class="nb">len</span><span class="p">(</span><span class="n">args</span><span class="p">)</span><span class="o">-</span><span class="mi">1</span>
-                <span class="k">else</span><span class="p">:</span>
-                    <span class="k">if</span> <span class="n">expr</span><span class="o">.</span><span class="n">is_Add</span><span class="p">:</span>
-                        <span class="n">result</span><span class="p">[</span><span class="s1">&#39;add&#39;</span><span class="p">]</span> <span class="o">+=</span> <span class="nb">len</span><span class="p">(</span><span class="n">args</span><span class="p">)</span><span class="o">-</span><span class="mi">1</span>
-
-                <span class="c1"># recursive call of all arguments</span>
-                <span class="k">for</span> <span class="n">expr2</span> <span class="ow">in</span> <span class="n">args</span><span class="p">:</span>
-                    <span class="n">result2</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_ops_expr</span><span class="p">(</span><span class="n">expr2</span><span class="p">,</span> <span class="n">result</span><span class="p">,</span> <span class="n">is_lhs</span><span class="p">)</span>
-
-                <span class="k">return</span> <span class="n">result2</span>
-
-        <span class="c1"># return zero and unchanged array if execution gets here</span>
-        <span class="k">return</span> <span class="n">result</span>
-
-<div class="viewcode-block" id="Propagator.get_kernel_oi"><a class="viewcode-back" href="../../devito.html#devito.propagator.Propagator.get_kernel_oi">[docs]</a>    <span class="k">def</span> <span class="nf">get_kernel_oi</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;Get the operation intensity of the kernel. The types of operations are</span>
-<span class="sd">         ADD (inc -), MUL (inc /), LOAD, STORE.</span>
-<span class="sd">        #LOAD = number of unique fields in the kernel</span>
-
-<span class="sd">        Operation intensity OI = (ADD+MUL)/[(LOAD+STORE)*word_size]</span>
-<span class="sd">        Weighted OI, OI_w = (ADD+MUL)/(2*Max(ADD,MUL)) * OI</span>
-
-<span class="sd">        :param dtype: :class:`numpy.dtype` used to specify the word size</span>
-<span class="sd">        :returns: A tuple (#ADD, #MUL, #LOAD, #STORE) containing the operation intensity</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="n">load</span> <span class="o">=</span> <span class="mi">0</span>
-        <span class="n">load_all</span> <span class="o">=</span> <span class="mi">0</span>
-        <span class="n">word_size</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">dtype</span><span class="p">(</span><span class="n">dtype</span><span class="p">)</span><span class="o">.</span><span class="n">itemsize</span>
-        <span class="n">load</span> <span class="o">+=</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_kernel_dic_oi</span><span class="p">[</span><span class="s1">&#39;load_list&#39;</span><span class="p">])</span>
-        <span class="n">store</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_kernel_dic_oi</span><span class="p">[</span><span class="s1">&#39;store&#39;</span><span class="p">]</span>
-        <span class="n">load_all</span> <span class="o">+=</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_kernel_dic_oi</span><span class="p">[</span><span class="s1">&#39;load_all_list&#39;</span><span class="p">])</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_kernel_dic_oi</span><span class="p">[</span><span class="s1">&#39;load&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">load_all</span>
-        <span class="n">add</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_kernel_dic_oi</span><span class="p">[</span><span class="s1">&#39;add&#39;</span><span class="p">]</span>
-        <span class="n">mul</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_kernel_dic_oi</span><span class="p">[</span><span class="s1">&#39;mul&#39;</span><span class="p">]</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_kernel_dic_oi</span><span class="p">[</span><span class="s1">&#39;oi_high&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">add</span><span class="o">+</span><span class="n">mul</span><span class="p">)</span><span class="o">/</span><span class="p">(</span><span class="n">load</span><span class="o">+</span><span class="n">store</span><span class="p">)</span><span class="o">/</span><span class="n">word_size</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_kernel_dic_oi</span><span class="p">[</span><span class="s1">&#39;oi_high_weighted&#39;</span><span class="p">]</span> <span class="o">=</span> \
-            <span class="bp">self</span><span class="o">.</span><span class="n">_kernel_dic_oi</span><span class="p">[</span><span class="s1">&#39;oi_high&#39;</span><span class="p">]</span><span class="o">*</span><span class="p">(</span><span class="n">add</span><span class="o">+</span><span class="n">mul</span><span class="p">)</span><span class="o">/</span><span class="nb">max</span><span class="p">(</span><span class="n">add</span><span class="p">,</span> <span class="n">mul</span><span class="p">)</span><span class="o">/</span><span class="mf">2.0</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_kernel_dic_oi</span><span class="p">[</span><span class="s1">&#39;oi_low&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">add</span><span class="o">+</span><span class="n">mul</span><span class="p">)</span><span class="o">/</span><span class="p">(</span><span class="n">load_all</span><span class="o">+</span><span class="n">store</span><span class="p">)</span><span class="o">/</span><span class="n">word_size</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_kernel_dic_oi</span><span class="p">[</span><span class="s1">&#39;oi_low_weighted&#39;</span><span class="p">]</span> <span class="o">=</span> \
-            <span class="bp">self</span><span class="o">.</span><span class="n">_kernel_dic_oi</span><span class="p">[</span><span class="s1">&#39;oi_low&#39;</span><span class="p">]</span><span class="o">*</span><span class="p">(</span><span class="n">add</span><span class="o">+</span><span class="n">mul</span><span class="p">)</span><span class="o">/</span><span class="nb">max</span><span class="p">(</span><span class="n">add</span><span class="p">,</span> <span class="n">mul</span><span class="p">)</span><span class="o">/</span><span class="mf">2.0</span>
-
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_kernel_dic_oi</span><span class="p">[</span><span class="s1">&#39;oi_high&#39;</span><span class="p">]</span></div></div>
+            <span class="bp">self</span><span class="o">.</span><span class="n">time_loop_stencils_a</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">stencil</span><span class="p">)</span></div></div>
 </pre></div>
 
            </div>
