@@ -149,6 +149,7 @@ class Operator(object):
                      environment variable DEVITO_ARCH, or default to GNUCompiler.
     :param profile: Flag to enable performance profiling
     :param cache_blocking: Flag to enable cache blocking
+    :param cse: Flag to enable common subexpression elimination
     :param block_size: Block size used for cache clocking. Can be either a single number
                        used for all dimensions or a list stating block sizes for each
                        dimension. Set block size to None to skip blocking on that dim
@@ -161,7 +162,7 @@ class Operator(object):
     def __init__(self, nt, shape, dtype=np.float32, stencils=[],
                  subs=[], spc_border=0, time_order=0,
                  forward=True, compiler=None, profile=False,
-                 cache_blocking=False, block_size=5,
+                 cache_blocking=False, cse=True, block_size=5,
                  input_params=None, output_params=None, factorized={}):
         # Derive JIT compilation infrastructure
         self.compiler = compiler or get_compiler_from_env()
@@ -232,7 +233,8 @@ class Operator(object):
         self.stencils = [eqn.subs(subs[0]) for eqn in self.stencils]
 
         # Applies CSE
-        self.stencils = expr_cse(self.stencils)
+        if cse:
+            self.stencils = expr_cse(self.stencils)
 
         self.propagator = Propagator(
             self.getName(), nt, shape, self.stencils, factorized=factorized, dtype=dtype,
