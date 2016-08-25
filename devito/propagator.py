@@ -240,7 +240,8 @@ class Propagator(object):
     def prep_variable_map(self):
         """Mapping from model variables (x, y, z, t) to loop variables (i1, i2, i3, i4)
 
-        For now, i1 i2 i3 are assigned in the order the variables were defined in init( #var_order)
+        For now, i1 i2 i3 are assigned in the order
+        the variables were defined in init( #var_order)
         """
         var_map = {}
         i = 0
@@ -389,7 +390,8 @@ class Propagator(object):
             end_block = omp_single + [cgen.Block(end_block)]
 
         if self.profile:
-            loop_body = self.profiler.add_profiling(loop_body, "loop_body", omp_flag=omp_master)
+            loop_body = self.profiler.add_profiling(loop_body, "loop_body",
+                                                    omp_flag=omp_master)
 
         loop_body = cgen.Block(initial_block + loop_body + end_block)
 
@@ -401,15 +403,19 @@ class Propagator(object):
         )
 
         # Code to declare the time stepping variables (outside the time loop)
-        def_time_step = [cgen.Value("int", t_var_def.name) for t_var_def in self.time_steppers]
+        def_time_step = [cgen.Value("int", t_var_def.name)
+                         for t_var_def in self.time_steppers]
         if self.profile:
             body = def_time_step + self.pre_loop +\
-                [cgen.Statement(self.profiler.get_loop_temp_var_decl("0", reduction_list))]\
+                [cgen.Statement(self.profiler
+                                .get_loop_temp_var_decl("0", reduction_list))]\
                 + omp_parallel + [loop_body] +\
-                [cgen.Statement(s) for s in self.profiler.get_loop_flop_update(reduction_list)]\
+                [cgen.Statement(s) for s in
+                 self.profiler.get_loop_flop_update(reduction_list)]\
                 + self.post_loop
         else:
-            body = def_time_step + self.pre_loop + omp_parallel + [loop_body] + self.post_loop
+            body = def_time_step + self.pre_loop\
+                + omp_parallel + [loop_body] + self.post_loop
 
         if self.profile:
             body = self.profiler.add_profiling(body, "kernel")

@@ -53,7 +53,8 @@ class Profiler(object):
         if len(variables) <= 0:
             return ""
         return "long long %s%s = %s%s" % (self.loop_temp_prefix, variables[0], value,
-                                          "".join([(", %s%s = %s" % (self.loop_temp_prefix, v, value))
+                                          "".join([(", %s%s = %s"
+                                                  % (self.loop_temp_prefix, v, value))
                                                   for v in variables[1:]]))
 
     def get_loop_flop_update(self, variables):
@@ -65,7 +66,8 @@ class Profiler(object):
         :returns: A list of string representing statements used as updating
                   statements
         """
-        return ["%s->%s+=%s%s" % (self.f_name, v, self.loop_temp_prefix, v) for v in variables]
+        return ["%s->%s+=%s%s" % (self.f_name, v, self.loop_temp_prefix, v)
+                for v in variables]
 
     def add_profiling(self, code, name, byte_size=4, omp_flag=None):
         """Function to add profiling code to the given :class:`cgen.Block`.
@@ -152,7 +154,9 @@ class Profiler(object):
         if loop_flops == 0:
             return loop_oi_f
 
-        flops_calc_stmt = Statement("%s%s += %f" % (self.loop_temp_prefix, name, loop_flops)) if self.openmp else\
+        flops_calc_stmt = Statement(
+            "%s%s += %f" % (self.loop_temp_prefix, name, loop_flops))\
+            if self.openmp else\
             Statement("%s->%s += %f" % (self.f_name, name, loop_flops))
         loop.body = Block([flops_calc_stmt, loop.body])
 
@@ -186,8 +190,10 @@ class Profiler(object):
 
         idx = 0
         brackets = 0
-        # removing casting statements and function calls to floor that can confuse the parser
-        string = (assign.lvalue + " " + assign.rvalue).replace("float", '').replace("int", '').replace("floor", '')
+        # removing casting statements and function calls to floor
+        # that can confuse the parser
+        string = (assign.lvalue + " " + assign.rvalue)\
+            .replace("float", '').replace("int", '').replace("floor", '')
 
         while idx < len(string):
             char = string[idx]
@@ -196,9 +202,11 @@ class Profiler(object):
                     brackets += 1
                 elif char == ']':
                     brackets -= 1
-                elif char in "+-*/" and string[idx - 1] is not 'e' and not string[idx + 1].isdigit() and brackets == 0:
+                elif (char in "+-*/" and string[idx - 1] is not 'e' and not
+                      string[idx + 1].isdigit() and brackets == 0):
                     flops += 1
-                elif char.isalpha() and not string[idx - 1].isdigit() and char not in "it":
+                elif (char.isalpha() and not
+                      string[idx - 1].isdigit() and char not in "it"):
                     cur_load += char
                 idx += 1
             else:
