@@ -209,6 +209,10 @@ class Propagator(object):
         return self.profiler.oi
 
     @property
+    def oi_low(self):
+        return self.profile.oi_low
+
+    @property
     def gflops(self):
         return self.profiler.gflops
 
