@@ -4,6 +4,7 @@ using an explicit finite difference scheme with fixed boundary values
 and a given initial value for the density.
 """
 import time
+from argparse import ArgumentParser
 
 import numpy as np
 from sympy import Eq, Function, as_finite_diff, lambdify, solve, symbols
@@ -158,44 +159,41 @@ def test_diffusion2d(dx=0.01, dy=0.01, timesteps=1000):
     assert(u.max() < 2.4)
     assert(np.linalg.norm(u, ord=2) < 13)
 
+
 if __name__ == "__main__":
-    """Below is a demonstration of various techniques to solve the
-    simple 2D diffusion equation, including simple Python, vectorized
-    numpy, a lambdified SymPy equation and the Devito API.
+    description = """
+Example script demonstrating several approaches to solving the
+2D diffusion equation. The various modes are pure Python,
+vectorized numpy, a lambdified SymPy equation and the Devito API.
 
-    Please not that the current settings for dx, dy, and timesteps are
-    chosen to highlight that Devito and "vectorised numpy" are
-    significantly faster than the "pure Python" or "lambdified SymPy"
-    approach. For a fair performance comparison between Devito and
-    "vectorised numpy" we recommend disabling the slow variants and
-    using the following values:
+Please not that the default settings for dx, dy and timesteps are
+chosen to highlight that Devito and "vectorised numpy" are
+faster than pure Python or the sympy.lambdify kernels approach.
+For a fair performance comparison between Devito and
+"vectorised numpy" we recommend using --spacing 0.001 -t 1000.
+"""
+    parser = ArgumentParser(description=description)
+    parser.add_argument(dest='mode', nargs='+', default='devito',
+                        help="Execution modes: python, numpy, lambdify, devito")
+    parser.add_argument('-s', '--spacing', type=float, nargs='+', default=[0.01],
+                        help='Grid spacing, either single value or dx, dy)')
+    parser.add_argument('-t', '--timesteps', type=int, default=20,
+                        help='Number of timesteps to run')
+    parser.add_argument('--show', action='store_true',
+                        help="Show animation of the solution field")
+    args = parser.parse_args()
+    if len(args.spacing) > 2:
+        raise ValueError("Too many arguments encountered for --spacing")
 
-    dx, dy = 0.001, 0.001
-    timesteps = 1000
-    """
-    dx, dy = 0.01, 0.01
-    timesteps = 20
-
-    # Execute diffusion via devito
-    ui = ring_initial(dx=dx, dy=dy)
-    animate(ui)
-    u = execute_devito(ui, dx=dx, dy=dy, timesteps=timesteps)
-    animate(u)
-
-    # Execute diffusion with vectorised numpy arrays
-    ui = ring_initial(dx=dx, dy=dy)
-    animate(ui)
-    u = execute_numpy(ui, dx=dx, dy=dy, timesteps=timesteps)
-    animate(u)
-
-    # Execute diffusion with pure Python list accesses
-    ui = ring_initial(dx=dx, dy=dy)
-    animate(ui)
-    u = execute_python(ui, dx=dx, dy=dy, timesteps=timesteps)
-    animate(u)
-
-    # Execute diffusion from labdified SymPy expression
-    ui = ring_initial(dx=dx, dy=dy)
-    animate(ui)
-    u = execute_lambdify(ui, dx=dx, dy=dy, timesteps=timesteps)
-    animate(u)
+    # Get the relevant execution method
+    executor = {'python': execute_python, 'numpy': execute_numpy,
+                'lambdify': execute_lambdify, 'devito': execute_devito}
+    dx = args.spacing[0]
+    dy = args.spacing[1] if len(args.spacing) > 1 else args.spacing[0]
+    for mode in args.mode:
+        ui = ring_initial(dx=dx, dy=dy)
+        if args.show:
+            animate(ui)
+        u = executor[mode](ui, dx=dx, dy=dy, timesteps=args.timesteps)
+        if args.show:
+            animate(u)
