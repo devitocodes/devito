@@ -260,7 +260,7 @@ class Propagator(object):
     def log_performance(self):
         """Logs performance metrics"""
         shape_str = str(self.shape).replace(', ', ' x ')
-        cb_str = ", blocks - %s " % str(self.cache_blocking) \
+        cb_str = ", blocks - %s " % str(self.block_sizes) \
             if self.cache_blocking else ' '
 
         logger.info("shape - %s%s:: %f sec - %s MCells/s - %.2f GFLOPS" %
