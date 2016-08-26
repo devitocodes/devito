@@ -1,7 +1,8 @@
 import numpy as np
-from sympy import (Eq, Function, Indexed, Symbol, lambdify, preorder_traversal,
-                   solve, symbols)
+from sympy import (Add, Eq, Function, Indexed, IndexedBase, Symbol, cse,
+                   lambdify, preorder_traversal, solve, symbols)
 from sympy.abc import t
+from sympy.utilities.iterables import numbered_symbols
 
 from devito.compiler import get_compiler_from_env
 from devito.interfaces import SymbolicData, TimeData
@@ -62,6 +63,70 @@ def expr_indexify(expr):
     return expr.xreplace(replacements)
 
 
+def expr_cse(expr):
+    """Performs common subexpression elimination on expressions
+
+    :param expr: Sympy equation or list of equations on which CSE needs to be performed
+
+    :return: A list of the resulting equations after performing CSE
+    """
+    expr = expr if isinstance(expr, list) else [expr]
+
+    temps, stencils = cse(expr, numbered_symbols("temp"))
+
+    # Restores the LHS
+    for i in range(len(expr)):
+        stencils[i] = Eq(expr[i].lhs, stencils[i].rhs)
+
+    to_revert = {}
+    to_keep = []
+
+    # Restores IndexedBases if they are collected by CSE and
+    # reverts changes to simple index operations (eg: t - 1)
+    for temp, value in temps:
+        if isinstance(value, IndexedBase):
+            to_revert[temp] = value
+        elif isinstance(value, Add):
+            to_revert[temp] = value
+        else:
+            to_keep.append((temp, value))
+
+    # Restores the IndexedBases in the assignments to revert
+    for temp, value in to_revert.items():
+        s_dict = {}
+        for arg in preorder_traversal(value):
+            if isinstance(value, Indexed):
+                if value.base.label in to_revert:
+                    s_dict[arg] = Indexed(to_revert[value.base.label], *value.indices)
+        to_revert[temp] = value.xreplace(s_dict)
+
+    subs_dict = {}
+
+    # Builds a dictionary of the replacements
+    for expr in stencils + [assign for temp, assign in to_keep]:
+        for arg in preorder_traversal(expr):
+            if isinstance(arg, Indexed):
+                new_indices = []
+                for index in arg.indices:
+                    if index in to_revert:
+                        new_indices.append(to_revert[index])
+                    else:
+                        new_indices.append(index)
+                if arg.base.label in to_revert:
+                    subs_dict[arg] = Indexed(to_revert[arg.base.label], *new_indices)
+                elif tuple(new_indices) != arg.indices:
+                    subs_dict[arg] = Indexed(arg.base, *new_indices)
+            if arg in to_revert:
+                subs_dict[arg] = to_revert[arg]
+
+    stencils = [stencil.xreplace(subs_dict) for stencil in stencils]
+
+    for i in range(len(to_keep)):
+        to_keep[i] = Eq(to_keep[i][0], to_keep[i][1].xreplace(subs_dict))
+
+    return to_keep + stencils
+
+
 class Operator(object):
     """Class encapsulating a defined operator as defined by the given stencil
 
@@ -84,6 +149,7 @@ class Operator(object):
                      environment variable DEVITO_ARCH, or default to GNUCompiler.
     :param profile: Flag to enable performance profiling
     :param cache_blocking: Flag to enable cache blocking
+    :param cse: Flag to enable common subexpression elimination
     :param block_size: Block size used for cache clocking. Can be either a single number
                        used for all dimensions or a list stating block sizes for each
                        dimension. Set block size to None to skip blocking on that dim
@@ -96,7 +162,7 @@ class Operator(object):
     def __init__(self, nt, shape, dtype=np.float32, stencils=[],
                  subs=[], spc_border=0, time_order=0,
                  forward=True, compiler=None, profile=False,
-                 cache_blocking=False, block_size=5,
+                 cache_blocking=False, cse=True, block_size=5,
                  input_params=None, output_params=None, factorized={}):
         # Derive JIT compilation infrastructure
         self.compiler = compiler or get_compiler_from_env()
@@ -106,6 +172,22 @@ class Operator(object):
         subs = subs if isinstance(subs, list) else [subs]
         self.input_params = input_params
         self.output_params = output_params
+
+        # Get functions and symbols in LHS/RHS and update params
+        sym_undef = set()
+
+        for eqn in self.stencils:
+            lhs_def, lhs_undef = expr_symbols(eqn.lhs)
+            sym_undef.update(lhs_undef)
+
+            if self.output_params is None:
+                self.output_params = list(lhs_def)
+
+            rhs_def, rhs_undef = expr_symbols(eqn.rhs)
+            sym_undef.update(rhs_undef)
+
+            if self.input_params is None:
+                self.input_params = list(rhs_def)
 
         # Pull all dimension indices from the incoming stencil
         dimensions = set()
@@ -129,21 +211,6 @@ class Operator(object):
             # Default space dimension symbols
             self.space_dims = symbols("x z" if len(shape) == 2 else "x y z")[:len(shape)]
 
-        # Get functions and symbols in LHS/RHS and update params
-        sym_undef = set()
-
-        for eqn in self.stencils:
-            lhs_def, lhs_undef = expr_symbols(eqn.lhs)
-            sym_undef.update(lhs_undef)
-
-            if self.output_params is None:
-                self.output_params = list(lhs_def)
-
-            rhs_def, rhs_undef = expr_symbols(eqn.rhs)
-            sym_undef.update(rhs_undef)
-
-            if self.input_params is None:
-                self.input_params = list(rhs_def)
         # Remove known dimensions from undefined symbols
         for d in dimensions:
             sym_undef.remove(d)
@@ -162,14 +229,19 @@ class Operator(object):
         for name, value in factorized.items():
             factorized[name] = expr_indexify(value)
 
-        # Apply user-defined subs to stencil
-        self.stencils = [eqn.subs(args) for eqn, args in zip(self.stencils, subs)]
-        self.propagator = Propagator(self.getName(), nt, shape, self.stencils,
-                                     factorized=factorized, dtype=dtype,
-                                     spc_border=spc_border, time_order=time_order,
-                                     forward=forward, space_dims=self.space_dims,
-                                     compiler=self.compiler, profile=profile,
-                                     cache_blocking=cache_blocking, block_size=block_size)
+        # Apply user-defined substitutions to stencil
+        self.stencils = [eqn.subs(subs[0]) for eqn in self.stencils]
+
+        # Applies CSE
+        if cse:
+            self.stencils = expr_cse(self.stencils)
+
+        self.propagator = Propagator(
+            self.getName(), nt, shape, self.stencils, factorized=factorized, dtype=dtype,
+            spc_border=spc_border, time_order=time_order, forward=forward,
+            space_dims=self.space_dims, compiler=self.compiler, profile=profile,
+            cache_blocking=cache_blocking, block_size=block_size
+        )
         self.dtype = dtype
         self.nt = nt
         self.shape = shape

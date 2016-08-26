@@ -4,7 +4,7 @@ from os import path
 from random import randint
 
 import numpy as np
-from sympy import Indexed, IndexedBase, symbols
+from sympy import Indexed, IndexedBase, preorder_traversal, symbols
 from sympy.abc import t, x, y, z
 from sympy.utilities.iterables import postorder_traversal
 
@@ -309,6 +309,24 @@ class Propagator(object):
 
         return cgen.Block(factors+kernel)
 
+    def expr_dtype(self, expr):
+        """Gets the resulting dtype of an expression.
+
+        :param expr: The expression
+
+        :returns: The dtype. Defaults to `self.dtype` if none found.
+        """
+        dtypes = []
+
+        for e in preorder_traversal(expr):
+            if hasattr(e, 'dtype'):
+                dtypes.append(e.dtype)
+
+        if dtypes:
+            return np.find_common_type(dtypes, [])
+        else:
+            return self.dtype
+
     def convert_equality_to_cgen(self, equality):
         """Convert given equality to :class:`cgen.Generable` statement
 
@@ -324,6 +342,9 @@ class Propagator(object):
             s_lhs = ccode(self.time_substitutions(equality.lhs).xreplace(self._var_map))
             s_rhs = self.time_substitutions(equality.rhs).xreplace(self._var_map)
 
+            if s_lhs.find("temp") != -1:
+                s_lhs = cgen.dtype_to_ctype(self.expr_dtype(equality.rhs)) + " " + s_lhs
+
             # appending substituted stencil,which is used to determine alignment pragma
             self.sub_stencils.append(s_rhs)
 
@@ -331,6 +352,7 @@ class Propagator(object):
             if self.dtype is np.float32:
                 s_rhs = str(s_rhs).replace("pow", "powf")
                 s_rhs = str(s_rhs).replace("fabs", "fabsf")
+
             return cgen.Assign(s_lhs, s_rhs)
 
     def get_aligned_pragma(self, stencils, factorized, loop_counters, time_steppers):
@@ -343,7 +365,11 @@ class Propagator(object):
         """
         array_names = set()
         for item in flatten([stencil.free_symbols for stencil in stencils]):
-            if str(item) not in factorized and item not in loop_counters + time_steppers:
+            if (
+                str(item) not in factorized
+                and item not in loop_counters + time_steppers
+                and str(item).find("temp") == -1
+            ):
                 array_names.add(item)
 
         return cgen.Pragma("%s(%s:64)" % (self.compiler.pragma_aligned,
