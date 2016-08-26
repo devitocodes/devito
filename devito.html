@@ -95,6 +95,7 @@
 <li class="toctree-l2"><a class="reference internal" href="#module-devito.propagator">devito.propagator module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#module-devito.tools">devito.tools module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#devito-logger-module">devito.logger module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#devito-at-controller-module">devito.at_controller module</a></li>
 </ul>
 </li>
 </ul>
@@ -1026,7 +1027,7 @@ symbolic behaviour follows the use in the current problem.</p>
 <span id="devito-operator-module"></span><h2>devito.operator module<a class="headerlink" href="#module-devito.operator" title="Permalink to this headline">¶</a></h2>
 <dl class="class">
 <dt id="devito.operator.Operator">
-<em class="property">class </em><code class="descclassname">devito.operator.</code><code class="descname">Operator</code><span class="sig-paren">(</span><em>nt</em>, <em>shape</em>, <em>dtype=&lt;type 'numpy.float32'&gt;</em>, <em>stencils=[]</em>, <em>subs=[]</em>, <em>spc_border=0</em>, <em>time_order=0</em>, <em>forward=True</em>, <em>compiler=None</em>, <em>profile=False</em>, <em>cache_blocking=False</em>, <em>cse=True</em>, <em>block_size=5</em>, <em>input_params=None</em>, <em>output_params=None</em>, <em>factorized={}</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/operator.html#Operator"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.operator.Operator" title="Permalink to this definition">¶</a></dt>
+<em class="property">class </em><code class="descclassname">devito.operator.</code><code class="descname">Operator</code><span class="sig-paren">(</span><em>nt</em>, <em>shape</em>, <em>dtype=&lt;type 'numpy.float32'&gt;</em>, <em>stencils=[]</em>, <em>subs=[]</em>, <em>spc_border=0</em>, <em>time_order=0</em>, <em>forward=True</em>, <em>compiler=None</em>, <em>profile=False</em>, <em>cse=True</em>, <em>cache_blocking=None</em>, <em>input_params=None</em>, <em>output_params=None</em>, <em>factorized={}</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/operator.html#Operator"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.operator.Operator" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">object</span></code></p>
 <p>Class encapsulating a defined operator as defined by the given stencil</p>
 <p>The Operator class is the core abstraction in DeVito that allows
@@ -1051,11 +1052,14 @@ substitutions for each stencil respectively.</li>
 If not provided, the compiler will be inferred from the
 environment variable DEVITO_ARCH, or default to GNUCompiler.</li>
 <li><strong>profile</strong> &#8211; Flag to enable performance profiling</li>
-<li><strong>cache_blocking</strong> &#8211; Flag to enable cache blocking</li>
 <li><strong>cse</strong> &#8211; Flag to enable common subexpression elimination</li>
-<li><strong>block_size</strong> &#8211; Block size used for cache clocking. Can be either a single number
-used for all dimensions or a list stating block sizes for each
-dimension. Set block size to None to skip blocking on that dim</li>
+<li><strong>cache_blocking</strong> &#8211; Block sizes used for cache clocking. Can be either a single
+number used for all dimensions except inner most or a list
+explicitly stating block sizes for each dimension
+Set cache_blocking to None to skip blocking on that dim
+Set cache_blocking to 0 to use best guess based on architecture
+Set cache_blocking to AutoTuner instance, to use auto tuned
+tuned block sizes</li>
 <li><strong>input_params</strong> &#8211; List of symbols that are expected as input.</li>
 <li><strong>output_params</strong> &#8211; List of symbols that define operator output.</li>
 <li><strong>factorized</strong> &#8211; A map given by {string_name:sympy_object} for including factorized
@@ -1074,7 +1078,8 @@ terms</li>
 <tbody valign="top">
 <tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>debug</strong> &#8211; If True, use Python to apply the operator. Default False.</td>
 </tr>
-<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body">A tuple containing the values of the operator outputs</td>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body">A tuple containing the values of the operator outputs or compiled
+function and its args</td>
 </tr>
 </tbody>
 </table>
@@ -1141,6 +1146,13 @@ terms</li>
 </dd></dl>
 
 <dl class="method">
+<dt id="devito.operator.Operator.get_args">
+<code class="descname">get_args</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/operator.html#Operator.get_args"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.operator.Operator.get_args" title="Permalink to this definition">¶</a></dt>
+<dd><p>Initialises all the input args and returns them
+:return: a list of input params</p>
+</dd></dl>
+
+<dl class="method">
 <dt id="devito.operator.Operator.run_python">
 <code class="descname">run_python</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/operator.html#Operator.run_python"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.operator.Operator.run_python" title="Permalink to this definition">¶</a></dt>
 <dd><p>Executes the operator using Python</p>
@@ -1189,7 +1201,7 @@ terms</li>
 <span id="devito-propagator-module"></span><h2>devito.propagator module<a class="headerlink" href="#module-devito.propagator" title="Permalink to this headline">¶</a></h2>
 <dl class="class">
 <dt id="devito.propagator.Propagator">
-<em class="property">class </em><code class="descclassname">devito.propagator.</code><code class="descname">Propagator</code><span class="sig-paren">(</span><em>name</em>, <em>nt</em>, <em>shape</em>, <em>stencils</em>, <em>factorized=None</em>, <em>spc_border=0</em>, <em>time_order=0</em>, <em>time_dim=None</em>, <em>space_dims=None</em>, <em>dtype=&lt;type 'numpy.float32'&gt;</em>, <em>forward=True</em>, <em>compiler=None</em>, <em>profile=False</em>, <em>cache_blocking=False</em>, <em>block_size=5</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/propagator.html#Propagator"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.propagator.Propagator" title="Permalink to this definition">¶</a></dt>
+<em class="property">class </em><code class="descclassname">devito.propagator.</code><code class="descname">Propagator</code><span class="sig-paren">(</span><em>name</em>, <em>nt</em>, <em>shape</em>, <em>stencils</em>, <em>factorized=None</em>, <em>spc_border=0</em>, <em>time_order=0</em>, <em>time_dim=None</em>, <em>space_dims=None</em>, <em>dtype=&lt;type 'numpy.float32'&gt;</em>, <em>forward=True</em>, <em>compiler=None</em>, <em>profile=False</em>, <em>cache_blocking=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/propagator.html#Propagator"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.propagator.Propagator" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">object</span></code></p>
 <p>Propagator objects derive and encode C kernel code according
 to a given set of stencils, variables and time-stepping options</p>
@@ -1213,10 +1225,13 @@ terms</li>
 If not provided, the compiler will be inferred from the
 environment variable DEVITO_ARCH, or default to GNUCompiler</li>
 <li><strong>profile</strong> &#8211; Flag to enable performance profiling</li>
-<li><strong>cache_blocking</strong> &#8211; Flag to enable cache blocking</li>
-<li><strong>block_size</strong> &#8211; Block size used for cache clocking. Can be either a single number
-used for all dimensions or a list stating block sizes for each
-dimension. Set block size to None to skip blocking on that dim</li>
+<li><strong>cache_blocking</strong> &#8211; Block sizes used for cache clocking. Can be either a single
+number used for all dimensions except inner most or a list
+explicitly stating block sizes for each dimension
+Set cache_blocking to None to skip blocking on that dim
+Set cache_blocking to 0 to use best guess based on architecture
+Set cache_blocking to AutoTuner instance, to use auto tuned
+tune block sizes</li>
 </ul>
 </td>
 </tr>
@@ -1476,6 +1491,23 @@ or set_jit_simple already</p>
 </dd></dl>
 
 <dl class="method">
+<dt id="devito.propagator.Propagator.get_number_of_loads">
+<code class="descname">get_number_of_loads</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/propagator.html#Propagator.get_number_of_loads"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.propagator.Propagator.get_number_of_loads" title="Permalink to this definition">¶</a></dt>
+<dd><dl class="docutils">
+<dt>Gets total number of loads which is used for optimal block size estimation</dt>
+<dd>Temp profiler needed as we want this info even when profiling is off</dd>
+</dl>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Returns:</th><td class="field-body">Total number of loads</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
 <dt id="devito.propagator.Propagator.get_time_stepping">
 <code class="descname">get_time_stepping</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/propagator.html#Propagator.get_time_stepping"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.propagator.Propagator.get_time_stepping" title="Permalink to this definition">¶</a></dt>
 <dd><p>Add the time stepping code to the loop</p>
@@ -1517,6 +1549,11 @@ or set_jit_simple already</p>
 <dl class="attribute">
 <dt id="devito.propagator.Propagator.oi">
 <code class="descname">oi</code><a class="headerlink" href="#devito.propagator.Propagator.oi" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="devito.propagator.Propagator.oi_low">
+<code class="descname">oi_low</code><a class="headerlink" href="#devito.propagator.Propagator.oi_low" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 <dl class="method">
@@ -1590,6 +1627,11 @@ a cyclic index but only for variables which are not being saved in the time doma
 <code class="descname">timings</code><a class="headerlink" href="#devito.propagator.Propagator.timings" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
+<dl class="attribute">
+<dt id="devito.propagator.Propagator.total_loads">
+<code class="descname">total_loads</code><a class="headerlink" href="#devito.propagator.Propagator.total_loads" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
 </dd></dl>
 
 </div>
@@ -1636,6 +1678,33 @@ a cyclic index but only for variables which are not being saved in the time doma
 <dt id="devito.tools.flatten">
 <code class="descclassname">devito.tools.</code><code class="descname">flatten</code><span class="sig-paren">(</span><em>l</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/tools.html#flatten"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.tools.flatten" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
+
+<dl class="function">
+<dt id="devito.tools.get_optimal_block_size">
+<code class="descclassname">devito.tools.</code><code class="descname">get_optimal_block_size</code><span class="sig-paren">(</span><em>shape</em>, <em>load_c</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/tools.html#get_optimal_block_size"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.tools.get_optimal_block_size" title="Permalink to this definition">¶</a></dt>
+<dd><p>Gets optimal block size based on architecture</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>shape</strong> &#8211; list - shape of the data buffer</li>
+<li><strong>load_c</strong> &#8211; int - load count</li>
+</ul>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first last">optimal block size</p>
+</td>
+</tr>
+</tbody>
+</table>
+<p>Assuming no prefetching, square block will give the most cache reuse.
+We then take the cache/core divide by the size of the inner most dimension in which
+we do not block. This gives us the X*Y block space, of which we take the square root</p>
+<blockquote>
+<div>to get the size of our blocks.</div></blockquote>
+<p>((C size / cores) / (4 * length inner most * kernel loads)</p>
+</dd></dl>
 
 <dl class="function">
 <dt id="devito.tools.sympy_find">
@@ -1737,6 +1806,88 @@ ERROR, CRITICAL</li>
 <dt id="devito.logger.error">
 <code class="descclassname">devito.logger.</code><code class="descname">error</code><span class="sig-paren">(</span><em>msg</em>, <em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/logger.html#error"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.logger.error" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
+
+</div>
+<div class="section" id="devito-at-controller-module">
+<h2>devito.at_controller module<a class="headerlink" href="#devito-at-controller-module" title="Permalink to this headline">¶</a></h2>
+<span class="target" id="module-devito.at_controller"></span><dl class="class">
+<dt id="devito.at_controller.AutoTuner">
+<em class="property">class </em><code class="descclassname">devito.at_controller.</code><code class="descname">AutoTuner</code><span class="sig-paren">(</span><em>op</em>, <em>blocked_dims=None</em>, <em>at_report_dir=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/at_controller.html#AutoTuner"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.at_controller.AutoTuner" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">object</span></code></p>
+<dl class="method">
+<dt id="devito.at_controller.AutoTuner.auto_tune_blocks">
+<code class="descname">auto_tune_blocks</code><span class="sig-paren">(</span><em>minimum=5</em>, <em>maximum=20</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/at_controller.html#AutoTuner.auto_tune_blocks"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.at_controller.AutoTuner.auto_tune_blocks" title="Permalink to this definition">¶</a></dt>
+<dd><dl class="docutils">
+<dt>Auto tunes block sizes. Times all block size combinations withing given range</dt>
+<dd>and writes it into report</dd>
+</dl>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>minimum</strong> &#8211; int (optional) - minimum value for auto tuning range. Default 5</li>
+<li><strong>maximum</strong> &#8211; int (optional) - maximum value for auto tuning range. Default 20</li>
+</ul>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Raises:</th><td class="field-body"><p class="first last"><strong>ValueError</strong> &#8211; if  minimum is &gt;= maximum</p>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="devito.at_controller.AutoTuner.block_size">
+<code class="descname">block_size</code><a class="headerlink" href="#devito.at_controller.AutoTuner.block_size" title="Permalink to this definition">¶</a></dt>
+<dd><p>Gets block size from auto tuning report</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Returns:</th><td class="field-body"><p class="first">auto tuned block size</p>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Raises:</th><td class="field-body"><ul class="first last simple">
+<li><strong>ValueError</strong> &#8211; if auto tuning report not found</li>
+<li><strong>EnvironmentError</strong> &#8211; if matching model for auto tuned block size not found</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="devito.at_controller.AutoTuner.get_execution_time">
+<code class="descname">get_execution_time</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/at_controller.html#AutoTuner.get_execution_time"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.at_controller.AutoTuner.get_execution_time" title="Permalink to this definition">¶</a></dt>
+<dd><p>Runs and times the function</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Returns:</th><td class="field-body">time - how long it took to execute</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="devito.at_controller.AutoTuner.set_report_dir">
+<code class="descname">set_report_dir</code><span class="sig-paren">(</span><em>report_path</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/at_controller.html#AutoTuner.set_report_dir"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.at_controller.AutoTuner.set_report_dir" title="Permalink to this definition">¶</a></dt>
+<dd><p>Sets report directory path</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>report_path</strong> &#8211; path to report directory</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+</dd></dl>
 
 </div>
 </div>

@@ -1,0 +1,417 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>devito.at_controller &mdash; Devito 1 documentation</title>
+  
+
+  
+  
+
+  
+
+  
+  
+    
+
+  
+
+  
+  
+    <link rel="stylesheet" href="../../_static/css/theme.css" type="text/css" />
+  
+
+  
+
+  
+    <link rel="top" title="Devito 1 documentation" href="../../index.html"/>
+        <link rel="up" title="devito" href="../devito.html"/> 
+
+  
+  <script src="../../_static/js/modernizr.min.js"></script>
+
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search">
+          
+
+          
+            <a href="../../index.html" class="icon icon-home"> Devito
+          
+
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                0
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+                <ul>
+<li class="toctree-l1"><a class="reference internal" href="../../download.html">Download</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../tutorials.html">Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../devito.html">API Documentation</a></li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" role="navigation" aria-label="top navigation">
+        <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+        <a href="../../index.html">Devito</a>
+      </nav>
+
+
+      
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href="../../index.html">Docs</a> &raquo;</li>
+      
+          <li><a href="../index.html">Module code</a> &raquo;</li>
+      
+          <li><a href="../devito.html">devito</a> &raquo;</li>
+      
+    <li>devito.at_controller</li>
+      <li class="wy-breadcrumbs-aside">
+        
+          
+        
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <h1>Source code for devito.at_controller</h1><div class="highlight"><pre>
+<span></span><span class="kn">import</span> <span class="nn">random</span>
+<span class="kn">from</span> <span class="nn">os</span> <span class="k">import</span> <span class="n">mkdir</span><span class="p">,</span> <span class="n">path</span>
+
+<span class="kn">import</span> <span class="nn">logger</span>
+<span class="kn">from</span> <span class="nn">devito.operator</span> <span class="k">import</span> <span class="n">Operator</span>
+
+
+<div class="viewcode-block" id="AutoTuner"><a class="viewcode-back" href="../../devito.html#devito.at_controller.AutoTuner">[docs]</a><span class="k">class</span> <span class="nc">AutoTuner</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">op</span><span class="p">,</span> <span class="n">blocked_dims</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">at_report_dir</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Object responsible for auto tuning block sizes.</span>
+
+<span class="sd">        :param op: Operator object.</span>
+<span class="sd">        :param blocked_dims: list indicating which dims are blocked and we want to tune</span>
+<span class="sd">                             Default all except inner most.</span>
+<span class="sd">        :param at_report_dir: string - indicating path to auto tuning report directory.</span>
+<span class="sd">                              If not set current directory is used</span>
+<span class="sd">        :param blocked_dims: list indicating which dimensions we want to auto tune</span>
+<span class="sd">        :raises ValueError: if operator is not of Operator type</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">op</span><span class="p">,</span> <span class="n">Operator</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;AT requires Operator object to be passed as an argument&quot;</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">op</span> <span class="o">=</span> <span class="n">op</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">nt_full</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">op</span><span class="o">.</span><span class="n">nt</span>
+
+        <span class="n">default_blocked_dims</span> <span class="o">=</span> <span class="p">([</span><span class="kc">True</span><span class="p">]</span> <span class="o">*</span> <span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">op</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span><span class="p">))</span>
+        <span class="n">default_blocked_dims</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="kc">False</span><span class="p">)</span>  <span class="c1"># By default we don&#39;t auto tune inner most dim</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">blocked_dims</span> <span class="o">=</span> <span class="n">blocked_dims</span> <span class="ow">or</span> <span class="n">default_blocked_dims</span>
+
+        <span class="n">default_at_dir</span> <span class="o">=</span> <span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">path</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="n">path</span><span class="o">.</span><span class="n">realpath</span><span class="p">(</span><span class="n">__file__</span><span class="p">)),</span> <span class="s2">&quot;At Report&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">report_dir</span> <span class="o">=</span> <span class="n">at_report_dir</span> <span class="ow">or</span> <span class="n">default_at_dir</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">final_report_path</span> <span class="o">=</span> <span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">report_dir</span><span class="p">,</span> <span class="s2">&quot;final_report.txt&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">model_desc_template</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="si">%s</span><span class="s2"> </span><span class="si">%d</span><span class="s2"> </span><span class="si">%d</span><span class="s2"> </span><span class="si">%s</span><span class="s2"> </span><span class="si">%s</span><span class="s2">&quot;</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">path</span><span class="o">.</span><span class="n">isdir</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">report_dir</span><span class="p">):</span>  <span class="c1"># Creates report dir if does not exist</span>
+            <span class="n">mkdir</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">report_dir</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">block_size</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot; Gets block size from auto tuning report</span>
+
+<span class="sd">        :returns: auto tuned block size</span>
+<span class="sd">        :raises ValueError: if auto tuning report not found</span>
+<span class="sd">        :raises EnvironmentError: if matching model for auto tuned block size not found</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">path</span><span class="o">.</span><span class="n">isfile</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">final_report_path</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;AT report at </span><span class="si">%s</span><span class="s2"> not found&quot;</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">final_report_path</span><span class="p">)</span>
+
+        <span class="c1"># model description string</span>
+        <span class="n">model_desc_str</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">model_desc_template</span> <span class="o">%</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">op</span><span class="o">.</span><span class="n">getName</span><span class="p">(),</span>
+                                                     <span class="bp">self</span><span class="o">.</span><span class="n">op</span><span class="o">.</span><span class="n">time_order</span><span class="p">,</span>
+                                                     <span class="bp">self</span><span class="o">.</span><span class="n">op</span><span class="o">.</span><span class="n">spc_border</span><span class="p">,</span>
+                                                     <span class="nb">str</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">op</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot; &quot;</span><span class="p">,</span> <span class="s1">&#39;&#39;</span><span class="p">),</span>
+                                                     <span class="nb">str</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">blocked_dims</span><span class="p">)</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot; &quot;</span><span class="p">,</span>
+                                                                                    <span class="s1">&#39;&#39;</span><span class="p">))</span>
+        <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">final_report_path</span><span class="p">,</span> <span class="s1">&#39;r&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">line</span> <span class="ow">in</span> <span class="n">f</span><span class="o">.</span><span class="n">readlines</span><span class="p">():</span>
+
+                <span class="k">if</span> <span class="n">model_desc_str</span> <span class="ow">in</span> <span class="n">line</span><span class="p">:</span>
+                    <span class="n">blocks_str</span> <span class="o">=</span> <span class="n">line</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39; &#39;</span><span class="p">)[</span><span class="mi">5</span><span class="p">]</span>
+                    <span class="n">block_split</span> <span class="o">=</span> <span class="n">blocks_str</span><span class="p">[</span><span class="mi">1</span><span class="p">:</span><span class="nb">len</span><span class="p">(</span><span class="n">blocks_str</span><span class="p">)</span> <span class="o">-</span> <span class="mi">2</span><span class="p">]</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;,&#39;</span><span class="p">)</span>
+                    <span class="n">block_size</span> <span class="o">=</span> <span class="p">[</span><span class="nb">int</span><span class="p">(</span><span class="n">block</span><span class="p">)</span> <span class="k">if</span> <span class="n">block</span> <span class="o">!=</span> <span class="s2">&quot;None&quot;</span> <span class="k">else</span> <span class="kc">None</span>
+                                  <span class="k">for</span> <span class="n">block</span> <span class="ow">in</span> <span class="n">block_split</span><span class="p">]</span>
+
+                    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;Using auto tuned block sizes - </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="n">block_size</span><span class="p">)</span>
+                    <span class="k">return</span> <span class="n">block_size</span>
+
+        <span class="k">raise</span> <span class="ne">EnvironmentError</span><span class="p">(</span><span class="s2">&quot;Matching model with auto tuned block size not found.&quot;</span><span class="p">)</span>
+
+<div class="viewcode-block" id="AutoTuner.set_report_dir"><a class="viewcode-back" href="../../devito.html#devito.at_controller.AutoTuner.set_report_dir">[docs]</a>    <span class="k">def</span> <span class="nf">set_report_dir</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">report_path</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Sets report directory path</span>
+
+<span class="sd">        :param report_path: path to report directory&quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">report_dir</span> <span class="o">=</span> <span class="n">report_path</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">final_report_path</span> <span class="o">=</span> <span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">report_dir</span><span class="p">,</span> <span class="s2">&quot;final_report.txt&quot;</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="AutoTuner.auto_tune_blocks"><a class="viewcode-back" href="../../devito.html#devito.at_controller.AutoTuner.auto_tune_blocks">[docs]</a>    <span class="k">def</span> <span class="nf">auto_tune_blocks</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">minimum</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">maximum</span><span class="o">=</span><span class="mi">20</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Auto tunes block sizes. Times all block size combinations withing given range</span>
+<span class="sd">           and writes it into report</span>
+
+<span class="sd">        :param minimum: int (optional) - minimum value for auto tuning range. Default 5</span>
+<span class="sd">        :param maximum: int (optional) - maximum value for auto tuning range. Default 20</span>
+<span class="sd">        :raises ValueError: if  minimum is &gt;= maximum</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">minimum</span> <span class="o">&gt;=</span> <span class="n">maximum</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Invalid parameters. Min tune range has to be less than Max&quot;</span><span class="p">)</span>
+        <span class="c1"># setting time step to 3 as we don&#39;t need to iterate more than that</span>
+        <span class="c1"># for auto tuning purposes</span>
+        <span class="n">at_nt</span> <span class="o">=</span> <span class="mi">3</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">op</span><span class="o">.</span><span class="n">propagator</span><span class="o">.</span><span class="n">nt</span> <span class="o">=</span> <span class="n">at_nt</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">op</span><span class="o">.</span><span class="n">propagator</span><span class="o">.</span><span class="n">profile</span> <span class="o">=</span> <span class="kc">True</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">op</span><span class="o">.</span><span class="n">propagator</span><span class="o">.</span><span class="n">cache_blocking</span> <span class="o">=</span> <span class="p">[</span><span class="mi">0</span> <span class="k">if</span> <span class="n">dim</span> <span class="k">else</span> <span class="kc">None</span>
+                                             <span class="k">for</span> <span class="n">dim</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">blocked_dims</span><span class="p">]</span>
+        <span class="c1"># want to run function at least once to make sure block_sizes are not</span>
+        <span class="c1"># overwritten</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">get_execution_time</span><span class="p">()</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;Starting auto tuning of block sizes using brute force&quot;</span><span class="p">)</span>
+
+        <span class="n">times</span> <span class="o">=</span> <span class="p">[]</span>  <span class="c1"># list where times and block sizes will be kept</span>
+        <span class="n">block_list</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>  <span class="c1"># used to make sure we do not test the same block sizes</span>
+        <span class="n">blocks</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">op</span><span class="o">.</span><span class="n">propagator</span><span class="o">.</span><span class="n">block_sizes</span><span class="p">)</span>
+
+        <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">minimum</span><span class="p">,</span> <span class="n">maximum</span><span class="p">):</span>
+            <span class="n">blocks</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="n">x</span> <span class="k">if</span> <span class="n">blocks</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="k">else</span> <span class="kc">None</span>
+
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">blocks</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="k">for</span> <span class="n">y</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">minimum</span><span class="p">,</span> <span class="n">maximum</span><span class="p">):</span>
+                    <span class="n">blocks</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="n">y</span> <span class="k">if</span> <span class="n">blocks</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="k">else</span> <span class="kc">None</span>
+
+                    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">blocks</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">2</span><span class="p">:</span>
+                        <span class="k">for</span> <span class="n">z</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">minimum</span><span class="p">,</span> <span class="n">maximum</span><span class="p">):</span>
+                            <span class="n">blocks</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span> <span class="o">=</span> <span class="n">z</span> <span class="k">if</span> <span class="n">blocks</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span> <span class="k">else</span> <span class="kc">None</span>
+                            <span class="n">block_list</span><span class="o">.</span><span class="n">add</span><span class="p">((</span><span class="nb">tuple</span><span class="p">(</span><span class="n">blocks</span><span class="p">)))</span>
+                    <span class="k">else</span><span class="p">:</span>
+                        <span class="n">block_list</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="nb">tuple</span><span class="p">(</span><span class="n">blocks</span><span class="p">))</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">block_list</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="nb">tuple</span><span class="p">(</span><span class="n">blocks</span><span class="p">))</span>
+
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;Total number of block size permutations = </span><span class="si">%d</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="nb">len</span><span class="p">(</span><span class="n">block_list</span><span class="p">))</span>
+        <span class="k">if</span> <span class="n">maximum</span> <span class="o">-</span> <span class="n">minimum</span> <span class="o">&gt;</span> <span class="mi">2</span><span class="p">:</span>  <span class="c1"># No point to estimate if diff is below 2.</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_estimate_run_time</span><span class="p">(</span><span class="n">minimum</span><span class="p">,</span> <span class="n">maximum</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">block_list</span><span class="p">))</span>
+
+        <span class="c1"># runs function for each block_size</span>
+        <span class="k">for</span> <span class="n">block</span> <span class="ow">in</span> <span class="n">block_list</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">op</span><span class="o">.</span><span class="n">propagator</span><span class="o">.</span><span class="n">block_sizes</span> <span class="o">=</span> <span class="n">block</span>
+            <span class="n">times</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">block</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_execution_time</span><span class="p">()))</span>
+
+        <span class="c1"># sorts the list of tuples based on time</span>
+        <span class="n">times</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">times</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">element</span><span class="p">:</span> <span class="n">element</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;Auto tuning using brute force complete&quot;</span><span class="p">)</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;Estimated runtime for </span><span class="si">%s</span><span class="s2"> and </span><span class="si">%d</span><span class="s2"> time steps: </span><span class="si">%f</span><span class="s2"> hours&quot;</span> <span class="o">%</span>
+                    <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">op</span><span class="o">.</span><span class="n">getName</span><span class="p">(),</span> <span class="bp">self</span><span class="o">.</span><span class="n">nt_full</span><span class="p">,</span>
+                     <span class="bp">self</span><span class="o">.</span><span class="n">nt_full</span> <span class="o">*</span> <span class="n">times</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">1</span><span class="p">]</span> <span class="o">/</span> <span class="p">(</span><span class="n">at_nt</span> <span class="o">*</span> <span class="mi">3600</span><span class="p">)))</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_write_block_report</span><span class="p">(</span><span class="n">times</span><span class="p">)</span>  <span class="c1"># writes the report</span></div>
+
+    <span class="k">def</span> <span class="nf">_estimate_run_time</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">minimum</span><span class="p">,</span> <span class="n">maximum</span><span class="p">,</span> <span class="n">n</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Estimates run time for auto tuning</span>
+
+<span class="sd">        :param minimum: int - minimum tune range</span>
+<span class="sd">        :param maximum: int - maximum tune range</span>
+<span class="sd">        :param n: number of permutations that are run</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">timing_run</span> <span class="o">=</span> <span class="mi">0</span>  <span class="c1"># estimating run time</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">5</span><span class="p">):</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">&#39;Estimating auto-tuning runtime...sample </span><span class="si">%d</span><span class="s1">/5&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">i</span> <span class="o">+</span> <span class="mi">1</span><span class="p">))</span>
+
+            <span class="n">blocks</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="n">blocks</span> <span class="o">+=</span> <span class="p">[</span><span class="n">random</span><span class="o">.</span><span class="n">randrange</span><span class="p">(</span><span class="n">minimum</span><span class="p">,</span> <span class="n">maximum</span><span class="p">)</span> <span class="k">if</span> <span class="n">block</span> <span class="k">else</span> <span class="kc">None</span>
+                       <span class="k">for</span> <span class="n">block</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">op</span><span class="o">.</span><span class="n">propagator</span><span class="o">.</span><span class="n">block_sizes</span><span class="p">]</span>
+
+            <span class="bp">self</span><span class="o">.</span><span class="n">op</span><span class="o">.</span><span class="n">propagator</span><span class="o">.</span><span class="n">block_sizes</span> <span class="o">=</span> <span class="n">blocks</span>
+            <span class="n">timing_run</span> <span class="o">+=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_execution_time</span><span class="p">()</span>
+
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;Estimated runtime: </span><span class="si">%f</span><span class="s2"> minutes.&quot;</span> <span class="o">%</span> <span class="nb">float</span><span class="p">(</span><span class="n">timing_run</span> <span class="o">/</span> <span class="mi">5</span> <span class="o">*</span> <span class="n">n</span> <span class="o">/</span> <span class="mi">60</span><span class="p">))</span>
+
+<div class="viewcode-block" id="AutoTuner.get_execution_time"><a class="viewcode-back" href="../../devito.html#devito.at_controller.AutoTuner.get_execution_time">[docs]</a>    <span class="k">def</span> <span class="nf">get_execution_time</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Runs and times the function</span>
+
+<span class="sd">        :return: time - how long it took to execute</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">op</span><span class="o">.</span><span class="n">propagator</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">op</span><span class="o">.</span><span class="n">get_args</span><span class="p">())</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">op</span><span class="o">.</span><span class="n">propagator</span><span class="o">.</span><span class="n">timings</span><span class="p">[</span><span class="s1">&#39;kernel&#39;</span><span class="p">]</span></div>
+
+    <span class="k">def</span> <span class="nf">_write_block_report</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">times</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Writes auto tuning report for block sizes</span>
+
+<span class="sd">        :param times: sorted list - times with block sizes</span>
+<span class="sd">        :raises IOError: if fails to write report</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">full_report_text</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;</span><span class="si">%s</span><span class="s2"> </span><span class="si">%f</span><span class="se">\n</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">block</span><span class="p">),</span> <span class="n">timee</span><span class="p">)</span> <span class="k">for</span> <span class="n">block</span><span class="p">,</span> <span class="n">timee</span> <span class="ow">in</span> <span class="n">times</span><span class="p">]</span>
+
+            <span class="c1"># Cache blocking dimensions</span>
+            <span class="n">cb_dims</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">blocked_dims</span><span class="p">)</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot; &quot;</span><span class="p">,</span> <span class="s1">&#39;&#39;</span><span class="p">)</span>
+            <span class="n">shape</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">op</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot; &quot;</span><span class="p">,</span> <span class="s1">&#39;&#39;</span><span class="p">)</span>
+
+            <span class="c1"># Writes all auto tuning information into full report</span>
+            <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">report_dir</span><span class="p">,</span>
+                                <span class="s2">&quot;</span><span class="si">%s</span><span class="s2">_time_o_</span><span class="si">%s</span><span class="s2">_spc_bo_</span><span class="si">%s</span><span class="s2">_shp_</span><span class="si">%s</span><span class="s2">_b_</span><span class="si">%s</span><span class="s2">_report.txt&quot;</span> <span class="o">%</span>
+                      <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">op</span><span class="o">.</span><span class="n">getName</span><span class="p">(),</span> <span class="bp">self</span><span class="o">.</span><span class="n">op</span><span class="o">.</span><span class="n">time_order</span><span class="p">,</span>
+                       <span class="bp">self</span><span class="o">.</span><span class="n">op</span><span class="o">.</span><span class="n">spc_border</span><span class="p">,</span> <span class="n">shape</span><span class="p">,</span> <span class="n">cb_dims</span><span class="p">)),</span> <span class="s1">&#39;w&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+                <span class="n">f</span><span class="o">.</span><span class="n">writelines</span><span class="p">(</span><span class="n">full_report_text</span><span class="p">)</span>
+
+            <span class="c1"># string that describes the model</span>
+            <span class="n">model_desc_str</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">model_desc_template</span> <span class="o">%</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">op</span><span class="o">.</span><span class="n">getName</span><span class="p">(),</span>
+                                                         <span class="bp">self</span><span class="o">.</span><span class="n">op</span><span class="o">.</span><span class="n">time_order</span><span class="p">,</span>
+                                                         <span class="bp">self</span><span class="o">.</span><span class="n">op</span><span class="o">.</span><span class="n">spc_border</span><span class="p">,</span>
+                                                         <span class="n">shape</span><span class="p">,</span> <span class="n">cb_dims</span><span class="p">)</span>
+            <span class="n">str_to_write</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="si">%s</span><span class="s2"> </span><span class="si">%s</span><span class="se">\n</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">model_desc_str</span><span class="p">,</span> <span class="nb">str</span><span class="p">(</span><span class="n">times</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">0</span><span class="p">])</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot; &quot;</span><span class="p">,</span> <span class="s1">&#39;&#39;</span><span class="p">))</span>
+
+            <span class="c1"># initialises report file if it does not exist</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">path</span><span class="o">.</span><span class="n">isfile</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">final_report_path</span><span class="p">):</span>
+                <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">final_report_path</span><span class="p">,</span> <span class="s1">&#39;w&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">final_report</span><span class="p">:</span>
+                    <span class="n">final_report</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="s2">&quot;f name, time o, space bo ,&quot;</span>
+                                       <span class="s2">&quot;shape, block dims, best block size</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">)</span>
+                    <span class="n">final_report</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">str_to_write</span><span class="p">)</span>  <span class="c1"># writes the string</span>
+                <span class="k">return</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="c1"># reads all the contents, checks whether entry already exist and updates.</span>
+                <span class="c1"># Otherwise appends to the end of the file</span>
+                <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">final_report_path</span><span class="p">,</span> <span class="s1">&#39;r&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">final_report</span><span class="p">:</span>
+                    <span class="n">lines</span> <span class="o">=</span> <span class="n">final_report</span><span class="o">.</span><span class="n">readlines</span><span class="p">()</span>
+                <span class="n">entry_found</span> <span class="o">=</span> <span class="kc">False</span>
+
+                <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">lines</span><span class="p">)):</span>
+                    <span class="k">if</span> <span class="n">model_desc_str</span> <span class="ow">in</span> <span class="n">lines</span><span class="p">[</span><span class="n">i</span><span class="p">]:</span>
+                        <span class="n">lines</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">str_to_write</span>
+                        <span class="n">entry_found</span> <span class="o">=</span> <span class="kc">True</span>
+                        <span class="k">break</span>
+
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">entry_found</span><span class="p">:</span>  <span class="c1"># if entry not found append string to the end of file</span>
+                <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">str_to_write</span><span class="p">)</span>
+            <span class="c1"># writes all the contents</span>
+            <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">final_report_path</span><span class="p">,</span> <span class="s1">&#39;w&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">final_report</span><span class="p">:</span>
+                <span class="n">final_report</span><span class="o">.</span><span class="n">writelines</span><span class="p">(</span><span class="n">lines</span><span class="p">)</span>
+
+        <span class="k">except</span> <span class="ne">IOError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="s2">&quot;Failed to write auto tuning report because </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="n">e</span><span class="o">.</span><span class="n">message</span><span class="p">)</span></div>
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2016, Opesci.
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/snide/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  
+
+    <script type="text/javascript">
+        var DOCUMENTATION_OPTIONS = {
+            URL_ROOT:'../../',
+            VERSION:'1',
+            COLLAPSE_INDEX:false,
+            FILE_SUFFIX:'.html',
+            HAS_SOURCE:  true
+        };
+    </script>
+      <script type="text/javascript" src="../../_static/jquery.js"></script>
+      <script type="text/javascript" src="../../_static/underscore.js"></script>
+      <script type="text/javascript" src="../../_static/doctools.js"></script>
+      <script type="text/javascript" src="https://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+
+  
+
+  
+  
+    <script type="text/javascript" src="../../_static/js/theme.js"></script>
+  
+
+  
+  
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.StickyNav.enable();
+      });
+  </script>
+   
+
+</body>
+</html>

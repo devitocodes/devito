@@ -188,12 +188,12 @@
   <dt><a href="devito.html#devito.propagator.Propagator.add_scalar_param">add_scalar_param() (devito.propagator.Propagator method)</a>
   </dt>
 
-  </dl></td>
-  <td style="width: 33%" valign="top"><dl>
       
   <dt><a href="devito.html#devito.function_manager.FunctionManager.add_struct_definition">add_struct_definition() (devito.function_manager.FunctionManager method)</a>
   </dt>
 
+  </dl></td>
+  <td style="width: 33%" valign="top"><dl>
       
   <dt><a href="devito.html#devito.function_manager.FunctionDescriptor.add_struct_param">add_struct_param() (devito.function_manager.FunctionDescriptor method)</a>
   </dt>
@@ -222,6 +222,14 @@
   <dt><a href="devito.html#devito.function_manager.FunctionDescriptor.argtypes">argtypes (devito.function_manager.FunctionDescriptor attribute)</a>
   </dt>
 
+      
+  <dt><a href="devito.html#devito.at_controller.AutoTuner.auto_tune_blocks">auto_tune_blocks() (devito.at_controller.AutoTuner method)</a>
+  </dt>
+
+      
+  <dt><a href="devito.html#devito.at_controller.AutoTuner">AutoTuner (class in devito.at_controller)</a>
+  </dt>
+
   </dl></td>
 </tr></table>
 
@@ -232,10 +240,14 @@
   <dt><a href="devito.html#devito.interfaces.TimeData.backward">backward (devito.interfaces.TimeData attribute)</a>
   </dt>
 
+      
+  <dt><a href="devito.html#devito.propagator.Propagator.basename">basename (devito.propagator.Propagator attribute)</a>
+  </dt>
+
   </dl></td>
   <td style="width: 33%" valign="top"><dl>
       
-  <dt><a href="devito.html#devito.propagator.Propagator.basename">basename (devito.propagator.Propagator attribute)</a>
+  <dt><a href="devito.html#devito.at_controller.AutoTuner.block_size">block_size (devito.at_controller.AutoTuner attribute)</a>
   </dt>
 
   </dl></td>
@@ -321,6 +333,10 @@
   </dt>
 
       
+  <dt><a href="devito.html#module-devito.at_controller">devito.at_controller (module)</a>
+  </dt>
+
+      
   <dt><a href="devito.html#module-devito.cgen_wrapper">devito.cgen_wrapper (module)</a>
   </dt>
 
@@ -360,6 +376,8 @@
   <dt><a href="devito.html#module-devito.tools">devito.tools (module)</a>
   </dt>
 
+  </dl></td>
+  <td style="width: 33%" valign="top"><dl>
       
   <dt><a href="devito.html#devito.interfaces.DenseData.dim">dim (devito.interfaces.DenseData attribute)</a>
   </dt>
@@ -370,8 +388,6 @@
   </dt>
 
       </dl></dd>
-  </dl></td>
-  <td style="width: 33%" valign="top"><dl>
       
   <dt><a href="devito.html#devito.interfaces.TimeData.dt">dt (devito.interfaces.TimeData attribute)</a>
   </dt>
@@ -510,14 +526,30 @@
   <dt><a href="devito.html#devito.propagator.Propagator.get_aligned_pragma">get_aligned_pragma() (devito.propagator.Propagator method)</a>
   </dt>
 
-  </dl></td>
-  <td style="width: 33%" valign="top"><dl>
+      
+  <dt><a href="devito.html#devito.operator.Operator.get_args">get_args() (devito.operator.Operator method)</a>
+  </dt>
+
       
   <dt><a href="devito.html#devito.compiler.get_compiler_from_env">get_compiler_from_env() (in module devito.compiler)</a>
   </dt>
 
+  </dl></td>
+  <td style="width: 33%" valign="top"><dl>
+      
+  <dt><a href="devito.html#devito.at_controller.AutoTuner.get_execution_time">get_execution_time() (devito.at_controller.AutoTuner method)</a>
+  </dt>
+
       
   <dt><a href="devito.html#devito.propagator.Propagator.get_fd">get_fd() (devito.propagator.Propagator method)</a>
+  </dt>
+
+      
+  <dt><a href="devito.html#devito.propagator.Propagator.get_number_of_loads">get_number_of_loads() (devito.propagator.Propagator method)</a>
+  </dt>
+
+      
+  <dt><a href="devito.html#devito.tools.get_optimal_block_size">get_optimal_block_size() (in module devito.tools)</a>
   </dt>
 
       
@@ -648,6 +680,10 @@
   <dt><a href="devito.html#devito.propagator.Propagator.oi">oi (devito.propagator.Propagator attribute)</a>
   </dt>
 
+      
+  <dt><a href="devito.html#devito.propagator.Propagator.oi_low">oi_low (devito.propagator.Propagator attribute)</a>
+  </dt>
+
   </dl></td>
   <td style="width: 33%" valign="top"><dl>
       
@@ -731,6 +767,10 @@
   </dl></td>
   <td style="width: 33%" valign="top"><dl>
       
+  <dt><a href="devito.html#devito.at_controller.AutoTuner.set_report_dir">set_report_dir() (devito.at_controller.AutoTuner method)</a>
+  </dt>
+
+      
   <dt><a href="devito.html#devito.operator.Operator.signature">signature (devito.operator.Operator attribute)</a>
   </dt>
 
@@ -760,14 +800,18 @@
   <dt><a href="devito.html#devito.propagator.Propagator.time_substitutions">time_substitutions() (devito.propagator.Propagator method)</a>
   </dt>
 
-  </dl></td>
-  <td style="width: 33%" valign="top"><dl>
       
   <dt><a href="devito.html#devito.interfaces.TimeData">TimeData (class in devito.interfaces)</a>
   </dt>
 
+  </dl></td>
+  <td style="width: 33%" valign="top"><dl>
       
   <dt><a href="devito.html#devito.propagator.Propagator.timings">timings (devito.propagator.Propagator attribute)</a>
+  </dt>
+
+      
+  <dt><a href="devito.html#devito.propagator.Propagator.total_loads">total_loads (devito.propagator.Propagator attribute)</a>
   </dt>
 
   </dl></td>

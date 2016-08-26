@@ -88,3 +88,15 @@ devito.logger module
     :members:
     :undoc-members:
     :show-inheritance:
+    
+
+devito.at_controller module
+-------------------
+
+.. automodule:: devito.at_controller
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+
+

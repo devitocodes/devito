@@ -281,22 +281,24 @@
 <span class="sd">                     If not provided, the compiler will be inferred from the</span>
 <span class="sd">                     environment variable DEVITO_ARCH, or default to GNUCompiler.</span>
 <span class="sd">    :param profile: Flag to enable performance profiling</span>
-<span class="sd">    :param cache_blocking: Flag to enable cache blocking</span>
 <span class="sd">    :param cse: Flag to enable common subexpression elimination</span>
-<span class="sd">    :param block_size: Block size used for cache clocking. Can be either a single number</span>
-<span class="sd">                       used for all dimensions or a list stating block sizes for each</span>
-<span class="sd">                       dimension. Set block size to None to skip blocking on that dim</span>
+<span class="sd">    :param cache_blocking: Block sizes used for cache clocking. Can be either a single</span>
+<span class="sd">                           number used for all dimensions except inner most or a list</span>
+<span class="sd">                           explicitly stating block sizes for each dimension</span>
+<span class="sd">                           Set cache_blocking to None to skip blocking on that dim</span>
+<span class="sd">                           Set cache_blocking to 0 to use best guess based on architecture</span>
+<span class="sd">                           Set cache_blocking to AutoTuner instance, to use auto tuned</span>
+<span class="sd">                           tuned block sizes</span>
 <span class="sd">    :param input_params: List of symbols that are expected as input.</span>
 <span class="sd">    :param output_params: List of symbols that define operator output.</span>
 <span class="sd">    :param factorized: A map given by {string_name:sympy_object} for including factorized</span>
 <span class="sd">                       terms</span>
 <span class="sd">    &quot;&quot;&quot;</span>
-
     <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">nt</span><span class="p">,</span> <span class="n">shape</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">,</span> <span class="n">stencils</span><span class="o">=</span><span class="p">[],</span>
                  <span class="n">subs</span><span class="o">=</span><span class="p">[],</span> <span class="n">spc_border</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">time_order</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
-                 <span class="n">forward</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">compiler</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">profile</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
-                 <span class="n">cache_blocking</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">cse</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">block_size</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span>
-                 <span class="n">input_params</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">output_params</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">factorized</span><span class="o">=</span><span class="p">{}):</span>
+                 <span class="n">forward</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">compiler</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">profile</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">cse</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+                 <span class="n">cache_blocking</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">input_params</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                 <span class="n">output_params</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">factorized</span><span class="o">=</span><span class="p">{}):</span>
         <span class="c1"># Derive JIT compilation infrastructure</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">compiler</span> <span class="o">=</span> <span class="n">compiler</span> <span class="ow">or</span> <span class="n">get_compiler_from_env</span><span class="p">()</span>
 
@@ -362,24 +364,26 @@
         <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">factorized</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
             <span class="n">factorized</span><span class="p">[</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="n">expr_indexify</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
 
-        <span class="c1"># Apply user-defined substitutions to stencil</span>
+        <span class="c1"># Apply user-defined subs to stencil</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">stencils</span> <span class="o">=</span> <span class="p">[</span><span class="n">eqn</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">subs</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span> <span class="k">for</span> <span class="n">eqn</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">stencils</span><span class="p">]</span>
 
         <span class="c1"># Applies CSE</span>
         <span class="k">if</span> <span class="n">cse</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">stencils</span> <span class="o">=</span> <span class="n">expr_cse</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">stencils</span><span class="p">)</span>
 
-        <span class="bp">self</span><span class="o">.</span><span class="n">propagator</span> <span class="o">=</span> <span class="n">Propagator</span><span class="p">(</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">getName</span><span class="p">(),</span> <span class="n">nt</span><span class="p">,</span> <span class="n">shape</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">stencils</span><span class="p">,</span> <span class="n">factorized</span><span class="o">=</span><span class="n">factorized</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">dtype</span><span class="p">,</span>
-            <span class="n">spc_border</span><span class="o">=</span><span class="n">spc_border</span><span class="p">,</span> <span class="n">time_order</span><span class="o">=</span><span class="n">time_order</span><span class="p">,</span> <span class="n">forward</span><span class="o">=</span><span class="n">forward</span><span class="p">,</span>
-            <span class="n">space_dims</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">space_dims</span><span class="p">,</span> <span class="n">compiler</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">compiler</span><span class="p">,</span> <span class="n">profile</span><span class="o">=</span><span class="n">profile</span><span class="p">,</span>
-            <span class="n">cache_blocking</span><span class="o">=</span><span class="n">cache_blocking</span><span class="p">,</span> <span class="n">block_size</span><span class="o">=</span><span class="n">block_size</span>
-        <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">propagator</span> <span class="o">=</span> <span class="n">Propagator</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">getName</span><span class="p">(),</span> <span class="n">nt</span><span class="p">,</span> <span class="n">shape</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">stencils</span><span class="p">,</span>
+                                     <span class="n">factorized</span><span class="o">=</span><span class="n">factorized</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">dtype</span><span class="p">,</span>
+                                     <span class="n">spc_border</span><span class="o">=</span><span class="n">spc_border</span><span class="p">,</span> <span class="n">time_order</span><span class="o">=</span><span class="n">time_order</span><span class="p">,</span>
+                                     <span class="n">forward</span><span class="o">=</span><span class="n">forward</span><span class="p">,</span> <span class="n">space_dims</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">space_dims</span><span class="p">,</span>
+                                     <span class="n">compiler</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">compiler</span><span class="p">,</span> <span class="n">profile</span><span class="o">=</span><span class="n">profile</span><span class="p">,</span>
+                                     <span class="n">cache_blocking</span><span class="o">=</span><span class="n">cache_blocking</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">dtype</span> <span class="o">=</span> <span class="n">dtype</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">nt</span> <span class="o">=</span> <span class="n">nt</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">shape</span> <span class="o">=</span> <span class="n">shape</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">spc_border</span> <span class="o">=</span> <span class="n">spc_border</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">time_order</span> <span class="o">=</span> <span class="n">time_order</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">symbol_to_data</span> <span class="o">=</span> <span class="p">{}</span>
+
         <span class="k">for</span> <span class="n">param</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">signature</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">propagator</span><span class="o">.</span><span class="n">add_devito_param</span><span class="p">(</span><span class="n">param</span><span class="p">)</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">symbol_to_data</span><span class="p">[</span><span class="n">param</span><span class="o">.</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="n">param</span>
@@ -403,19 +407,15 @@
                                     <span class="k">if</span> <span class="n">param</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">input_params</span><span class="p">]</span>
 
 <div class="viewcode-block" id="Operator.apply"><a class="viewcode-back" href="../../devito.html#devito.operator.Operator.apply">[docs]</a>    <span class="k">def</span> <span class="nf">apply</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">debug</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;:param debug: If True, use Python to apply the operator. Default False.</span>
-
-<span class="sd">        :returns: A tuple containing the values of the operator outputs</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        :param debug: If True, use Python to apply the operator. Default False.</span>
+<span class="sd">        :returns: A tuple containing the values of the operator outputs or compiled</span>
+<span class="sd">                  function and its args</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">if</span> <span class="n">debug</span><span class="p">:</span>
             <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">apply_python</span><span class="p">()</span>
 
-        <span class="k">for</span> <span class="n">param</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">input_params</span><span class="p">:</span>
-            <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">param</span><span class="p">,</span> <span class="s1">&#39;initialize&#39;</span><span class="p">):</span>
-                <span class="n">param</span><span class="o">.</span><span class="n">initialize</span><span class="p">()</span>
-
-        <span class="n">args</span> <span class="o">=</span> <span class="p">[</span><span class="n">param</span><span class="o">.</span><span class="n">data</span> <span class="k">for</span> <span class="n">param</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">signature</span><span class="p">]</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">propagator</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">args</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">propagator</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">get_args</span><span class="p">())</span>
 
         <span class="k">return</span> <span class="nb">tuple</span><span class="p">([</span><span class="n">param</span> <span class="k">for</span> <span class="n">param</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">output_params</span><span class="p">])</span></div>
 
@@ -556,7 +556,17 @@
 
 <span class="sd">        :returns: The name of the class</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">__class__</span><span class="o">.</span><span class="n">__name__</span></div></div>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">__class__</span><span class="o">.</span><span class="n">__name__</span></div>
+
+<div class="viewcode-block" id="Operator.get_args"><a class="viewcode-back" href="../../devito.html#devito.operator.Operator.get_args">[docs]</a>    <span class="k">def</span> <span class="nf">get_args</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Initialises all the input args and returns them</span>
+<span class="sd">        :return: a list of input params</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">for</span> <span class="n">param</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">input_params</span><span class="p">:</span>
+            <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">param</span><span class="p">,</span> <span class="s1">&#39;initialize&#39;</span><span class="p">):</span>
+                <span class="n">param</span><span class="o">.</span><span class="n">initialize</span><span class="p">()</span>
+        <span class="k">return</span> <span class="p">[</span><span class="n">param</span><span class="o">.</span><span class="n">data</span> <span class="k">for</span> <span class="n">param</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">signature</span><span class="p">]</span></div></div>
 
 
 <span class="k">class</span> <span class="nc">SimpleOperator</span><span class="p">(</span><span class="n">Operator</span><span class="p">):</span>
