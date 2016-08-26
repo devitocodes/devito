@@ -62,10 +62,10 @@ class Acoustic_cg:
                               dtype=self.dtype, nbpml=nbpml)
         self.src.data[:] = data.get_source()[:, np.newaxis]
 
-    def Forward(self, save=False):
+    def Forward(self, save=False, cse=True):
         fw = ForwardOperator(self.model, self.src, self.damp, self.data,
                              time_order=self.t_order, spc_order=self.s_order,
-                             save=save)
+                             save=save, cse=cse)
         u, rec = fw.apply()
         return rec.data, u
 
