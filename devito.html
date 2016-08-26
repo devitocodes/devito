@@ -1026,7 +1026,7 @@ symbolic behaviour follows the use in the current problem.</p>
 <span id="devito-operator-module"></span><h2>devito.operator module<a class="headerlink" href="#module-devito.operator" title="Permalink to this headline">¶</a></h2>
 <dl class="class">
 <dt id="devito.operator.Operator">
-<em class="property">class </em><code class="descclassname">devito.operator.</code><code class="descname">Operator</code><span class="sig-paren">(</span><em>nt</em>, <em>shape</em>, <em>dtype=&lt;type 'numpy.float32'&gt;</em>, <em>stencils=[]</em>, <em>subs=[]</em>, <em>spc_border=0</em>, <em>time_order=0</em>, <em>forward=True</em>, <em>compiler=None</em>, <em>profile=False</em>, <em>cache_blocking=False</em>, <em>block_size=5</em>, <em>input_params=None</em>, <em>output_params=None</em>, <em>factorized={}</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/operator.html#Operator"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.operator.Operator" title="Permalink to this definition">¶</a></dt>
+<em class="property">class </em><code class="descclassname">devito.operator.</code><code class="descname">Operator</code><span class="sig-paren">(</span><em>nt</em>, <em>shape</em>, <em>dtype=&lt;type 'numpy.float32'&gt;</em>, <em>stencils=[]</em>, <em>subs=[]</em>, <em>spc_border=0</em>, <em>time_order=0</em>, <em>forward=True</em>, <em>compiler=None</em>, <em>profile=False</em>, <em>cache_blocking=False</em>, <em>cse=True</em>, <em>block_size=5</em>, <em>input_params=None</em>, <em>output_params=None</em>, <em>factorized={}</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/operator.html#Operator"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.operator.Operator" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">object</span></code></p>
 <p>Class encapsulating a defined operator as defined by the given stencil</p>
 <p>The Operator class is the core abstraction in DeVito that allows
@@ -1052,6 +1052,7 @@ If not provided, the compiler will be inferred from the
 environment variable DEVITO_ARCH, or default to GNUCompiler.</li>
 <li><strong>profile</strong> &#8211; Flag to enable performance profiling</li>
 <li><strong>cache_blocking</strong> &#8211; Flag to enable cache blocking</li>
+<li><strong>cse</strong> &#8211; Flag to enable common subexpression elimination</li>
 <li><strong>block_size</strong> &#8211; Block size used for cache clocking. Can be either a single number
 used for all dimensions or a list stating block sizes for each
 dimension. Set block size to None to skip blocking on that dim</li>
@@ -1390,6 +1391,22 @@ compiler class derived in the constructor</p>
 <tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>equality</strong> &#8211; Given equality statement</td>
 </tr>
 <tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body">The resulting <code class="xref py py-class docutils literal"><span class="pre">cgen.Generable</span></code> statement</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="devito.propagator.Propagator.expr_dtype">
+<code class="descname">expr_dtype</code><span class="sig-paren">(</span><em>expr</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/propagator.html#Propagator.expr_dtype"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.propagator.Propagator.expr_dtype" title="Permalink to this definition">¶</a></dt>
+<dd><p>Gets the resulting dtype of an expression.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>expr</strong> &#8211; The expression</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body">The dtype. Defaults to <cite>self.dtype</cite> if none found.</td>
 </tr>
 </tbody>
 </table>

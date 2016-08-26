@@ -137,7 +137,7 @@
 <span class="kn">from</span> <span class="nn">random</span> <span class="k">import</span> <span class="n">randint</span>
 
 <span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
-<span class="kn">from</span> <span class="nn">sympy</span> <span class="k">import</span> <span class="n">Indexed</span><span class="p">,</span> <span class="n">IndexedBase</span><span class="p">,</span> <span class="n">symbols</span>
+<span class="kn">from</span> <span class="nn">sympy</span> <span class="k">import</span> <span class="n">Indexed</span><span class="p">,</span> <span class="n">IndexedBase</span><span class="p">,</span> <span class="n">preorder_traversal</span><span class="p">,</span> <span class="n">symbols</span>
 <span class="kn">from</span> <span class="nn">sympy.abc</span> <span class="k">import</span> <span class="n">t</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">z</span>
 <span class="kn">from</span> <span class="nn">sympy.utilities.iterables</span> <span class="k">import</span> <span class="n">postorder_traversal</span>
 
@@ -442,6 +442,24 @@
 
         <span class="k">return</span> <span class="n">cgen</span><span class="o">.</span><span class="n">Block</span><span class="p">(</span><span class="n">factors</span><span class="o">+</span><span class="n">kernel</span><span class="p">)</span></div>
 
+<div class="viewcode-block" id="Propagator.expr_dtype"><a class="viewcode-back" href="../../devito.html#devito.propagator.Propagator.expr_dtype">[docs]</a>    <span class="k">def</span> <span class="nf">expr_dtype</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">expr</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Gets the resulting dtype of an expression.</span>
+
+<span class="sd">        :param expr: The expression</span>
+
+<span class="sd">        :returns: The dtype. Defaults to `self.dtype` if none found.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">dtypes</span> <span class="o">=</span> <span class="p">[]</span>
+
+        <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">preorder_traversal</span><span class="p">(</span><span class="n">expr</span><span class="p">):</span>
+            <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">e</span><span class="p">,</span> <span class="s1">&#39;dtype&#39;</span><span class="p">):</span>
+                <span class="n">dtypes</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">e</span><span class="o">.</span><span class="n">dtype</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">dtypes</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">find_common_type</span><span class="p">(</span><span class="n">dtypes</span><span class="p">,</span> <span class="p">[])</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">dtype</span></div>
+
 <div class="viewcode-block" id="Propagator.convert_equality_to_cgen"><a class="viewcode-back" href="../../devito.html#devito.propagator.Propagator.convert_equality_to_cgen">[docs]</a>    <span class="k">def</span> <span class="nf">convert_equality_to_cgen</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">equality</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;Convert given equality to :class:`cgen.Generable` statement</span>
 
@@ -457,6 +475,9 @@
             <span class="n">s_lhs</span> <span class="o">=</span> <span class="n">ccode</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">time_substitutions</span><span class="p">(</span><span class="n">equality</span><span class="o">.</span><span class="n">lhs</span><span class="p">)</span><span class="o">.</span><span class="n">xreplace</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_var_map</span><span class="p">))</span>
             <span class="n">s_rhs</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">time_substitutions</span><span class="p">(</span><span class="n">equality</span><span class="o">.</span><span class="n">rhs</span><span class="p">)</span><span class="o">.</span><span class="n">xreplace</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_var_map</span><span class="p">)</span>
 
+            <span class="k">if</span> <span class="n">s_lhs</span><span class="o">.</span><span class="n">find</span><span class="p">(</span><span class="s2">&quot;temp&quot;</span><span class="p">)</span> <span class="o">!=</span> <span class="o">-</span><span class="mi">1</span><span class="p">:</span>
+                <span class="n">s_lhs</span> <span class="o">=</span> <span class="n">cgen</span><span class="o">.</span><span class="n">dtype_to_ctype</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">expr_dtype</span><span class="p">(</span><span class="n">equality</span><span class="o">.</span><span class="n">rhs</span><span class="p">))</span> <span class="o">+</span> <span class="s2">&quot; &quot;</span> <span class="o">+</span> <span class="n">s_lhs</span>
+
             <span class="c1"># appending substituted stencil,which is used to determine alignment pragma</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">sub_stencils</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">s_rhs</span><span class="p">)</span>
 
@@ -464,6 +485,7 @@
             <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">dtype</span> <span class="ow">is</span> <span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">:</span>
                 <span class="n">s_rhs</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">s_rhs</span><span class="p">)</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;pow&quot;</span><span class="p">,</span> <span class="s2">&quot;powf&quot;</span><span class="p">)</span>
                 <span class="n">s_rhs</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">s_rhs</span><span class="p">)</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;fabs&quot;</span><span class="p">,</span> <span class="s2">&quot;fabsf&quot;</span><span class="p">)</span>
+
             <span class="k">return</span> <span class="n">cgen</span><span class="o">.</span><span class="n">Assign</span><span class="p">(</span><span class="n">s_lhs</span><span class="p">,</span> <span class="n">s_rhs</span><span class="p">)</span></div>
 
 <div class="viewcode-block" id="Propagator.get_aligned_pragma"><a class="viewcode-back" href="../../devito.html#devito.propagator.Propagator.get_aligned_pragma">[docs]</a>    <span class="k">def</span> <span class="nf">get_aligned_pragma</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">stencils</span><span class="p">,</span> <span class="n">factorized</span><span class="p">,</span> <span class="n">loop_counters</span><span class="p">,</span> <span class="n">time_steppers</span><span class="p">):</span>
@@ -476,7 +498,11 @@
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="n">array_names</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
         <span class="k">for</span> <span class="n">item</span> <span class="ow">in</span> <span class="n">flatten</span><span class="p">([</span><span class="n">stencil</span><span class="o">.</span><span class="n">free_symbols</span> <span class="k">for</span> <span class="n">stencil</span> <span class="ow">in</span> <span class="n">stencils</span><span class="p">]):</span>
-            <span class="k">if</span> <span class="nb">str</span><span class="p">(</span><span class="n">item</span><span class="p">)</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">factorized</span> <span class="ow">and</span> <span class="n">item</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">loop_counters</span> <span class="o">+</span> <span class="n">time_steppers</span><span class="p">:</span>
+            <span class="k">if</span> <span class="p">(</span>
+                <span class="nb">str</span><span class="p">(</span><span class="n">item</span><span class="p">)</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">factorized</span>
+                <span class="ow">and</span> <span class="n">item</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">loop_counters</span> <span class="o">+</span> <span class="n">time_steppers</span>
+                <span class="ow">and</span> <span class="nb">str</span><span class="p">(</span><span class="n">item</span><span class="p">)</span><span class="o">.</span><span class="n">find</span><span class="p">(</span><span class="s2">&quot;temp&quot;</span><span class="p">)</span> <span class="o">==</span> <span class="o">-</span><span class="mi">1</span>
+            <span class="p">):</span>
                 <span class="n">array_names</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">item</span><span class="p">)</span>
 
         <span class="k">return</span> <span class="n">cgen</span><span class="o">.</span><span class="n">Pragma</span><span class="p">(</span><span class="s2">&quot;</span><span class="si">%s</span><span class="s2">(</span><span class="si">%s</span><span class="s2">:64)&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">compiler</span><span class="o">.</span><span class="n">pragma_aligned</span><span class="p">,</span>

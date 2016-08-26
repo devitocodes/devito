@@ -132,9 +132,10 @@
             
   <h1>Source code for devito.operator</h1><div class="highlight"><pre>
 <span></span><span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
-<span class="kn">from</span> <span class="nn">sympy</span> <span class="k">import</span> <span class="p">(</span><span class="n">Eq</span><span class="p">,</span> <span class="n">Function</span><span class="p">,</span> <span class="n">Indexed</span><span class="p">,</span> <span class="n">Symbol</span><span class="p">,</span> <span class="n">lambdify</span><span class="p">,</span> <span class="n">preorder_traversal</span><span class="p">,</span>
-                   <span class="n">solve</span><span class="p">,</span> <span class="n">symbols</span><span class="p">)</span>
+<span class="kn">from</span> <span class="nn">sympy</span> <span class="k">import</span> <span class="p">(</span><span class="n">Add</span><span class="p">,</span> <span class="n">Eq</span><span class="p">,</span> <span class="n">Function</span><span class="p">,</span> <span class="n">Indexed</span><span class="p">,</span> <span class="n">IndexedBase</span><span class="p">,</span> <span class="n">Symbol</span><span class="p">,</span> <span class="n">cse</span><span class="p">,</span>
+                   <span class="n">lambdify</span><span class="p">,</span> <span class="n">preorder_traversal</span><span class="p">,</span> <span class="n">solve</span><span class="p">,</span> <span class="n">symbols</span><span class="p">)</span>
 <span class="kn">from</span> <span class="nn">sympy.abc</span> <span class="k">import</span> <span class="n">t</span>
+<span class="kn">from</span> <span class="nn">sympy.utilities.iterables</span> <span class="k">import</span> <span class="n">numbered_symbols</span>
 
 <span class="kn">from</span> <span class="nn">devito.compiler</span> <span class="k">import</span> <span class="n">get_compiler_from_env</span>
 <span class="kn">from</span> <span class="nn">devito.interfaces</span> <span class="k">import</span> <span class="n">SymbolicData</span><span class="p">,</span> <span class="n">TimeData</span>
@@ -195,6 +196,70 @@
     <span class="k">return</span> <span class="n">expr</span><span class="o">.</span><span class="n">xreplace</span><span class="p">(</span><span class="n">replacements</span><span class="p">)</span>
 
 
+<span class="k">def</span> <span class="nf">expr_cse</span><span class="p">(</span><span class="n">expr</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Performs common subexpression elimination on expressions</span>
+
+<span class="sd">    :param expr: Sympy equation or list of equations on which CSE needs to be performed</span>
+
+<span class="sd">    :return: A list of the resulting equations after performing CSE</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">expr</span> <span class="o">=</span> <span class="n">expr</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="nb">list</span><span class="p">)</span> <span class="k">else</span> <span class="p">[</span><span class="n">expr</span><span class="p">]</span>
+
+    <span class="n">temps</span><span class="p">,</span> <span class="n">stencils</span> <span class="o">=</span> <span class="n">cse</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">numbered_symbols</span><span class="p">(</span><span class="s2">&quot;temp&quot;</span><span class="p">))</span>
+
+    <span class="c1"># Restores the LHS</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">expr</span><span class="p">)):</span>
+        <span class="n">stencils</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">Eq</span><span class="p">(</span><span class="n">expr</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">lhs</span><span class="p">,</span> <span class="n">stencils</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">rhs</span><span class="p">)</span>
+
+    <span class="n">to_revert</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="n">to_keep</span> <span class="o">=</span> <span class="p">[]</span>
+
+    <span class="c1"># Restores IndexedBases if they are collected by CSE and</span>
+    <span class="c1"># reverts changes to simple index operations (eg: t - 1)</span>
+    <span class="k">for</span> <span class="n">temp</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">temps</span><span class="p">:</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">IndexedBase</span><span class="p">):</span>
+            <span class="n">to_revert</span><span class="p">[</span><span class="n">temp</span><span class="p">]</span> <span class="o">=</span> <span class="n">value</span>
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">Add</span><span class="p">):</span>
+            <span class="n">to_revert</span><span class="p">[</span><span class="n">temp</span><span class="p">]</span> <span class="o">=</span> <span class="n">value</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">to_keep</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">temp</span><span class="p">,</span> <span class="n">value</span><span class="p">))</span>
+
+    <span class="c1"># Restores the IndexedBases in the assignments to revert</span>
+    <span class="k">for</span> <span class="n">temp</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">to_revert</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="n">s_dict</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="k">for</span> <span class="n">arg</span> <span class="ow">in</span> <span class="n">preorder_traversal</span><span class="p">(</span><span class="n">value</span><span class="p">):</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">Indexed</span><span class="p">):</span>
+                <span class="k">if</span> <span class="n">value</span><span class="o">.</span><span class="n">base</span><span class="o">.</span><span class="n">label</span> <span class="ow">in</span> <span class="n">to_revert</span><span class="p">:</span>
+                    <span class="n">s_dict</span><span class="p">[</span><span class="n">arg</span><span class="p">]</span> <span class="o">=</span> <span class="n">Indexed</span><span class="p">(</span><span class="n">to_revert</span><span class="p">[</span><span class="n">value</span><span class="o">.</span><span class="n">base</span><span class="o">.</span><span class="n">label</span><span class="p">],</span> <span class="o">*</span><span class="n">value</span><span class="o">.</span><span class="n">indices</span><span class="p">)</span>
+        <span class="n">to_revert</span><span class="p">[</span><span class="n">temp</span><span class="p">]</span> <span class="o">=</span> <span class="n">value</span><span class="o">.</span><span class="n">xreplace</span><span class="p">(</span><span class="n">s_dict</span><span class="p">)</span>
+
+    <span class="n">subs_dict</span> <span class="o">=</span> <span class="p">{}</span>
+
+    <span class="c1"># Builds a dictionary of the replacements</span>
+    <span class="k">for</span> <span class="n">expr</span> <span class="ow">in</span> <span class="n">stencils</span> <span class="o">+</span> <span class="p">[</span><span class="n">assign</span> <span class="k">for</span> <span class="n">temp</span><span class="p">,</span> <span class="n">assign</span> <span class="ow">in</span> <span class="n">to_keep</span><span class="p">]:</span>
+        <span class="k">for</span> <span class="n">arg</span> <span class="ow">in</span> <span class="n">preorder_traversal</span><span class="p">(</span><span class="n">expr</span><span class="p">):</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">arg</span><span class="p">,</span> <span class="n">Indexed</span><span class="p">):</span>
+                <span class="n">new_indices</span> <span class="o">=</span> <span class="p">[]</span>
+                <span class="k">for</span> <span class="n">index</span> <span class="ow">in</span> <span class="n">arg</span><span class="o">.</span><span class="n">indices</span><span class="p">:</span>
+                    <span class="k">if</span> <span class="n">index</span> <span class="ow">in</span> <span class="n">to_revert</span><span class="p">:</span>
+                        <span class="n">new_indices</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">to_revert</span><span class="p">[</span><span class="n">index</span><span class="p">])</span>
+                    <span class="k">else</span><span class="p">:</span>
+                        <span class="n">new_indices</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">index</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">arg</span><span class="o">.</span><span class="n">base</span><span class="o">.</span><span class="n">label</span> <span class="ow">in</span> <span class="n">to_revert</span><span class="p">:</span>
+                    <span class="n">subs_dict</span><span class="p">[</span><span class="n">arg</span><span class="p">]</span> <span class="o">=</span> <span class="n">Indexed</span><span class="p">(</span><span class="n">to_revert</span><span class="p">[</span><span class="n">arg</span><span class="o">.</span><span class="n">base</span><span class="o">.</span><span class="n">label</span><span class="p">],</span> <span class="o">*</span><span class="n">new_indices</span><span class="p">)</span>
+                <span class="k">elif</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">new_indices</span><span class="p">)</span> <span class="o">!=</span> <span class="n">arg</span><span class="o">.</span><span class="n">indices</span><span class="p">:</span>
+                    <span class="n">subs_dict</span><span class="p">[</span><span class="n">arg</span><span class="p">]</span> <span class="o">=</span> <span class="n">Indexed</span><span class="p">(</span><span class="n">arg</span><span class="o">.</span><span class="n">base</span><span class="p">,</span> <span class="o">*</span><span class="n">new_indices</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">arg</span> <span class="ow">in</span> <span class="n">to_revert</span><span class="p">:</span>
+                <span class="n">subs_dict</span><span class="p">[</span><span class="n">arg</span><span class="p">]</span> <span class="o">=</span> <span class="n">to_revert</span><span class="p">[</span><span class="n">arg</span><span class="p">]</span>
+
+    <span class="n">stencils</span> <span class="o">=</span> <span class="p">[</span><span class="n">stencil</span><span class="o">.</span><span class="n">xreplace</span><span class="p">(</span><span class="n">subs_dict</span><span class="p">)</span> <span class="k">for</span> <span class="n">stencil</span> <span class="ow">in</span> <span class="n">stencils</span><span class="p">]</span>
+
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">to_keep</span><span class="p">)):</span>
+        <span class="n">to_keep</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">Eq</span><span class="p">(</span><span class="n">to_keep</span><span class="p">[</span><span class="n">i</span><span class="p">][</span><span class="mi">0</span><span class="p">],</span> <span class="n">to_keep</span><span class="p">[</span><span class="n">i</span><span class="p">][</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">xreplace</span><span class="p">(</span><span class="n">subs_dict</span><span class="p">))</span>
+
+    <span class="k">return</span> <span class="n">to_keep</span> <span class="o">+</span> <span class="n">stencils</span>
+
+
 <div class="viewcode-block" id="Operator"><a class="viewcode-back" href="../../devito.html#devito.operator.Operator">[docs]</a><span class="k">class</span> <span class="nc">Operator</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;Class encapsulating a defined operator as defined by the given stencil</span>
 
@@ -217,6 +282,7 @@
 <span class="sd">                     environment variable DEVITO_ARCH, or default to GNUCompiler.</span>
 <span class="sd">    :param profile: Flag to enable performance profiling</span>
 <span class="sd">    :param cache_blocking: Flag to enable cache blocking</span>
+<span class="sd">    :param cse: Flag to enable common subexpression elimination</span>
 <span class="sd">    :param block_size: Block size used for cache clocking. Can be either a single number</span>
 <span class="sd">                       used for all dimensions or a list stating block sizes for each</span>
 <span class="sd">                       dimension. Set block size to None to skip blocking on that dim</span>
@@ -229,7 +295,7 @@
     <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">nt</span><span class="p">,</span> <span class="n">shape</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">,</span> <span class="n">stencils</span><span class="o">=</span><span class="p">[],</span>
                  <span class="n">subs</span><span class="o">=</span><span class="p">[],</span> <span class="n">spc_border</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">time_order</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
                  <span class="n">forward</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">compiler</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">profile</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
-                 <span class="n">cache_blocking</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">block_size</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span>
+                 <span class="n">cache_blocking</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">cse</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">block_size</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span>
                  <span class="n">input_params</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">output_params</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">factorized</span><span class="o">=</span><span class="p">{}):</span>
         <span class="c1"># Derive JIT compilation infrastructure</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">compiler</span> <span class="o">=</span> <span class="n">compiler</span> <span class="ow">or</span> <span class="n">get_compiler_from_env</span><span class="p">()</span>
@@ -239,6 +305,22 @@
         <span class="n">subs</span> <span class="o">=</span> <span class="n">subs</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">subs</span><span class="p">,</span> <span class="nb">list</span><span class="p">)</span> <span class="k">else</span> <span class="p">[</span><span class="n">subs</span><span class="p">]</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">input_params</span> <span class="o">=</span> <span class="n">input_params</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">output_params</span> <span class="o">=</span> <span class="n">output_params</span>
+
+        <span class="c1"># Get functions and symbols in LHS/RHS and update params</span>
+        <span class="n">sym_undef</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+
+        <span class="k">for</span> <span class="n">eqn</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">stencils</span><span class="p">:</span>
+            <span class="n">lhs_def</span><span class="p">,</span> <span class="n">lhs_undef</span> <span class="o">=</span> <span class="n">expr_symbols</span><span class="p">(</span><span class="n">eqn</span><span class="o">.</span><span class="n">lhs</span><span class="p">)</span>
+            <span class="n">sym_undef</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">lhs_undef</span><span class="p">)</span>
+
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">output_params</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">output_params</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">lhs_def</span><span class="p">)</span>
+
+            <span class="n">rhs_def</span><span class="p">,</span> <span class="n">rhs_undef</span> <span class="o">=</span> <span class="n">expr_symbols</span><span class="p">(</span><span class="n">eqn</span><span class="o">.</span><span class="n">rhs</span><span class="p">)</span>
+            <span class="n">sym_undef</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">rhs_undef</span><span class="p">)</span>
+
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">input_params</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">input_params</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">rhs_def</span><span class="p">)</span>
 
         <span class="c1"># Pull all dimension indices from the incoming stencil</span>
         <span class="n">dimensions</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
@@ -262,21 +344,6 @@
             <span class="c1"># Default space dimension symbols</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">space_dims</span> <span class="o">=</span> <span class="n">symbols</span><span class="p">(</span><span class="s2">&quot;x z&quot;</span> <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">shape</span><span class="p">)</span> <span class="o">==</span> <span class="mi">2</span> <span class="k">else</span> <span class="s2">&quot;x y z&quot;</span><span class="p">)[:</span><span class="nb">len</span><span class="p">(</span><span class="n">shape</span><span class="p">)]</span>
 
-        <span class="c1"># Get functions and symbols in LHS/RHS and update params</span>
-        <span class="n">sym_undef</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
-
-        <span class="k">for</span> <span class="n">eqn</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">stencils</span><span class="p">:</span>
-            <span class="n">lhs_def</span><span class="p">,</span> <span class="n">lhs_undef</span> <span class="o">=</span> <span class="n">expr_symbols</span><span class="p">(</span><span class="n">eqn</span><span class="o">.</span><span class="n">lhs</span><span class="p">)</span>
-            <span class="n">sym_undef</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">lhs_undef</span><span class="p">)</span>
-
-            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">output_params</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">output_params</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">lhs_def</span><span class="p">)</span>
-
-            <span class="n">rhs_def</span><span class="p">,</span> <span class="n">rhs_undef</span> <span class="o">=</span> <span class="n">expr_symbols</span><span class="p">(</span><span class="n">eqn</span><span class="o">.</span><span class="n">rhs</span><span class="p">)</span>
-            <span class="n">sym_undef</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">rhs_undef</span><span class="p">)</span>
-
-            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">input_params</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">input_params</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">rhs_def</span><span class="p">)</span>
         <span class="c1"># Remove known dimensions from undefined symbols</span>
         <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">dimensions</span><span class="p">:</span>
             <span class="n">sym_undef</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span><span class="n">d</span><span class="p">)</span>
@@ -295,14 +362,19 @@
         <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">factorized</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
             <span class="n">factorized</span><span class="p">[</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="n">expr_indexify</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
 
-        <span class="c1"># Apply user-defined subs to stencil</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">stencils</span> <span class="o">=</span> <span class="p">[</span><span class="n">eqn</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">args</span><span class="p">)</span> <span class="k">for</span> <span class="n">eqn</span><span class="p">,</span> <span class="n">args</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">stencils</span><span class="p">,</span> <span class="n">subs</span><span class="p">)]</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">propagator</span> <span class="o">=</span> <span class="n">Propagator</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">getName</span><span class="p">(),</span> <span class="n">nt</span><span class="p">,</span> <span class="n">shape</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">stencils</span><span class="p">,</span>
-                                     <span class="n">factorized</span><span class="o">=</span><span class="n">factorized</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">dtype</span><span class="p">,</span>
-                                     <span class="n">spc_border</span><span class="o">=</span><span class="n">spc_border</span><span class="p">,</span> <span class="n">time_order</span><span class="o">=</span><span class="n">time_order</span><span class="p">,</span>
-                                     <span class="n">forward</span><span class="o">=</span><span class="n">forward</span><span class="p">,</span> <span class="n">space_dims</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">space_dims</span><span class="p">,</span>
-                                     <span class="n">compiler</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">compiler</span><span class="p">,</span> <span class="n">profile</span><span class="o">=</span><span class="n">profile</span><span class="p">,</span>
-                                     <span class="n">cache_blocking</span><span class="o">=</span><span class="n">cache_blocking</span><span class="p">,</span> <span class="n">block_size</span><span class="o">=</span><span class="n">block_size</span><span class="p">)</span>
+        <span class="c1"># Apply user-defined substitutions to stencil</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">stencils</span> <span class="o">=</span> <span class="p">[</span><span class="n">eqn</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">subs</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span> <span class="k">for</span> <span class="n">eqn</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">stencils</span><span class="p">]</span>
+
+        <span class="c1"># Applies CSE</span>
+        <span class="k">if</span> <span class="n">cse</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">stencils</span> <span class="o">=</span> <span class="n">expr_cse</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">stencils</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">propagator</span> <span class="o">=</span> <span class="n">Propagator</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">getName</span><span class="p">(),</span> <span class="n">nt</span><span class="p">,</span> <span class="n">shape</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">stencils</span><span class="p">,</span> <span class="n">factorized</span><span class="o">=</span><span class="n">factorized</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">dtype</span><span class="p">,</span>
+            <span class="n">spc_border</span><span class="o">=</span><span class="n">spc_border</span><span class="p">,</span> <span class="n">time_order</span><span class="o">=</span><span class="n">time_order</span><span class="p">,</span> <span class="n">forward</span><span class="o">=</span><span class="n">forward</span><span class="p">,</span>
+            <span class="n">space_dims</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">space_dims</span><span class="p">,</span> <span class="n">compiler</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">compiler</span><span class="p">,</span> <span class="n">profile</span><span class="o">=</span><span class="n">profile</span><span class="p">,</span>
+            <span class="n">cache_blocking</span><span class="o">=</span><span class="n">cache_blocking</span><span class="p">,</span> <span class="n">block_size</span><span class="o">=</span><span class="n">block_size</span>
+        <span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">dtype</span> <span class="o">=</span> <span class="n">dtype</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">nt</span> <span class="o">=</span> <span class="n">nt</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">shape</span> <span class="o">=</span> <span class="n">shape</span>
