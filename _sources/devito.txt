@@ -73,6 +73,38 @@ devito.propagator module
     :undoc-members:
     :show-inheritance:
 
+devito.stencilkernel module
+---------------------------
+
+.. automodule:: devito.stencilkernel
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+devito.dimension module
+-----------------------
+
+.. automodule:: devito.dimension
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+devito.iteration module
+-----------------------
+
+.. automodule:: devito.iteration
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+devito.expression module
+------------------------
+
+.. automodule:: devito.expression
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
 devito.tools module
 -------------------
 
@@ -82,7 +114,7 @@ devito.tools module
     :show-inheritance:
 
 devito.logger module
--------------------
+--------------------
 
 .. automodule:: devito.logger
     :members:

@@ -138,13 +138,14 @@
 
 <span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
 <span class="kn">from</span> <span class="nn">sympy</span> <span class="k">import</span> <span class="n">Indexed</span><span class="p">,</span> <span class="n">IndexedBase</span><span class="p">,</span> <span class="n">preorder_traversal</span><span class="p">,</span> <span class="n">symbols</span>
-<span class="kn">from</span> <span class="nn">sympy.abc</span> <span class="k">import</span> <span class="n">t</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">z</span>
 <span class="kn">from</span> <span class="nn">sympy.utilities.iterables</span> <span class="k">import</span> <span class="n">postorder_traversal</span>
 
 <span class="kn">import</span> <span class="nn">cgen_wrapper</span> <span class="k">as</span> <span class="nn">cgen</span>
 <span class="kn">from</span> <span class="nn">codeprinter</span> <span class="k">import</span> <span class="n">ccode</span>
 <span class="kn">from</span> <span class="nn">devito.compiler</span> <span class="k">import</span> <span class="p">(</span><span class="n">IntelMICCompiler</span><span class="p">,</span> <span class="n">get_compiler_from_env</span><span class="p">,</span>
                              <span class="n">get_tmp_dir</span><span class="p">,</span> <span class="n">jit_compile_and_load</span><span class="p">)</span>
+<span class="kn">from</span> <span class="nn">devito.dimension</span> <span class="k">import</span> <span class="n">t</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">z</span>
+<span class="kn">from</span> <span class="nn">devito.expression</span> <span class="k">import</span> <span class="n">Expression</span>
 <span class="kn">from</span> <span class="nn">devito.function_manager</span> <span class="k">import</span> <span class="n">FunctionDescriptor</span><span class="p">,</span> <span class="n">FunctionManager</span>
 <span class="kn">from</span> <span class="nn">devito.iteration</span> <span class="k">import</span> <span class="n">Iteration</span>
 <span class="kn">from</span> <span class="nn">devito.logger</span> <span class="k">import</span> <span class="n">logger</span>
@@ -920,8 +921,8 @@
 
         <span class="c1"># For Iteration objects we apply time subs to the stencil list</span>
         <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">sympy_expr</span><span class="p">,</span> <span class="n">Iteration</span><span class="p">):</span>
-            <span class="n">sympy_expr</span><span class="o">.</span><span class="n">stencils</span> <span class="o">=</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">time_substitutions</span><span class="p">(</span><span class="n">s</span><span class="p">)</span>
-                                   <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">sympy_expr</span><span class="o">.</span><span class="n">stencils</span><span class="p">]</span>
+            <span class="n">sympy_expr</span><span class="o">.</span><span class="n">expressions</span> <span class="o">=</span> <span class="p">[</span><span class="n">Expression</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">time_substitutions</span><span class="p">(</span><span class="n">s</span><span class="o">.</span><span class="n">stencil</span><span class="p">))</span>
+                                      <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">sympy_expr</span><span class="o">.</span><span class="n">expressions</span><span class="p">]</span>
             <span class="k">return</span> <span class="n">sympy_expr</span>
 
         <span class="k">for</span> <span class="n">arg</span> <span class="ow">in</span> <span class="n">postorder_traversal</span><span class="p">(</span><span class="n">sympy_expr</span><span class="p">):</span>

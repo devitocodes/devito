@@ -135,9 +135,11 @@
 
 <span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
 <span class="kn">from</span> <span class="nn">sympy</span> <span class="k">import</span> <span class="n">Function</span><span class="p">,</span> <span class="n">IndexedBase</span><span class="p">,</span> <span class="n">as_finite_diff</span>
-<span class="kn">from</span> <span class="nn">sympy.abc</span> <span class="k">import</span> <span class="n">h</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">z</span>
+<span class="kn">from</span> <span class="nn">sympy.abc</span> <span class="k">import</span> <span class="n">h</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">s</span>
 
+<span class="kn">from</span> <span class="nn">devito.dimension</span> <span class="k">import</span> <span class="n">t</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">z</span>
 <span class="kn">from</span> <span class="nn">devito.finite_difference</span> <span class="k">import</span> <span class="n">cross_derivative</span><span class="p">,</span> <span class="n">first_derivative</span>
+<span class="kn">from</span> <span class="nn">devito.logger</span> <span class="k">import</span> <span class="n">error</span>
 <span class="kn">from</span> <span class="nn">devito.memmap_manager</span> <span class="k">import</span> <span class="n">MemmapManager</span>
 <span class="kn">from</span> <span class="nn">tools</span> <span class="k">import</span> <span class="n">aligned</span>
 
@@ -150,7 +152,34 @@
 <span class="n">_SymbolCache</span> <span class="o">=</span> <span class="p">{}</span>
 
 
-<span class="k">class</span> <span class="nc">SymbolicData</span><span class="p">(</span><span class="n">Function</span><span class="p">):</span>
+<span class="k">class</span> <span class="nc">CachedSymbol</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Base class for symbolic objects that caches on the class type.&quot;&quot;&quot;</span>
+
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">_cached</span><span class="p">(</span><span class="n">cls</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Test if current class is already in the symbol cache.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">cls</span> <span class="ow">in</span> <span class="n">_SymbolCache</span>
+
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">_cache_put</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">obj</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Store given object instance in symbol cache.</span>
+
+<span class="sd">        :param obj: Object to be cached.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">_SymbolCache</span><span class="p">[</span><span class="n">cls</span><span class="p">]</span> <span class="o">=</span> <span class="n">weakref</span><span class="o">.</span><span class="n">ref</span><span class="p">(</span><span class="n">obj</span><span class="p">)</span>
+
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">_symbol_type</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">name</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Create new type instance from cls and inject symbol name&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="nb">type</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="p">),</span> <span class="nb">dict</span><span class="p">(</span><span class="n">cls</span><span class="o">.</span><span class="n">__dict__</span><span class="p">))</span>
+
+    <span class="k">def</span> <span class="nf">_cached_init</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Initialise symbolic object with a cached object state&quot;&quot;&quot;</span>
+        <span class="n">original</span> <span class="o">=</span> <span class="n">_SymbolCache</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">__class__</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">__dict__</span> <span class="o">=</span> <span class="n">original</span><span class="p">()</span><span class="o">.</span><span class="n">__dict__</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+
+
+<span class="k">class</span> <span class="nc">SymbolicData</span><span class="p">(</span><span class="n">Function</span><span class="p">,</span> <span class="n">CachedSymbol</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;Base class for data classes that provides symbolic behaviour.</span>
 
 <span class="sd">    :param name: Symbolic name to give to the resulting function. Must</span>
@@ -167,13 +196,8 @@
 <span class="sd">    object should implement `__init__` in the following format:</span>
 
 <span class="sd">    def __init__(self, \*args, \*\*kwargs):</span>
-<span class="sd">        if self._cached():</span>
-<span class="sd">            SymbolicData.__init__(self)</span>
-<span class="sd">            return</span>
-<span class="sd">        else:</span>
+<span class="sd">        if not self._cached():</span>
 <span class="sd">            ... # Initialise object properties from kwargs</span>
-
-<span class="sd">            self._cache_put(self)</span>
 
 <span class="sd">    Note: The parameters :param name: and :param shape: must always be</span>
 <span class="sd">    present and given as keyword arguments, since SymPy uses `*args`</span>
@@ -181,44 +205,24 @@
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="k">def</span> <span class="nf">__new__</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
-        <span class="k">if</span> <span class="n">cls</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">_SymbolCache</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">cls</span> <span class="ow">in</span> <span class="n">_SymbolCache</span><span class="p">:</span>
+            <span class="n">newobj</span> <span class="o">=</span> <span class="n">Function</span><span class="o">.</span><span class="n">__new__</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">)</span>
+            <span class="n">newobj</span><span class="o">.</span><span class="n">_cached_init</span><span class="p">()</span>
+        <span class="k">else</span><span class="p">:</span>
             <span class="n">name</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;name&#39;</span><span class="p">)</span>
-            <span class="n">shape</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;shape&#39;</span><span class="p">)</span>
-
             <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">args</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mi">1</span><span class="p">:</span>
-                <span class="n">args</span> <span class="o">=</span> <span class="n">cls</span><span class="o">.</span><span class="n">indices</span><span class="p">(</span><span class="n">shape</span><span class="p">)</span>
-
-            <span class="c1"># Create a new type instance from cls and inject name</span>
-            <span class="n">newcls</span> <span class="o">=</span> <span class="nb">type</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="p">),</span> <span class="nb">dict</span><span class="p">(</span><span class="n">cls</span><span class="o">.</span><span class="n">__dict__</span><span class="p">))</span>
+                <span class="n">args</span> <span class="o">=</span> <span class="n">cls</span><span class="o">.</span><span class="n">_indices</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
 
             <span class="c1"># Create the new Function object and invoke __init__</span>
+            <span class="n">newcls</span> <span class="o">=</span> <span class="n">cls</span><span class="o">.</span><span class="n">_symbol_type</span><span class="p">(</span><span class="n">name</span><span class="p">)</span>
             <span class="n">newobj</span> <span class="o">=</span> <span class="n">Function</span><span class="o">.</span><span class="n">__new__</span><span class="p">(</span><span class="n">newcls</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">)</span>
             <span class="n">newobj</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
-
-            <span class="k">return</span> <span class="n">newobj</span>
-
-        <span class="k">return</span> <span class="n">Function</span><span class="o">.</span><span class="n">__new__</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">)</span>
-
-    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;Initialise from a cached instance by shallow copying __dict__.&quot;&quot;&quot;</span>
-        <span class="n">original</span> <span class="o">=</span> <span class="n">_SymbolCache</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">__class__</span><span class="p">]</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">__dict__</span> <span class="o">=</span> <span class="n">original</span><span class="p">()</span><span class="o">.</span><span class="n">__dict__</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+            <span class="c1"># Store new instance in symbol cache</span>
+            <span class="n">newcls</span><span class="o">.</span><span class="n">_cache_put</span><span class="p">(</span><span class="n">newobj</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">newobj</span>
 
     <span class="nd">@classmethod</span>
-    <span class="k">def</span> <span class="nf">_cached</span><span class="p">(</span><span class="n">cls</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;Test if current class is already in the symbol cache.&quot;&quot;&quot;</span>
-        <span class="k">return</span> <span class="n">cls</span> <span class="ow">in</span> <span class="n">_SymbolCache</span>
-
-    <span class="nd">@classmethod</span>
-    <span class="k">def</span> <span class="nf">_cache_put</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">obj</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;Store given object instance in symbol cache.</span>
-
-<span class="sd">        :param obj: Object to be cached.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="n">_SymbolCache</span><span class="p">[</span><span class="n">cls</span><span class="p">]</span> <span class="o">=</span> <span class="n">weakref</span><span class="o">.</span><span class="n">ref</span><span class="p">(</span><span class="n">obj</span><span class="p">)</span>
-
-    <span class="nd">@classmethod</span>
-    <span class="k">def</span> <span class="nf">indices</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">shape</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">_indices</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;Abstract class method to determine the default dimension indices.</span>
 
 <span class="sd">        :param shape: Given shape of the data.</span>
@@ -243,13 +247,13 @@
 <span class="sd">    time-varying griad data.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cached</span><span class="p">():</span>
-            <span class="c1"># Initialise instance from symbol cache</span>
-            <span class="n">SymbolicData</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
-            <span class="k">return</span>
-        <span class="k">else</span><span class="p">:</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cached</span><span class="p">():</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">name</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;name&#39;</span><span class="p">)</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">shape</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;shape&#39;</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">shape</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;shape&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">shape</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">dimensions</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;dimensions&#39;</span><span class="p">)</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">shape</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">([</span><span class="n">d</span><span class="o">.</span><span class="n">size</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">dimensions</span><span class="p">])</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">indices</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_indices</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">dtype</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;dtype&#39;</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">space_order</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;space_order&#39;</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
             <span class="n">initializer</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;initializer&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
@@ -258,19 +262,29 @@
             <span class="bp">self</span><span class="o">.</span><span class="n">initializer</span> <span class="o">=</span> <span class="n">initializer</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_data</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;_data&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
             <span class="n">MemmapManager</span><span class="o">.</span><span class="n">setup</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
-            <span class="c1"># Store new instance in symbol cache</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">_cache_put</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
 
     <span class="nd">@classmethod</span>
-<div class="viewcode-block" id="DenseData.indices"><a class="viewcode-back" href="../../devito.html#devito.interfaces.DenseData.indices">[docs]</a>    <span class="k">def</span> <span class="nf">indices</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">shape</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">_indices</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;Return the default dimension indices for a given data shape</span>
 
-<span class="sd">        :param shape: Shape of the spatial data</span>
-<span class="sd">        :return: Indices used for axis.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="n">_indices</span> <span class="o">=</span> <span class="p">[</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">z</span><span class="p">]</span>
 
-        <span class="k">return</span> <span class="n">_indices</span><span class="p">[:</span><span class="nb">len</span><span class="p">(</span><span class="n">shape</span><span class="p">)]</span></div>
+<span class="sd">        :param dimensions: Optional, list of :class:`Dimension`</span>
+<span class="sd">                           objects that defines data layout.</span>
+<span class="sd">        :param shape: Optional, shape of the spatial data to</span>
+<span class="sd">                      automatically infer dimension symbols.</span>
+<span class="sd">        :return: Dimension indices used for each axis.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">dimensions</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;dimensions&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">dimensions</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="c1"># Infer dimensions from default and data shape</span>
+            <span class="k">if</span> <span class="s1">&#39;shape&#39;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">kwargs</span><span class="p">:</span>
+                <span class="n">error</span><span class="p">(</span><span class="s2">&quot;Creating symbolic data objects requries either&quot;</span>
+                      <span class="s2">&quot;a &#39;shape&#39; or &#39;dimensions&#39; argument&quot;</span><span class="p">)</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Unknown symbol dimensions or shape&quot;</span><span class="p">)</span>
+            <span class="n">_indices</span> <span class="o">=</span> <span class="p">[</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">z</span><span class="p">]</span>
+            <span class="n">shape</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;shape&#39;</span><span class="p">)</span>
+            <span class="n">dimensions</span> <span class="o">=</span> <span class="n">_indices</span><span class="p">[:</span><span class="nb">len</span><span class="p">(</span><span class="n">shape</span><span class="p">)]</span>
+        <span class="k">return</span> <span class="n">dimensions</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">dim</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
@@ -279,8 +293,8 @@
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">indexed</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;:return: Base symbol as sympy.IndexedBase&quot;&quot;&quot;</span>
-        <span class="k">return</span> <span class="n">IndexedBase</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">shape</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+        <span class="sd">&quot;&quot;&quot;:return: Base symbol as devito.IndexedData&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">IndexedData</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">shape</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span> <span class="n">function</span><span class="o">=</span><span class="bp">self</span><span class="p">)</span>
 
 <div class="viewcode-block" id="DenseData.indexify"><a class="viewcode-back" href="../../devito.html#devito.interfaces.DenseData.indexify">[docs]</a>    <span class="k">def</span> <span class="nf">indexify</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;Convert base symbol and dimensions to indexed data accesses</span>
@@ -420,11 +434,7 @@
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cached</span><span class="p">():</span>
-            <span class="c1"># Initialise instance from symbol cache</span>
-            <span class="n">SymbolicData</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
-            <span class="k">return</span>
-        <span class="k">else</span><span class="p">:</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cached</span><span class="p">():</span>
             <span class="nb">super</span><span class="p">(</span><span class="n">TimeData</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_full_data</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="o">.</span><span class="n">view</span><span class="p">()</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_data</span> <span class="k">else</span> <span class="kc">None</span>
             <span class="n">time_dim</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;time_dim&#39;</span><span class="p">)</span>
@@ -439,9 +449,6 @@
 
             <span class="bp">self</span><span class="o">.</span><span class="n">shape</span> <span class="o">=</span> <span class="p">(</span><span class="n">time_dim</span><span class="p">,)</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">shape</span>
 
-            <span class="c1"># Store final instance in symbol cache</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">_cache_put</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
-
 <div class="viewcode-block" id="TimeData.initialize"><a class="viewcode-back" href="../../devito.html#devito.interfaces.TimeData.initialize">[docs]</a>    <span class="k">def</span> <span class="nf">initialize</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">initializer</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
             <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_full_data</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
@@ -449,15 +456,22 @@
             <span class="bp">self</span><span class="o">.</span><span class="n">initializer</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_full_data</span><span class="p">)</span></div>
 
     <span class="nd">@classmethod</span>
-<div class="viewcode-block" id="TimeData.indices"><a class="viewcode-back" href="../../devito.html#devito.interfaces.TimeData.indices">[docs]</a>    <span class="k">def</span> <span class="nf">indices</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">shape</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">_indices</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;Return the default dimension indices for a given data shape</span>
 
-<span class="sd">        :param shape: Shape of the spatial data</span>
-<span class="sd">        :return: Indices used for axis.</span>
+<span class="sd">        :param dimensions: Optional, list of :class:`Dimension`</span>
+<span class="sd">                           objects that defines data layout.</span>
+<span class="sd">        :param shape: Optional, shape of the spatial data to</span>
+<span class="sd">                      automatically infer dimension symbols.</span>
+<span class="sd">        :return: Dimension indices used for each axis.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="n">_indices</span> <span class="o">=</span> <span class="p">[</span><span class="n">t</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">z</span><span class="p">]</span>
-
-        <span class="k">return</span> <span class="n">_indices</span><span class="p">[:</span><span class="nb">len</span><span class="p">(</span><span class="n">shape</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span><span class="p">]</span></div>
+        <span class="n">dimensions</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;dimensions&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">dimensions</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="c1"># Infer dimensions from default and data shape</span>
+            <span class="n">_indices</span> <span class="o">=</span> <span class="p">[</span><span class="n">t</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">z</span><span class="p">]</span>
+            <span class="n">shape</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;shape&#39;</span><span class="p">)</span>
+            <span class="n">dimensions</span> <span class="o">=</span> <span class="n">_indices</span><span class="p">[:</span><span class="nb">len</span><span class="p">(</span><span class="n">shape</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span><span class="p">]</span>
+        <span class="k">return</span> <span class="n">dimensions</span>
 
     <span class="k">def</span> <span class="nf">_allocate_memory</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;function to allocate memmory in terms of numpy ndarrays.&quot;&quot;&quot;</span>
@@ -514,20 +528,15 @@
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cached</span><span class="p">():</span>
-            <span class="c1"># Initialise instance from symbol cache</span>
-            <span class="n">SymbolicData</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
-            <span class="k">return</span>
-        <span class="k">else</span><span class="p">:</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cached</span><span class="p">():</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">name</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;name&#39;</span><span class="p">)</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">ndim</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;ndim&#39;</span><span class="p">)</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">npoint</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;npoint&#39;</span><span class="p">)</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">shape</span> <span class="o">=</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">npoint</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">ndim</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">indices</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_indices</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">dtype</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;dtype&#39;</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">data</span> <span class="o">=</span> <span class="n">aligned</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">dtype</span><span class="p">,</span>
                                          <span class="n">order</span><span class="o">=</span><span class="s1">&#39;C&#39;</span><span class="p">),</span> <span class="n">alignment</span><span class="o">=</span><span class="mi">64</span><span class="p">)</span>
-            <span class="c1"># Store final instance in symbol cache</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">_cache_put</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
 
     <span class="k">def</span> <span class="nf">__new__</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
         <span class="n">ndim</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;ndim&#39;</span><span class="p">)</span>
@@ -536,7 +545,7 @@
         <span class="k">return</span> <span class="n">SymbolicData</span><span class="o">.</span><span class="n">__new__</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
 
     <span class="nd">@classmethod</span>
-    <span class="k">def</span> <span class="nf">indices</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">shape</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">_indices</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;Return the default dimension indices for a given data shape</span>
 
 <span class="sd">        :param shape: Shape of the spatial data</span>
@@ -547,8 +556,8 @@
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">indexed</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;:return: Base symbol as sympy.IndexedBase&quot;&quot;&quot;</span>
-        <span class="k">return</span> <span class="n">IndexedBase</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">shape</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+        <span class="sd">&quot;&quot;&quot;:return: Base symbol as devito.IndexedData&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">IndexedData</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">shape</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span> <span class="n">function</span><span class="o">=</span><span class="bp">self</span><span class="p">)</span>
 
 
 <div class="viewcode-block" id="PointData"><a class="viewcode-back" href="../../devito.html#devito.interfaces.PointData">[docs]</a><span class="k">class</span> <span class="nc">PointData</span><span class="p">(</span><span class="n">DenseData</span><span class="p">):</span>
@@ -566,11 +575,7 @@
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cached</span><span class="p">():</span>
-            <span class="c1"># Initialise instance from symbol cache</span>
-            <span class="n">SymbolicData</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
-            <span class="k">return</span>
-        <span class="k">else</span><span class="p">:</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cached</span><span class="p">():</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">nt</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;nt&#39;</span><span class="p">)</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">npoint</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;npoint&#39;</span><span class="p">)</span>
             <span class="n">ndim</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;ndim&#39;</span><span class="p">)</span>
@@ -581,8 +586,6 @@
                                               <span class="n">data</span><span class="o">=</span><span class="n">coordinates</span><span class="p">,</span> <span class="n">ndim</span><span class="o">=</span><span class="n">ndim</span><span class="p">,</span>
                                               <span class="n">nt</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">nt</span><span class="p">,</span> <span class="n">npoint</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">npoint</span><span class="p">)</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">coordinates</span><span class="o">.</span><span class="n">data</span><span class="p">[:]</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;coordinates&#39;</span><span class="p">)[:]</span>
-            <span class="c1"># Store final instance in symbol cache</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">_cache_put</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
 
     <span class="k">def</span> <span class="nf">__new__</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
         <span class="n">nt</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;nt&#39;</span><span class="p">)</span>
@@ -592,15 +595,23 @@
         <span class="k">return</span> <span class="n">DenseData</span><span class="o">.</span><span class="n">__new__</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
 
     <span class="nd">@classmethod</span>
-<div class="viewcode-block" id="PointData.indices"><a class="viewcode-back" href="../../devito.html#devito.interfaces.PointData.indices">[docs]</a>    <span class="k">def</span> <span class="nf">indices</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">shape</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">_indices</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;Return the default dimension indices for a given data shape</span>
 
 <span class="sd">        :param shape: Shape of the spatial data</span>
 <span class="sd">        :return: indices used for axis.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="n">_indices</span> <span class="o">=</span> <span class="p">[</span><span class="n">t</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">z</span><span class="p">]</span>
+        <span class="n">shape</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;shape&#39;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">_indices</span><span class="p">[:</span><span class="nb">len</span><span class="p">(</span><span class="n">shape</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span><span class="p">]</span></div>
 
-        <span class="k">return</span> <span class="n">_indices</span><span class="p">[:</span><span class="nb">len</span><span class="p">(</span><span class="n">shape</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span><span class="p">]</span></div></div>
+
+<span class="k">class</span> <span class="nc">IndexedData</span><span class="p">(</span><span class="n">IndexedBase</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Wrapper class that inserts a pointer to the symbolic data object&quot;&quot;&quot;</span>
+    <span class="k">def</span> <span class="nf">__new__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">shape</span><span class="p">,</span> <span class="n">function</span><span class="p">):</span>
+        <span class="n">indexed</span> <span class="o">=</span> <span class="n">IndexedBase</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">shape</span><span class="o">=</span><span class="n">shape</span><span class="p">)</span>
+        <span class="n">indexed</span><span class="o">.</span><span class="n">function</span> <span class="o">=</span> <span class="n">function</span>
+        <span class="k">return</span> <span class="n">indexed</span>
 </pre></div>
 
            </div>

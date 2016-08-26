@@ -8,7 +8,7 @@
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
-  <title>devito.cgen_wrapper &mdash; Devito 1 documentation</title>
+  <title>devito.dimension &mdash; Devito 1 documentation</title>
   
 
   
@@ -118,7 +118,7 @@
       
           <li><a href="../devito.html">devito</a> &raquo;</li>
       
-    <li>devito.cgen_wrapper</li>
+    <li>devito.dimension</li>
       <li class="wy-breadcrumbs-aside">
         
           
@@ -130,33 +130,29 @@
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
            <div itemprop="articleBody">
             
-  <h1>Source code for devito.cgen_wrapper</h1><div class="highlight"><pre>
-<span></span><span class="kn">import</span> <span class="nn">ctypes</span>
+  <h1>Source code for devito.dimension</h1><div class="highlight"><pre>
+<span></span><span class="kn">from</span> <span class="nn">sympy</span> <span class="k">import</span> <span class="n">Symbol</span>
 
-<span class="kn">from</span> <span class="nn">cgen</span> <span class="k">import</span> <span class="o">*</span>
-
-
-<div class="viewcode-block" id="convert_dtype_to_ctype"><a class="viewcode-back" href="../../devito.html#devito.cgen_wrapper.convert_dtype_to_ctype">[docs]</a><span class="k">def</span> <span class="nf">convert_dtype_to_ctype</span><span class="p">(</span><span class="n">dtype</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;Method used to convert Python types into C types</span>
-
-<span class="sd">    :param dtype: A Python type</span>
-<span class="sd">    :returns: Corresponding C type</span>
-<span class="sd">    &quot;&quot;&quot;</span>
-    <span class="n">conversion_dict</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;int64&#39;</span><span class="p">:</span> <span class="n">ctypes</span><span class="o">.</span><span class="n">c_int64</span><span class="p">,</span> <span class="s1">&#39;float64&#39;</span><span class="p">:</span> <span class="n">ctypes</span><span class="o">.</span><span class="n">c_float</span><span class="p">}</span>
-    <span class="k">return</span> <span class="n">conversion_dict</span><span class="p">[</span><span class="nb">str</span><span class="p">(</span><span class="n">dtype</span><span class="p">)]</span></div>
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;Dimension&#39;</span><span class="p">,</span> <span class="s1">&#39;x&#39;</span><span class="p">,</span> <span class="s1">&#39;y&#39;</span><span class="p">,</span> <span class="s1">&#39;z&#39;</span><span class="p">,</span> <span class="s1">&#39;t&#39;</span><span class="p">]</span>
 
 
-<div class="viewcode-block" id="PrintStatement"><a class="viewcode-back" href="../../devito.html#devito.cgen_wrapper.PrintStatement">[docs]</a><span class="k">class</span> <span class="nc">PrintStatement</span><span class="p">(</span><span class="n">Statement</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;Class representing a C printf statement</span>
+<div class="viewcode-block" id="Dimension"><a class="viewcode-back" href="../../devito.html#devito.dimension.Dimension">[docs]</a><span class="k">class</span> <span class="nc">Dimension</span><span class="p">(</span><span class="n">Symbol</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Index object that represents iteration spaces&quot;&quot;&quot;</span>
 
-<span class="sd">    :param args: List of strings to be printed</span>
-<span class="sd">    &quot;&quot;&quot;</span>
-    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">):</span>
-        <span class="n">args</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">args</span><span class="p">)</span>
-        <span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">,</span> <span class="s2">&quot;</span><span class="se">\\</span><span class="s2">n&quot;</span><span class="p">)</span>
-        <span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="se">\&quot;</span><span class="si">%s</span><span class="se">\&quot;</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
-        <span class="n">arglist</span> <span class="o">=</span> <span class="s2">&quot;, &quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">args</span><span class="p">)</span>
-        <span class="nb">super</span><span class="p">(</span><span class="n">PrintStatement</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="s2">&quot;printf(</span><span class="si">%s</span><span class="s2">)&quot;</span> <span class="o">%</span> <span class="n">arglist</span><span class="p">)</span></div>
+    <span class="k">def</span> <span class="nf">__new__</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="n">newobj</span> <span class="o">=</span> <span class="n">Symbol</span><span class="o">.</span><span class="n">__new__</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">name</span><span class="p">)</span>
+        <span class="n">newobj</span><span class="o">.</span><span class="n">size</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;size&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">newobj</span>
+
+    <span class="k">def</span> <span class="nf">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span></div>
+
+
+<span class="c1"># Set of default dimensions for space and time</span>
+<span class="n">x</span> <span class="o">=</span> <span class="n">Dimension</span><span class="p">(</span><span class="s1">&#39;x&#39;</span><span class="p">)</span>
+<span class="n">y</span> <span class="o">=</span> <span class="n">Dimension</span><span class="p">(</span><span class="s1">&#39;y&#39;</span><span class="p">)</span>
+<span class="n">z</span> <span class="o">=</span> <span class="n">Dimension</span><span class="p">(</span><span class="s1">&#39;z&#39;</span><span class="p">)</span>
+<span class="n">t</span> <span class="o">=</span> <span class="n">Dimension</span><span class="p">(</span><span class="s1">&#39;t&#39;</span><span class="p">)</span>
 </pre></div>
 
            </div>

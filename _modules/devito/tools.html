@@ -143,6 +143,12 @@
     <span class="k">return</span> <span class="p">[</span><span class="n">item</span> <span class="k">for</span> <span class="n">sublist</span> <span class="ow">in</span> <span class="n">l</span> <span class="k">for</span> <span class="n">item</span> <span class="ow">in</span> <span class="n">sublist</span><span class="p">]</span></div>
 
 
+<div class="viewcode-block" id="filter_ordered"><a class="viewcode-back" href="../../devito.html#devito.tools.filter_ordered">[docs]</a><span class="k">def</span> <span class="nf">filter_ordered</span><span class="p">(</span><span class="n">elements</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Filter elements in a list while preserving order&quot;&quot;&quot;</span>
+    <span class="n">seen</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+    <span class="k">return</span> <span class="p">[</span><span class="n">e</span> <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">elements</span> <span class="k">if</span> <span class="ow">not</span> <span class="p">(</span><span class="n">e</span> <span class="ow">in</span> <span class="n">seen</span> <span class="ow">or</span> <span class="n">seen</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">e</span><span class="p">))]</span></div>
+
+
 <div class="viewcode-block" id="convert_dtype_to_ctype"><a class="viewcode-back" href="../../devito.html#devito.tools.convert_dtype_to_ctype">[docs]</a><span class="k">def</span> <span class="nf">convert_dtype_to_ctype</span><span class="p">(</span><span class="n">dtype</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;Maps numpy types to C types.</span>
 

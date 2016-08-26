@@ -138,6 +138,8 @@
 
 <span class="kn">from</span> <span class="nn">sympy</span> <span class="k">import</span> <span class="n">finite_diff_weights</span><span class="p">,</span> <span class="n">symbols</span>
 
+<span class="kn">from</span> <span class="nn">devito.dimension</span> <span class="k">import</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span>
+
 <span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;second_derivative&#39;</span><span class="p">,</span> <span class="s1">&#39;cross_derivative&#39;</span><span class="p">]</span>
 
 
@@ -157,8 +159,8 @@
 <span class="p">}</span>
 
 
-<span class="c1"># Default function and dimension symbol</span>
-<span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">h</span> <span class="o">=</span> <span class="n">symbols</span><span class="p">(</span><span class="s1">&#39;x y h&#39;</span><span class="p">)</span>
+<span class="c1"># Default spacing symbol</span>
+<span class="n">h</span> <span class="o">=</span> <span class="n">symbols</span><span class="p">(</span><span class="s1">&#39;h&#39;</span><span class="p">)</span>
 
 
 <div class="viewcode-block" id="second_derivative"><a class="viewcode-back" href="../../devito.html#devito.finite_difference.second_derivative">[docs]</a><span class="k">def</span> <span class="nf">second_derivative</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
