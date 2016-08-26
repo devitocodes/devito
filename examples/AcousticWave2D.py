@@ -6,7 +6,9 @@ import sympy
 from numpy import linalg
 from sympy import (Function, Matrix, as_finite_diff, init_printing, lambdify,
                    solve, symbols)
-from sympy.abc import E, M, t, x, y
+from sympy.abc import E, M
+
+from devito.iteration import t, x, y, z
 
 init_printing()
 
