@@ -148,22 +148,24 @@ class Operator(object):
                      If not provided, the compiler will be inferred from the
                      environment variable DEVITO_ARCH, or default to GNUCompiler.
     :param profile: Flag to enable performance profiling
-    :param cache_blocking: Flag to enable cache blocking
     :param cse: Flag to enable common subexpression elimination
-    :param block_size: Block size used for cache clocking. Can be either a single number
-                       used for all dimensions or a list stating block sizes for each
-                       dimension. Set block size to None to skip blocking on that dim
+    :param cache_blocking: Block sizes used for cache clocking. Can be either a single
+                           number used for all dimensions except inner most or a list
+                           explicitly stating block sizes for each dimension
+                           Set cache_blocking to None to skip blocking on that dim
+                           Set cache_blocking to 0 to use best guess based on architecture
+                           Set cache_blocking to AutoTuner instance, to use auto tuned
+                           tuned block sizes
     :param input_params: List of symbols that are expected as input.
     :param output_params: List of symbols that define operator output.
     :param factorized: A map given by {string_name:sympy_object} for including factorized
                        terms
     """
-
     def __init__(self, nt, shape, dtype=np.float32, stencils=[],
                  subs=[], spc_border=0, time_order=0,
-                 forward=True, compiler=None, profile=False,
-                 cache_blocking=False, cse=True, block_size=5,
-                 input_params=None, output_params=None, factorized={}):
+                 forward=True, compiler=None, profile=False, cse=True,
+                 cache_blocking=None, input_params=None,
+                 output_params=None, factorized={}):
         # Derive JIT compilation infrastructure
         self.compiler = compiler or get_compiler_from_env()
 
@@ -229,24 +231,26 @@ class Operator(object):
         for name, value in factorized.items():
             factorized[name] = expr_indexify(value)
 
-        # Apply user-defined substitutions to stencil
+        # Apply user-defined subs to stencil
         self.stencils = [eqn.subs(subs[0]) for eqn in self.stencils]
 
         # Applies CSE
         if cse:
             self.stencils = expr_cse(self.stencils)
 
-        self.propagator = Propagator(
-            self.getName(), nt, shape, self.stencils, factorized=factorized, dtype=dtype,
-            spc_border=spc_border, time_order=time_order, forward=forward,
-            space_dims=self.space_dims, compiler=self.compiler, profile=profile,
-            cache_blocking=cache_blocking, block_size=block_size
-        )
+        self.propagator = Propagator(self.getName(), nt, shape, self.stencils,
+                                     factorized=factorized, dtype=dtype,
+                                     spc_border=spc_border, time_order=time_order,
+                                     forward=forward, space_dims=self.space_dims,
+                                     compiler=self.compiler, profile=profile,
+                                     cache_blocking=cache_blocking)
         self.dtype = dtype
         self.nt = nt
         self.shape = shape
         self.spc_border = spc_border
+        self.time_order = time_order
         self.symbol_to_data = {}
+
         for param in self.signature:
             self.propagator.add_devito_param(param)
             self.symbol_to_data[param.name] = param
@@ -270,19 +274,15 @@ class Operator(object):
                                     if param not in self.input_params]
 
     def apply(self, debug=False):
-        """:param debug: If True, use Python to apply the operator. Default False.
-
-        :returns: A tuple containing the values of the operator outputs
+        """
+        :param debug: If True, use Python to apply the operator. Default False.
+        :returns: A tuple containing the values of the operator outputs or compiled
+                  function and its args
         """
         if debug:
             return self.apply_python()
 
-        for param in self.input_params:
-            if hasattr(param, 'initialize'):
-                param.initialize()
-
-        args = [param.data for param in self.signature]
-        self.propagator.run(args)
+        self.propagator.run(self.get_args())
 
         return tuple([param for param in self.output_params])
 
@@ -424,6 +424,16 @@ class Operator(object):
         :returns: The name of the class
         """
         return self.__class__.__name__
+
+    def get_args(self):
+        """
+        Initialises all the input args and returns them
+        :return: a list of input params
+        """
+        for param in self.input_params:
+            if hasattr(param, 'initialize'):
+                param.initialize()
+        return [param.data for param in self.signature]
 
 
 class SimpleOperator(Operator):

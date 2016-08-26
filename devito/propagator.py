@@ -16,7 +16,7 @@ from devito.function_manager import FunctionDescriptor, FunctionManager
 from devito.iteration import Iteration
 from devito.logger import logger
 from devito.profiler import Profiler
-from tools import flatten
+from tools import flatten, get_optimal_block_size
 
 
 class Propagator(object):
@@ -38,15 +38,18 @@ class Propagator(object):
                      If not provided, the compiler will be inferred from the
                      environment variable DEVITO_ARCH, or default to GNUCompiler
     :param profile: Flag to enable performance profiling
-    :param cache_blocking: Flag to enable cache blocking
-    :param block_size: Block size used for cache clocking. Can be either a single number
-                       used for all dimensions or a list stating block sizes for each
-                       dimension. Set block size to None to skip blocking on that dim
+    :param cache_blocking: Block sizes used for cache clocking. Can be either a single
+                           number used for all dimensions except inner most or a list
+                           explicitly stating block sizes for each dimension
+                           Set cache_blocking to None to skip blocking on that dim
+                           Set cache_blocking to 0 to use best guess based on architecture
+                           Set cache_blocking to AutoTuner instance, to use auto tuned
+                           tune block sizes
     """
     def __init__(self, name, nt, shape, stencils, factorized=None, spc_border=0,
                  time_order=0, time_dim=None, space_dims=None, dtype=np.float32,
                  forward=True, compiler=None, profile=False,
-                 cache_blocking=False, block_size=5):
+                 cache_blocking=None):
         self.stencils = stencils
         self.dtype = dtype
         self.factorized = factorized or {}
@@ -97,21 +100,11 @@ class Propagator(object):
         # Profiler needs to know whether openmp is set
         self.profiler = Profiler(self.compiler.openmp)
 
-        # Cache blocking and default block sizes
+        # Cache blocking and block sizes
         self.cache_blocking = cache_blocking
-
-        if isinstance(block_size, Iterable):
-            if len(block_size) == len(shape):
-                self.block_sizes = block_size
-            else:
-                raise ValueError("Block size should either be a single number or" +
-                                 " an array of the same size as the spatial domain")
-        elif block_size is None:  # Turn off cache blocking if block size set to None
-            self.cache_blocking = False
-        else:
-            # A single block size has been passed.
-            # Broadcast it to a list of the size of shape
-            self.block_sizes = [int(block_size)]*len(shape)
+        self.block_sizes = []
+        self.shape = shape
+        self.spc_border = spc_border
 
         # Cache C code, lib and function objects
         self._ccode = None
@@ -124,6 +117,9 @@ class Propagator(object):
             self.fd.add_struct_param(self.profiler.f_name, "flops")
 
         f = self.cfunction
+
+        # appends block sizes if cache blocking
+        args += [block for block in self.block_sizes if block]
 
         if self.profile:
             args.append(self.profiler.as_ctypes_pointer(Profiler.TIME))
@@ -210,6 +206,14 @@ class Propagator(object):
         return self.profiler.oi
 
     @property
+    def oi_low(self):
+        return self.profiler.oi_low
+
+    @property
+    def total_loads(self):
+        return self.profiler.total_load_count
+
+    @property
     def gflops(self):
         return self.profiler.gflops
 
@@ -262,6 +266,19 @@ class Propagator(object):
         logger.info("shape - %s%s:: %f sec - %s MCells/s - %.2f GFLOPS" %
                     (shape_str, cb_str, self.timings['kernel'],
                      self.mcells, self.gflops['kernel']))
+
+    def get_number_of_loads(self):
+        """Gets total number of loads which is used for optimal block size estimation
+           Temp profiler needed as we want this info even when profiling is off
+
+        :returns: Total number of loads
+        """
+        name = 'load_count'
+        profiler = Profiler()
+        at_stencils = [self.convert_equality_to_cgen(stencil)
+                       for stencil in self.stencils]
+        profiler.add_profiling(at_stencils, name)
+        return profiler.total_load_count[name]
 
     def prep_variable_map(self):
         """Mapping from model variables (x, y, z, t) to loop variables (i1, i2, i3, i4)
@@ -385,8 +402,11 @@ class Propagator(object):
         :param loop_body: Statement representing the loop body
         :returns: :class:`cgen.Block` representing the loop
         """
+
         # Space loops
-        if self.cache_blocking:
+        if self.cache_blocking is not None:
+            self._decide_block_sizes()
+
             loop_body = self.generate_space_loops_blocking(loop_body)
         else:
             loop_body = self.generate_space_loops(loop_body)
@@ -511,8 +531,8 @@ class Propagator(object):
             loop_limits = self._space_loop_limits[spc_var]
 
             if block_size is not None:
+                upper_limit_str = "%s+%sblock" % (block_var, orig_var)
                 lower_limit_str = block_var
-                upper_limit_str = block_var + "+" + str(block_size)
             else:
                 lower_limit_str = str(loop_limits[0])
                 upper_limit_str = str(loop_limits[1])
@@ -533,17 +553,17 @@ class Propagator(object):
                 orig_var = str(self._var_map[spc_var])
                 block_var = orig_var + "b"
                 loop_limits = self._space_loop_limits[spc_var]
-                old_upper_limit = loop_limits[1]                  # sets new upper limit
-                loop_limits = (loop_limits[0], loop_limits[1] -
-                               (loop_limits[1] - loop_limits[0]) % block_size)
 
-                if old_upper_limit - loop_limits[1] > 0:  # check old vs new upper
-                    remainder_counter += 1
+                block_size_str = orig_var + "block"
+                upper_limit_str = "%d - (%d %% %s)" % (loop_limits[1],
+                                                       loop_limits[1] - loop_limits[0],
+                                                       block_size_str)
 
                 loop_body = cgen.For(cgen.InlineInitializer(cgen.Value("int", block_var),
                                                             str(loop_limits[0])),
-                                     str(block_var) + "<" + str(loop_limits[1]),
-                                     str(block_var) + "+=" + str(block_size), loop_body)
+                                     str(block_var) + "<" + upper_limit_str,
+                                     str(block_var) + "+=" + block_size_str, loop_body)
+                remainder_counter += 1
 
         full_remainder = []
         # weights for deciding remainder loop limit
@@ -556,30 +576,29 @@ class Propagator(object):
                                                     self.block_sizes)):
                 orig_var = str(self._var_map[spc_var])
                 loop_limits = self._space_loop_limits[spc_var]  # Full loop limits
+                lower_limit_str = str(loop_limits[0])
+                upper_limit_str = str(loop_limits[1])
 
                 if block_size is not None:
                     if weights[orig_var] < 0:
                         # already blocked loop limits
-                        loop_limits = (loop_limits[0], loop_limits[1] -
-                                       (loop_limits[1] - loop_limits[0]) % block_size)
+                        upper_limit_str = "%d - (%d %% %s)" % (loop_limits[1],
+                                                               loop_limits[1] -
+                                                               loop_limits[0],
+                                                               orig_var + "block")
                     elif weights[orig_var] == 0:
                         # remainder loop limits
-                        loop_limits = (loop_limits[1] -
-                                       (loop_limits[1] - loop_limits[0]) % block_size,
-                                       loop_limits[1])
-
+                        lower_limit_str = "%d - (%d %% %s)" % (loop_limits[1],
+                                                               loop_limits[1] -
+                                                               loop_limits[0],
+                                                               orig_var + "block")
                     weights[orig_var] += 1
 
-                    # If loop limits are equal that means no remainder on that dim,
-                    #  thus we want all iteration space
-                    if loop_limits[0] == loop_limits[1]:
-                        loop_limits = self._space_loop_limits[spc_var]
-
-                remainder_loop = \
-                    cgen.For(cgen.InlineInitializer(cgen.Value("int", orig_var),
-                                                    str(loop_limits[0])),
-                             str(orig_var) + "<" + str(loop_limits[1]),
-                             str(orig_var) + "++", remainder_loop)
+                remainder_loop = cgen.For(cgen.InlineInitializer(cgen.Value("int",
+                                                                            orig_var),
+                                                                 lower_limit_str),
+                                          str(orig_var) + "<" + upper_limit_str,
+                                          str(orig_var) + "++", remainder_loop)
 
                 remainder_loop = self.add_inner_most_dim_pragma(inner_most_dim,
                                                                 self.space_dims,
@@ -589,6 +608,31 @@ class Propagator(object):
             full_remainder.append(remainder_loop)
 
         return [loop_body] + full_remainder if full_remainder else [loop_body]
+
+    def _decide_block_sizes(self):
+        """Decides block size checks whether args have been provided correctly
+
+        :raises ValueError: If cache blocking parameters where passed incorrectly
+        """
+        if isinstance(self.cache_blocking, Iterable):
+            if len(self.cache_blocking) == len(self.shape):
+                self.block_sizes = self.cache_blocking
+            else:
+                raise ValueError("Cache blocking/block sizes have to be an array of the "
+                                 "same size as the spacial domain or single int instance")
+        else:
+            # A single block size has been passed. Broadcast it to a list
+            # We do not want to cache block outer most dim if one int value was passed
+            self.block_sizes = [int(self.cache_blocking)] * (len(self.shape) - 1)
+            self.block_sizes.append(None)
+
+        # replace 0 values with optimal block sizes
+        opt_block_size = get_optimal_block_size(self.shape, self.get_number_of_loads())
+        for i in range(0, len(self.block_sizes)):
+            if self.block_sizes[i] is not None:  # replace 0 values with optimal
+                self.block_sizes[i] = (opt_block_size if self.block_sizes[i] == 0
+                                       else self.block_sizes[i])
+                self.fd.add_value_param(str(self.loop_counters[i]) + "block", np.int64)
 
     def add_inner_most_dim_pragma(self, inner_most_dim, space_dims, loop_body):
         """

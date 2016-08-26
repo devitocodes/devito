@@ -62,15 +62,16 @@ class TTI_cg:
                               dtype=self.dtype, nbpml=nbpml)
         self.src.data[:] = data.get_source()[:, np.newaxis]
 
-    def Forward(self, save=False):
+    def Forward(self, save=False, cache_blocking=None):
         fw = ForwardOperator(self.model, self.src, self.damp, self.data,
                              time_order=self.t_order, spc_order=self.s_order,
-                             save=save)
+                             save=save, cache_blocking=cache_blocking)
         u, v, rec = fw.apply()
         return (rec.data, u.data, v.data)
 
-    def Adjoint(self, rec):
+    def Adjoint(self, rec, cache_blocking=None):
         adj = AdjointOperator(self.model, self.damp, self.data, rec,
-                              time_order=self.t_order, spc_order=self.s_order)
+                              time_order=self.t_order, spc_order=self.s_order,
+                              cache_blocking=cache_blocking)
         srca = adj.apply()[0]
         return srca.data

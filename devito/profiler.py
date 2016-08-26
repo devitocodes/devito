@@ -20,10 +20,12 @@ class Profiler(object):
         self.t_fields = []
         self.f_fields = []
         self.oi = defaultdict(int)
+        self.oi_low = defaultdict(int)
         # _C_ fields are ctypes structs used for code generation
         self._C_timings = None
         self._C_flops = None
         self.flops_defaults = defaultdict(int)
+        self.total_load_count = defaultdict(int)
 
     def get_loop_reduction(self, op, variables):
         """Function to generate reduction pragma, used for profiling under
@@ -116,7 +118,7 @@ class Profiler(object):
         :param name: The name of the field to be populated
         :param code: The code to be profiled.
         """
-        loads = {"stores": 0}
+        loads = defaultdict(int)
 
         for elem in code:
             if isinstance(elem, Assign):
@@ -134,7 +136,10 @@ class Profiler(object):
                 # no op
                 pass
 
+        load_val_sum = sum(loads.values())
         self.oi[name] = float(self.oi[name]) / (size*(len(loads) + loads["stores"] - 1))
+        self.oi_low[name] = float(self.oi[name]) / (size*load_val_sum)
+        self.total_load_count[name] = load_val_sum - loads["stores"]
 
     def _get_for_flops(self, name, loop, loads):
         loop_flops = 0
@@ -211,12 +216,12 @@ class Profiler(object):
                 idx += 1
             else:
                 if char is '[':
-                    loads[cur_load] = True
+                    loads[cur_load] += 1
                     cur_load = ""
                     brackets += 1
                     idx += 1
                 elif char is ' ' and brackets == 0 and len(cur_load) > 0:
-                    loads[cur_load] = True
+                    loads[cur_load] += 1
                     cur_load = ""
                     idx += 1
                 else:
@@ -224,7 +229,7 @@ class Profiler(object):
                     idx += 1
 
         if len(cur_load) > 0:
-            loads[cur_load] = True
+            loads[cur_load] += 1
 
         return flops
 

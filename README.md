@@ -61,17 +61,48 @@ Thread parallel execution via OpenMP can also be enabled by setting
 
 Devito supports loop cache blocking, which increases the effectiveness
 of memory by reusing the data in the cache. To enable this feature
-set `cache_blocking` flag to `True` in `Operator`. Furthermore you can
-specify the block sizes using `block_size` parameter. It can be a single
-number which will be used for all dimensions or a list explicitly stating
-block sizes for each dim(x,y,z). If you do not want to block some dimensions, 
-set `block_size` to `None` respectively.
+in `Operator` set `cache_blocking` to the size of the block you want to use.
+`cache_blocking` can be a single `int` value which will block all dimensions
+except inner most or a `list` of same size as spacial domain explicitly
+stating which dims to block (x,y,z). If you do not want to block some
+dimension, set `cache_blocking` to `None` respectively. Furthermore, if
+you want Devito to guess sub-optimal block size set `cache_blocking` or
+a respective dimension to `0`.
 
-Note
- If `block_size` is set to `None` or list of `None`'s
- cache blocking will be turned off.
- 
 Example usage:
 ```
-op = Operator(..., cache_blocking=True, block_size=[5, 10, None])
+op = Operator(..., cache_blocking=[5, 0, None])
+```
+ 
+## Auto tuning block sizes
+
+Devito supports automatic auto tuning of block sizes when cache blocking.
+To enable auto tuning create `AutoTuner` object while passing `Operator` as its 
+argument. It also takes `blocked_dims` and `auto_tune_report_path` as optional args.
+`AutoTuner` will run the compiled file multiple times with different block sizes,
+trying to find most effective option, which will be written into report file.
+
+If auto tuning has completed and you want to use best block size, pass
+`cache_blocking` arg to `Operator` as `AutoTuner.block_size`
+or explicitly set `operator.propagator.cache_blocking = AutoTuner.block_size`
+Devito will attempt to read the auto tuning report and will select best 
+`block_size` based on it. If corresponding value is not found or report does
+not exist exception will be thrown
+
+Note: 
+ This feature needs to run only once for each model. Thus, you can pass 
+ `AutoTuner.block_size` as `cache_blocking` arg without running auto tuning
+  again as long as `at_report_dir` is provided correctly.
+ `AutoTuner` has to run before `operator.apply()` is called.
+ You can specify tuning range when calling `auto_tune_blocks(min, max)`
+ function.
+
+Example usage:
+```
+op = Operator(...)
+at = AutoTuner(op, [True, True, False], <at_report_directory_path>)
+at.auto_tune_blocks(min_block_size, max_block_size)
+
+#using auto tuned block size
+new_op = Operator(..., cache_blocking=at.block_size)
 ```
