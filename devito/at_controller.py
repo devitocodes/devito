@@ -23,6 +23,7 @@ class AutoTuner(object):
             raise ValueError("AT requires Operator object to be passed as an argument")
 
         self.op = op
+        self.nt_full = self.op.nt
 
         default_blocked_dims = ([True] * (len(self.op.shape) - 1))
         default_blocked_dims.append(False)  # By default we don't auto tune inner most dim
@@ -87,7 +88,8 @@ class AutoTuner(object):
             raise ValueError("Invalid parameters. Min tune range has to be less than Max")
         # setting time step to 3 as we don't need to iterate more than that
         # for auto tuning purposes
-        self.op.propagator.nt = 3
+        at_nt = 3
+        self.op.propagator.nt = at_nt
         self.op.propagator.profile = True
         self.op.propagator.cache_blocking = [0 if dim else None
                                              for dim in self.blocked_dims]
@@ -125,10 +127,14 @@ class AutoTuner(object):
             self.op.propagator.block_sizes = block
             times.append((block, self.get_execution_time()))
 
-        logger.info("Auto tuning using brute force complete")
-
         # sorts the list of tuples based on time
         times = sorted(times, key=lambda element: element[1])
+
+        logger.info("Auto tuning using brute force complete")
+        logger.info("Estimated runtime for %s and %d time steps: %f hours" %
+                    (self.op.getName(), self.nt_full,
+                     self.nt_full * times[0][1] / (at_nt * 3600)))
+
         self._write_block_report(times)  # writes the report
 
     def _estimate_run_time(self, minimum, maximum, n):

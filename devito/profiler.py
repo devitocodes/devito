@@ -25,6 +25,7 @@ class Profiler(object):
         self._C_timings = None
         self._C_flops = None
         self.flops_defaults = defaultdict(int)
+        self.total_load_count = defaultdict(int)
 
     def get_loop_reduction(self, op, variables):
         """Function to generate reduction pragma, used for profiling under
@@ -135,8 +136,10 @@ class Profiler(object):
                 # no op
                 pass
 
+        load_val_sum = sum(loads.values())
         self.oi[name] = float(self.oi[name]) / (size*(len(loads) + loads["stores"] - 1))
-        self.oi_low[name] = float(self.oi[name]) / (size*sum(loads.values()))
+        self.oi_low[name] = float(self.oi[name]) / (size*load_val_sum)
+        self.total_load_count[name] = load_val_sum - loads["stores"]
 
     def _get_for_flops(self, name, loop, loads):
         loop_flops = 0

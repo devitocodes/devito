@@ -118,15 +118,12 @@ class Propagator(object):
 
         f = self.cfunction
 
-        if self.profile:
-            args.append(self.profiler.as_ctypes_pointer(Profiler.TIME))
-            args.append(self.profiler.as_ctypes_pointer(Profiler.FLOP))
-
         # appends block sizes if cache blocking
         args += [block for block in self.block_sizes if block]
 
         if self.profile:
-            args.append(self.profiler.as_ctypes_pointer)
+            args.append(self.profiler.as_ctypes_pointer(Profiler.TIME))
+            args.append(self.profiler.as_ctypes_pointer(Profiler.FLOP))
 
         if isinstance(self.compiler, IntelMICCompiler):
             # Off-load propagator kernel via pymic stream
@@ -210,7 +207,11 @@ class Propagator(object):
 
     @property
     def oi_low(self):
-        return self.profile.oi_low
+        return self.profiler.oi_low
+
+    @property
+    def total_loads(self):
+        return self.profiler.total_load_count
 
     @property
     def gflops(self):
@@ -265,6 +266,19 @@ class Propagator(object):
         logger.info("shape - %s%s:: %f sec - %s MCells/s - %.2f GFLOPS" %
                     (shape_str, cb_str, self.timings['kernel'],
                      self.mcells, self.gflops['kernel']))
+
+    def get_number_of_loads(self):
+        """Gets total number of loads which is used for optimal block size estimation
+           Temp profiler needed as we want this info even when profiling is off
+
+        :returns: Total number of loads
+        """
+        name = 'load_count'
+        profiler = Profiler()
+        at_stencils = [self.convert_equality_to_cgen(stencil)
+                       for stencil in self.stencils]
+        profiler.add_profiling(at_stencils, name)
+        return profiler.total_load_count[name]
 
     def prep_variable_map(self):
         """Mapping from model variables (x, y, z, t) to loop variables (i1, i2, i3, i4)
@@ -594,13 +608,6 @@ class Propagator(object):
             full_remainder.append(remainder_loop)
 
         return [loop_body] + full_remainder if full_remainder else [loop_body]
-
-    def get_number_of_loads(self):
-        """Gets number of loads in the kernel
-
-        :returns: int - number of loads
-        """
-        return len(self._kernel_dic_oi["load_all_list"])
 
     def _decide_block_sizes(self):
         """Decides block size checks whether args have been provided correctly
