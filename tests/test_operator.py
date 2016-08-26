@@ -1,7 +1,7 @@
 import numpy as np
 from sympy import Eq
-from sympy.abc import t, x
 
+from devito.dimension import t, x
 from devito.interfaces import DenseData
 from devito.operator import SimpleOperator
 

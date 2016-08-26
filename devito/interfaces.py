@@ -2,9 +2,11 @@ import weakref
 
 import numpy as np
 from sympy import Function, IndexedBase, as_finite_diff
-from sympy.abc import h, p, s, t, x, y, z
+from sympy.abc import h, p, s
 
+from devito.dimension import t, x, y, z
 from devito.finite_difference import cross_derivative, first_derivative
+from devito.logger import error
 from devito.memmap_manager import MemmapManager
 from tools import aligned
 
@@ -17,7 +19,34 @@ __all__ = ['DenseData', 'TimeData', 'PointData']
 _SymbolCache = {}
 
 
-class SymbolicData(Function):
+class CachedSymbol(object):
+    """Base class for symbolic objects that caches on the class type."""
+
+    @classmethod
+    def _cached(cls):
+        """Test if current class is already in the symbol cache."""
+        return cls in _SymbolCache
+
+    @classmethod
+    def _cache_put(cls, obj):
+        """Store given object instance in symbol cache.
+
+        :param obj: Object to be cached.
+        """
+        _SymbolCache[cls] = weakref.ref(obj)
+
+    @classmethod
+    def _symbol_type(cls, name):
+        """Create new type instance from cls and inject symbol name"""
+        return type(name, (cls, ), dict(cls.__dict__))
+
+    def _cached_init(self):
+        """Initialise symbolic object with a cached object state"""
+        original = _SymbolCache[self.__class__]
+        self.__dict__ = original().__dict__.copy()
+
+
+class SymbolicData(Function, CachedSymbol):
     """Base class for data classes that provides symbolic behaviour.
 
     :param name: Symbolic name to give to the resulting function. Must
@@ -34,13 +63,8 @@ class SymbolicData(Function):
     object should implement `__init__` in the following format:
 
     def __init__(self, \*args, \*\*kwargs):
-        if self._cached():
-            SymbolicData.__init__(self)
-            return
-        else:
+        if not self._cached():
             ... # Initialise object properties from kwargs
-
-            self._cache_put(self)
 
     Note: The parameters :param name: and :param shape: must always be
     present and given as keyword arguments, since SymPy uses `*args`
@@ -48,44 +72,24 @@ class SymbolicData(Function):
     """
 
     def __new__(cls, *args, **kwargs):
-        if cls not in _SymbolCache:
+        if cls in _SymbolCache:
+            newobj = Function.__new__(cls, *args)
+            newobj._cached_init()
+        else:
             name = kwargs.get('name')
-            shape = kwargs.get('shape')
-
             if len(args) < 1:
-                args = cls.indices(shape)
-
-            # Create a new type instance from cls and inject name
-            newcls = type(name, (cls, ), dict(cls.__dict__))
+                args = cls._indices(**kwargs)
 
             # Create the new Function object and invoke __init__
+            newcls = cls._symbol_type(name)
             newobj = Function.__new__(newcls, *args)
             newobj.__init__(*args, **kwargs)
-
-            return newobj
-
-        return Function.__new__(cls, *args)
-
-    def __init__(self):
-        """Initialise from a cached instance by shallow copying __dict__."""
-        original = _SymbolCache[self.__class__]
-        self.__dict__ = original().__dict__.copy()
+            # Store new instance in symbol cache
+            newcls._cache_put(newobj)
+        return newobj
 
     @classmethod
-    def _cached(cls):
-        """Test if current class is already in the symbol cache."""
-        return cls in _SymbolCache
-
-    @classmethod
-    def _cache_put(cls, obj):
-        """Store given object instance in symbol cache.
-
-        :param obj: Object to be cached.
-        """
-        _SymbolCache[cls] = weakref.ref(obj)
-
-    @classmethod
-    def indices(cls, shape):
+    def _indices(cls, **kwargs):
         """Abstract class method to determine the default dimension indices.
 
         :param shape: Given shape of the data.
@@ -110,13 +114,13 @@ class DenseData(SymbolicData):
     time-varying griad data.
     """
     def __init__(self, *args, **kwargs):
-        if self._cached():
-            # Initialise instance from symbol cache
-            SymbolicData.__init__(self)
-            return
-        else:
+        if not self._cached():
             self.name = kwargs.get('name')
-            self.shape = kwargs.get('shape')
+            self.shape = kwargs.get('shape', None)
+            if self.shape is None:
+                dimensions = kwargs.get('dimensions')
+                self.shape = tuple([d.size for d in dimensions])
+            self.indices = self._indices(**kwargs)
             self.dtype = kwargs.get('dtype', np.float32)
             self.space_order = kwargs.get('space_order', 1)
             initializer = kwargs.get('initializer', None)
@@ -125,19 +129,29 @@ class DenseData(SymbolicData):
             self.initializer = initializer
             self._data = kwargs.get('_data', None)
             MemmapManager.setup(self, *args, **kwargs)
-            # Store new instance in symbol cache
-            self._cache_put(self)
 
     @classmethod
-    def indices(cls, shape):
+    def _indices(cls, **kwargs):
         """Return the default dimension indices for a given data shape
 
-        :param shape: Shape of the spatial data
-        :return: Indices used for axis.
-        """
-        _indices = [x, y, z]
 
-        return _indices[:len(shape)]
+        :param dimensions: Optional, list of :class:`Dimension`
+                           objects that defines data layout.
+        :param shape: Optional, shape of the spatial data to
+                      automatically infer dimension symbols.
+        :return: Dimension indices used for each axis.
+        """
+        dimensions = kwargs.get('dimensions', None)
+        if dimensions is None:
+            # Infer dimensions from default and data shape
+            if 'shape' not in kwargs:
+                error("Creating symbolic data objects requries either"
+                      "a 'shape' or 'dimensions' argument")
+                raise ValueError("Unknown symbol dimensions or shape")
+            _indices = [x, y, z]
+            shape = kwargs.get('shape')
+            dimensions = _indices[:len(shape)]
+        return dimensions
 
     @property
     def dim(self):
@@ -146,8 +160,8 @@ class DenseData(SymbolicData):
 
     @property
     def indexed(self):
-        """:return: Base symbol as sympy.IndexedBase"""
-        return IndexedBase(self.name, shape=self.shape)
+        """:return: Base symbol as devito.IndexedData"""
+        return IndexedData(self.name, shape=self.shape, function=self)
 
     def indexify(self):
         """Convert base symbol and dimensions to indexed data accesses
@@ -287,11 +301,7 @@ class TimeData(DenseData):
     """
 
     def __init__(self, *args, **kwargs):
-        if self._cached():
-            # Initialise instance from symbol cache
-            SymbolicData.__init__(self)
-            return
-        else:
+        if not self._cached():
             super(TimeData, self).__init__(*args, **kwargs)
             self._full_data = self._data.view() if self._data else None
             time_dim = kwargs.get('time_dim')
@@ -306,9 +316,6 @@ class TimeData(DenseData):
 
             self.shape = (time_dim,) + self.shape
 
-            # Store final instance in symbol cache
-            self._cache_put(self)
-
     def initialize(self):
         if self.initializer is not None:
             if self._full_data is None:
@@ -316,15 +323,22 @@ class TimeData(DenseData):
             self.initializer(self._full_data)
 
     @classmethod
-    def indices(cls, shape):
+    def _indices(cls, **kwargs):
         """Return the default dimension indices for a given data shape
 
-        :param shape: Shape of the spatial data
-        :return: Indices used for axis.
+        :param dimensions: Optional, list of :class:`Dimension`
+                           objects that defines data layout.
+        :param shape: Optional, shape of the spatial data to
+                      automatically infer dimension symbols.
+        :return: Dimension indices used for each axis.
         """
-        _indices = [t, x, y, z]
-
-        return _indices[:len(shape) + 1]
+        dimensions = kwargs.get('dimensions', None)
+        if dimensions is None:
+            # Infer dimensions from default and data shape
+            _indices = [t, x, y, z]
+            shape = kwargs.get('shape')
+            dimensions = _indices[:len(shape) + 1]
+        return dimensions
 
     def _allocate_memory(self):
         """function to allocate memmory in terms of numpy ndarrays."""
@@ -381,20 +395,15 @@ class CoordinateData(SymbolicData):
     """
 
     def __init__(self, *args, **kwargs):
-        if self._cached():
-            # Initialise instance from symbol cache
-            SymbolicData.__init__(self)
-            return
-        else:
+        if not self._cached():
             self.name = kwargs.get('name')
             self.ndim = kwargs.get('ndim')
             self.npoint = kwargs.get('npoint')
             self.shape = (self.npoint, self.ndim)
+            self.indices = self._indices(**kwargs)
             self.dtype = kwargs.get('dtype', np.float32)
             self.data = aligned(np.zeros(self.shape, self.dtype,
                                          order='C'), alignment=64)
-            # Store final instance in symbol cache
-            self._cache_put(self)
 
     def __new__(cls, *args, **kwargs):
         ndim = kwargs.get('ndim')
@@ -403,7 +412,7 @@ class CoordinateData(SymbolicData):
         return SymbolicData.__new__(cls, *args, **kwargs)
 
     @classmethod
-    def indices(cls, shape):
+    def _indices(cls, **kwargs):
         """Return the default dimension indices for a given data shape
 
         :param shape: Shape of the spatial data
@@ -414,8 +423,8 @@ class CoordinateData(SymbolicData):
 
     @property
     def indexed(self):
-        """:return: Base symbol as sympy.IndexedBase"""
-        return IndexedBase(self.name, shape=self.shape)
+        """:return: Base symbol as devito.IndexedData"""
+        return IndexedData(self.name, shape=self.shape, function=self)
 
 
 class PointData(DenseData):
@@ -433,11 +442,7 @@ class PointData(DenseData):
     """
 
     def __init__(self, *args, **kwargs):
-        if self._cached():
-            # Initialise instance from symbol cache
-            SymbolicData.__init__(self)
-            return
-        else:
+        if not self._cached():
             self.nt = kwargs.get('nt')
             self.npoint = kwargs.get('npoint')
             ndim = kwargs.get('ndim')
@@ -448,8 +453,6 @@ class PointData(DenseData):
                                               data=coordinates, ndim=ndim,
                                               nt=self.nt, npoint=self.npoint)
             self.coordinates.data[:] = kwargs.get('coordinates')[:]
-            # Store final instance in symbol cache
-            self._cache_put(self)
 
     def __new__(cls, *args, **kwargs):
         nt = kwargs.get('nt')
@@ -459,12 +462,20 @@ class PointData(DenseData):
         return DenseData.__new__(cls, *args, **kwargs)
 
     @classmethod
-    def indices(cls, shape):
+    def _indices(cls, **kwargs):
         """Return the default dimension indices for a given data shape
 
         :param shape: Shape of the spatial data
         :return: indices used for axis.
         """
         _indices = [t, x, y, z]
-
+        shape = kwargs.get('shape')
         return _indices[:len(shape) + 1]
+
+
+class IndexedData(IndexedBase):
+    """Wrapper class that inserts a pointer to the symbolic data object"""
+    def __new__(self, name, shape, function):
+        indexed = IndexedBase(name, shape=shape)
+        indexed.function = function
+        return indexed

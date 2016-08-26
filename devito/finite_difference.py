@@ -5,6 +5,8 @@ from operator import mul
 
 from sympy import finite_diff_weights, symbols
 
+from devito.dimension import x, y
+
 __all__ = ['second_derivative', 'cross_derivative']
 
 
@@ -24,8 +26,8 @@ fd_coefficients = {
 }
 
 
-# Default function and dimension symbol
-x, y, h = symbols('x y h')
+# Default spacing symbol
+h = symbols('h')
 
 
 def second_derivative(*args, **kwargs):

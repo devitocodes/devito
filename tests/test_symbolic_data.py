@@ -1,9 +1,9 @@
 import numpy as np
 import pytest
 from sympy import Derivative, as_finite_diff, simplify
-from sympy.abc import h, t, x, y, z
+from sympy.abc import h
 
-from devito import DenseData, TimeData, clear_cache
+from devito import DenseData, TimeData, clear_cache, t, x, y, z
 from devito.interfaces import _SymbolCache
 
 

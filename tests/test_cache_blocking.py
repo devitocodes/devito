@@ -1,7 +1,8 @@
 import numpy as np
 import pytest
-from sympy import Eq, symbols
+from sympy import Eq
 
+from devito.dimension import t, x, y, z
 from devito.interfaces import DenseData
 from devito.operator import SimpleOperator
 
@@ -37,8 +38,8 @@ class Test_Cache_Blocking(object):
         self.cache_blocking_test(shape, time_order, spc_border, cache_blocking)
 
     def cache_blocking_test(self, shape, time_order, spc_border, cache_blocking):
-        symbols_combinations = ['t', 't x', 't x z', 't x y z']
-        indexes = symbols(symbols_combinations[len(shape) - 1])
+        symbols_combinations = [(t, ), (t, x), (t, x, z), (t, x, y, z)]
+        indexes = symbols_combinations[len(shape) - 1]
 
         size = 1
         for element in shape:

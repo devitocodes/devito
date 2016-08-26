@@ -1,7 +1,8 @@
 import numpy as np
 from sympy import Eq, Function, Matrix, solve, symbols
-from sympy.abc import p, t
+from sympy.abc import p
 
+from devito.dimension import t
 from devito.interfaces import DenseData, PointData, TimeData
 from devito.iteration import Iteration
 from devito.operator import *
@@ -105,16 +106,16 @@ class SourceLike(PointData):
     def read(self, u):
         """Iteration loop over points performing grid-to-point interpolation."""
         interp_expr = Eq(self.indexed[t, p], self.grid2point(u))
-        return [Iteration(interp_expr, variable=p, limits=self.shape[1])]
+        return [Iteration(interp_expr, index=p, limits=self.shape[1])]
 
     def read2(self, u, v):
         """Iteration loop over points performing grid-to-point interpolation."""
         interp_expr = Eq(self.indexed[t, p], self.grid2point(u) + self.grid2point(v))
-        return [Iteration(interp_expr, variable=p, limits=self.shape[1])]
+        return [Iteration(interp_expr, index=p, limits=self.shape[1])]
 
     def add(self, m, u, t=t):
         """Iteration loop over points performing point-to-grid interpolation."""
-        return [Iteration(self.point2grid(u, m, t), variable=p, limits=self.shape[1])]
+        return [Iteration(self.point2grid(u, m, t), index=p, limits=self.shape[1])]
 
 
 class ForwardOperator(Operator):
