@@ -312,7 +312,8 @@ class Profiler(object):
             return {}
 
         return dict((field,
-                     float(
+                     (float(
                          getattr(self._C_flops, field) + self.flops_defaults[field]
                      )/self.timings[field]/10**9)
+                     if self.timings[field] > 0.0 else float("nan"))
                     for field, _ in self._C_flops._fields_)
