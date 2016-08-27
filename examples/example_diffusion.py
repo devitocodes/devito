@@ -7,8 +7,8 @@ import time
 from argparse import ArgumentParser
 
 import numpy as np
-from sympy import Eq, Function, as_finite_diff, lambdify, solve, symbols
-from sympy.abc import t, x, y
+from sympy import Eq, Function, as_finite_diff, lambdify, solve
+from sympy.abc import h, s, t, x, y
 
 from devito import Operator, TimeData
 from devito.logger import log
@@ -23,19 +23,6 @@ def ring_initial(dx=0.01, dy=0.01):
     r = (xx - .5)**2. + (yy - .5)**2.
     ui[np.logical_and(.05 <= r, r <= .1)] = 1.
     return ui
-
-
-def diffusion_stencil():
-    """Create stencil and substitutions for the diffusion equation"""
-    p = Function('p')
-    s, h, a = symbols('s h a')
-    dxx = as_finite_diff(p(x, y, t).diff(x, x), [x - h, x, x + h])
-    dyy = as_finite_diff(p(x, y, t).diff(y, y), [y - h, y, y + h])
-    dt = as_finite_diff(p(x, y, t).diff(t), [t, t + s])
-    equation = a * (dxx + dyy) - dt
-    stencil = solve(equation, p(x, y, t + s))[0]
-    return stencil, (p(x, y, t), p(x + h, y, t), p(x - h, y, t),
-                     p(x, y + h, t), p(x, y - h, t), s, h, a)
 
 
 def execute_python(ui, dx=0.01, dy=0.01, a=0.5, timesteps=500):
@@ -88,27 +75,33 @@ def execute_lambdify(ui, dx=0.01, dy=0.01, a=0.5, timesteps=500):
     nx, ny = int(1 / dx), int(1 / dy)
     dx2, dy2 = dx**2, dy**2
     dt = dx2 * dy2 / (2 * a * (dx2 + dy2))
-    u = np.zeros_like(ui)
+    u = np.concatenate((ui, np.zeros_like(ui))).reshape((2, nx, ny))
+
+    def diffusion_stencil():
+        """Create stencil and substitutions for the diffusion equation"""
+        p = Function('p')
+        dx2 = as_finite_diff(p(x, y, t).diff(x, x), [x - h, x, x + h])
+        dy2 = as_finite_diff(p(x, y, t).diff(y, y), [y - h, y, y + h])
+        dt = as_finite_diff(p(x, y, t).diff(t), [t, t + s])
+        eqn = Eq(dt, a * (dx2 + dy2))
+        stencil = solve(eqn, p(x, y, t + s))[0]
+        return stencil, (p(x, y, t), p(x + h, y, t), p(x - h, y, t),
+                         p(x, y + h, t), p(x, y - h, t), s, h)
     stencil, subs = diffusion_stencil()
     kernel = lambdify(subs, stencil, 'numpy')
-
-    def single_step(u, ui):
-        for i in range(1, nx-1):
-            for j in range(1, ny-1):
-                u[i, j] = kernel(ui[i, j], ui[i+1, j], ui[i-1, j],
-                                 ui[i, j+1], ui[i, j-1], dt, dx, a)
 
     # Execute timestepping loop with alternating buffers
     tstart = time.time()
     for ti in range(timesteps):
-        if ti % 2 == 0:
-            single_step(u, ui)
-        else:
-            single_step(ui, u)
+        t0 = ti % 2
+        t1 = (ti + 1) % 2
+        u[t1, 1:-1, 1:-1] = kernel(u[t0, 1:-1, 1:-1], u[t0, 2:, 1:-1],
+                                   u[t0, :-2, 1:-1], u[t0, 1:-1, 2:],
+                                   u[t0, 1:-1, :-2], dt, dx)
     tfinish = time.time()
     log("Lambdify: Diffusion with dx=%0.4f, dy=%0.4f, executed %d timesteps in %f seconds"
         % (dx, dy, timesteps, tfinish - tstart))
-    return u if ti % 2 == 0 else ui
+    return u[ti % 2, :, :]
 
 
 def execute_devito(ui, dx=0.01, dy=0.01, a=0.5, timesteps=500):
@@ -122,10 +115,9 @@ def execute_devito(ui, dx=0.01, dy=0.01, a=0.5, timesteps=500):
     u.data[0, :] = ui[:]
 
     # Derive the stencil according to devito conventions
-    a, h, s = symbols('a h s')
     eqn = Eq(u.dt, a * (u.dx2 + u.dy2))
     stencil = solve(eqn, u.forward)[0]
-    op = Operator(stencils=Eq(u.forward, stencil), subs={a: 0.5, h: dx, s: dt},
+    op = Operator(stencils=Eq(u.forward, stencil), subs={h: dx, s: dt},
                   nt=timesteps, shape=(nx, ny), spc_border=1, time_order=1)
     # Execute the generated Devito stencil operator
     tstart = time.time()
