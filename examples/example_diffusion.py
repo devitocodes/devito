@@ -40,53 +40,47 @@ def diffusion_stencil():
 
 def execute_python(ui, dx=0.01, dy=0.01, a=0.5, timesteps=500):
     """Execute diffusion stencil using pure Python list indexing."""
-    nx, ny = int(1 / dx), int(1 / dy)
+    nx, ny = ui.shape
     dx2, dy2 = dx**2, dy**2
     dt = dx2 * dy2 / (2 * a * (dx2 + dy2))
-    u = np.zeros_like(ui)
-
-    def single_step(u, ui):
-        for i in range(1, nx-1):
-            for j in range(1, ny-1):
-                uxx = (ui[i+1, j] - 2*ui[i, j] + ui[i-1, j]) / dx2
-                uyy = (ui[i, j+1] - 2*ui[i, j] + ui[i, j-1]) / dy2
-                u[i, j] = ui[i, j] + dt * a * (uxx + uyy)
+    u = np.concatenate((ui, np.zeros_like(ui))).reshape((2, nx, ny))
 
     # Execute timestepping loop with alternating buffers
     tstart = time.time()
     for ti in range(timesteps):
-        if ti % 2 == 0:
-            single_step(u, ui)
-        else:
-            single_step(ui, u)
+        t0 = ti % 2
+        t1 = (ti + 1) % 2
+        for i in range(1, nx-1):
+            for j in range(1, ny-1):
+                uxx = (u[t0, i+1, j] - 2*u[t0, i, j] + u[t0, i-1, j]) / dx2
+                uyy = (u[t0, i, j+1] - 2*u[t0, i, j] + u[t0, i, j-1]) / dy2
+                u[t1, i, j] = u[t0, i, j] + dt * a * (uxx + uyy)
     tfinish = time.time()
     log("Python: Diffusion with dx=%0.4f, dy=%0.4f, executed %d timesteps in %f seconds"
         % (dx, dy, timesteps, tfinish - tstart))
-    return u if ti % 2 == 0 else ui
+    return u[ti % 2, :, :]
 
 
 def execute_numpy(ui, dx=0.01, dy=0.01, a=0.5, timesteps=500):
     """Execute diffusion stencil using vectorised numpy array accesses."""
+    nx, ny = ui.shape
     dx2, dy2 = dx**2, dy**2
     dt = dx2 * dy2 / (2 * a * (dx2 + dy2))
-    u = np.zeros_like(ui)
-
-    def single_step(u, ui):
-        uxx = (ui[2:, 1:-1] - 2*ui[1:-1, 1:-1] + ui[:-2, 1:-1]) / dx2
-        uyy = (ui[1:-1, 2:] - 2*ui[1:-1, 1:-1] + ui[1:-1, :-2]) / dy2
-        u[1:-1, 1:-1] = ui[1:-1, 1:-1] + a * dt * (uxx + uyy)
+    u = np.concatenate((ui, np.zeros_like(ui))).reshape((2, nx, ny))
 
     # Execute timestepping loop with alternating buffers
     tstart = time.time()
     for ti in range(timesteps):
-        if ti % 2 == 0:
-            single_step(u, ui)
-        else:
-            single_step(ui, u)
+        t0 = ti % 2
+        t1 = (ti + 1) % 2
+
+        uxx = (u[t0, 2:, 1:-1] - 2*u[t0, 1:-1, 1:-1] + u[t0, :-2, 1:-1]) / dx2
+        uyy = (u[t0, 1:-1, 2:] - 2*u[t0, 1:-1, 1:-1] + u[t0, 1:-1, :-2]) / dy2
+        u[t1, 1:-1, 1:-1] = u[t0, 1:-1, 1:-1] + a * dt * (uxx + uyy)
     tfinish = time.time()
     log("Numpy: Diffusion with dx=%0.4f, dy=%0.4f, executed %d timesteps in %f seconds"
         % (dx, dy, timesteps, tfinish - tstart))
-    return u if ti % 2 == 0 else ui
+    return u[ti % 2, :, :]
 
 
 def execute_lambdify(ui, dx=0.01, dy=0.01, a=0.5, timesteps=500):
