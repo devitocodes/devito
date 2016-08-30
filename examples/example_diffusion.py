@@ -14,9 +14,9 @@ from devito import Operator, TimeData
 from devito.logger import log
 
 
-def ring_initial(dx=0.01, dy=0.01):
+def ring_initial(spacing=0.01):
     """Initialise grid with initial condition ("ring")"""
-    nx, ny = int(1 / dx), int(1 / dy)
+    nx, ny = int(1 / spacing), int(1 / spacing)
     xx, yy = np.meshgrid(np.linspace(0., 1., nx, dtype=np.float32),
                          np.linspace(0., 1., ny, dtype=np.float32))
     ui = np.zeros((nx, ny), dtype=np.float32)
@@ -25,10 +25,10 @@ def ring_initial(dx=0.01, dy=0.01):
     return ui
 
 
-def execute_python(ui, dx=0.01, dy=0.01, a=0.5, timesteps=500):
+def execute_python(ui, spacing=0.01, a=0.5, timesteps=500):
     """Execute diffusion stencil using pure Python list indexing."""
     nx, ny = ui.shape
-    dx2, dy2 = dx**2, dy**2
+    dx2, dy2 = spacing**2, spacing**2
     dt = dx2 * dy2 / (2 * a * (dx2 + dy2))
     u = np.concatenate((ui, np.zeros_like(ui))).reshape((2, nx, ny))
 
@@ -44,14 +44,14 @@ def execute_python(ui, dx=0.01, dy=0.01, a=0.5, timesteps=500):
                 u[t1, i, j] = u[t0, i, j] + dt * a * (uxx + uyy)
     tfinish = time.time()
     log("Python: Diffusion with dx=%0.4f, dy=%0.4f, executed %d timesteps in %f seconds"
-        % (dx, dy, timesteps, tfinish - tstart))
+        % (spacing, spacing, timesteps, tfinish - tstart))
     return u[ti % 2, :, :]
 
 
-def execute_numpy(ui, dx=0.01, dy=0.01, a=0.5, timesteps=500):
+def execute_numpy(ui, spacing=0.01, a=0.5, timesteps=500):
     """Execute diffusion stencil using vectorised numpy array accesses."""
     nx, ny = ui.shape
-    dx2, dy2 = dx**2, dy**2
+    dx2, dy2 = spacing**2, spacing**2
     dt = dx2 * dy2 / (2 * a * (dx2 + dy2))
     u = np.concatenate((ui, np.zeros_like(ui))).reshape((2, nx, ny))
 
@@ -66,14 +66,14 @@ def execute_numpy(ui, dx=0.01, dy=0.01, a=0.5, timesteps=500):
         u[t1, 1:-1, 1:-1] = u[t0, 1:-1, 1:-1] + a * dt * (uxx + uyy)
     tfinish = time.time()
     log("Numpy: Diffusion with dx=%0.4f, dy=%0.4f, executed %d timesteps in %f seconds"
-        % (dx, dy, timesteps, tfinish - tstart))
+        % (spacing, spacing, timesteps, tfinish - tstart))
     return u[ti % 2, :, :]
 
 
-def execute_lambdify(ui, dx=0.01, dy=0.01, a=0.5, timesteps=500):
+def execute_lambdify(ui, spacing=0.01, a=0.5, timesteps=500):
     """Execute diffusion stencil using vectorised numpy array accesses."""
-    nx, ny = int(1 / dx), int(1 / dy)
-    dx2, dy2 = dx**2, dy**2
+    nx, ny = ui.shape
+    dx2, dy2 = spacing**2, spacing**2
     dt = dx2 * dy2 / (2 * a * (dx2 + dy2))
     u = np.concatenate((ui, np.zeros_like(ui))).reshape((2, nx, ny))
 
@@ -97,17 +97,17 @@ def execute_lambdify(ui, dx=0.01, dy=0.01, a=0.5, timesteps=500):
         t1 = (ti + 1) % 2
         u[t1, 1:-1, 1:-1] = kernel(u[t0, 1:-1, 1:-1], u[t0, 2:, 1:-1],
                                    u[t0, :-2, 1:-1], u[t0, 1:-1, 2:],
-                                   u[t0, 1:-1, :-2], dt, dx)
+                                   u[t0, 1:-1, :-2], dt, spacing)
     tfinish = time.time()
     log("Lambdify: Diffusion with dx=%0.4f, dy=%0.4f, executed %d timesteps in %f seconds"
-        % (dx, dy, timesteps, tfinish - tstart))
+        % (spacing, spacing, timesteps, tfinish - tstart))
     return u[ti % 2, :, :]
 
 
-def execute_devito(ui, dx=0.01, dy=0.01, a=0.5, timesteps=500):
+def execute_devito(ui, spacing=0.01, a=0.5, timesteps=500):
     """Execute diffusion stencil using the devito Operator API."""
-    nx, ny = int(1 / dx), int(1 / dy)
-    dx2, dy2 = dx**2, dy**2
+    nx, ny = ui.shape
+    dx2, dy2 = spacing**2, spacing**2
     dt = dx2 * dy2 / (2 * a * (dx2 + dy2))
     # Allocate the grid and set initial condition
     # Note: This should be made simpler through the use of defaults
@@ -117,14 +117,14 @@ def execute_devito(ui, dx=0.01, dy=0.01, a=0.5, timesteps=500):
     # Derive the stencil according to devito conventions
     eqn = Eq(u.dt, a * (u.dx2 + u.dy2))
     stencil = solve(eqn, u.forward)[0]
-    op = Operator(stencils=Eq(u.forward, stencil), subs={h: dx, s: dt},
+    op = Operator(stencils=Eq(u.forward, stencil), subs={h: spacing, s: dt},
                   nt=timesteps, shape=(nx, ny), spc_border=1, time_order=1)
     # Execute the generated Devito stencil operator
     tstart = time.time()
     op.apply()
     tfinish = time.time()
     log("Devito: Diffusion with dx=%0.4f, dy=%0.4f, executed %d timesteps in %f seconds"
-        % (dx, dy, timesteps, tfinish - tstart))
+        % (spacing, spacing, timesteps, tfinish - tstart))
     return u.data[1, :]
 
 
@@ -139,9 +139,9 @@ def animate(field):
     plt.show()
 
 
-def test_diffusion2d(dx=0.01, dy=0.01, timesteps=1000):
-    ui = ring_initial(dx=dx, dy=dy)
-    u = execute_devito(ui, dx=dx, dy=dy, timesteps=timesteps)
+def test_diffusion2d(spacing=0.01, timesteps=1000):
+    ui = ring_initial(spacing=spacing)
+    u = execute_devito(ui, spacing=spacing, timesteps=timesteps)
     assert(u.max() < 2.4)
     assert(np.linalg.norm(u, ord=2) < 13)
 
@@ -152,17 +152,17 @@ Example script demonstrating several approaches to solving the
 2D diffusion equation. The various modes are pure Python,
 vectorized numpy, a lambdified SymPy equation and the Devito API.
 
-Please not that the default settings for dx, dy and timesteps are
-chosen to highlight that Devito and "vectorised numpy" are
-faster than pure Python or the sympy.lambdify kernels approach.
-For a fair performance comparison between Devito and
-"vectorised numpy" we recommend using --spacing 0.001 -t 1000.
+Please not that the default settings for spacing and timesteps are
+chosen to highlight that Devito and "vectorised numpy" are faster than
+pure Python or the sympy.lambdify kernels approach.  For a fair
+performance comparison between Devito and "vectorised numpy" we
+recommend using --spacing 0.001 -t 1000.
 """
     parser = ArgumentParser(description=description)
     parser.add_argument(dest='mode', nargs='+', default='devito',
                         help="Execution modes: python, numpy, lambdify, devito")
     parser.add_argument('-s', '--spacing', type=float, nargs='+', default=[0.01],
-                        help='Grid spacing, either single value or dx, dy)')
+                        help='Grid spacing in x and y)')
     parser.add_argument('-t', '--timesteps', type=int, default=20,
                         help='Number of timesteps to run')
     parser.add_argument('--show', action='store_true',
@@ -174,12 +174,10 @@ For a fair performance comparison between Devito and
     # Get the relevant execution method
     executor = {'python': execute_python, 'numpy': execute_numpy,
                 'lambdify': execute_lambdify, 'devito': execute_devito}
-    dx = args.spacing[0]
-    dy = args.spacing[1] if len(args.spacing) > 1 else args.spacing[0]
     for mode in args.mode:
-        ui = ring_initial(dx=dx, dy=dy)
+        ui = ring_initial(spacing=args.spacing[0])
         if args.show:
             animate(ui)
-        u = executor[mode](ui, dx=dx, dy=dy, timesteps=args.timesteps)
+        u = executor[mode](ui, spacing=args.spacing[0], timesteps=args.timesteps)
         if args.show:
             animate(u)
