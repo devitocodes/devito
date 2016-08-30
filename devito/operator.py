@@ -96,6 +96,17 @@ def expr_cse(expr):
                     s_dict[arg] = Indexed(to_revert[value.base.label], *value.indices)
         to_revert[temp] = value.xreplace(s_dict)
 
+    # Make sure that no temporary that has to be reverted depends
+    # on another temporary of the list
+    changing = True
+    while changing:
+        changing = False
+        for temp, value in to_revert.items():
+            n_value = value.xreplace(to_revert)
+            if n_value != value:
+                to_revert[temp] = n_value
+                changing = True
+
     subs_dict = {}
 
     # Builds a dictionary of the replacements
