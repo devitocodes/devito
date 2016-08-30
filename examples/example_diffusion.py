@@ -14,10 +14,11 @@ from devito import Operator, TimeData
 from devito.logger import log
 
 try:
-    from opescibench import Benchmark, Executor
+    from opescibench import Benchmark, Executor, Plotter
 except:
     Benchmark = None
     Executor = None
+    Plotter = None
 
 
 def ring_initial(spacing=0.01):
@@ -177,6 +178,11 @@ recommend using --spacing 0.001 -t 1000.
                         help='Number of timesteps to run')
     parser.add_argument('--show', action='store_true',
                         help="Show animation of the solution field")
+    parser.add_argument('-i', '--resultsdir', default='results',
+                        help='Directory containing results')
+    parser.add_argument('-o', '--plotdir', default='plots',
+                        help='Directory to store generated plots')
+
     args = parser.parse_args()
     if len(args.spacing) > 2:
         raise ValueError("Too many arguments encountered for --spacing")
@@ -188,6 +194,8 @@ recommend using --spacing 0.001 -t 1000.
     parameters = vars(args).copy()
     del parameters['show']
     del parameters['execmode']
+    del parameters['resultsdir']
+    del parameters['plotdir']
 
     if args.execmode == 'run':
         if len(args.spacing) > 1:
@@ -219,6 +227,17 @@ recommend using --spacing 0.001 -t 1000.
                 self.register(time)
 
         # Run benchmark across parameters and save the result
-        bench = Benchmark(name='Diffusion', parameters=parameters)
+        bench = Benchmark(name='Diffusion', resultsdir=args.resultsdir,
+                          parameters=parameters)
         bench.execute(DiffusionExecutor(), warmups=0, repeats=1)
         bench.save()
+
+    elif args.execmode == 'plot':
+        # Load previously generated benchmark data
+        bench = Benchmark(name='Diffusion', resultsdir=args.resultsdir,
+                          parameters=parameters)
+        bench.load()
+
+        # Generate the plot from loaded benchmark data
+        plotter = Plotter()
+        plotter.plot_comparison('DiffusionModes.pdf', args.mode, bench.lookup())
