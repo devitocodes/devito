@@ -13,6 +13,12 @@ from sympy.abc import h, s, t, x, y
 from devito import Operator, TimeData
 from devito.logger import log
 
+try:
+    from opescibench import Benchmark, Executor
+except:
+    Benchmark = None
+    Executor = None
+
 
 def ring_initial(spacing=0.01):
     """Initialise grid with initial condition ("ring")"""
@@ -42,10 +48,10 @@ def execute_python(ui, spacing=0.01, a=0.5, timesteps=500):
                 uxx = (u[t0, i+1, j] - 2*u[t0, i, j] + u[t0, i-1, j]) / dx2
                 uyy = (u[t0, i, j+1] - 2*u[t0, i, j] + u[t0, i, j-1]) / dy2
                 u[t1, i, j] = u[t0, i, j] + dt * a * (uxx + uyy)
-    tfinish = time.time()
+    runtime = time.time() - tstart
     log("Python: Diffusion with dx=%0.4f, dy=%0.4f, executed %d timesteps in %f seconds"
-        % (spacing, spacing, timesteps, tfinish - tstart))
-    return u[ti % 2, :, :]
+        % (spacing, spacing, timesteps, runtime))
+    return u[ti % 2, :, :], runtime
 
 
 def execute_numpy(ui, spacing=0.01, a=0.5, timesteps=500):
@@ -64,10 +70,10 @@ def execute_numpy(ui, spacing=0.01, a=0.5, timesteps=500):
         uxx = (u[t0, 2:, 1:-1] - 2*u[t0, 1:-1, 1:-1] + u[t0, :-2, 1:-1]) / dx2
         uyy = (u[t0, 1:-1, 2:] - 2*u[t0, 1:-1, 1:-1] + u[t0, 1:-1, :-2]) / dy2
         u[t1, 1:-1, 1:-1] = u[t0, 1:-1, 1:-1] + a * dt * (uxx + uyy)
-    tfinish = time.time()
+    runtime = time.time() - tstart
     log("Numpy: Diffusion with dx=%0.4f, dy=%0.4f, executed %d timesteps in %f seconds"
-        % (spacing, spacing, timesteps, tfinish - tstart))
-    return u[ti % 2, :, :]
+        % (spacing, spacing, timesteps, runtime))
+    return u[ti % 2, :, :], runtime
 
 
 def execute_lambdify(ui, spacing=0.01, a=0.5, timesteps=500):
@@ -98,10 +104,10 @@ def execute_lambdify(ui, spacing=0.01, a=0.5, timesteps=500):
         u[t1, 1:-1, 1:-1] = kernel(u[t0, 1:-1, 1:-1], u[t0, 2:, 1:-1],
                                    u[t0, :-2, 1:-1], u[t0, 1:-1, 2:],
                                    u[t0, 1:-1, :-2], dt, spacing)
-    tfinish = time.time()
+    runtime = time.time() - tstart
     log("Lambdify: Diffusion with dx=%0.4f, dy=%0.4f, executed %d timesteps in %f seconds"
-        % (spacing, spacing, timesteps, tfinish - tstart))
-    return u[ti % 2, :, :]
+        % (spacing, spacing, timesteps, runtime))
+    return u[ti % 2, :, :], runtime
 
 
 def execute_devito(ui, spacing=0.01, a=0.5, timesteps=500):
@@ -122,10 +128,10 @@ def execute_devito(ui, spacing=0.01, a=0.5, timesteps=500):
     # Execute the generated Devito stencil operator
     tstart = time.time()
     op.apply()
-    tfinish = time.time()
+    runtime = time.time() - tstart
     log("Devito: Diffusion with dx=%0.4f, dy=%0.4f, executed %d timesteps in %f seconds"
-        % (spacing, spacing, timesteps, tfinish - tstart))
-    return u.data[1, :]
+        % (spacing, spacing, timesteps, runtime))
+    return u.data[1, :], runtime
 
 
 def animate(field):
@@ -141,7 +147,7 @@ def animate(field):
 
 def test_diffusion2d(spacing=0.01, timesteps=1000):
     ui = ring_initial(spacing=spacing)
-    u = execute_devito(ui, spacing=spacing, timesteps=timesteps)
+    u, _ = execute_devito(ui, spacing=spacing, timesteps=timesteps)
     assert(u.max() < 2.4)
     assert(np.linalg.norm(u, ord=2) < 13)
 
@@ -159,8 +165,12 @@ performance comparison between Devito and "vectorised numpy" we
 recommend using --spacing 0.001 -t 1000.
 """
     parser = ArgumentParser(description=description)
-    parser.add_argument(dest='mode', nargs='+', default='devito',
-                        help="Execution modes: python, numpy, lambdify, devito")
+    parser.add_argument(dest='execmode', nargs='?', default='run',
+                        choices=['run', 'bench', 'plot'],
+                        help="Script mode; either 'run', 'bench' or 'plot' ")
+    parser.add_argument('-m', '--mode', nargs='+', default='devito',
+                        choices=['python', 'numpy', 'lambdify', 'devito'],
+                        help="Example modes: python, numpy, lambdify, devito")
     parser.add_argument('-s', '--spacing', type=float, nargs='+', default=[0.01],
                         help='Grid spacing in x and y)')
     parser.add_argument('-t', '--timesteps', type=int, default=20,
@@ -171,13 +181,44 @@ recommend using --spacing 0.001 -t 1000.
     if len(args.spacing) > 2:
         raise ValueError("Too many arguments encountered for --spacing")
 
-    # Get the relevant execution method
-    executor = {'python': execute_python, 'numpy': execute_numpy,
-                'lambdify': execute_lambdify, 'devito': execute_devito}
-    for mode in args.mode:
-        ui = ring_initial(spacing=args.spacing[0])
-        if args.show:
-            animate(ui)
-        u = executor[mode](ui, spacing=args.spacing[0], timesteps=args.timesteps)
-        if args.show:
-            animate(u)
+    # Map "mode" arg to execution function
+    exec_func = {'python': execute_python, 'numpy': execute_numpy,
+                 'lambdify': execute_lambdify, 'devito': execute_devito}
+    # Create parameters dict and remove script-specific args
+    parameters = vars(args).copy()
+    del parameters['show']
+    del parameters['execmode']
+
+    if args.execmode == 'run':
+        if len(args.spacing) > 1:
+            raise ValueError("Run mode only supports a single --spacing value")
+
+        # Run and animate example runs
+        for mode in args.mode:
+            ui = ring_initial(spacing=args.spacing[0])
+            if args.show:
+                animate(ui)
+            u, _ = exec_func[mode](ui, spacing=args.spacing[0],
+                                   timesteps=args.timesteps)
+            if args.show:
+                animate(u)
+
+    elif args.execmode == 'bench':
+        if Benchmark is None:
+            raise ImportError("Could not find opescibench utility package.\n"
+                              "Please install from https://github.com/opesci/opescibench")
+
+        class DiffusionExecutor(Executor):
+            """Executor class that defines how to run the benchmark"""
+            def setup(self, **kwargs):
+                self.ui = ring_initial(spacing=kwargs['spacing'])
+
+            def run(self, *args, **kwargs):
+                u, time = exec_func[kwargs['mode']](self.ui, spacing=kwargs['spacing'],
+                                                    timesteps=kwargs['timesteps'])
+                self.register(time)
+
+        # Run benchmark across parameters and save the result
+        bench = Benchmark(name='Diffusion', parameters=parameters)
+        bench.execute(DiffusionExecutor(), warmups=0, repeats=1)
+        bench.save()
