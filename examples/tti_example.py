@@ -3,9 +3,8 @@ from argparse import ArgumentParser
 import numpy as np
 
 from containers import IGrid, IShot
-from TTI_codegen import TTI_cg
-
 from devito.compiler import compiler_registry
+from TTI_codegen import TTI_cg
 
 try:
     from opescibench import Benchmark, Executor, Plotter
@@ -21,8 +20,11 @@ def source(t, f0):
     return (1-2.*r**2)*np.exp(-r**2)
 
 
-def run(dimensions=(50, 50, 50), spacing=(20.0, 20.0),
-        tn=250.0, cse=True, auto_tuning=False, compiler=None):
+def run(dimensions=(50, 50, 50), spacing=(20.0, 20.0), tn=250.0,
+        cse=True, auto_tuning=False, compiler=None, cache_blocking=None):
+    if auto_tuning:
+        cache_blocking = None
+
     model = IGrid()
     model.shape = dimensions
     origin = (0., 0.)
@@ -62,7 +64,7 @@ def run(dimensions=(50, 50, 50), spacing=(20.0, 20.0),
 
     TTI = TTI_cg(model, data, None, t_order=t_order, s_order=spc_order, nbpml=10)
     rec, u, v, gflops, oi = TTI.Forward(
-        cse=cse, auto_tuning=auto_tuning, compiler=compiler
+        cse=cse, auto_tuning=auto_tuning, cache_blocking=cache_blocking, compiler=compiler
     )
     return gflops, oi
 
@@ -89,6 +91,8 @@ if __name__ == "__main__":
     parser.add_argument("-a", "--auto_tuning", action="store_true",
                         help=("Benchmark with auto tuning on and off. " +
                               "Enables auto tuning when execmode is run"))
+    parser.add_argument("-cb", "--cache_blocking", nargs=2, type=int,
+                        default=None, help="Uses provided block sizes when AT is off")
     parser.add_argument("-r", "--resultsdir", default="results",
                         help="Directory containing results")
     parser.add_argument("-p", "--plotdir", default="plots",
@@ -108,6 +112,8 @@ if __name__ == "__main__":
 
     parameters["dimensions"] = tuple(parameters["dimensions"])
     parameters["spacing"] = tuple(parameters["spacing"])
+    if parameters["cache_blocking"]:
+        parameters["cache_blocking"] = parameters["cache_blocking"] + [None]
     parameters["compiler"] = compiler_registry[args.compiler](openmp=args.omp)
 
     if args.execmode == "run":

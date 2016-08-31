@@ -63,10 +63,12 @@ class TTI_cg:
                               dtype=self.dtype, nbpml=nbpml)
         self.src.data[:] = data.get_source()[:, np.newaxis]
 
-    def Forward(self, save=False, cse=True, auto_tuning=False, compiler=None):
+    def Forward(self, save=False, cse=True, auto_tuning=False,
+                cache_blocking=None, compiler=None):
         fw = ForwardOperator(self.model, self.src, self.damp, self.data,
                              time_order=self.t_order, spc_order=self.s_order,
-                             profile=True, save=save, cse=cse, compiler=compiler)
+                             profile=True, save=save, cache_blocking=cache_blocking,
+                             cse=cse, compiler=compiler)
 
         if auto_tuning:
             fw_new = ForwardOperator(self.model, self.src, self.damp, self.data,
