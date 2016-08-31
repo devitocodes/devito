@@ -84,9 +84,11 @@ if __name__ == "__main__":
     parser.add_argument("-t", "--tn", default=250,
                         type=int, help="Number of timesteps")
     parser.add_argument("-c", "--cse", action="store_true",
-                        help="Benchmark with CSE on and off")
+                        help=("Benchmark with CSE on and off. " +
+                              "Enables CSE when execmode is run"))
     parser.add_argument("-a", "--auto_tuning", action="store_true",
-                        help="Benchmark with auto tuning on and off")
+                        help=("Benchmark with auto tuning on and off. " +
+                              "Enables auto tuning when execmode is run"))
     parser.add_argument("-r", "--resultsdir", default="results",
                         help="Directory containing results")
     parser.add_argument("-p", "--plotdir", default="plots",
@@ -109,8 +111,6 @@ if __name__ == "__main__":
     parameters["compiler"] = compiler_registry[args.compiler](openmp=args.omp)
 
     if args.execmode == "run":
-        del parameters["auto_tuning"]
-        del parameters["cse"]
         run(**parameters)
 
     if args.execmode == "bench":
