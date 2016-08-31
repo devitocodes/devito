@@ -19,7 +19,7 @@ if __name__ == "__main__":
                         choices=["run", "bench", "plot"],
                         help="Script mode. Either 'run', 'bench' or 'plot'")
     parser.add_argument(dest="compiler", nargs="?", default="gnu",
-                        choices=["gnu", "intel", "clang", "mic", "knl"])
+                        choices=compiler_registry.keys())
     parser.add_argument("-o", "--omp", action="store_true",
                         help="Enable OpenMP")
     parser.add_argument("-d", "--dimensions", nargs=3, default=[50, 50, 50],
