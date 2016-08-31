@@ -20,7 +20,7 @@ def source(t, f0):
 
 
 def run(dimensions=(50, 50, 50), spacing=(20.0, 20.0),
-        tn=250.0, cse=True, cache_blocking=None):
+        tn=250.0, cse=True, auto_tuning=False):
     model = IGrid()
     model.shape = dimensions
     origin = (0., 0.)
@@ -59,7 +59,7 @@ def run(dimensions=(50, 50, 50), spacing=(20.0, 20.0),
     data.set_shape(nt, 101)
 
     TTI = TTI_cg(model, data, None, t_order=t_order, s_order=spc_order, nbpml=10)
-    rec, u, v, gflops, oi = TTI.Forward(cse=cse, cache_blocking=cache_blocking)
+    rec, u, v, gflops, oi = TTI.Forward(cse=cse, auto_tuning=auto_tuning)
     return gflops, oi
 
 if __name__ == "__main__":
@@ -69,6 +69,8 @@ if __name__ == "__main__":
     parser.add_argument(dest="execmode", nargs="?", default="run",
                         choices=["run", "bench", "plot"],
                         help="Script mode. Either 'run', 'bench' or 'plot'")
+    parser.add_argument(dest="compiler", nargs="?", default="gcc",
+                        choices=["gcc", "intel"])
     parser.add_argument("-d", "--dimensions", nargs=3, default=[50, 50, 50],
                         help="Dimension of the grid")
     parser.add_argument("-s", "--spacing", nargs=2, default=[20.0, 20.0],
@@ -76,9 +78,9 @@ if __name__ == "__main__":
     parser.add_argument("-t", "--tn", default=250,
                         type=int, help="Number of timesteps")
     parser.add_argument("-c", "--cse", action="store_true",
-                        help="Enables common subexpression elimination")
-    parser.add_argument("-C", "--cache_blocking", nargs="*", type=int,
-                        help="Define block sizes for cache blocking")
+                        help="Benchmark with CSE on and off")
+    parser.add_argument("-a", "--auto_tuning", action="store_true",
+                        help="Benchmark with auto tuning on and off")
     parser.add_argument("-i", "--resultsdir", default="results",
                         help="Directory containing results")
     parser.add_argument("-o", "--plotdir", default="plots",
@@ -94,19 +96,26 @@ if __name__ == "__main__":
     del parameters["plotdir"]
     del parameters["max_bw"]
     del parameters["max_flops"]
+    del parameters["compiler"]
 
     parameters["dimensions"] = tuple(parameters["dimensions"])
     parameters["spacing"] = tuple(parameters["spacing"])
 
-    print parameters
-
     if args.execmode == "run":
+        del parameters["auto_tuning"]
+        del parameters["cse"]
         run(**parameters)
 
     if args.execmode == "bench":
         if Benchmark is None:
             raise ImportError("Could not find opescibench utility package.\n"
                               "Please install from https://github.com/opesci/opescibench")
+
+        if parameters["auto_tuning"]:
+            parameters["auto_tuning"] = [True, False]
+
+        if parameters["cse"]:
+            parameters["cse"] = [True, False]
 
         class TTIExecutor(Executor):
             """Executor class that defines how to run TTI benchmark"""
@@ -125,9 +134,8 @@ if __name__ == "__main__":
         bench = Benchmark(name="TTI", resultsdir=args.resultsdir, parameters=parameters)
         bench.load()
 
-        mflops = bench.lookup(measure="gflops") * 1000
-        oi = bench.lookup(measure="oi")
+        print bench.lookup()
 
-        plotter = Plotter()
-        plotter.plot_roofline(
-            "TTI.pdf", {"TTI": mflops}, {"TTI": oi}, args.max_bw, args.max_flops)
+        # plotter = Plotter()
+        # plotter.plot_roofline(
+        #    "TTI.pdf", {"TTI": mflops}, {"TTI": oi}, args.max_bw, args.max_flops)
