@@ -63,15 +63,15 @@ class TTI_cg:
                               dtype=self.dtype, nbpml=nbpml)
         self.src.data[:] = data.get_source()[:, np.newaxis]
 
-    def Forward(self, save=False, cse=True, auto_tuning=False):
+    def Forward(self, save=False, cse=True, auto_tuning=False, compiler=None):
         fw = ForwardOperator(self.model, self.src, self.damp, self.data,
                              time_order=self.t_order, spc_order=self.s_order,
-                             profile=True, save=save, cse=cse)
+                             profile=True, save=save, cse=cse, compiler=compiler)
 
         if auto_tuning:
             fw_new = ForwardOperator(self.model, self.src, self.damp, self.data,
                                      time_order=self.t_order, spc_order=self.s_order,
-                                     save=save, cse=cse)
+                                     profile=True, save=save, cse=cse, compiler=compiler)
 
             at = AutoTuner(fw_new)
             at.auto_tune_blocks(self.s_order + 1, self.s_order * 4 + 2)

@@ -5,6 +5,8 @@ import numpy as np
 from containers import IGrid, IShot
 from TTI_codegen import TTI_cg
 
+from devito.compiler import compiler_registry
+
 try:
     from opescibench import Benchmark, Executor, Plotter
 except:
@@ -20,7 +22,7 @@ def source(t, f0):
 
 
 def run(dimensions=(50, 50, 50), spacing=(20.0, 20.0),
-        tn=250.0, cse=True, auto_tuning=False):
+        tn=250.0, cse=True, auto_tuning=False, compiler=None):
     model = IGrid()
     model.shape = dimensions
     origin = (0., 0.)
@@ -59,7 +61,9 @@ def run(dimensions=(50, 50, 50), spacing=(20.0, 20.0),
     data.set_shape(nt, 101)
 
     TTI = TTI_cg(model, data, None, t_order=t_order, s_order=spc_order, nbpml=10)
-    rec, u, v, gflops, oi = TTI.Forward(cse=cse, auto_tuning=auto_tuning)
+    rec, u, v, gflops, oi = TTI.Forward(
+        cse=cse, auto_tuning=auto_tuning, compiler=compiler
+    )
     return gflops, oi
 
 if __name__ == "__main__":
@@ -69,8 +73,10 @@ if __name__ == "__main__":
     parser.add_argument(dest="execmode", nargs="?", default="run",
                         choices=["run", "bench", "plot"],
                         help="Script mode. Either 'run', 'bench' or 'plot'")
-    parser.add_argument(dest="compiler", nargs="?", default="gcc",
-                        choices=["gcc", "intel"])
+    parser.add_argument(dest="compiler", nargs="?", default="gnu",
+                        choices=["gnu", "intel", "clang", "mic", "knl"])
+    parser.add_argument("-o", "--omp", action="store_true",
+                        help="Enable OpenMP")
     parser.add_argument("-d", "--dimensions", nargs=3, default=[50, 50, 50],
                         help="Dimension of the grid")
     parser.add_argument("-s", "--spacing", nargs=2, default=[20.0, 20.0],
@@ -81,9 +87,9 @@ if __name__ == "__main__":
                         help="Benchmark with CSE on and off")
     parser.add_argument("-a", "--auto_tuning", action="store_true",
                         help="Benchmark with auto tuning on and off")
-    parser.add_argument("-i", "--resultsdir", default="results",
+    parser.add_argument("-r", "--resultsdir", default="results",
                         help="Directory containing results")
-    parser.add_argument("-o", "--plotdir", default="plots",
+    parser.add_argument("-p", "--plotdir", default="plots",
                         help="Directory containing plots")
     parser.add_argument("--max_bw", type=float, help="Maximum bandwith of the system")
     parser.add_argument("--max_flops", type=float, help="Maximum FLOPS of the system")
@@ -96,10 +102,11 @@ if __name__ == "__main__":
     del parameters["plotdir"]
     del parameters["max_bw"]
     del parameters["max_flops"]
-    del parameters["compiler"]
+    del parameters["omp"]
 
     parameters["dimensions"] = tuple(parameters["dimensions"])
     parameters["spacing"] = tuple(parameters["spacing"])
+    parameters["compiler"] = compiler_registry[args.compiler](openmp=args.omp)
 
     if args.execmode == "run":
         del parameters["auto_tuning"]
