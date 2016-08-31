@@ -131,11 +131,31 @@ if __name__ == "__main__":
         bench.save()
 
     if args.execmode == "plot":
+        if parameters["auto_tuning"]:
+            parameters["auto_tuning"] = [True, False]
+
+        if parameters["cse"]:
+            parameters["cse"] = [True, False]
+
         bench = Benchmark(name="TTI", resultsdir=args.resultsdir, parameters=parameters)
         bench.load()
 
-        print bench.lookup()
+        oi_dict = {}
+        mflops_dict = {}
 
-        # plotter = Plotter()
-        # plotter.plot_roofline(
-        #    "TTI.pdf", {"TTI": mflops}, {"TTI": oi}, args.max_bw, args.max_flops)
+        gflops = bench.lookup(params=parameters, measure="gflops")
+        oi = bench.lookup(params=parameters, measure="oi")
+
+        for key, gflops in gflops.items():
+            oi_value = oi[key]
+            key = dict(key)
+            label = "TTI, CSE: %s, AT: %s" % (key["cse"], key["auto_tuning"])
+            mflops_dict[label] = gflops * 1000
+            oi_dict[label] = oi_value
+
+        name = "TTI - Dimensions: %s, Spacing: %s.pdf" % \
+            (parameters["dimensions"], parameters["spacing"])
+
+        plotter = Plotter()
+        plotter.plot_roofline(
+            name, mflops_dict, oi_dict, args.max_bw, args.max_flops)
