@@ -98,8 +98,10 @@ if __name__ == "__main__":
     parameters["dimensions"] = tuple(parameters["dimensions"])
     parameters["spacing"] = tuple(parameters["spacing"])
 
+    print parameters
+
     if args.execmode == "run":
-        run(parameters)
+        run(**parameters)
 
     if args.execmode == "bench":
         if Benchmark is None:
