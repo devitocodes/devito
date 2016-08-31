@@ -82,7 +82,7 @@ def expr_cse(expr):
     for temp, value in temps:
         if isinstance(value, IndexedBase):
             to_revert[temp] = value
-        elif isinstance(value, Add):
+        elif isinstance(value, Add) and not set([t, x, y, z]).isdisjoint(set(value.args)):
             to_revert[temp] = value
         else:
             to_keep.append((temp, value))
