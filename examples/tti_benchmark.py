@@ -1,4 +1,4 @@
-from argparse import ArgumentParser
+from argparse import ArgumentParser, RawDescriptionHelpFormatter
 
 from devito.compiler import compiler_registry
 from tti_example import run
@@ -12,20 +12,28 @@ except:
 
 
 if __name__ == "__main__":
-    description = "Example script for TTI."
-    parser = ArgumentParser(description=description)
+    description = ("Benchmarking script for TTI example.\n\n" +
+                   "Exec modes:\n" +
+                   "\trun:   executes tti_example.py once " +
+                   "with the provided parameters\n" +
+                   "\tbench: runs a benchmark of tti_example.py\n" +
+                   "\tplot:  plots a roofline plot using the results from the benchmark\n"
+                   )
+    parser = ArgumentParser(description=description,
+                            formatter_class=RawDescriptionHelpFormatter)
 
     parser.add_argument(dest="execmode", nargs="?", default="run",
                         choices=["run", "bench", "plot"],
-                        help="Script mode. Either 'run', 'bench' or 'plot'")
+                        help="Exec modes")
     parser.add_argument(dest="compiler", nargs="?", default="gnu",
-                        choices=compiler_registry.keys())
+                        choices=compiler_registry.keys(),
+                        help="Compiler/architecture to use. Defaults to 'gnu'")
     parser.add_argument("-o", "--omp", action="store_true",
                         help="Enable OpenMP")
     parser.add_argument("-d", "--dimensions", nargs=3, default=[50, 50, 50],
-                        help="Dimension of the grid")
+                        help="Dimension of the grid", metavar=("dim1", "dim2", "dim3"))
     parser.add_argument("-s", "--spacing", nargs=2, default=[20.0, 20.0],
-                        help="Spacing on the grid")
+                        help="Spacing on the grid", metavar=("spc1", "spc2"))
     parser.add_argument("-t", "--tn", default=250,
                         type=int, help="Number of timesteps")
     parser.add_argument("-c", "--cse", action="store_true",
@@ -35,13 +43,17 @@ if __name__ == "__main__":
                         help=("Benchmark with auto tuning on and off. " +
                               "Enables auto tuning when execmode is run"))
     parser.add_argument("-cb", "--cache_blocking", nargs=2, type=int,
-                        default=None, help="Uses provided block sizes when AT is off")
-    parser.add_argument("-r", "--resultsdir", default="results",
-                        help="Directory containing results")
-    parser.add_argument("-p", "--plotdir", default="plots",
-                        help="Directory containing plots")
-    parser.add_argument("--max_bw", type=float, help="Maximum bandwith of the system")
-    parser.add_argument("--max_flops", type=float, help="Maximum FLOPS of the system")
+                        default=None, metavar=("blockDim1", "blockDim2"),
+                        help="Uses provided block sizes when AT is off")
+    benchmarking = parser.add_argument_group("Benchmarking")
+    benchmarking.add_argument("-r", "--resultsdir", default="results",
+                              help="Directory containing results")
+
+    plotting = parser.add_argument_group("Plotting")
+    plotting.add_argument("-p", "--plotdir", default="plots",
+                          help="Directory containing plots")
+    plotting.add_argument("--max_bw", type=float, help="Maximum bandwith of the system")
+    plotting.add_argument("--max_flops", type=float, help="Maximum FLOPS of the system")
 
     args = parser.parse_args()
 
