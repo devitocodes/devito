@@ -1,4 +1,5 @@
 from argparse import ArgumentParser, RawDescriptionHelpFormatter
+from os import environ
 
 import numpy as np
 
@@ -28,9 +29,10 @@ if __name__ == "__main__":
     parser.add_argument(dest="execmode", nargs="?", default="run",
                         choices=["run", "test", "bench", "plot"],
                         help="Exec modes")
-    parser.add_argument(dest="compiler", nargs="?", default="gnu",
+    parser.add_argument(dest="compiler", nargs="?",
+                        default=environ.get("DEVITO_ARCH", "gnu"),
                         choices=compiler_registry.keys(),
-                        help="Compiler/architecture to use. Defaults to 'gnu'")
+                        help="Compiler/architecture to use. Defaults to DEVITO_ARCH")
     parser.add_argument("-o", "--omp", action="store_true",
                         help="Enable OpenMP")
     parser.add_argument("-d", "--dimensions", nargs=3, default=[50, 50, 50],
@@ -72,6 +74,7 @@ if __name__ == "__main__":
     parameters["spacing"] = tuple(parameters["spacing"])
     if parameters["cache_blocking"]:
         parameters["cache_blocking"] = parameters["cache_blocking"] + [None]
+
     parameters["compiler"] = compiler_registry[args.compiler](openmp=args.omp)
 
     if args.execmode == "run":
