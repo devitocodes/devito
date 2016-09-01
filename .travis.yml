@@ -33,9 +33,10 @@ before_script:
   - echo -e "Host github.com\n\tStrictHostKeyChecking no\n" >> ~/.ssh/config
 
 script:
-  - export PYTHONPATH=$PYTHONPATH:$PWD
   - flake8 --builtins=ArgumentError .
   - isort --check-only **/*.py
+  - git clone https://github.com/opesci/opescibench.git
+  - export PYTHONPATH=$PYTHONPATH:$PWD/opescibench:$PWD
   - py.test -vs tests/
   - python examples/acoustic_example.py
   - python examples/tti_benchmark.py test -c -a
