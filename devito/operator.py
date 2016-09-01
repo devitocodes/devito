@@ -82,7 +82,7 @@ def expr_cse(expr):
     for temp, value in temps:
         if isinstance(value, IndexedBase):
             to_revert[temp] = value
-        elif isinstance(value, Add):
+        elif isinstance(value, Add) and not set([t, x, y, z]).isdisjoint(set(value.args)):
             to_revert[temp] = value
         else:
             to_keep.append((temp, value))
@@ -117,10 +117,22 @@ def expr_cse(expr):
 
     stencils = [stencil.xreplace(subs_dict) for stencil in stencils]
 
-    for i in range(len(to_keep)):
-        to_keep[i] = Eq(to_keep[i][0], to_keep[i][1].xreplace(subs_dict))
+    to_keep = [Eq(temp[0], temp[1].xreplace(subs_dict)) for temp in to_keep]
 
-    return to_keep + stencils
+    # If the RHS of a temporary variable is the LHS of a stencil,
+    # update the value of the temporary variable after the stencil
+
+    new_stencils = []
+
+    for stencil in stencils:
+        new_stencils.append(stencil)
+
+        for temp in to_keep:
+            if stencil.lhs in preorder_traversal(temp.rhs):
+                new_stencils.append(temp)
+                break
+
+    return to_keep + new_stencils
 
 
 class Operator(object):
