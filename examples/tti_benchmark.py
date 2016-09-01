@@ -1,5 +1,7 @@
 from argparse import ArgumentParser, RawDescriptionHelpFormatter
 
+import numpy as np
+
 from devito.compiler import compiler_registry
 from tti_example import run
 
@@ -16,6 +18,7 @@ if __name__ == "__main__":
                    "Exec modes:\n" +
                    "\trun:   executes tti_example.py once " +
                    "with the provided parameters\n" +
+                   "\ttest:  tests numerical correctness with different parameters\n"
                    "\tbench: runs a benchmark of tti_example.py\n" +
                    "\tplot:  plots a roofline plot using the results from the benchmark\n"
                    )
@@ -23,7 +26,7 @@ if __name__ == "__main__":
                             formatter_class=RawDescriptionHelpFormatter)
 
     parser.add_argument(dest="execmode", nargs="?", default="run",
-                        choices=["run", "bench", "plot"],
+                        choices=["run", "test", "bench", "plot"],
                         help="Exec modes")
     parser.add_argument(dest="compiler", nargs="?", default="gnu",
                         choices=compiler_registry.keys(),
@@ -73,23 +76,52 @@ if __name__ == "__main__":
 
     if args.execmode == "run":
         run(**parameters)
-
-    if args.execmode == "bench":
+    else:
         if Benchmark is None:
             raise ImportError("Could not find opescibench utility package.\n"
                               "Please install from https://github.com/opesci/opescibench")
 
         if parameters["auto_tuning"]:
             parameters["auto_tuning"] = [True, False]
-
         if parameters["cse"]:
             parameters["cse"] = [True, False]
 
+    if args.execmode == "test":
+        class TTITester(Executor):
+            """Executor class to test numerical correctness"""
+            def __init__(self, *args, **kwargs):
+                super(Executor, self).__init__(*args, **kwargs)
+                self.last_rec = None
+                self.last_u = None
+                self.last_v = None
+
+            def run(self, *args, **kwargs):
+                _, _, rec, u, v = run(*args, **kwargs)
+
+                if self.last_rec is not None:
+                    np.isclose(rec, self.last_rec)
+                else:
+                    self.last_rec = rec
+
+                if self.last_u is not None:
+                    np.isclose(u, self.last_u)
+                else:
+                    self.last_u = u
+
+                if self.last_v is not None:
+                    np.isclose(v, self.last_v)
+                else:
+                    self.last_v = v
+
+        test = Benchmark(name="TTItest", parameters=parameters)
+        test.execute(TTITester(), warmups=0, repeats=1)
+
+    elif args.execmode == "bench":
         class TTIExecutor(Executor):
             """Executor class that defines how to run TTI benchmark"""
 
             def run(self, *args, **kwargs):
-                gflops, oi = run(*args, **kwargs)
+                gflops, oi, _, _, _ = run(*args, **kwargs)
 
                 self.register(gflops["kernel"], measure="gflops")
                 self.register(oi["kernel"], measure="oi")
@@ -98,13 +130,7 @@ if __name__ == "__main__":
         bench.execute(TTIExecutor(), warmups=0)
         bench.save()
 
-    if args.execmode == "plot":
-        if parameters["auto_tuning"]:
-            parameters["auto_tuning"] = [True, False]
-
-        if parameters["cse"]:
-            parameters["cse"] = [True, False]
-
+    elif args.execmode == "plot":
         bench = Benchmark(name="TTI", resultsdir=args.resultsdir, parameters=parameters)
         bench.load()
 
