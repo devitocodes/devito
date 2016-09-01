@@ -49,9 +49,9 @@ class IGrid:
         if delta is not None:
             self.delta = np.sqrt(1 + 2 * delta)
         if phi is not None:
-            self.theta = theta
-        if theta is not None:
             self.phi = phi
+        if theta is not None:
+            self.theta = theta
 
         self.origin = origin
 

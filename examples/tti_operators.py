@@ -66,7 +66,7 @@ class ForwardOperator(Operator):
                 return 0
             else:
                 return (16.0 * angle * (3.1416 - abs(angle)) /
-                        49.3483 - 4.0 * abs(angle) * (3.1416 - abs(angle)))
+                        (49.3483 - 4.0 * abs(angle) * (3.1416 - abs(angle))))
 
         def Bhaskaracos(angle):
             if angle == 0:
