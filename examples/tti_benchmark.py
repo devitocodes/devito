@@ -109,8 +109,9 @@ if __name__ == "__main__":
             mflops_dict[label] = gflops * 1000
             oi_dict[label] = oi_value
 
-        name = "TTI - Dimensions: %s, Spacing: %s.pdf" % \
-            (parameters["dimensions"], parameters["spacing"])
+        name = "TTI %s dimensions: %s - spacing: %s.pdf" % \
+            (args.compiler, parameters["dimensions"], parameters["spacing"])
+        name = name.replace(" ", "_")
 
         plotter = Plotter()
         plotter.plot_roofline(
