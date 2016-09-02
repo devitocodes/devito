@@ -226,8 +226,32 @@ class DenseData(SymbolicData):
         return as_finite_diff(self.diff(z, z), indz)
 
     @property
+    def dx(self):
+        """Symbol for the first derivative wrt the x dimension"""
+        width_h = int(self.space_order/2)
+        indx = [(x + i * h) for i in range(-width_h, width_h + 1)]
+
+        return as_finite_diff(self.diff(x), indx)
+
+    @property
+    def dy(self):
+        """Symbol for the first derivative wrt the y dimension"""
+        width_h = int(self.space_order/2)
+        indy = [(y + i * h) for i in range(-width_h, width_h + 1)]
+
+        return as_finite_diff(self.diff(y), indy)
+
+    @property
+    def dz(self):
+        """Symbol for the first derivative wrt the z dimension"""
+        width_h = int(self.space_order/2)
+        indz = [(z + i * h) for i in range(-width_h, width_h + 1)]
+
+        return as_finite_diff(self.diff(z), indz)
+
+    @property
     def laplace(self):
-        """Symbol for the second derivative wrt all spatial dimenions"""
+        """Symbol for the second derivative wrt all spatial dimensions"""
         derivs = ['dx2', 'dy2', 'dz2']
 
         return sum([getattr(self, d) for d in derivs[:self.dim]])
