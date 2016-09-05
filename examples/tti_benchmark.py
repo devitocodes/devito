@@ -1,11 +1,11 @@
 from argparse import ArgumentParser, RawDescriptionHelpFormatter
 from os import environ
+import sys
 
 import numpy as np
 
 from devito.compiler import compiler_registry
 from tti_example import run
-
 try:
     from opescibench import Benchmark, Executor, Plotter
 except:
@@ -35,9 +35,9 @@ if __name__ == "__main__":
                         help="Compiler/architecture to use. Defaults to DEVITO_ARCH")
     parser.add_argument("-o", "--omp", action="store_true",
                         help="Enable OpenMP")
-    parser.add_argument("-d", "--dimensions", nargs=3, default=[50, 50, 50],
+    parser.add_argument("-d", "--dimensions", nargs=3, default=[50, 50, 50], type=int,
                         help="Dimension of the grid", metavar=("dim1", "dim2", "dim3"))
-    parser.add_argument("-s", "--spacing", nargs=2, default=[20.0, 20.0],
+    parser.add_argument("-s", "--spacing", nargs=2, default=[20, 20], type=int,
                         help="Spacing on the grid", metavar=("spc1", "spc2"))
     parser.add_argument("-t", "--tn", default=250,
                         type=int, help="Number of timesteps")
