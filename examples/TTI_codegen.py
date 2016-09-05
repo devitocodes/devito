@@ -76,7 +76,7 @@ class TTI_cg:
                                      profile=True, save=save, cse=cse, compiler=compiler)
 
             at = AutoTuner(fw_new)
-            at.auto_tune_blocks(self.s_order + 1, self.s_order * 4 + 2)
+            at.auto_tune_blocks(3, 30)
             fw.propagator.cache_blocking = at.block_size
 
         u, v, rec = fw.apply()
