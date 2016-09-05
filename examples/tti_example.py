@@ -11,15 +11,14 @@ def source(t, f0):
 
 
 def run(dimensions=(50, 50, 50), spacing=(20.0, 20.0), tn=250.0,
-        cse=True, auto_tuning=False, compiler=None, cache_blocking=None):
+        time_order=2, space_order=2, cse=True, auto_tuning=False,
+        compiler=None, cache_blocking=None):
     if auto_tuning:
         cache_blocking = None
 
     model = IGrid()
     model.shape = dimensions
     origin = (0., 0.)
-    t_order = 2
-    spc_order = 2
 
     # True velocity
     true_vp = np.ones(dimensions) + 1.0
@@ -52,7 +51,7 @@ def run(dimensions=(50, 50, 50), spacing=(20.0, 20.0), tn=250.0,
     data.set_receiver_pos(receiver_coords)
     data.set_shape(nt, 101)
 
-    TTI = TTI_cg(model, data, None, t_order=t_order, s_order=spc_order, nbpml=10)
+    TTI = TTI_cg(model, data, None, t_order=time_order, s_order=space_order, nbpml=10)
     rec, u, v, gflops, oi = TTI.Forward(
         cse=cse, auto_tuning=auto_tuning, cache_blocking=cache_blocking, compiler=compiler
     )

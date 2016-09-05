@@ -1,6 +1,5 @@
 from argparse import ArgumentParser, RawDescriptionHelpFormatter
 from os import environ
-import sys
 
 import numpy as np
 
@@ -39,6 +38,10 @@ if __name__ == "__main__":
                         help="Dimension of the grid", metavar=("dim1", "dim2", "dim3"))
     parser.add_argument("-s", "--spacing", nargs=2, default=[20, 20], type=int,
                         help="Spacing on the grid", metavar=("spc1", "spc2"))
+    parser.add_argument("-so", "--space_order", nargs="*", default=[2],
+                        type=int, help="Space order of the simulation")
+    parser.add_argument("-to", "--time_order", nargs="*", default=[2],
+                        type=int, help="Time order of the simulation")
     parser.add_argument("-t", "--tn", default=250,
                         type=int, help="Number of timesteps")
     parser.add_argument("-c", "--cse", action="store_true",
@@ -78,6 +81,8 @@ if __name__ == "__main__":
     parameters["compiler"] = compiler_registry[args.compiler](openmp=args.omp)
 
     if args.execmode == "run":
+        parameters["space_order"] = parameters["space_order"][0]
+        parameters["time_order"] = parameters["time_order"][0]
         run(**parameters)
     else:
         if Benchmark is None:
@@ -150,8 +155,10 @@ if __name__ == "__main__":
             mflops_dict[label] = gflops * 1000
             oi_dict[label] = oi_value
 
-        name = "TTI %s dimensions: %s - spacing: %s.pdf" % \
-            (args.compiler, parameters["dimensions"], parameters["spacing"])
+        name = ("TTI %s dimensions: %s - spacing: %s -"
+                " space order: %s - time order: %s.pdf") % \
+            (args.compiler, parameters["dimensions"], parameters["spacing"],
+             parameters["space_order"], parameters["time_order"])
         name = name.replace(" ", "_")
 
         plotter = Plotter()
