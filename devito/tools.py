@@ -96,4 +96,4 @@ def get_optimal_block_size(shape, load_c):
 
     optimal_b_size = math.sqrt(
         ((1000 * cache_s) / core_c) / (4 * shape[len(shape) - 1] * load_c))
-    return int(round(optimal_b_size))  # rounds to the nearest integer
+    return int(math.ceil(optimal_b_size))
