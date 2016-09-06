@@ -38,5 +38,5 @@ script:
   - isort --check-only **/*.py
   - py.test -vs tests/
   - python examples/acoustic_example.py
-  - python examples/tti_benchmark.py test -c -a
+  - python examples/tti_benchmark.py test -c -a -d 20 20 20 -n 5
   - if [[ $TRAVIS_OS_NAME == 'osx' ]]; then ./docs/deploy.sh; fi
