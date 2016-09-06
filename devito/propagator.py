@@ -1,4 +1,4 @@
-from collections import Iterable
+from collections import Iterable, defaultdict
 from hashlib import sha1
 from os import path
 from random import randint
@@ -322,6 +322,20 @@ class Propagator(object):
                                                       .replace("fabs", "fabsf"))))
                 else:
                     factors.append(cgen.Assign(name, sub))
+
+        decl = []
+
+        declared = defaultdict(bool)
+        for eqn in stencils:
+            s_lhs = str(eqn.lhs)
+            if s_lhs.find("temp") is not -1 and not declared[s_lhs]:
+                declared[s_lhs] = True
+                decl.append(
+                    cgen.Value(
+                        cgen.dtype_to_ctype(self.expr_dtype(eqn.rhs)), ccode(eqn.lhs)
+                    )
+                )
+
         stmts = []
 
         for equality in stencils:
@@ -332,7 +346,7 @@ class Propagator(object):
         kernel += stmts
         kernel += self._post_kernel_steps
 
-        return cgen.Block(factors+kernel)
+        return cgen.Block(factors+decl+kernel)
 
     def expr_dtype(self, expr):
         """Gets the resulting dtype of an expression.
@@ -366,9 +380,6 @@ class Propagator(object):
         else:
             s_lhs = ccode(self.time_substitutions(equality.lhs).xreplace(self._var_map))
             s_rhs = self.time_substitutions(equality.rhs).xreplace(self._var_map)
-
-            if s_lhs.find("temp") != -1:
-                s_lhs = cgen.dtype_to_ctype(self.expr_dtype(equality.rhs)) + " " + s_lhs
 
             # appending substituted stencil,which is used to determine alignment pragma
             self.sub_stencils.append(s_rhs)
