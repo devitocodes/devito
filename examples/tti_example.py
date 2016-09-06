@@ -11,8 +11,8 @@ def source(t, f0):
 
 
 def run(dimensions=(50, 50, 50), spacing=(20.0, 20.0), tn=250.0,
-        time_order=2, space_order=2, cse=True, auto_tuning=False,
-        compiler=None, cache_blocking=None):
+        time_order=2, space_order=2, nbpml=10, cse=True,
+        auto_tuning=False, compiler=None, cache_blocking=None):
     if auto_tuning:
         cache_blocking = None
 
@@ -51,7 +51,7 @@ def run(dimensions=(50, 50, 50), spacing=(20.0, 20.0), tn=250.0,
     data.set_receiver_pos(receiver_coords)
     data.set_shape(nt, 101)
 
-    TTI = TTI_cg(model, data, None, t_order=time_order, s_order=space_order, nbpml=10)
+    TTI = TTI_cg(model, data, None, t_order=time_order, s_order=space_order, nbpml=nbpml)
     rec, u, v, gflops, oi = TTI.Forward(
         cse=cse, auto_tuning=auto_tuning, cache_blocking=cache_blocking, compiler=compiler
     )
