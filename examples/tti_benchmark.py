@@ -1,4 +1,5 @@
 from argparse import ArgumentParser, RawDescriptionHelpFormatter
+from itertools import product
 from os import environ
 
 import numpy as np
@@ -88,7 +89,7 @@ if __name__ == "__main__":
         parameters["time_order"] = parameters["time_order"][0]
         run(**parameters)
     else:
-        if Benchmark is None:
+        if Benchmark is None and args.execmode != "test":
             raise ImportError("Could not find opescibench utility package.\n"
                               "Please install from https://github.com/opesci/opescibench")
 
@@ -98,34 +99,31 @@ if __name__ == "__main__":
             parameters["cse"] = [True, False]
 
     if args.execmode == "test":
-        class TTITester(Executor):
-            """Executor class to test numerical correctness"""
-            def __init__(self, *args, **kwargs):
-                super(Executor, self).__init__(*args, **kwargs)
-                self.last_rec = None
-                self.last_u = None
-                self.last_v = None
+        values_sweep = [v if isinstance(v, list) else [v] for v in parameters.values()]
+        params_sweep = [dict(zip(parameters.keys(), values))
+                        for values in product(*values_sweep)]
 
-            def run(self, *args, **kwargs):
-                _, _, rec, u, v = run(*args, **kwargs)
+        last_rec = None
+        last_u = None
+        last_v = None
 
-                if self.last_rec is not None:
-                    np.isclose(rec, self.last_rec)
-                else:
-                    self.last_rec = rec
+        for params in params_sweep:
+            _, _, rec, u, v = run(**params)
 
-                if self.last_u is not None:
-                    np.isclose(u, self.last_u)
-                else:
-                    self.last_u = u
+            if last_rec is not None:
+                np.isclose(rec, last_rec)
+            else:
+                last_rec = rec
 
-                if self.last_v is not None:
-                    np.isclose(v, self.last_v)
-                else:
-                    self.last_v = v
+            if last_u is not None:
+                np.isclose(u, last_u)
+            else:
+                last_u = u
 
-        test = Benchmark(name="TTItest", parameters=parameters)
-        test.execute(TTITester(), warmups=0, repeats=1)
+            if last_v is not None:
+                np.isclose(v, last_v)
+            else:
+                last_v = v
 
     elif args.execmode == "bench":
         class TTIExecutor(Executor):
