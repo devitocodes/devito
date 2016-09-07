@@ -33,30 +33,34 @@ if __name__ == "__main__":
                         default=environ.get("DEVITO_ARCH", "gnu"),
                         choices=compiler_registry.keys(),
                         help="Compiler/architecture to use. Defaults to DEVITO_ARCH")
-    parser.add_argument("-o", "--omp", action="store_true",
-                        help="Enable OpenMP")
-    parser.add_argument("-d", "--dimensions", nargs=3, default=[50, 50, 50], type=int,
-                        help="Dimensions of the grid", metavar=("dim1", "dim2", "dim3"))
-    parser.add_argument("-s", "--spacing", nargs=2, default=[20, 20], type=int,
-                        help="Spacing between grid sizes in meters",
-                        metavar=("spc1", "spc2"))
-    parser.add_argument("-n", "--nbpml", default=10, type=int,
-                        help="Number of PML points")
-    parser.add_argument("-so", "--space_order", nargs="*", default=[2],
-                        type=int, help="Space order of the simulation")
-    parser.add_argument("-to", "--time_order", nargs="*", default=[2],
-                        type=int, help="Time order of the simulation")
-    parser.add_argument("-t", "--tn", default=250,
-                        type=int, help="End time of the simulation in ms")
-    parser.add_argument("-c", "--cse", action="store_true",
-                        help=("Benchmark with CSE on and off. " +
-                              "Enables CSE when execmode is run"))
-    parser.add_argument("-a", "--auto_tuning", action="store_true",
+    simulation = parser.add_argument_group("Simulation")
+    simulation.add_argument("-o", "--omp", action="store_true",
+                            help="Enable OpenMP")
+    simulation.add_argument("-d", "--dimensions", nargs=3, default=[50, 50, 50],
+                            type=int, help="Dimensions of the grid",
+                            metavar=("dim1", "dim2", "dim3"))
+    simulation.add_argument("-s", "--spacing", nargs=2, default=[20, 20], type=int,
+                            help="Spacing between grid sizes in meters",
+                            metavar=("spc1", "spc2"))
+    simulation.add_argument("-n", "--nbpml", default=10, type=int,
+                            help="Number of PML points")
+    simulation.add_argument("-so", "--space_order", nargs="*", default=[2],
+                            type=int, help="Space order of the simulation")
+    simulation.add_argument("-to", "--time_order", nargs="*", default=[2],
+                            type=int, help="Time order of the simulation")
+    simulation.add_argument("-t", "--tn", default=250,
+                            type=int, help="End time of the simulation in ms")
+
+    devito = parser.add_argument_group("Devito")
+    devito.add_argument("--no_cse", action="store_true",
+                        help="Disables CSE")
+    devito.add_argument("-a", "--auto_tuning", action="store_true",
                         help=("Benchmark with auto tuning on and off. " +
                               "Enables auto tuning when execmode is run"))
-    parser.add_argument("-cb", "--cache_blocking", nargs=2, type=int,
+    devito.add_argument("-cb", "--cache_blocking", nargs=2, type=int,
                         default=None, metavar=("blockDim1", "blockDim2"),
                         help="Uses provided block sizes when AT is off")
+
     benchmarking = parser.add_argument_group("Benchmarking")
     benchmarking.add_argument("-r", "--resultsdir", default="results",
                               help="Directory containing results")
@@ -76,11 +80,15 @@ if __name__ == "__main__":
     del parameters["max_bw"]
     del parameters["max_flops"]
     del parameters["omp"]
+    del parameters["no_cse"]
 
     parameters["dimensions"] = tuple(parameters["dimensions"])
     parameters["spacing"] = tuple(parameters["spacing"])
+
     if parameters["cache_blocking"]:
         parameters["cache_blocking"] = parameters["cache_blocking"] + [None]
+    if args.no_cse:
+        parameters["cse"] = False
 
     parameters["compiler"] = compiler_registry[args.compiler](openmp=args.omp)
 
@@ -95,8 +103,6 @@ if __name__ == "__main__":
 
         if parameters["auto_tuning"]:
             parameters["auto_tuning"] = [True, False]
-        if parameters["cse"]:
-            parameters["cse"] = [True, False]
 
     if args.execmode == "test":
         values_sweep = [v if isinstance(v, list) else [v] for v in parameters.values()]
@@ -152,7 +158,7 @@ if __name__ == "__main__":
         for key, gflops in gflops.items():
             oi_value = oi[key]
             key = dict(key)
-            label = "TTI, CSE: %s, AT: %s" % (key["cse"], key["auto_tuning"])
+            label = "TTI, AT: %s" % (key["auto_tuning"])
             mflops_dict[label] = gflops * 1000
             oi_dict[label] = oi_value
 
