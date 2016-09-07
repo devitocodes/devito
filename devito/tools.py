@@ -96,10 +96,12 @@ def get_optimal_block_size(shape, load_c, omp):
     cache_s = int(cpuinfo.get_cpu_info()['l2_cache_size'].split(' ')[0])
 
     if omp:
-        thread_c = os.getenv("OMP_NUM_THREADS", cpuinfo.get_cpu_info()['count'])
+        thread_c = int(os.getenv("OMP_NUM_THREADS", cpuinfo.get_cpu_info()['count']))
     else:
         thread_c = 1
 
-    optimal_b_size = math.sqrt(
-        ((1000 * cache_s) / thread_c) / (4 * shape[len(shape) - 1] * load_c))
+    optimal_b_size = max(
+        math.sqrt(
+            float((1000 * cache_s) / thread_c) / (4 * shape[len(shape) - 1] * load_c)
+        ), 1)
     return int(math.ceil(optimal_b_size))
