@@ -158,7 +158,9 @@ if __name__ == "__main__":
         for key, gflops in gflops.items():
             oi_value = oi[key]
             key = dict(key)
-            label = "TTI, AT: %s" % (key["auto_tuning"])
+            label = "TTI, AT: %s, SO: %s, TO: %s" % (
+                key["auto_tuning"], key["space_order"], key["time_order"]
+            )
             mflops_dict[label] = gflops * 1000
             oi_dict[label] = oi_value
 
