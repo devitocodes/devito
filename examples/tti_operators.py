@@ -66,7 +66,7 @@ class ForwardOperator(Operator):
                 return 0
             else:
                 return (16.0 * angle * (3.1416 - abs(angle)) /
-                        49.3483 - 4.0 * abs(angle) * (3.1416 - abs(angle)))
+                        (49.3483 - 4.0 * abs(angle) * (3.1416 - abs(angle))))
 
         def Bhaskaracos(angle):
             if angle == 0:
@@ -144,13 +144,13 @@ class ForwardOperator(Operator):
             (4.0 * m * v + (s * damp - 2.0 * m) *
              v.backward + 2.0 * s**2 * (delta * Hp + Hzr))
 
-        Hp = -(.5 * Gxx1 + .5 * Gxx2 + .5 * Gyy1 + .5 * Gyy2)
-        Hzr = -(.5 * Gzz1 + .5 * Gzz2)
-        factorized = {"Hp": Hp, "Hzr": Hzr}
+        Hp_val = -(.5 * Gxx1 + .5 * Gxx2 + .5 * Gyy1 + .5 * Gyy2)
+        Hzr_val = -(.5 * Gzz1 + .5 * Gzz2)
+        factorized = {Hp: Hp_val, Hzr: Hzr_val}
         # Add substitutions for spacing (temporal and spatial)
         subs = [{s: src.dt, h: src.h}, {s: src.dt, h: src.h}]
-        first_stencil = Eq(u.forward, stencilp)
-        second_stencil = Eq(v.forward, stencilr)
+        first_stencil = Eq(u.forward, stencilp.xreplace(factorized))
+        second_stencil = Eq(v.forward, stencilr.xreplace(factorized))
         stencils = [first_stencil, second_stencil]
         super(ForwardOperator, self).__init__(src.nt, m.shape,
                                               stencils=stencils,
@@ -160,7 +160,6 @@ class ForwardOperator(Operator):
                                               forward=True,
                                               dtype=m.dtype,
                                               input_params=parm,
-                                              factorized=factorized,
                                               **kwargs)
 
         # Insert source and receiver terms post-hoc

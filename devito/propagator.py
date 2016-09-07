@@ -1,4 +1,4 @@
-from collections import Iterable
+from collections import Iterable, defaultdict
 from hashlib import sha1
 from os import path
 from random import randint
@@ -100,6 +100,13 @@ class Propagator(object):
         self.profile = profile
         # Profiler needs to know whether openmp is set
         self.profiler = Profiler(self.compiler.openmp)
+
+        # suffix of temp variable used for loop reduction of corrosponding struct
+        # member in Profiler struct when openmp is on
+        self.reduction_list = ["kernel", "loop_body"] if self.compiler.openmp else []
+        self.reduction_clause = (self.profiler
+                                 .get_loop_reduction("+", self.reduction_list)
+                                 if self.profile else "")
 
         # Cache blocking and block sizes
         self.cache_blocking = cache_blocking
@@ -315,6 +322,20 @@ class Propagator(object):
                                                       .replace("fabs", "fabsf"))))
                 else:
                     factors.append(cgen.Assign(name, sub))
+
+        decl = []
+
+        declared = defaultdict(bool)
+        for eqn in stencils:
+            s_lhs = str(eqn.lhs)
+            if s_lhs.find("temp") is not -1 and not declared[s_lhs]:
+                declared[s_lhs] = True
+                decl.append(
+                    cgen.Value(
+                        cgen.dtype_to_ctype(self.expr_dtype(eqn.rhs)), ccode(eqn.lhs)
+                    )
+                )
+
         stmts = []
 
         for equality in stencils:
@@ -325,7 +346,7 @@ class Propagator(object):
         kernel += stmts
         kernel += self._post_kernel_steps
 
-        return cgen.Block(factors+kernel)
+        return cgen.Block(factors+decl+kernel)
 
     def expr_dtype(self, expr):
         """Gets the resulting dtype of an expression.
@@ -360,9 +381,6 @@ class Propagator(object):
             s_lhs = ccode(self.time_substitutions(equality.lhs).xreplace(self._var_map))
             s_rhs = self.time_substitutions(equality.rhs).xreplace(self._var_map)
 
-            if s_lhs.find("temp") != -1:
-                s_lhs = cgen.dtype_to_ctype(self.expr_dtype(equality.rhs)) + " " + s_lhs
-
             # appending substituted stencil,which is used to determine alignment pragma
             self.sub_stencils.append(s_rhs)
 
@@ -373,7 +391,8 @@ class Propagator(object):
 
             return cgen.Assign(s_lhs, s_rhs)
 
-    def get_aligned_pragma(self, stencils, factorized, loop_counters, time_steppers):
+    def get_aligned_pragma(self, stencils, factorized, loop_counters, time_steppers,
+                           reduction=None):
         """
         Sets the alignment for the pragma.
         :param stencils: List of stencils.
@@ -390,8 +409,9 @@ class Propagator(object):
             ):
                 array_names.add(item)
 
-        return cgen.Pragma("%s(%s:64)" % (self.compiler.pragma_aligned,
-                                          ", ".join([str(i) for i in array_names])))
+        return cgen.Pragma("%s(%s:64)%s" % (self.compiler.pragma_aligned,
+                                            ", ".join([str(i) for i in array_names]),
+                                            self.reduction_clause))
 
     def generate_loops(self, loop_body):
         """Assuming that the variable order defined in init (#var_order) is the
@@ -415,14 +435,8 @@ class Propagator(object):
         omp_master = [cgen.Pragma("omp master")] if self.compiler.openmp else []
         omp_single = [cgen.Pragma("omp single")] if self.compiler.openmp else []
         omp_parallel = [cgen.Pragma("omp parallel")] if self.compiler.openmp else []
-        # suffix of temp variable used for loop reduction of corrosponding struct
-        # member in Profiler struct when openmp is on
-        reduction_list = ["kernel", "loop_body"] if self.compiler.openmp else []
-        omp_for = [cgen.Pragma("omp for schedule(static)"
-                   + (self.profiler.get_loop_reduction("+", reduction_list)
-                      if self.profile else ""))]\
-            if self.compiler.openmp else []
-
+        omp_for = [cgen.Pragma("omp for schedule(static)%s" %
+                               self.reduction_clause)] if self.compiler.openmp else []
         t_loop_limits = self.time_loop_limits
         t_var = str(self._var_map[self.time_dim])
         cond_op = "<" if self._forward else ">"
@@ -481,10 +495,10 @@ class Propagator(object):
         if self.profile:
             body = def_time_step + self.pre_loop +\
                 [cgen.Statement(self.profiler
-                                .get_loop_temp_var_decl("0", reduction_list))]\
+                                .get_loop_temp_var_decl("0", self.reduction_list))]\
                 + omp_parallel + [loop_body] +\
                 [cgen.Statement(s) for s in
-                 self.profiler.get_loop_flop_update(reduction_list)]\
+                 self.profiler.get_loop_flop_update(self.reduction_list)]\
                 + self.post_loop
         else:
             body = def_time_step + self.pre_loop\
