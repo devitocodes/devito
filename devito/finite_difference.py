@@ -149,11 +149,11 @@ def first_derivative(*args, **kwargs):
     else:
         ind = [(dim + i * diff) for i in range(-int(order / 2),
                                                int((order + 1) / 2) + 1)]
+        side = 1
     # Finite difference weights from Taylor approximation with this positions
     c = finite_diff_weights(1, ind, dim)
     c = c[-1][-1]
-    if side == 0:
-        side = 1
+
     # Diagonal elements
     for i in range(0, len(ind)):
             var = [a.subs({dim: ind[i]}) for a in args]

@@ -126,16 +126,16 @@ class ForwardOperator(Operator):
             parm = [m, damp, epsilon, delta, theta, u, v]
             Gx1p = (ang0 * u.dxr - ang1 * u.dy)
             Gz1r = (ang1 * v.dxr + ang0 * v.dy)
-            Gxx1 = (first_derivative(Gx1p * ang0 / rho, dim=x, side=-1, order=spc_brd) -
-                    first_derivative(Gx1p * ang1 / rho, dim=y, side=0, order=spc_brd))
-            Gzz1 = (first_derivative(Gz1r * ang1 / rho, dim=x, side=-1, order=spc_brd) +
-                    first_derivative(Gz1r * ang0 / rho, dim=y, side=0, order=spc_brd))
+            Gxx1 = (first_derivative(Gx1p * ang0, dim=x, side=-1, order=spc_brd) -
+                    first_derivative(Gx1p * ang1, dim=y, side=0, order=spc_brd))
+            Gzz1 = (first_derivative(Gz1r * ang1, dim=x, side=-1, order=spc_brd) +
+                    first_derivative(Gz1r * ang0, dim=y, side=0, order=spc_brd))
             Gx2p = (ang0 * u.dx - ang1 * u.dyr)
             Gz2r = (ang1 * v.dx + ang0 * v.dyr)
-            Gxx2 = (first_derivative(Gx2p * ang0 / rho, dim=x, side=0, order=spc_brd) -
-                    first_derivative(Gx2p * ang1 / rho, dim=y, side=-1, order=spc_brd))
-            Gzz2 = (first_derivative(Gz2r * ang1 / rho, dim=x, side=0, order=spc_brd) +
-                    first_derivative(Gz2r * ang0 / rho, dim=y, side=-1, order=spc_brd))
+            Gxx2 = (first_derivative(Gx2p * ang0, dim=x, side=0, order=spc_brd) -
+                    first_derivative(Gx2p * ang1, dim=y, side=-1, order=spc_brd))
+            Gzz2 = (first_derivative(Gz2r * ang1, dim=x, side=0, order=spc_brd) +
+                    first_derivative(Gz2r * ang0, dim=y, side=-1, order=spc_brd))
 
         stencilp = 1.0 / (2.0 * m + s * damp) * \
             (4.0 * m * u + (s * damp - 2.0 * m) *
