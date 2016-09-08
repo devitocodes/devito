@@ -137,15 +137,17 @@ def first_derivative(*args, **kwargs):
     dim = kwargs.get('dim', x)
     diff = kwargs.get('diff', h)
     order = kwargs.get('order', 1)
-    side = kwargs.get('side', 0)
+    side = kwargs.get('side', "centered")
     deriv = 0
+    sign = 1
     # Stencil positions for non-symmetric cross-derivatives with symmetric averaging
-    if side == 1:
+    if side == "right":
         ind = [(dim + i * diff) for i in range(-int(order / 2) + 1 - (order % 2),
                                                int((order + 1) / 2) + 2 - (order % 2))]
-    elif side == -1:
+    elif side == "left":
         ind = [(dim - i * diff) for i in range(-int(order / 2) + 1 - (order % 2),
                                                int((order + 1) / 2) + 2 - (order % 2))]
+        sign = -1
     else:
         ind = [(dim + i * diff) for i in range(-int(order / 2),
                                                int((order + 1) / 2) + 1)]
@@ -158,4 +160,4 @@ def first_derivative(*args, **kwargs):
     for i in range(0, len(ind)):
             var = [a.subs({dim: ind[i]}) for a in args]
             deriv += c[i] * reduce(mul, var, 1)
-    return -side*deriv
+    return -sign*deriv
