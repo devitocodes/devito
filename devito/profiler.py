@@ -21,6 +21,7 @@ class Profiler(object):
 
     def __init__(self, openmp=False):
         self.openmp = openmp
+        self.profiled = []
         self.t_fields = []
         self.f_fields = []
         self.oi = defaultdict(int)
@@ -94,6 +95,7 @@ class Profiler(object):
         if code == []:
             return []
 
+        self.profiled.append(name)
         to_ignore = to_ignore or []
         omp_flag = omp_flag or []
 
