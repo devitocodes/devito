@@ -7,13 +7,16 @@ Consider the acoustic wave equation given in 3D:
    m(x,y,z)\frac{\partial^2 u}{\partial t^2} + \eta(x,y,z)\frac{\partial u}{\partial t}-\frac{\partial^2 u}{\partial x^2}-\frac{\partial^2 u}{\partial y^2}-\frac{\partial^2 u}{\partial z^2}= q
 
 where Damp(:math:`\eta`) is dampening coefficient for absorbing boundary condition,
-:math:`m=\frac{1}{v^2}`, :math:`v` is the velocity
+:math:`m=\frac{1}{v(x,y,z)^2}`, :math:`v` is the velocity
 , :math:`u` is pressure field and :math:`q` is the pressure source term.
 
 First of all, we will set up seismic datas,
 
 In this tutorial, Model, an instance of :obj:`IGrid()` stores the origin,
-spacing and true velocity.The time stepping rate, dt is derived from :samp:`model.get_critical_dt()`.
+the position in meters of the position of index (0,0,0), as (0,0,0) in 3D,
+spacing, the size of the discrete grid, distance in meters between two consecutive grid point in each direction,
+dimensions, the size of the model in number of grid points and true velocity.
+The time stepping rate, dt is derived from :samp:`model.get_critical_dt()`.
 
 Data, an instance of :obj:`IShot()` stores amplitudes of the source
 at each time step, source coordinates and receiver coordinates.::
@@ -35,15 +38,35 @@ at each time step, source coordinates and receiver coordinates.::
   # Define seismic data.
   data = IShot()
 
+  f0 = .010
   dt = model.get_critical_dt()
+  t0 = 0.0
+  tn = 250.0
+  nt = int(1+(tn-t0)/dt)
+  h = model.get_spacing()
 
-  # Omit the code that generate time_series, receiver_coords, location
 
+  # Set up the source as Ricker wavelet for f0
+  def source(t, f0):
+      r = (np.pi * f0 * (t - 1./f0))
+
+      return (1-2.*r**2)*np.exp(-r**2)
+
+
+  time_series = source(np.linspace(t0, tn, nt), f0)
+  location = (origin[0] + dimensions[0] * spacing[0] * 0.5, 500,
+                  origin[1] + 2 * spacing[1])
   data.set_source(time_series, dt, location)
+
+  receiver_coords = np.zeros((101, 3))
+  receiver_coords[:, 0] = np.linspace(50, 950, num=101)
+  receiver_coords[:, 1] = 500
+  receiver_coords[:, 2] = location[2]
   data.set_receiver_pos(receiver_coords)
   data.set_shape(nt, 101)
 
-Then we will set up the dampening coefficient.::
+Then we will set up the dampening coefficient.
+::
 
   from devito.interfaces import DenseData
   self.damp = DenseData(name="damp", shape=self.model.get_shape_comp(),
@@ -87,7 +110,7 @@ after that, we will initialize u
                    time_order=time_order, space_order=spc_order, save=True,
                    dtype=damp.dtype)
 
-TimeData is a devito data object used to store and manage time-varying data
+TimeData is a devito data object used to store and manage time-varying as well as space-varying data
 
 We initialize our grid to be of size :samp:`model.get_shape_comp()` which is a 3-D tuple.
 :obj:`time_dim` represents the size of the time dimension that dictates
@@ -109,8 +132,12 @@ a symbol for the time-forward state of the function.
   eqn = m*u.dt2-u.laplace+damp*u.dt
   stencil = solve(eqn, u.forward)[0]
 
-We plug the stencil in an Operator, as shown, and define the values of the spacing
-between cells :obj:`h` and the temporal spaces :obj:`s`. ::
+We plug the stencil in an Operator, as shown, as well as the the values of the spacing
+between cells :obj:`h`, the temporal spaces :obj:`s`, the number of timesteps :obj:`nt`, the :obj:`spc_border` which are
+the ghost points at the edge of the domain to touse the same stencil everywhere and so on.
+The :obj:`forward` argument represents propagation time direction. It's set to be True
+if forwarding in time and False if backwarding in time.
+::
 
   s, h = symbols('s h')
   subs = {s: model.get_critical_dt(), h: model.get_spacing()}
