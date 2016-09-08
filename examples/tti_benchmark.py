@@ -4,6 +4,7 @@ from os import environ
 
 import numpy as np
 
+from devito import clear_cache
 from devito.compiler import compiler_registry
 from tti_example import run
 try:
@@ -115,6 +116,7 @@ if __name__ == "__main__":
 
         for params in params_sweep:
             _, _, rec, u, v = run(**params)
+            clear_cache()
 
             if last_rec is not None:
                 np.isclose(rec, last_rec)
@@ -140,6 +142,8 @@ if __name__ == "__main__":
 
                 self.register(gflops["kernel"], measure="gflops")
                 self.register(oi["kernel"], measure="oi")
+
+                clear_cache()
 
         bench = Benchmark(name="TTI", resultsdir=args.resultsdir, parameters=parameters)
         bench.execute(TTIExecutor(), warmups=0)
