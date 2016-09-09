@@ -493,13 +493,16 @@ class Propagator(object):
         def_time_step = [cgen.Value("int", t_var_def.name)
                          for t_var_def in self.time_steppers]
         if self.profile:
+            profiled = self.profiler.profiled
+            profiled.append("kernel")
             body = def_time_step + self.pre_loop +\
                 [cgen.Statement(self.profiler
-                                .get_loop_temp_var_decl("0", self.reduction_list))]\
+                                .get_loop_temp_var_decl(
+                                    "0", profiled))]\
                 + omp_parallel + [loop_body] +\
                 [cgen.Statement(s) for s in
-                 self.profiler.get_loop_flop_update(self.reduction_list)]\
-                + self.post_loop
+                 self.profiler.get_loop_flop_update(
+                     profiled)] + self.post_loop
         else:
             body = def_time_step + self.pre_loop\
                 + omp_parallel + [loop_body] + self.post_loop
