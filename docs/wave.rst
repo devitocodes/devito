@@ -26,8 +26,8 @@ at each time step, source coordinates and receiver coordinates.::
   model = IGrid()
   dimensions = (50, 50, 50)
   model.shape = dimensions
-  origin = (0., 0.)
-  spacing = (20., 20.)
+  origin = (0., 0., 0.)
+  spacing = (20., 20., 20.)
 
   # True velocity
   true_vp = np.ones(dimensions) + 2.0
