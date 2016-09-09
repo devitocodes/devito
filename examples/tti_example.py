@@ -6,8 +6,9 @@ from TTI_codegen import TTI_cg
 dimensions = (50, 50, 50)
 model = IGrid()
 model.shape = dimensions
-origin = (0., 0.)
-spacing = (20.0, 20.0)
+origin = (0., 0., 0.)
+# spacing can be generalized to different spacing in each direction
+spacing = (20.0, 20.0, 20.0)
 dtype = np.float32
 t_order = 2
 spc_order = 2

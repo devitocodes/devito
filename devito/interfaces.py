@@ -363,7 +363,7 @@ class TimeData(DenseData):
 
     @property
     def backward(self):
-        """Symbol for the time-forward state of the function"""
+        """Symbol for the time-backward state of the function"""
         i = int(self.time_order / 2) if self.time_order >= 2 else 1
 
         return self.subs(t, t - i * s)
