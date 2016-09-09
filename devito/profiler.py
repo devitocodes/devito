@@ -214,17 +214,26 @@ class Profiler(object):
             "float",
             "double",
             "F",
+            "e",
+            "fabsf",
+            "powf",
+            "floor",
+            "ceil",
+            "temp",
             "i",
             "t",
-            "fabsf",
-            "e",
-            "temp",
             "p",  # This one shouldn't be here.
                   # It should be passed in by an Iteration object.
                   # Added only because tti_example uses it.
         ] + to_ignore
 
-        symbols = re.findall(r"[a-z_]+\d?", string)
+        # Matches all variable names
+        # Variable names can contain:
+        # - uppercase and lowercase letters
+        # - underscores
+        # - numbers (at the end)
+        # eg: src_coord, temp123, u
+        symbols = re.findall(r"[a-z_A-Z]+(?:\d?)+", string)
 
         for symbol in symbols:
             if filter(lambda x: x.isalpha(), symbol) not in to_ignore:
