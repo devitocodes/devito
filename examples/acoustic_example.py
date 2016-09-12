@@ -5,13 +5,10 @@ from containers import IGrid, IShot
 
 dimensions = (50, 50, 50)
 model = IGrid()
-model0 = IGrid()
-model1 = IGrid()
 model.shape = dimensions
-model0.shape = dimensions
-model1.shape = dimensions
-origin = (0., 0.)
-spacing = (20., 20.)
+origin = (0., 0., 0.)
+# spacing can be generalized to different spacing in each direction
+spacing = (20., 20., 20.)
 dtype = np.float32
 t_order = 2
 spc_order = 2
