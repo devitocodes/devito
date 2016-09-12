@@ -4,7 +4,7 @@ from Acoustic_codegen import Acoustic_cg
 from containers import IGrid, IShot
 
 
-dimensions = (150, 150, 50)
+dimensions = (50, 50, 50)
 model = IGrid()
 model0 = IGrid()
 model1 = IGrid()
