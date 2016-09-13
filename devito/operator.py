@@ -260,7 +260,7 @@ class Operator(object):
             at_op = Operator(
                 nt=nt, shape=shape, dtype=dtype, stencils=stencils, subs=subs,
                 spc_border=spc_border, time_order=time_order, forward=forward,
-                compiler=compiler, profile=profile, cse=cse, input_params=input_params,
+                compiler=compiler, profile=profile, cse=False, input_params=input_params,
                 output_params=output_params, factorized=factorized
             )
             blocked_dims = blocked_dims or (([True] * (len(shape) - 1)) + [False])
