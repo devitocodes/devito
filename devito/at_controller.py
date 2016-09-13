@@ -2,12 +2,11 @@ import random
 from os import mkdir, path
 
 import logger
-from devito.operator import Operator
 
 
 class AutoTuner(object):
 
-    def __init__(self, op, blocked_dims=None, at_report_dir=None):
+    def __init__(self, op, blocked_dims, at_report_dir=None):
         """Object responsible for auto tuning block sizes.
 
         :param op: Operator object.
@@ -19,15 +18,9 @@ class AutoTuner(object):
         :raises ValueError: if operator is not of Operator type
         """
 
-        if not isinstance(op, Operator):
-            raise ValueError("AT requires Operator object to be passed as an argument")
-
         self.op = op
         self.nt_full = self.op.nt
-
-        default_blocked_dims = ([True] * (len(self.op.shape) - 1))
-        default_blocked_dims.append(False)  # By default we don't auto tune inner most dim
-        self.blocked_dims = blocked_dims or default_blocked_dims
+        self.blocked_dims = blocked_dims
 
         default_at_dir = path.join(path.dirname(path.realpath(__file__)), "At Report")
         self.report_dir = at_report_dir or default_at_dir

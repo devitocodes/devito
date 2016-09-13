@@ -5,7 +5,6 @@ import numpy as np
 import pytest
 from sympy import Eq
 
-from devito.at_controller import AutoTuner
 from devito.dimension import t, x, y, z
 from devito.interfaces import DenseData
 from devito.operator import SimpleOperator
@@ -41,9 +40,9 @@ class Test_Auto_Tuning(object):
         eq = Eq(output_grid.indexed[indexes],
                 output_grid.indexed[indexes] + input_grid.indexed[indexes] + 3)
 
-        op = SimpleOperator(input_grid, output_grid, [eq], time_order=2, spc_border=2)
+        op = SimpleOperator(
+            input_grid, output_grid, [eq], time_order=2, spc_border=2,
+            auto_tuning=True, blocked_dims=block_dims, at_range=tune_range
+        )
 
-        auto_tuner = AutoTuner(op, block_dims, self.test_dir)
-        auto_tuner.auto_tune_blocks(tune_range[0], tune_range[1])
-
-        assert auto_tuner.block_size == expected_result
+        assert op.propagator.cache_blocking == expected_result
