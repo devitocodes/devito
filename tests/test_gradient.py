@@ -83,7 +83,7 @@ class TestGradient(object):
 
     def test_grad(self, acoustic):
         rec = acoustic[0].Forward()[0]
-        rec0, u0 = acoustic[1].Forward(save=True)
+        rec0, u0, _, _ = acoustic[1].Forward(save=True)
         F0 = .5*linalg.norm(rec0 - rec)**2
         gradient = acoustic[1].Gradient(rec0 - rec, u0)
         # Actual Gradient test

@@ -66,7 +66,7 @@ class TestAdjointA(object):
 
     @pytest.fixture
     def forward(self, acoustic):
-        rec, u = acoustic.Forward(save=False)
+        rec, u, _, _ = acoustic.Forward(save=False)
         return rec
 
     def test_adjoint(self, acoustic, forward):
