@@ -6,8 +6,8 @@ import numpy as np
 
 from devito import clear_cache
 from devito.compiler import compiler_registry
-from tti_example import run as tti_run
-from acoustic_example import run as acoustic_run
+from tti.tti_example import run as tti_run
+from acoustic.acoustic_example import run as acoustic_run
 try:
     from opescibench import Benchmark, Executor, Plotter
 except:

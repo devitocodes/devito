@@ -1,7 +1,7 @@
 import numpy as np
 
-from Acoustic_codegen import Acoustic_cg
-from containers import IGrid, IShot
+from examples.acoustic.Acoustic_codegen import Acoustic_cg
+from examples.containers import IGrid, IShot
 
 
 # Velocity models
