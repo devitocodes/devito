@@ -23,26 +23,15 @@ class Profiler(object):
         self.profiled = []
         self.t_fields = []
         self.f_fields = []
-        self.temps = defaultdict(set)
-        self.oi = defaultdict(int)
-        self.oi_low = defaultdict(int)
+
         # _C_ fields are ctypes structs used for code generation
         self._C_timings = None
         self._C_flops = None
-        self.flops_defaults = defaultdict(int)
-        self.total_load_count = defaultdict(int)
-        self._var_count = 0
 
-    def get_loop_reduction(self, op, variable):
-        """Function to generate reduction pragma, used for profiling under
-        OpenMP settings.
-
-        :param op: The reduction operator
-        :param variable: The name of the variable to be reduced
-
-        :returns: String representing the reduction clause
-        """
-        return " reduction(%s:%s)" % (op, variable)
+        self.temps = {}
+        self.oi = {}
+        self.oi_low = {}
+        self.num_loads = {}
 
     def get_loop_temp_var_decl(self, name):
         """Function to generate the declariation and initialisation of the
@@ -91,13 +80,18 @@ class Profiler(object):
             return []
 
         self.profiled.append(name)
-        to_ignore = to_ignore or []
         omp_flag = omp_flag or []
 
         self.t_fields.append((name, c_double))
         self.f_fields.append((name, c_longlong))
 
-        self.get_oi_and_flops(name, code, byte_size, to_ignore)
+        oic = OICalculator(code, name, self.openmp, byte_size, to_ignore or [])
+        (
+            self.oi[name],
+            self.oi_low[name],
+            self.num_loads[name],
+            self.temps[name]
+        ) = oic.run()
 
         init = [
             Statement("struct timeval start_%s, end_%s" % (name, name))
@@ -115,167 +109,6 @@ class Profiler(object):
         ]
 
         return init + code + end
-
-    def add_reduction(self, pragma, name):
-        if "simd" in pragma.value or "for schedule" in pragma.value:
-            pragma.value += self.get_loop_reduction(
-                "+", name
-            )
-
-    def get_oi_and_flops(self, name, code, size, to_ignore):
-        """Calculates the total operation intensity of the code provided.
-        If needed, lets the C code calculate it.
-
-        :param name: The name of the field to be populated
-        :param code: The code to be profiled.
-        """
-        loads = defaultdict(int)
-        pragmas = []
-
-        for elem in code:
-            if isinstance(elem, Assign):
-                assign_flops = self._get_assign_flops(elem, loads, to_ignore)
-                self.oi[name] += assign_flops
-                self.flops_defaults[name] += assign_flops
-            elif isinstance(elem, For):
-                for_flops = self._get_for_flops(
-                    name, elem, loads, to_ignore, pragmas)
-                pragmas = []
-                self.oi[name] += for_flops
-            elif isinstance(elem, Block):
-                block_oi, block_flops = self._get_block_oi_and_flops(
-                    name, elem, loads, to_ignore, pragmas)
-                pragmas = []
-                self.oi[name] += block_oi
-                self.flops_defaults[name] += block_flops
-            elif isinstance(elem, Pragma) and self.openmp:
-                pragmas.append(elem)
-            else:
-                # no op
-                pass
-
-        load_val_sum = sum(loads.values())
-        self.oi[name] = float(self.oi[name]) / (size*(len(loads) + loads["stores"] - 1))
-        self.oi_low[name] = float(self.oi[name]) / (size*load_val_sum)
-        self.total_load_count[name] = load_val_sum - loads["stores"]
-
-    def _get_for_flops(self, name, loop, loads, to_ignore, pragmas):
-        loop_flops = 0
-        loop_oi_f = 0
-
-        if isinstance(loop.body, Assign):
-            loop_flops = self._get_assign_flops(loop.body, loads, to_ignore)
-            loop_oi_f = loop_flops
-        elif isinstance(loop.body, Block):
-            loop_oi_f, loop_flops = self._get_block_oi_and_flops(
-                name, loop.body, loads, to_ignore, pragmas)
-        elif isinstance(loop.body, For):
-            loop_oi_f = self._get_for_flops(
-                name, loop.body, loads, to_ignore, pragmas)
-        else:
-            # no op
-            pass
-
-        if loop_flops == 0:
-            return loop_oi_f
-
-        new_temp = "%s%d" % (name, self._var_count)
-        self._var_count += 1
-        self.temps[name].add(new_temp)
-
-        for pragma in pragmas:
-            self.add_reduction(pragma, new_temp)
-
-        flops_calc_stmt = Statement(
-            "%s += %f" % (new_temp, loop_flops))\
-            if self.openmp else\
-            Statement("%s->%s += %f" % (self.f_name, name, loop_flops))
-        loop.body = Block([flops_calc_stmt, loop.body])
-
-        return loop_oi_f
-
-    def _get_block_oi_and_flops(self, name, block, loads, to_ignore, pragmas):
-        block_flops = 0
-        block_oi = 0
-
-        inner_pragmas = copy(pragmas)
-
-        for elem in block.contents:
-            if isinstance(elem, Assign):
-                a_flops = self._get_assign_flops(elem, loads, to_ignore)
-                block_flops += a_flops
-                block_oi += a_flops
-            elif isinstance(elem, Block):
-                nblock_oi, nblock_flops = self._get_block_oi_and_flops(
-                    name, elem, loads, to_ignore, inner_pragmas)
-                inner_pragmas = copy(pragmas)
-                block_oi += nblock_oi
-                block_flops += nblock_flops
-            elif isinstance(elem, For):
-                block_oi += self._get_for_flops(
-                    name, elem, loads, to_ignore, inner_pragmas)
-                inner_pragmas = copy(pragmas)
-            elif isinstance(elem, Pragma) and self.openmp:
-                inner_pragmas.append(elem)
-            else:
-                # no op
-                pass
-
-        return block_oi, block_flops
-
-    def _get_assign_flops(self, assign, loads, to_ignore):
-        flops = 0
-        loads["stores"] += 1
-
-        # removing casting statements and function calls to floor
-        # that can confuse the parser
-        string = assign.lvalue + " " + assign.rvalue
-
-        to_ignore = [
-            "int",
-            "float",
-            "double",
-            "F",
-            "e",
-            "fabsf",
-            "powf",
-            "floor",
-            "ceil",
-            "temp",
-            "i",
-            "t",
-            "p",  # This one shouldn't be here.
-                  # It should be passed in by an Iteration object.
-                  # Added only because tti_example uses it.
-        ] + to_ignore
-
-        # Matches all variable names
-        # Variable names can contain:
-        # - uppercase and lowercase letters
-        # - underscores
-        # - numbers (at the end)
-        # eg: src_coord, temp123, u
-        symbols = re.findall(r"[a-z_A-Z]+(?:\d?)+", string)
-
-        for symbol in symbols:
-            if filter(lambda x: x.isalpha(), symbol) not in to_ignore:
-                loads[symbol] += 1
-
-        brackets = 0
-        for idx in range(len(string)):
-            c = string[idx]
-
-            # We skip index operations. The third check works because in the
-            # generated code constants always precede variables in operations
-            # and is needed because Sympy prints fractions like this: 1.0F/4.0F
-            if brackets == 0 and c in "*/-+" and not string[idx+1].isdigit():
-                flops += 1
-            elif c == "[":
-                brackets += 1
-            elif c == "]":
-                brackets -= 1
-
-        return flops
 
     def get_class(self, choice):
         """Returns a :class:`ctypes.Structure` subclass defining our structure
@@ -356,8 +189,180 @@ class Profiler(object):
             return {}
 
         return dict((field,
-                     (float(
-                         getattr(self._C_flops, field) + self.flops_defaults[field]
-                     )/self.timings[field]/10**9)
+                     (float(getattr(self._C_flops, field))/self.timings[field]/10**9)
                      if self.timings[field] > 0.0 else float("nan"))
                     for field, _ in self._C_flops._fields_)
+
+
+class OICalculator(object):
+
+    """Compute the operational intensity of a stencil."""
+
+    def __init__(self, code, name, openmp, byte_size, to_ignore):
+        self.code = code
+        self.name = name
+        self.openmp = openmp
+        self.byte_size = byte_size
+
+        self._var_count = 0
+        self.to_ignore = [
+            "int",
+            "float",
+            "double",
+            "F",
+            "e",
+            "fabsf",
+            "powf",
+            "floor",
+            "ceil",
+            "temp",
+            "i",
+            "t",
+            "p",  # This one shouldn't be here.
+                  # It should be passed in by an Iteration object.
+                  # Added only because tti_example uses it.
+        ] + to_ignore
+        self.seen = set()
+        self.temps = set()
+
+    def run(self):
+        """
+        Calculates the total operation intensity of the code provided.
+        If needed, lets the C code calculate it.
+        """
+        loads = defaultdict(int)
+        num_flops = 0
+        pragmas = []
+
+        for elem in self.code:
+            if isinstance(elem, Assign):
+                num_flops += self._handle_assign(elem, loads)
+            elif isinstance(elem, For):
+                num_flops += self._handle_for(elem, loads, pragmas)
+                pragmas = []
+            elif isinstance(elem, Block):
+                num_flops += self._handle_block(elem, loads, pragmas)[0]
+                pragmas = []
+            elif isinstance(elem, Pragma):
+                pragmas.append(elem)
+            else:
+                # no op
+                pass
+
+        load_val_sum = sum(loads.values())
+
+        oi = float(num_flops) / (self.byte_size*(len(loads) + loads["stores"] - 1))
+        oi_low = oi / (self.byte_size*load_val_sum)
+        num_loads = load_val_sum - loads["stores"]
+
+        return oi, oi_low, num_loads, self.temps
+
+    def _get_loop_reduction(self, variable):
+        return " reduction(+:%s)" % variable
+
+    def _add_reduction(self, pragma, name):
+        if "simd" in pragma.value or "for schedule" in pragma.value:
+            pragma.value += self._get_loop_reduction(name)
+
+    def _handle_for(self, loop, loads, pragmas):
+        loop_flops = 0
+        loop_oi_f = 0
+
+        if isinstance(loop.body, Assign):
+            loop_flops = self._handle_assign(loop.body, loads)
+            loop_oi_f = loop_flops
+        elif isinstance(loop.body, Block):
+            loop_oi_f, loop_flops = self._handle_block(loop.body, loads, pragmas)
+        elif isinstance(loop.body, For):
+            loop_oi_f = self._handle_for(loop.body, loads, pragmas)
+        else:
+            # no op
+            pass
+
+        if loop_flops == 0:
+            return loop_oi_f
+
+        if self.openmp:
+            temp_name = "%s%d" % (self.name, self._var_count)
+            self._var_count += 1
+            self.temps.add(temp_name)
+
+            for pragma in pragmas:
+                self._add_reduction(pragma, temp_name)
+
+            stmt = Statement("%s += %f" % (temp_name, loop_flops))
+        else:
+            stmt = Statement("%s->%s += %f" % (Profiler.f_name, self.name, loop_flops))
+
+        loop.body = Block([stmt, loop.body])
+
+        return loop_oi_f
+
+    def _handle_block(self, block, loads, pragmas):
+        block_flops = 0
+        block_oi = 0
+        inner_pragmas = copy(pragmas)
+
+        for elem in block.contents:
+            if isinstance(elem, Assign):
+                a_flops = self._handle_assign(elem, loads)
+                block_flops += a_flops
+                block_oi += a_flops
+            elif isinstance(elem, Block):
+                nblock_oi, nblock_flops = self._handle_block(elem, loads, inner_pragmas)
+                block_oi += nblock_oi
+                block_flops += nblock_flops
+                inner_pragmas = copy(pragmas)
+            elif isinstance(elem, For):
+                block_oi += self._handle_for(elem, loads, inner_pragmas)
+                inner_pragmas = copy(pragmas)
+            elif isinstance(elem, Pragma) and self.openmp:
+                inner_pragmas.append(elem)
+            else:
+                # no op
+                pass
+
+        return block_oi, block_flops
+
+    def _handle_assign(self, assign, loads):
+
+        # Track all statements seen (hack to avoid counting remainder loops)
+        if assign in self.seen:
+            return 0
+        else:
+            self.seen.add(assign)
+
+        flops = 0
+        loads["stores"] += 1
+
+        # removing casting statements and function calls to floor
+        # that can confuse the parser
+        string = assign.lvalue + " " + assign.rvalue
+
+        # Matches all variable names
+        # Variable names can contain:
+        # - uppercase and lowercase letters
+        # - underscores
+        # - numbers (at the end)
+        # eg: src_coord, temp123, u
+        symbols = re.findall(r"[a-z_A-Z]+(?:\d?)+", string)
+
+        for symbol in symbols:
+            if filter(lambda x: x.isalpha(), symbol) not in self.to_ignore:
+                loads[symbol] += 1
+
+        brackets = 0
+        for idx in range(len(string)):
+            c = string[idx]
+
+            # We skip index operations. The third check works because in the
+            # generated code constants always precede variables in operations
+            # and is needed because Sympy prints fractions like this: 1.0F/4.0F
+            if brackets == 0 and c in "*/-+" and not string[idx+1].isdigit():
+                flops += 1
+            elif c == "[":
+                brackets += 1
+            elif c == "]":
+                brackets -= 1
+
+        return flops

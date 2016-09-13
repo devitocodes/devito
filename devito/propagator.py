@@ -210,7 +210,7 @@ class Propagator(object):
 
     @property
     def total_loads(self):
-        return self.profiler.total_load_count
+        return self.profiler.num_loads
 
     @property
     def gflops(self):
@@ -277,7 +277,7 @@ class Propagator(object):
         at_stencils = [self.convert_equality_to_cgen(stencil)
                        for stencil in self.stencils]
         profiler.add_profiling(at_stencils, name)
-        return profiler.total_load_count[name]
+        return profiler.num_loads[name]
 
     def prep_variable_map(self):
         """Mapping from model variables (x, y, z, t) to loop variables (i1, i2, i3, i4)
