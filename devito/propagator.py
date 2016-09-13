@@ -342,11 +342,8 @@ class Propagator(object):
             stencil = self.convert_equality_to_cgen(equality)
             stmts.append(stencil)
 
-        def simplify(dec, stmt):
-            return cgen.Assign(dec.inline(), stmt.rvalue)
-
         for idx, dec in enumerate(decl):
-            stmts[idx] = simplify(dec, stmts[idx])
+            stmts[idx] = cgen.Assign(dec.inline(), stmts[idx].rvalue)
 
         kernel = self._pre_kernel_steps
         kernel += stmts
