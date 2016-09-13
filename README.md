@@ -99,10 +99,5 @@ Note:
 
 Example usage:
 ```
-op = Operator(...)
-at = AutoTuner(op, [True, True, False], <at_report_directory_path>)
-at.auto_tune_blocks(min_block_size, max_block_size)
-
-#using auto tuned block size
-new_op = Operator(..., cache_blocking=at.block_size)
+op = Operator(..., auto_tuning=True, blocked_dims=[True, True, False], at_range=(4, 32))
 ```
