@@ -55,7 +55,7 @@ def run(dimensions=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=250.0,
     rec, u, v, gflops, oi = TTI.Forward(
         cse=cse, auto_tuning=auto_tuning, cache_blocking=cache_blocking, compiler=compiler
     )
-    return gflops, oi, rec, u, v
+    return gflops, oi, [rec, u, v]
 
 if __name__ == "__main__":
     run()

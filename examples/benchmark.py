@@ -6,8 +6,8 @@ import numpy as np
 
 from devito import clear_cache
 from devito.compiler import compiler_registry
-from tti_example import run
-
+from tti_example import run as tti_run
+from acoustic_example import run as acoustic_run
 try:
     from opescibench import Benchmark, Executor, Plotter
 except:
@@ -35,6 +35,8 @@ if __name__ == "__main__":
                         default=environ.get("DEVITO_ARCH", "gnu"),
                         choices=compiler_registry.keys(),
                         help="Compiler/architecture to use. Defaults to DEVITO_ARCH")
+    parser.add_argument("-P", "--problem", nargs="?", default="tti",
+                        choices=["acoustic", "tti"], help="Problem")
     simulation = parser.add_argument_group("Simulation")
     simulation.add_argument("-o", "--omp", action="store_true",
                             help="Enable OpenMP")
@@ -75,8 +77,14 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
+    if args.problem == "tti":
+        run = tti_run
+    else:
+        run = acoustic_run
+
     parameters = vars(args).copy()
     del parameters["execmode"]
+    del parameters["problem"]
     del parameters["resultsdir"]
     del parameters["plotdir"]
     del parameters["max_bw"]
@@ -111,35 +119,24 @@ if __name__ == "__main__":
         params_sweep = [dict(zip(parameters.keys(), values))
                         for values in product(*values_sweep)]
 
-        last_rec = None
-        last_u = None
-        last_v = None
+        last_res = None
 
         for params in params_sweep:
-            _, _, rec, u, v = run(**params)
+            _, _, res = run(**params)
             clear_cache()
 
-            if last_rec is not None:
-                np.isclose(rec, last_rec)
+            if last_res is None:
+                last_res = res
             else:
-                last_rec = rec
-
-            if last_u is not None:
-                np.isclose(u, last_u)
-            else:
-                last_u = u
-
-            if last_v is not None:
-                np.isclose(v, last_v)
-            else:
-                last_v = v
+                for i in range(len(res)):
+                    np.isclose(res[i], last_res[i])
 
     elif args.execmode == "bench":
         class TTIExecutor(Executor):
             """Executor class that defines how to run TTI benchmark"""
 
             def run(self, *args, **kwargs):
-                gflops, oi, _, _, _ = run(*args, **kwargs)
+                gflops, oi, _ = run(*args, **kwargs)
 
                 self.register(gflops["kernel"], measure="gflops")
                 self.register(oi["kernel"], measure="oi")
