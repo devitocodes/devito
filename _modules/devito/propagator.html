@@ -778,7 +778,11 @@
             <span class="bp">self</span><span class="o">.</span><span class="n">block_sizes</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span>
 
         <span class="c1"># replace 0 values with optimal block sizes</span>
-        <span class="n">opt_block_size</span> <span class="o">=</span> <span class="n">get_optimal_block_size</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_number_of_loads</span><span class="p">())</span>
+        <span class="n">opt_block_size</span> <span class="o">=</span> <span class="n">get_optimal_block_size</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">get_number_of_loads</span><span class="p">(),</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">compiler</span><span class="o">.</span><span class="n">openmp</span>
+        <span class="p">)</span>
         <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">block_sizes</span><span class="p">)):</span>
             <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">block_sizes</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>  <span class="c1"># replace 0 values with optimal</span>
                 <span class="bp">self</span><span class="o">.</span><span class="n">block_sizes</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="n">opt_block_size</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">block_sizes</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">==</span> <span class="mi">0</span>

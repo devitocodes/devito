@@ -1856,7 +1856,7 @@ the stored loop stencils.</td>
 
 <dl class="function">
 <dt id="devito.tools.get_optimal_block_size">
-<code class="descclassname">devito.tools.</code><code class="descname">get_optimal_block_size</code><span class="sig-paren">(</span><em>shape</em>, <em>load_c</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/tools.html#get_optimal_block_size"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.tools.get_optimal_block_size" title="Permalink to this definition">¶</a></dt>
+<code class="descclassname">devito.tools.</code><code class="descname">get_optimal_block_size</code><span class="sig-paren">(</span><em>shape</em>, <em>load_c</em>, <em>omp</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/tools.html#get_optimal_block_size"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.tools.get_optimal_block_size" title="Permalink to this definition">¶</a></dt>
 <dd><p>Gets optimal block size based on architecture</p>
 <table class="docutils field-list" frame="void" rules="none">
 <col class="field-name" />
@@ -1865,6 +1865,7 @@ the stored loop stencils.</td>
 <tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
 <li><strong>shape</strong> &#8211; list - shape of the data buffer</li>
 <li><strong>load_c</strong> &#8211; int - load count</li>
+<li><strong>omp</strong> &#8211; True if OpenMP is on, else False</li>
 </ul>
 </td>
 </tr>
@@ -1874,11 +1875,11 @@ the stored loop stencils.</td>
 </tbody>
 </table>
 <p>Assuming no prefetching, square block will give the most cache reuse.
-We then take the cache/core divide by the size of the inner most dimension in which
+We then take the cache/threads divide by the size of the inner most dimension in which
 we do not block. This gives us the X*Y block space, of which we take the square root</p>
 <blockquote>
 <div>to get the size of our blocks.</div></blockquote>
-<p>((C size / cores) / (4 * length inner most * kernel loads)</p>
+<p>((C size / threads) / (4 * length inner most * kernel loads)</p>
 </dd></dl>
 
 <dl class="function">
