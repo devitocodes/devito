@@ -3,6 +3,7 @@ from sympy import (Add, Eq, Function, Indexed, IndexedBase, Symbol, cse,
                    lambdify, preorder_traversal, solve, symbols)
 from sympy.utilities.iterables import numbered_symbols
 
+from devito.at_controller import AutoTuner
 from devito.compiler import get_compiler_from_env
 from devito.dimension import t, x, y, z
 from devito.interfaces import SymbolicData, TimeData
@@ -157,6 +158,11 @@ class Operator(object):
                      environment variable DEVITO_ARCH, or default to GNUCompiler.
     :param profile: Flag to enable performance profiling
     :param cse: Flag to enable common subexpression elimination
+    :param auto_tuning: Flag to enable auto tuning. If True, the value of
+                        :obj:`cache_blocking` is ignored.
+    :param at_range: Tuple containing lower and upper limit for the
+                     range of block sizes to try.
+                     Defaults to ``(spc_border + 1, spc_border * 4 + 2)``
     :param cache_blocking: Block sizes used for cache clocking. Can be either a single
                            number used for all dimensions except inner most or a list
                            explicitly stating block sizes for each dimension
@@ -172,8 +178,8 @@ class Operator(object):
     def __init__(self, nt, shape, dtype=np.float32, stencils=[],
                  subs=[], spc_border=0, time_order=0,
                  forward=True, compiler=None, profile=False, cse=True,
-                 cache_blocking=None, input_params=None,
-                 output_params=None, factorized={}):
+                 auto_tuning=False, at_range=None, cache_blocking=None,
+                 input_params=None, output_params=None, factorized={}):
         # Derive JIT compilation infrastructure
         self.compiler = compiler or get_compiler_from_env()
 
@@ -245,6 +251,19 @@ class Operator(object):
         # Applies CSE
         if cse:
             self.stencils = expr_cse(self.stencils)
+
+        if auto_tuning:
+            at_range = at_range or (spc_border + 1, spc_border * 4 + 1)
+
+            at_op = Operator(
+                nt=nt, shape=shape, dtype=dtype, stencils=stencils, subs=subs,
+                spc_border=spc_border, time_order=time_order, forward=forward,
+                compiler=compiler, profile=profile, cse=cse, input_params=input_params,
+                output_params=output_params, factorized=factorized
+            )
+            at = AutoTuner(at_op)
+            at.auto_tune_blocks(*at_range)
+            cache_blocking = at.block_size
 
         self.propagator = Propagator(self.getName(), nt, shape, self.stencils,
                                      factorized=factorized, dtype=dtype,
