@@ -645,7 +645,11 @@ class Propagator(object):
             self.block_sizes.append(None)
 
         # replace 0 values with optimal block sizes
-        opt_block_size = get_optimal_block_size(self.shape, self.get_number_of_loads())
+        opt_block_size = get_optimal_block_size(
+            self.shape,
+            self.get_number_of_loads(),
+            self.compiler.openmp
+        )
         for i in range(0, len(self.block_sizes)):
             if self.block_sizes[i] is not None:  # replace 0 values with optimal
                 self.block_sizes[i] = (opt_block_size if self.block_sizes[i] == 0
