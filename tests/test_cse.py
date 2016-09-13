@@ -1,6 +1,6 @@
 import numpy as np
 
-from examples.Acoustic_codegen import Acoustic_cg
+from examples.acoustic.Acoustic_codegen import Acoustic_cg
 from examples.containers import IGrid, IShot
 
 

@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 from numpy import linalg
 
-from examples.Acoustic_codegen import Acoustic_cg
+from examples.acoustic.Acoustic_codegen import Acoustic_cg
 from examples.containers import IGrid, IShot
 
 
