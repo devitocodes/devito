@@ -274,32 +274,32 @@ class DenseData(SymbolicData):
     @property
     def dxl(self):
         """Symbol for the derivative wrt to x with a left stencil"""
-        return first_derivative(self, order=self.space_order, dim=x, side="left")
+        return first_derivative(self, order=self.space_order, dim=x, side=-1)
 
     @property
     def dxr(self):
         """Symbol for the derivative wrt to x with a right stencil"""
-        return first_derivative(self, order=self.space_order, dim=x, side="right")
+        return first_derivative(self, order=self.space_order, dim=x, side=1)
 
     @property
     def dyl(self):
         """Symbol for the derivative wrt to y with a left stencil"""
-        return first_derivative(self, order=self.space_order, dim=y, side="left")
+        return first_derivative(self, order=self.space_order, dim=y, side=-1)
 
     @property
     def dyr(self):
         """Symbol for the derivative wrt to y with a right stencil"""
-        return first_derivative(self, order=self.space_order, dim=y, side="right")
+        return first_derivative(self, order=self.space_order, dim=y, side=1)
 
     @property
     def dzl(self):
         """Symbol for the derivative wrt to z with a left stencil"""
-        return first_derivative(self, order=self.space_order, dim=z, side="left")
+        return first_derivative(self, order=self.space_order, dim=z, side=-1)
 
     @property
     def dzr(self):
         """Symbol for the derivative wrt to z with a right stencil"""
-        return first_derivative(self, order=self.space_order, dim=z, side="right")
+        return first_derivative(self, order=self.space_order, dim=z, side=1)
 
 
 class TimeData(DenseData):

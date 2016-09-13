@@ -127,6 +127,7 @@ def first_derivative(*args, **kwargs):
     :param dims: 2-tuple of symbols defining the dimension wrt. which
        to differentiate, eg. `x`, `y`, `z` or `t`.
     :param diff: Finite Difference symbol to insert, default `h`.
+    :param side: Side of the shift for the first derivatives.
     :returns: The cross derivative
 
     Example: Deriving the first-derivative of f(x)*g(x) wrt. x via:
@@ -137,21 +138,24 @@ def first_derivative(*args, **kwargs):
     dim = kwargs.get('dim', x)
     diff = kwargs.get('diff', h)
     order = kwargs.get('order', 1)
-    side = kwargs.get('side', "centered")
+    left = -1
+    centered = 0
+    right = 1
+    side = kwargs.get('side', centered)
     deriv = 0
     sign = 1
     # Stencil positions for non-symmetric cross-derivatives with symmetric averaging
-    if side == "right":
+    if side == right:
         ind = [(dim + i * diff) for i in range(-int(order / 2) + 1 - (order % 2),
                                                int((order + 1) / 2) + 2 - (order % 2))]
-    elif side == "left":
+    elif side == left:
         ind = [(dim - i * diff) for i in range(-int(order / 2) + 1 - (order % 2),
                                                int((order + 1) / 2) + 2 - (order % 2))]
         sign = -1
     else:
         ind = [(dim + i * diff) for i in range(-int(order / 2),
                                                int((order + 1) / 2) + 1)]
-        side = 1
+        sign = 1
     # Finite difference weights from Taylor approximation with this positions
     c = finite_diff_weights(1, ind, dim)
     c = c[-1][-1]
