@@ -64,7 +64,7 @@ class Acoustic_cg:
         if auto_tune:  # auto tuning with dummy forward operator
             fw = ForwardOperator(self.model, self.src, self.damp, self.data,
                                  time_order=self.t_order, spc_order=self.s_order,
-                                 save=False, profile=False)
+                                 save=False, profile=True)
             self.at = AutoTuner(fw)
             self.at.auto_tune_blocks(self.s_order + 1, self.s_order * 4 + 2)
 
