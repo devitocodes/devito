@@ -1,5 +1,4 @@
 import re
-
 from collections import defaultdict
 from ctypes import Structure, byref, c_double, c_longlong
 

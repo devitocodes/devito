@@ -7,6 +7,7 @@ import numpy as np
 from devito import clear_cache
 from devito.compiler import compiler_registry
 from tti_example import run
+
 try:
     from opescibench import Benchmark, Executor, Plotter
 except:
