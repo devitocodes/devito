@@ -3,6 +3,7 @@ from __future__ import print_function
 
 import numpy as np
 
+from devito.at_controller import AutoTuner
 from examples.tti_operators import *
 
 
@@ -62,12 +63,25 @@ class TTI_cg:
                               dtype=self.dtype, nbpml=nbpml)
         self.src.data[:] = data.get_source()[:, np.newaxis]
 
-    def Forward(self, save=False, cache_blocking=None):
+    def Forward(self, save=False, cse=True, auto_tuning=False,
+                cache_blocking=None, compiler=None):
         fw = ForwardOperator(self.model, self.src, self.damp, self.data,
                              time_order=self.t_order, spc_order=self.s_order,
-                             save=save, cache_blocking=cache_blocking)
+                             profile=True, save=save, cache_blocking=cache_blocking,
+                             cse=cse, compiler=compiler)
+
+        if auto_tuning:
+            fw_new = ForwardOperator(self.model, self.src, self.damp, self.data,
+                                     time_order=self.t_order, spc_order=self.s_order,
+                                     profile=True, save=save, cse=cse, compiler=compiler)
+
+            at = AutoTuner(fw_new)
+            at.auto_tune_blocks(self.s_order + 1, self.s_order * 4 + 2)
+            fw.propagator.cache_blocking = at.block_size
+
         u, v, rec = fw.apply()
-        return (rec.data, u.data, v.data)
+        return (rec.data, u.data, v.data,
+                fw.propagator.gflops, fw.propagator.oi)
 
     def Adjoint(self, rec, cache_blocking=None):
         adj = AdjointOperator(self.model, self.damp, self.data, rec,
