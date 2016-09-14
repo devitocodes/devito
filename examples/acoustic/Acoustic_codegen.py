@@ -80,7 +80,7 @@ class Acoustic_cg:
                              compiler=compiler, profile=True)
 
         u, rec = fw.apply()
-        return rec.data, u, fw.propagator.gflops, fw.propagator.oi
+        return rec.data, u, fw.propagator.gflops, fw.propagator.oi, fw.propagator.timings
 
     def Adjoint(self, rec, cache_blocking=None):
         adj = AdjointOperator(self.model, self.damp, self.data, rec,

@@ -123,7 +123,7 @@ if __name__ == "__main__":
         last_res = None
 
         for params in params_sweep:
-            _, _, res = run(**params)
+            _, _, _, res = run(**params)
             clear_cache()
 
             if last_res is None:
@@ -134,22 +134,27 @@ if __name__ == "__main__":
 
     elif args.execmode == "bench":
         class TTIExecutor(Executor):
-            """Executor class that defines how to run TTI benchmark"""
+            """Executor class that defines how to run the benchmark"""
 
             def run(self, *args, **kwargs):
-                gflops, oi, _ = run(*args, **kwargs)
+                gflops, oi, timings, _ = run(*args, **kwargs)
 
                 self.register(gflops["kernel"], measure="gflops")
                 self.register(oi["kernel"], measure="oi")
+                self.register(timings["kernel"], measure="timings")
 
                 clear_cache()
 
-        bench = Benchmark(name="TTI", resultsdir=args.resultsdir, parameters=parameters)
+        bench = Benchmark(
+            name=args.problem, resultsdir=args.resultsdir, parameters=parameters
+        )
         bench.execute(TTIExecutor(), warmups=0)
         bench.save()
 
     elif args.execmode == "plot":
-        bench = Benchmark(name="TTI", resultsdir=args.resultsdir, parameters=parameters)
+        bench = Benchmark(
+            name=args.problem, resultsdir=args.resultsdir, parameters=parameters
+        )
         bench.load()
 
         oi_dict = {}
@@ -161,15 +166,15 @@ if __name__ == "__main__":
         for key, gflops in gflops.items():
             oi_value = oi[key]
             key = dict(key)
-            label = "TTI, AT: %s, SO: %s, TO: %s" % (
-                key["auto_tuning"], key["space_order"], key["time_order"]
+            label = "%s, AT: %s, SO: %s, TO: %s" % (
+                args.problem, key["auto_tuning"], key["space_order"], key["time_order"]
             )
             mflops_dict[label] = gflops * 1000
             oi_dict[label] = oi_value
 
-        name = ("TTI %s dimensions: %s - spacing: %s -"
+        name = ("%s %s dimensions: %s - spacing: %s -"
                 " space order: %s - time order: %s.pdf") % \
-            (args.compiler, parameters["dimensions"], parameters["spacing"],
+            (args.problem, args.compiler, parameters["dimensions"], parameters["spacing"],
              parameters["space_order"], parameters["time_order"])
         name = name.replace(" ", "_")
 

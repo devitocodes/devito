@@ -48,7 +48,7 @@ def run_acoustic_forward(cse):
     data.set_receiver_pos(receiver_coords)
     data.set_shape(nt, 101)
     acoustic = Acoustic_cg(model, data)
-    rec, u, _, _ = acoustic.Forward(save=False, cse=cse)
+    rec, u, _, _, _ = acoustic.Forward(save=False, cse=cse)
 
     return rec
 
