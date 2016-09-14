@@ -9,7 +9,9 @@ class Acoustic_cg:
     """ Class to setup the problem for the Acoustic Wave
         Note: s_order must always be greater than t_order
     """
-    def __init__(self, model, data, source=None, nbpml=40, t_order=2, s_order=2):
+    def __init__(
+            self, model, data, source=None, nbpml=40,
+            auto_tuning=False, t_order=2, s_order=2):
         self.model = model
         self.t_order = t_order
         self.s_order = s_order
@@ -60,7 +62,7 @@ class Acoustic_cg:
                               dtype=self.dtype, nbpml=nbpml)
         self.src.data[:] = data.get_source()[:, np.newaxis]
 
-        if auto_tune:  # auto tuning with dummy forward operator
+        if auto_tuning:  # auto tuning with dummy forward operator
             fw = ForwardOperator(self.model, self.src, self.damp, self.data,
                                  time_order=self.t_order, spc_order=self.s_order,
                                  save=False, profile=True)
@@ -76,6 +78,7 @@ class Acoustic_cg:
                              time_order=self.t_order, spc_order=self.s_order,
                              save=save, cache_blocking=cache_blocking, cse=cse,
                              compiler=compiler, profile=True)
+
         u, rec = fw.apply()
         return rec.data, u, fw.propagator.gflops, fw.propagator.oi
 

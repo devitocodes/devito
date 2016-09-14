@@ -66,11 +66,13 @@ def run(dimensions=(50, 50, 50), spacing=(20.0, 20.0), tn=250.0,
     data.set_receiver_pos(receiver_coords)
     data.set_shape(nt, 101)
     Acoustic = Acoustic_cg(
-        model, data, nbpml=nbpml, t_order=time_order, s_order=space_order
+        model, data, nbpml=nbpml, auto_tuning=auto_tuning,
+        t_order=time_order, s_order=space_order
     )
     info("Applying Forward")
     rec, u, gflops, oi = Acoustic.Forward(
-        save=True, cse=cse, auto_tuning=auto_tuning, compiler=compiler
+        cache_blocking=cache_blocking, save=True, cse=cse,
+        auto_tuning=auto_tuning, compiler=compiler
     )
 
     if not full_run:
