@@ -7,7 +7,8 @@ from sympy import finite_diff_weights, symbols
 
 from devito.dimension import x, y
 
-__all__ = ['second_derivative', 'cross_derivative']
+__all__ = ['first_derivative', 'second_derivative', 'cross_derivative',
+           'left', 'right', 'centered']
 
 
 # Explicitly derived Finite Difference coefficients for
@@ -28,6 +29,24 @@ fd_coefficients = {
 
 # Default spacing symbol
 h = symbols('h')
+
+
+class Side(object):
+    """Class encapsulating the side of the shift for derivatives."""
+
+    def __init__(self, side):
+        self._side = side
+
+    def __eq__(self, other):
+        return self._side == other._side
+
+    def __repr__(self):
+        return {-1: 'left', 0: 'centered', 1: 'right'}[self._side]
+
+
+left = Side(-1)
+right = Side(1)
+centered = Side(0)
 
 
 def second_derivative(*args, **kwargs):
@@ -138,9 +157,6 @@ def first_derivative(*args, **kwargs):
     dim = kwargs.get('dim', x)
     diff = kwargs.get('diff', h)
     order = kwargs.get('order', 1)
-    left = -1
-    centered = 0
-    right = 1
     side = kwargs.get('side', centered)
     deriv = 0
     sign = 1
