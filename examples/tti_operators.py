@@ -1,7 +1,7 @@
 from sympy import *
 
 from devito.dimension import x, y, z
-from devito.finite_difference import first_derivative, right, left, centered
+from devito.finite_difference import centered, first_derivative, left, right
 from devito.interfaces import DenseData, TimeData
 from devito.operator import Operator
 from examples.fwi_operators import SourceLike
