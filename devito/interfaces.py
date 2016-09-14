@@ -5,7 +5,8 @@ from sympy import Function, IndexedBase, as_finite_diff
 from sympy.abc import h, p, s
 
 from devito.dimension import t, x, y, z
-from devito.finite_difference import cross_derivative, first_derivative
+from devito.finite_difference import (cross_derivative, first_derivative, left,
+                                      right)
 from devito.logger import error
 from devito.memmap_manager import MemmapManager
 from tools import aligned
@@ -226,8 +227,32 @@ class DenseData(SymbolicData):
         return as_finite_diff(self.diff(z, z), indz)
 
     @property
+    def dx(self):
+        """Symbol for the first derivative wrt the x dimension"""
+        width_h = int(self.space_order/2)
+        indx = [(x + i * h) for i in range(-width_h, width_h + 1)]
+
+        return as_finite_diff(self.diff(x), indx)
+
+    @property
+    def dy(self):
+        """Symbol for the first derivative wrt the y dimension"""
+        width_h = int(self.space_order/2)
+        indy = [(y + i * h) for i in range(-width_h, width_h + 1)]
+
+        return as_finite_diff(self.diff(y), indy)
+
+    @property
+    def dz(self):
+        """Symbol for the first derivative wrt the z dimension"""
+        width_h = int(self.space_order/2)
+        indz = [(z + i * h) for i in range(-width_h, width_h + 1)]
+
+        return as_finite_diff(self.diff(z), indz)
+
+    @property
     def laplace(self):
-        """Symbol for the second derivative wrt all spatial dimenions"""
+        """Symbol for the second derivative wrt all spatial dimensions"""
         derivs = ['dx2', 'dy2', 'dz2']
 
         return sum([getattr(self, d) for d in derivs[:self.dim]])
@@ -235,47 +260,47 @@ class DenseData(SymbolicData):
     @property
     def dxy(self):
         """Symbol for the cross derivative wrt the x and y dimension"""
-        return cross_derivative(self, order=int(self.space_order/2), dims=(x, y))
+        return cross_derivative(self, order=self.space_order, dims=(x, y))
 
     @property
     def dxz(self):
         """Symbol for the cross derivative wrt the x and z dimension"""
-        return cross_derivative(self, order=int(self.space_order/2), dims=(x, z))
+        return cross_derivative(self, order=self.space_order, dims=(x, z))
 
     @property
     def dyz(self):
         """Symbol for the cross derivative wrt the y and z dimension"""
-        return cross_derivative(self, order=int(self.space_order/2), dims=(y, z))
+        return cross_derivative(self, order=self.space_order, dims=(y, z))
 
     @property
     def dxl(self):
         """Symbol for the derivative wrt to x with a left stencil"""
-        return first_derivative(self, order=int(self.space_order/2), dim=x, side=-1)
+        return first_derivative(self, order=self.space_order, dim=x, side=left)
 
     @property
     def dxr(self):
         """Symbol for the derivative wrt to x with a right stencil"""
-        return first_derivative(self, order=int(self.space_order/2), dim=x, side=1)
+        return first_derivative(self, order=self.space_order, dim=x, side=right)
 
     @property
     def dyl(self):
         """Symbol for the derivative wrt to y with a left stencil"""
-        return first_derivative(self, order=int(self.space_order/2), dim=y, side=-1)
+        return first_derivative(self, order=self.space_order, dim=y, side=left)
 
     @property
     def dyr(self):
         """Symbol for the derivative wrt to y with a right stencil"""
-        return first_derivative(self, order=int(self.space_order/2), dim=y, side=1)
+        return first_derivative(self, order=self.space_order, dim=y, side=right)
 
     @property
     def dzl(self):
         """Symbol for the derivative wrt to z with a left stencil"""
-        return first_derivative(self, order=int(self.space_order/2), dim=z, side=-1)
+        return first_derivative(self, order=self.space_order, dim=z, side=left)
 
     @property
     def dzr(self):
         """Symbol for the derivative wrt to z with a right stencil"""
-        return first_derivative(self, order=int(self.space_order/2), dim=z, side=1)
+        return first_derivative(self, order=self.space_order, dim=z, side=right)
 
 
 class TimeData(DenseData):
