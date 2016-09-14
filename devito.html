@@ -378,6 +378,37 @@ we utilise the <cite>pymic</cite> package to manage device streams.</p>
 <div class="section" id="module-devito.finite_difference">
 <span id="devito-finite-difference-module"></span><h2>devito.finite_difference module<a class="headerlink" href="#module-devito.finite_difference" title="Permalink to this headline">¶</a></h2>
 <dl class="function">
+<dt id="devito.finite_difference.first_derivative">
+<code class="descclassname">devito.finite_difference.</code><code class="descname">first_derivative</code><span class="sig-paren">(</span><em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/finite_difference.html#first_derivative"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.finite_difference.first_derivative" title="Permalink to this definition">¶</a></dt>
+<dd><p>Derives corss derivative for a product of given functions.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>*args</strong> &#8211; All positional arguments must be fully qualified
+function objects, eg. <cite>f(x, y)</cite> or <cite>g(t, x, y, z)</cite>.</li>
+<li><strong>dims</strong> &#8211; 2-tuple of symbols defining the dimension wrt. which
+to differentiate, eg. <cite>x</cite>, <cite>y</cite>, <cite>z</cite> or <cite>t</cite>.</li>
+<li><strong>diff</strong> &#8211; Finite Difference symbol to insert, default <cite>h</cite>.</li>
+<li><strong>side</strong> &#8211; Side of the shift for the first derivatives.</li>
+</ul>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first last">The cross derivative</p>
+</td>
+</tr>
+</tbody>
+</table>
+<dl class="docutils">
+<dt>Example: Deriving the first-derivative of f(x)*g(x) wrt. x via:</dt>
+<dd><code class="docutils literal"><span class="pre">cross_derivative(f(x),</span> <span class="pre">g(x),</span> <span class="pre">dim=x,</span> <span class="pre">side=1,</span> <span class="pre">order=1)</span></code>
+results in:
+<code class="docutils literal"><span class="pre">*(-f(x)*g(x)</span> <span class="pre">+</span> <span class="pre">f(x</span> <span class="pre">+</span> <span class="pre">h)*g(x</span> <span class="pre">+</span> <span class="pre">h)</span> <span class="pre">)</span> <span class="pre">/</span> <span class="pre">h</span></code></dd>
+</dl>
+</dd></dl>
+
+<dl class="function">
 <dt id="devito.finite_difference.second_derivative">
 <code class="descclassname">devito.finite_difference.</code><code class="descname">second_derivative</code><span class="sig-paren">(</span><em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/finite_difference.html#second_derivative"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.finite_difference.second_derivative" title="Permalink to this definition">¶</a></dt>
 <dd><p>Derives second derivative for a product of given functions.</p>
@@ -763,6 +794,12 @@ time-varying griad data.</p>
 </dd></dl>
 
 <dl class="attribute">
+<dt id="devito.interfaces.DenseData.dx">
+<code class="descname">dx</code><a class="headerlink" href="#devito.interfaces.DenseData.dx" title="Permalink to this definition">¶</a></dt>
+<dd><p>Symbol for the first derivative wrt the x dimension</p>
+</dd></dl>
+
+<dl class="attribute">
 <dt id="devito.interfaces.DenseData.dx2">
 <code class="descname">dx2</code><a class="headerlink" href="#devito.interfaces.DenseData.dx2" title="Permalink to this definition">¶</a></dt>
 <dd><p>Symbol for the second derivative wrt the x dimension</p>
@@ -793,6 +830,12 @@ time-varying griad data.</p>
 </dd></dl>
 
 <dl class="attribute">
+<dt id="devito.interfaces.DenseData.dy">
+<code class="descname">dy</code><a class="headerlink" href="#devito.interfaces.DenseData.dy" title="Permalink to this definition">¶</a></dt>
+<dd><p>Symbol for the first derivative wrt the y dimension</p>
+</dd></dl>
+
+<dl class="attribute">
 <dt id="devito.interfaces.DenseData.dy2">
 <code class="descname">dy2</code><a class="headerlink" href="#devito.interfaces.DenseData.dy2" title="Permalink to this definition">¶</a></dt>
 <dd><p>Symbol for the second derivative wrt the y dimension</p>
@@ -814,6 +857,12 @@ time-varying griad data.</p>
 <dt id="devito.interfaces.DenseData.dyz">
 <code class="descname">dyz</code><a class="headerlink" href="#devito.interfaces.DenseData.dyz" title="Permalink to this definition">¶</a></dt>
 <dd><p>Symbol for the cross derivative wrt the y and z dimension</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="devito.interfaces.DenseData.dz">
+<code class="descname">dz</code><a class="headerlink" href="#devito.interfaces.DenseData.dz" title="Permalink to this definition">¶</a></dt>
+<dd><p>Symbol for the first derivative wrt the z dimension</p>
 </dd></dl>
 
 <dl class="attribute">
@@ -870,7 +919,7 @@ time-varying griad data.</p>
 <dl class="attribute">
 <dt id="devito.interfaces.DenseData.laplace">
 <code class="descname">laplace</code><a class="headerlink" href="#devito.interfaces.DenseData.laplace" title="Permalink to this definition">¶</a></dt>
-<dd><p>Symbol for the second derivative wrt all spatial dimenions</p>
+<dd><p>Symbol for the second derivative wrt all spatial dimensions</p>
 </dd></dl>
 
 </dd></dl>
