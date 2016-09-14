@@ -7,7 +7,8 @@ from sympy import finite_diff_weights, symbols
 
 from devito.dimension import x, y
 
-__all__ = ['second_derivative', 'cross_derivative']
+__all__ = ['first_derivative', 'second_derivative', 'cross_derivative',
+           'left', 'right', 'centered']
 
 
 # Explicitly derived Finite Difference coefficients for
@@ -28,6 +29,24 @@ fd_coefficients = {
 
 # Default spacing symbol
 h = symbols('h')
+
+
+class Side(object):
+    """Class encapsulating the side of the shift for derivatives."""
+
+    def __init__(self, side):
+        self._side = side
+
+    def __eq__(self, other):
+        return self._side == other._side
+
+    def __repr__(self):
+        return {-1: 'left', 0: 'centered', 1: 'right'}[self._side]
+
+
+left = Side(-1)
+right = Side(1)
+centered = Side(0)
 
 
 def second_derivative(*args, **kwargs):
@@ -127,6 +146,7 @@ def first_derivative(*args, **kwargs):
     :param dims: 2-tuple of symbols defining the dimension wrt. which
        to differentiate, eg. `x`, `y`, `z` or `t`.
     :param diff: Finite Difference symbol to insert, default `h`.
+    :param side: Side of the shift for the first derivatives.
     :returns: The cross derivative
 
     Example: Deriving the first-derivative of f(x)*g(x) wrt. x via:
@@ -137,20 +157,27 @@ def first_derivative(*args, **kwargs):
     dim = kwargs.get('dim', x)
     diff = kwargs.get('diff', h)
     order = kwargs.get('order', 1)
-    side = kwargs.get('side', 1)
+    side = kwargs.get('side', centered)
     deriv = 0
+    sign = 1
     # Stencil positions for non-symmetric cross-derivatives with symmetric averaging
-    if side == 1:
+    if side == right:
         ind = [(dim + i * diff) for i in range(-int(order / 2) + 1 - (order % 2),
                                                int((order + 1) / 2) + 2 - (order % 2))]
-    else:
+    elif side == left:
         ind = [(dim - i * diff) for i in range(-int(order / 2) + 1 - (order % 2),
                                                int((order + 1) / 2) + 2 - (order % 2))]
+        sign = -1
+    else:
+        ind = [(dim + i * diff) for i in range(-int(order / 2),
+                                               int((order + 1) / 2) + 1)]
+        sign = 1
     # Finite difference weights from Taylor approximation with this positions
     c = finite_diff_weights(1, ind, dim)
     c = c[-1][-1]
+
     # Diagonal elements
     for i in range(0, len(ind)):
             var = [a.subs({dim: ind[i]}) for a in args]
             deriv += c[i] * reduce(mul, var, 1)
-    return -side*deriv
+    return -sign*deriv
