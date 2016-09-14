@@ -3,7 +3,6 @@ import numpy as np
 from containers import IGrid, IShot
 from TTI_codegen import TTI_cg
 
-# Set up the source as Ricker wavelet for f0
 def source(t, f0):
     r = (np.pi * f0 * (t - 1./f0))
 
