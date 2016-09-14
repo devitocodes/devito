@@ -4,10 +4,10 @@ from os import environ
 
 import numpy as np
 
-from acoustic.acoustic_example import run as acoustic_run
 from devito import clear_cache
 from devito.compiler import compiler_registry
-from tti.tti_example import run as tti_run
+from examples.acoustic.acoustic_example import run as acoustic_run
+from examples.tti.tti_example import run as tti_run
 
 try:
     from opescibench import Benchmark, Executor, Plotter
