@@ -1,5 +1,6 @@
 import numpy as np
 
+from devito.logger import info
 from examples.acoustic.Acoustic_codegen import Acoustic_cg
 from examples.containers import IGrid, IShot
 
@@ -67,6 +68,7 @@ def run(dimensions=(50, 50, 50), spacing=(20.0, 20.0), tn=250.0,
     Acoustic = Acoustic_cg(
         model, data, nbpml=nbpml, t_order=time_order, s_order=space_order
     )
+    info("Applying Forward")
     rec, u, gflops, oi = Acoustic.Forward(
         save=True, cse=cse, auto_tuning=auto_tuning, compiler=compiler
     )
@@ -74,6 +76,9 @@ def run(dimensions=(50, 50, 50), spacing=(20.0, 20.0), tn=250.0,
     if not full_run:
         return gflops, oi, [rec, u.data]
 
+    info("Applying Adjoint")
     Acoustic.Adjoint(rec)
+    info("Applying Gradient")
     Acoustic.Gradient(rec, u)
+    info("Applying Born")
     Acoustic.Born(dm)
