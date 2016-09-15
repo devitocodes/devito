@@ -84,3 +84,6 @@ def run(dimensions=(50, 50, 50), spacing=(20.0, 20.0), tn=250.0,
     Acoustic.Gradient(rec, u)
     info("Applying Born")
     Acoustic.Born(dm)
+
+if __name__ == "__main__":
+    run(full_run=True)
