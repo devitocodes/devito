@@ -139,9 +139,9 @@ if __name__ == "__main__":
             def run(self, *args, **kwargs):
                 gflops, oi, timings, _ = run(*args, **kwargs)
 
-                self.register(gflops["kernel"], measure="gflops")
-                self.register(oi["kernel"], measure="oi")
-                self.register(timings["kernel"], measure="timings")
+                self.register(gflops["loop_body"], measure="gflops")
+                self.register(oi["loop_body"], measure="oi")
+                self.register(timings["loop_body"], measure="timings")
 
                 clear_cache()
 
