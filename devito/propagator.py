@@ -65,8 +65,6 @@ class Propagator(object):
 
         # Internal flags and meta-data
         self.loop_counters = list(symbols("i1 i2 i3 i4"))
-        self._pre_kernel_steps = []
-        self._post_kernel_steps = []
         self._forward = forward
         self.prep_variable_map()
         self.t_replace = {}
@@ -329,18 +327,12 @@ class Propagator(object):
                     )
                 )
 
-        stmts = []
-
-        for equality in stencils:
-            stencil = self.convert_equality_to_cgen(equality)
-            stmts.append(stencil)
+        stmts = [self.convert_equality_to_cgen(x) for x in stencils]
 
         for idx, dec in enumerate(decl):
             stmts[idx] = cgen.Assign(dec.inline(), stmts[idx].rvalue)
 
-        kernel = self._pre_kernel_steps
-        kernel += stmts
-        kernel += self._post_kernel_steps
+        kernel = stmts
 
         return cgen.Block(factors+kernel)
 
@@ -678,15 +670,6 @@ class Propagator(object):
             weights.update({'i1': -1})
 
         return weights
-
-    def add_loop_step(self, assign, before=False):
-        """Add loop step to loop body"""
-        stm = self.convert_equality_to_cgen(assign)
-
-        if before:
-            self._pre_kernel_steps.append(stm)
-        else:
-            self._post_kernel_steps.append(stm)
 
     def add_devito_param(self, param):
         """Setup relevant devito parameters
