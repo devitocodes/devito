@@ -521,7 +521,7 @@
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">backward</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;Symbol for the time-forward state of the function&quot;&quot;&quot;</span>
+        <span class="sd">&quot;&quot;&quot;Symbol for the time-backward state of the function&quot;&quot;&quot;</span>
         <span class="n">i</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">time_order</span> <span class="o">/</span> <span class="mi">2</span><span class="p">)</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">time_order</span> <span class="o">&gt;=</span> <span class="mi">2</span> <span class="k">else</span> <span class="mi">1</span>
 
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">t</span><span class="p">,</span> <span class="n">t</span> <span class="o">-</span> <span class="n">i</span> <span class="o">*</span> <span class="n">s</span><span class="p">)</span>
