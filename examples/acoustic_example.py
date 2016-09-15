@@ -3,6 +3,7 @@ import numpy as np
 from Acoustic_codegen import Acoustic_cg
 from containers import IGrid, IShot
 
+
 dimensions = (50, 50, 50)
 model = IGrid()
 model0 = IGrid()
@@ -10,8 +11,8 @@ model1 = IGrid()
 model.shape = dimensions
 model0.shape = dimensions
 model1.shape = dimensions
-origin = (0., 0.)
-spacing = (20., 20.)
+origin = (0., 0., 0.)
+spacing = (20., 20., 20.)
 dtype = np.float32
 t_order = 2
 spc_order = 2
@@ -62,7 +63,7 @@ def source(t, f0):
 
 time_series = source(np.linspace(t0, tn, nt), f0)
 location = (origin[0] + dimensions[0] * spacing[0] * 0.5, 500,
-            origin[1] + 2 * spacing[1])
+            origin[2] + 2 * spacing[1])
 data.set_source(time_series, dt, location)
 
 receiver_coords = np.zeros((101, 3))
@@ -71,8 +72,10 @@ receiver_coords[:, 1] = 500
 receiver_coords[:, 2] = location[2]
 data.set_receiver_pos(receiver_coords)
 data.set_shape(nt, 101)
-Acoustic = Acoustic_cg(model, data)
-(rec, u) = Acoustic.Forward(save=True)
+print("Preparing forward")
+print("Applying")
+Acoustic = Acoustic_cg(model, data, auto_tune=True)
+(rec, u) = Acoustic.Forward(save=True, use_at_blocks=True)
 print("Preparing adjoint")
 print("Applying")
 srca = Acoustic.Adjoint(rec)
