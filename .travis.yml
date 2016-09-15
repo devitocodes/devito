@@ -37,6 +37,6 @@ script:
   - flake8 --builtins=ArgumentError .
   - isort --check-only **/*.py
   - py.test -vs tests/
-  - python examples/acoustic_example.py
-  - python examples/tti_benchmark.py test -a -d 20 20 20 -n 5
+  - python examples/benchmark.py test -P tti -a -d 20 20 20 -n 5
+  - python examples/benchmark.py test -P acoustic -a
   - if [[ $TRAVIS_OS_NAME == 'osx' ]]; then ./docs/deploy.sh; fi

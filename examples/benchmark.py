@@ -6,7 +6,8 @@ import numpy as np
 
 from devito import clear_cache
 from devito.compiler import compiler_registry
-from tti_example import run
+from examples.acoustic.acoustic_example import run as acoustic_run
+from examples.tti.tti_example import run as tti_run
 
 try:
     from opescibench import Benchmark, Executor, Plotter
@@ -35,6 +36,8 @@ if __name__ == "__main__":
                         default=environ.get("DEVITO_ARCH", "gnu"),
                         choices=compiler_registry.keys(),
                         help="Compiler/architecture to use. Defaults to DEVITO_ARCH")
+    parser.add_argument("-P", "--problem", nargs="?", default="tti",
+                        choices=["acoustic", "tti"], help="Problem")
     simulation = parser.add_argument_group("Simulation")
     simulation.add_argument("-o", "--omp", action="store_true",
                             help="Enable OpenMP")
@@ -75,8 +78,14 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
+    if args.problem == "tti":
+        run = tti_run
+    else:
+        run = acoustic_run
+
     parameters = vars(args).copy()
     del parameters["execmode"]
+    del parameters["problem"]
     del parameters["resultsdir"]
     del parameters["plotdir"]
     del parameters["max_bw"]
@@ -111,47 +120,41 @@ if __name__ == "__main__":
         params_sweep = [dict(zip(parameters.keys(), values))
                         for values in product(*values_sweep)]
 
-        last_rec = None
-        last_u = None
-        last_v = None
+        last_res = None
 
         for params in params_sweep:
-            _, _, rec, u, v = run(**params)
+            _, _, _, res = run(**params)
             clear_cache()
 
-            if last_rec is not None:
-                np.isclose(rec, last_rec)
+            if last_res is None:
+                last_res = res
             else:
-                last_rec = rec
-
-            if last_u is not None:
-                np.isclose(u, last_u)
-            else:
-                last_u = u
-
-            if last_v is not None:
-                np.isclose(v, last_v)
-            else:
-                last_v = v
+                for i in range(len(res)):
+                    np.isclose(res[i], last_res[i])
 
     elif args.execmode == "bench":
         class TTIExecutor(Executor):
-            """Executor class that defines how to run TTI benchmark"""
+            """Executor class that defines how to run the benchmark"""
 
             def run(self, *args, **kwargs):
-                gflops, oi, _, _, _ = run(*args, **kwargs)
+                gflops, oi, timings, _ = run(*args, **kwargs)
 
                 self.register(gflops["kernel"], measure="gflops")
                 self.register(oi["kernel"], measure="oi")
+                self.register(timings["kernel"], measure="timings")
 
                 clear_cache()
 
-        bench = Benchmark(name="TTI", resultsdir=args.resultsdir, parameters=parameters)
+        bench = Benchmark(
+            name=args.problem, resultsdir=args.resultsdir, parameters=parameters
+        )
         bench.execute(TTIExecutor(), warmups=0)
         bench.save()
 
     elif args.execmode == "plot":
-        bench = Benchmark(name="TTI", resultsdir=args.resultsdir, parameters=parameters)
+        bench = Benchmark(
+            name=args.problem, resultsdir=args.resultsdir, parameters=parameters
+        )
         bench.load()
 
         oi_dict = {}
@@ -163,15 +166,15 @@ if __name__ == "__main__":
         for key, gflops in gflops.items():
             oi_value = oi[key]
             key = dict(key)
-            label = "TTI, AT: %s, SO: %s, TO: %s" % (
-                key["auto_tuning"], key["space_order"], key["time_order"]
+            label = "%s, AT: %s, SO: %s, TO: %s" % (
+                args.problem, key["auto_tuning"], key["space_order"], key["time_order"]
             )
             mflops_dict[label] = gflops * 1000
             oi_dict[label] = oi_value
 
-        name = ("TTI %s dimensions: %s - spacing: %s -"
+        name = ("%s %s dimensions: %s - spacing: %s -"
                 " space order: %s - time order: %s.pdf") % \
-            (args.compiler, parameters["dimensions"], parameters["spacing"],
+            (args.problem, args.compiler, parameters["dimensions"], parameters["spacing"],
              parameters["space_order"], parameters["time_order"])
         name = name.replace(" ", "_")
 

@@ -9,8 +9,9 @@ class Acoustic_cg:
     """ Class to setup the problem for the Acoustic Wave
         Note: s_order must always be greater than t_order
     """
-    def __init__(self, model, data, source=None, nbpml=40, t_order=2, s_order=2,
-                 auto_tune=False):
+    def __init__(
+            self, model, data, source=None, nbpml=40,
+            auto_tuning=False, t_order=2, s_order=2):
         self.model = model
         self.t_order = t_order
         self.s_order = s_order
@@ -61,22 +62,25 @@ class Acoustic_cg:
                               dtype=self.dtype, nbpml=nbpml)
         self.src.data[:] = data.get_source()[:, np.newaxis]
 
-        if auto_tune:  # auto tuning with dummy forward operator
+        if auto_tuning:  # auto tuning with dummy forward operator
             fw = ForwardOperator(self.model, self.src, self.damp, self.data,
                                  time_order=self.t_order, spc_order=self.s_order,
                                  save=False, profile=True)
             self.at = AutoTuner(fw)
             self.at.auto_tune_blocks(self.s_order + 1, self.s_order * 4 + 2)
 
-    def Forward(self, save=False, cache_blocking=None, use_at_blocks=False, cse=True):
+    def Forward(self, save=False, cache_blocking=None,
+                auto_tuning=False, cse=True, compiler=None):
+        if auto_tuning:
+            cache_blocking = self.at.block_size
+
         fw = ForwardOperator(self.model, self.src, self.damp, self.data,
                              time_order=self.t_order, spc_order=self.s_order,
-                             save=save, cache_blocking=cache_blocking, cse=cse)
-        if use_at_blocks:
-            fw.propagator.cache_blocking = self.at.block_size
+                             save=save, cache_blocking=cache_blocking, cse=cse,
+                             compiler=compiler, profile=True)
 
         u, rec = fw.apply()
-        return rec.data, u
+        return rec.data, u, fw.propagator.gflops, fw.propagator.oi, fw.propagator.timings
 
     def Adjoint(self, rec, cache_blocking=None):
         adj = AdjointOperator(self.model, self.damp, self.data, rec,

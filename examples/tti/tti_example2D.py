@@ -1,7 +1,7 @@
 import numpy as np
 
-from containers import IGrid, IShot
-from TTI_codegen import TTI_cg
+from examples.containers import IGrid, IShot
+from examples.tti.TTI_codegen import TTI_cg
 
 dimensions = (150, 150)
 model = IGrid()

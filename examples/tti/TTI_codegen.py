@@ -4,7 +4,7 @@ from __future__ import print_function
 import numpy as np
 
 from devito.at_controller import AutoTuner
-from examples.tti_operators import *
+from examples.tti.tti_operators import *
 
 
 class TTI_cg:
@@ -81,7 +81,7 @@ class TTI_cg:
 
         u, v, rec = fw.apply()
         return (rec.data, u.data, v.data,
-                fw.propagator.gflops, fw.propagator.oi)
+                fw.propagator.gflops, fw.propagator.oi, fw.propagator.timings)
 
     def Adjoint(self, rec, cache_blocking=None):
         adj = AdjointOperator(self.model, self.damp, self.data, rec,
