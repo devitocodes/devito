@@ -279,7 +279,17 @@ class OICalculator(object):
             # no op
             pass
 
+        old_body = loop.body
+
+        while isinstance(old_body, Block) and isinstance(old_body.contents[0], Statement):
+            old_body = old_body.contents[1]
+
         if loop_flops == 0:
+            if old_body in self.seen:
+                return 0
+
+            self.seen.add(old_body)
+
             return loop_oi_f
 
         if self.openmp:
@@ -296,6 +306,10 @@ class OICalculator(object):
 
         loop.body = Block([stmt, loop.body])
 
+        if old_body in self.seen:
+            return 0
+
+        self.seen.add(old_body)
         return loop_oi_f
 
     def _handle_block(self, block, loads, pragmas):
@@ -327,11 +341,6 @@ class OICalculator(object):
     def _handle_assign(self, assign, loads):
 
         # Track all statements seen (hack to avoid counting remainder loops)
-        if assign in self.seen:
-            return 0
-        else:
-            self.seen.add(assign)
-
         flops = 0
         loads["stores"] += 1
 
