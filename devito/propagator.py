@@ -342,11 +342,14 @@ class Propagator(object):
             stencil = self.convert_equality_to_cgen(equality)
             stmts.append(stencil)
 
+        for idx, dec in enumerate(decl):
+            stmts[idx] = cgen.Assign(dec.inline(), stmts[idx].rvalue)
+
         kernel = self._pre_kernel_steps
         kernel += stmts
         kernel += self._post_kernel_steps
 
-        return cgen.Block(factors+decl+kernel)
+        return cgen.Block(factors+kernel)
 
     def expr_dtype(self, expr):
         """Gets the resulting dtype of an expression.
