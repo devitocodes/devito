@@ -1,5 +1,6 @@
 import re
 from collections import defaultdict
+from copy import copy
 from ctypes import Structure, byref, c_double, c_longlong
 
 from cgen_wrapper import Assign, Block, For, Pragma, Statement, Struct, Value
@@ -16,13 +17,13 @@ class Profiler(object):
     FLOP = 2
     t_name = "timings"
     f_name = "flops"
-    loop_temp_prefix = "temp_"
 
     def __init__(self, openmp=False):
         self.openmp = openmp
         self.profiled = []
         self.t_fields = []
         self.f_fields = []
+        self.temps = defaultdict(set)
         self.oi = defaultdict(int)
         self.oi_low = defaultdict(int)
         # _C_ fields are ctypes structs used for code generation
@@ -41,9 +42,9 @@ class Profiler(object):
 
         :returns: String representing the reduction clause
         """
-        return " reduction(%s:%s%s)" % (op, self.loop_temp_prefix, variable)
+        return " reduction(%s:%s)" % (op, variable)
 
-    def get_loop_temp_var_decl(self, value, variables):
+    def get_loop_temp_var_decl(self, name):
         """Function to generate the declariation and initialisation of the
         temporary variables used for reduction for loop profiling.
 
@@ -53,21 +54,20 @@ class Profiler(object):
 
         :returns: String representing the declariation statement
         """
-        assignments = ", ".join(["%s%s = %d" % (self.loop_temp_prefix, v, value)
-                                 for v in variables])
+        assignments = ", ".join([("%s = 0" % v)
+                                 for v in self.temps[name]])
 
         return Statement("long long %s" % assignments)
 
-    def get_loop_flop_update(self, name, temps):
+    def get_loop_flop_update(self, name):
         """Function to generate a statement that collects all the values from temps
         in the main flops variable
 
         :param name: Name of the variable to update
-        :param temps: Name of the temporaries used
 
         :returns: A :class:`cgen.Statement` representing the sum of all the temps
         """
-        temps_sum = "+".join(["%s%s" % (self.loop_temp_prefix, t) for t in temps])
+        temps_sum = "+".join(self.temps[name])
 
         return Statement("%s->%s=%s" % (self.f_name, name, temps_sum))
 
@@ -97,8 +97,7 @@ class Profiler(object):
         self.t_fields.append((name, c_double))
         self.f_fields.append((name, c_longlong))
 
-        temps = set()
-        self.get_oi_and_flops(name, code, byte_size, to_ignore, temps)
+        self.get_oi_and_flops(name, code, byte_size, to_ignore)
 
         init = [
             Statement("struct timeval start_%s, end_%s" % (name, name))
@@ -115,20 +114,15 @@ class Profiler(object):
             ])
         ]
 
-        if len(temps) > 0:
-            init.append(self.get_loop_temp_var_decl(0, temps))
-            end.append(self.get_loop_flop_update(name, temps))
-
         return init + code + end
 
-    def add_reduction(self, pragma, name, temps):
-        if "simd" in pragma.value:
-            self._var_count += 1
+    def add_reduction(self, pragma, name):
+        if "simd" in pragma.value or "for schedule" in pragma.value:
             pragma.value += self.get_loop_reduction(
-                "+", "%s%d" % (name, self._var_count)
+                "+", name
             )
 
-    def get_oi_and_flops(self, name, code, size, to_ignore, temps):
+    def get_oi_and_flops(self, name, code, size, to_ignore):
         """Calculates the total operation intensity of the code provided.
         If needed, lets the C code calculate it.
 
@@ -136,6 +130,7 @@ class Profiler(object):
         :param code: The code to be profiled.
         """
         loads = defaultdict(int)
+        pragmas = []
 
         for elem in code:
             if isinstance(elem, Assign):
@@ -144,15 +139,17 @@ class Profiler(object):
                 self.flops_defaults[name] += assign_flops
             elif isinstance(elem, For):
                 for_flops = self._get_for_flops(
-                    name, elem, loads, to_ignore, temps)
+                    name, elem, loads, to_ignore, pragmas)
+                pragmas = []
                 self.oi[name] += for_flops
             elif isinstance(elem, Block):
                 block_oi, block_flops = self._get_block_oi_and_flops(
-                    name, elem, loads, to_ignore, temps)
+                    name, elem, loads, to_ignore, pragmas)
+                pragmas = []
                 self.oi[name] += block_oi
                 self.flops_defaults[name] += block_flops
             elif isinstance(elem, Pragma) and self.openmp:
-                self.add_reduction(elem, name, temps)
+                pragmas.append(elem)
             else:
                 # no op
                 pass
@@ -162,7 +159,7 @@ class Profiler(object):
         self.oi_low[name] = float(self.oi[name]) / (size*load_val_sum)
         self.total_load_count[name] = load_val_sum - loads["stores"]
 
-    def _get_for_flops(self, name, loop, loads, to_ignore, temps):
+    def _get_for_flops(self, name, loop, loads, to_ignore, pragmas):
         loop_flops = 0
         loop_oi_f = 0
 
@@ -171,10 +168,10 @@ class Profiler(object):
             loop_oi_f = loop_flops
         elif isinstance(loop.body, Block):
             loop_oi_f, loop_flops = self._get_block_oi_and_flops(
-                name, loop.body, loads, to_ignore, temps)
+                name, loop.body, loads, to_ignore, pragmas)
         elif isinstance(loop.body, For):
             loop_oi_f = self._get_for_flops(
-                name, loop.body, loads, to_ignore, temps)
+                name, loop.body, loads, to_ignore, pragmas)
         else:
             # no op
             pass
@@ -182,18 +179,26 @@ class Profiler(object):
         if loop_flops == 0:
             return loop_oi_f
 
-        temps.add("%s%d" % (name, self._var_count))
+        new_temp = "%s%d" % (name, self._var_count)
+        self._var_count += 1
+        self.temps[name].add(new_temp)
+
+        for pragma in pragmas:
+            self.add_reduction(pragma, new_temp)
+
         flops_calc_stmt = Statement(
-            "%s%s%d += %f" % (self.loop_temp_prefix, name, self._var_count, loop_flops))\
+            "%s += %f" % (new_temp, loop_flops))\
             if self.openmp else\
             Statement("%s->%s += %f" % (self.f_name, name, loop_flops))
         loop.body = Block([flops_calc_stmt, loop.body])
 
         return loop_oi_f
 
-    def _get_block_oi_and_flops(self, name, block, loads, to_ignore, temps):
+    def _get_block_oi_and_flops(self, name, block, loads, to_ignore, pragmas):
         block_flops = 0
         block_oi = 0
+
+        inner_pragmas = copy(pragmas)
 
         for elem in block.contents:
             if isinstance(elem, Assign):
@@ -202,14 +207,16 @@ class Profiler(object):
                 block_oi += a_flops
             elif isinstance(elem, Block):
                 nblock_oi, nblock_flops = self._get_block_oi_and_flops(
-                    name, elem, loads, to_ignore, temps)
+                    name, elem, loads, to_ignore, inner_pragmas)
+                inner_pragmas = copy(pragmas)
                 block_oi += nblock_oi
                 block_flops += nblock_flops
             elif isinstance(elem, For):
                 block_oi += self._get_for_flops(
-                    name, elem, loads, to_ignore, temps)
+                    name, elem, loads, to_ignore, inner_pragmas)
+                inner_pragmas = copy(pragmas)
             elif isinstance(elem, Pragma) and self.openmp:
-                self.add_reduction(elem, name, temps)
+                inner_pragmas.append(elem)
             else:
                 # no op
                 pass
