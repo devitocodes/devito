@@ -5,6 +5,7 @@ import numpy as np
 
 from devito.at_controller import AutoTuner
 from examples.tti.tti_operators import *
+from examples.source_type import SourceLike
 
 
 class TTI_cg:

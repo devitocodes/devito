@@ -4,7 +4,7 @@ from devito.dimension import x, y, z
 from devito.finite_difference import centered, first_derivative, left, right
 from devito.interfaces import DenseData, TimeData
 from devito.operator import Operator
-from examples.fwi_operators import SourceLike
+from examples.source_type import SourceLike
 
 
 class ForwardOperator(Operator):
