@@ -44,9 +44,10 @@ if __name__ == "__main__":
     simulation.add_argument("-d", "--dimensions", nargs=3, default=[50, 50, 50],
                             type=int, help="Dimensions of the grid",
                             metavar=("dim1", "dim2", "dim3"))
-    simulation.add_argument("-s", "--spacing", nargs=2, default=[20, 20, 20], type=int,
+    simulation.add_argument("-s", "--spacing", nargs=3, default=[20.0, 20.0, 20.0],
+                            type=float,
                             help="Spacing between grid sizes in meters",
-                            metavar=("spc1", "spc2"))
+                            metavar=("spc1", "spc2", "spc2"))
     simulation.add_argument("-n", "--nbpml", default=10, type=int,
                             help="Number of PML points")
     simulation.add_argument("-so", "--space_order", nargs="*", default=[2],
