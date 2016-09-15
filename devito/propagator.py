@@ -484,6 +484,15 @@ class Propagator(object):
         if self.profile:
             body = self.profiler.add_profiling(body, "kernel")
 
+            if self.compiler.openmp:
+                body = [
+                    self.profiler.get_loop_temp_var_decl(key)
+                    for key in self.profiler.temps.keys()
+                ] + body + [
+                    self.profiler.get_loop_flop_update(key)
+                    for key in self.profiler.temps.keys()
+                ]
+
         return cgen.Block(body)
 
     def generate_space_loops(self, loop_body):
@@ -516,6 +525,9 @@ class Propagator(object):
 
         inner_most_dim = True
         orig_loop_body = loop_body
+
+        omp_for = [cgen.Pragma("omp for schedule(static)"
+                               )] if self.compiler.openmp else []
 
         for spc_var, block_size in reversed(zip(list(self.space_dims), self.block_sizes)):
             orig_var = str(self._var_map[spc_var])
@@ -597,6 +609,7 @@ class Propagator(object):
                                                                 remainder_loop)
                 inner_most_dim = False
 
+            full_remainder += omp_for
             full_remainder.append(remainder_loop)
 
         return [loop_body] + full_remainder if full_remainder else [loop_body]
