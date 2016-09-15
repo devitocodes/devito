@@ -6,11 +6,7 @@ from containers import IGrid, IShot
 
 dimensions = (50, 50, 50)
 model = IGrid()
-model0 = IGrid()
-model1 = IGrid()
 model.shape = dimensions
-model0.shape = dimensions
-model1.shape = dimensions
 origin = (0., 0., 0.)
 spacing = (20., 20., 20.)
 dtype = np.float32
