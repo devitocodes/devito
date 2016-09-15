@@ -198,8 +198,6 @@
 
         <span class="c1"># Internal flags and meta-data</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">loop_counters</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">symbols</span><span class="p">(</span><span class="s2">&quot;i1 i2 i3 i4&quot;</span><span class="p">))</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_pre_kernel_steps</span> <span class="o">=</span> <span class="p">[]</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_post_kernel_steps</span> <span class="o">=</span> <span class="p">[]</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_forward</span> <span class="o">=</span> <span class="n">forward</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">prep_variable_map</span><span class="p">()</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">t_replace</span> <span class="o">=</span> <span class="p">{}</span>
@@ -462,18 +460,12 @@
                     <span class="p">)</span>
                 <span class="p">)</span>
 
-        <span class="n">stmts</span> <span class="o">=</span> <span class="p">[]</span>
-
-        <span class="k">for</span> <span class="n">equality</span> <span class="ow">in</span> <span class="n">stencils</span><span class="p">:</span>
-            <span class="n">stencil</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">convert_equality_to_cgen</span><span class="p">(</span><span class="n">equality</span><span class="p">)</span>
-            <span class="n">stmts</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">stencil</span><span class="p">)</span>
+        <span class="n">stmts</span> <span class="o">=</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">convert_equality_to_cgen</span><span class="p">(</span><span class="n">x</span><span class="p">)</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">stencils</span><span class="p">]</span>
 
         <span class="k">for</span> <span class="n">idx</span><span class="p">,</span> <span class="n">dec</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">decl</span><span class="p">):</span>
             <span class="n">stmts</span><span class="p">[</span><span class="n">idx</span><span class="p">]</span> <span class="o">=</span> <span class="n">cgen</span><span class="o">.</span><span class="n">Assign</span><span class="p">(</span><span class="n">dec</span><span class="o">.</span><span class="n">inline</span><span class="p">(),</span> <span class="n">stmts</span><span class="p">[</span><span class="n">idx</span><span class="p">]</span><span class="o">.</span><span class="n">rvalue</span><span class="p">)</span>
 
-        <span class="n">kernel</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_pre_kernel_steps</span>
-        <span class="n">kernel</span> <span class="o">+=</span> <span class="n">stmts</span>
-        <span class="n">kernel</span> <span class="o">+=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_post_kernel_steps</span>
+        <span class="n">kernel</span> <span class="o">=</span> <span class="n">stmts</span>
 
         <span class="k">return</span> <span class="n">cgen</span><span class="o">.</span><span class="n">Block</span><span class="p">(</span><span class="n">factors</span><span class="o">+</span><span class="n">kernel</span><span class="p">)</span></div>
 
@@ -811,15 +803,6 @@
             <span class="n">weights</span><span class="o">.</span><span class="n">update</span><span class="p">({</span><span class="s1">&#39;i1&#39;</span><span class="p">:</span> <span class="o">-</span><span class="mi">1</span><span class="p">})</span>
 
         <span class="k">return</span> <span class="n">weights</span>
-
-<div class="viewcode-block" id="Propagator.add_loop_step"><a class="viewcode-back" href="../../devito.html#devito.propagator.Propagator.add_loop_step">[docs]</a>    <span class="k">def</span> <span class="nf">add_loop_step</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">assign</span><span class="p">,</span> <span class="n">before</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;Add loop step to loop body&quot;&quot;&quot;</span>
-        <span class="n">stm</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">convert_equality_to_cgen</span><span class="p">(</span><span class="n">assign</span><span class="p">)</span>
-
-        <span class="k">if</span> <span class="n">before</span><span class="p">:</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">_pre_kernel_steps</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">stm</span><span class="p">)</span>
-        <span class="k">else</span><span class="p">:</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">_post_kernel_steps</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">stm</span><span class="p">)</span></div>
 
 <div class="viewcode-block" id="Propagator.add_devito_param"><a class="viewcode-back" href="../../devito.html#devito.propagator.Propagator.add_devito_param">[docs]</a>    <span class="k">def</span> <span class="nf">add_devito_param</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">param</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;Setup relevant devito parameters</span>
