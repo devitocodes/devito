@@ -280,12 +280,15 @@ class OICalculator(object):
             pass
 
         old_body = loop.body
+        old_loads = loads.copy()
 
         while isinstance(old_body, Block) and isinstance(old_body.contents[0], Statement):
             old_body = old_body.contents[1]
 
         if loop_flops == 0:
             if old_body in self.seen:
+                for key, value in old_loads.items():
+                    loads[key] = value
                 return 0
 
             self.seen.add(old_body)
@@ -307,6 +310,8 @@ class OICalculator(object):
         loop.body = Block([stmt, loop.body])
 
         if old_body in self.seen:
+            for key, value in old_loads.items():
+                loads[key] = value
             return 0
 
         self.seen.add(old_body)
