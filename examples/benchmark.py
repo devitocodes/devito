@@ -47,7 +47,7 @@ if __name__ == "__main__":
     simulation.add_argument("-s", "--spacing", nargs=3, default=[20.0, 20.0, 20.0],
                             type=float,
                             help="Spacing between grid sizes in meters",
-                            metavar=("spc1", "spc2", "spc2"))
+                            metavar=("spc1", "spc2", "spc3"))
     simulation.add_argument("-n", "--nbpml", default=10, type=int,
                             help="Number of PML points")
     simulation.add_argument("-so", "--space_order", nargs="*", default=[2],
