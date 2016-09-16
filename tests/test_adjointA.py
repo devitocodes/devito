@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 from numpy import linalg
 
-from examples.Acoustic_codegen import Acoustic_cg
+from examples.acoustic.Acoustic_codegen import Acoustic_cg
 from examples.containers import IGrid, IShot
 
 
@@ -66,7 +66,7 @@ class TestAdjointA(object):
 
     @pytest.fixture
     def forward(self, acoustic):
-        rec, u = acoustic.Forward(save=False)
+        rec, u, _, _, _ = acoustic.Forward(save=False)
         return rec
 
     def test_adjoint(self, acoustic, forward):
