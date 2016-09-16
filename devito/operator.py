@@ -82,18 +82,26 @@ def expr_cse(expr):
     for temp, value in temps:
         if isinstance(value, IndexedBase):
             to_revert[temp] = value
+        elif isinstance(value, Indexed):
+            to_revert[temp] = value
         elif isinstance(value, Add) and not set([t, x, y, z]).isdisjoint(set(value.args)):
             to_revert[temp] = value
         else:
             to_keep.append((temp, value))
 
-    # Restores the IndexedBases in the assignments to revert
+    # Restores the IndexedBases and the Indexes in the assignments to revert
     for temp, value in to_revert.items():
         s_dict = {}
         for arg in preorder_traversal(value):
-            if isinstance(value, Indexed):
-                if value.base.label in to_revert:
-                    s_dict[arg] = Indexed(to_revert[value.base.label], *value.indices)
+            if isinstance(arg, Indexed):
+                new_indices = []
+                for index in arg.indices:
+                    if index in to_revert:
+                        new_indices.append(to_revert[index])
+                    else:
+                        new_indices.append(index)
+                if arg.base.label in to_revert:
+                    s_dict[arg] = Indexed(to_revert[value.base.label], *new_indices)
         to_revert[temp] = value.xreplace(s_dict)
 
     subs_dict = {}
