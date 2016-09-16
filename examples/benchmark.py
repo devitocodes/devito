@@ -139,9 +139,10 @@ if __name__ == "__main__":
             def run(self, *args, **kwargs):
                 gflops, oi, timings, _ = run(*args, **kwargs)
 
-                self.register(gflops["loop_body"], measure="gflops")
-                self.register(oi["loop_body"], measure="oi")
-                self.register(timings["loop_body"], measure="timings")
+                for key in timings.keys():
+                    self.register(gflops[key], measure="gflops", event=key)
+                    self.register(oi[key], measure="oi", event=key)
+                    self.register(timings[key], measure="timings", event=key)
 
                 clear_cache()
 
@@ -160,8 +161,8 @@ if __name__ == "__main__":
         oi_dict = {}
         mflops_dict = {}
 
-        gflops = bench.lookup(params=parameters, measure="gflops")
-        oi = bench.lookup(params=parameters, measure="oi")
+        gflops = bench.lookup(params=parameters, measure="gflops", event="loop_body")
+        oi = bench.lookup(params=parameters, measure="oi", event="loop_body")
 
         for key, gflops in gflops.items():
             oi_value = oi[key]
