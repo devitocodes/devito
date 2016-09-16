@@ -133,7 +133,7 @@ if __name__ == "__main__":
                     np.isclose(res[i], last_res[i])
 
     elif args.execmode == "bench":
-        class TTIExecutor(Executor):
+        class BenchExecutor(Executor):
             """Executor class that defines how to run the benchmark"""
 
             def run(self, *args, **kwargs):
@@ -148,7 +148,7 @@ if __name__ == "__main__":
         bench = Benchmark(
             name=args.problem, resultsdir=args.resultsdir, parameters=parameters
         )
-        bench.execute(TTIExecutor(), warmups=0)
+        bench.execute(BenchExecutor(), warmups=0)
         bench.save()
 
     elif args.execmode == "plot":
