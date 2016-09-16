@@ -47,4 +47,3 @@ data.set_shape(nt, 301)
 
 TTI = TTI_cg(model, data, None, t_order=2, s_order=spc_order, nbpml=10)
 rec, u, v, gflops, oi, timings = TTI.Forward()
-
