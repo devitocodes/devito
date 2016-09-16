@@ -343,8 +343,6 @@ class OICalculator(object):
         return block_oi, block_flops
 
     def _handle_assign(self, assign, loads):
-
-        # Track all statements seen (hack to avoid counting remainder loops)
         flops = 0
         loads["stores"] += 1
 
