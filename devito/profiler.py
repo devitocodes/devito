@@ -267,27 +267,30 @@ class OICalculator(object):
         loop_flops = 0
         loop_oi_f = 0
 
+        new_loads = defaultdict(int)
+
         if isinstance(loop.body, Assign):
-            loop_flops = self._handle_assign(loop.body, loads)
+            loop_flops = self._handle_assign(loop.body, new_loads)
             loop_oi_f = loop_flops
         elif isinstance(loop.body, Block):
-            loop_oi_f, loop_flops = self._handle_block(loop.body, loads, pragmas)
+            loop_oi_f, loop_flops = self._handle_block(loop.body, new_loads, pragmas)
         elif isinstance(loop.body, For):
-            loop_oi_f = self._handle_for(loop.body, loads, pragmas)
+            loop_oi_f = self._handle_for(loop.body, new_loads, pragmas)
         else:
             # no op
             pass
 
         old_body = loop.body
-        old_loads = loads.copy()
 
         while isinstance(old_body, Block) and isinstance(old_body.contents[0], Statement):
             old_body = old_body.contents[1]
 
+        if old_body not in self.seen:
+            for key, value in new_loads.items():
+                loads[key] += value
+
         if loop_flops == 0:
             if old_body in self.seen:
-                for key, value in old_loads.items():
-                    loads[key] = value
                 return 0
 
             self.seen.add(old_body)
@@ -309,8 +312,6 @@ class OICalculator(object):
         loop.body = Block([stmt, loop.body])
 
         if old_body in self.seen:
-            for key, value in old_loads.items():
-                loads[key] = value
             return 0
 
         self.seen.add(old_body)
