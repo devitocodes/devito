@@ -102,15 +102,15 @@ class SourceLike(PointData):
                     for idx, b in zip(index_matrix, self.bs)])
 
     def read(self, u):
-        """Iteration loop over points performing grid-to-point interpolation."""
+        """Read the value of the wavefield u at point locations with grid2point."""
         interp_expr = Eq(self.indexed[t, p], self.grid2point(u))
         return [Iteration(interp_expr, index=p, limits=self.shape[1])]
 
     def read2(self, u, v):
-        """Iteration loop over points performing grid-to-point interpolation."""
+        """Read the value of the sum wavefield (u+v) at point locations with grid2point."""
         interp_expr = Eq(self.indexed[t, p], self.grid2point(u) + self.grid2point(v))
         return [Iteration(interp_expr, index=p, limits=self.shape[1])]
 
     def add(self, m, u, t=t):
-        """Iteration loop over points performing point-to-grid interpolation."""
+        """Add a point source term to the wavefield u at time t vith model parameter m"""
         return [Iteration(self.point2grid(u, m, t), index=p, limits=self.shape[1])]
