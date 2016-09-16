@@ -257,12 +257,11 @@ class OICalculator(object):
 
         return oi, oi_low, num_loads, self.temps
 
-    def _get_loop_reduction(self, variable):
-        return " reduction(+:%s)" % variable
+    def _handle_reduction(self, pragma, name):
+        reduction = " reduction(+:%s)" % name
 
-    def _add_reduction(self, pragma, name):
         if "simd" in pragma.value or "for schedule" in pragma.value:
-            pragma.value += self._get_loop_reduction(name)
+            pragma.value += reduction
 
     def _handle_for(self, loop, loads, pragmas):
         loop_flops = 0
@@ -301,7 +300,7 @@ class OICalculator(object):
             self.temps.add(temp_name)
 
             for pragma in pragmas:
-                self._add_reduction(pragma, temp_name)
+                self._handle_reduction(pragma, temp_name)
 
             stmt = Statement("%s += %f" % (temp_name, loop_flops))
         else:
