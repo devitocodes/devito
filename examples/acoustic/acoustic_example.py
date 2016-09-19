@@ -24,7 +24,7 @@ def source(t, f0):
     return (1-2.*r**2)*np.exp(-r**2)
 
 
-def run(dimensions=(50, 50, 50), spacing=(20.0, 20.0), tn=250.0,
+def run(dimensions=(150, 150, 50), spacing=(20.0, 20.0, 20.0), tn=250.0,
         time_order=2, space_order=2, nbpml=10, cse=True, auto_tuning=False,
         compiler=None, cache_blocking=None, full_run=False):
     model = IGrid()
@@ -33,7 +33,7 @@ def run(dimensions=(50, 50, 50), spacing=(20.0, 20.0), tn=250.0,
     model.shape = dimensions
     model0.shape = dimensions
     model1.shape = dimensions
-    origin = (0., 0.)
+    origin = (0., 0., 0.)
 
     # True velocity
     true_vp = np.ones(dimensions) + 2.0
@@ -55,12 +55,15 @@ def run(dimensions=(50, 50, 50), spacing=(20.0, 20.0), tn=250.0,
     nt = int(1+(tn-t0)/dt)
 
     time_series = source(np.linspace(t0, tn, nt), f0)
-    location = (origin[0] + dimensions[0] * spacing[0] * 0.5, 500,
-                origin[1] + 2 * spacing[1])
+    location = (origin[0] + dimensions[0] * spacing[0] * 0.5,
+                origin[1] + dimensions[1] * spacing[1] * 0.5,
+                origin[2] + 2 * spacing[2])
     data.set_source(time_series, dt, location)
 
     receiver_coords = np.zeros((101, 3))
-    receiver_coords[:, 0] = np.linspace(50, 950, num=101)
+    receiver_coords[:, 0] = np.linspace(2 * spacing[0],
+                                        origin[0] + (dimensions[0] - 2) * spacing[0],
+                                        num=101)
     receiver_coords[:, 1] = 500
     receiver_coords[:, 2] = location[2]
     data.set_receiver_pos(receiver_coords)
@@ -84,3 +87,6 @@ def run(dimensions=(50, 50, 50), spacing=(20.0, 20.0), tn=250.0,
     Acoustic.Gradient(rec, u)
     info("Applying Born")
     Acoustic.Born(dm)
+
+if __name__ == "__main__":
+    run(full_run=True, auto_tuning=True)
