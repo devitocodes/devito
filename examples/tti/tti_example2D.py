@@ -46,8 +46,4 @@ data.set_receiver_pos(receiver_coords)
 data.set_shape(nt, 301)
 
 TTI = TTI_cg(model, data, None, t_order=2, s_order=spc_order, nbpml=10)
-(rec, u, v) = TTI.Forward()
-
-# recw = open('RecTTI', 'w')
-# recw.write(rec.data)
-# recw.close()
+rec, u, v, gflops, oi, timings = TTI.Forward()

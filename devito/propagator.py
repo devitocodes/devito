@@ -97,7 +97,7 @@ class Propagator(object):
         # Settings for performance profiling
         self.profile = profile
         # Profiler needs to know whether openmp is set
-        self.profiler = Profiler(self.compiler.openmp)
+        self.profiler = Profiler(self.compiler.openmp, self.dtype)
 
         # Cache blocking and block sizes
         self.cache_blocking = cache_blocking
