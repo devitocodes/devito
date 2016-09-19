@@ -230,7 +230,7 @@
         <span class="c1"># Settings for performance profiling</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">profile</span> <span class="o">=</span> <span class="n">profile</span>
         <span class="c1"># Profiler needs to know whether openmp is set</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">profiler</span> <span class="o">=</span> <span class="n">Profiler</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">compiler</span><span class="o">.</span><span class="n">openmp</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">profiler</span> <span class="o">=</span> <span class="n">Profiler</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">compiler</span><span class="o">.</span><span class="n">openmp</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">dtype</span><span class="p">)</span>
 
         <span class="c1"># Cache blocking and block sizes</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">cache_blocking</span> <span class="o">=</span> <span class="n">cache_blocking</span>
