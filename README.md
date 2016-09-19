@@ -31,9 +31,14 @@ Examples of how to configure operators are provided:
   found in `tests/test_diffusion.py`. This example also demonstrates
   how the equation can be solved via pure Python and optimised
   `numpy`, as well as Devito.
-* A more practical example of Forward, Adjoint, Gradient and Born
+* A more practical example of acoustic Forward, Adjoint, Gradient and Born
   operators for use in FWI can be found in
-  `examples/acoustic_example.py` and `examples/fwi_operators.py`.
+  `examples/acoustic/acoustic_example.py` and `examples/acoustic/fwi_operators.py`.
+* A more practical example of TTI Forward
+  operator for use in FWI can be found in
+  `examples/tti/tti_example.py` and `examples/tti/tti_operators.py`.
+* A benchmark example for the acoustic and TTI Forward can be found in
+  `examples/benchmark.py`
 
 ## Compilation
 

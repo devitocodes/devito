@@ -4,13 +4,13 @@ from devito.dimension import x, y, z
 from devito.finite_difference import centered, first_derivative, left, right
 from devito.interfaces import DenseData, TimeData
 from devito.operator import Operator
-from examples.fwi_operators import SourceLike
+from examples.source_type import SourceLike
 
 
 class ForwardOperator(Operator):
     def __init__(self, model, src, damp, data, time_order=2, spc_order=4, save=False,
                  **kwargs):
-        nrec, nt = data.traces.shape
+        nrec, nt = data.shape
         dt = model.get_critical_dt()
         u = TimeData(name="u", shape=model.get_shape_comp(),
                      time_dim=nt, time_order=time_order,
