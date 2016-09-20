@@ -118,12 +118,13 @@ class AutoTuner(object):
             else:
                 block_list.add(tuple(blocks))
 
-        logger.info("Total number of block size permutations = %d" % len(block_list))
-        if maximum - minimum > 2:  # No point to estimate if diff is below 2.
-            self._estimate_run_time(minimum, maximum, len(block_list))
+        # filter off some of the block sizes, heuristically
+        block_list = self._filter(block_list)
+
+        logger.info("Number of attempted block sizes: %d" % len(block_list))
 
         # runs function for each block_size
-        for block in block_list:
+        for block in sorted(block_list):
             self.op.propagator.block_sizes = block
             times.append((block, self.get_execution_time()))
 
@@ -137,25 +138,17 @@ class AutoTuner(object):
 
         self._write_block_report(times)  # writes the report
 
-    def _estimate_run_time(self, minimum, maximum, n):
-        """Estimates run time for auto tuning
-
-        :param minimum: int - minimum tune range
-        :param maximum: int - maximum tune range
-        :param n: number of permutations that are run
+    def _filter(self, block_list):
         """
-        timing_run = 0  # estimating run time
-        for i in range(0, 5):
-            logger.info('Estimating auto-tuning runtime...sample %d/5' % (i + 1))
+        Filter off some block sizes to speed up autotuning. The current
+        heuristic is: ::
 
-            blocks = []
-            blocks += [random.randrange(minimum, maximum) if block else None
-                       for block in self.op.propagator.block_sizes]
-
-            self.op.propagator.block_sizes = blocks
-            timing_run += self.get_execution_time()
-
-        logger.info("Estimated runtime: %f minutes." % float(timing_run / 5 * n / 60))
+            * block sizes that are not a multiple of 2 are ditched;
+            * only square blocks are retained.
+        """
+        block_list = [b for b in block_list if all(i % 2 == 0 for i in b if i)]
+        block_list = [b for b in block_list if all(i == b[0] for i in b if i)]
+        return block_list
 
     def get_execution_time(self):
         """Runs and times the function
