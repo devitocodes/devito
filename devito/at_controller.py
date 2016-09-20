@@ -1,7 +1,7 @@
 import random
 from os import mkdir, path
 
-import logger
+from devito.logger import info_at, error
 from devito.operator import Operator
 
 
@@ -64,7 +64,7 @@ class AutoTuner(object):
                     block_size = [int(block) if block != "None" else None
                                   for block in block_split]
 
-                    logger.info("Using auto tuned block sizes - %s" % block_size)
+                    info_at("Picked: %s" % block_size)
                     return block_size
 
         raise EnvironmentError("Matching model with auto tuned block size not found.")
@@ -96,7 +96,7 @@ class AutoTuner(object):
         # want to run function at least once to make sure block_sizes are not
         # overwritten
         self.get_execution_time()
-        logger.info("Starting auto tuning of block sizes using brute force")
+        info_at("Start. Mode: brute force")
 
         times = []  # list where times and block sizes will be kept
         block_list = set()  # used to make sure we do not test the same block sizes
@@ -121,7 +121,7 @@ class AutoTuner(object):
         # filter off some of the block sizes, heuristically
         block_list = self._filter(block_list)
 
-        logger.info("Number of attempted block sizes: %d" % len(block_list))
+        info_at("Number of block sizes that will be attempted: %d" % len(block_list))
 
         # runs function for each block_size
         for block in sorted(block_list):
@@ -131,8 +131,8 @@ class AutoTuner(object):
         # sorts the list of tuples based on time
         times = sorted(times, key=lambda element: element[1])
 
-        logger.info("Auto tuning using brute force complete")
-        logger.info("Estimated runtime for %s and %d time steps: %f hours" %
+        info_at("Finish.")
+        info_at("Estimated runtime for %s and %d time steps: %f hours" %
                     (self.op.getName(), self.nt_full,
                      self.nt_full * times[0][1] / (at_nt * 3600)))
 
@@ -212,4 +212,4 @@ class AutoTuner(object):
                 final_report.writelines(lines)
 
         except IOError as e:
-            logger.error("Failed to write auto tuning report because %s" % e.message)
+            error("Failed to write auto tuning report because %s" % e.message)
