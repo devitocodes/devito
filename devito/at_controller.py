@@ -1,4 +1,3 @@
-import random
 from os import mkdir, path
 
 from devito.logger import info_at, error
@@ -133,8 +132,8 @@ class AutoTuner(object):
 
         info_at("Finish.")
         info_at("Estimated runtime for %s and %d time steps: %f hours" %
-                    (self.op.getName(), self.nt_full,
-                     self.nt_full * times[0][1] / (at_nt * 3600)))
+                (self.op.getName(), self.nt_full,
+                 self.nt_full * times[0][1] / (at_nt * 3600)))
 
         self._write_block_report(times)  # writes the report
 
