@@ -63,17 +63,16 @@ class Acoustic_cg:
                               dtype=self.dtype, nbpml=nbpml)
         self.src.data[:] = data.get_source()[:, np.newaxis]
 
-        if auto_tuning:  # auto tuning with dummy forward operator
-            fw = ForwardOperator(self.model, self.src, self.damp, self.data,
-                                 time_order=self.t_order, spc_order=self.s_order,
-                                 save=False, profile=True)
-            self.at = AutoTuner(fw)
-            self.at.auto_tune_blocks(self.s_order + 1, self.s_order * 4 + 2)
-
     def Forward(self, save=False, cache_blocking=None,
                 auto_tuning=False, cse=True, compiler=None):
+
         if auto_tuning:
-            cache_blocking = self.at.block_size
+            fw = ForwardOperator(self.model, self.src, self.damp, self.data,
+                                 time_order=self.t_order, spc_order=self.s_order,
+                                 profile=True, save=False, cse=cse, compiler=compiler)
+            at = AutoTuner(fw)
+            at.auto_tune_blocks(self.s_order + 1, self.s_order * 4 + 2)
+            cache_blocking = at.block_size
 
         fw = ForwardOperator(self.model, self.src, self.damp, self.data,
                              time_order=self.t_order, spc_order=self.s_order,
