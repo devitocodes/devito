@@ -1,11 +1,13 @@
 from argparse import ArgumentParser, RawDescriptionHelpFormatter
 from itertools import product
 from os import environ
+import sys
 
 import numpy as np
 
 from devito import clear_cache
 from devito.compiler import compiler_registry
+from devito.logger import warning
 from examples.acoustic.acoustic_example import run as acoustic_run
 from examples.tti.tti_example import run as tti_run
 
@@ -158,6 +160,9 @@ if __name__ == "__main__":
             name=args.problem, resultsdir=args.resultsdir, parameters=parameters
         )
         bench.load()
+        if not bench.loaded:
+            warning("Could not load any results, nothing to plot. Exiting...")
+            sys.exit(0)
 
         oi_dict = {}
         mflops_dict = {}
