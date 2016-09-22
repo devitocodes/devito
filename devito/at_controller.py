@@ -92,25 +92,23 @@ class AutoTuner(object):
         at_nt = 3
         self.op.propagator.nt = at_nt
         self.op.propagator.profile = True
-        self.op.propagator.cache_blocking = [0 if dim else None
-                                             for dim in self.blocked_dims]
 
         info_at("Start. Mode: brute force")
 
-        times = []  # list where times and block sizes will be kept
         block_list = set()  # used to make sure we do not test the same block sizes
-        block = list(self.blocked_dims)
+        mask = [i if i else None for i in self.blocked_dims]
+        block = [None for i in mask]
 
         for x in range(minimum, maximum):
-            block[0] = self.blocked_dims[0] and x
+            block[0] = mask[0] and x
 
             if len(block) > 1:
                 for y in range(minimum, maximum):
-                    block[1] = self.blocked_dims[1] and y
+                    block[1] = mask[1] and y
 
                     if len(block) > 2:
                         for z in range(minimum, maximum):
-                            block[2] = self.blocked_dims[2] and z
+                            block[2] = mask[2] and z
                             block_list.add((tuple(block)))
                     else:
                         block_list.add(tuple(block))
@@ -128,6 +126,7 @@ class AutoTuner(object):
         info_at("Number of block sizes that will be attempted: %d" % len(block_list))
 
         # runs function for each block_size
+        times = []
         self.op.propagator.cache_blocking = list(block_list[0])
         for block in block_list:
             self.op.propagator.block_sizes = list(block)
@@ -150,10 +149,12 @@ class AutoTuner(object):
 
             * block sizes that are not a multiple of 2 are ditched;
             * only square blocks are retained.
+
+        If no block sizes match the heuristic, then the original list is returned.
         """
-        block_list = [b for b in block_list if all(i % 2 == 0 for i in b if i)]
-        block_list = [b for b in block_list if all(i == b[0] for i in b if i)]
-        return block_list
+        filtered_list = [b for b in block_list if all(i % 2 == 0 for i in b if i)]
+        filtered_list = [b for b in filtered_list if all(i == b[0] for i in b if i)]
+        return filtered_list or block_list
 
     def get_execution_time(self):
         """Runs and times the function
