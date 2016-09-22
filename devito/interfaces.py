@@ -5,7 +5,8 @@ from sympy import Function, IndexedBase, as_finite_diff
 from sympy.abc import h, p, s
 
 from devito.dimension import t, x, y, z
-from devito.finite_difference import (cross_derivative, first_derivative, left,
+from devito.finite_difference import (centered, cross_derivative,
+                                      first_derivative, left,
                                       right)
 from devito.logger import error
 from devito.memmap_manager import MemmapManager
@@ -229,26 +230,17 @@ class DenseData(SymbolicData):
     @property
     def dx(self):
         """Symbol for the first derivative wrt the x dimension"""
-        width_h = int(self.space_order/2)
-        indx = [(x + i * h) for i in range(-width_h, width_h + 1)]
-
-        return as_finite_diff(self.diff(x), indx)
+        return first_derivative(self, order=self.space_order, dim=x, side=centered)
 
     @property
     def dy(self):
         """Symbol for the first derivative wrt the y dimension"""
-        width_h = int(self.space_order/2)
-        indy = [(y + i * h) for i in range(-width_h, width_h + 1)]
-
-        return as_finite_diff(self.diff(y), indy)
+        return first_derivative(self, order=self.space_order, dim=y, side=centered)
 
     @property
     def dz(self):
         """Symbol for the first derivative wrt the z dimension"""
-        width_h = int(self.space_order/2)
-        indz = [(z + i * h) for i in range(-width_h, width_h + 1)]
-
-        return as_finite_diff(self.diff(z), indz)
+        return first_derivative(self, order=self.space_order, dim=z, side=centered)
 
     @property
     def laplace(self):
