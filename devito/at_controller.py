@@ -1,5 +1,7 @@
 from os import mkdir, path
 
+import numpy as np
+
 from devito.logger import info_at, error
 from devito.operator import Operator
 
@@ -25,7 +27,7 @@ class AutoTuner(object):
         self.nt_full = self.op.nt
 
         default_blocked_dims = ([True] * (len(self.op.shape) - 1))
-        default_blocked_dims.append(False)  # By default we don't auto tune inner most dim
+        default_blocked_dims.append(None)  # By default don't autotune innermost dim
         self.blocked_dims = blocked_dims or default_blocked_dims
 
         default_at_dir = path.join(path.dirname(path.realpath(__file__)), "At Report")
@@ -92,39 +94,43 @@ class AutoTuner(object):
         self.op.propagator.profile = True
         self.op.propagator.cache_blocking = [0 if dim else None
                                              for dim in self.blocked_dims]
-        # want to run function at least once to make sure block_sizes are not
-        # overwritten
-        self.get_execution_time()
+
         info_at("Start. Mode: brute force")
 
         times = []  # list where times and block sizes will be kept
         block_list = set()  # used to make sure we do not test the same block sizes
-        blocks = list(self.op.propagator.block_sizes)
+        block = list(self.blocked_dims)
 
         for x in range(minimum, maximum):
-            blocks[0] = x if blocks[0] else None
+            block[0] = self.blocked_dims[0] and x
 
-            if len(blocks) > 1:
+            if len(block) > 1:
                 for y in range(minimum, maximum):
-                    blocks[1] = y if blocks[1] else None
+                    block[1] = self.blocked_dims[1] and y
 
-                    if len(blocks) > 2:
+                    if len(block) > 2:
                         for z in range(minimum, maximum):
-                            blocks[2] = z if blocks[2] else None
-                            block_list.add((tuple(blocks)))
+                            block[2] = self.blocked_dims[2] and z
+                            block_list.add((tuple(block)))
                     else:
-                        block_list.add(tuple(blocks))
+                        block_list.add(tuple(block))
             else:
-                block_list.add(tuple(blocks))
+                block_list.add(tuple(block))
 
         # filter off some of the block sizes, heuristically
-        block_list = self._filter(block_list)
+        block_list = sorted(self._filter(block_list))
+
+        # populate output arrays with random values, to make sure that loads
+        # and stores are performed
+        for param in self.op.output_params:
+            param._data = np.random.rand(*param.data.shape).astype(self.op.dtype)
 
         info_at("Number of block sizes that will be attempted: %d" % len(block_list))
 
         # runs function for each block_size
-        for block in sorted(block_list):
-            self.op.propagator.block_sizes = block
+        self.op.propagator.cache_blocking = list(block_list[0])
+        for block in block_list:
+            self.op.propagator.block_sizes = list(block)
             times.append((block, self.get_execution_time()))
 
         # sorts the list of tuples based on time
