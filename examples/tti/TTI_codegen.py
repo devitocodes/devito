@@ -12,8 +12,7 @@ class TTI_cg:
     """ Class to setup the problem for the Acoustic Wave
         Note: s_order must always be greater than t_order
     """
-    def __init__(self, model, data, source=None, t_order=2, s_order=2, nbpml=40,
-                 save=False):
+    def __init__(self, model, data, source=None, t_order=2, s_order=2, nbpml=40):
         self.model = model
         self.t_order = t_order
         self.s_order = s_order
@@ -83,10 +82,3 @@ class TTI_cg:
         u, v, rec = fw.apply()
         return (rec.data, u.data, v.data,
                 fw.propagator.gflops, fw.propagator.oi, fw.propagator.timings)
-
-    def Adjoint(self, rec, cache_blocking=None):
-        adj = AdjointOperator(self.model, self.damp, self.data, rec,
-                              time_order=self.t_order, spc_order=self.s_order,
-                              cache_blocking=cache_blocking)
-        srca = adj.apply()[0]
-        return srca.data
