@@ -7,7 +7,7 @@ from sympy.abc import h, p, s
 from devito.dimension import t, x, y, z
 from devito.finite_difference import (centered, cross_derivative,
                                       first_derivative, left,
-                                      right)
+                                      right, second_derivative)
 from devito.logger import error
 from devito.memmap_manager import MemmapManager
 from tools import aligned
@@ -228,6 +228,45 @@ class DenseData(SymbolicData):
         return as_finite_diff(self.diff(z, z), indz)
 
     @property
+    def dx4(self):
+        """Symbol for the second derivative wrt the x dimension"""
+        width_h = max(int(self.space_order / 2), 2)
+        indx = [(x + i * h) for i in range(-width_h, width_h + 1)]
+
+        return as_finite_diff(self.diff(x, x, x, x), indx)
+
+    @property
+    def dy4(self):
+        """Symbol for the second derivative wrt the y dimension"""
+        width_h = max(int(self.space_order / 2), 2)
+        indy = [(y + i * h) for i in range(-width_h, width_h + 1)]
+
+        return as_finite_diff(self.diff(y, y, y, y), indy)
+
+    @property
+    def dz4(self):
+        """Symbol for the second derivative wrt the z dimension"""
+        width_h = max(int(self.space_order / 2), 2)
+        indz = [(z + i * h) for i in range(-width_h, width_h + 1)]
+
+        return as_finite_diff(self.diff(z, z, z, z), indz)
+
+    @property
+    def dx2y2(self):
+        """Symbol for the second derivative wrt the x dimension"""
+        return second_derivative(self.dx2, dim=y, order=self.space_order)
+
+    @property
+    def dx2z2(self):
+        """Symbol for the second derivative wrt the y dimension"""
+        return second_derivative(self.dx2, dim=z, order=self.space_order)
+
+    @property
+    def dy2z2(self):
+        """Symbol for the second derivative wrt the z dimension"""
+        return second_derivative(self.dy2, dim=z, order=self.space_order)
+
+    @property
     def dx(self):
         """Symbol for the first derivative wrt the x dimension"""
         return first_derivative(self, order=self.space_order, dim=x, side=centered)
@@ -248,6 +287,15 @@ class DenseData(SymbolicData):
         derivs = ['dx2', 'dy2', 'dz2']
 
         return sum([getattr(self, d) for d in derivs[:self.dim]])
+
+    @property
+    def laplace2(self):
+        """Symbol for the second derivative wrt all spatial dimensions"""
+        derivs = ['dx4', 'dy4', 'dz4']
+        first = sum([getattr(self, d) for d in derivs[:self.dim]])
+        derivs = ['dx2y2', 'dx2z2', 'dy2z2']
+        second = 2 * sum([getattr(self, d) for d in derivs[:self.dim - 1]])
+        return first + second
 
     @property
     def dxy(self):

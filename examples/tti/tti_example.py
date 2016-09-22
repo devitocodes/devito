@@ -10,8 +10,8 @@ def source(t, f0):
     return (1-2.*r**2)*np.exp(-r**2)
 
 
-def run(dimensions=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=250.0,
-        time_order=2, space_order=2, nbpml=10, cse=True,
+def run(dimensions=(150, 150, 100), spacing=(20.0, 20.0, 20.0), tn=1500.0,
+        time_order=2, space_order=4, nbpml=10, cse=True,
         auto_tuning=False, compiler=None, cache_blocking=None):
     if auto_tuning:
         cache_blocking = None
@@ -45,8 +45,8 @@ def run(dimensions=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=250.0,
                 origin[1] + 2 * spacing[1])
     data.set_source(time_series, dt, location)
     receiver_coords = np.zeros((101, 3))
-    receiver_coords[:, 0] = np.linspace(50, 950, num=101)
-    receiver_coords[:, 1] = 500
+    receiver_coords[:, 0] = np.linspace(50, origin[0] + (dimensions[0] - 2) * spacing[0] * 0.5, num=101)
+    receiver_coords[:, 1] = origin[1] + dimensions[1] * spacing[1] * 0.5
     receiver_coords[:, 2] = location[2]
     data.set_receiver_pos(receiver_coords)
     data.set_shape(nt, 101)

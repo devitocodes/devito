@@ -24,7 +24,7 @@ def source(t, f0):
     return (1-2.*r**2)*np.exp(-r**2)
 
 
-def run(dimensions=(150, 150, 50), spacing=(20.0, 20.0, 20.0), tn=250.0,
+def run(dimensions=(150, 150, 50), spacing=(15.0, 15.0, 15.0), tn=250.0,
         time_order=2, space_order=2, nbpml=10, cse=True, auto_tuning=False,
         compiler=None, cache_blocking=None, full_run=False):
     model = IGrid()
@@ -36,8 +36,11 @@ def run(dimensions=(150, 150, 50), spacing=(20.0, 20.0, 20.0), tn=250.0,
     origin = (0., 0., 0.)
 
     # True velocity
-    true_vp = np.ones(dimensions) + 2.0
-    true_vp[:, :, int(dimensions[0] / 2):int(dimensions[0])] = 4.5
+    true_vp = np.ones(dimensions) + .5
+    if len(dimensions) == 2:
+        true_vp[:, int(dimensions[0] / 2):dimensions[0]] = 2.5
+    else:
+        true_vp[:, :, int(dimensions[0] / 2):dimensions[0]] = 2.5
 
     # Smooth velocity
     initial_vp = smooth10(true_vp, dimensions)
@@ -64,7 +67,7 @@ def run(dimensions=(150, 150, 50), spacing=(20.0, 20.0, 20.0), tn=250.0,
     receiver_coords[:, 0] = np.linspace(2 * spacing[0],
                                         origin[0] + (dimensions[0] - 2) * spacing[0],
                                         num=101)
-    receiver_coords[:, 1] = 500
+    receiver_coords[:, 1] = origin[1] + dimensions[1] * spacing[1] * 0.5
     receiver_coords[:, 2] = location[2]
     data.set_receiver_pos(receiver_coords)
     data.set_shape(nt, 101)
@@ -79,7 +82,7 @@ def run(dimensions=(150, 150, 50), spacing=(20.0, 20.0, 20.0), tn=250.0,
     )
 
     if not full_run:
-        return gflops, oi, timings, [rec, u.data]
+        return gflopss, oi, timings, [rec, u.data]
 
     info("Applying Adjoint")
     Acoustic.Adjoint(rec)
@@ -89,4 +92,4 @@ def run(dimensions=(150, 150, 50), spacing=(20.0, 20.0, 20.0), tn=250.0,
     Acoustic.Born(dm)
 
 if __name__ == "__main__":
-    run(full_run=True, auto_tuning=True)
+    run(full_run=False, auto_tuning=True, space_order=4, time_order=4)

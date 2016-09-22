@@ -11,9 +11,10 @@ class ForwardOperator(Operator):
     def __init__(self, model, src, damp, data, time_order=2, spc_order=6,
                  save=False, **kwargs):
         nrec, nt = data.shape
-        dt = model.get_critical_dt()
+        s, h = symbols('s h')
+        dt = time_order/2*model.get_critical_dt()
         u = TimeData(name="u", shape=model.get_shape_comp(), time_dim=nt,
-                     time_order=time_order, space_order=spc_order, save=save,
+                     time_order=2, space_order=spc_order, save=save,
                      dtype=damp.dtype)
         m = DenseData(name="m", shape=model.get_shape_comp(), dtype=damp.dtype)
         m.data[:] = model.padm()
@@ -22,16 +23,25 @@ class ForwardOperator(Operator):
                          coordinates=data.receiver_coords, ndim=len(damp.shape),
                          dtype=damp.dtype, nbpml=model.nbpml)
         # Derive stencil from symbolic equation
-        eqn = m * u.dt2 - u.laplace + damp * u.dt
-        stencil = solve(eqn, u.forward)[0]
+        if time_order == 2:
+            Lap = u.laplace
+            Lap2 = 0
+            eqn = m * u.dt2 - Lap + damp * u.dt
+        else:
+            Lap = u.laplace
+            Lap2 = 1/m * u.laplace2
+            eqn = m * u.dt2 - Lap - s**2 / 12 * Lap2 + damp * u.dt
+
+        stencil = 1.0 / (2.0 * m + s * damp) * \
+            (4.0 * m * u + (s * damp - 2.0 * m) *
+             u.backward + 2.0 * s ** 2 * (Lap + s**2 / 12 * Lap2))
         # Add substitutions for spacing (temporal and spatial)
-        s, h = symbols('s h')
         subs = {s: dt, h: model.get_spacing()}
         super(ForwardOperator, self).__init__(nt, m.shape,
                                               stencils=Eq(u.forward, stencil),
                                               subs=subs,
-                                              spc_border=spc_order/2,
-                                              time_order=time_order,
+                                              spc_border=max(spc_order/2, 2),
+                                              time_order=2,
                                               forward=True,
                                               dtype=m.dtype,
                                               **kwargs)
@@ -49,9 +59,10 @@ class ForwardOperator(Operator):
 class AdjointOperator(Operator):
     def __init__(self, model, damp, data, recin, time_order=2, spc_order=6, **kwargs):
         nrec, nt = data.shape
-        dt = model.get_critical_dt()
+        s, h = symbols('s h')
+        dt = time_order/2*model.get_critical_dt()
         v = TimeData(name="v", shape=model.get_shape_comp(), time_dim=nt,
-                     time_order=time_order, space_order=spc_order,
+                     time_order=2, space_order=spc_order,
                      save=False, dtype=damp.dtype)
         m = DenseData(name="m", shape=model.get_shape_comp(), dtype=damp.dtype)
         m.data[:] = model.padm()
@@ -65,17 +76,26 @@ class AdjointOperator(Operator):
                          dtype=damp.dtype, nbpml=model.nbpml)
         rec.data[:] = recin[:]
         # Derive stencil from symbolic equation
-        eqn = m * v.dt2 - v.laplace - damp * v.dt
-        stencil = solve(eqn, v.backward)[0]
+        if time_order == 2:
+            Lap = v.laplace
+            Lap2 = 0
+            eqn = m * v.dt2 - Lap - damp * v.dt
+        else:
+            Lap = v.laplace
+            Lap2 = 1/m * v.laplace2
+            eqn = m * v.dt2 - Lap - s**2 / 12 * Lap2 + damp * v.dt
+
+        stencil = 1.0 / (2.0 * m + s * damp) * \
+            (4.0 * m * v + (s * damp - 2.0 * m) *
+             v.forward + 2.0 * s ** 2 * (Lap + s**2 / 12 * Lap2))
 
         # Add substitutions for spacing (temporal and spatial)
-        s, h = symbols('s h')
-        subs = {s: model.get_critical_dt(), h: model.get_spacing()}
+        subs = {s: time_order/2*model.get_critical_dt(), h: model.get_spacing()}
         super(AdjointOperator, self).__init__(nt, m.shape,
                                               stencils=Eq(v.backward, stencil),
                                               subs=subs,
-                                              spc_border=spc_order/2,
-                                              time_order=time_order,
+                                              spc_border=max(spc_order/2, 2),
+                                              time_order=2,
                                               forward=False,
                                               dtype=m.dtype,
                                               **kwargs)

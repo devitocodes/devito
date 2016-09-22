@@ -26,7 +26,7 @@ class TestAdjointA(object):
         data = IShot()
 
         f0 = .010
-        dt = model.get_critical_dt()
+        dt = time_order/2*model.get_critical_dt()
         t0 = 0.0
         tn = 500.0
         nt = int(1+(tn-t0)/dt)
@@ -56,7 +56,7 @@ class TestAdjointA(object):
                                 nbpml=10)
         return wave_true
 
-    @pytest.fixture(params=[2])
+    @pytest.fixture(params=[2, 4])
     def time_order(self, request):
         return request.param
 
