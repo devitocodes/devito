@@ -171,7 +171,7 @@ if __name__ == "__main__":
             label = "%s, AT: %s, SO: %s, TO: %s" % (
                 args.problem, key["auto_tuning"], key["space_order"], key["time_order"]
             )
-            mflops_dict[label] = gflops * 1000
+            mflops_dict[label] = gflops
             oi_dict[label] = oi_value
 
         name = ("%s %s dimensions: %s - spacing: %s -"
