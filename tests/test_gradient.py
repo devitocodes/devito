@@ -31,9 +31,9 @@ class TestGradient(object):
         # True velocity
         true_vp = np.ones(dimensions) + .5
         if len(dimensions) == 2:
-            true_vp[:, int(dimensions[1] / 3):] = 4
+            true_vp[:, int(dimensions[1] / 3):] = 2.5
         else:
-            true_vp[:, :, int(dimensions[2] / 3):] = 4
+            true_vp[:, :, int(dimensions[2] / 3):] = 2.5
         # Smooth velocity
         initial_vp = smooth10(true_vp)
         dm = true_vp**-2 - initial_vp**-2

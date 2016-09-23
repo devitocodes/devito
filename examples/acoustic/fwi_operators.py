@@ -1,5 +1,5 @@
 import numpy as np
-from sympy import Eq, solve, symbols
+from sympy import Eq, symbols
 
 from devito.dimension import t
 from devito.interfaces import DenseData, TimeData
