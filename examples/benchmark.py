@@ -12,11 +12,11 @@ from examples.acoustic.acoustic_example import run as acoustic_run
 from examples.tti.tti_example import run as tti_run
 
 try:
-    from opescibench import Benchmark, Executor, Plotter
+    from opescibench import Benchmark, Executor, RooflinePlotter
 except:
     Benchmark = None
     Executor = None
-    Plotter = None
+    RooflinePlotter = None
 
 
 if __name__ == "__main__":
@@ -164,19 +164,8 @@ if __name__ == "__main__":
             warning("Could not load any results, nothing to plot. Exiting...")
             sys.exit(0)
 
-        oi_dict = {}
-        mflops_dict = {}
-
         gflops = bench.lookup(params=parameters, measure="gflops", event="loop_body")
         oi = bench.lookup(params=parameters, measure="oi", event="loop_body")
-
-        for key, gflops in gflops.items():
-            oi_value = oi[key]
-            key = dict(key)
-            label = "%s, so %s" % ("AT" if key["auto_tuning"] else "noAT",
-                                   key["space_order"])
-            mflops_dict[label] = gflops
-            oi_dict[label] = oi_value
 
         name = "%s_dim%s_so%s_to%s.pdf" % (args.problem, parameters["dimensions"],
                                            parameters["space_order"],
@@ -184,6 +173,14 @@ if __name__ == "__main__":
         title = "%s - grid: %s, time order: %s" % (args.problem.capitalize(),
                                                    parameters["dimensions"],
                                                    parameters["time_order"])
-        plotter = Plotter(plotdir=args.plotdir)
-        plotter.plot_roofline(
-            name, mflops_dict, oi_dict, args.max_bw, args.max_flops, title=title)
+        with RooflinePlotter(figname=name, plotdir=args.plotdir,
+                             max_bw=args.max_bw, max_flops=args.max_flops) as plot:
+            for key, gflops in gflops.items():
+                oi_value = oi[key]
+                key = dict(key)
+                at = key["auto_tuning"]
+                style = '%s%s' % (plot.color[0] if at else plot.color[1],
+                                  plot.marker[0] if at else plot.marker[1])
+                plot.add_point(gflops=gflops, oi=oi_value, style=style, oi_line=at,
+                               label='Auto-tuned' if at else 'No Auto-tuning',
+                               oi_annotate='SO: %s' % key["space_order"] if at else None)
