@@ -1,7 +1,7 @@
+import sys
 from argparse import ArgumentParser, RawDescriptionHelpFormatter
 from itertools import product
 from os import environ
-import sys
 
 import numpy as np
 
