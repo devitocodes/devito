@@ -180,6 +180,6 @@ if __name__ == "__main__":
              parameters["space_order"], parameters["time_order"])
         name = name.replace(" ", "_")
 
-        plotter = Plotter()
+        plotter = Plotter(plotdir=args.plotdir)
         plotter.plot_roofline(
             name, mflops_dict, oi_dict, args.max_bw, args.max_flops)
