@@ -17,8 +17,12 @@ class Acoustic_cg:
         self.t_order = t_order
         self.s_order = s_order
         self.data = data
-        self.dtype = np.float64
-        self.dt = model.get_critical_dt()
+        self.dtype = np.float32
+        # Time step can be \sqrt{3}=1.73 bigger with 4th order
+        if t_order == 4:
+            self.dt = 1.73 * model.get_critical_dt()
+        else:
+            self.dt = model.get_critical_dt()
         self.model.nbpml = nbpml
         self.model.set_origin(nbpml)
         if source is not None:

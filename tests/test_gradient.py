@@ -2,6 +2,7 @@ import numpy as np
 import pytest
 from numpy import linalg
 
+from devito import clear_cache
 from examples.acoustic.Acoustic_codegen import Acoustic_cg
 from examples.containers import IGrid, IShot
 
@@ -30,9 +31,9 @@ class TestGradient(object):
         # True velocity
         true_vp = np.ones(dimensions) + .5
         if len(dimensions) == 2:
-            true_vp[:, int(dimensions[1] / 3):] = 2.5
+            true_vp[:, int(dimensions[1] / 3):] = 4
         else:
-            true_vp[:, :, int(dimensions[2] / 3):] = 2.5
+            true_vp[:, :, int(dimensions[2] / 3):] = 4
         # Smooth velocity
         initial_vp = smooth10(true_vp)
         dm = true_vp**-2 - initial_vp**-2
@@ -41,7 +42,10 @@ class TestGradient(object):
         # Define seismic data.
         data = IShot()
         f0 = .010
-        dt = model.get_critical_dt()
+        if time_order == 4:
+            dt = 1.73 * model.get_critical_dt()
+        else:
+            dt = model.get_critical_dt()
         t0 = 0.0
         tn = 500.0
         nt = int(1+(tn-t0)/dt)
@@ -61,27 +65,28 @@ class TestGradient(object):
         receiver_coords = np.zeros((50, len(dimensions)))
         receiver_coords[:, 0] = np.linspace(50, origin[0] + dimensions[0]*spacing[0] - 50,
                                             num=50)
-        receiver_coords[:, -1] = location[-1]
+        receiver_coords[:, 1] = location[1]
         if len(dimensions) == 3:
-            receiver_coords[:, 1] = location[1]
+            receiver_coords[:, 2] = location[2]
         data.set_receiver_pos(receiver_coords)
         data.set_shape(nt, 50)
         # Adjoint test
         wave_true = Acoustic_cg(model, data, None, t_order=time_order,
-                                s_order=space_order, nbpml=10)
+                                s_order=space_order, nbpml=40)
         wave_0 = Acoustic_cg(model0, data, None, t_order=time_order,
-                             s_order=space_order, nbpml=10)
+                             s_order=space_order, nbpml=40)
         return wave_true, wave_0, dm, initial_vp
 
     @pytest.fixture(params=[2])
     def time_order(self, request):
         return request.param
 
-    @pytest.fixture(params=[2])
+    @pytest.fixture(params=[2, 4])
     def space_order(self, request):
         return request.param
 
     def test_grad(self, acoustic):
+        clear_cache()
         rec = acoustic[0].Forward()[0]
         rec0, u0, _, _, _ = acoustic[1].Forward(save=True)
         F0 = .5*linalg.norm(rec0 - rec)**2
@@ -117,6 +122,6 @@ class TestGradient(object):
 if __name__ == "__main__":
     t = TestGradient()
     request = type('', (), {})()
-    request.param = (60, 70, 80)
-    ac = t.acoustic(request, 2, 12)
+    request.param = (60, 70)
+    ac = t.acoustic(request, 4, 2)
     t.test_grad(ac)

@@ -53,7 +53,10 @@ def run(dimensions=(150, 150, 50), spacing=(15.0, 15.0, 15.0), tn=250.0,
     data = IShot()
 
     f0 = .010
-    dt = model.get_critical_dt()
+    if time_order == 4:
+        dt = 1.73 * model.get_critical_dt()
+    else:
+        dt = model.get_critical_dt()
     t0 = 0.0
     nt = int(1+(tn-t0)/dt)
 
