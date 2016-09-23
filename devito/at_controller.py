@@ -1,4 +1,7 @@
+from __future__ import absolute_import
+
 from os import mkdir, path
+from operator import itemgetter
 
 import numpy as np
 
@@ -133,7 +136,7 @@ class AutoTuner(object):
             times.append((block, self.get_execution_time()))
 
         # sorts the list of tuples based on time
-        times = sorted(times, key=lambda element: element[1])
+        times = sorted(times, key=itemgetter(1))
 
         info_at("Finish.")
         info_at("Estimated runtime for %s and %d time steps: %f hours" %
