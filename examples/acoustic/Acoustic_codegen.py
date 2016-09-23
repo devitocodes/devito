@@ -1,8 +1,8 @@
 # coding: utf-8
 from __future__ import print_function
 
-from examples.acoustic.fwi_operators import *
 from devito.at_controller import AutoTuner
+from examples.acoustic.fwi_operators import *
 from examples.source_type import SourceLike
 
 

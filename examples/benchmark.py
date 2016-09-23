@@ -1,3 +1,4 @@
+import sys
 from argparse import ArgumentParser, RawDescriptionHelpFormatter
 from itertools import product
 from os import environ
@@ -6,6 +7,7 @@ import numpy as np
 
 from devito import clear_cache
 from devito.compiler import compiler_registry
+from devito.logger import warning
 from examples.acoustic.acoustic_example import run as acoustic_run
 from examples.tti.tti_example import run as tti_run
 
@@ -158,6 +160,9 @@ if __name__ == "__main__":
             name=args.problem, resultsdir=args.resultsdir, parameters=parameters
         )
         bench.load()
+        if not bench.loaded:
+            warning("Could not load any results, nothing to plot. Exiting...")
+            sys.exit(0)
 
         oi_dict = {}
         mflops_dict = {}
@@ -168,18 +173,17 @@ if __name__ == "__main__":
         for key, gflops in gflops.items():
             oi_value = oi[key]
             key = dict(key)
-            label = "%s, AT: %s, SO: %s, TO: %s" % (
-                args.problem, key["auto_tuning"], key["space_order"], key["time_order"]
-            )
-            mflops_dict[label] = gflops * 1000
+            label = "%s, so %s" % ("AT" if key["auto_tuning"] else "noAT",
+                                   key["space_order"])
+            mflops_dict[label] = gflops
             oi_dict[label] = oi_value
 
-        name = ("%s %s dimensions: %s - spacing: %s -"
-                " space order: %s - time order: %s.pdf") % \
-            (args.problem, args.compiler, parameters["dimensions"], parameters["spacing"],
-             parameters["space_order"], parameters["time_order"])
-        name = name.replace(" ", "_")
-
-        plotter = Plotter()
+        name = "%s_dim%s_so%s_to%s.pdf" % (args.problem, parameters["dimensions"],
+                                           parameters["space_order"],
+                                           parameters["time_order"])
+        title = "%s - grid: %s, time order: %s" % (args.problem.capitalize(),
+                                                   parameters["dimensions"],
+                                                   parameters["time_order"])
+        plotter = Plotter(plotdir=args.plotdir)
         plotter.plot_roofline(
-            name, mflops_dict, oi_dict, args.max_bw, args.max_flops)
+            name, mflops_dict, oi_dict, args.max_bw, args.max_flops, title=title)
