@@ -140,10 +140,10 @@ if __name__ == "__main__":
             """Executor class that defines how to run the benchmark"""
 
             def run(self, *args, **kwargs):
-                gflops, oi, timings, _ = run(*args, **kwargs)
+                gflopss, oi, timings, _ = run(*args, **kwargs)
 
                 for key in timings.keys():
-                    self.register(gflops[key], measure="gflops", event=key)
+                    self.register(gflopss[key], measure="gflopss", event=key)
                     self.register(oi[key], measure="oi", event=key)
                     self.register(timings[key], measure="timings", event=key)
 

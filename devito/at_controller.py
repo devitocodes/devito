@@ -165,7 +165,7 @@ class AutoTuner(object):
         :return: time - how long it took to execute
         """
         self.op.propagator.run(self.op.get_args())
-        return self.op.propagator.timings['kernel']
+        return self.op.propagator.total_time
 
     def _write_block_report(self, times):
         """Writes auto tuning report for block sizes

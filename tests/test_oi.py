@@ -30,7 +30,7 @@ class Test_OI_Calculation(object):
         propagator.add_param("v3", data.shape, data.dtype)
         propagator.run([data, data, arr])
 
-        propagator_oi = propagator.oi["kernel"]
+        propagator_oi = propagator.oi["loop_body"]
         hand_oi = (mul+add)/((load+store)*np.dtype(dtype).itemsize)
 
         assert(propagator_oi == hand_oi)
@@ -62,7 +62,7 @@ class Test_OI_Calculation(object):
         propagator.add_param("v4", data.shape, data.dtype)
         propagator.run([data, data, data, arr])
 
-        propagator_oi = propagator.oi["kernel"]
+        propagator_oi = propagator.oi["loop_body"]
         hand_oi = (mul+add)/((load+store)*np.dtype(dtype).itemsize)
 
         assert(propagator_oi == hand_oi)
@@ -99,7 +99,7 @@ class Test_OI_Calculation(object):
         propagator.add_param("v4", data.shape, data.dtype)
         propagator.run([data, data, data, arr])
 
-        propagator_oi = propagator.oi["kernel"]
+        propagator_oi = propagator.oi["loop_body"]
         hand_oi = (mul+add)/((load+store)*np.dtype(dtype).itemsize)
 
         assert(propagator_oi == hand_oi)
