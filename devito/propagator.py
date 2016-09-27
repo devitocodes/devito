@@ -310,7 +310,9 @@ class Propagator(object):
                 sub = str(ccode(self.time_substitutions(expr).xreplace(self._var_map)))
                 if self.dtype is np.float32:
                     factors.append(cgen.Assign(name, (sub.replace("pow", "powf")
-                                                      .replace("fabs", "fabsf"))))
+                                                      .replace("fabs", "fabsf")
+                                                      .replace("cos", "cosf")
+                                                      .replace("sin", "sinf"))))
                 else:
                     factors.append(cgen.Assign(name, sub))
 

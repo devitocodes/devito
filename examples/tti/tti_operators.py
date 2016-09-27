@@ -9,7 +9,7 @@ from examples.source_type import SourceLike
 
 class ForwardOperator(Operator):
     def __init__(self, model, src, damp, data, time_order=2, spc_order=4, save=False,
-                 **kwargs):
+                 trigonometry='normal', **kwargs):
         nrec, nt = data.shape
         dt = model.get_critical_dt()
         u = TimeData(name="u", shape=model.get_shape_comp(),
@@ -82,50 +82,69 @@ class ForwardOperator(Operator):
 
         s, h = symbols('s h')
 
-        ang0 = Bhaskaracos(theta)
-        ang1 = Bhaskarasin(theta)
+        ccos = Bhaskaracos if trigonometry == 'Bhaskara' else cos
+        ssin = Bhaskarasin if trigonometry == 'Bhaskara' else sin
+
+        ang0 = ccos(theta)
+        ang1 = ssin(theta)
         spc_brd = spc_order
         # Derive stencil from symbolic equation
         if len(m.shape) == 3:
-            ang2 = Bhaskaracos(phi)
-            ang3 = Bhaskarasin(phi)
+            ang2 = ccos(phi)
+            ang3 = ssin(phi)
 
-            Gyp = (ang3 * u.dx - ang2 * u.dy)
-            Gyy = -(first_derivative(Gyp, ang3, dim=x, side=centered, order=spc_brd) -
-                    first_derivative(Gyp, ang2, dim=y, side=centered, order=spc_brd))
-            Gxp = (ang0 * ang2 * u.dx + ang0 * ang3 * u.dy - ang1 * u.dz)
-            Gzr = (ang1 * ang2 * v.dx + ang1 * ang3 * v.dy + ang0 * v.dz)
-            Gxx = -(first_derivative(Gxp, ang0,
+            Gyp = (ang3 * u.dx - ang2 * u.dyr)
+            Gyy = (-first_derivative(Gyp, ang3, dim=x, side=centered, order=spc_brd) -
+                    first_derivative(Gyp, ang2, dim=y, side=left, order=spc_brd))
+            Gyp2 = (ang3 * u.dxr - ang2 * u.dy)
+            Gyy2 = (first_derivative(Gyp2, ang3, dim=x, side=left, order=spc_brd) +
+                    first_derivative(Gyp2, ang2, dim=y, side=centered, order=spc_brd))
+
+            Gxp = (ang0 * ang2 * u.dx + ang0 * ang3 * u.dyr - ang1 * u.dzr)
+            Gzr = (ang1 * ang2 * v.dx + ang1 * ang3 * v.dyr + ang0 * v.dzr)
+            Gxx = (-first_derivative(Gxp, ang0,
                                      ang2, dim=x, side=centered, order=spc_brd) +
                     first_derivative(Gxp, ang0,
-                                     ang3, dim=y, side=centered, order=spc_brd) -
-                    first_derivative(Gxp, ang1, dim=z, side=centered, order=spc_brd))
-            Gzz = -(first_derivative(Gzr, ang1,
+                                     ang3, dim=y, side=left, order=spc_brd) -
+                    first_derivative(Gxp, ang1, dim=z, side=left, order=spc_brd))
+            Gzz = (-first_derivative(Gzr, ang1,
                                      ang2, dim=x, side=centered, order=spc_brd) +
                     first_derivative(Gzr, ang1,
+                                     ang3, dim=y, side=left, order=spc_brd) +
+                    first_derivative(Gzr, ang0, dim=z, side=left, order=spc_brd))
+            Gxp2 = (ang0 * ang2 * u.dxr + ang0 * ang3 * u.dy - ang1 * u.dz)
+            Gzr2 = (ang1 * ang2 * v.dxr + ang1 * ang3 * v.dy + ang0 * v.dz)
+            Gxx2 = (first_derivative(Gxp2, ang0,
+                                     ang2, dim=x, side=left, order=spc_brd) -
+                    first_derivative(Gxp2, ang0,
                                      ang3, dim=y, side=centered, order=spc_brd) +
-                    first_derivative(Gzr, ang0, dim=z, side=centered, order=spc_brd))
-            Hp = -Gxx - Gyy
-            Hzr = -Gzz
+                    first_derivative(Gxp2, ang1, dim=z, side=centered, order=spc_brd))
+            Gzz2 = (first_derivative(Gzr2, ang1,
+                                     ang2, dim=x, side=left, order=spc_brd) -
+                    first_derivative(Gzr2, ang1,
+                                     ang3, dim=y, side=centered, order=spc_brd) -
+                    first_derivative(Gzr2, ang0, dim=z, side=centered, order=spc_brd))
+            Hp = -(.5*Gxx + .5*Gxx2 + .5*Gyy + .5*Gyy2)
+            Hzr = -(.5*Gzz + .5*Gzz2)
 
         else:
             Gx1p = (ang0 * u.dxr - ang1 * u.dy)
             Gz1r = (ang1 * v.dxr + ang0 * v.dy)
             Gxx1 = (first_derivative(Gx1p * ang0, dim=x,
-                                     side=left, order=spc_brd) -
+                                     side=left, order=spc_brd) +
                     first_derivative(Gx1p * ang1, dim=y,
                                      side=centered, order=spc_brd))
             Gzz1 = (first_derivative(Gz1r * ang1, dim=x,
-                                     side=left, order=spc_brd) +
+                                     side=left, order=spc_brd) -
                     first_derivative(Gz1r * ang0, dim=y,
                                      side=centered, order=spc_brd))
             Gx2p = (ang0 * u.dx - ang1 * u.dyr)
             Gz2r = (ang1 * v.dx + ang0 * v.dyr)
-            Gxx2 = (first_derivative(Gx2p * ang0, dim=x,
+            Gxx2 = (-first_derivative(Gx2p * ang0, dim=x,
                                      side=centered, order=spc_brd) -
                     first_derivative(Gx2p * ang1, dim=y,
                                      side=left, order=spc_brd))
-            Gzz2 = (first_derivative(Gz2r * ang1, dim=x,
+            Gzz2 = (-first_derivative(Gz2r * ang1, dim=x,
                                      side=centered, order=spc_brd) +
                     first_derivative(Gz2r * ang0, dim=y,
                                      side=left, order=spc_brd))

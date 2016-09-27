@@ -10,8 +10,8 @@ def source(t, f0):
     return (1-2.*r**2)*np.exp(-r**2)
 
 
-def run(dimensions=(150, 150, 100), spacing=(20.0, 20.0, 20.0), tn=1500.0,
-        time_order=2, space_order=4, nbpml=10, cse=True,
+def run(dimensions=(150, 150, 100), spacing=(15.0, 15.0, 15.0), tn=1000.0,
+        time_order=2, space_order=10, nbpml=40, cse=True,
         auto_tuning=False, compiler=None, cache_blocking=None):
     if auto_tuning:
         cache_blocking = None
@@ -21,9 +21,9 @@ def run(dimensions=(150, 150, 100), spacing=(20.0, 20.0, 20.0), tn=1500.0,
     origin = (0., 0., 0.)
 
     # True velocity
-    true_vp = np.ones(dimensions) + 1.0
-    true_vp[:, :, int(dimensions[0] / 3):int(2*dimensions[0]/3)] = 3.0
-    true_vp[:, :, int(2*dimensions[0] / 3):int(dimensions[0])] = 4.0
+    true_vp = np.ones(dimensions) + .5
+    true_vp[:, :, int(dimensions[0] / 3):int(2*dimensions[0]/3)] = 2.0
+    true_vp[:, :, int(2*dimensions[0] / 3):int(dimensions[0])] = 3.0
 
     model.create_model(
         origin, spacing, true_vp, .3*np.ones(dimensions), .2*np.ones(dimensions),
@@ -47,7 +47,7 @@ def run(dimensions=(150, 150, 100), spacing=(20.0, 20.0, 20.0), tn=1500.0,
     receiver_coords = np.zeros((101, 3))
     receiver_coords[:, 0] = np.linspace(50,
                                         origin[0] +
-                                        (dimensions[0] - 2) * spacing[0] * 0.5,
+                                        (dimensions[0] - 2) * spacing[0],
                                         num=101)
     receiver_coords[:, 1] = origin[1] + dimensions[1] * spacing[1] * 0.5
     receiver_coords[:, 2] = location[2]
