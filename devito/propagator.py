@@ -20,7 +20,7 @@ from devito.function_manager import FunctionDescriptor, FunctionManager
 from devito.iteration import Iteration
 from devito.logger import logger
 from devito.profiler import Profiler
-from devito.tools import flatten, get_optimal_block_size
+from devito.tools import flatten
 
 
 class Propagator(object):
@@ -52,7 +52,6 @@ class Propagator(object):
                            number used for all dimensions except inner most or a list
                            explicitly stating block sizes for each dimension
                            Set cache_blocking to None to skip blocking on that dim
-                           Set cache_blocking to 0 to use best guess based on architecture
                            Set cache_blocking to AutoTuner instance, to use auto tuned
                            tune block sizes
     """
@@ -354,10 +353,6 @@ class Propagator(object):
         return self.total_gflops / self.total_time
 
     @property
-    def total_loads(self):
-        return self.profiler.num_loads
-
-    @property
     def save(self):
         """Indicates whether time history is saved.
 
@@ -406,19 +401,6 @@ class Propagator(object):
         logger.info("shape - %s%s:: %f sec - %s MCells/s - %.2f GFlops/s" %
                     (shape_str, cb_str, self.total_time,
                      self.mcells, self.total_gflopss))
-
-    def get_number_of_loads(self):
-        """Gets total number of loads which is used for optimal block size estimation
-           Temp profiler needed as we want this info even when profiling is off
-
-        :returns: Total number of loads
-        """
-        name = 'load_count'
-        profiler = Profiler()
-        at_stencils = [self.convert_equality_to_cgen(stencil)
-                       for stencil in self.stencils]
-        profiler.add_profiling(at_stencils, name)
-        return profiler.num_loads[name]
 
     def prep_variable_map(self):
         """Mapping from model variables (x, y, z, t) to loop variables (i1, i2, i3, i4)
@@ -763,16 +745,8 @@ class Propagator(object):
             self.block_sizes = [int(self.cache_blocking)] * (len(self.shape) - 1)
             self.block_sizes.append(None)
 
-        # replace 0 values with optimal block sizes
-        opt_block_size = get_optimal_block_size(
-            self.shape,
-            self.get_number_of_loads(),
-            self.compiler.openmp
-        )
         for i in range(0, len(self.block_sizes)):
             if self.block_sizes[i] is not None:  # replace 0 values with optimal
-                self.block_sizes[i] = (opt_block_size if self.block_sizes[i] == 0
-                                       else self.block_sizes[i])
                 self.fd.add_value_param(str(self.loop_counters[i]) + "block", np.int64)
 
     def add_inner_most_dim_pragma(self, inner_most_dim, space_dims, loop_body):
