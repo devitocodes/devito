@@ -1,12 +1,8 @@
-import re
-from collections import defaultdict
-from copy import copy
-from ctypes import Structure, byref, c_double, c_longlong
+from ctypes import Structure, byref, c_double
 
 import numpy as np
 
-from cgen_wrapper import Assign, Block, For, Pragma, Statement, Struct, Value
-from devito.logger import error
+from cgen_wrapper import Assign, Block, For, Statement, Struct, Value
 
 
 class Profiler(object):
@@ -15,21 +11,16 @@ class Profiler(object):
 
     :param openmp: True if OpenMP is on.
     """
-    TIME = 1
-    FLOP = 2
+    TIME = 0
     t_name = "timings"
-    f_name = "flops"
 
     def __init__(self, openmp=False, dtype=np.float32):
         self.openmp = openmp
         self.float_size = np.dtype(dtype).itemsize
         self.profiled = []
         self.t_fields = []
-        self.f_fields = []
 
-        # _C_ fields are ctypes structs used for code generation
         self._C_timings = None
-        self._C_flops = None
 
         self.num_flops = {}
 
@@ -56,7 +47,6 @@ class Profiler(object):
         omp_flag = omp_flag or []
 
         self.t_fields.append((name, c_double))
-        self.f_fields.append((name, c_longlong))
 
         self.num_flops[name] = FlopsCounter(code, name, self.openmp,
                                             self.float_size, to_ignore or []).run()
@@ -86,14 +76,10 @@ class Profiler(object):
 
         :returns: A class definition
         """
-        if choice == Profiler.TIME:
-            name = "Timings"
-            fields = self.t_fields
-        elif choice == Profiler.FLOP:
-            name = "Flops"
-            fields = self.f_fields
-        else:
-            error("Wrong choice")
+        assert choice in [Profiler.TIME]
+
+        name = "Timings"
+        fields = self.t_fields
 
         return type(name, (Structure,), {"_fields_": fields})
 
@@ -102,19 +88,14 @@ class Profiler(object):
 
         :returns: The struct
         """
+        assert choice in [Profiler.TIME]
+
         fields = []
         s_name = None
 
-        if choice == Profiler.TIME:
-            s_name = "profiler"
-            for name, _ in self.t_fields:
-                fields.append(Value("double", name))
-        elif choice == Profiler.FLOP:
-            s_name = "flops"
-            for name, _ in self.f_fields:
-                fields.append(Value("long long", name))
-        else:
-            error("Wrong choice")
+        s_name = "profiler"
+        for name, _ in self.t_fields:
+            fields.append(Value("double", name))
 
         return Struct(s_name, fields)
 
@@ -126,12 +107,10 @@ class Profiler(object):
 
         :returns: The pointer
         """
-        struct = self.get_class(choice)()
+        assert choice in [Profiler.TIME]
 
-        if choice == Profiler.TIME:
-            self._C_timings = struct
-        elif choice == Profiler.FLOP:
-            self._C_flops = struct
+        struct = self.get_class(choice)()
+        self._C_timings = struct
 
         return byref(struct)
 

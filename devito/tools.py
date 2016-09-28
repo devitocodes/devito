@@ -1,7 +1,4 @@
 import ctypes
-import math
-import os
-
 import numpy as np
 from sympy import symbols
 

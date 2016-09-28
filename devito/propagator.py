@@ -224,10 +224,6 @@ class Propagator(object):
             key = "%s%d" % (POST_STENCILS.name, i)
             oi_per_section[key] = 1.0*gflops_per_section[key]/bytes_per_section[key]
 
-        a = self.traffic('ideal')
-        b = self.traffic('ideal_with_stores')
-        c = self.traffic('realistic')
-        from IPython import embed; embed()
         return oi_per_section
 
     @property
@@ -270,15 +266,23 @@ class Propagator(object):
 
         assert mode in ['ideal', 'ideal_with_stores', 'realistic']
 
+        def access(symbol):
+            assert isinstance(symbol, Indexed)
+            # Irregular accesses (eg A[B[i]]) are counted as compulsory traffic
+            if any(i.atoms(Indexed) for i in symbol.indices):
+                return symbol
+            else:
+                return symbol.base
+
         def count(self, expressions):
             if mode in ['ideal', 'ideal_with_stores']:
-                filter = lambda s: self.time_dim in s.indices
+                filter = lambda s: self.time_dim in s.atoms()
             else:
                 filter = lambda s: s
-            reads = list(flatten([e.rhs.atoms(Indexed) for e in expressions]))
-            reads = set([s.base for s in reads if filter(s)])
-            writes = list(flatten([e.lhs.atoms(Indexed) for e in expressions]))
-            writes = set([s.base for s in writes if filter(s)])
+            reads = set(flatten([e.rhs.atoms(Indexed) for e in expressions]))
+            writes = set(flatten([e.lhs.atoms(Indexed) for e in expressions]))
+            reads = set([access(s) for s in reads if filter(s)])
+            writes = set([access(s) for s in writes if filter(s)])
             if mode == 'ideal':
                 return len(set(reads) | set(writes))
             else:
@@ -337,12 +341,12 @@ class Propagator(object):
         gflopss = {}
         for k, v in self.gflops.items():
             assert k in self.timings
-            gflopss[k] = v / (self.timings[k] * 10**9)
+            gflopss[k] = (v / (10**9)) / self.timings[k]
         return gflopss
 
     @property
     def total_gflops(self):
-        return sum(v for _, v in self.gflops.items())
+        return sum(v / (10**9) for _, v in self.gflops.items())
 
     @property
     def total_time(self):
@@ -561,15 +565,15 @@ class Propagator(object):
 
         # Statements to be inserted into the time loop before the spatial loop
         pre_stencils = [self.time_substitutions(x)
-                                for x in self.time_loop_stencils_b]
+                        for x in self.time_loop_stencils_b]
         pre_stencils = [self.convert_equality_to_cgen(x)
-                                for x in self.time_loop_stencils_b]
+                        for x in self.time_loop_stencils_b]
 
         # Statements to be inserted into the time loop after the spatial loop
         post_stencils = [self.time_substitutions(x)
-                                for x in self.time_loop_stencils_a]
+                         for x in self.time_loop_stencils_a]
         post_stencils = [self.convert_equality_to_cgen(x)
-                                for x in self.time_loop_stencils_a]
+                         for x in self.time_loop_stencils_a]
 
         if self.profile:
             pre_stencils = list(flatten([self.profiler.add_profiling([s], "%s%d" %
