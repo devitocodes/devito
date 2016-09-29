@@ -164,7 +164,7 @@ if __name__ == "__main__":
             warning("Could not load any results, nothing to plot. Exiting...")
             sys.exit(0)
 
-        gflops = bench.lookup(params=parameters, measure="gflops", event="loop_body")
+        gflopss = bench.lookup(params=parameters, measure="gflopss", event="loop_body")
         oi = bench.lookup(params=parameters, measure="oi", event="loop_body")
 
         name = "%s_dim%s_so%s_to%s.pdf" % (args.problem, parameters["dimensions"],
@@ -175,12 +175,12 @@ if __name__ == "__main__":
                                                    parameters["time_order"])
         with RooflinePlotter(figname=name, plotdir=args.plotdir,
                              max_bw=args.max_bw, max_flops=args.max_flops) as plot:
-            for key, gflops in gflops.items():
+            for key, gflopss in gflopss.items():
                 oi_value = oi[key]
                 key = dict(key)
                 at = key["auto_tuning"]
                 style = '%s%s' % (plot.color[0] if at else plot.color[1],
                                   plot.marker[0] if at else plot.marker[1])
-                plot.add_point(gflops=gflops, oi=oi_value, style=style, oi_line=at,
+                plot.add_point(gflops=gflopss, oi=oi_value, style=style, oi_line=at,
                                label='Auto-tuned' if at else 'No Auto-tuning',
                                oi_annotate='SO: %s' % key["space_order"] if at else None)
