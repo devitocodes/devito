@@ -399,12 +399,12 @@ class Propagator(object):
     def log_performance(self):
         """Logs performance metrics"""
         shape_str = str(self.shape).replace(', ', ' x ')
-        cb_str = ", blocks - %s " % str(self.block_sizes) \
+        cb_str = ", Block=%s " % str(self.block_sizes) \
             if self.cache_blocking else ' '
 
-        logger.info("shape - %s%s:: %f sec - %s MCells/s - %.2f GFlops/s" %
-                    (shape_str, cb_str, self.total_time,
-                     self.mcells, self.total_gflopss))
+        logger.info("Shape=%s%s:: %f OI, %f sec, %s MCells/s, %.2f GFlops/s" %
+                    (shape_str, cb_str, self.oi[LOOP_BODY.name],
+                     self.total_time, self.mcells, self.total_gflopss))
 
     def prep_variable_map(self):
         """Mapping from model variables (x, y, z, t) to loop variables (i1, i2, i3, i4)
