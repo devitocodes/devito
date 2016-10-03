@@ -3,6 +3,8 @@ from collections import defaultdict
 from copy import copy
 from ctypes import Structure, byref, c_double, c_longlong
 
+import numpy as np
+
 from cgen_wrapper import Assign, Block, For, Pragma, Statement, Struct, Value
 from devito.logger import error
 
@@ -18,8 +20,9 @@ class Profiler(object):
     t_name = "timings"
     f_name = "flops"
 
-    def __init__(self, openmp=False):
+    def __init__(self, openmp=False, dtype=np.float32):
         self.openmp = openmp
+        self.float_size = np.dtype(dtype).itemsize
         self.profiled = []
         self.t_fields = []
         self.f_fields = []
@@ -60,7 +63,7 @@ class Profiler(object):
 
         return Statement("%s->%s=%s" % (self.f_name, name, temps_sum))
 
-    def add_profiling(self, code, name, byte_size=4, omp_flag=None, to_ignore=None):
+    def add_profiling(self, code, name, omp_flag=None, to_ignore=None):
         """Function to add profiling code to the given :class:`cgen.Block`.
 
         :param code: A list of :class:`cgen.Generable` with the code to be
@@ -85,7 +88,7 @@ class Profiler(object):
         self.t_fields.append((name, c_double))
         self.f_fields.append((name, c_longlong))
 
-        oic = OICalculator(code, name, self.openmp, byte_size, to_ignore or [])
+        oic = OICalculator(code, name, self.openmp, self.float_size, to_ignore or [])
         (
             self.oi[name],
             self.oi_low[name],
@@ -198,11 +201,11 @@ class OICalculator(object):
 
     """Compute the operational intensity of a stencil."""
 
-    def __init__(self, code, name, openmp, byte_size, to_ignore):
+    def __init__(self, code, name, openmp, float_size, to_ignore):
         self.code = code
         self.name = name
         self.openmp = openmp
-        self.byte_size = byte_size
+        self.float_size = float_size
 
         self._var_count = 0
         self.to_ignore = [
@@ -251,8 +254,8 @@ class OICalculator(object):
 
         load_val_sum = sum(loads.values())
 
-        oi = float(num_flops) / (self.byte_size*(len(loads) + loads["stores"] - 1))
-        oi_low = oi / (self.byte_size*load_val_sum)
+        oi = float(num_flops) / (self.float_size*(len(loads) + loads["stores"] - 1))
+        oi_low = oi / (self.float_size*load_val_sum)
         num_loads = load_val_sum - loads["stores"]
 
         return oi, oi_low, num_loads, self.temps

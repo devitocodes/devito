@@ -4,6 +4,7 @@ from __future__ import print_function
 import numpy as np
 
 from devito.at_controller import AutoTuner
+from examples.source_type import SourceLike
 from examples.tti.tti_operators import *
 
 
@@ -57,7 +58,7 @@ class TTI_cg:
         # Initialize damp by calling the function that can precompute damping
         damp_boundary(self.damp.data)
         srccoord = np.array(self.data.source_coords, dtype=self.dtype)[np.newaxis, :]
-        self.src = SourceLike(name="src", npoint=1, nt=data.traces.shape[1],
+        self.src = SourceLike(name="src", npoint=1, nt=data.shape[1],
                               dt=self.dt, h=self.model.get_spacing(),
                               coordinates=srccoord, ndim=len(self.damp.shape),
                               dtype=self.dtype, nbpml=nbpml)
