@@ -25,7 +25,6 @@ class StencilKernel(object):
         self.compiler = compiler or get_compiler_from_env()
         self._lib = None
         self._cfunction = None
-
         # Ensure we always deal with Expression lists
         stencils = stencils if isinstance(stencils, list) else [stencils]
         self.expressions = [Expression(s) for s in stencils]

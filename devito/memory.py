@@ -1,12 +1,17 @@
 from __future__ import absolute_import
-import cgen
-from devito.propagator import Propagator
-import numpy as np
+
 import ctypes
 from ctypes.util import find_library
 from operator import mul
-from devito.tools import convert_dtype_to_ctype
+
+import numpy as np
+from sympy import Eq
+from sympy.abc import p
+
 import devito as interfaces
+from devito.iteration import Iteration
+from devito.propagator import Propagator
+from devito.tools import convert_dtype_to_ctype
 
 
 def malloc_aligned(shape, alignment=None, dtype=np.float32):
@@ -42,25 +47,37 @@ def malloc_aligned(shape, alignment=None, dtype=np.float32):
 
 def free(internal_pointer):
     """Use the C function free to free the memory allocated for the
-    given pointer. Also sets the passed pointer to None.
+    given pointer.
     """
     libc = ctypes.CDLL(find_library('c'))
     libc.free(internal_pointer)
-    internal_pointer = None
 
 
 def first_touch(array):
-    """Uses the Propagator low-level API to initialize the given array
+    """Uses the Propagator low-level API to initialize the given array(in Devito types)
     in the same pattern that would later be used to access it.
     """
-    loop_body = cgen.Assign(array.c_element, 0)
+    exp_init = [Eq(array.indexed[array.indices], 0)]
+    it_init = []
     if isinstance(array, interfaces.TimeData):
         shape = array.shape
         time_steps = shape[0]
         shape = shape[1:]
+        space_dims = array.indices[1:]
     else:
-        shape = array.shape
-        time_steps = 1
-    prop = Propagator(name="init", nt=time_steps, shape=shape, loop_body=loop_body)
+        if isinstance(array, interfaces.PointData):
+            it_init = [Iteration(exp_init, index=p, limits=array.shape[1])]
+            exp_init = []
+            time_steps = array.shape[0]
+            shape = []
+            space_dims = []
+        else:
+            shape = array.shape
+            time_steps = 1
+            space_dims = array.indices
+    prop = Propagator(name="init", nt=time_steps, shape=shape,
+                      stencils=exp_init, space_dims=space_dims)
     prop.add_devito_param(array)
-    prop.cfunction(array.data)
+    prop.save_vars[array.name] = True
+    prop.time_loop_stencils_a = it_init
+    prop.run([array.data])

@@ -88,7 +88,7 @@ class Operator(object):
         self.space_dims = None
 
         if len(dimensions) > 0:
-            self.space_dims = list(dimensions)
+            self.space_dims = dimensions
 
             if time_dim in self.space_dims:
                 self.space_dims.remove(time_dim)

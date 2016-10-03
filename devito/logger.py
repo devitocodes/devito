@@ -92,3 +92,7 @@ def warning(msg, *args, **kwargs):
 
 def error(msg, *args, **kwargs):
     log(msg, ERROR, *args, **kwargs)
+
+
+def debug(msg, *args, **kwargs):
+    log(msg, DEBUG, *args, **kwargs)

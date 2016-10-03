@@ -473,7 +473,7 @@ class Propagator(object):
 
             return cgen.Assign(s_lhs, s_rhs)
 
-    def get_aligned_pragma(self, stencils, factorized, time_steppers):
+    def get_aligned_pragma(self, stencils, factorized, loop_counters, time_steppers):
         """
         Sets the alignment for the pragma.
         :param stencils: List of stencils.
@@ -818,7 +818,8 @@ class Propagator(object):
 
         :returns: The resulting :class:`devito.function_manager.FunctionDescriptor`
         """
-        if self.loop_body is not None:  # Assume we have been given a a loop body in cgen types
+        # Assume we have been given a a loop body in cgen types
+        if self.loop_body is not None:
             self.fd.set_body(self.generate_loops(self.loop_body))
         else:  # We might have been given Sympy expression to evaluate
             # This is the more common use case so this will show up in error messages
