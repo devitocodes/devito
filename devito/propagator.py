@@ -503,7 +503,6 @@ class Propagator(object):
         :param loop_body: Statement representing the loop body
         :returns: :class:`cgen.Block` representing the loop
         """
-
         # Space loops
         if self.cache_blocking is not None:
             self._decide_block_sizes()
@@ -819,9 +818,9 @@ class Propagator(object):
 
         :returns: The resulting :class:`devito.function_manager.FunctionDescriptor`
         """
-        try:  # Assume we have been given a a loop body in cgen types
+        if self.loop_body is not None:  # Assume we have been given a a loop body in cgen types
             self.fd.set_body(self.generate_loops(self.loop_body))
-        except:  # We might have been given Sympy expression to evaluate
+        else:  # We might have been given Sympy expression to evaluate
             # This is the more common use case so this will show up in error messages
             self.fd.set_body(self.generate_loops(self.sympy_to_cgen(self.stencils)))
 

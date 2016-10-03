@@ -6,6 +6,7 @@ import ctypes
 from ctypes.util import find_library
 from operator import mul
 from devito.tools import convert_dtype_to_ctype
+import devito as interfaces
 
 
 def malloc_aligned(shape, alignment=None, dtype=np.float32):
@@ -53,6 +54,13 @@ def first_touch(array):
     in the same pattern that would later be used to access it.
     """
     loop_body = cgen.Assign(array.c_element, 0)
-    prop = Propagator(name="init", nt=1, shape=array.shape, loop_body=loop_body)
+    if isinstance(array, interfaces.TimeData):
+        shape = array.shape
+        time_steps = shape[0]
+        shape = shape[1:]
+    else:
+        shape = array.shape
+        time_steps = 1
+    prop = Propagator(name="init", nt=time_steps, shape=shape, loop_body=loop_body)
     prop.add_devito_param(array)
     prop.cfunction(array.data)

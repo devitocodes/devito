@@ -394,6 +394,15 @@ class TimeData(DenseData):
             self._data = self._data[self.time_order:, :, :]
 
     @property
+    def c_element(self):
+        """String representing a single element of this array as it would be
+           referenced in C code
+
+        :returns: String that represents C code to access a single element
+        """
+        return self.name+"[i"+str(len(self.shape))+"]["+"][".join(["i"+str(n+1) for n in range(len(self.shape)-1)])+"]"
+
+    @property
     def dim(self):
         """Returns the spatial dimension of the data object"""
         return len(self.shape[1:])
