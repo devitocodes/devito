@@ -7,9 +7,10 @@ from sympy.abc import h, p, s
 from devito.dimension import t, x, y, z
 from devito.finite_difference import (cross_derivative, first_derivative, left,
                                       right)
-from devito.logger import error
+from devito.logger import error, logger
 from devito.memmap_manager import MemmapManager
-from tools import aligned
+from devito.memory import malloc_aligned, free, first_touch
+
 
 __all__ = ['DenseData', 'TimeData', 'PointData']
 
@@ -130,6 +131,7 @@ class DenseData(SymbolicData):
             self.initializer = initializer
             self._data = kwargs.get('_data', None)
             MemmapManager.setup(self, *args, **kwargs)
+            self.memory_allocated = False
 
     @classmethod
     def _indices(cls, **kwargs):
@@ -182,8 +184,25 @@ class DenseData(SymbolicData):
             self._data = np.memmap(filename=self.f, dtype=self.dtype, mode='w+',
                                    shape=self.shape, order='C')
         else:
-            self._data = aligned(np.zeros(self.shape, self.dtype, order='C'),
-                                 alignment=64)
+            self._data = self._data, self.internal_pointer = malloc_aligned(
+                self.shape, dtype=self.dtype)
+            logger.info("Allocating memory for %s (%s)" % (self.name, str(self.shape)))
+            first_touch(self)
+            self.memory_allocated = True
+
+    def __del__(self):
+        if self.memory_allocated:
+            free(self.internal_pointer)
+            self.memory_allocated = False
+
+    @property
+    def c_element(self):
+        """String representing a single element of this array as it would be
+           referenced in C code
+
+        :returns: String that represents C code to access a single element
+        """
+        return self.name+"["+"][".join(["i"+str(n+1) for n in range(len(self.shape))])+"]"
 
     @property
     def data(self):
@@ -427,8 +446,9 @@ class CoordinateData(SymbolicData):
             self.shape = (self.npoint, self.ndim)
             self.indices = self._indices(**kwargs)
             self.dtype = kwargs.get('dtype', np.float32)
-            self.data = aligned(np.zeros(self.shape, self.dtype,
-                                         order='C'), alignment=64)
+            self.data, self.internal_pointer = malloc_aligned(
+                self.shape, dtype=self.dtype)
+            self.memory_allocated = True
 
     def __new__(cls, *args, **kwargs):
         ndim = kwargs.get('ndim')
@@ -450,6 +470,20 @@ class CoordinateData(SymbolicData):
     def indexed(self):
         """:return: Base symbol as devito.IndexedData"""
         return IndexedData(self.name, shape=self.shape, function=self)
+
+    def __del__(self):
+        if self.memory_allocated:
+            free(self.data, self.internal_pointer)
+            self.memory_allocated = False
+
+    @property
+    def c_element(self):
+        """String representing a single element of this array as it would be
+           referenced in C code
+
+        :returns String that represents C code to access a single element
+        """
+        return self.name+"["+"][".join(["i"+str(n+1) for n in range(len(self.shape))])+"]"
 
 
 class PointData(DenseData):

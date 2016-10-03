@@ -7,7 +7,7 @@ from os import path
 from random import randint
 
 import numpy as np
-from sympy import Indexed, IndexedBase, symbols
+from sympy import Indexed, IndexedBase, preorder_traversal, symbols
 from sympy.utilities.iterables import postorder_traversal
 
 import devito.cgen_wrapper as cgen
