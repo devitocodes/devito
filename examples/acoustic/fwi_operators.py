@@ -1,5 +1,5 @@
 import numpy as np
-from sympy import Eq, symbols
+from sympy import simplify, factor, Eq, solve, symbols
 
 from devito.dimension import t
 from devito.interfaces import DenseData, TimeData
@@ -34,12 +34,13 @@ class ForwardOperator(Operator):
 
         # Create the stencil by hand instead of calling numpy solve for speed purposes
         # Simple linear solve of a u(t+dt) + b u(t) + c u(t-dt) = L for u(t+dt)
-        stencil = 1.0 / (2.0 * m + s * damp) * \
-            (4.0 * m * u + (s * damp - 2.0 * m) *
-             u.backward + 2.0 * s ** 2 * (Lap + s**2 / 12.0 * Lap2))
+        stencil = 1 / (2 * m + s * damp) * \
+            (4 * m * u + (s * damp - 2 * m) *
+             u.backward + 2 * s ** 2 * (Lap + s**2 / 12 * Lap2))
+        # eqn = m * u.dt2 - Lap - Lap2 + damp* u.dt
         # Add substitutions for spacing (temporal and spatial)
         subs = {s: dt, h: model.get_spacing()}
-
+        stencil = simplify(stencil)
         # Receiver initialization
         rec = SourceLike(name="rec", npoint=nrec, nt=nt, dt=dt, h=model.get_spacing(),
                          coordinates=data.receiver_coords, ndim=len(damp.shape),

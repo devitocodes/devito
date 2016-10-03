@@ -5,9 +5,10 @@ from examples.tti.TTI_codegen import TTI_cg
 
 
 def source(t, f0):
-    r = (np.pi * f0 * (t - 1./f0))
-
-    return (1-2.*r**2)*np.exp(-r**2)
+    agauss = 0.5*f0
+    tcut = 1.5/agauss
+    s = (t-tcut)*agauss;
+    return np.exp(-2*s**2)*np.cos(2*np.pi*s);
 
 
 def run(dimensions=(150, 150, 100), spacing=(15.0, 15.0, 15.0), tn=1000.0,
@@ -26,8 +27,8 @@ def run(dimensions=(150, 150, 100), spacing=(15.0, 15.0, 15.0), tn=1000.0,
     true_vp[:, :, int(2*dimensions[0] / 3):int(dimensions[0])] = 3.0
 
     model.create_model(
-        origin, spacing, true_vp, .3*np.ones(dimensions), .2*np.ones(dimensions),
-        np.pi/5*np.ones(dimensions), np.pi/5*np.ones(dimensions))
+        origin, spacing, true_vp, .4*np.ones(dimensions), -.1*np.ones(dimensions),
+        -np.pi/7*np.ones(dimensions), np.pi/5*np.ones(dimensions))
 
     # Define seismic data.
     data = IShot()

@@ -125,7 +125,7 @@ class ForwardOperator(Operator):
                                      ang3, dim=y, side=centered, order=spc_brd) -
                     first_derivative(Gzr2, ang0, dim=z, side=centered, order=spc_brd))
             Hp = -(.5*Gxx + .5*Gxx2 + .5*Gyy + .5*Gyy2)
-            Hzr = -(.5*Gzz + .5*Gzz2)
+            Hzr = -(.5*Gzz + .5* Gzz2)
 
         else:
             Gx1p = (ang0 * u.dxr - ang1 * u.dy)
