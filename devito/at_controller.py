@@ -106,7 +106,7 @@ class AutoTuner(object):
             block[0] = mask[0] and x
 
             if len(block) > 1:
-                for y in range(minimum, maximum):
+                for y in range(minimum, x + 1):
                     block[1] = mask[1] and y
 
                     if len(block) > 2:
