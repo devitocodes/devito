@@ -1,10 +1,10 @@
 from __future__ import absolute_import
 
+import operator
 from collections import Iterable, defaultdict
 from hashlib import sha1
 from os import path
 from random import randint
-import operator
 
 import numpy as np
 from sympy import Indexed, IndexedBase, preorder_traversal, symbols
