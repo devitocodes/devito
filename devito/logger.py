@@ -4,9 +4,10 @@ import logging
 import sys
 
 __all__ = ('set_log_level', 'set_log_noperf', 'log',
-           'DEBUG', 'INFO', 'AUTOTUNER, ''PERF_OK', 'PERF_WARN',
+           'DEBUG', 'INFO', 'AUTOTUNER', 'PERF_OK', 'PERF_WARN',
            'WARNING', 'ERROR', 'CRITICAL',
-           'log', 'warning', 'error', 'RED', 'GREEN', 'BLUE')
+           'log', 'warning', 'error', 'info_at',
+           'RED', 'GREEN', 'BLUE')
 
 
 logger = logging.getLogger('Devito')

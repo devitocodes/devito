@@ -1,11 +1,11 @@
 from __future__ import absolute_import
 
-from os import mkdir, path
 from operator import itemgetter
+from os import mkdir, path
 
 import numpy as np
 
-from devito.logger import info_at, error
+from devito.logger import error, info_at
 from devito.operator import Operator
 
 
