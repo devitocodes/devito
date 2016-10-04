@@ -6,17 +6,17 @@ Consider the acoustic wave equation given in 3D:
 .. math::
    m(x,y,z)\frac{\partial^2 u}{\partial t^2} + \eta(x,y,z)\frac{\partial u}{\partial t}-\frac{\partial^2 u}{\partial x^2}-\frac{\partial^2 u}{\partial y^2}-\frac{\partial^2 u}{\partial z^2}= q
 
-where Damp(:math:`\eta`) is dampening coefficient for absorbing boundary condition,
+where Damp(:math:`\eta`) is the dampening coefficient for absorbing boundary condition,
 :math:`m=\frac{1}{v(x,y,z)^2}`, :math:`v` is the velocity
 , :math:`u` is pressure field and :math:`q` is the pressure source term.
 
 First of all, we will set up seismic datas,
 
-In this tutorial, Model, an instance of :obj:`IGrid()` stores the origin,
+In this tutorial, Model, an instance of :obj:`IGrid()`, stores the origin,
 the position in meters of the position of index (0,0,0), as (0,0,0) in 3D,
-spacing, the size of the discrete grid, distance in meters between two consecutive grid point in each direction,
+spacing, the size of the discrete grid, distance in meters between two consecutive grid points in each direction,
 dimensions, the size of the model in number of grid points and true velocity.
-The time stepping rate, dt is derived from :samp:`model.get_critical_dt()`.
+The time stepping rate, dt, is derived from :samp:`model.get_critical_dt()`.
 
 Data, an instance of :obj:`IShot()` stores amplitudes of the source
 at each time step, source coordinates and receiver coordinates.::
@@ -65,7 +65,7 @@ at each time step, source coordinates and receiver coordinates.::
   data.set_receiver_pos(receiver_coords)
   data.set_shape(nt, 101)
 
-Then we will set up the dampening coefficient.
+Then we set up the dampening coefficient.
 ::
 
   from devito.interfaces import DenseData
@@ -88,17 +88,16 @@ Then we will set up the source
                         dtype=self.dtype, nbpml=nbpml)
   self.src.data[:] = data.get_source()[:, np.newaxis]
 
-SourceLike is an object inheriting PointData, a devito data object for sparse point data
-as a Function symbol.
+SourceLike is an object inheriting from PointData, a Devito data object for sparse point data as a Function symbol.
 
-We initialize the source to be of coordinates : :obj:`srccoord` and set its data to be :obj:`data.get_source()`.
-Receivers are initialized by similar way
+We initialize the source to at coordinates : :obj:`srccoord` and set its data to be :obj:`data.get_source()`.
+Receivers are initialized in a similar way
 ::
   rec = SourceLike(name="rec", npoint=nrec, nt=nt, dt=dt, h=model.get_spacing(),
                        coordinates=data.receiver_coords, ndim=len(damp.shape),
                        dtype=damp.dtype, nbpml=model.nbpml)
 
-Then, We will set up the initial condition and allocate the grid for m.
+Then, We set up the initial condition and allocate the grid for m.
 Value of m on each grid point is stored as a numpy array in :obj:`m.data[:]`.
 ::
   m = DenseData(name="m", shape=model.get_shape_comp(), dtype=damp.dtype)
@@ -110,7 +109,7 @@ after that, we will initialize u
                    time_order=time_order, space_order=spc_order, save=True,
                    dtype=damp.dtype)
 
-TimeData is a devito data object used to store and manage time-varying as well as space-varying data
+TimeData is a Devito data object used to store and manage time-varying as well as space-varying data
 
 We initialize our grid to be of size :samp:`model.get_shape_comp()` which is a 3-D tuple.
 :obj:`time_dim` represents the size of the time dimension that dictates
@@ -120,7 +119,7 @@ for time and space respectively.
 
 The next step is to generate the stencil to be solved by a :obj:`devito.operator.Operator`
 
-The stencil is generated according to Devito conventions. It uses a sympy
+The stencil is created according to Devito conventions. It uses a Sympy
 expression to represent the acoustic wave equation. Devito makes it easy to
 represent the equation in a finite-difference form by providing properties :obj:`dt2`, :obj:`laplace`, :obj:`dt`.
 We then generate the stencil by solving eqn for :obj:`u.forward = u(t+dt,x,y,z)`,
