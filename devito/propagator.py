@@ -262,7 +262,7 @@ class Propagator(object):
         cb_str = ", blocks - %s " % str(self.block_sizes) \
             if self.cache_blocking else ' '
 
-        logger.info("shape - %s%s:: %f sec - %s MCells/s - %.2f GFLOPS" %
+        logger.info("shape - %s%s:: %f sec - %s MCells/s - %.2f GFlops/s" %
                     (shape_str, cb_str, self.timings['kernel'],
                      self.mcells, self.gflops['kernel']))
 

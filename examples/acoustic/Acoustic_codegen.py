@@ -6,18 +6,19 @@ from examples.acoustic.fwi_operators import *
 from examples.source_type import SourceLike
 
 
-class Acoustic_cg:
-    """ Class to setup the problem for the Acoustic Wave
-        Note: s_order must always be greater than t_order
+class Acoustic_cg(object):
     """
-    def __init__(
-            self, model, data, source=None, nbpml=40,
-            auto_tuning=False, t_order=2, s_order=2):
+    Class to setup the problem for the Acoustic Wave.
+
+    Note: s_order must always be greater than t_order
+    """
+    def __init__(self, model, data, source=None, nbpml=40, t_order=2, s_order=2,
+                 auto_tuning=False, cse=True, compiler=None):
         self.model = model
         self.t_order = t_order
         self.s_order = s_order
         self.data = data
-        self.dtype = np.float64
+        self.dtype = np.float32
         self.dt = model.get_critical_dt()
         self.model.nbpml = nbpml
         self.model.set_origin(nbpml)
@@ -66,12 +67,13 @@ class Acoustic_cg:
         if auto_tuning:  # auto tuning with dummy forward operator
             fw = ForwardOperator(self.model, self.src, self.damp, self.data,
                                  time_order=self.t_order, spc_order=self.s_order,
-                                 save=False, profile=True)
+                                 profile=True, save=False, cse=cse, compiler=compiler)
             self.at = AutoTuner(fw)
             self.at.auto_tune_blocks(self.s_order + 1, self.s_order * 4 + 2)
 
     def Forward(self, save=False, cache_blocking=None,
                 auto_tuning=False, cse=True, compiler=None):
+
         if auto_tuning:
             cache_blocking = self.at.block_size
 

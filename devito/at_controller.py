@@ -1,7 +1,11 @@
-import random
+from __future__ import absolute_import
+
+from operator import itemgetter
 from os import mkdir, path
 
-import logger
+import numpy as np
+
+from devito.logger import error, info_at
 from devito.operator import Operator
 
 
@@ -26,7 +30,7 @@ class AutoTuner(object):
         self.nt_full = self.op.nt
 
         default_blocked_dims = ([True] * (len(self.op.shape) - 1))
-        default_blocked_dims.append(False)  # By default we don't auto tune inner most dim
+        default_blocked_dims.append(None)  # By default don't autotune innermost dim
         self.blocked_dims = blocked_dims or default_blocked_dims
 
         default_at_dir = path.join(path.dirname(path.realpath(__file__)), "At Report")
@@ -64,7 +68,7 @@ class AutoTuner(object):
                     block_size = [int(block) if block != "None" else None
                                   for block in block_split]
 
-                    logger.info("Using auto tuned block sizes - %s" % block_size)
+                    info_at("Picked: %s" % block_size)
                     return block_size
 
         raise EnvironmentError("Matching model with auto tuned block size not found.")
@@ -91,71 +95,69 @@ class AutoTuner(object):
         at_nt = 3
         self.op.propagator.nt = at_nt
         self.op.propagator.profile = True
-        self.op.propagator.cache_blocking = [0 if dim else None
-                                             for dim in self.blocked_dims]
-        # want to run function at least once to make sure block_sizes are not
-        # overwritten
-        self.get_execution_time()
-        logger.info("Starting auto tuning of block sizes using brute force")
 
-        times = []  # list where times and block sizes will be kept
+        info_at("Start. Mode: brute force")
+
         block_list = set()  # used to make sure we do not test the same block sizes
-        blocks = list(self.op.propagator.block_sizes)
+        mask = [i if i else None for i in self.blocked_dims]
+        block = [None for i in mask]
 
         for x in range(minimum, maximum):
-            blocks[0] = x if blocks[0] else None
+            block[0] = mask[0] and x
 
-            if len(blocks) > 1:
-                for y in range(minimum, maximum):
-                    blocks[1] = y if blocks[1] else None
+            if len(block) > 1:
+                for y in range(minimum, x + 1):
+                    block[1] = mask[1] and y
 
-                    if len(blocks) > 2:
+                    if len(block) > 2:
                         for z in range(minimum, maximum):
-                            blocks[2] = z if blocks[2] else None
-                            block_list.add((tuple(blocks)))
+                            block[2] = mask[2] and z
+                            block_list.add((tuple(block)))
                     else:
-                        block_list.add(tuple(blocks))
+                        block_list.add(tuple(block))
             else:
-                block_list.add(tuple(blocks))
+                block_list.add(tuple(block))
 
-        logger.info("Total number of block size permutations = %d" % len(block_list))
-        if maximum - minimum > 2:  # No point to estimate if diff is below 2.
-            self._estimate_run_time(minimum, maximum, len(block_list))
+        # filter off some of the block sizes, heuristically
+        block_list = sorted(self._filter(block_list))
+
+        # populate output arrays with random values, to make sure that loads
+        # and stores are performed
+        for param in self.op.output_params:
+            param._data = np.random.rand(*param.data.shape).astype(self.op.dtype)
+
+        info_at("Number of block sizes that will be attempted: %d" % len(block_list))
 
         # runs function for each block_size
+        times = []
+        self.op.propagator.cache_blocking = list(block_list[0])
         for block in block_list:
-            self.op.propagator.block_sizes = block
+            self.op.propagator.block_sizes = list(block)
             times.append((block, self.get_execution_time()))
 
         # sorts the list of tuples based on time
-        times = sorted(times, key=lambda element: element[1])
+        times = sorted(times, key=itemgetter(1))
 
-        logger.info("Auto tuning using brute force complete")
-        logger.info("Estimated runtime for %s and %d time steps: %f hours" %
-                    (self.op.getName(), self.nt_full,
-                     self.nt_full * times[0][1] / (at_nt * 3600)))
+        info_at("Finish.")
+        info_at("Estimated runtime for %s and %d time steps: %f hours" %
+                (self.op.getName(), self.nt_full,
+                 self.nt_full * times[0][1] / (at_nt * 3600)))
 
         self._write_block_report(times)  # writes the report
 
-    def _estimate_run_time(self, minimum, maximum, n):
-        """Estimates run time for auto tuning
-
-        :param minimum: int - minimum tune range
-        :param maximum: int - maximum tune range
-        :param n: number of permutations that are run
+    def _filter(self, block_list):
         """
-        timing_run = 0  # estimating run time
-        for i in range(0, 5):
-            logger.info('Estimating auto-tuning runtime...sample %d/5' % (i + 1))
+        Filter off some block sizes to speed up autotuning. The current
+        heuristic is: ::
 
-            blocks = []
-            blocks += [random.randrange(minimum, maximum) if block else None
-                       for block in self.op.propagator.block_sizes]
+            * block sizes that are not a multiple of 2 are ditched;
+            * only square blocks are retained.
 
-            self.op.propagator.block_sizes = blocks
-            timing_run += self.get_execution_time()
-
-        logger.info("Estimated runtime: %f minutes." % float(timing_run / 5 * n / 60))
+        If no block sizes match the heuristic, then the original list is returned.
+        """
+        filtered_list = [b for b in block_list if all(i % 2 == 0 for i in b if i)]
+        filtered_list = [b for b in filtered_list if all(i == b[0] for i in b if i)]
+        return filtered_list or block_list
 
     def get_execution_time(self):
         """Runs and times the function
@@ -219,4 +221,4 @@ class AutoTuner(object):
                 final_report.writelines(lines)
 
         except IOError as e:
-            logger.error("Failed to write auto tuning report because %s" % e.message)
+            error("Failed to write auto tuning report because %s" % e.message)
