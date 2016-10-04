@@ -30,6 +30,9 @@
   
 
   
+        <link rel="index" title="Index"
+              href="../../genindex.html"/>
+        <link rel="search" title="Search" href="../../search.html"/>
     <link rel="top" title="Devito 1 documentation" href="../../index.html"/>
         <link rel="up" title="devito" href="../devito.html"/> 
 
@@ -131,10 +134,14 @@
            <div itemprop="articleBody">
             
   <h1>Source code for devito.at_controller</h1><div class="highlight"><pre>
-<span></span><span class="kn">import</span> <span class="nn">random</span>
+<span></span><span class="kn">from</span> <span class="nn">__future__</span> <span class="k">import</span> <span class="n">absolute_import</span>
+
+<span class="kn">from</span> <span class="nn">operator</span> <span class="k">import</span> <span class="n">itemgetter</span>
 <span class="kn">from</span> <span class="nn">os</span> <span class="k">import</span> <span class="n">mkdir</span><span class="p">,</span> <span class="n">path</span>
 
-<span class="kn">import</span> <span class="nn">logger</span>
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+
+<span class="kn">from</span> <span class="nn">devito.logger</span> <span class="k">import</span> <span class="n">error</span><span class="p">,</span> <span class="n">info_at</span>
 <span class="kn">from</span> <span class="nn">devito.operator</span> <span class="k">import</span> <span class="n">Operator</span>
 
 
@@ -159,7 +166,7 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">nt_full</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">op</span><span class="o">.</span><span class="n">nt</span>
 
         <span class="n">default_blocked_dims</span> <span class="o">=</span> <span class="p">([</span><span class="kc">True</span><span class="p">]</span> <span class="o">*</span> <span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">op</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span><span class="p">))</span>
-        <span class="n">default_blocked_dims</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="kc">False</span><span class="p">)</span>  <span class="c1"># By default we don&#39;t auto tune inner most dim</span>
+        <span class="n">default_blocked_dims</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span>  <span class="c1"># By default don&#39;t autotune innermost dim</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">blocked_dims</span> <span class="o">=</span> <span class="n">blocked_dims</span> <span class="ow">or</span> <span class="n">default_blocked_dims</span>
 
         <span class="n">default_at_dir</span> <span class="o">=</span> <span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">path</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="n">path</span><span class="o">.</span><span class="n">realpath</span><span class="p">(</span><span class="n">__file__</span><span class="p">)),</span> <span class="s2">&quot;At Report&quot;</span><span class="p">)</span>
@@ -197,7 +204,7 @@
                     <span class="n">block_size</span> <span class="o">=</span> <span class="p">[</span><span class="nb">int</span><span class="p">(</span><span class="n">block</span><span class="p">)</span> <span class="k">if</span> <span class="n">block</span> <span class="o">!=</span> <span class="s2">&quot;None&quot;</span> <span class="k">else</span> <span class="kc">None</span>
                                   <span class="k">for</span> <span class="n">block</span> <span class="ow">in</span> <span class="n">block_split</span><span class="p">]</span>
 
-                    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;Using auto tuned block sizes - </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="n">block_size</span><span class="p">)</span>
+                    <span class="n">info_at</span><span class="p">(</span><span class="s2">&quot;Picked: </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="n">block_size</span><span class="p">)</span>
                     <span class="k">return</span> <span class="n">block_size</span>
 
         <span class="k">raise</span> <span class="ne">EnvironmentError</span><span class="p">(</span><span class="s2">&quot;Matching model with auto tuned block size not found.&quot;</span><span class="p">)</span>
@@ -224,71 +231,69 @@
         <span class="n">at_nt</span> <span class="o">=</span> <span class="mi">3</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">op</span><span class="o">.</span><span class="n">propagator</span><span class="o">.</span><span class="n">nt</span> <span class="o">=</span> <span class="n">at_nt</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">op</span><span class="o">.</span><span class="n">propagator</span><span class="o">.</span><span class="n">profile</span> <span class="o">=</span> <span class="kc">True</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">op</span><span class="o">.</span><span class="n">propagator</span><span class="o">.</span><span class="n">cache_blocking</span> <span class="o">=</span> <span class="p">[</span><span class="mi">0</span> <span class="k">if</span> <span class="n">dim</span> <span class="k">else</span> <span class="kc">None</span>
-                                             <span class="k">for</span> <span class="n">dim</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">blocked_dims</span><span class="p">]</span>
-        <span class="c1"># want to run function at least once to make sure block_sizes are not</span>
-        <span class="c1"># overwritten</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">get_execution_time</span><span class="p">()</span>
-        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;Starting auto tuning of block sizes using brute force&quot;</span><span class="p">)</span>
 
-        <span class="n">times</span> <span class="o">=</span> <span class="p">[]</span>  <span class="c1"># list where times and block sizes will be kept</span>
+        <span class="n">info_at</span><span class="p">(</span><span class="s2">&quot;Start. Mode: brute force&quot;</span><span class="p">)</span>
+
         <span class="n">block_list</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>  <span class="c1"># used to make sure we do not test the same block sizes</span>
-        <span class="n">blocks</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">op</span><span class="o">.</span><span class="n">propagator</span><span class="o">.</span><span class="n">block_sizes</span><span class="p">)</span>
+        <span class="n">mask</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span> <span class="k">if</span> <span class="n">i</span> <span class="k">else</span> <span class="kc">None</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">blocked_dims</span><span class="p">]</span>
+        <span class="n">block</span> <span class="o">=</span> <span class="p">[</span><span class="kc">None</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">mask</span><span class="p">]</span>
 
         <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">minimum</span><span class="p">,</span> <span class="n">maximum</span><span class="p">):</span>
-            <span class="n">blocks</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="n">x</span> <span class="k">if</span> <span class="n">blocks</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="k">else</span> <span class="kc">None</span>
+            <span class="n">block</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="n">mask</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="ow">and</span> <span class="n">x</span>
 
-            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">blocks</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
-                <span class="k">for</span> <span class="n">y</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">minimum</span><span class="p">,</span> <span class="n">maximum</span><span class="p">):</span>
-                    <span class="n">blocks</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="n">y</span> <span class="k">if</span> <span class="n">blocks</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="k">else</span> <span class="kc">None</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">block</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="k">for</span> <span class="n">y</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">minimum</span><span class="p">,</span> <span class="n">x</span> <span class="o">+</span> <span class="mi">1</span><span class="p">):</span>
+                    <span class="n">block</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="n">mask</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="ow">and</span> <span class="n">y</span>
 
-                    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">blocks</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">2</span><span class="p">:</span>
+                    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">block</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">2</span><span class="p">:</span>
                         <span class="k">for</span> <span class="n">z</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">minimum</span><span class="p">,</span> <span class="n">maximum</span><span class="p">):</span>
-                            <span class="n">blocks</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span> <span class="o">=</span> <span class="n">z</span> <span class="k">if</span> <span class="n">blocks</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span> <span class="k">else</span> <span class="kc">None</span>
-                            <span class="n">block_list</span><span class="o">.</span><span class="n">add</span><span class="p">((</span><span class="nb">tuple</span><span class="p">(</span><span class="n">blocks</span><span class="p">)))</span>
+                            <span class="n">block</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span> <span class="o">=</span> <span class="n">mask</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span> <span class="ow">and</span> <span class="n">z</span>
+                            <span class="n">block_list</span><span class="o">.</span><span class="n">add</span><span class="p">((</span><span class="nb">tuple</span><span class="p">(</span><span class="n">block</span><span class="p">)))</span>
                     <span class="k">else</span><span class="p">:</span>
-                        <span class="n">block_list</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="nb">tuple</span><span class="p">(</span><span class="n">blocks</span><span class="p">))</span>
+                        <span class="n">block_list</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="nb">tuple</span><span class="p">(</span><span class="n">block</span><span class="p">))</span>
             <span class="k">else</span><span class="p">:</span>
-                <span class="n">block_list</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="nb">tuple</span><span class="p">(</span><span class="n">blocks</span><span class="p">))</span>
+                <span class="n">block_list</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="nb">tuple</span><span class="p">(</span><span class="n">block</span><span class="p">))</span>
 
-        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;Total number of block size permutations = </span><span class="si">%d</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="nb">len</span><span class="p">(</span><span class="n">block_list</span><span class="p">))</span>
-        <span class="k">if</span> <span class="n">maximum</span> <span class="o">-</span> <span class="n">minimum</span> <span class="o">&gt;</span> <span class="mi">2</span><span class="p">:</span>  <span class="c1"># No point to estimate if diff is below 2.</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">_estimate_run_time</span><span class="p">(</span><span class="n">minimum</span><span class="p">,</span> <span class="n">maximum</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">block_list</span><span class="p">))</span>
+        <span class="c1"># filter off some of the block sizes, heuristically</span>
+        <span class="n">block_list</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_filter</span><span class="p">(</span><span class="n">block_list</span><span class="p">))</span>
+
+        <span class="c1"># populate output arrays with random values, to make sure that loads</span>
+        <span class="c1"># and stores are performed</span>
+        <span class="k">for</span> <span class="n">param</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">op</span><span class="o">.</span><span class="n">output_params</span><span class="p">:</span>
+            <span class="n">param</span><span class="o">.</span><span class="n">_data</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">rand</span><span class="p">(</span><span class="o">*</span><span class="n">param</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">op</span><span class="o">.</span><span class="n">dtype</span><span class="p">)</span>
+
+        <span class="n">info_at</span><span class="p">(</span><span class="s2">&quot;Number of block sizes that will be attempted: </span><span class="si">%d</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="nb">len</span><span class="p">(</span><span class="n">block_list</span><span class="p">))</span>
 
         <span class="c1"># runs function for each block_size</span>
+        <span class="n">times</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">op</span><span class="o">.</span><span class="n">propagator</span><span class="o">.</span><span class="n">cache_blocking</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">block_list</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
         <span class="k">for</span> <span class="n">block</span> <span class="ow">in</span> <span class="n">block_list</span><span class="p">:</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">op</span><span class="o">.</span><span class="n">propagator</span><span class="o">.</span><span class="n">block_sizes</span> <span class="o">=</span> <span class="n">block</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">op</span><span class="o">.</span><span class="n">propagator</span><span class="o">.</span><span class="n">block_sizes</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">block</span><span class="p">)</span>
             <span class="n">times</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">block</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_execution_time</span><span class="p">()))</span>
 
         <span class="c1"># sorts the list of tuples based on time</span>
-        <span class="n">times</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">times</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">element</span><span class="p">:</span> <span class="n">element</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+        <span class="n">times</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">times</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="n">itemgetter</span><span class="p">(</span><span class="mi">1</span><span class="p">))</span>
 
-        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;Auto tuning using brute force complete&quot;</span><span class="p">)</span>
-        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;Estimated runtime for </span><span class="si">%s</span><span class="s2"> and </span><span class="si">%d</span><span class="s2"> time steps: </span><span class="si">%f</span><span class="s2"> hours&quot;</span> <span class="o">%</span>
-                    <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">op</span><span class="o">.</span><span class="n">getName</span><span class="p">(),</span> <span class="bp">self</span><span class="o">.</span><span class="n">nt_full</span><span class="p">,</span>
-                     <span class="bp">self</span><span class="o">.</span><span class="n">nt_full</span> <span class="o">*</span> <span class="n">times</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">1</span><span class="p">]</span> <span class="o">/</span> <span class="p">(</span><span class="n">at_nt</span> <span class="o">*</span> <span class="mi">3600</span><span class="p">)))</span>
+        <span class="n">info_at</span><span class="p">(</span><span class="s2">&quot;Finish.&quot;</span><span class="p">)</span>
+        <span class="n">info_at</span><span class="p">(</span><span class="s2">&quot;Estimated runtime for </span><span class="si">%s</span><span class="s2"> and </span><span class="si">%d</span><span class="s2"> time steps: </span><span class="si">%f</span><span class="s2"> hours&quot;</span> <span class="o">%</span>
+                <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">op</span><span class="o">.</span><span class="n">getName</span><span class="p">(),</span> <span class="bp">self</span><span class="o">.</span><span class="n">nt_full</span><span class="p">,</span>
+                 <span class="bp">self</span><span class="o">.</span><span class="n">nt_full</span> <span class="o">*</span> <span class="n">times</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">1</span><span class="p">]</span> <span class="o">/</span> <span class="p">(</span><span class="n">at_nt</span> <span class="o">*</span> <span class="mi">3600</span><span class="p">)))</span>
 
         <span class="bp">self</span><span class="o">.</span><span class="n">_write_block_report</span><span class="p">(</span><span class="n">times</span><span class="p">)</span>  <span class="c1"># writes the report</span></div>
 
-    <span class="k">def</span> <span class="nf">_estimate_run_time</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">minimum</span><span class="p">,</span> <span class="n">maximum</span><span class="p">,</span> <span class="n">n</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;Estimates run time for auto tuning</span>
+    <span class="k">def</span> <span class="nf">_filter</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">block_list</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Filter off some block sizes to speed up autotuning. The current</span>
+<span class="sd">        heuristic is: ::</span>
 
-<span class="sd">        :param minimum: int - minimum tune range</span>
-<span class="sd">        :param maximum: int - maximum tune range</span>
-<span class="sd">        :param n: number of permutations that are run</span>
+<span class="sd">            * block sizes that are not a multiple of 2 are ditched;</span>
+<span class="sd">            * only square blocks are retained.</span>
+
+<span class="sd">        If no block sizes match the heuristic, then the original list is returned.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="n">timing_run</span> <span class="o">=</span> <span class="mi">0</span>  <span class="c1"># estimating run time</span>
-        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">5</span><span class="p">):</span>
-            <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">&#39;Estimating auto-tuning runtime...sample </span><span class="si">%d</span><span class="s1">/5&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">i</span> <span class="o">+</span> <span class="mi">1</span><span class="p">))</span>
-
-            <span class="n">blocks</span> <span class="o">=</span> <span class="p">[]</span>
-            <span class="n">blocks</span> <span class="o">+=</span> <span class="p">[</span><span class="n">random</span><span class="o">.</span><span class="n">randrange</span><span class="p">(</span><span class="n">minimum</span><span class="p">,</span> <span class="n">maximum</span><span class="p">)</span> <span class="k">if</span> <span class="n">block</span> <span class="k">else</span> <span class="kc">None</span>
-                       <span class="k">for</span> <span class="n">block</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">op</span><span class="o">.</span><span class="n">propagator</span><span class="o">.</span><span class="n">block_sizes</span><span class="p">]</span>
-
-            <span class="bp">self</span><span class="o">.</span><span class="n">op</span><span class="o">.</span><span class="n">propagator</span><span class="o">.</span><span class="n">block_sizes</span> <span class="o">=</span> <span class="n">blocks</span>
-            <span class="n">timing_run</span> <span class="o">+=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_execution_time</span><span class="p">()</span>
-
-        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;Estimated runtime: </span><span class="si">%f</span><span class="s2"> minutes.&quot;</span> <span class="o">%</span> <span class="nb">float</span><span class="p">(</span><span class="n">timing_run</span> <span class="o">/</span> <span class="mi">5</span> <span class="o">*</span> <span class="n">n</span> <span class="o">/</span> <span class="mi">60</span><span class="p">))</span>
+        <span class="n">filtered_list</span> <span class="o">=</span> <span class="p">[</span><span class="n">b</span> <span class="k">for</span> <span class="n">b</span> <span class="ow">in</span> <span class="n">block_list</span> <span class="k">if</span> <span class="nb">all</span><span class="p">(</span><span class="n">i</span> <span class="o">%</span> <span class="mi">2</span> <span class="o">==</span> <span class="mi">0</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">b</span> <span class="k">if</span> <span class="n">i</span><span class="p">)]</span>
+        <span class="n">filtered_list</span> <span class="o">=</span> <span class="p">[</span><span class="n">b</span> <span class="k">for</span> <span class="n">b</span> <span class="ow">in</span> <span class="n">filtered_list</span> <span class="k">if</span> <span class="nb">all</span><span class="p">(</span><span class="n">i</span> <span class="o">==</span> <span class="n">b</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">b</span> <span class="k">if</span> <span class="n">i</span><span class="p">)]</span>
+        <span class="k">return</span> <span class="n">filtered_list</span> <span class="ow">or</span> <span class="n">block_list</span>
 
 <div class="viewcode-block" id="AutoTuner.get_execution_time"><a class="viewcode-back" href="../../devito.html#devito.at_controller.AutoTuner.get_execution_time">[docs]</a>    <span class="k">def</span> <span class="nf">get_execution_time</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;Runs and times the function</span>
@@ -352,7 +357,7 @@
                 <span class="n">final_report</span><span class="o">.</span><span class="n">writelines</span><span class="p">(</span><span class="n">lines</span><span class="p">)</span>
 
         <span class="k">except</span> <span class="ne">IOError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
-            <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="s2">&quot;Failed to write auto tuning report because </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="n">e</span><span class="o">.</span><span class="n">message</span><span class="p">)</span></div>
+            <span class="n">error</span><span class="p">(</span><span class="s2">&quot;Failed to write auto tuning report because </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="n">e</span><span class="o">.</span><span class="n">message</span><span class="p">)</span></div>
 </pre></div>
 
            </div>

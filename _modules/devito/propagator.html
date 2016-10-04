@@ -30,6 +30,9 @@
   
 
   
+        <link rel="index" title="Index"
+              href="../../genindex.html"/>
+        <link rel="search" title="Search" href="../../search.html"/>
     <link rel="top" title="Devito 1 documentation" href="../../index.html"/>
         <link rel="up" title="devito" href="../devito.html"/> 
 
@@ -395,7 +398,7 @@
         <span class="n">cb_str</span> <span class="o">=</span> <span class="s2">&quot;, blocks - </span><span class="si">%s</span><span class="s2"> &quot;</span> <span class="o">%</span> <span class="nb">str</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">block_sizes</span><span class="p">)</span> \
             <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">cache_blocking</span> <span class="k">else</span> <span class="s1">&#39; &#39;</span>
 
-        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;shape - </span><span class="si">%s%s</span><span class="s2">:: </span><span class="si">%f</span><span class="s2"> sec - </span><span class="si">%s</span><span class="s2"> MCells/s - </span><span class="si">%.2f</span><span class="s2"> GFLOPS&quot;</span> <span class="o">%</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;shape - </span><span class="si">%s%s</span><span class="s2">:: </span><span class="si">%f</span><span class="s2"> sec - </span><span class="si">%s</span><span class="s2"> MCells/s - </span><span class="si">%.2f</span><span class="s2"> GFlops/s&quot;</span> <span class="o">%</span>
                     <span class="p">(</span><span class="n">shape_str</span><span class="p">,</span> <span class="n">cb_str</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">timings</span><span class="p">[</span><span class="s1">&#39;kernel&#39;</span><span class="p">],</span>
                      <span class="bp">self</span><span class="o">.</span><span class="n">mcells</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">gflops</span><span class="p">[</span><span class="s1">&#39;kernel&#39;</span><span class="p">]))</span></div>
 
