@@ -1,5 +1,5 @@
 import numpy as np
-
+from sympy.abc import x,y,z
 import devito.cgen_wrapper as cgen
 from devito.propagator import Propagator
 
@@ -43,6 +43,16 @@ class Test_Numpy_Array_Transfer(object):
         arr = np.empty_like(data)
         f(data, arr)
         assert(arr[4][3][2][1] == 122)
+
+    def test_space_dims_2d(self):
+        space_dims = (z, x)
+        propagator = Propagator("process", 1, (4, 3), [], space_dims=space_dims)
+        assert(space_dims==propagator.space_dims)
+
+    def test_space_dims_3d(self):
+        space_dims = (z, y, x)
+        propagator = Propagator("process", 1, (4, 3, 2), [], space_dims=space_dims)
+        assert(space_dims==propagator.space_dims)
 
 
 if __name__ == "__main__":
