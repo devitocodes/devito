@@ -95,4 +95,4 @@ def run(dimensions=(150, 150, 50), spacing=(15.0, 15.0, 15.0), tn=250.0,
     Acoustic.Born(dm)
 
 if __name__ == "__main__":
-    run(full_run=False, auto_tuning=False, space_order=6, time_order=2)
+    run(full_run=False, auto_tuning=True, space_order=6, time_order=2)

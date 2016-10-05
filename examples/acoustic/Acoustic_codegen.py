@@ -98,12 +98,10 @@ class Acoustic_cg:
         v = adj.apply()[0]
         return v.data
 
-    def Gradient(self, rec, u, cache_blocking=False):
-        if cache_blocking:
-            cache_block = self.at.block_size
+    def Gradient(self, rec, u, cache_blocking=None):
         grad_op = GradientOperator(self.model, self.damp, self.data, rec, u,
                                    time_order=self.t_order, spc_order=self.s_order,
-                                   cache_blocking=cache_block)
+                                   cache_blocking=self.at.block_size, profile=True)
         grad = grad_op.apply()[0]
         return grad.data
 

@@ -5,12 +5,10 @@ from sympy import Function, IndexedBase, as_finite_diff
 from sympy.abc import h, p, s
 
 from devito.dimension import t, x, y, z
-from devito.finite_difference import (centered, cross_derivative,
-                                      first_derivative, left,
-                                      right, second_derivative)
+from devito.finite_difference import (cross_derivative, first_derivative, left,
+                                      right)
 from devito.logger import error
 from devito.memmap_manager import MemmapManager
-from tools import aligned
 
 __all__ = ['DenseData', 'TimeData', 'PointData']
 
@@ -183,6 +181,7 @@ class DenseData(SymbolicData):
             self._data = np.memmap(filename=self.f, dtype=self.dtype, mode='w+',
                                    shape=self.shape, order='C')
         else:
+            from devito.tools import aligned
             self._data = aligned(np.zeros(self.shape, self.dtype, order='C'),
                                  alignment=64)
 
@@ -228,58 +227,28 @@ class DenseData(SymbolicData):
         return as_finite_diff(self.diff(z, z), indz)
 
     @property
-    def dx4(self):
-        """Symbol for the second derivative wrt the x dimension"""
-        width_h = max(int(self.space_order / 2), 2)
-        indx = [(x + i * h) for i in range(-width_h, width_h + 1)]
-
-        return as_finite_diff(self.diff(x, x, x, x), indx)
-
-    @property
-    def dy4(self):
-        """Symbol for the second derivative wrt the y dimension"""
-        width_h = max(int(self.space_order / 2), 2)
-        indy = [(y + i * h) for i in range(-width_h, width_h + 1)]
-
-        return as_finite_diff(self.diff(y, y, y, y), indy)
-
-    @property
-    def dz4(self):
-        """Symbol for the second derivative wrt the z dimension"""
-        width_h = max(int(self.space_order / 2), 2)
-        indz = [(z + i * h) for i in range(-width_h, width_h + 1)]
-
-        return as_finite_diff(self.diff(z, z, z, z), indz)
-
-    @property
-    def dx2y2(self):
-        """Symbol for the second derivative wrt the x dimension"""
-        return second_derivative(self.dx2, dim=y, order=self.space_order)
-
-    @property
-    def dx2z2(self):
-        """Symbol for the second derivative wrt the y dimension"""
-        return second_derivative(self.dx2, dim=z, order=self.space_order)
-
-    @property
-    def dy2z2(self):
-        """Symbol for the second derivative wrt the z dimension"""
-        return second_derivative(self.dy2, dim=z, order=self.space_order)
-
-    @property
     def dx(self):
         """Symbol for the first derivative wrt the x dimension"""
-        return first_derivative(self, order=self.space_order, dim=x, side=centered)
+        width_h = int(self.space_order/2)
+        indx = [(x + i * h) for i in range(-width_h, width_h + 1)]
+
+        return as_finite_diff(self.diff(x), indx)
 
     @property
     def dy(self):
         """Symbol for the first derivative wrt the y dimension"""
-        return first_derivative(self, order=self.space_order, dim=y, side=centered)
+        width_h = int(self.space_order/2)
+        indy = [(y + i * h) for i in range(-width_h, width_h + 1)]
+
+        return as_finite_diff(self.diff(y), indy)
 
     @property
     def dz(self):
         """Symbol for the first derivative wrt the z dimension"""
-        return first_derivative(self, order=self.space_order, dim=z, side=centered)
+        width_h = int(self.space_order/2)
+        indz = [(z + i * h) for i in range(-width_h, width_h + 1)]
+
+        return as_finite_diff(self.diff(z), indz)
 
     @property
     def laplace(self):
@@ -287,15 +256,6 @@ class DenseData(SymbolicData):
         derivs = ['dx2', 'dy2', 'dz2']
 
         return sum([getattr(self, d) for d in derivs[:self.dim]])
-
-    @property
-    def laplace2(self):
-        """Symbol for the second derivative wrt all spatial dimensions"""
-        derivs = ['dx4', 'dy4', 'dz4']
-        first = sum([getattr(self, d) for d in derivs[:self.dim]])
-        derivs = ['dx2y2', 'dx2z2', 'dy2z2']
-        second = 2 * sum([getattr(self, d) for d in derivs[:self.dim - 1]])
-        return first + second
 
     @property
     def dxy(self):
@@ -467,6 +427,7 @@ class CoordinateData(SymbolicData):
             self.shape = (self.npoint, self.ndim)
             self.indices = self._indices(**kwargs)
             self.dtype = kwargs.get('dtype', np.float32)
+            from devito.tools import aligned
             self.data = aligned(np.zeros(self.shape, self.dtype,
                                          order='C'), alignment=64)
 
