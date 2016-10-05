@@ -1,10 +1,10 @@
 import numpy as np
-from sympy.abc import x,y,z
+from sympy.abc import x, y, z
 import devito.cgen_wrapper as cgen
 from devito.propagator import Propagator
 
 
-class Test_Numpy_Array_Transfer(object):
+class Test_Propagator(object):
 
     def test_2d(self):
         data = np.arange(6, dtype=np.float64).reshape((3, 2))
@@ -47,16 +47,16 @@ class Test_Numpy_Array_Transfer(object):
     def test_space_dims_2d(self):
         space_dims = (z, x)
         propagator = Propagator("process", 1, (4, 3), [], space_dims=space_dims)
-        assert(space_dims==propagator.space_dims)
+        assert(space_dims == propagator.space_dims)
 
     def test_space_dims_3d(self):
         space_dims = (z, y, x)
         propagator = Propagator("process", 1, (4, 3, 2), [], space_dims=space_dims)
-        assert(space_dims==propagator.space_dims)
+        assert(space_dims == propagator.space_dims)
 
 
 if __name__ == "__main__":
-    t = Test_Numpy_Array_Transfer()
+    t = Test_Propagator()
     t.test_2d()
     t.test_3d()
     t.test_4d()
