@@ -133,7 +133,9 @@ def expr_cse(expr):
     new_stencils = []
     print([temp.lhs for temp in to_keep])
     for stencil in stencils:
-        new_stencils.append(Eq(stencil.lhs, collect(stencil.rhs, [temp.lhs for temp in to_keep])))
+        new_stencils.append(Eq(stencil.lhs,
+                               collect(stencil.rhs,
+                                       [temp.lhs for temp in to_keep])))
 
         for temp in to_keep:
             if stencil.lhs in preorder_traversal(temp.rhs):
