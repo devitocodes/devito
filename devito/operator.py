@@ -17,9 +17,9 @@ def expr_dimensions(expr):
 
     for e in preorder_traversal(expr):
         if isinstance(e, SymbolicData):
-            dimensions += e.indices
+            dimensions += [i for i in e.indices if i not in dimensions]
 
-    return list(set(dimensions))
+    return dimensions
 
 
 def expr_symbols(expr):
@@ -208,11 +208,10 @@ class Operator(object):
                 self.input_params = list(rhs_def)
 
         # Pull all dimension indices from the incoming stencil
-        dimensions = set()
-
+        dimensions = []
         for eqn in self.stencils:
-            dimensions.update(set(expr_dimensions(eqn.lhs)))
-            dimensions.update(set(expr_dimensions(eqn.rhs)))
+            dimensions += [i for i in expr_dimensions(eqn.lhs) if i not in dimensions]
+            dimensions += [i for i in expr_dimensions(eqn.rhs) if i not in dimensions]
 
         # Time dimension is fixed for now
         time_dim = t
