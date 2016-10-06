@@ -149,13 +149,12 @@ class Propagator(object):
 
     @property
     def mcells(self):
-        """Calculates MCELLS
-
-        :returns: Mcells as int
         """
-        iteration_space = map(lambda dim: dim - self.spc_border * 2, self.shape)
-        return int(round(self.nt * np.prod(iteration_space)) /
-                   (self.total_time * 10 ** 6))
+        Calculate how many MCells are computed, on average, in a second (the
+        quantity is rounded to the closest unit).
+        """
+        itspace = map(lambda dim: dim - self.spc_border * 2, self.shape)
+        return int(round(self.nt * np.prod(itspace)) / (self.total_time * 10**6))
 
     @property
     def basename(self):
@@ -348,7 +347,7 @@ class Propagator(object):
         gflopss = {}
         for k, v in self.gflops.items():
             assert k in self.timings
-            gflopss[k] = (v / (10**9)) / self.timings[k]
+            gflopss[k] = (float(v) / (10**9)) / self.timings[k]
         return gflopss
 
     @property
@@ -357,7 +356,7 @@ class Propagator(object):
 
     @property
     def total_time(self):
-        return sum(v for _, v in self.profiler.timings.items())
+        return sum(v for _, v in self.timings.items())
 
     @property
     def total_gflopss(self):
