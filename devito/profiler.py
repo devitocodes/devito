@@ -184,9 +184,9 @@ class Profiler(object):
 
     @property
     def gflops(self):
-        """Returns the GFLOPS as a dictionary
+        """Returns the GFlops/s as a dictionary
 
-        :returns: A dictionary containing the calculated GFLOPS
+        :returns: A dictionary containing the calculated GFlops/s
         """
         if not self._C_flops:
             return {}

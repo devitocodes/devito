@@ -59,8 +59,10 @@ class Propagator(object):
 
         # Default time and space symbols if not provided
         self.time_dim = time_dim or t
-        self.space_dims = \
-            space_dims or (x, z) if len(shape) == 2 else (x, y, z)[:len(shape)]
+        if space_dims is not None:
+            self.space_dims = space_dims
+        else:
+            self.space_dims = (x, z) if len(shape) == 2 else (x, y, z)[:len(shape)]
         self.shape = shape
 
         # Internal flags and meta-data
@@ -262,7 +264,7 @@ class Propagator(object):
         cb_str = ", blocks - %s " % str(self.block_sizes) \
             if self.cache_blocking else ' '
 
-        logger.info("shape - %s%s:: %f sec - %s MCells/s - %.2f GFLOPS" %
+        logger.info("shape - %s%s:: %f sec - %s MCells/s - %.2f GFlops/s" %
                     (shape_str, cb_str, self.timings['kernel'],
                      self.mcells, self.gflops['kernel']))
 
