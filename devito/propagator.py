@@ -18,7 +18,7 @@ from devito.dimension import t, x, y, z
 from devito.expression import Expression
 from devito.function_manager import FunctionDescriptor, FunctionManager
 from devito.iteration import Iteration
-from devito.logger import logger
+from devito.logger import info
 from devito.profiler import Profiler
 from devito.tools import flatten
 
@@ -118,7 +118,7 @@ class Propagator(object):
         self._lib = None
         self._cfunction = None
 
-    def run(self, args):
+    def run(self, args, verbose=True):
         if self.profile:
             self.fd.add_struct_param(self.profiler.t_name, "profiler")
 
@@ -138,7 +138,14 @@ class Propagator(object):
             f(*args)
 
         if self.profile:
-            self.log_performance()
+            if verbose:
+                shape = str(self.shape).replace(', ', ' x ')
+                cb = str(self.block_sizes) if self.cache_blocking else 'None'
+                info("Shape: %s - Cache Blocking: %s" % (shape, cb))
+                info("Time: %f s (%s MCells/s)" % (self.total_time, self.mcells))
+            key = LOOP_BODY.name
+            info("Stencil: %f OI, %.2f GFlops/s (time: %f s)" %
+                 (self.oi[key], self.gflopss[key], self.timings[key]))
 
     @property
     def mcells(self):
@@ -395,16 +402,6 @@ class Propagator(object):
             loop_limits = (self.nt-1, -1)
 
         return loop_limits
-
-    def log_performance(self):
-        """Logs performance metrics"""
-        shape_str = str(self.shape).replace(', ', ' x ')
-        cb_str = ", Block=%s " % str(self.block_sizes) \
-            if self.cache_blocking else ' '
-
-        logger.info("Shape=%s%s:: %f OI, %f sec, %s MCells/s, %.2f GFlops/s" %
-                    (shape_str, cb_str, self.oi[LOOP_BODY.name],
-                     self.total_time, self.mcells, self.total_gflopss))
 
     def prep_variable_map(self):
         """Mapping from model variables (x, y, z, t) to loop variables (i1, i2, i3, i4)

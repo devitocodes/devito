@@ -163,7 +163,7 @@ class AutoTuner(object):
 
         :return: time - how long it took to execute
         """
-        self.op.propagator.run(self.op.get_args())
+        self.op.propagator.run(self.op.get_args(), verbose=False)
         return self.op.propagator.total_time
 
     def _write_block_report(self, times):
