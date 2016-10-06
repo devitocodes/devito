@@ -24,7 +24,9 @@ from devito.tools import flatten
 
 
 class Propagator(object):
-    """Propagator objects derive and encode C kernel code according
+
+    """
+    Propagator objects derive and encode C kernel code according
     to a given set of stencils, variables and time-stepping options.
 
     A kernel consists of a time loop wrapping three sections of code, called
@@ -37,8 +39,8 @@ class Propagator(object):
     :param nt: Number of timesteps to execute
     :param shape: Shape of the data buffer over which to execute
     :param stencils: List of :class:`sympy.Eq` used to create the kernel
-    :param factorized: A map given by {string_name:sympy_object} for including factorized
-                       terms
+    :param factorized: A map given by {string_name:sympy_object} for including
+                       factorized terms
     :param spc_border: Number of spatial padding layers
     :param time_order: Order of the time discretisation
     :param time_dim: Symbol that defines the time dimension
@@ -74,15 +76,19 @@ class Propagator(object):
         self.shape = shape
 
         # Internal flags and meta-data
-        self.loop_counters = list(symbols("i1 i2 i3 i4"))
         self._forward = forward
-        self.prep_variable_map()
         self.t_replace = {}
         self.time_steppers = []
         self.time_order = time_order
         self.nt = nt
         self.time_loop_stencils_b = []
         self.time_loop_stencils_a = []
+
+        # Map objects in the mathematical model (e.g., x, t)
+        # to C code (e.g., loop indices)
+        symbol = lambda i: symbols("i%d" % i)
+        self._mapper = {d: symbol(i) for i, d in enumerate(self.space_dims, 1)}
+        self._mapper[self.time_dim] = symbol(len(self.space_dims)+1)
 
         # Start with the assumption that the propagator needs to save
         # the field in memory at every time step
@@ -402,22 +408,6 @@ class Propagator(object):
 
         return loop_limits
 
-    def prep_variable_map(self):
-        """Mapping from model variables (x, y, z, t) to loop variables (i1, i2, i3, i4)
-
-        For now, i1 i2 i3 are assigned in the order
-        the variables were defined in init( #var_order)
-        """
-        var_map = {}
-        i = 0
-
-        for dim in self.space_dims:
-            var_map[dim] = symbols("i%d" % (i + 1))
-            i += 1
-
-        var_map[self.time_dim] = symbols("i%d" % (i + 1))
-        self._var_map = var_map
-
     def sympy_to_cgen(self, stencils):
         """Converts sympy stencils to cgen statements
 
@@ -430,7 +420,7 @@ class Propagator(object):
             for name, term in zip(self.factorized.keys(), self.factorized):
                 expr = self.factorized[name]
                 self.add_local_var(name, self.dtype)
-                sub = str(ccode(self.time_substitutions(expr).xreplace(self._var_map)))
+                sub = str(ccode(self.time_substitutions(expr).xreplace(self._mapper)))
                 if self.dtype is np.float32:
                     factors.append(cgen.Assign(name, (sub.replace("pow", "powf")
                                                       .replace("fabs", "fabsf"))))
@@ -486,11 +476,11 @@ class Propagator(object):
         if isinstance(equality, cgen.Generable):
             return equality
         elif isinstance(equality, Iteration):
-            equality.substitute(self._var_map)
+            equality.substitute(self._mapper)
             return equality.ccode
         else:
-            s_lhs = ccode(self.time_substitutions(equality.lhs).xreplace(self._var_map))
-            s_rhs = self.time_substitutions(equality.rhs).xreplace(self._var_map)
+            s_lhs = ccode(self.time_substitutions(equality.lhs).xreplace(self._mapper))
+            s_rhs = self.time_substitutions(equality.rhs).xreplace(self._mapper)
 
             # appending substituted stencil,which is used to determine alignment pragma
             self.sub_stencils.append(s_rhs)
@@ -502,19 +492,18 @@ class Propagator(object):
 
             return cgen.Assign(s_lhs, s_rhs)
 
-    def get_aligned_pragma(self, stencils, factorized, loop_counters, time_steppers):
+    def get_aligned_pragma(self, stencils, factorized, time_steppers):
         """
         Sets the alignment for the pragma.
         :param stencils: List of stencils.
         :param factorized:  dict of factorized elements
-        :param loop_counters: list of loop counter symbols
         :param time_steppers: list of time stepper symbols
         """
         array_names = set()
         for item in flatten([stencil.free_symbols for stencil in stencils]):
             if (
                 str(item) not in factorized
-                and item not in loop_counters + time_steppers
+                and item not in self._mapper.values() + time_steppers
                 and str(item).find("temp") == -1
             ):
                 array_names.add(item)
@@ -548,7 +537,7 @@ class Propagator(object):
         omp_for = [cgen.Pragma("omp for schedule(static)"
                                )] if self.compiler.openmp else []
         t_loop_limits = self.time_loop_limits
-        t_var = str(self._var_map[self.time_dim])
+        t_var = str(self._mapper[self.time_dim])
         cond_op = "<" if self._forward else ">"
 
         if self.save is not True:
@@ -617,7 +606,7 @@ class Propagator(object):
         inner_most_dim = True
 
         for spc_var in reversed(list(self.space_dims)):
-            dim_var = self._var_map[spc_var]
+            dim_var = self._mapper[spc_var]
             loop_limits = self._space_loop_limits[spc_var]
             loop_body = cgen.For(
                 cgen.InlineInitializer(cgen.Value("int", dim_var), str(loop_limits[0])),
@@ -644,7 +633,7 @@ class Propagator(object):
                                )] if self.compiler.openmp else []
 
         for spc_var, block_size in reversed(zip(list(self.space_dims), self.block_sizes)):
-            orig_var = str(self._var_map[spc_var])
+            orig_var = str(self._mapper[spc_var])
             block_var = orig_var + "b"
             loop_limits = self._space_loop_limits[spc_var]
 
@@ -668,7 +657,7 @@ class Propagator(object):
         for spc_var, block_size in reversed(zip(list(self.space_dims), self.block_sizes)):
             # if block size set to None do not block this dimension
             if block_size is not None:
-                orig_var = str(self._var_map[spc_var])
+                orig_var = str(self._mapper[spc_var])
                 block_var = orig_var + "b"
                 loop_limits = self._space_loop_limits[spc_var]
 
@@ -686,13 +675,13 @@ class Propagator(object):
         full_remainder = []
         # weights for deciding remainder loop limit
         weights = self._decide_weights(self.block_sizes, remainder_counter)
-        for i in range(0, remainder_counter):
+        for i in range(remainder_counter):
             remainder_loop = orig_loop_body
             inner_most_dim = True
 
             for spc_var, block_size in reversed(zip(list(self.space_dims),
                                                     self.block_sizes)):
-                orig_var = str(self._var_map[spc_var])
+                orig_var = str(self._mapper[spc_var])
                 loop_limits = self._space_loop_limits[spc_var]  # Full loop limits
                 lower_limit_str = str(loop_limits[0])
                 upper_limit_str = str(loop_limits[1])
@@ -745,9 +734,9 @@ class Propagator(object):
             self.block_sizes = [int(self.cache_blocking)] * (len(self.shape) - 1)
             self.block_sizes.append(None)
 
-        for i in range(0, len(self.block_sizes)):
-            if self.block_sizes[i] is not None:  # replace 0 values with optimal
-                self.fd.add_value_param(str(self.loop_counters[i]) + "block", np.int64)
+        for i, j in zip(self.block_sizes, self.space_dims):
+            if i is not None:
+                self.fd.add_value_param("%sblock" % self._mapper[j], np.int64)
 
     def add_inner_most_dim_pragma(self, inner_most_dim, space_dims, loop_body):
         """
@@ -759,7 +748,7 @@ class Propagator(object):
         """
         if inner_most_dim and len(space_dims) > 1:
             pragma = [self.get_aligned_pragma(self.sub_stencils, self.factorized,
-                                              self.loop_counters, self.time_steppers)]\
+                                              self.time_steppers)]\
                 if self.compiler.openmp else (self.compiler.pragma_ivdep +
                                               self.compiler.pragma_nontemporal)
             loop_body = cgen.Block(pragma + [loop_body])
@@ -767,26 +756,29 @@ class Propagator(object):
 
     def _decide_weights(self, block_sizes, remainder_counter):
         """
-        Decided weights which are used for remainder loop limit calculations
+        Decide weights used for remainder loop limit calculations
+
         :param block_sizes: list of block sizes
         :param remainder_counter: int stating how many remainder loops are needed
         :return: dict of weights
         """
-        weights = {'i3': 0, 'i2': 0, 'i1': 0}
+        key = lambda i: str(self._mapper[i])
+        weights = {key(i): 0 for i in self.space_dims}
+
         if len(block_sizes) == 3 and remainder_counter > 1:
             if block_sizes[0] and block_sizes[1] and block_sizes[2]:
-                weights.update({'i1': -1})
+                weights[key(x)] = -1
                 if remainder_counter == 3:
-                    weights.update({'i2': -2})
+                    weights[key(y)] = -2
             elif (block_sizes[0] and block_sizes[1] and not block_sizes[2]) or\
                  (not block_sizes[0] and block_sizes[1] and block_sizes[2]):
-                weights.update({'i2': -1})
+                weights[key(y)] = -1
             else:
-                weights.update({'i1': -1})
+                weights[key(x)] = -1
 
         elif (len(block_sizes) == 2 and remainder_counter > 1 and
               block_sizes[0] and block_sizes[1]):
-            weights.update({'i1': -1})
+            weights[key(x)] = -1
 
         return weights
 
@@ -859,7 +851,7 @@ class Propagator(object):
 
         :returns: A list of :class:`cgen.Statement` containing the time stepping code
         """
-        ti = self._var_map[self.time_dim]
+        ti = self._mapper[self.time_dim]
         body = []
         time_stepper_indices = range(self.time_order+1)
         first_time_index = 0
