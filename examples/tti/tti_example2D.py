@@ -29,7 +29,6 @@ t0 = 0.0
 tn = 2000.0
 nt = int(1+(tn-t0)/dt)
 h = model.get_spacing()
-# data.reinterpolate(dt)
 # Set up the source as Ricker wavelet for f0
 
 

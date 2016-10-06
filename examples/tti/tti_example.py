@@ -7,12 +7,12 @@ from examples.tti.TTI_codegen import TTI_cg
 def source(t, f0):
     agauss = 0.5*f0
     tcut = 1.5/agauss
-    s = (t-tcut)*agauss;
-    return np.exp(-2*s**2)*np.cos(2*np.pi*s);
+    s = (t-tcut)*agauss
+    return np.exp(-2*s**2)*np.cos(2*np.pi*s)
 
 
-def run(dimensions=(150, 150, 100), spacing=(15.0, 15.0, 15.0), tn=1000.0,
-        time_order=2, space_order=10, nbpml=40, cse=True,
+def run(dimensions=(150, 150, 150), spacing=(13.0, 13.0, 13.0), tn=1000.0,
+        time_order=2, space_order=6, nbpml=10, cse=True,
         auto_tuning=False, compiler=None, cache_blocking=None):
     if auto_tuning:
         cache_blocking = None
@@ -62,4 +62,4 @@ def run(dimensions=(150, 150, 100), spacing=(15.0, 15.0, 15.0), tn=1000.0,
     return gflops, oi, timings, [rec, u, v]
 
 if __name__ == "__main__":
-    run()
+    run(auto_tuning=True)

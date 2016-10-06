@@ -38,8 +38,6 @@ class Expression(object):
 
     @property
     def ccode(self):
-        #return cgen.Block([cgen.Assign(ccode(s.lhs), ccode(s.rhs))
-        #                   for s in expr_cse(self.stencil)])
         return cgen.Assign(ccode(self.stencil.lhs), ccode(self.stencil.rhs))
 
     @property

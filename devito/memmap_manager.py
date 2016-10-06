@@ -56,7 +56,7 @@ class MemmapManager():
         data_self.memmap = kwargs.get('memmap', MemmapManager._use_memmap)
 
         if data_self.memmap:
-            disk_path = "/scratch/slim/shared/OPESCI/tmps" # kwargs.get('disk_path', MemmapManager._default_disk_path)
+            disk_path = kwargs.get('disk_path', MemmapManager._default_disk_path)
 
             if not os.path.exists(disk_path):
                 os.makedirs(disk_path)

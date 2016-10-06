@@ -95,7 +95,7 @@ class ForwardOperator(Operator):
 
             Gyp = (ang3 * u.dx - ang2 * u.dyr)
             Gyy = (-first_derivative(Gyp, ang3, dim=x, side=centered, order=spc_brd) -
-                    first_derivative(Gyp, ang2, dim=y, side=left, order=spc_brd))
+                   first_derivative(Gyp, ang2, dim=y, side=left, order=spc_brd))
             Gyp2 = (ang3 * u.dxr - ang2 * u.dy)
             Gyy2 = (first_derivative(Gyp2, ang3, dim=x, side=left, order=spc_brd) +
                     first_derivative(Gyp2, ang2, dim=y, side=centered, order=spc_brd))
@@ -104,14 +104,14 @@ class ForwardOperator(Operator):
             Gzr = (ang1 * ang2 * v.dx + ang1 * ang3 * v.dyr + ang0 * v.dzr)
             Gxx = (-first_derivative(Gxp, ang0,
                                      ang2, dim=x, side=centered, order=spc_brd) +
-                    first_derivative(Gxp, ang0,
-                                     ang3, dim=y, side=left, order=spc_brd) -
-                    first_derivative(Gxp, ang1, dim=z, side=left, order=spc_brd))
+                   first_derivative(Gxp, ang0,
+                                    ang3, dim=y, side=left, order=spc_brd) -
+                   first_derivative(Gxp, ang1, dim=z, side=left, order=spc_brd))
             Gzz = (-first_derivative(Gzr, ang1,
                                      ang2, dim=x, side=centered, order=spc_brd) +
-                    first_derivative(Gzr, ang1,
-                                     ang3, dim=y, side=left, order=spc_brd) +
-                    first_derivative(Gzr, ang0, dim=z, side=left, order=spc_brd))
+                   first_derivative(Gzr, ang1,
+                                    ang3, dim=y, side=left, order=spc_brd) +
+                   first_derivative(Gzr, ang0, dim=z, side=left, order=spc_brd))
             Gxp2 = (ang0 * ang2 * u.dxr + ang0 * ang3 * u.dy - ang1 * u.dz)
             Gzr2 = (ang1 * ang2 * v.dxr + ang1 * ang3 * v.dy + ang0 * v.dz)
             Gxx2 = (first_derivative(Gxp2, ang0,
@@ -125,7 +125,7 @@ class ForwardOperator(Operator):
                                      ang3, dim=y, side=centered, order=spc_brd) -
                     first_derivative(Gzr2, ang0, dim=z, side=centered, order=spc_brd))
             Hp = -(.5*Gxx + .5*Gxx2 + .5*Gyy + .5*Gyy2)
-            Hzr = -(.5*Gzz + .5* Gzz2)
+            Hzr = -(.5*Gzz + .5 * Gzz2)
 
         else:
             Gx1p = (ang0 * u.dxr - ang1 * u.dy)
@@ -141,13 +141,13 @@ class ForwardOperator(Operator):
             Gx2p = (ang0 * u.dx - ang1 * u.dyr)
             Gz2r = (ang1 * v.dx + ang0 * v.dyr)
             Gxx2 = (-first_derivative(Gx2p * ang0, dim=x,
-                                     side=centered, order=spc_brd) -
+                    side=centered, order=spc_brd) -
                     first_derivative(Gx2p * ang1, dim=y,
-                                     side=left, order=spc_brd))
+                    side=left, order=spc_brd))
             Gzz2 = (-first_derivative(Gz2r * ang1, dim=x,
-                                     side=centered, order=spc_brd) +
+                    side=centered, order=spc_brd) +
                     first_derivative(Gz2r * ang0, dim=y,
-                                     side=left, order=spc_brd))
+                    side=left, order=spc_brd))
 
             Hp = -(.5 * Gxx1 + .5 * Gxx2)
             Hzr = -(.5 * Gzz1 + .5 * Gzz2)

@@ -37,7 +37,7 @@ class ForwardOperator(Operator):
         # stencil = 1 / (2 * m + s * damp) * \
         #    (4 * m * u + (s * damp - 2 * m) *
         #     u.backward + 2 * s ** 2 * (Lap + s**2 / 12 * Lap2))
-        eqn = m * u.dt2 - Lap - Lap2 + damp* u.dt
+        eqn = m * u.dt2 - Lap - Lap2 + damp * u.dt
         # Add substitutions for spacing (temporal and spatial)
         subs = {s: dt, h: model.get_spacing()}
         stencil = solve(eqn, u.forward)[0]
