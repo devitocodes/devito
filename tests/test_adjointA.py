@@ -7,7 +7,7 @@ from examples.containers import IGrid, IShot
 
 
 class TestAdjointA(object):
-    @pytest.fixture(params=[(60,70), (60, 70, 80)])
+    @pytest.fixture(params=[(60, 70), (60, 70, 80)])
     def acoustic(self, request, time_order, space_order):
         model = IGrid()
         dimensions = request.param
