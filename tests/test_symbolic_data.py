@@ -58,7 +58,7 @@ def test_derivatives_space(derivative, dimension, order):
     # Establish native sympy derivative expression
     width = int(order / 2)
     indices = [(dimension + i * h) for i in range(-width, width + 1)]
-    s_expr = as_finite_diff(u.diff(dimension), indices)
+    s_expr = -as_finite_diff(u.diff(dimension), indices)
     assert(simplify(expr - s_expr) == 0)  # Symbolic equality
     assert(expr == s_expr)  # Exact equailty
 
