@@ -8,7 +8,7 @@ from examples.containers import IGrid, IShot
 
 
 class TestGradient(object):
-    @pytest.fixture(params=[(70, 80), (60, 70, 80)])
+    @pytest.fixture(params=[(70, 80)])
     def acoustic(self, request, time_order, space_order):
         model = IGrid()
         model0 = IGrid()
@@ -81,7 +81,7 @@ class TestGradient(object):
     def time_order(self, request):
         return request.param
 
-    @pytest.fixture(params=[2, 4])
+    @pytest.fixture(params=[2])
     def space_order(self, request):
         return request.param
 
