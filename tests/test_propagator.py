@@ -1,6 +1,7 @@
 import numpy as np
-from devito import x, y, z
+
 import devito.cgen_wrapper as cgen
+from devito import x, y, z
 from devito.propagator import Propagator
 
 
