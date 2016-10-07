@@ -11,8 +11,8 @@ def source(t, f0):
     return np.exp(-2*s**2)*np.cos(2*np.pi*s)
 
 
-def run(dimensions=(150, 150, 150), spacing=(13.0, 13.0, 13.0), tn=1000.0,
-        time_order=2, space_order=6, nbpml=10, cse=True,
+def run(dimensions=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=250.0,
+        time_order=2, space_order=2, nbpml=10, cse=True,
         auto_tuning=False, compiler=None, cache_blocking=None):
     if auto_tuning:
         cache_blocking = None
@@ -22,9 +22,9 @@ def run(dimensions=(150, 150, 150), spacing=(13.0, 13.0, 13.0), tn=1000.0,
     origin = (0., 0., 0.)
 
     # True velocity
-    true_vp = np.ones(dimensions) + .5
-    true_vp[:, :, int(dimensions[0] / 3):int(2*dimensions[0]/3)] = 2.0
-    true_vp[:, :, int(2*dimensions[0] / 3):int(dimensions[0])] = 3.0
+    true_vp = np.ones(dimensions) + 1.0
+    true_vp[:, :, int(dimensions[0] / 3):int(2*dimensions[0]/3)] = 3.0
+    true_vp[:, :, int(2*dimensions[0] / 3):int(dimensions[0])] = 4.0
 
     model.create_model(
         origin, spacing, true_vp, .4*np.ones(dimensions), -.1*np.ones(dimensions),
@@ -56,10 +56,10 @@ def run(dimensions=(150, 150, 150), spacing=(13.0, 13.0, 13.0), tn=1000.0,
     data.set_shape(nt, 101)
 
     TTI = TTI_cg(model, data, None, t_order=time_order, s_order=space_order, nbpml=nbpml)
-    rec, u, v, gflops, oi, timings = TTI.Forward(
+    rec, u, v, gflopss, oi, timings = TTI.Forward(
         cse=cse, auto_tuning=auto_tuning, cache_blocking=cache_blocking, compiler=compiler
     )
-    return gflops, oi, timings, [rec, u, v]
+    return gflopss, oi, timings, [rec, u, v]
 
 if __name__ == "__main__":
     run(auto_tuning=True)

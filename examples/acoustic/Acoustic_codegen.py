@@ -1,14 +1,16 @@
 # coding: utf-8
 from __future__ import print_function
 
-from examples.acoustic.fwi_operators import *
 from devito.at_controller import AutoTuner
+from examples.acoustic.fwi_operators import *
 from examples.source_type import SourceLike
 
 
-class Acoustic_cg:
-    """ Class to setup the problem for the Acoustic Wave
-        Note: s_order must always be greater than t_order
+class Acoustic_cg(object):
+    """
+    Class to setup the problem for the Acoustic Wave.
+
+    Note: s_order must always be greater than t_order
     """
     def __init__(self, model, data, source=None, nbpml=40, t_order=2, s_order=4,
                  auto_tuning=False, cse=True, compiler=None):
@@ -73,12 +75,13 @@ class Acoustic_cg:
         if auto_tuning:  # auto tuning with dummy forward operator
             fw = ForwardOperator(self.model, self.src, self.damp, self.data,
                                  time_order=self.t_order, spc_order=self.s_order,
-                                 save=False, profile=True)
+                                 profile=True, save=False, cse=cse, compiler=compiler)
             self.at = AutoTuner(fw)
             self.at.auto_tune_blocks(self.s_order + 1, self.s_order * 4 + 2)
 
     def Forward(self, save=False, cache_blocking=None,
                 auto_tuning=False, cse=True, compiler=None):
+
         if auto_tuning:
             cache_blocking = self.at.block_size
 
@@ -88,7 +91,7 @@ class Acoustic_cg:
                              compiler=compiler, profile=True)
 
         u, rec = fw.apply()
-        return rec.data, u, fw.propagator.gflops, fw.propagator.oi, fw.propagator.timings
+        return rec.data, u, fw.propagator.gflopss, fw.propagator.oi, fw.propagator.timings
 
     def Adjoint(self, rec, cache_blocking=None):
         adj = AdjointOperator(self.model, self.damp, self.data, rec,
@@ -100,7 +103,7 @@ class Acoustic_cg:
     def Gradient(self, rec, u, cache_blocking=None):
         grad_op = GradientOperator(self.model, self.damp, self.data, rec, u,
                                    time_order=self.t_order, spc_order=self.s_order,
-                                   cache_blocking=self.at.block_size, profile=True)
+                                   cache_blocking=cache_blocking)
         grad = grad_op.apply()[0]
         return grad.data
 

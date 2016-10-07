@@ -24,7 +24,7 @@ def source(t, f0):
     return (1-2.*r**2)*np.exp(-r**2)
 
 
-def run(dimensions=(150, 150, 50), spacing=(15.0, 15.0, 15.0), tn=250.0,
+def run(dimensions=(150, 150, 50), spacing=(15.0, 15.0, 15.0), tn=1000.0,
         time_order=2, space_order=2, nbpml=10, cse=True, auto_tuning=False,
         compiler=None, cache_blocking=None, full_run=False):
     model = IGrid()
@@ -80,12 +80,12 @@ def run(dimensions=(150, 150, 50), spacing=(15.0, 15.0, 15.0), tn=250.0,
     )
     info("Applying Forward")
     rec, u, gflops, oi, timings = Acoustic.Forward(
-        cache_blocking=cache_blocking, save=True, cse=cse,
+        cache_blocking=cache_blocking, save=full_run, cse=cse,
         auto_tuning=auto_tuning, compiler=compiler
     )
 
     if not full_run:
-        return gflopss, oi, timings, [rec, u.data]
+        return gflops, oi, timings, [rec, u.data]
 
     info("Applying Adjoint")
     Acoustic.Adjoint(rec)
