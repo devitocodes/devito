@@ -8,7 +8,6 @@ All exposed functions are prefixed with 'dse' (devito symbolic engine)
 """
 
 import numpy as np
-
 from sympy import *
 
 from devito.dimension import t, x, y, z

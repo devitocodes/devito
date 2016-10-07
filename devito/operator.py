@@ -1,5 +1,4 @@
 import numpy as np
-
 from sympy import Eq, solve
 
 from devito.compiler import get_compiler_from_env

@@ -185,9 +185,9 @@ class DenseData(SymbolicData):
             self._data = np.memmap(filename=self.f, dtype=self.dtype, mode='w+',
                                    shape=self.shape, order='C')
         else:
+            debug("Allocating memory for %s (%s)" % (self.name, str(self.shape)))
             self._data, self.internal_pointer = malloc_aligned(
                 self.shape, dtype=self.dtype)
-            debug("Allocating memory for %s (%s)" % (self.name, str(self.shape)))
             first_touch(self)
 
     def __del__(self):
