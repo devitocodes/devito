@@ -7,13 +7,15 @@ classes of functions:
 All exposed functions are prefixed with 'dse' (devito symbolic engine)
 """
 
+import numpy as np
+
 from sympy import *
 
-from devito.interfaces import SymbolicData
 from devito.dimension import t, x, y, z
+from devito.interfaces import SymbolicData
 
-__all__ = ['dse_dimensions', 'dse_symbols', 'dse_indexify', 'dse_cse',
-           'dse_tolambda']
+__all__ = ['dse_dimensions', 'dse_symbols', 'dse_dtype', 'dse_indexify',
+           'dse_cse', 'dse_tolambda']
 
 
 # Inspection
@@ -53,6 +55,14 @@ def dse_symbols(expr):
             undefined.add(e)
 
     return list(defined), list(undefined)
+
+
+def dse_dtype(expr):
+    """
+    Try to infer the data type of an expression.
+    """
+    dtypes = [e.dtype for e in preorder_traversal(expr) if hasattr(e, 'dtype')]
+    return np.find_common_type(dtypes, [])
 
 
 # Manipulation

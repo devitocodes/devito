@@ -7,7 +7,7 @@ from os import path
 from random import randint
 
 import numpy as np
-from sympy import Indexed, IndexedBase, preorder_traversal, symbols
+from sympy import Indexed, IndexedBase, symbols
 from sympy.utilities.iterables import postorder_traversal
 
 import devito.cgen_wrapper as cgen
@@ -20,6 +20,7 @@ from devito.function_manager import FunctionDescriptor, FunctionManager
 from devito.iteration import Iteration
 from devito.logger import info
 from devito.profiler import Profiler
+from devito.symbolics import dse_dtype
 from devito.tools import flatten
 
 
@@ -433,12 +434,10 @@ class Propagator(object):
         for eqn in stencils:
             s_lhs = str(eqn.lhs)
             if s_lhs.find("temp") is not -1 and not declared[s_lhs]:
+                expr_dtype = dse_dtype(eqn.rhs) or self.dtype
                 declared[s_lhs] = True
-                decl.append(
-                    cgen.Value(
-                        cgen.dtype_to_ctype(self.expr_dtype(eqn.rhs)), ccode(eqn.lhs)
-                    )
-                )
+                decl.append(cgen.Value(cgen.dtype_to_ctype(expr_dtype),
+                                       ccode(eqn.lhs)))
 
         stmts = [self.convert_equality_to_cgen(x) for x in stencils]
 
@@ -448,24 +447,6 @@ class Propagator(object):
         kernel = stmts
 
         return cgen.Block(factors+kernel)
-
-    def expr_dtype(self, expr):
-        """Gets the resulting dtype of an expression.
-
-        :param expr: The expression
-
-        :returns: The dtype. Defaults to `self.dtype` if none found.
-        """
-        dtypes = []
-
-        for e in preorder_traversal(expr):
-            if hasattr(e, 'dtype'):
-                dtypes.append(e.dtype)
-
-        if dtypes:
-            return np.find_common_type(dtypes, [])
-        else:
-            return self.dtype
 
     def convert_equality_to_cgen(self, equality):
         """Convert given equality to :class:`cgen.Generable` statement
