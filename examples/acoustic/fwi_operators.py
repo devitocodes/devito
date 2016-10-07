@@ -8,6 +8,18 @@ from examples.source_type import SourceLike
 
 
 class ForwardOperator(Operator):
+    """
+    Class to setup the forward modelling operator in an acoustic media
+
+    :param model: IGrid() object containing the physical parameters
+    :param src: None ot IShot() (not currently supported properly)
+    :param damp: Dampening coeeficents for the ABCs
+    :param data: IShot() object containing the acquisition geometry and field data
+    :param: time_order: Time discretization order
+    :param: spc_order: Space discretization order
+    :param save : Saving flag, True saves all time steps, False only the three
+     required for the time marching scheme
+    """
     def __init__(self, model, src, damp, data, time_order=2, spc_order=6,
                  save=False, **kwargs):
         nrec, nt = data.shape
@@ -64,6 +76,17 @@ class ForwardOperator(Operator):
 
 
 class AdjointOperator(Operator):
+    """
+    Class to setup the adjoint modelling operator in an acoustic media
+
+    :param model: IGrid() object containing the physical parameters
+    :param src: None ot IShot() (not currently supported properly)
+    :param damp: Dampening coeeficents for the ABCs
+    :param data: IShot() object containing the acquisition geometry and field data
+    :param: recin : receiver data for the adjoint source
+    :param: time_order: Time discretization order
+    :param: spc_order: Space discretization order
+    """
     def __init__(self, model, damp, data, recin, time_order=2, spc_order=6, **kwargs):
         nrec, nt = data.shape
         s, h = symbols('s h')
@@ -125,6 +148,17 @@ class AdjointOperator(Operator):
 
 
 class GradientOperator(Operator):
+    """
+    Class to setup the gradient operator in an acoustic media
+
+    :param model: IGrid() object containing the physical parameters
+    :param src: None ot IShot() (not currently supported properly)
+    :param damp: Dampening coeeficents for the ABCs
+    :param data: IShot() object containing the acquisition geometry and field data
+    :param: recin : receiver data for the adjoint source
+    :param: time_order: Time discretization order
+    :param: spc_order: Space discretization order
+    """
     def __init__(self, model, damp, data, recin, u, time_order=2, spc_order=6, **kwargs):
         nrec, nt = data.shape
         s, h = symbols('s h')
@@ -190,6 +224,18 @@ class GradientOperator(Operator):
 
 
 class BornOperator(Operator):
+    """
+    Class to setup the linearized modelling operator in an acoustic media
+
+    :param model: IGrid() object containing the physical parameters
+    :param src: None ot IShot() (not currently supported properly)
+    :param damp: Dampening coeeficents for the ABCs
+    :param data: IShot() object containing the acquisition geometry and field data
+    :param: dmin : square slowness perturbation
+    :param: recin : receiver data for the adjoint source
+    :param: time_order: Time discretization order
+    :param: spc_order: Space discretization order
+    """
     def __init__(self, model, src, damp, data, dmin, time_order=2, spc_order=6, **kwargs):
         nrec, nt = data.shape
         s, h = symbols('s h')

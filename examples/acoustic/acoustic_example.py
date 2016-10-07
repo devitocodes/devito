@@ -27,12 +27,7 @@ def source(t, f0):
 def run(dimensions=(150, 150, 50), spacing=(20.0, 20.0, 20.0), tn=250.0,
         time_order=2, space_order=2, nbpml=10, cse=True, auto_tuning=False,
         compiler=None, cache_blocking=None, full_run=False):
-    model = IGrid()
-    model0 = IGrid()
-    model1 = IGrid()
-    model.shape = dimensions
-    model0.shape = dimensions
-    model1.shape = dimensions
+
     origin = (0., 0., 0.)
 
     # True velocity
@@ -47,7 +42,7 @@ def run(dimensions=(150, 150, 50), spacing=(20.0, 20.0, 20.0), tn=250.0,
 
     dm = true_vp**-2 - initial_vp**-2
 
-    model.create_model(origin, spacing, true_vp)
+    model = IGrid(origin, spacing, true_vp)
 
     # Define seismic data.
     data = IShot()

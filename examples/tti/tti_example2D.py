@@ -4,11 +4,8 @@ from examples.containers import IGrid, IShot
 from examples.tti.TTI_codegen import TTI_cg
 
 dimensions = (150, 150)
-model = IGrid()
-model.shape = dimensions
 origin = (0., 0.)
 spacing = (20.0, 20.0)
-dtype = np.float32
 t_order = 2
 spc_order = 4
 # True velocity
@@ -16,9 +13,9 @@ true_vp = np.ones(dimensions) + 1.0
 true_vp[:, int(dimensions[1] / 3):int(2*dimensions[1]/3)] = 3.0
 true_vp[:, int(2*dimensions[1] / 3):int(dimensions[1])] = 4.0
 
-model.create_model(origin, spacing, true_vp, 0.1*(true_vp - 2),
-                   0.08 * (true_vp - 2), np.pi/5*np.ones(dimensions),
-                   0*np.ones(dimensions))
+model = IGrid(origin, spacing, true_vp, 0.1*(true_vp - 2),
+              0.08 * (true_vp - 2), np.pi/5*np.ones(dimensions),
+              0*np.ones(dimensions))
 
 # Define seismic data.
 data = IShot()

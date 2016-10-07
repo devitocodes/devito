@@ -11,8 +11,6 @@ from examples.containers import IGrid, IShot
 class TestGradient(object):
     @pytest.fixture(params=[(70, 80)])
     def acoustic(self, request, time_order, space_order):
-        model = IGrid()
-        model0 = IGrid()
         dimensions = request.param
         # dimensions are (x,z) and (x, y, z)
         origin = tuple([0]*len(dimensions))
@@ -38,8 +36,8 @@ class TestGradient(object):
         # Smooth velocity
         initial_vp = smooth10(true_vp)
         dm = true_vp**-2 - initial_vp**-2
-        model.create_model(origin, spacing, true_vp)
-        model0.create_model(origin, spacing, initial_vp)
+        model = IGrid(origin, spacing, true_vp)
+        model0 = IGrid(origin, spacing, initial_vp)
         # Define seismic data.
         data = IShot()
         f0 = .010

@@ -12,12 +12,6 @@ def source(t, f0):
 
 def run_acoustic_forward(cse):
     dimensions = (50, 50, 50)
-    model = IGrid()
-    model0 = IGrid()
-    model1 = IGrid()
-    model.shape = dimensions
-    model0.shape = dimensions
-    model1.shape = dimensions
     origin = (0., 0.)
     spacing = (10., 10.)
 
@@ -25,7 +19,7 @@ def run_acoustic_forward(cse):
     true_vp = np.ones(dimensions) + 2.0
     true_vp[:, :, int(dimensions[0] / 2):int(dimensions[0])] = 4.5
 
-    model.create_model(origin, spacing, true_vp)
+    model = IGrid(origin, spacing, true_vp)
 
     # Define seismic data.
     data = IShot()

@@ -9,7 +9,6 @@ from examples.containers import IGrid, IShot
 class TestAdjointA(object):
     @pytest.fixture(params=[(60, 70), (60, 70, 80)])
     def acoustic(self, request, time_order, space_order):
-        model = IGrid()
         dimensions = request.param
         # dimensions are (x,z) and (x, y, z)
         origin = tuple([0.0]*len(dimensions))
@@ -21,7 +20,7 @@ class TestAdjointA(object):
             true_vp[:, int(dimensions[0] / 2):dimensions[0]] = 2.5
         else:
             true_vp[:, :, int(dimensions[0] / 2):dimensions[0]] = 2.5
-        model.create_model(origin, spacing, true_vp)
+        model = IGrid(origin, spacing, true_vp)
         # Define seismic data.
         data = IShot()
 

@@ -17,8 +17,6 @@ def run(dimensions=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=250.0,
     if auto_tuning:
         cache_blocking = None
 
-    model = IGrid()
-    model.shape = dimensions
     origin = (0., 0., 0.)
 
     # True velocity
@@ -26,9 +24,12 @@ def run(dimensions=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=250.0,
     true_vp[:, :, int(dimensions[0] / 3):int(2*dimensions[0]/3)] = 3.0
     true_vp[:, :, int(2*dimensions[0] / 3):int(dimensions[0])] = 4.0
 
-    model.create_model(
-        origin, spacing, true_vp, .4*np.ones(dimensions), -.1*np.ones(dimensions),
-        -np.pi/7*np.ones(dimensions), np.pi/5*np.ones(dimensions))
+    model = IGrid(origin, spacing,
+                  true_vp,
+                  .4*np.ones(dimensions),
+                  -.1*np.ones(dimensions),
+                  -np.pi/7*np.ones(dimensions),
+                  np.pi/5*np.ones(dimensions))
 
     # Define seismic data.
     data = IShot()

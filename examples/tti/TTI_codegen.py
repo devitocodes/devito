@@ -9,7 +9,7 @@ from examples.tti.tti_operators import *
 
 
 class TTI_cg:
-    """ Class to setup the problem for the Acoustic Wave
+    """ Class to setup the problem for the anisotropic Wave
         Note: s_order must always be greater than t_order
     """
     def __init__(self, model, data, source=None, t_order=2, s_order=2, nbpml=40):

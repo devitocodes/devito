@@ -3,12 +3,43 @@ import numpy as np
 
 
 class IGrid:
+    """
+    Class to setup a physical model
+
+    :param origin: Origin of the model in m as a Tuple
+    :param spacing:grid size in m as a Tuple
+    :param vp: Velocity in km/s
+    :param epsilon: Thomsen epsilon parameter (0<epsilon<1)
+    :param delta: Thomsen delta parameter (0<delta<1), delta<epsilon
+    :param: theta: Tilt angle in radian
+    :param phi : Asymuth angle in radian
+    """
+    def __init__(self, origin, spacing, vp, epsilon=None,
+                 delta=None, theta=None, phi=None):
+        self.vp = vp
+        self.spacing = spacing
+        self.dimensions = vp.shape
+        if epsilon is not None:
+            self.epsilon = 1 + 2 * epsilon
+            self.scale = np.sqrt(1 + 2 * np.max(self.epsilon))
+        else:
+            self.scale = 1
+        if delta is not None:
+            self.delta = np.sqrt(1 + 2 * delta)
+        if phi is not None:
+            self.phi = phi
+        if theta is not None:
+            self.theta = theta
+
+        self.origin = origin
+
     def get_shape(self):
-        """Tuple of (x, y) or (x, y, z)
+        """Return the size of the model as a Tuple of (x, y) or (x, y, z)
         """
         return self.vp.shape
 
     def get_critical_dt(self):
+        """ Return the computational time step value from the CFL condition"""
         # limit for infinite stencil of √(a1/a2) where a1 is the
         #  sum of absolute values of the time discretisation
         # and a2 is the sum of the absolute values of the space discretisation
@@ -33,31 +64,21 @@ class IGrid:
         return coeff * self.spacing[0] / (self.scale*np.max(self.vp))
 
     def get_spacing(self):
+        """Return the grid size"""
         return self.spacing[0]
 
-    def create_model(self, origin, spacing, vp, epsilon=None,
-                     delta=None, theta=None, phi=None):
-        self.vp = vp
-        self.spacing = spacing
-        self.dimensions = vp.shape
-        if epsilon is not None:
-            self.epsilon = 1 + 2 * epsilon
-            self.scale = np.sqrt(1 + 2 * np.max(self.epsilon))
-        else:
-            self.scale = 1
-        if delta is not None:
-            self.delta = np.sqrt(1 + 2 * delta)
-        if phi is not None:
-            self.phi = phi
-        if theta is not None:
-            self.theta = theta
-
-        self.origin = origin
-
     def set_vp(self, vp):
-        self.vp = vp
+        """Set a new velocity model
+        :param vp : new velocity in km/s"""
+        if vp.shape == self.dimensions:
+            self.vp = vp
+        else:
+            self.vp = vp
+            self.dimensions = vp.shape
 
     def set_origin(self, shift):
+        """Set a new origin shifted by -shift in every direction
+        :param shift : shift of the origin in number of grid points"""
         norig = len(self.origin)
         aux = []
 
@@ -67,18 +88,25 @@ class IGrid:
         self.origin = aux
 
     def get_origin(self):
+        """Return the origin position"""
         return self.origin
 
     def padm(self):
+        """Padding function extending self.vp by `self.nbpml` in every direction
+        for the absorbing boundary conditions"""
         return self.pad(self.vp**(-2))
 
     def pad(self, m):
+        """Padding function extending m by `self.nbpml` in every direction
+        for the absorbing boundary conditions
+        :param m : physical parameter to be extended"""
         pad_list = []
         for dim_index in range(len(self.vp.shape)):
             pad_list.append((self.nbpml, self.nbpml))
         return np.pad(m, pad_list, 'edge')
 
     def get_shape_comp(self):
+        """Return the computational size of the model"""
         dim = self.dimensions
         if len(dim) == 3:
             return (dim[0] + 2 * self.nbpml, dim[1] + 2 * self.nbpml,
@@ -88,6 +116,7 @@ class IGrid:
 
 
 class ISource:
+    """Source class, currently not implemented"""
     def get_source(self):
         """ List of size nt
         """
@@ -105,29 +134,30 @@ class ISource:
 
 
 class IShot:
-    def get_data(self):
-        """ List of ISource objects, of size ntraces
-        """
-        return self._shots
-
+    """Class seting up the acquisition geometry"""
     def set_source(self, time_serie, dt, location):
+        """Set the source signature"""
         self.source_sign = time_serie
         self.source_coords = location
         self.sample_interval = dt
 
     def set_receiver_pos(self, pos):
+        """Set the receivers position"""
         self.receiver_coords = pos
 
     def set_shape(self, nt, nrec):
+        """Set the data array shape"""
         self.shape = (nrec, nt)
 
     def get_source(self, ti=None):
+        """Return the source signature"""
         if ti is None:
             return self.source_sign
 
         return self.source_sign[ti]
 
     def get_nrec(self):
+        """Return the snumber of receivers"""
         ntraces, nsamples = self.traces.shape
 
         return ntraces
