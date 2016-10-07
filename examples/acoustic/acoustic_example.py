@@ -81,7 +81,7 @@ def run(dimensions=(150, 150, 50), spacing=(20.0, 20.0, 20.0), tn=250.0,
 
     info("Applying Forward")
     rec, u, gflopss, oi, timings = Acoustic.Forward(
-        cache_blocking=cache_blocking, save=True, cse=cse,
+        cache_blocking=cache_blocking, save=full_run, cse=cse,
         auto_tuning=auto_tuning, compiler=compiler
     )
 

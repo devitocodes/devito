@@ -1,6 +1,6 @@
 import numpy as np
-from sympy import (Add, collect, Eq, Function, Indexed, IndexedBase, Symbol, cse,
-                   lambdify, preorder_traversal, solve, symbols)
+from sympy import (Add, Eq, Function, Indexed, IndexedBase, Symbol,
+                   collect, cse, lambdify, preorder_traversal, solve, symbols)
 from sympy.utilities.iterables import numbered_symbols
 
 from devito.compiler import get_compiler_from_env
@@ -131,7 +131,6 @@ def expr_cse(expr):
     # update the value of the temporary variable after the stencil
 
     new_stencils = []
-    print([temp.lhs for temp in to_keep])
     for stencil in stencils:
         new_stencils.append(Eq(stencil.lhs,
                                collect(stencil.rhs,
