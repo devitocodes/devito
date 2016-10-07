@@ -39,7 +39,7 @@ class ForwardOperator(Operator):
             dt = model.get_critical_dt()
         else:
             Lap = u.laplace
-            Lap2 = 1 / m * u.laplace2
+            Lap2 = u.laplace2(1/m)
             # PDE for information
             # eqn = m * u.dt2 - Lap - s**2 / 12 * Lap2 + damp * u.dt
             dt = 1.73 * model.get_critical_dt()
@@ -59,7 +59,7 @@ class ForwardOperator(Operator):
         super(ForwardOperator, self).__init__(nt, m.shape,
                                               stencils=Eq(u.forward, stencil),
                                               subs=subs,
-                                              spc_border=max(spc_order/2, 2),
+                                              spc_border=max(spc_order, 2),
                                               time_order=2,
                                               forward=True,
                                               dtype=m.dtype,
@@ -105,7 +105,7 @@ class AdjointOperator(Operator):
             dt = model.get_critical_dt()
         else:
             Lap = v.laplace
-            Lap2 = 1 / m * v.laplace2
+            Lap2 = v.laplace2(1/m)
             # PDE for information
             # eqn = m * v.dt2 - Lap - s**2 / 12 * Lap2 + damp * v.dt
             dt = 1.73 * model.get_critical_dt()
@@ -131,7 +131,7 @@ class AdjointOperator(Operator):
         super(AdjointOperator, self).__init__(nt, m.shape,
                                               stencils=Eq(v.backward, stencil),
                                               subs=subs,
-                                              spc_border=max(spc_order/2, 2),
+                                              spc_border=max(spc_order, 2),
                                               time_order=2,
                                               forward=False,
                                               dtype=m.dtype,
@@ -180,8 +180,8 @@ class GradientOperator(Operator):
             gradient_update = Eq(grad, grad - u.dt2 * v.forward)
         else:
             Lap = v.laplace
-            Lap2 = 1 / m * v.laplace2
-            Lap2u = - 1 / m**2 * u.laplace2
+            Lap2 = v.laplace2(1/m)
+            Lap2u = - u.laplace2(1/(m**2))
             # PDE for information
             # eqn = m * v.dt2 - Lap - s**2 / 12 * Lap2 + damp * v.dt
             dt = 1.73 * model.get_critical_dt()
@@ -209,7 +209,7 @@ class GradientOperator(Operator):
         super(GradientOperator, self).__init__(rec.nt - 1, m.shape,
                                                stencils=stencils,
                                                subs=[subs, subs, {}],
-                                               spc_border=max(spc_order/2, 2),
+                                               spc_border=max(spc_order, 2),
                                                time_order=2,
                                                forward=False,
                                                dtype=m.dtype,
@@ -264,9 +264,9 @@ class BornOperator(Operator):
             dt = model.get_critical_dt()
         else:
             Lapu = u.laplace
-            Lap2u = 1 / m * U.laplace2
+            Lap2u = U.laplace2(1/m)
             LapU = u.laplace
-            Lap2U = 1 / m * U.laplace2
+            Lap2U = U.laplace2(1/m)
             dt = 1.73 * model.get_critical_dt()
             # first_eqn = m * u.dt2 - u.laplace - damp * u.dt
             # second_eqn = m * U.dt2 - U.laplace - damp * U.dt
@@ -287,7 +287,7 @@ class BornOperator(Operator):
         super(BornOperator, self).__init__(src.nt, m.shape,
                                            stencils=stencils,
                                            subs=[subs, subs, {}, {}],
-                                           spc_border=max(spc_order/2, 2),
+                                           spc_border=max(spc_order, 2),
                                            time_order=2,
                                            forward=True,
                                            dtype=m.dtype,

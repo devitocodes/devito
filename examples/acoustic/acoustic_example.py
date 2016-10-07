@@ -24,8 +24,8 @@ def source(t, f0):
     return (1-2.*r**2)*np.exp(-r**2)
 
 
-def run(dimensions=(150, 150, 50), spacing=(20.0, 20.0, 20.0), tn=250.0,
-        time_order=2, space_order=2, nbpml=10, cse=True, auto_tuning=False,
+def run(dimensions=(150, 150, 50), spacing=(20.0, 20.0, 20.0), tn=2000.0,
+        time_order=2, space_order=2, nbpml=40, cse=True, auto_tuning=False,
         compiler=None, cache_blocking=None, full_run=False):
 
     origin = (0., 0., 0.)
@@ -91,4 +91,4 @@ def run(dimensions=(150, 150, 50), spacing=(20.0, 20.0, 20.0), tn=250.0,
     Acoustic.Born(dm)
 
 if __name__ == "__main__":
-    run(full_run=True, auto_tuning=True, space_order=6, time_order=2)
+    run(full_run=False, auto_tuning=True, space_order=6, time_order=4)

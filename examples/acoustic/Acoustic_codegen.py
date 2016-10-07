@@ -36,7 +36,7 @@ class Acoustic_cg(object):
 
         def damp_boundary(damp):
             h = self.model.get_spacing()
-            dampcoeff = 1.5 * np.log(1.0 / 0.001) / (40 * h)
+            dampcoeff = t_order * np.log(1.0 / 0.001) / (40 * h)
             nbpml = self.model.nbpml
             num_dim = len(damp.shape)
 
