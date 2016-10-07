@@ -121,11 +121,6 @@ class AutoTuner(object):
         # filter off some of the block sizes, heuristically
         block_list = sorted(self._filter(block_list))
 
-        # populate output arrays with random values, to make sure that loads
-        # and stores are performed
-        for param in self.op.output_params:
-            param._data = np.random.rand(*param.data.shape).astype(self.op.dtype)
-
         info_at("Number of block sizes that will be attempted: %d" % len(block_list))
 
         # runs function for each block_size
@@ -133,6 +128,10 @@ class AutoTuner(object):
         self.op.propagator.cache_blocking = list(block_list[0])
         for block in block_list:
             self.op.propagator.block_sizes = list(block)
+            # populate output arrays with values different than 0.0, to make sure that
+            # actual computation is carried out
+            for param in self.op.output_params:
+                param.data.fill(np.random.rand())
             times.append((block, self.get_execution_time()))
 
         # sorts the list of tuples based on time
@@ -164,8 +163,8 @@ class AutoTuner(object):
 
         :return: time - how long it took to execute
         """
-        self.op.propagator.run(self.op.get_args())
-        return self.op.propagator.timings['kernel']
+        self.op.propagator.run(self.op.get_args(), verbose=False)
+        return self.op.propagator.total_time
 
     def _write_block_report(self, times):
         """Writes auto tuning report for block sizes

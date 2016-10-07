@@ -74,13 +74,13 @@ def run(dimensions=(150, 150, 50), spacing=(20.0, 20.0, 20.0), tn=250.0,
                            compiler=compiler)
 
     info("Applying Forward")
-    rec, u, gflops, oi, timings = Acoustic.Forward(
+    rec, u, gflopss, oi, timings = Acoustic.Forward(
         cache_blocking=cache_blocking, save=True, cse=cse,
         auto_tuning=auto_tuning, compiler=compiler
     )
 
     if not full_run:
-        return gflops, oi, timings, [rec, u.data]
+        return gflopss, oi, timings, [rec, u.data]
 
     info("Applying Adjoint")
     Acoustic.Adjoint(rec)

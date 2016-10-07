@@ -1,3 +1,6 @@
+from __future__ import absolute_import
+
+import operator
 from collections import Iterable, defaultdict
 from hashlib import sha1
 from os import path
@@ -7,22 +10,28 @@ import numpy as np
 from sympy import Indexed, IndexedBase, preorder_traversal, symbols
 from sympy.utilities.iterables import postorder_traversal
 
-import cgen_wrapper as cgen
-from codeprinter import ccode
+import devito.cgen_wrapper as cgen
+from devito.codeprinter import ccode
 from devito.compiler import (IntelMICCompiler, get_compiler_from_env,
                              get_tmp_dir, jit_compile_and_load)
 from devito.dimension import t, x, y, z
 from devito.expression import Expression
 from devito.function_manager import FunctionDescriptor, FunctionManager
 from devito.iteration import Iteration
-from devito.logger import logger
+from devito.logger import info
 from devito.profiler import Profiler
-from tools import flatten, get_optimal_block_size
+from devito.tools import flatten
 
 
 class Propagator(object):
     """Propagator objects derive and encode C kernel code according
-    to a given set of stencils, variables and time-stepping options
+    to a given set of stencils, variables and time-stepping options.
+
+    A kernel consists of a time loop wrapping three sections of code, called
+    ``pre_stencils``, ``loop_body``, and ``post_stencils``.
+    ``loop_body`` encodes the spatial loops and thus includes the stencils;
+    the other two sections represent actions to be performed before and after
+    the stencil computation, respectively.
 
     :param name: Name of the propagator kernel
     :param nt: Number of timesteps to execute
@@ -43,14 +52,13 @@ class Propagator(object):
                            number used for all dimensions except inner most or a list
                            explicitly stating block sizes for each dimension
                            Set cache_blocking to None to skip blocking on that dim
-                           Set cache_blocking to 0 to use best guess based on architecture
                            Set cache_blocking to AutoTuner instance, to use auto tuned
                            tune block sizes
     """
+
     def __init__(self, name, nt, shape, stencils, factorized=None, spc_border=0,
                  time_order=0, time_dim=None, space_dims=None, dtype=np.float32,
-                 forward=True, compiler=None, profile=False,
-                 cache_blocking=None):
+                 forward=True, compiler=None, profile=False, cache_blocking=None):
         self.stencils = stencils
         self.dtype = dtype
         self.factorized = factorized or {}
@@ -83,8 +91,6 @@ class Propagator(object):
         # Which function parameters need special (non-save) time stepping and which don't
         self.save_vars = {}
         self.fd = FunctionDescriptor(name)
-        self.pre_loop = []
-        self.post_loop = []
         self._time_step = 1 if forward else -1
         self._space_loop_limits = {}
 
@@ -112,10 +118,9 @@ class Propagator(object):
         self._lib = None
         self._cfunction = None
 
-    def run(self, args):
+    def run(self, args, verbose=True):
         if self.profile:
             self.fd.add_struct_param(self.profiler.t_name, "profiler")
-            self.fd.add_struct_param(self.profiler.f_name, "flops")
 
         f = self.cfunction
 
@@ -124,7 +129,6 @@ class Propagator(object):
 
         if self.profile:
             args.append(self.profiler.as_ctypes_pointer(Profiler.TIME))
-            args.append(self.profiler.as_ctypes_pointer(Profiler.FLOP))
 
         if isinstance(self.compiler, IntelMICCompiler):
             # Off-load propagator kernel via pymic stream
@@ -134,17 +138,23 @@ class Propagator(object):
             f(*args)
 
         if self.profile:
-            self.log_performance()
+            if verbose:
+                shape = str(self.shape).replace(', ', ' x ')
+                cb = str(self.block_sizes) if self.cache_blocking else 'None'
+                info("Shape: %s - Cache Blocking: %s" % (shape, cb))
+                info("Time: %f s (%s MCells/s)" % (self.total_time, self.mcells))
+            key = LOOP_BODY.name
+            info("Stencil: %f OI, %.2f GFlops/s (time: %f s)" %
+                 (self.oi[key], self.gflopss[key], self.timings[key]))
 
     @property
     def mcells(self):
-        """Calculates MCELLS
-
-        :returns: Mcells as int
         """
-        iteration_space = map(lambda dim: dim - self.spc_border * 2, self.shape)
-        return int(round(self.nt * np.prod(iteration_space)) /
-                   (self.timings['kernel'] * 10 ** 6))
+        Calculate how many MCells are computed, on average, in a second (the
+        quantity is rounded to the closest unit).
+        """
+        itspace = map(lambda dim: dim - self.spc_border * 2, self.shape)
+        return int(round(self.nt * np.prod(itspace)) / (self.total_time * 10**6))
 
     @property
     def basename(self):
@@ -172,7 +182,6 @@ class Propagator(object):
 
             if self.profile:
                 manager.add_struct_definition(self.profiler.as_cgen_struct(Profiler.TIME))
-                manager.add_struct_definition(self.profiler.as_cgen_struct(Profiler.FLOP))
 
             self._ccode = str(manager.generate())
 
@@ -204,19 +213,154 @@ class Propagator(object):
 
     @property
     def oi(self):
-        return self.profiler.oi
+        """Summary of operational intensities, by code section."""
+
+        gflops_per_section = self.gflops
+        bytes_per_section = self.traffic()
+        oi_per_section = {}
+
+        for i, subsection in enumerate(self.time_loop_stencils_b):
+            key = "%s%d" % (PRE_STENCILS.name, i)
+            oi_per_section[key] = 1.0*gflops_per_section[key]/bytes_per_section[key]
+
+        key = LOOP_BODY.name
+        oi_per_section[key] = 1.0*gflops_per_section[key]/bytes_per_section[key]
+
+        for i, subsection in enumerate(self.time_loop_stencils_a):
+            key = "%s%d" % (POST_STENCILS.name, i)
+            oi_per_section[key] = 1.0*gflops_per_section[key]/bytes_per_section[key]
+
+        return oi_per_section
 
     @property
-    def oi_low(self):
-        return self.profiler.oi_low
+    def niters(self):
+        """Summary of loop iterations, by code section."""
 
-    @property
-    def total_loads(self):
-        return self.profiler.num_loads
+        niters_per_section = {}
+
+        with_time_loop = lambda iters: self.nt*iters
+
+        for i, subsection in enumerate(self.time_loop_stencils_b):
+            key = "%s%d" % (PRE_STENCILS.name, i)
+            niters = subsection.limits[1] if isinstance(subsection, Iteration) else 1
+            niters_per_section[key] = with_time_loop(niters)
+
+        key = LOOP_BODY.name
+        niters = reduce(operator.mul, self.shape)
+        niters_per_section[key] = with_time_loop(niters)
+
+        for i, subsection in enumerate(self.time_loop_stencils_a):
+            key = "%s%d" % (POST_STENCILS.name, i)
+            niters = subsection.limits[1] if isinstance(subsection, Iteration) else 1
+            niters_per_section[key] = with_time_loop(niters)
+
+        return niters_per_section
+
+    def traffic(self, mode='realistic'):
+        """Summary of Bytes moved between CPU (last level cache) and DRAM,
+        by code section.
+
+        :param mode: Several estimates are possible: ::
+
+            * ideal: also known as "compulsory traffic", which is the minimum
+                number of bytes to be moved (ie, models an infinite cache)
+            * ideal_with_stores: like ideal, but a data item which is both read
+                and written is counted twice (load + store)
+            * realistic: assume that all datasets, even those that do not depend
+                on time, need to be re-loaded at each time iteration
+        """
+
+        assert mode in ['ideal', 'ideal_with_stores', 'realistic']
+
+        def access(symbol):
+            assert isinstance(symbol, Indexed)
+            # Irregular accesses (eg A[B[i]]) are counted as compulsory traffic
+            if any(i.atoms(Indexed) for i in symbol.indices):
+                return symbol
+            else:
+                return symbol.base
+
+        def count(self, expressions):
+            if mode in ['ideal', 'ideal_with_stores']:
+                filter = lambda s: self.time_dim in s.atoms()
+            else:
+                filter = lambda s: s
+            reads = set(flatten([e.rhs.atoms(Indexed) for e in expressions]))
+            writes = set(flatten([e.lhs.atoms(Indexed) for e in expressions]))
+            reads = set([access(s) for s in reads if filter(s)])
+            writes = set([access(s) for s in writes if filter(s)])
+            if mode == 'ideal':
+                return len(set(reads) | set(writes))
+            else:
+                return len(reads) + len(writes)
+
+        niters = self.niters
+        dsize = np.dtype(self.dtype).itemsize
+
+        bytes_per_section = {}
+
+        for i, subsection in enumerate(self.time_loop_stencils_b):
+            key = "%s%d" % (PRE_STENCILS.name, i)
+            if isinstance(subsection, Iteration):
+                expressions = [e.stencil for e in subsection.expressions]
+            else:
+                expressions = subsection.stencil
+            bytes_per_section[key] = dsize*count(self, expressions)*niters[key]
+
+        key = LOOP_BODY.name
+        bytes_per_section[key] = dsize*count(self, self.stencils)*niters[key]
+
+        for i, subsection in enumerate(self.time_loop_stencils_a):
+            key = "%s%d" % (POST_STENCILS.name, i)
+            if isinstance(subsection, Iteration):
+                expressions = [e.stencil for e in subsection.expressions]
+            else:
+                expressions = subsection.stencil
+            bytes_per_section[key] = dsize*count(self, expressions)*niters[key]
+
+        return bytes_per_section
 
     @property
     def gflops(self):
-        return self.profiler.gflops
+        """Summary of GFlops performed, by code section."""
+
+        niters = self.niters
+
+        gflops_per_iteration = self.profiler.gflops
+        gflops_per_section = {}
+
+        for i, subsection in enumerate(self.time_loop_stencils_b):
+            key = "%s%d" % (PRE_STENCILS.name, i)
+            gflops_per_section[key] = gflops_per_iteration[key]*niters[key]
+
+        key = LOOP_BODY.name
+        gflops_per_section[key] = gflops_per_iteration[key]*niters[key]
+
+        for i, subsection in enumerate(self.time_loop_stencils_a):
+            key = "%s%d" % (POST_STENCILS.name, i)
+            gflops_per_section[key] = gflops_per_iteration[key]*niters[key]
+
+        return gflops_per_section
+
+    @property
+    def gflopss(self):
+        gflopss = {}
+        for k, v in self.gflops.items():
+            assert k in self.timings
+            gflopss[k] = (float(v) / (10**9)) / self.timings[k]
+        return gflopss
+
+    @property
+    def total_gflops(self):
+        return sum(v / (10**9) for _, v in self.gflops.items())
+
+    @property
+    def total_time(self):
+        return sum(v for _, v in self.timings.items())
+
+    @property
+    def total_gflopss(self):
+        return self.total_gflops / self.total_time
 
     @property
     def save(self):
@@ -257,29 +401,6 @@ class Propagator(object):
             loop_limits = (self.nt-1, -1)
 
         return loop_limits
-
-    def log_performance(self):
-        """Logs performance metrics"""
-        shape_str = str(self.shape).replace(', ', ' x ')
-        cb_str = ", blocks - %s " % str(self.block_sizes) \
-            if self.cache_blocking else ' '
-
-        logger.info("shape - %s%s:: %f sec - %s MCells/s - %.2f GFlops/s" %
-                    (shape_str, cb_str, self.timings['kernel'],
-                     self.mcells, self.gflops['kernel']))
-
-    def get_number_of_loads(self):
-        """Gets total number of loads which is used for optimal block size estimation
-           Temp profiler needed as we want this info even when profiling is off
-
-        :returns: Total number of loads
-        """
-        name = 'load_count'
-        profiler = Profiler()
-        at_stencils = [self.convert_equality_to_cgen(stencil)
-                       for stencil in self.stencils]
-        profiler.add_profiling(at_stencils, name)
-        return profiler.num_loads[name]
 
     def prep_variable_map(self):
         """Mapping from model variables (x, y, z, t) to loop variables (i1, i2, i3, i4)
@@ -437,36 +558,39 @@ class Propagator(object):
             time_stepping = []
 
         loop_body = [cgen.Block(omp_for + loop_body)]
+
         # Statements to be inserted into the time loop before the spatial loop
-        time_loop_stencils_b = [self.time_substitutions(x)
-                                for x in self.time_loop_stencils_b]
-        time_loop_stencils_b = [self.convert_equality_to_cgen(x)
-                                for x in self.time_loop_stencils_b]
+        pre_stencils = [self.time_substitutions(x)
+                        for x in self.time_loop_stencils_b]
+        pre_stencils = [self.convert_equality_to_cgen(x)
+                        for x in self.time_loop_stencils_b]
 
         # Statements to be inserted into the time loop after the spatial loop
-        time_loop_stencils_a = [self.time_substitutions(x)
-                                for x in self.time_loop_stencils_a]
-        time_loop_stencils_a = [self.convert_equality_to_cgen(x)
-                                for x in self.time_loop_stencils_a]
+        post_stencils = [self.time_substitutions(x)
+                         for x in self.time_loop_stencils_a]
+        post_stencils = [self.convert_equality_to_cgen(x)
+                         for x in self.time_loop_stencils_a]
 
         if self.profile:
-            time_loop_stencils_a = self.profiler.add_profiling(time_loop_stencils_a,
-                                                               "loop_stencils_a")
-            time_loop_stencils_b = self.profiler.add_profiling(time_loop_stencils_b,
-                                                               "loop_stencils_b")
+            pre_stencils = list(flatten([self.profiler.add_profiling([s], "%s%d" %
+                                         (PRE_STENCILS.name, i)) for i, s in
+                                         enumerate(pre_stencils)]))
+            post_stencils = list(flatten([self.profiler.add_profiling([s], "%s%d" %
+                                          (POST_STENCILS.name, i)) for i, s in
+                                          enumerate(post_stencils)]))
 
-        initial_block = time_stepping + time_loop_stencils_b
+        initial_block = time_stepping + pre_stencils
 
         if initial_block:
             initial_block = omp_single + [cgen.Block(initial_block)]
 
-        end_block = time_loop_stencils_a
+        end_block = post_stencils
 
         if end_block:
             end_block = omp_single + [cgen.Block(end_block)]
 
         if self.profile:
-            loop_body = self.profiler.add_profiling(loop_body, "loop_body",
+            loop_body = self.profiler.add_profiling(loop_body, LOOP_BODY.name,
                                                     omp_flag=omp_master)
 
         loop_body = cgen.Block(initial_block + loop_body + end_block)
@@ -481,19 +605,7 @@ class Propagator(object):
         # Code to declare the time stepping variables (outside the time loop)
         def_time_step = [cgen.Value("int", t_var_def.name)
                          for t_var_def in self.time_steppers]
-        body = def_time_step + self.pre_loop + omp_parallel + [loop_body] + self.post_loop
-
-        if self.profile:
-            body = self.profiler.add_profiling(body, "kernel")
-
-            if self.compiler.openmp:
-                body = [
-                    self.profiler.get_loop_temp_var_decl(key)
-                    for key in self.profiler.temps.keys()
-                ] + body + [
-                    self.profiler.get_loop_flop_update(key)
-                    for key in self.profiler.temps.keys()
-                ]
+        body = def_time_step + omp_parallel + [loop_body]
 
         return cgen.Block(body)
 
@@ -633,16 +745,8 @@ class Propagator(object):
             self.block_sizes = [int(self.cache_blocking)] * (len(self.shape) - 1)
             self.block_sizes.append(None)
 
-        # replace 0 values with optimal block sizes
-        opt_block_size = get_optimal_block_size(
-            self.shape,
-            self.get_number_of_loads(),
-            self.compiler.openmp
-        )
         for i in range(0, len(self.block_sizes)):
             if self.block_sizes[i] is not None:  # replace 0 values with optimal
-                self.block_sizes[i] = (opt_block_size if self.block_sizes[i] == 0
-                                       else self.block_sizes[i])
                 self.fd.add_value_param(str(self.loop_counters[i]) + "block", np.int64)
 
     def add_inner_most_dim_pragma(self, inner_most_dim, space_dims, loop_body):
@@ -809,15 +913,15 @@ class Propagator(object):
 
         return sympy_expr.xreplace(subs_dict)
 
-    def add_time_loop_stencil(self, stencil, before=False):
-        """Add a statement either before or after the main spatial loop, but still inside
-        the time loop.
 
-        :param stencil: Given stencil
-        :param before: Flag indicating whether the statement should be inserted before,
-                       False by default
-        """
-        if before:
-            self.time_loop_stencils_b.append(stencil)
-        else:
-            self.time_loop_stencils_a.append(stencil)
+class Section(object):
+
+    """A code section in a stencil kernel."""
+
+    def __init__(self, name):
+        self.name = name
+
+
+PRE_STENCILS = Section('pre_stencils')
+LOOP_BODY = Section('loop_body')
+POST_STENCILS = Section('post_stencils')
