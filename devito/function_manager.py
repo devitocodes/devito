@@ -5,8 +5,8 @@ from devito.tools import convert_dtype_to_ctype
 
 
 class FunctionManager(object):
-    """Class that accepts a list of :class:`FunctionDescriptor` objects and generates the C
-    function represented by it
+    """
+    Generate a C function given a list of :class:`FunctionDescriptor` objects.
 
     :param function_descriptors: The list of :class:`FunctionDescriptor` objects
     :param mic_flag: True if using MIC. Default is False

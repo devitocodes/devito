@@ -4,8 +4,8 @@ from __future__ import print_function
 import numpy as np
 
 from devito.at_controller import AutoTuner
-from examples.tti.tti_operators import *
 from examples.source_type import SourceLike
+from examples.tti.tti_operators import *
 
 
 class TTI_cg:
@@ -85,4 +85,4 @@ class TTI_cg:
 
         u, v, rec = fw.apply()
         return (rec.data, u.data, v.data,
-                fw.propagator.gflops, fw.propagator.oi, fw.propagator.timings)
+                fw.propagator.gflopss, fw.propagator.oi, fw.propagator.timings)

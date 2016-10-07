@@ -80,9 +80,14 @@ def test_second_derivatives_space(derivative, dimension, order):
 
 
 def test_clear_cache(nx=1000, ny=1000):
+    clear_cache()
+    cache_size = len(_SymbolCache)
+
     for i in range(10):
-        clear_cache()
+        assert(len(_SymbolCache) == cache_size)
 
         DenseData(name='u', shape=(nx, ny), dtype=np.float64, space_order=2)
 
-        assert(len(_SymbolCache) == 1)
+        assert(len(_SymbolCache) == cache_size + 1)
+
+        clear_cache()

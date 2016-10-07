@@ -1,8 +1,11 @@
+from __future__ import absolute_import
+
+from operator import itemgetter
 from os import mkdir, path
 
 import numpy as np
 
-from devito.logger import info_at, error
+from devito.logger import error, info_at
 from devito.operator import Operator
 
 
@@ -103,7 +106,7 @@ class AutoTuner(object):
             block[0] = mask[0] and x
 
             if len(block) > 1:
-                for y in range(minimum, maximum):
+                for y in range(minimum, x + 1):
                     block[1] = mask[1] and y
 
                     if len(block) > 2:
@@ -132,7 +135,7 @@ class AutoTuner(object):
             times.append((block, self.get_execution_time()))
 
         # sorts the list of tuples based on time
-        times = sorted(times, key=lambda element: element[1])
+        times = sorted(times, key=itemgetter(1))
 
         info_at("Finish.")
         info_at("Estimated runtime for %s and %d time steps: %f hours" %
@@ -160,7 +163,7 @@ class AutoTuner(object):
 
         :return: time - how long it took to execute
         """
-        self.op.propagator.run(self.op.get_args())
+        self.op.propagator.run(self.op.get_args(), verbose=False)
         return self.op.propagator.total_time
 
     def _write_block_report(self, times):

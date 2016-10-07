@@ -1,10 +1,10 @@
 from __future__ import absolute_import
 
+import operator
 from collections import Iterable, defaultdict
 from hashlib import sha1
 from os import path
 from random import randint
-import operator
 
 import numpy as np
 from sympy import Indexed, IndexedBase, preorder_traversal, symbols
@@ -18,7 +18,7 @@ from devito.dimension import t, x, y, z
 from devito.expression import Expression
 from devito.function_manager import FunctionDescriptor, FunctionManager
 from devito.iteration import Iteration
-from devito.logger import logger
+from devito.logger import info
 from devito.profiler import Profiler
 from devito.tools import flatten
 
@@ -52,6 +52,7 @@ class Propagator(object):
                            number used for all dimensions except inner most or a list
                            explicitly stating block sizes for each dimension
                            Set cache_blocking to None to skip blocking on that dim
+                           Set cache_blocking to 0 to use best guess based on architecture
                            Set cache_blocking to AutoTuner instance, to use auto tuned
                            tune block sizes
     """
@@ -67,8 +68,10 @@ class Propagator(object):
 
         # Default time and space symbols if not provided
         self.time_dim = time_dim or t
-        self.space_dims = \
-            space_dims or (x, z) if len(shape) == 2 else (x, y, z)[:len(shape)]
+        if space_dims is not None:
+            self.space_dims = space_dims
+        else:
+            self.space_dims = (x, z) if len(shape) == 2 else (x, y, z)[:len(shape)]
         self.shape = shape
 
         # Internal flags and meta-data
@@ -116,7 +119,7 @@ class Propagator(object):
         self._lib = None
         self._cfunction = None
 
-    def run(self, args):
+    def run(self, args, verbose=True):
         if self.profile:
             self.fd.add_struct_param(self.profiler.t_name, "profiler")
 
@@ -136,17 +139,23 @@ class Propagator(object):
             f(*args)
 
         if self.profile:
-            self.log_performance()
+            if verbose:
+                shape = str(self.shape).replace(', ', ' x ')
+                cb = str(self.block_sizes) if self.cache_blocking else 'None'
+                info("Shape: %s - Cache Blocking: %s" % (shape, cb))
+                info("Time: %f s (%s MCells/s)" % (self.total_time, self.mcells))
+            key = LOOP_BODY.name
+            info("Stencil: %f OI, %.2f GFlops/s (time: %f s)" %
+                 (self.oi[key], self.gflopss[key], self.timings[key]))
 
     @property
     def mcells(self):
-        """Calculates MCELLS
-
-        :returns: Mcells as int
         """
-        iteration_space = map(lambda dim: dim - self.spc_border * 2, self.shape)
-        return int(round(self.nt * np.prod(iteration_space)) /
-                   (self.total_time * 10 ** 6))
+        Calculate how many MCells are computed, on average, in a second (the
+        quantity is rounded to the closest unit).
+        """
+        itspace = map(lambda dim: dim - self.spc_border * 2, self.shape)
+        return int(round(self.nt * np.prod(itspace)) / (self.total_time * 10**6))
 
     @property
     def basename(self):
@@ -220,10 +229,7 @@ class Propagator(object):
 
         for i, subsection in enumerate(self.time_loop_stencils_a):
             key = "%s%d" % (POST_STENCILS.name, i)
-            if bytes_per_section[key] == 0:
-                oi_per_section[key] = 0
-            else:
-                oi_per_section[key] = 1.0*gflops_per_section[key]/bytes_per_section[key]
+            oi_per_section[key] = 1.0*gflops_per_section[key]/bytes_per_section[key]
 
         return oi_per_section
 
@@ -251,7 +257,7 @@ class Propagator(object):
 
         return niters_per_section
 
-    def traffic(self, mode='ideal_with_stores'):
+    def traffic(self, mode='realistic'):
         """Summary of Bytes moved between CPU (last level cache) and DRAM,
         by code section.
 
@@ -342,7 +348,7 @@ class Propagator(object):
         gflopss = {}
         for k, v in self.gflops.items():
             assert k in self.timings
-            gflopss[k] = (v / (10**9)) / self.timings[k]
+            gflopss[k] = (float(v) / (10**9)) / self.timings[k]
         return gflopss
 
     @property
@@ -351,7 +357,7 @@ class Propagator(object):
 
     @property
     def total_time(self):
-        return sum(v for _, v in self.profiler.timings.items())
+        return sum(v for _, v in self.timings.items())
 
     @property
     def total_gflopss(self):
@@ -396,16 +402,6 @@ class Propagator(object):
             loop_limits = (self.nt-1, -1)
 
         return loop_limits
-
-    def log_performance(self):
-        """Logs performance metrics"""
-        shape_str = str(self.shape).replace(', ', ' x ')
-        cb_str = ", Block=%s " % str(self.block_sizes) \
-            if self.cache_blocking else ' '
-
-        logger.info("Shape=%s%s:: %f OI, %f sec, %s MCells/s, %.2f GFlops/s" %
-                    (shape_str, cb_str, self.oi[LOOP_BODY.name],
-                     self.total_time, self.mcells, self.total_gflopss))
 
     def prep_variable_map(self):
         """Mapping from model variables (x, y, z, t) to loop variables (i1, i2, i3, i4)
@@ -560,7 +556,7 @@ class Propagator(object):
             # To cycle between array elements when we are not saving time history
             time_stepping = self.get_time_stepping()
         else:
-            time_stepping = [cgen.PrintStatement("Time step %d \n", t_var)]
+            time_stepping = []
 
         loop_body = [cgen.Block(omp_for + loop_body)]
 

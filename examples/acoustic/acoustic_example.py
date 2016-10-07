@@ -24,7 +24,7 @@ def source(t, f0):
     return (1-2.*r**2)*np.exp(-r**2)
 
 
-def run(dimensions=(150, 150, 50), spacing=(15.0, 15.0, 15.0), tn=1000.0,
+def run(dimensions=(150, 150, 50), spacing=(20.0, 20.0, 20.0), tn=250.0,
         time_order=2, space_order=2, nbpml=10, cse=True, auto_tuning=False,
         compiler=None, cache_blocking=None, full_run=False):
     model = IGrid()
@@ -74,18 +74,19 @@ def run(dimensions=(150, 150, 50), spacing=(15.0, 15.0, 15.0), tn=1000.0,
     receiver_coords[:, 2] = location[2]
     data.set_receiver_pos(receiver_coords)
     data.set_shape(nt, 101)
-    Acoustic = Acoustic_cg(
-        model, data, nbpml=nbpml, auto_tuning=auto_tuning,
-        t_order=time_order, s_order=space_order
-    )
+
+    Acoustic = Acoustic_cg(model, data, nbpml=nbpml, t_order=time_order,
+                           s_order=space_order, auto_tuning=auto_tuning, cse=cse,
+                           compiler=compiler)
+
     info("Applying Forward")
-    rec, u, gflops, oi, timings = Acoustic.Forward(
-        cache_blocking=cache_blocking, save=full_run, cse=cse,
+    rec, u, gflopss, oi, timings = Acoustic.Forward(
+        cache_blocking=cache_blocking, save=True, cse=cse,
         auto_tuning=auto_tuning, compiler=compiler
     )
 
     if not full_run:
-        return gflops, oi, timings, [rec, u.data]
+        return gflopss, oi, timings, [rec, u.data]
 
     info("Applying Adjoint")
     Acoustic.Adjoint(rec)

@@ -17,9 +17,9 @@ def expr_dimensions(expr):
 
     for e in preorder_traversal(expr):
         if isinstance(e, SymbolicData):
-            dimensions += e.indices
+            dimensions += [i for i in e.indices if i not in dimensions]
 
-    return list(set(dimensions))
+    return dimensions
 
 
 def expr_symbols(expr):
@@ -171,7 +171,6 @@ class Operator(object):
                            number used for all dimensions except inner most or a list
                            explicitly stating block sizes for each dimension
                            Set cache_blocking to None to skip blocking on that dim
-                           Set cache_blocking to 0 to use best guess based on architecture
                            Set cache_blocking to AutoTuner instance, to use auto tuned
                            tuned block sizes
     :param input_params: List of symbols that are expected as input.
@@ -210,11 +209,10 @@ class Operator(object):
                 self.input_params = list(rhs_def)
 
         # Pull all dimension indices from the incoming stencil
-        dimensions = set()
-
+        dimensions = []
         for eqn in self.stencils:
-            dimensions.update(set(expr_dimensions(eqn.lhs)))
-            dimensions.update(set(expr_dimensions(eqn.rhs)))
+            dimensions += [i for i in expr_dimensions(eqn.lhs) if i not in dimensions]
+            dimensions += [i for i in expr_dimensions(eqn.rhs) if i not in dimensions]
 
         # Time dimension is fixed for now
         time_dim = t

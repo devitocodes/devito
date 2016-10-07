@@ -116,15 +116,14 @@ class Profiler(object):
 
     @property
     def timings(self):
-        """Returns the timings as a python dictionary
-
-        :returns: A dictionary containing the timings
         """
-        if not self._C_timings:
+        Return the timings, up to microseconds, as a python dictionary.
+        """
+        if self._C_timings:
+            return {field: max(getattr(self._C_timings, field), 10**-6)
+                    for field, _ in self._C_timings._fields_}
+        else:
             return {}
-
-        return dict((field, getattr(self._C_timings, field))
-                    for field, _ in self._C_timings._fields_)
 
     @property
     def gflops(self):

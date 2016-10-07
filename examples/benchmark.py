@@ -1,3 +1,4 @@
+import sys
 from argparse import ArgumentParser, RawDescriptionHelpFormatter
 from itertools import product
 from os import environ
@@ -6,15 +7,16 @@ import numpy as np
 
 from devito import clear_cache
 from devito.compiler import compiler_registry
+from devito.logger import warning
 from examples.acoustic.acoustic_example import run as acoustic_run
 from examples.tti.tti_example import run as tti_run
 
 try:
-    from opescibench import Benchmark, Executor, Plotter
+    from opescibench import Benchmark, Executor, RooflinePlotter
 except:
     Benchmark = None
     Executor = None
-    Plotter = None
+    RooflinePlotter = None
 
 
 if __name__ == "__main__":
@@ -138,10 +140,10 @@ if __name__ == "__main__":
             """Executor class that defines how to run the benchmark"""
 
             def run(self, *args, **kwargs):
-                gflops, oi, timings, _ = run(*args, **kwargs)
+                gflopss, oi, timings, _ = run(*args, **kwargs)
 
                 for key in timings.keys():
-                    self.register(gflops[key], measure="gflops", event=key)
+                    self.register(gflopss[key], measure="gflopss", event=key)
                     self.register(oi[key], measure="oi", event=key)
                     self.register(timings[key], measure="timings", event=key)
 
@@ -158,28 +160,27 @@ if __name__ == "__main__":
             name=args.problem, resultsdir=args.resultsdir, parameters=parameters
         )
         bench.load()
+        if not bench.loaded:
+            warning("Could not load any results, nothing to plot. Exiting...")
+            sys.exit(0)
 
-        oi_dict = {}
-        mflops_dict = {}
-
-        gflops = bench.lookup(params=parameters, measure="gflops", event="loop_body")
+        gflopss = bench.lookup(params=parameters, measure="gflopss", event="loop_body")
         oi = bench.lookup(params=parameters, measure="oi", event="loop_body")
 
-        for key, gflops in gflops.items():
-            oi_value = oi[key]
-            key = dict(key)
-            label = "%s, AT: %s, SO: %s, TO: %s" % (
-                args.problem, key["auto_tuning"], key["space_order"], key["time_order"]
-            )
-            mflops_dict[label] = gflops * 1000
-            oi_dict[label] = oi_value
-
-        name = ("%s %s dimensions: %s - spacing: %s -"
-                " space order: %s - time order: %s.pdf") % \
-            (args.problem, args.compiler, parameters["dimensions"], parameters["spacing"],
-             parameters["space_order"], parameters["time_order"])
-        name = name.replace(" ", "_")
-
-        plotter = Plotter()
-        plotter.plot_roofline(
-            name, mflops_dict, oi_dict, args.max_bw, args.max_flops)
+        name = "%s_dim%s_so%s_to%s.pdf" % (args.problem, parameters["dimensions"],
+                                           parameters["space_order"],
+                                           parameters["time_order"])
+        title = "%s - grid: %s, time order: %s" % (args.problem.capitalize(),
+                                                   parameters["dimensions"],
+                                                   parameters["time_order"])
+        with RooflinePlotter(figname=name, plotdir=args.plotdir,
+                             max_bw=args.max_bw, max_flops=args.max_flops) as plot:
+            for key, gflopss in gflopss.items():
+                oi_value = oi[key]
+                key = dict(key)
+                at = key["auto_tuning"]
+                style = '%s%s' % (plot.color[0] if at else plot.color[1],
+                                  plot.marker[0] if at else plot.marker[1])
+                plot.add_point(gflops=gflopss, oi=oi_value, style=style, oi_line=at,
+                               label='Auto-tuned' if at else 'No Auto-tuning',
+                               oi_annotate='SO: %s' % key["space_order"] if at else None)
