@@ -144,6 +144,7 @@
  | <a href="#J"><strong>J</strong></a>
  | <a href="#L"><strong>L</strong></a>
  | <a href="#M"><strong>M</strong></a>
+ | <a href="#N"><strong>N</strong></a>
  | <a href="#O"><strong>O</strong></a>
  | <a href="#P"><strong>P</strong></a>
  | <a href="#R"><strong>R</strong></a>
@@ -191,14 +192,10 @@
   <dt><a href="devito.html#devito.function_manager.FunctionManager.add_struct_definition">add_struct_definition() (devito.function_manager.FunctionManager method)</a>
   </dt>
 
-      
-  <dt><a href="devito.html#devito.function_manager.FunctionDescriptor.add_struct_param">add_struct_param() (devito.function_manager.FunctionDescriptor method)</a>
-  </dt>
-
   </dl></td>
   <td style="width: 33%" valign="top"><dl>
       
-  <dt><a href="devito.html#devito.propagator.Propagator.add_time_loop_stencil">add_time_loop_stencil() (devito.propagator.Propagator method)</a>
+  <dt><a href="devito.html#devito.function_manager.FunctionDescriptor.add_struct_param">add_struct_param() (devito.function_manager.FunctionDescriptor method)</a>
   </dt>
 
       
@@ -615,26 +612,18 @@
   <dt><a href="devito.html#devito.operator.Operator.get_args">get_args() (devito.operator.Operator method)</a>
   </dt>
 
+  </dl></td>
+  <td style="width: 33%" valign="top"><dl>
       
   <dt><a href="devito.html#devito.compiler.get_compiler_from_env">get_compiler_from_env() (in module devito.compiler)</a>
   </dt>
 
-  </dl></td>
-  <td style="width: 33%" valign="top"><dl>
       
   <dt><a href="devito.html#devito.at_controller.AutoTuner.get_execution_time">get_execution_time() (devito.at_controller.AutoTuner method)</a>
   </dt>
 
       
   <dt><a href="devito.html#devito.propagator.Propagator.get_fd">get_fd() (devito.propagator.Propagator method)</a>
-  </dt>
-
-      
-  <dt><a href="devito.html#devito.propagator.Propagator.get_number_of_loads">get_number_of_loads() (devito.propagator.Propagator method)</a>
-  </dt>
-
-      
-  <dt><a href="devito.html#devito.tools.get_optimal_block_size">get_optimal_block_size() (in module devito.tools)</a>
   </dt>
 
       
@@ -651,6 +640,10 @@
 
       
   <dt><a href="devito.html#devito.propagator.Propagator.gflops">gflops (devito.propagator.Propagator attribute)</a>
+  </dt>
+
+      
+  <dt><a href="devito.html#devito.propagator.Propagator.gflopss">gflopss (devito.propagator.Propagator attribute)</a>
   </dt>
 
       
@@ -735,10 +728,6 @@
   <dt><a href="devito.html#devito.logger.log">log() (in module devito.logger)</a>, <a href="devito.html#devito.logger.log">[1]</a>
   </dt>
 
-      
-  <dt><a href="devito.html#devito.propagator.Propagator.log_performance">log_performance() (devito.propagator.Propagator method)</a>
-  </dt>
-
   </dl></td>
 </tr></table>
 
@@ -747,6 +736,16 @@
   <td style="width: 33%" valign="top"><dl>
       
   <dt><a href="devito.html#devito.propagator.Propagator.mcells">mcells (devito.propagator.Propagator attribute)</a>
+  </dt>
+
+  </dl></td>
+</tr></table>
+
+<h2 id="N">N</h2>
+<table style="width: 100%" class="indextable genindextable"><tr>
+  <td style="width: 33%" valign="top"><dl>
+      
+  <dt><a href="devito.html#devito.propagator.Propagator.niters">niters (devito.propagator.Propagator attribute)</a>
   </dt>
 
   </dl></td>
@@ -761,10 +760,6 @@
 
   </dl></td>
   <td style="width: 33%" valign="top"><dl>
-      
-  <dt><a href="devito.html#devito.propagator.Propagator.oi_low">oi_low (devito.propagator.Propagator attribute)</a>
-  </dt>
-
       
   <dt><a href="devito.html#devito.operator.Operator">Operator (class in devito.operator)</a>
   </dt>
@@ -829,6 +824,10 @@
 
       
   <dt><a href="devito.html#devito.finite_difference.second_derivative">second_derivative() (in module devito.finite_difference)</a>
+  </dt>
+
+      
+  <dt><a href="devito.html#devito.propagator.Section">Section (class in devito.propagator)</a>
   </dt>
 
       
@@ -907,8 +906,6 @@
   <dt><a href="devito.html#devito.propagator.Propagator.time_substitutions">time_substitutions() (devito.propagator.Propagator method)</a>
   </dt>
 
-  </dl></td>
-  <td style="width: 33%" valign="top"><dl>
       
   <dt><a href="devito.html#devito.interfaces.TimeData">TimeData (class in devito.interfaces)</a>
   </dt>
@@ -917,8 +914,22 @@
   <dt><a href="devito.html#devito.propagator.Propagator.timings">timings (devito.propagator.Propagator attribute)</a>
   </dt>
 
+  </dl></td>
+  <td style="width: 33%" valign="top"><dl>
       
-  <dt><a href="devito.html#devito.propagator.Propagator.total_loads">total_loads (devito.propagator.Propagator attribute)</a>
+  <dt><a href="devito.html#devito.propagator.Propagator.total_gflops">total_gflops (devito.propagator.Propagator attribute)</a>
+  </dt>
+
+      
+  <dt><a href="devito.html#devito.propagator.Propagator.total_gflopss">total_gflopss (devito.propagator.Propagator attribute)</a>
+  </dt>
+
+      
+  <dt><a href="devito.html#devito.propagator.Propagator.total_time">total_time (devito.propagator.Propagator attribute)</a>
+  </dt>
+
+      
+  <dt><a href="devito.html#devito.propagator.Propagator.traffic">traffic() (devito.propagator.Propagator method)</a>
   </dt>
 
   </dl></td>

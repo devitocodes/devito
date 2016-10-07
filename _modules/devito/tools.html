@@ -135,10 +135,6 @@
             
   <h1>Source code for devito.tools</h1><div class="highlight"><pre>
 <span></span><span class="kn">import</span> <span class="nn">ctypes</span>
-<span class="kn">import</span> <span class="nn">math</span>
-<span class="kn">import</span> <span class="nn">os</span>
-
-<span class="kn">import</span> <span class="nn">cpuinfo</span>
 <span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
 <span class="kn">from</span> <span class="nn">sympy</span> <span class="k">import</span> <span class="n">symbols</span>
 
@@ -212,35 +208,6 @@
     <span class="k">assert</span> <span class="p">(</span><span class="n">aa</span><span class="o">.</span><span class="n">ctypes</span><span class="o">.</span><span class="n">data</span> <span class="o">%</span> <span class="n">alignment</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span>
 
     <span class="k">return</span> <span class="n">aa</span></div>
-
-
-<div class="viewcode-block" id="get_optimal_block_size"><a class="viewcode-back" href="../../devito.html#devito.tools.get_optimal_block_size">[docs]</a><span class="k">def</span> <span class="nf">get_optimal_block_size</span><span class="p">(</span><span class="n">shape</span><span class="p">,</span> <span class="n">load_c</span><span class="p">,</span> <span class="n">omp</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;Gets optimal block size based on architecture</span>
-
-<span class="sd">    :param shape: list - shape of the data buffer</span>
-<span class="sd">    :param load_c: int - load count</span>
-<span class="sd">    :param omp: True if OpenMP is on, else False</span>
-<span class="sd">    :return: optimal block size</span>
-
-<span class="sd">    Assuming no prefetching, square block will give the most cache reuse.</span>
-<span class="sd">    We then take the cache/threads divide by the size of the inner most dimension in which</span>
-<span class="sd">    we do not block. This gives us the X*Y block space, of which we take the square root</span>
-<span class="sd">     to get the size of our blocks.</span>
-
-<span class="sd">    ((C size / threads) / (4 * length inner most * kernel loads)</span>
-<span class="sd">    &quot;&quot;&quot;</span>
-    <span class="n">cache_s</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">cpuinfo</span><span class="o">.</span><span class="n">get_cpu_info</span><span class="p">()[</span><span class="s1">&#39;l2_cache_size&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39; &#39;</span><span class="p">)[</span><span class="mi">0</span><span class="p">])</span>
-
-    <span class="k">if</span> <span class="n">omp</span><span class="p">:</span>
-        <span class="n">thread_c</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">getenv</span><span class="p">(</span><span class="s2">&quot;OMP_NUM_THREADS&quot;</span><span class="p">,</span> <span class="n">cpuinfo</span><span class="o">.</span><span class="n">get_cpu_info</span><span class="p">()[</span><span class="s1">&#39;count&#39;</span><span class="p">]))</span>
-    <span class="k">else</span><span class="p">:</span>
-        <span class="n">thread_c</span> <span class="o">=</span> <span class="mi">1</span>
-
-    <span class="n">optimal_b_size</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span>
-        <span class="n">math</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span>
-            <span class="nb">float</span><span class="p">((</span><span class="mi">1000</span> <span class="o">*</span> <span class="n">cache_s</span><span class="p">)</span> <span class="o">/</span> <span class="n">thread_c</span><span class="p">)</span> <span class="o">/</span> <span class="p">(</span><span class="mi">4</span> <span class="o">*</span> <span class="n">shape</span><span class="p">[</span><span class="nb">len</span><span class="p">(</span><span class="n">shape</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span><span class="p">]</span> <span class="o">*</span> <span class="n">load_c</span><span class="p">)</span>
-        <span class="p">),</span> <span class="mi">1</span><span class="p">)</span>
-    <span class="k">return</span> <span class="nb">int</span><span class="p">(</span><span class="n">math</span><span class="o">.</span><span class="n">ceil</span><span class="p">(</span><span class="n">optimal_b_size</span><span class="p">))</span></div>
 </pre></div>
 
            </div>

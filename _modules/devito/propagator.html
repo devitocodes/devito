@@ -134,7 +134,10 @@
            <div itemprop="articleBody">
             
   <h1>Source code for devito.propagator</h1><div class="highlight"><pre>
-<span></span><span class="kn">from</span> <span class="nn">collections</span> <span class="k">import</span> <span class="n">Iterable</span><span class="p">,</span> <span class="n">defaultdict</span>
+<span></span><span class="kn">from</span> <span class="nn">__future__</span> <span class="k">import</span> <span class="n">absolute_import</span>
+
+<span class="kn">import</span> <span class="nn">operator</span>
+<span class="kn">from</span> <span class="nn">collections</span> <span class="k">import</span> <span class="n">Iterable</span><span class="p">,</span> <span class="n">defaultdict</span>
 <span class="kn">from</span> <span class="nn">hashlib</span> <span class="k">import</span> <span class="n">sha1</span>
 <span class="kn">from</span> <span class="nn">os</span> <span class="k">import</span> <span class="n">path</span>
 <span class="kn">from</span> <span class="nn">random</span> <span class="k">import</span> <span class="n">randint</span>
@@ -143,22 +146,28 @@
 <span class="kn">from</span> <span class="nn">sympy</span> <span class="k">import</span> <span class="n">Indexed</span><span class="p">,</span> <span class="n">IndexedBase</span><span class="p">,</span> <span class="n">preorder_traversal</span><span class="p">,</span> <span class="n">symbols</span>
 <span class="kn">from</span> <span class="nn">sympy.utilities.iterables</span> <span class="k">import</span> <span class="n">postorder_traversal</span>
 
-<span class="kn">import</span> <span class="nn">cgen_wrapper</span> <span class="k">as</span> <span class="nn">cgen</span>
-<span class="kn">from</span> <span class="nn">codeprinter</span> <span class="k">import</span> <span class="n">ccode</span>
+<span class="kn">import</span> <span class="nn">devito.cgen_wrapper</span> <span class="k">as</span> <span class="nn">cgen</span>
+<span class="kn">from</span> <span class="nn">devito.codeprinter</span> <span class="k">import</span> <span class="n">ccode</span>
 <span class="kn">from</span> <span class="nn">devito.compiler</span> <span class="k">import</span> <span class="p">(</span><span class="n">IntelMICCompiler</span><span class="p">,</span> <span class="n">get_compiler_from_env</span><span class="p">,</span>
                              <span class="n">get_tmp_dir</span><span class="p">,</span> <span class="n">jit_compile_and_load</span><span class="p">)</span>
 <span class="kn">from</span> <span class="nn">devito.dimension</span> <span class="k">import</span> <span class="n">t</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">z</span>
 <span class="kn">from</span> <span class="nn">devito.expression</span> <span class="k">import</span> <span class="n">Expression</span>
 <span class="kn">from</span> <span class="nn">devito.function_manager</span> <span class="k">import</span> <span class="n">FunctionDescriptor</span><span class="p">,</span> <span class="n">FunctionManager</span>
 <span class="kn">from</span> <span class="nn">devito.iteration</span> <span class="k">import</span> <span class="n">Iteration</span>
-<span class="kn">from</span> <span class="nn">devito.logger</span> <span class="k">import</span> <span class="n">logger</span>
+<span class="kn">from</span> <span class="nn">devito.logger</span> <span class="k">import</span> <span class="n">info</span>
 <span class="kn">from</span> <span class="nn">devito.profiler</span> <span class="k">import</span> <span class="n">Profiler</span>
-<span class="kn">from</span> <span class="nn">tools</span> <span class="k">import</span> <span class="n">flatten</span><span class="p">,</span> <span class="n">get_optimal_block_size</span>
+<span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">flatten</span>
 
 
 <div class="viewcode-block" id="Propagator"><a class="viewcode-back" href="../../devito.html#devito.propagator.Propagator">[docs]</a><span class="k">class</span> <span class="nc">Propagator</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;Propagator objects derive and encode C kernel code according</span>
-<span class="sd">    to a given set of stencils, variables and time-stepping options</span>
+<span class="sd">    to a given set of stencils, variables and time-stepping options.</span>
+
+<span class="sd">    A kernel consists of a time loop wrapping three sections of code, called</span>
+<span class="sd">    ``pre_stencils``, ``loop_body``, and ``post_stencils``.</span>
+<span class="sd">    ``loop_body`` encodes the spatial loops and thus includes the stencils;</span>
+<span class="sd">    the other two sections represent actions to be performed before and after</span>
+<span class="sd">    the stencil computation, respectively.</span>
 
 <span class="sd">    :param name: Name of the propagator kernel</span>
 <span class="sd">    :param nt: Number of timesteps to execute</span>
@@ -179,14 +188,13 @@
 <span class="sd">                           number used for all dimensions except inner most or a list</span>
 <span class="sd">                           explicitly stating block sizes for each dimension</span>
 <span class="sd">                           Set cache_blocking to None to skip blocking on that dim</span>
-<span class="sd">                           Set cache_blocking to 0 to use best guess based on architecture</span>
 <span class="sd">                           Set cache_blocking to AutoTuner instance, to use auto tuned</span>
 <span class="sd">                           tune block sizes</span>
 <span class="sd">    &quot;&quot;&quot;</span>
+
     <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">nt</span><span class="p">,</span> <span class="n">shape</span><span class="p">,</span> <span class="n">stencils</span><span class="p">,</span> <span class="n">factorized</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">spc_border</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
                  <span class="n">time_order</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">time_dim</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">space_dims</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">,</span>
-                 <span class="n">forward</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">compiler</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">profile</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
-                 <span class="n">cache_blocking</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+                 <span class="n">forward</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">compiler</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">profile</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">cache_blocking</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">stencils</span> <span class="o">=</span> <span class="n">stencils</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">dtype</span> <span class="o">=</span> <span class="n">dtype</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">factorized</span> <span class="o">=</span> <span class="n">factorized</span> <span class="ow">or</span> <span class="p">{}</span>
@@ -219,8 +227,6 @@
         <span class="c1"># Which function parameters need special (non-save) time stepping and which don&#39;t</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">save_vars</span> <span class="o">=</span> <span class="p">{}</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">fd</span> <span class="o">=</span> <span class="n">FunctionDescriptor</span><span class="p">(</span><span class="n">name</span><span class="p">)</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">pre_loop</span> <span class="o">=</span> <span class="p">[]</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">post_loop</span> <span class="o">=</span> <span class="p">[]</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_time_step</span> <span class="o">=</span> <span class="mi">1</span> <span class="k">if</span> <span class="n">forward</span> <span class="k">else</span> <span class="o">-</span><span class="mi">1</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_space_loop_limits</span> <span class="o">=</span> <span class="p">{}</span>
 
@@ -248,10 +254,9 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">_lib</span> <span class="o">=</span> <span class="kc">None</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_cfunction</span> <span class="o">=</span> <span class="kc">None</span>
 
-<div class="viewcode-block" id="Propagator.run"><a class="viewcode-back" href="../../devito.html#devito.propagator.Propagator.run">[docs]</a>    <span class="k">def</span> <span class="nf">run</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">args</span><span class="p">):</span>
+<div class="viewcode-block" id="Propagator.run"><a class="viewcode-back" href="../../devito.html#devito.propagator.Propagator.run">[docs]</a>    <span class="k">def</span> <span class="nf">run</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">args</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">profile</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">fd</span><span class="o">.</span><span class="n">add_struct_param</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">profiler</span><span class="o">.</span><span class="n">t_name</span><span class="p">,</span> <span class="s2">&quot;profiler&quot;</span><span class="p">)</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">fd</span><span class="o">.</span><span class="n">add_struct_param</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">profiler</span><span class="o">.</span><span class="n">f_name</span><span class="p">,</span> <span class="s2">&quot;flops&quot;</span><span class="p">)</span>
 
         <span class="n">f</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfunction</span>
 
@@ -260,7 +265,6 @@
 
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">profile</span><span class="p">:</span>
             <span class="n">args</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">profiler</span><span class="o">.</span><span class="n">as_ctypes_pointer</span><span class="p">(</span><span class="n">Profiler</span><span class="o">.</span><span class="n">TIME</span><span class="p">))</span>
-            <span class="n">args</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">profiler</span><span class="o">.</span><span class="n">as_ctypes_pointer</span><span class="p">(</span><span class="n">Profiler</span><span class="o">.</span><span class="n">FLOP</span><span class="p">))</span>
 
         <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">compiler</span><span class="p">,</span> <span class="n">IntelMICCompiler</span><span class="p">):</span>
             <span class="c1"># Off-load propagator kernel via pymic stream</span>
@@ -270,17 +274,23 @@
             <span class="n">f</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">)</span>
 
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">profile</span><span class="p">:</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">log_performance</span><span class="p">()</span></div>
+            <span class="k">if</span> <span class="n">verbose</span><span class="p">:</span>
+                <span class="n">shape</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s1">&#39;, &#39;</span><span class="p">,</span> <span class="s1">&#39; x &#39;</span><span class="p">)</span>
+                <span class="n">cb</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">block_sizes</span><span class="p">)</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">cache_blocking</span> <span class="k">else</span> <span class="s1">&#39;None&#39;</span>
+                <span class="n">info</span><span class="p">(</span><span class="s2">&quot;Shape: </span><span class="si">%s</span><span class="s2"> - Cache Blocking: </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">shape</span><span class="p">,</span> <span class="n">cb</span><span class="p">))</span>
+                <span class="n">info</span><span class="p">(</span><span class="s2">&quot;Time: </span><span class="si">%f</span><span class="s2"> s (</span><span class="si">%s</span><span class="s2"> MCells/s)&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">total_time</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">mcells</span><span class="p">))</span>
+            <span class="n">key</span> <span class="o">=</span> <span class="n">LOOP_BODY</span><span class="o">.</span><span class="n">name</span>
+            <span class="n">info</span><span class="p">(</span><span class="s2">&quot;Stencil: </span><span class="si">%f</span><span class="s2"> OI, </span><span class="si">%.2f</span><span class="s2"> GFlops/s (time: </span><span class="si">%f</span><span class="s2"> s)&quot;</span> <span class="o">%</span>
+                 <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">oi</span><span class="p">[</span><span class="n">key</span><span class="p">],</span> <span class="bp">self</span><span class="o">.</span><span class="n">gflopss</span><span class="p">[</span><span class="n">key</span><span class="p">],</span> <span class="bp">self</span><span class="o">.</span><span class="n">timings</span><span class="p">[</span><span class="n">key</span><span class="p">]))</span></div>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">mcells</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;Calculates MCELLS</span>
-
-<span class="sd">        :returns: Mcells as int</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Calculate how many MCells are computed, on average, in a second (the</span>
+<span class="sd">        quantity is rounded to the closest unit).</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="n">iteration_space</span> <span class="o">=</span> <span class="nb">map</span><span class="p">(</span><span class="k">lambda</span> <span class="n">dim</span><span class="p">:</span> <span class="n">dim</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">spc_border</span> <span class="o">*</span> <span class="mi">2</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
-        <span class="k">return</span> <span class="nb">int</span><span class="p">(</span><span class="nb">round</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">nt</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">prod</span><span class="p">(</span><span class="n">iteration_space</span><span class="p">))</span> <span class="o">/</span>
-                   <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">timings</span><span class="p">[</span><span class="s1">&#39;kernel&#39;</span><span class="p">]</span> <span class="o">*</span> <span class="mi">10</span> <span class="o">**</span> <span class="mi">6</span><span class="p">))</span>
+        <span class="n">itspace</span> <span class="o">=</span> <span class="nb">map</span><span class="p">(</span><span class="k">lambda</span> <span class="n">dim</span><span class="p">:</span> <span class="n">dim</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">spc_border</span> <span class="o">*</span> <span class="mi">2</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+        <span class="k">return</span> <span class="nb">int</span><span class="p">(</span><span class="nb">round</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">nt</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">prod</span><span class="p">(</span><span class="n">itspace</span><span class="p">))</span> <span class="o">/</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">total_time</span> <span class="o">*</span> <span class="mi">10</span><span class="o">**</span><span class="mi">6</span><span class="p">))</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">basename</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
@@ -308,7 +318,6 @@
 
             <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">profile</span><span class="p">:</span>
                 <span class="n">manager</span><span class="o">.</span><span class="n">add_struct_definition</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">profiler</span><span class="o">.</span><span class="n">as_cgen_struct</span><span class="p">(</span><span class="n">Profiler</span><span class="o">.</span><span class="n">TIME</span><span class="p">))</span>
-                <span class="n">manager</span><span class="o">.</span><span class="n">add_struct_definition</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">profiler</span><span class="o">.</span><span class="n">as_cgen_struct</span><span class="p">(</span><span class="n">Profiler</span><span class="o">.</span><span class="n">FLOP</span><span class="p">))</span>
 
             <span class="bp">self</span><span class="o">.</span><span class="n">_ccode</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">manager</span><span class="o">.</span><span class="n">generate</span><span class="p">())</span>
 
@@ -340,19 +349,154 @@
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">oi</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">profiler</span><span class="o">.</span><span class="n">oi</span>
+        <span class="sd">&quot;&quot;&quot;Summary of operational intensities, by code section.&quot;&quot;&quot;</span>
+
+        <span class="n">gflops_per_section</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">gflops</span>
+        <span class="n">bytes_per_section</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">traffic</span><span class="p">()</span>
+        <span class="n">oi_per_section</span> <span class="o">=</span> <span class="p">{}</span>
+
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">subsection</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">time_loop_stencils_b</span><span class="p">):</span>
+            <span class="n">key</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="si">%s%d</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">PRE_STENCILS</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">i</span><span class="p">)</span>
+            <span class="n">oi_per_section</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="mf">1.0</span><span class="o">*</span><span class="n">gflops_per_section</span><span class="p">[</span><span class="n">key</span><span class="p">]</span><span class="o">/</span><span class="n">bytes_per_section</span><span class="p">[</span><span class="n">key</span><span class="p">]</span>
+
+        <span class="n">key</span> <span class="o">=</span> <span class="n">LOOP_BODY</span><span class="o">.</span><span class="n">name</span>
+        <span class="n">oi_per_section</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="mf">1.0</span><span class="o">*</span><span class="n">gflops_per_section</span><span class="p">[</span><span class="n">key</span><span class="p">]</span><span class="o">/</span><span class="n">bytes_per_section</span><span class="p">[</span><span class="n">key</span><span class="p">]</span>
+
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">subsection</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">time_loop_stencils_a</span><span class="p">):</span>
+            <span class="n">key</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="si">%s%d</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">POST_STENCILS</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">i</span><span class="p">)</span>
+            <span class="n">oi_per_section</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="mf">1.0</span><span class="o">*</span><span class="n">gflops_per_section</span><span class="p">[</span><span class="n">key</span><span class="p">]</span><span class="o">/</span><span class="n">bytes_per_section</span><span class="p">[</span><span class="n">key</span><span class="p">]</span>
+
+        <span class="k">return</span> <span class="n">oi_per_section</span>
 
     <span class="nd">@property</span>
-    <span class="k">def</span> <span class="nf">oi_low</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">profiler</span><span class="o">.</span><span class="n">oi_low</span>
+    <span class="k">def</span> <span class="nf">niters</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Summary of loop iterations, by code section.&quot;&quot;&quot;</span>
 
-    <span class="nd">@property</span>
-    <span class="k">def</span> <span class="nf">total_loads</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">profiler</span><span class="o">.</span><span class="n">num_loads</span>
+        <span class="n">niters_per_section</span> <span class="o">=</span> <span class="p">{}</span>
+
+        <span class="n">with_time_loop</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">iters</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">nt</span><span class="o">*</span><span class="n">iters</span>
+
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">subsection</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">time_loop_stencils_b</span><span class="p">):</span>
+            <span class="n">key</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="si">%s%d</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">PRE_STENCILS</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">i</span><span class="p">)</span>
+            <span class="n">niters</span> <span class="o">=</span> <span class="n">subsection</span><span class="o">.</span><span class="n">limits</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">subsection</span><span class="p">,</span> <span class="n">Iteration</span><span class="p">)</span> <span class="k">else</span> <span class="mi">1</span>
+            <span class="n">niters_per_section</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">with_time_loop</span><span class="p">(</span><span class="n">niters</span><span class="p">)</span>
+
+        <span class="n">key</span> <span class="o">=</span> <span class="n">LOOP_BODY</span><span class="o">.</span><span class="n">name</span>
+        <span class="n">niters</span> <span class="o">=</span> <span class="n">reduce</span><span class="p">(</span><span class="n">operator</span><span class="o">.</span><span class="n">mul</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+        <span class="n">niters_per_section</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">with_time_loop</span><span class="p">(</span><span class="n">niters</span><span class="p">)</span>
+
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">subsection</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">time_loop_stencils_a</span><span class="p">):</span>
+            <span class="n">key</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="si">%s%d</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">POST_STENCILS</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">i</span><span class="p">)</span>
+            <span class="n">niters</span> <span class="o">=</span> <span class="n">subsection</span><span class="o">.</span><span class="n">limits</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">subsection</span><span class="p">,</span> <span class="n">Iteration</span><span class="p">)</span> <span class="k">else</span> <span class="mi">1</span>
+            <span class="n">niters_per_section</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">with_time_loop</span><span class="p">(</span><span class="n">niters</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">niters_per_section</span>
+
+<div class="viewcode-block" id="Propagator.traffic"><a class="viewcode-back" href="../../devito.html#devito.propagator.Propagator.traffic">[docs]</a>    <span class="k">def</span> <span class="nf">traffic</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">mode</span><span class="o">=</span><span class="s1">&#39;realistic&#39;</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Summary of Bytes moved between CPU (last level cache) and DRAM,</span>
+<span class="sd">        by code section.</span>
+
+<span class="sd">        :param mode: Several estimates are possible: ::</span>
+
+<span class="sd">            * ideal: also known as &quot;compulsory traffic&quot;, which is the minimum</span>
+<span class="sd">                number of bytes to be moved (ie, models an infinite cache)</span>
+<span class="sd">            * ideal_with_stores: like ideal, but a data item which is both read</span>
+<span class="sd">                and written is counted twice (load + store)</span>
+<span class="sd">            * realistic: assume that all datasets, even those that do not depend</span>
+<span class="sd">                on time, need to be re-loaded at each time iteration</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="k">assert</span> <span class="n">mode</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;ideal&#39;</span><span class="p">,</span> <span class="s1">&#39;ideal_with_stores&#39;</span><span class="p">,</span> <span class="s1">&#39;realistic&#39;</span><span class="p">]</span>
+
+        <span class="k">def</span> <span class="nf">access</span><span class="p">(</span><span class="n">symbol</span><span class="p">):</span>
+            <span class="k">assert</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">symbol</span><span class="p">,</span> <span class="n">Indexed</span><span class="p">)</span>
+            <span class="c1"># Irregular accesses (eg A[B[i]]) are counted as compulsory traffic</span>
+            <span class="k">if</span> <span class="nb">any</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">atoms</span><span class="p">(</span><span class="n">Indexed</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">symbol</span><span class="o">.</span><span class="n">indices</span><span class="p">):</span>
+                <span class="k">return</span> <span class="n">symbol</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">symbol</span><span class="o">.</span><span class="n">base</span>
+
+        <span class="k">def</span> <span class="nf">count</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">expressions</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">mode</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;ideal&#39;</span><span class="p">,</span> <span class="s1">&#39;ideal_with_stores&#39;</span><span class="p">]:</span>
+                <span class="nb">filter</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">s</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">time_dim</span> <span class="ow">in</span> <span class="n">s</span><span class="o">.</span><span class="n">atoms</span><span class="p">()</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="nb">filter</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">s</span><span class="p">:</span> <span class="n">s</span>
+            <span class="n">reads</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">flatten</span><span class="p">([</span><span class="n">e</span><span class="o">.</span><span class="n">rhs</span><span class="o">.</span><span class="n">atoms</span><span class="p">(</span><span class="n">Indexed</span><span class="p">)</span> <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">expressions</span><span class="p">]))</span>
+            <span class="n">writes</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">flatten</span><span class="p">([</span><span class="n">e</span><span class="o">.</span><span class="n">lhs</span><span class="o">.</span><span class="n">atoms</span><span class="p">(</span><span class="n">Indexed</span><span class="p">)</span> <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">expressions</span><span class="p">]))</span>
+            <span class="n">reads</span> <span class="o">=</span> <span class="nb">set</span><span class="p">([</span><span class="n">access</span><span class="p">(</span><span class="n">s</span><span class="p">)</span> <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">reads</span> <span class="k">if</span> <span class="nb">filter</span><span class="p">(</span><span class="n">s</span><span class="p">)])</span>
+            <span class="n">writes</span> <span class="o">=</span> <span class="nb">set</span><span class="p">([</span><span class="n">access</span><span class="p">(</span><span class="n">s</span><span class="p">)</span> <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">writes</span> <span class="k">if</span> <span class="nb">filter</span><span class="p">(</span><span class="n">s</span><span class="p">)])</span>
+            <span class="k">if</span> <span class="n">mode</span> <span class="o">==</span> <span class="s1">&#39;ideal&#39;</span><span class="p">:</span>
+                <span class="k">return</span> <span class="nb">len</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="n">reads</span><span class="p">)</span> <span class="o">|</span> <span class="nb">set</span><span class="p">(</span><span class="n">writes</span><span class="p">))</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">return</span> <span class="nb">len</span><span class="p">(</span><span class="n">reads</span><span class="p">)</span> <span class="o">+</span> <span class="nb">len</span><span class="p">(</span><span class="n">writes</span><span class="p">)</span>
+
+        <span class="n">niters</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">niters</span>
+        <span class="n">dsize</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">dtype</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dtype</span><span class="p">)</span><span class="o">.</span><span class="n">itemsize</span>
+
+        <span class="n">bytes_per_section</span> <span class="o">=</span> <span class="p">{}</span>
+
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">subsection</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">time_loop_stencils_b</span><span class="p">):</span>
+            <span class="n">key</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="si">%s%d</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">PRE_STENCILS</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">i</span><span class="p">)</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">subsection</span><span class="p">,</span> <span class="n">Iteration</span><span class="p">):</span>
+                <span class="n">expressions</span> <span class="o">=</span> <span class="p">[</span><span class="n">e</span><span class="o">.</span><span class="n">stencil</span> <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">subsection</span><span class="o">.</span><span class="n">expressions</span><span class="p">]</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">expressions</span> <span class="o">=</span> <span class="n">subsection</span><span class="o">.</span><span class="n">stencil</span>
+            <span class="n">bytes_per_section</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">dsize</span><span class="o">*</span><span class="n">count</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">expressions</span><span class="p">)</span><span class="o">*</span><span class="n">niters</span><span class="p">[</span><span class="n">key</span><span class="p">]</span>
+
+        <span class="n">key</span> <span class="o">=</span> <span class="n">LOOP_BODY</span><span class="o">.</span><span class="n">name</span>
+        <span class="n">bytes_per_section</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">dsize</span><span class="o">*</span><span class="n">count</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">stencils</span><span class="p">)</span><span class="o">*</span><span class="n">niters</span><span class="p">[</span><span class="n">key</span><span class="p">]</span>
+
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">subsection</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">time_loop_stencils_a</span><span class="p">):</span>
+            <span class="n">key</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="si">%s%d</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">POST_STENCILS</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">i</span><span class="p">)</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">subsection</span><span class="p">,</span> <span class="n">Iteration</span><span class="p">):</span>
+                <span class="n">expressions</span> <span class="o">=</span> <span class="p">[</span><span class="n">e</span><span class="o">.</span><span class="n">stencil</span> <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">subsection</span><span class="o">.</span><span class="n">expressions</span><span class="p">]</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">expressions</span> <span class="o">=</span> <span class="n">subsection</span><span class="o">.</span><span class="n">stencil</span>
+            <span class="n">bytes_per_section</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">dsize</span><span class="o">*</span><span class="n">count</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">expressions</span><span class="p">)</span><span class="o">*</span><span class="n">niters</span><span class="p">[</span><span class="n">key</span><span class="p">]</span>
+
+        <span class="k">return</span> <span class="n">bytes_per_section</span></div>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">gflops</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">profiler</span><span class="o">.</span><span class="n">gflops</span>
+        <span class="sd">&quot;&quot;&quot;Summary of GFlops performed, by code section.&quot;&quot;&quot;</span>
+
+        <span class="n">niters</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">niters</span>
+
+        <span class="n">gflops_per_iteration</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">profiler</span><span class="o">.</span><span class="n">gflops</span>
+        <span class="n">gflops_per_section</span> <span class="o">=</span> <span class="p">{}</span>
+
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">subsection</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">time_loop_stencils_b</span><span class="p">):</span>
+            <span class="n">key</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="si">%s%d</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">PRE_STENCILS</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">i</span><span class="p">)</span>
+            <span class="n">gflops_per_section</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">gflops_per_iteration</span><span class="p">[</span><span class="n">key</span><span class="p">]</span><span class="o">*</span><span class="n">niters</span><span class="p">[</span><span class="n">key</span><span class="p">]</span>
+
+        <span class="n">key</span> <span class="o">=</span> <span class="n">LOOP_BODY</span><span class="o">.</span><span class="n">name</span>
+        <span class="n">gflops_per_section</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">gflops_per_iteration</span><span class="p">[</span><span class="n">key</span><span class="p">]</span><span class="o">*</span><span class="n">niters</span><span class="p">[</span><span class="n">key</span><span class="p">]</span>
+
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">subsection</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">time_loop_stencils_a</span><span class="p">):</span>
+            <span class="n">key</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="si">%s%d</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">POST_STENCILS</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">i</span><span class="p">)</span>
+            <span class="n">gflops_per_section</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">gflops_per_iteration</span><span class="p">[</span><span class="n">key</span><span class="p">]</span><span class="o">*</span><span class="n">niters</span><span class="p">[</span><span class="n">key</span><span class="p">]</span>
+
+        <span class="k">return</span> <span class="n">gflops_per_section</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">gflopss</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">gflopss</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">gflops</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="k">assert</span> <span class="n">k</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">timings</span>
+            <span class="n">gflopss</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="nb">float</span><span class="p">(</span><span class="n">v</span><span class="p">)</span> <span class="o">/</span> <span class="p">(</span><span class="mi">10</span><span class="o">**</span><span class="mi">9</span><span class="p">))</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">timings</span><span class="p">[</span><span class="n">k</span><span class="p">]</span>
+        <span class="k">return</span> <span class="n">gflopss</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">total_gflops</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="nb">sum</span><span class="p">(</span><span class="n">v</span> <span class="o">/</span> <span class="p">(</span><span class="mi">10</span><span class="o">**</span><span class="mi">9</span><span class="p">)</span> <span class="k">for</span> <span class="n">_</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">gflops</span><span class="o">.</span><span class="n">items</span><span class="p">())</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">total_time</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="nb">sum</span><span class="p">(</span><span class="n">v</span> <span class="k">for</span> <span class="n">_</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">timings</span><span class="o">.</span><span class="n">items</span><span class="p">())</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">total_gflopss</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">total_gflops</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">total_time</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">save</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
@@ -393,29 +537,6 @@
             <span class="n">loop_limits</span> <span class="o">=</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">nt</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span>
 
         <span class="k">return</span> <span class="n">loop_limits</span>
-
-<div class="viewcode-block" id="Propagator.log_performance"><a class="viewcode-back" href="../../devito.html#devito.propagator.Propagator.log_performance">[docs]</a>    <span class="k">def</span> <span class="nf">log_performance</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;Logs performance metrics&quot;&quot;&quot;</span>
-        <span class="n">shape_str</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s1">&#39;, &#39;</span><span class="p">,</span> <span class="s1">&#39; x &#39;</span><span class="p">)</span>
-        <span class="n">cb_str</span> <span class="o">=</span> <span class="s2">&quot;, blocks - </span><span class="si">%s</span><span class="s2"> &quot;</span> <span class="o">%</span> <span class="nb">str</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">block_sizes</span><span class="p">)</span> \
-            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">cache_blocking</span> <span class="k">else</span> <span class="s1">&#39; &#39;</span>
-
-        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;shape - </span><span class="si">%s%s</span><span class="s2">:: </span><span class="si">%f</span><span class="s2"> sec - </span><span class="si">%s</span><span class="s2"> MCells/s - </span><span class="si">%.2f</span><span class="s2"> GFlops/s&quot;</span> <span class="o">%</span>
-                    <span class="p">(</span><span class="n">shape_str</span><span class="p">,</span> <span class="n">cb_str</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">timings</span><span class="p">[</span><span class="s1">&#39;kernel&#39;</span><span class="p">],</span>
-                     <span class="bp">self</span><span class="o">.</span><span class="n">mcells</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">gflops</span><span class="p">[</span><span class="s1">&#39;kernel&#39;</span><span class="p">]))</span></div>
-
-<div class="viewcode-block" id="Propagator.get_number_of_loads"><a class="viewcode-back" href="../../devito.html#devito.propagator.Propagator.get_number_of_loads">[docs]</a>    <span class="k">def</span> <span class="nf">get_number_of_loads</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;Gets total number of loads which is used for optimal block size estimation</span>
-<span class="sd">           Temp profiler needed as we want this info even when profiling is off</span>
-
-<span class="sd">        :returns: Total number of loads</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="n">name</span> <span class="o">=</span> <span class="s1">&#39;load_count&#39;</span>
-        <span class="n">profiler</span> <span class="o">=</span> <span class="n">Profiler</span><span class="p">()</span>
-        <span class="n">at_stencils</span> <span class="o">=</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">convert_equality_to_cgen</span><span class="p">(</span><span class="n">stencil</span><span class="p">)</span>
-                       <span class="k">for</span> <span class="n">stencil</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">stencils</span><span class="p">]</span>
-        <span class="n">profiler</span><span class="o">.</span><span class="n">add_profiling</span><span class="p">(</span><span class="n">at_stencils</span><span class="p">,</span> <span class="n">name</span><span class="p">)</span>
-        <span class="k">return</span> <span class="n">profiler</span><span class="o">.</span><span class="n">num_loads</span><span class="p">[</span><span class="n">name</span><span class="p">]</span></div>
 
 <div class="viewcode-block" id="Propagator.prep_variable_map"><a class="viewcode-back" href="../../devito.html#devito.propagator.Propagator.prep_variable_map">[docs]</a>    <span class="k">def</span> <span class="nf">prep_variable_map</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;Mapping from model variables (x, y, z, t) to loop variables (i1, i2, i3, i4)</span>
@@ -573,36 +694,39 @@
             <span class="n">time_stepping</span> <span class="o">=</span> <span class="p">[]</span>
 
         <span class="n">loop_body</span> <span class="o">=</span> <span class="p">[</span><span class="n">cgen</span><span class="o">.</span><span class="n">Block</span><span class="p">(</span><span class="n">omp_for</span> <span class="o">+</span> <span class="n">loop_body</span><span class="p">)]</span>
+
         <span class="c1"># Statements to be inserted into the time loop before the spatial loop</span>
-        <span class="n">time_loop_stencils_b</span> <span class="o">=</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">time_substitutions</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
-                                <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">time_loop_stencils_b</span><span class="p">]</span>
-        <span class="n">time_loop_stencils_b</span> <span class="o">=</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">convert_equality_to_cgen</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
-                                <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">time_loop_stencils_b</span><span class="p">]</span>
+        <span class="n">pre_stencils</span> <span class="o">=</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">time_substitutions</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+                        <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">time_loop_stencils_b</span><span class="p">]</span>
+        <span class="n">pre_stencils</span> <span class="o">=</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">convert_equality_to_cgen</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+                        <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">time_loop_stencils_b</span><span class="p">]</span>
 
         <span class="c1"># Statements to be inserted into the time loop after the spatial loop</span>
-        <span class="n">time_loop_stencils_a</span> <span class="o">=</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">time_substitutions</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
-                                <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">time_loop_stencils_a</span><span class="p">]</span>
-        <span class="n">time_loop_stencils_a</span> <span class="o">=</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">convert_equality_to_cgen</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
-                                <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">time_loop_stencils_a</span><span class="p">]</span>
+        <span class="n">post_stencils</span> <span class="o">=</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">time_substitutions</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+                         <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">time_loop_stencils_a</span><span class="p">]</span>
+        <span class="n">post_stencils</span> <span class="o">=</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">convert_equality_to_cgen</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+                         <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">time_loop_stencils_a</span><span class="p">]</span>
 
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">profile</span><span class="p">:</span>
-            <span class="n">time_loop_stencils_a</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">profiler</span><span class="o">.</span><span class="n">add_profiling</span><span class="p">(</span><span class="n">time_loop_stencils_a</span><span class="p">,</span>
-                                                               <span class="s2">&quot;loop_stencils_a&quot;</span><span class="p">)</span>
-            <span class="n">time_loop_stencils_b</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">profiler</span><span class="o">.</span><span class="n">add_profiling</span><span class="p">(</span><span class="n">time_loop_stencils_b</span><span class="p">,</span>
-                                                               <span class="s2">&quot;loop_stencils_b&quot;</span><span class="p">)</span>
+            <span class="n">pre_stencils</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">flatten</span><span class="p">([</span><span class="bp">self</span><span class="o">.</span><span class="n">profiler</span><span class="o">.</span><span class="n">add_profiling</span><span class="p">([</span><span class="n">s</span><span class="p">],</span> <span class="s2">&quot;</span><span class="si">%s%d</span><span class="s2">&quot;</span> <span class="o">%</span>
+                                         <span class="p">(</span><span class="n">PRE_STENCILS</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">i</span><span class="p">))</span> <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">s</span> <span class="ow">in</span>
+                                         <span class="nb">enumerate</span><span class="p">(</span><span class="n">pre_stencils</span><span class="p">)]))</span>
+            <span class="n">post_stencils</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">flatten</span><span class="p">([</span><span class="bp">self</span><span class="o">.</span><span class="n">profiler</span><span class="o">.</span><span class="n">add_profiling</span><span class="p">([</span><span class="n">s</span><span class="p">],</span> <span class="s2">&quot;</span><span class="si">%s%d</span><span class="s2">&quot;</span> <span class="o">%</span>
+                                          <span class="p">(</span><span class="n">POST_STENCILS</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">i</span><span class="p">))</span> <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">s</span> <span class="ow">in</span>
+                                          <span class="nb">enumerate</span><span class="p">(</span><span class="n">post_stencils</span><span class="p">)]))</span>
 
-        <span class="n">initial_block</span> <span class="o">=</span> <span class="n">time_stepping</span> <span class="o">+</span> <span class="n">time_loop_stencils_b</span>
+        <span class="n">initial_block</span> <span class="o">=</span> <span class="n">time_stepping</span> <span class="o">+</span> <span class="n">pre_stencils</span>
 
         <span class="k">if</span> <span class="n">initial_block</span><span class="p">:</span>
             <span class="n">initial_block</span> <span class="o">=</span> <span class="n">omp_single</span> <span class="o">+</span> <span class="p">[</span><span class="n">cgen</span><span class="o">.</span><span class="n">Block</span><span class="p">(</span><span class="n">initial_block</span><span class="p">)]</span>
 
-        <span class="n">end_block</span> <span class="o">=</span> <span class="n">time_loop_stencils_a</span>
+        <span class="n">end_block</span> <span class="o">=</span> <span class="n">post_stencils</span>
 
         <span class="k">if</span> <span class="n">end_block</span><span class="p">:</span>
             <span class="n">end_block</span> <span class="o">=</span> <span class="n">omp_single</span> <span class="o">+</span> <span class="p">[</span><span class="n">cgen</span><span class="o">.</span><span class="n">Block</span><span class="p">(</span><span class="n">end_block</span><span class="p">)]</span>
 
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">profile</span><span class="p">:</span>
-            <span class="n">loop_body</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">profiler</span><span class="o">.</span><span class="n">add_profiling</span><span class="p">(</span><span class="n">loop_body</span><span class="p">,</span> <span class="s2">&quot;loop_body&quot;</span><span class="p">,</span>
+            <span class="n">loop_body</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">profiler</span><span class="o">.</span><span class="n">add_profiling</span><span class="p">(</span><span class="n">loop_body</span><span class="p">,</span> <span class="n">LOOP_BODY</span><span class="o">.</span><span class="n">name</span><span class="p">,</span>
                                                     <span class="n">omp_flag</span><span class="o">=</span><span class="n">omp_master</span><span class="p">)</span>
 
         <span class="n">loop_body</span> <span class="o">=</span> <span class="n">cgen</span><span class="o">.</span><span class="n">Block</span><span class="p">(</span><span class="n">initial_block</span> <span class="o">+</span> <span class="n">loop_body</span> <span class="o">+</span> <span class="n">end_block</span><span class="p">)</span>
@@ -617,19 +741,7 @@
         <span class="c1"># Code to declare the time stepping variables (outside the time loop)</span>
         <span class="n">def_time_step</span> <span class="o">=</span> <span class="p">[</span><span class="n">cgen</span><span class="o">.</span><span class="n">Value</span><span class="p">(</span><span class="s2">&quot;int&quot;</span><span class="p">,</span> <span class="n">t_var_def</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
                          <span class="k">for</span> <span class="n">t_var_def</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">time_steppers</span><span class="p">]</span>
-        <span class="n">body</span> <span class="o">=</span> <span class="n">def_time_step</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">pre_loop</span> <span class="o">+</span> <span class="n">omp_parallel</span> <span class="o">+</span> <span class="p">[</span><span class="n">loop_body</span><span class="p">]</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">post_loop</span>
-
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">profile</span><span class="p">:</span>
-            <span class="n">body</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">profiler</span><span class="o">.</span><span class="n">add_profiling</span><span class="p">(</span><span class="n">body</span><span class="p">,</span> <span class="s2">&quot;kernel&quot;</span><span class="p">)</span>
-
-            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">compiler</span><span class="o">.</span><span class="n">openmp</span><span class="p">:</span>
-                <span class="n">body</span> <span class="o">=</span> <span class="p">[</span>
-                    <span class="bp">self</span><span class="o">.</span><span class="n">profiler</span><span class="o">.</span><span class="n">get_loop_temp_var_decl</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
-                    <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">profiler</span><span class="o">.</span><span class="n">temps</span><span class="o">.</span><span class="n">keys</span><span class="p">()</span>
-                <span class="p">]</span> <span class="o">+</span> <span class="n">body</span> <span class="o">+</span> <span class="p">[</span>
-                    <span class="bp">self</span><span class="o">.</span><span class="n">profiler</span><span class="o">.</span><span class="n">get_loop_flop_update</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
-                    <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">profiler</span><span class="o">.</span><span class="n">temps</span><span class="o">.</span><span class="n">keys</span><span class="p">()</span>
-                <span class="p">]</span>
+        <span class="n">body</span> <span class="o">=</span> <span class="n">def_time_step</span> <span class="o">+</span> <span class="n">omp_parallel</span> <span class="o">+</span> <span class="p">[</span><span class="n">loop_body</span><span class="p">]</span>
 
         <span class="k">return</span> <span class="n">cgen</span><span class="o">.</span><span class="n">Block</span><span class="p">(</span><span class="n">body</span><span class="p">)</span></div>
 
@@ -769,16 +881,8 @@
             <span class="bp">self</span><span class="o">.</span><span class="n">block_sizes</span> <span class="o">=</span> <span class="p">[</span><span class="nb">int</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cache_blocking</span><span class="p">)]</span> <span class="o">*</span> <span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">block_sizes</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span>
 
-        <span class="c1"># replace 0 values with optimal block sizes</span>
-        <span class="n">opt_block_size</span> <span class="o">=</span> <span class="n">get_optimal_block_size</span><span class="p">(</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">get_number_of_loads</span><span class="p">(),</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">compiler</span><span class="o">.</span><span class="n">openmp</span>
-        <span class="p">)</span>
         <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">block_sizes</span><span class="p">)):</span>
             <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">block_sizes</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>  <span class="c1"># replace 0 values with optimal</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">block_sizes</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="n">opt_block_size</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">block_sizes</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">==</span> <span class="mi">0</span>
-                                       <span class="k">else</span> <span class="bp">self</span><span class="o">.</span><span class="n">block_sizes</span><span class="p">[</span><span class="n">i</span><span class="p">])</span>
                 <span class="bp">self</span><span class="o">.</span><span class="n">fd</span><span class="o">.</span><span class="n">add_value_param</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">loop_counters</span><span class="p">[</span><span class="n">i</span><span class="p">])</span> <span class="o">+</span> <span class="s2">&quot;block&quot;</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">int64</span><span class="p">)</span>
 
 <div class="viewcode-block" id="Propagator.add_inner_most_dim_pragma"><a class="viewcode-back" href="../../devito.html#devito.propagator.Propagator.add_inner_most_dim_pragma">[docs]</a>    <span class="k">def</span> <span class="nf">add_inner_most_dim_pragma</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">inner_most_dim</span><span class="p">,</span> <span class="n">space_dims</span><span class="p">,</span> <span class="n">loop_body</span><span class="p">):</span>
@@ -943,20 +1047,20 @@
                 <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">save_vars</span><span class="p">[</span><span class="nb">str</span><span class="p">(</span><span class="n">array_term</span><span class="o">.</span><span class="n">base</span><span class="o">.</span><span class="n">label</span><span class="p">)]:</span>
                     <span class="n">subs_dict</span><span class="p">[</span><span class="n">arg</span><span class="p">]</span> <span class="o">=</span> <span class="n">array_term</span><span class="o">.</span><span class="n">xreplace</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">t_replace</span><span class="p">)</span>
 
-        <span class="k">return</span> <span class="n">sympy_expr</span><span class="o">.</span><span class="n">xreplace</span><span class="p">(</span><span class="n">subs_dict</span><span class="p">)</span></div>
+        <span class="k">return</span> <span class="n">sympy_expr</span><span class="o">.</span><span class="n">xreplace</span><span class="p">(</span><span class="n">subs_dict</span><span class="p">)</span></div></div>
 
-<div class="viewcode-block" id="Propagator.add_time_loop_stencil"><a class="viewcode-back" href="../../devito.html#devito.propagator.Propagator.add_time_loop_stencil">[docs]</a>    <span class="k">def</span> <span class="nf">add_time_loop_stencil</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">stencil</span><span class="p">,</span> <span class="n">before</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;Add a statement either before or after the main spatial loop, but still inside</span>
-<span class="sd">        the time loop.</span>
 
-<span class="sd">        :param stencil: Given stencil</span>
-<span class="sd">        :param before: Flag indicating whether the statement should be inserted before,</span>
-<span class="sd">                       False by default</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">if</span> <span class="n">before</span><span class="p">:</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">time_loop_stencils_b</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">stencil</span><span class="p">)</span>
-        <span class="k">else</span><span class="p">:</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">time_loop_stencils_a</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">stencil</span><span class="p">)</span></div></div>
+<div class="viewcode-block" id="Section"><a class="viewcode-back" href="../../devito.html#devito.propagator.Section">[docs]</a><span class="k">class</span> <span class="nc">Section</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+
+    <span class="sd">&quot;&quot;&quot;A code section in a stencil kernel.&quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">name</span> <span class="o">=</span> <span class="n">name</span></div>
+
+
+<span class="n">PRE_STENCILS</span> <span class="o">=</span> <span class="n">Section</span><span class="p">(</span><span class="s1">&#39;pre_stencils&#39;</span><span class="p">)</span>
+<span class="n">LOOP_BODY</span> <span class="o">=</span> <span class="n">Section</span><span class="p">(</span><span class="s1">&#39;loop_body&#39;</span><span class="p">)</span>
+<span class="n">POST_STENCILS</span> <span class="o">=</span> <span class="n">Section</span><span class="p">(</span><span class="s1">&#39;post_stencils&#39;</span><span class="p">)</span>
 </pre></div>
 
            </div>

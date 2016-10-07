@@ -613,8 +613,7 @@ given body of statements inside the loop</p>
 <dt id="devito.function_manager.FunctionManager">
 <em class="property">class </em><code class="descclassname">devito.function_manager.</code><code class="descname">FunctionManager</code><span class="sig-paren">(</span><em>function_descriptors</em>, <em>mic_flag=False</em>, <em>openmp=False</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/function_manager.html#FunctionManager"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.function_manager.FunctionManager" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">object</span></code></p>
-<p>Class that accepts a list of <a class="reference internal" href="#devito.function_manager.FunctionDescriptor" title="devito.function_manager.FunctionDescriptor"><code class="xref py py-class docutils literal"><span class="pre">FunctionDescriptor</span></code></a> objects and generates the C
-function represented by it</p>
+<p>Generate a C function given a list of <a class="reference internal" href="#devito.function_manager.FunctionDescriptor" title="devito.function_manager.FunctionDescriptor"><code class="xref py py-class docutils literal"><span class="pre">FunctionDescriptor</span></code></a> objects.</p>
 <table class="docutils field-list" frame="void" rules="none">
 <col class="field-name" />
 <col class="field-body" />
@@ -1065,7 +1064,6 @@ environment variable DEVITO_ARCH, or default to GNUCompiler.</li>
 number used for all dimensions except inner most or a list
 explicitly stating block sizes for each dimension
 Set cache_blocking to None to skip blocking on that dim
-Set cache_blocking to 0 to use best guess based on architecture
 Set cache_blocking to AutoTuner instance, to use auto tuned
 tuned block sizes</li>
 <li><strong>input_params</strong> &#8211; List of symbols that are expected as input.</li>
@@ -1212,7 +1210,12 @@ function and its args</td>
 <em class="property">class </em><code class="descclassname">devito.propagator.</code><code class="descname">Propagator</code><span class="sig-paren">(</span><em>name</em>, <em>nt</em>, <em>shape</em>, <em>stencils</em>, <em>factorized=None</em>, <em>spc_border=0</em>, <em>time_order=0</em>, <em>time_dim=None</em>, <em>space_dims=None</em>, <em>dtype=&lt;type 'numpy.float32'&gt;</em>, <em>forward=True</em>, <em>compiler=None</em>, <em>profile=False</em>, <em>cache_blocking=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/propagator.html#Propagator"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.propagator.Propagator" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">object</span></code></p>
 <p>Propagator objects derive and encode C kernel code according
-to a given set of stencils, variables and time-stepping options</p>
+to a given set of stencils, variables and time-stepping options.</p>
+<p>A kernel consists of a time loop wrapping three sections of code, called
+<code class="docutils literal"><span class="pre">pre_stencils</span></code>, <code class="docutils literal"><span class="pre">loop_body</span></code>, and <code class="docutils literal"><span class="pre">post_stencils</span></code>.
+<code class="docutils literal"><span class="pre">loop_body</span></code> encodes the spatial loops and thus includes the stencils;
+the other two sections represent actions to be performed before and after
+the stencil computation, respectively.</p>
 <table class="docutils field-list" frame="void" rules="none">
 <col class="field-name" />
 <col class="field-body" />
@@ -1237,7 +1240,6 @@ environment variable DEVITO_ARCH, or default to GNUCompiler</li>
 number used for all dimensions except inner most or a list
 explicitly stating block sizes for each dimension
 Set cache_blocking to None to skip blocking on that dim
-Set cache_blocking to 0 to use best guess based on architecture
 Set cache_blocking to AutoTuner instance, to use auto tuned
 tune block sizes</li>
 </ul>
@@ -1324,26 +1326,6 @@ tune block sizes</li>
 <tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
 <li><strong>name</strong> &#8211; Name of parameter</li>
 <li><strong>dtype</strong> &#8211; Type of parameter</li>
-</ul>
-</td>
-</tr>
-</tbody>
-</table>
-</dd></dl>
-
-<dl class="method">
-<dt id="devito.propagator.Propagator.add_time_loop_stencil">
-<code class="descname">add_time_loop_stencil</code><span class="sig-paren">(</span><em>stencil</em>, <em>before=False</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/propagator.html#Propagator.add_time_loop_stencil"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.propagator.Propagator.add_time_loop_stencil" title="Permalink to this definition">¶</a></dt>
-<dd><p>Add a statement either before or after the main spatial loop, but still inside
-the time loop.</p>
-<table class="docutils field-list" frame="void" rules="none">
-<col class="field-name" />
-<col class="field-body" />
-<tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
-<li><strong>stencil</strong> &#8211; Given stencil</li>
-<li><strong>before</strong> &#8211; Flag indicating whether the statement should be inserted before,
-False by default</li>
 </ul>
 </td>
 </tr>
@@ -1493,23 +1475,6 @@ or set_jit_simple already</p>
 </dd></dl>
 
 <dl class="method">
-<dt id="devito.propagator.Propagator.get_number_of_loads">
-<code class="descname">get_number_of_loads</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/propagator.html#Propagator.get_number_of_loads"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.propagator.Propagator.get_number_of_loads" title="Permalink to this definition">¶</a></dt>
-<dd><dl class="docutils">
-<dt>Gets total number of loads which is used for optimal block size estimation</dt>
-<dd>Temp profiler needed as we want this info even when profiling is off</dd>
-</dl>
-<table class="docutils field-list" frame="void" rules="none">
-<col class="field-name" />
-<col class="field-body" />
-<tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Returns:</th><td class="field-body">Total number of loads</td>
-</tr>
-</tbody>
-</table>
-</dd></dl>
-
-<dl class="method">
 <dt id="devito.propagator.Propagator.get_time_stepping">
 <code class="descname">get_time_stepping</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/propagator.html#Propagator.get_time_stepping"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.propagator.Propagator.get_time_stepping" title="Permalink to this definition">¶</a></dt>
 <dd><p>Add the time stepping code to the loop</p>
@@ -1526,37 +1491,32 @@ or set_jit_simple already</p>
 <dl class="attribute">
 <dt id="devito.propagator.Propagator.gflops">
 <code class="descname">gflops</code><a class="headerlink" href="#devito.propagator.Propagator.gflops" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="method">
-<dt id="devito.propagator.Propagator.log_performance">
-<code class="descname">log_performance</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/propagator.html#Propagator.log_performance"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.propagator.Propagator.log_performance" title="Permalink to this definition">¶</a></dt>
-<dd><p>Logs performance metrics</p>
+<dd><p>Summary of GFlops performed, by code section.</p>
 </dd></dl>
+
+<dl class="attribute">
+<dt id="devito.propagator.Propagator.gflopss">
+<code class="descname">gflopss</code><a class="headerlink" href="#devito.propagator.Propagator.gflopss" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
 
 <dl class="attribute">
 <dt id="devito.propagator.Propagator.mcells">
 <code class="descname">mcells</code><a class="headerlink" href="#devito.propagator.Propagator.mcells" title="Permalink to this definition">¶</a></dt>
-<dd><p>Calculates MCELLS</p>
-<table class="docutils field-list" frame="void" rules="none">
-<col class="field-name" />
-<col class="field-body" />
-<tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Returns:</th><td class="field-body">Mcells as int</td>
-</tr>
-</tbody>
-</table>
+<dd><p>Calculate how many MCells are computed, on average, in a second (the
+quantity is rounded to the closest unit).</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="devito.propagator.Propagator.niters">
+<code class="descname">niters</code><a class="headerlink" href="#devito.propagator.Propagator.niters" title="Permalink to this definition">¶</a></dt>
+<dd><p>Summary of loop iterations, by code section.</p>
 </dd></dl>
 
 <dl class="attribute">
 <dt id="devito.propagator.Propagator.oi">
 <code class="descname">oi</code><a class="headerlink" href="#devito.propagator.Propagator.oi" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="attribute">
-<dt id="devito.propagator.Propagator.oi_low">
-<code class="descname">oi_low</code><a class="headerlink" href="#devito.propagator.Propagator.oi_low" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
+<dd><p>Summary of operational intensities, by code section.</p>
+</dd></dl>
 
 <dl class="method">
 <dt id="devito.propagator.Propagator.prep_variable_map">
@@ -1568,7 +1528,7 @@ the variables were defined in init( #var_order)</p>
 
 <dl class="method">
 <dt id="devito.propagator.Propagator.run">
-<code class="descname">run</code><span class="sig-paren">(</span><em>args</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/propagator.html#Propagator.run"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.propagator.Propagator.run" title="Permalink to this definition">¶</a></dt>
+<code class="descname">run</code><span class="sig-paren">(</span><em>args</em>, <em>verbose=True</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/propagator.html#Propagator.run"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.propagator.Propagator.run" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 <dl class="attribute">
@@ -1630,10 +1590,60 @@ a cyclic index but only for variables which are not being saved in the time doma
 <dd></dd></dl>
 
 <dl class="attribute">
-<dt id="devito.propagator.Propagator.total_loads">
-<code class="descname">total_loads</code><a class="headerlink" href="#devito.propagator.Propagator.total_loads" title="Permalink to this definition">¶</a></dt>
+<dt id="devito.propagator.Propagator.total_gflops">
+<code class="descname">total_gflops</code><a class="headerlink" href="#devito.propagator.Propagator.total_gflops" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
+<dl class="attribute">
+<dt id="devito.propagator.Propagator.total_gflopss">
+<code class="descname">total_gflopss</code><a class="headerlink" href="#devito.propagator.Propagator.total_gflopss" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="devito.propagator.Propagator.total_time">
+<code class="descname">total_time</code><a class="headerlink" href="#devito.propagator.Propagator.total_time" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="devito.propagator.Propagator.traffic">
+<code class="descname">traffic</code><span class="sig-paren">(</span><em>mode='realistic'</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/propagator.html#Propagator.traffic"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.propagator.Propagator.traffic" title="Permalink to this definition">¶</a></dt>
+<dd><p>Summary of Bytes moved between CPU (last level cache) and DRAM,
+by code section.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>mode</strong> &#8211; <p>Several estimates are possible:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="o">*</span> <span class="n">ideal</span><span class="p">:</span> <span class="n">also</span> <span class="n">known</span> <span class="k">as</span> <span class="s2">&quot;compulsory traffic&quot;</span><span class="p">,</span> <span class="n">which</span> <span class="ow">is</span> <span class="n">the</span> <span class="n">minimum</span>
+</pre></div>
+</div>
+<blockquote>
+<div>number of bytes to be moved (ie, models an infinite cache)</div></blockquote>
+<ul>
+<li><dl class="first docutils">
+<dt>ideal_with_stores: like ideal, but a data item which is both read</dt>
+<dd>and written is counted twice (load + store)</dd>
+</dl>
+</li>
+<li><dl class="first docutils">
+<dt>realistic: assume that all datasets, even those that do not depend</dt>
+<dd>on time, need to be re-loaded at each time iteration</dd>
+</dl>
+</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="devito.propagator.Section">
+<em class="property">class </em><code class="descclassname">devito.propagator.</code><code class="descname">Section</code><span class="sig-paren">(</span><em>name</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/propagator.html#Section"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.propagator.Section" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">object</span></code></p>
+<p>A code section in a stencil kernel.</p>
 </dd></dl>
 
 </div>
@@ -1899,34 +1909,6 @@ the stored loop stencils.</td>
 <dt id="devito.tools.flatten">
 <code class="descclassname">devito.tools.</code><code class="descname">flatten</code><span class="sig-paren">(</span><em>l</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/tools.html#flatten"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.tools.flatten" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
-
-<dl class="function">
-<dt id="devito.tools.get_optimal_block_size">
-<code class="descclassname">devito.tools.</code><code class="descname">get_optimal_block_size</code><span class="sig-paren">(</span><em>shape</em>, <em>load_c</em>, <em>omp</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/tools.html#get_optimal_block_size"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.tools.get_optimal_block_size" title="Permalink to this definition">¶</a></dt>
-<dd><p>Gets optimal block size based on architecture</p>
-<table class="docutils field-list" frame="void" rules="none">
-<col class="field-name" />
-<col class="field-body" />
-<tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
-<li><strong>shape</strong> &#8211; list - shape of the data buffer</li>
-<li><strong>load_c</strong> &#8211; int - load count</li>
-<li><strong>omp</strong> &#8211; True if OpenMP is on, else False</li>
-</ul>
-</td>
-</tr>
-<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first last">optimal block size</p>
-</td>
-</tr>
-</tbody>
-</table>
-<p>Assuming no prefetching, square block will give the most cache reuse.
-We then take the cache/threads divide by the size of the inner most dimension in which
-we do not block. This gives us the X*Y block space, of which we take the square root</p>
-<blockquote>
-<div>to get the size of our blocks.</div></blockquote>
-<p>((C size / threads) / (4 * length inner most * kernel loads)</p>
-</dd></dl>
 
 <dl class="function">
 <dt id="devito.tools.sympy_find">

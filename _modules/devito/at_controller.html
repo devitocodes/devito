@@ -257,11 +257,6 @@
         <span class="c1"># filter off some of the block sizes, heuristically</span>
         <span class="n">block_list</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_filter</span><span class="p">(</span><span class="n">block_list</span><span class="p">))</span>
 
-        <span class="c1"># populate output arrays with random values, to make sure that loads</span>
-        <span class="c1"># and stores are performed</span>
-        <span class="k">for</span> <span class="n">param</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">op</span><span class="o">.</span><span class="n">output_params</span><span class="p">:</span>
-            <span class="n">param</span><span class="o">.</span><span class="n">_data</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">rand</span><span class="p">(</span><span class="o">*</span><span class="n">param</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">op</span><span class="o">.</span><span class="n">dtype</span><span class="p">)</span>
-
         <span class="n">info_at</span><span class="p">(</span><span class="s2">&quot;Number of block sizes that will be attempted: </span><span class="si">%d</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="nb">len</span><span class="p">(</span><span class="n">block_list</span><span class="p">))</span>
 
         <span class="c1"># runs function for each block_size</span>
@@ -269,6 +264,10 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">op</span><span class="o">.</span><span class="n">propagator</span><span class="o">.</span><span class="n">cache_blocking</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">block_list</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
         <span class="k">for</span> <span class="n">block</span> <span class="ow">in</span> <span class="n">block_list</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">op</span><span class="o">.</span><span class="n">propagator</span><span class="o">.</span><span class="n">block_sizes</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">block</span><span class="p">)</span>
+            <span class="c1"># populate output arrays with values different than 0.0, to make sure that</span>
+            <span class="c1"># actual computation is carried out</span>
+            <span class="k">for</span> <span class="n">param</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">op</span><span class="o">.</span><span class="n">output_params</span><span class="p">:</span>
+                <span class="n">param</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">fill</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">rand</span><span class="p">())</span>
             <span class="n">times</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">block</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_execution_time</span><span class="p">()))</span>
 
         <span class="c1"># sorts the list of tuples based on time</span>
@@ -300,8 +299,8 @@
 
 <span class="sd">        :return: time - how long it took to execute</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">op</span><span class="o">.</span><span class="n">propagator</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">op</span><span class="o">.</span><span class="n">get_args</span><span class="p">())</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">op</span><span class="o">.</span><span class="n">propagator</span><span class="o">.</span><span class="n">timings</span><span class="p">[</span><span class="s1">&#39;kernel&#39;</span><span class="p">]</span></div>
+        <span class="bp">self</span><span class="o">.</span><span class="n">op</span><span class="o">.</span><span class="n">propagator</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">op</span><span class="o">.</span><span class="n">get_args</span><span class="p">(),</span> <span class="n">verbose</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">op</span><span class="o">.</span><span class="n">propagator</span><span class="o">.</span><span class="n">total_time</span></div>
 
     <span class="k">def</span> <span class="nf">_write_block_report</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">times</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;Writes auto tuning report for block sizes</span>
