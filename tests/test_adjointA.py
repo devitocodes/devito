@@ -17,9 +17,9 @@ class TestAdjointA(object):
         # True velocity
         true_vp = np.ones(dimensions) + .5
         if len(dimensions) == 2:
-            true_vp[:, int(dimensions[0] / 2):dimensions[0]] = 2.5
+            true_vp[:, int(dimensions[0] / 3):dimensions[0]] = 2.5
         else:
-            true_vp[:, :, int(dimensions[0] / 2):dimensions[0]] = 2.5
+            true_vp[:, :, int(dimensions[0] / 3):dimensions[0]] = 2.5
         model = IGrid(origin, spacing, true_vp)
         # Define seismic data.
         data = IShot()
@@ -56,7 +56,7 @@ class TestAdjointA(object):
         data.set_shape(nt, 50)
         # Adjoint test
         wave_true = Acoustic_cg(model, data, t_order=time_order, s_order=space_order,
-                                nbpml=10)
+                                nbpml=40)
         return wave_true
 
     @pytest.fixture(params=[2, 4])
