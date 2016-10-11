@@ -7,7 +7,7 @@ from devito.compiler import get_compiler_from_env
 from devito.dimension import t, x, y, z
 from devito.interfaces import TimeData
 from devito.propagator import Propagator
-from devito.symbolics import (dse_cse, dse_dimensions, dse_indexify,
+from devito.symbolics import (dse_dimensions, dse_indexify, dse_rewrite,
                               dse_symbols, dse_tolambda)
 
 __all__ = ['Operator']
@@ -117,7 +117,7 @@ class Operator(object):
 
         # Applies CSE
         if cse:
-            self.stencils = dse_cse(self.stencils)
+            self.stencils = dse_rewrite(self.stencils, mode='basic')
 
         # Apply user-defined subs to stencil
         self.stencils = [eqn.subs(subs[0]) for eqn in self.stencils]
