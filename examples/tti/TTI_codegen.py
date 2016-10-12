@@ -82,7 +82,7 @@ class TTI_cg:
 
         u, v, rec = fw.apply()
         return (rec.data, u.data, v.data,
-                fw.propagator.gflops, fw.propagator.oi, fw.propagator.timings)
+                fw.propagator.gflopss, fw.propagator.oi, fw.propagator.timings)
 
     def Adjoint(self, rec, cache_blocking=None):
         adj = AdjointOperator(self.model, self.damp, self.data, rec,
