@@ -1,6 +1,6 @@
 import numpy as np
 from sympy import (Add, Eq, Function, Indexed, IndexedBase, Symbol,
-                   collect, cse, lambdify, preorder_traversal, solve, symbols)
+                   cse, lambdify, preorder_traversal, solve, symbols)
 from sympy.utilities.iterables import numbered_symbols
 
 from devito.compiler import get_compiler_from_env
@@ -132,9 +132,7 @@ def expr_cse(expr):
 
     new_stencils = []
     for stencil in stencils:
-        new_stencils.append(Eq(stencil.lhs,
-                               collect(stencil.rhs,
-                                       [temp.lhs for temp in to_keep])))
+        new_stencils.append(stencil)
 
         for temp in to_keep:
             if stencil.lhs in preorder_traversal(temp.rhs):

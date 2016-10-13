@@ -32,23 +32,23 @@ class ForwardOperator(Operator):
         u.pad_time = save
         # Derive stencil from symbolic equation
         if time_order == 2:
-            Lap = u.laplace
-            Lap2 = 0
+            laplacian = u.laplace
+            biharmonic = 0
             # PDE for information
-            # eqn = m * u.dt2 - Lap + damp * u.dt
+            # eqn = m * u.dt2 - laplacian + damp * u.dt
             dt = model.get_critical_dt()
         else:
-            Lap = u.laplace
-            Lap2 = u.laplace2(1/m)
+            laplacian = u.laplace
+            biharmonic = u.laplace2(1/m)
             # PDE for information
-            # eqn = m * u.dt2 - Lap - s**2 / 12 * Lap2 + damp * u.dt
+            # eqn = m * u.dt2 - laplacian - s**2 / 12 * biharmonic + damp * u.dt
             dt = 1.73 * model.get_critical_dt()
 
         # Create the stencil by hand instead of calling numpy solve for speed purposes
         # Simple linear solve of a u(t+dt) + b u(t) + c u(t-dt) = L for u(t+dt)
         stencil = 1 / (2 * m + s * damp) * (4 * m * u +
                                             (s * damp - 2 * m) * u.backward +
-                                            2 * s ** 2 * (Lap + s**2 / 12 * Lap2))
+                                            2 * s ** 2 * (laplacian + s**2 / 12 * biharmonic))
         # Add substitutions for spacing (temporal and spatial)
         subs = {s: dt, h: model.get_spacing()}
         # Receiver initialization
@@ -98,23 +98,23 @@ class AdjointOperator(Operator):
         v.pad_time = False
         # Derive stencil from symbolic equation
         if time_order == 2:
-            Lap = v.laplace
-            Lap2 = 0
+            laplacian = v.laplace
+            biharmonic = 0
             # PDE for information
-            # eqn = m * v.dt2 - Lap - damp * v.dt
+            # eqn = m * v.dt2 - laplacian - damp * v.dt
             dt = model.get_critical_dt()
         else:
-            Lap = v.laplace
-            Lap2 = v.laplace2(1/m)
+            laplacian = v.laplace
+            biharmonic = v.laplace2(1/m)
             # PDE for information
-            # eqn = m * v.dt2 - Lap - s**2 / 12 * Lap2 + damp * v.dt
+            # eqn = m * v.dt2 - laplacian - s**2 / 12 * biharmonic + damp * v.dt
             dt = 1.73 * model.get_critical_dt()
 
         # Create the stencil by hand instead of calling numpy solve for speed purposes
         # Simple linear solve of a v(t+dt) + b u(t) + c v(t-dt) = L for v(t-dt)
         stencil = 1.0 / (2.0 * m + s * damp) * \
             (4.0 * m * v + (s * damp - 2.0 * m) *
-             v.forward + 2.0 * s ** 2 * (Lap + s ** 2 / 12.0 * Lap2))
+             v.forward + 2.0 * s ** 2 * (laplacian + s ** 2 / 12.0 * biharmonic))
 
         # Add substitutions for spacing (temporal and spatial)
         subs = {s: dt, h: model.get_spacing()}
@@ -172,28 +172,28 @@ class GradientOperator(Operator):
 
         # Derive stencil from symbolic equation
         if time_order == 2:
-            Lap = v.laplace
-            Lap2 = 0
+            laplacian = v.laplace
+            biharmonic = 0
             # PDE for information
-            # eqn = m * v.dt2 - Lap - damp * v.dt
+            # eqn = m * v.dt2 - laplacian - damp * v.dt
             dt = model.get_critical_dt()
             gradient_update = Eq(grad, grad - u.dt2 * v.forward)
         else:
-            Lap = v.laplace
-            Lap2 = v.laplace2(1/m)
-            Lap2u = - u.laplace2(1/(m**2))
+            laplacian = v.laplace
+            biharmonic = v.laplace2(1/m)
+            biharmonicu = - u.laplace2(1/(m**2))
             # PDE for information
-            # eqn = m * v.dt2 - Lap - s**2 / 12 * Lap2 + damp * v.dt
+            # eqn = m * v.dt2 - laplacian - s**2 / 12 * biharmonic + damp * v.dt
             dt = 1.73 * model.get_critical_dt()
             gradient_update = Eq(grad, grad -
                                  (u.dt2 -
-                                  s ** 2 / 12.0 * Lap2u) * v.forward)
+                                  s ** 2 / 12.0 * biharmonicu) * v.forward)
 
         # Create the stencil by hand instead of calling numpy solve for speed purposes
         # Simple linear solve of a v(t+dt) + b u(t) + c v(t-dt) = L for v(t-dt)
         stencil = 1.0 / (2.0 * m + s * damp) * \
             (4.0 * m * v + (s * damp - 2.0 * m) *
-             v.forward + 2.0 * s ** 2 * (Lap + s**2 / 12.0 * Lap2))
+             v.forward + 2.0 * s ** 2 * (laplacian + s**2 / 12.0 * biharmonic))
 
         # Add substitutions for spacing (temporal and spatial)
         subs = {s: dt, h: model.get_spacing()}
@@ -257,27 +257,27 @@ class BornOperator(Operator):
 
         # Derive stencils from symbolic equation
         if time_order == 2:
-            Lapu = u.laplace
-            Lap2u = 0
-            LapU = u.laplace
-            Lap2U = 0
+            laplacianu = u.laplace
+            biharmonicu = 0
+            laplacianU = u.laplace
+            biharmonicU = 0
             dt = model.get_critical_dt()
         else:
-            Lapu = u.laplace
-            Lap2u = U.laplace2(1/m)
-            LapU = u.laplace
-            Lap2U = U.laplace2(1/m)
+            laplacianu = u.laplace
+            biharmonicu = U.laplace2(1/m)
+            laplacianU = u.laplace
+            biharmonicU = U.laplace2(1/m)
             dt = 1.73 * model.get_critical_dt()
             # first_eqn = m * u.dt2 - u.laplace - damp * u.dt
             # second_eqn = m * U.dt2 - U.laplace - damp * U.dt
 
         stencil1 = 1.0 / (2.0 * m + s * damp) * \
             (4.0 * m * u + (s * damp - 2.0 * m) *
-             u.backward + 2.0 * s ** 2 * (Lapu + s**2 / 12 * Lap2u))
+             u.backward + 2.0 * s ** 2 * (laplacianu + s**2 / 12 * biharmonicu))
         src2 = -(dt ** -2) * (- 2 * u + u.forward + u.backward) * dm
         stencil2 = 1.0 / (2.0 * m + s * damp) * \
             (4.0 * m * u + (s * damp - 2.0 * m) *
-             u.backward + 2.0 * s ** 2 * (LapU + s**2 / 12 * Lap2U + src2))
+             u.backward + 2.0 * s ** 2 * (laplacianU + s**2 / 12 * biharmonicU + src2))
         # Add substitutions for spacing (temporal and spatial)
         subs = {s: dt, h: src.h}
         # Add Born-specific updates and resets
