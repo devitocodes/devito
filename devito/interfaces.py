@@ -334,9 +334,11 @@ class DenseData(SymbolicData):
 
     def laplace2(self, weight=1):
         """Symbol for the double laplacian wrt all spatial dimensions"""
-        derivs = ['dx2', 'dy2', 'dz2']
-        first = sum([getattr(self, d) for d in derivs[:self.dim]])
-        second = sum([second_derivative(first * weight, dim=d, order=self.space_order)
+        first = sum([second_derivative(self, dim=d,
+                                       order=self.space_order/2)
+                     for d in self.indices[1:]])
+        second = sum([second_derivative(first * weight, dim=d,
+                                        order=self.space_order/2)
                       for d in self.indices[1:]])
         return second
 

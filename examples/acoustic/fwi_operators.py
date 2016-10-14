@@ -46,9 +46,9 @@ class ForwardOperator(Operator):
 
         # Create the stencil by hand instead of calling numpy solve for speed purposes
         # Simple linear solve of a u(t+dt) + b u(t) + c u(t-dt) = L for u(t+dt)
-        stencil = 1 / (2 * m + s * damp) * (4 * m * u +
-                                            (s * damp - 2 * m) * u.backward +
-                                            2 * s ** 2 * (laplacian + s**2 / 12 * biharmonic))
+        stencil = 1 / (2 * m + s * damp) * (
+            4 * m * u + (s * damp - 2 * m) * u.backward +
+            2 * s**2 * (laplacian + s**2 / 12 * biharmonic))
         # Add substitutions for spacing (temporal and spatial)
         subs = {s: dt, h: model.get_spacing()}
         # Receiver initialization
@@ -112,9 +112,9 @@ class AdjointOperator(Operator):
 
         # Create the stencil by hand instead of calling numpy solve for speed purposes
         # Simple linear solve of a v(t+dt) + b u(t) + c v(t-dt) = L for v(t-dt)
-        stencil = 1.0 / (2.0 * m + s * damp) * \
-            (4.0 * m * v + (s * damp - 2.0 * m) *
-             v.forward + 2.0 * s ** 2 * (laplacian + s ** 2 / 12.0 * biharmonic))
+        stencil = 1 / (2 * m + s * damp) * \
+            (4 * m * v + (s * damp - 2 * m) *
+             v.forward + 2 * s**2 * (laplacian + s ** 2 / 12.0 * biharmonic))
 
         # Add substitutions for spacing (temporal and spatial)
         subs = {s: dt, h: model.get_spacing()}
