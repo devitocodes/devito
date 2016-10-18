@@ -10,9 +10,9 @@ def source(t, f0):
     return (1-2.*r**2)*np.exp(-r**2)
 
 
-def run(dimensions=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=250.0,
-        time_order=2, space_order=2, nbpml=10, cse=True,
-        auto_tuning=False, compiler=None, cache_blocking=None):
+def setup(dimensions=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=250.0,
+          time_order=2, space_order=2, nbpml=10, cse=True,
+          auto_tuning=False, compiler=None, cache_blocking=None):
     if auto_tuning:
         cache_blocking = None
 
@@ -52,10 +52,23 @@ def run(dimensions=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=250.0,
     data.set_shape(nt, 101)
 
     TTI = TTI_cg(model, data, None, t_order=time_order, s_order=space_order, nbpml=nbpml)
-    rec, u, v, gflopss, oi, timings = TTI.Forward(
-        cse=cse, auto_tuning=auto_tuning, cache_blocking=cache_blocking, compiler=compiler
-    )
+    return TTI
+
+
+def run(dimensions=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=250.0,
+        time_order=2, space_order=2, nbpml=10, cse=True,
+        auto_tuning=False, compiler=None, cache_blocking=None):
+
+    TTI = setup(dimensions, spacing, tn, time_order, space_order, nbpml,
+                cse, auto_tuning, compiler, cache_blocking)
+
+    rec, u, v, gflopss, oi, timings = TTI.Forward(cse=cse,
+                                                  auto_tuning=auto_tuning,
+                                                  cache_blocking=cache_blocking,
+                                                  compiler=compiler)
+
     return gflopss, oi, timings, [rec, u, v]
+
 
 if __name__ == "__main__":
     run()
