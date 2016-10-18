@@ -1,6 +1,4 @@
-# Devito examples and performance benchmarks
-
-## Diffusion
+# Devito diffusion example
 
 A simple example demonstrating how to solve the 2D diffusion equation
 using Devito's `Operator` API can be found in
