@@ -473,7 +473,7 @@ class Propagator(object):
 
             return cgen.Assign(s_lhs, s_rhs)
 
-    def get_aligned_pragma(self, stencils, factorized, loop_counters, time_steppers):
+    def get_aligned_pragma(self, stencils, factorized, time_steppers):
         """
         Sets the alignment for the pragma.
         :param stencils: List of stencils.
