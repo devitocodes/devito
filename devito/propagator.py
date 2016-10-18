@@ -67,7 +67,7 @@ class Propagator(object):
         self.factorized = factorized or {}
         self.time_order = time_order
         self.spc_border = spc_border
-
+        self.loop_body = None
         # Default time and space symbols if not provided
         self.time_dim = time_dim or t
         if space_dims is not None:
@@ -473,7 +473,7 @@ class Propagator(object):
 
             return cgen.Assign(s_lhs, s_rhs)
 
-    def get_aligned_pragma(self, stencils, factorized, time_steppers):
+    def get_aligned_pragma(self, stencils, factorized, loop_counters, time_steppers):
         """
         Sets the alignment for the pragma.
         :param stencils: List of stencils.
@@ -488,10 +488,12 @@ class Propagator(object):
                 and str(item).find("temp") == -1
             ):
                 array_names.add(item)
-
-        return cgen.Pragma("%s(%s:64)" % (self.compiler.pragma_aligned,
-                                          ", ".join([str(i) for i in array_names])
-                                          ))
+        if len(array_names) == 0:
+            return cgen.Line("")
+        else:
+            return cgen.Pragma("%s(%s:64)" % (self.compiler.pragma_aligned,
+                                              ", ".join([str(i) for i in array_names])
+                                              ))
 
     def generate_loops(self, loop_body):
         """Assuming that the variable order defined in init (#var_order) is the
@@ -503,15 +505,16 @@ class Propagator(object):
         :param loop_body: Statement representing the loop body
         :returns: :class:`cgen.Block` representing the loop
         """
-
         # Space loops
-        if self.cache_blocking is not None:
-            self._decide_block_sizes()
+        if not isinstance(loop_body, cgen.Block) or len(loop_body.contents) > 0:
+            if self.cache_blocking is not None:
+                self._decide_block_sizes()
 
-            loop_body = self.generate_space_loops_blocking(loop_body)
+                loop_body = self.generate_space_loops_blocking(loop_body)
+            else:
+                loop_body = self.generate_space_loops(loop_body)
         else:
-            loop_body = self.generate_space_loops(loop_body)
-
+            loop_body = []
         omp_master = [cgen.Pragma("omp master")] if self.compiler.openmp else []
         omp_single = [cgen.Pragma("omp single")] if self.compiler.openmp else []
         omp_parallel = [cgen.Pragma("omp parallel")] if self.compiler.openmp else []
@@ -526,9 +529,8 @@ class Propagator(object):
             time_stepping = self.get_time_stepping()
         else:
             time_stepping = []
-
-        loop_body = [cgen.Block(omp_for + loop_body)]
-
+        if len(loop_body) > 0:
+            loop_body = [cgen.Block(omp_for + loop_body)]
         # Statements to be inserted into the time loop before the spatial loop
         pre_stencils = [self.time_substitutions(x)
                         for x in self.time_loop_stencils_b]
@@ -819,9 +821,10 @@ class Propagator(object):
 
         :returns: The resulting :class:`devito.function_manager.FunctionDescriptor`
         """
-        try:  # Assume we have been given a a loop body in cgen types
+        # Assume we have been given a a loop body in cgen types
+        if self.loop_body is not None:
             self.fd.set_body(self.generate_loops(self.loop_body))
-        except:  # We might have been given Sympy expression to evaluate
+        else:  # We might have been given Sympy expression to evaluate
             # This is the more common use case so this will show up in error messages
             self.fd.set_body(self.generate_loops(self.sympy_to_cgen(self.stencils)))
 

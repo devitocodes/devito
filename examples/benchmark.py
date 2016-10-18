@@ -127,7 +127,6 @@ if __name__ == "__main__":
 
         for params in params_sweep:
             _, _, _, res = run(**params)
-            clear_cache()
 
             if last_res is None:
                 last_res = res

@@ -1,4 +1,5 @@
 import ctypes
+
 import numpy as np
 from sympy import symbols
 
