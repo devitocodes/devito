@@ -26,42 +26,38 @@ def l(size=6):
 
 
 @pytest.mark.parametrize('expr, result', [
-    ('Eq(ai, ai + bi + 5.)', 10.),
-    ('Eq(ai, bi - ai)', 1.),
-    ('Eq(ai, 4 * (bi * ai))', 24.),
-    ('Eq(ai, (6. / bi) + (8. * ai))', 18.),
+    ('Eq(a, a + b + 5.)', 10.),
+    ('Eq(a, b - a)', 1.),
+    ('Eq(a, 4 * (b * a))', 24.),
+    ('Eq(a, (6. / b) + (8. * a))', 18.),
 ])
 def test_arithmetic_flat(i, j, expr, result):
     """Tests basic point-wise arithmetic on two-dimensional data"""
 
     a = DenseData(name='a', dimensions=(i, j))
     a.data[:] = 2.
-    ai = a.indexify()
     b = DenseData(name='b', dimensions=(i, j))
     b.data[:] = 3.
-    bi = b.indexify()
 
     eqn = eval(expr)
-    StencilKernel(eqn)(ai.base.function, bi.base.function)
-    assert np.allclose(ai.base.function.data, result, rtol=1e-12)
+    StencilKernel(eqn)(a, b)
+    assert np.allclose(a.data, result, rtol=1e-12)
 
 
 @pytest.mark.parametrize('expr, result', [
-    ('Eq(ai, ai + bi + 5.)', 10.),
-    ('Eq(ai, bi - ai)', 1.),
-    ('Eq(ai, 4 * (bi * ai))', 24.),
-    ('Eq(ai, (6. / bi) + (8. * ai))', 18.),
+    ('Eq(a, a + b + 5.)', 10.),
+    ('Eq(a, b - a)', 1.),
+    ('Eq(a, 4 * (b * a))', 24.),
+    ('Eq(a, (6. / b) + (8. * a))', 18.),
 ])
 def test_arithmetic_deep(i, j, k, l, expr, result):
     """Tests basic point-wise arithmetic on multi-dimensional data"""
 
     a = DenseData(name='a', dimensions=(i, j, k, l))
     a.data[:] = 2.
-    ai = a.indexify()
     b = DenseData(name='b', dimensions=(j, k))
     b.data[:] = 3.
-    bi = b.indexify()
 
     eqn = eval(expr)
-    StencilKernel(eqn)(ai.base.function, bi.base.function)
-    assert np.allclose(ai.base.function.data, result, rtol=1e-12)
+    StencilKernel(eqn)(a, b)
+    assert np.allclose(a.data, result, rtol=1e-12)

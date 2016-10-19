@@ -72,3 +72,8 @@ class Iteration(Expression):
         """
         signatures = [e.signature for e in self.expressions]
         return filter_ordered(chain(*signatures))
+
+    def indexify(self):
+        """Convert all enclosed stencil expressions to "indexed" format"""
+        for e in self.expressions:
+            e.indexify()

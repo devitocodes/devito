@@ -9,7 +9,6 @@ import numpy as np
 from sympy import Eq
 from sympy.abc import p
 
-from devito.iteration import Iteration
 from devito.logger import error
 from devito.tools import convert_dtype_to_ctype
 
@@ -65,6 +64,7 @@ def first_touch(array):
     """
     from devito.propagator import Propagator
     from devito.interfaces import TimeData, PointData
+    from devito.iteration import Iteration
 
     exp_init = [Eq(array.indexed[array.indices], 0)]
     it_init = []

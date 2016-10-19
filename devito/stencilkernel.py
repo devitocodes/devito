@@ -29,6 +29,10 @@ class StencilKernel(object):
         stencils = stencils if isinstance(stencils, list) else [stencils]
         self.expressions = [Expression(s) for s in stencils]
 
+        # Lower all expressions to "indexed" API
+        for e in self.expressions:
+            e.indexify()
+
         # Wrap expressions with Iterations according to dimensions
         for i, expr in enumerate(self.expressions):
             newexpr = expr
