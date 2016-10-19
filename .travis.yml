@@ -1,9 +1,5 @@
 sudo: false
 
-os:
-  - linux
-  - osx
-
 # language: python
 language: c
 
