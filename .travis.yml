@@ -19,6 +19,7 @@ matrix:
       env: DEVITO_ARCH=gcc DEVITO_OPENMP=0
     - os: linux
       env: DEVITO_ARCH=gcc DEVITO_OPENMP=1 OMP_NUM_THREADS=2
+  allow_failures:
     - os: osx
       env: DEVITO_ARCH=clang DEVITO_OPENMP=0
 
