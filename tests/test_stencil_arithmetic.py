@@ -25,23 +25,33 @@ def l(size=6):
     return Dimension(name='l', size=size)
 
 
+def symbol(name, dimensions, value=0., mode='function'):
+    """Short-cut for symbol creation to test "function"
+    and "indexed" API."""
+    assert(mode in ['function', 'indexed'])
+    s = DenseData(name=name, dimensions=dimensions)
+    s.data[:] = value
+    return s.indexify() if mode == 'indexed' else s
+
+
 @pytest.mark.parametrize('expr, result', [
     ('Eq(a, a + b + 5.)', 10.),
     ('Eq(a, b - a)', 1.),
     ('Eq(a, 4 * (b * a))', 24.),
     ('Eq(a, (6. / b) + (8. * a))', 18.),
 ])
-def test_arithmetic_flat(i, j, expr, result):
+@pytest.mark.parametrize('mode', ['function', 'indexed'])
+def test_arithmetic_flat(i, j, expr, result, mode):
     """Tests basic point-wise arithmetic on two-dimensional data"""
 
-    a = DenseData(name='a', dimensions=(i, j))
-    a.data[:] = 2.
-    b = DenseData(name='b', dimensions=(i, j))
-    b.data[:] = 3.
+    a = symbol(name='a', dimensions=(i, j), value=2., mode=mode)
+    b = symbol(name='b', dimensions=(i, j), value=3., mode=mode)
+    fa = a.base.function if mode == 'indexed' else a
+    fb = b.base.function if mode == 'indexed' else b
 
     eqn = eval(expr)
-    StencilKernel(eqn)(a, b)
-    assert np.allclose(a.data, result, rtol=1e-12)
+    StencilKernel(eqn)(fa, fb)
+    assert np.allclose(fa.data, result, rtol=1e-12)
 
 
 @pytest.mark.parametrize('expr, result', [
@@ -50,14 +60,15 @@ def test_arithmetic_flat(i, j, expr, result):
     ('Eq(a, 4 * (b * a))', 24.),
     ('Eq(a, (6. / b) + (8. * a))', 18.),
 ])
-def test_arithmetic_deep(i, j, k, l, expr, result):
+@pytest.mark.parametrize('mode', ['function', 'indexed'])
+def test_arithmetic_deep(i, j, k, l, expr, result, mode):
     """Tests basic point-wise arithmetic on multi-dimensional data"""
 
-    a = DenseData(name='a', dimensions=(i, j, k, l))
-    a.data[:] = 2.
-    b = DenseData(name='b', dimensions=(j, k))
-    b.data[:] = 3.
+    a = symbol(name='a', dimensions=(i, j, k, l), value=2., mode=mode)
+    b = symbol(name='b', dimensions=(j, k), value=3., mode=mode)
+    fa = a.base.function if mode == 'indexed' else a
+    fb = b.base.function if mode == 'indexed' else b
 
     eqn = eval(expr)
-    StencilKernel(eqn)(a, b)
-    assert np.allclose(a.data, result, rtol=1e-12)
+    StencilKernel(eqn)(fa, fb)
+    assert np.allclose(fa.data, result, rtol=1e-12)
