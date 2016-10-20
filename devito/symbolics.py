@@ -268,3 +268,29 @@ def terminals(expr):
     symbols = [i for i in symbols if i not in junk]
 
     return set(indexed + symbols)
+
+
+def estimate_cost(handle):
+    try:
+        # Is it a plain SymPy object ?
+        iter(handle)
+    except TypeError:
+        handle = [handle]
+    try:
+        # Is it a dict ?
+        handle = handle.values()
+    except AttributeError:
+        try:
+            # Must be a list of dicts then
+            handle = flatten(i.values() for i in handle)
+        except AttributeError:
+            pass
+    try:
+        # At this point it must be a list of SymPy objects
+        # We don't count non floating point operations
+        handle = [i.rhs if i.is_Equality else i for i in handle]
+        total_ops = sum(count_ops(i.args) for i in handle)
+        non_flops = sum(count_ops(i.find(Indexed)) for i in handle)
+        return total_ops - non_flops
+    except:
+        warning("Cannot estimate cost of %s" % str(handle))
