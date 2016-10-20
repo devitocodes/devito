@@ -7,7 +7,10 @@ classes of functions:
 All exposed functions are prefixed with 'dse' (devito symbolic engine)
 """
 
+from __future__ import absolute_import
+
 from collections import OrderedDict
+from operator import itemgetter
 
 import numpy as np
 from sympy import (Add, Eq, Function, Indexed, IndexedBase, Symbol,
@@ -16,7 +19,7 @@ from sympy import (Add, Eq, Function, Indexed, IndexedBase, Symbol,
 
 from devito.dimension import t, x, y, z
 from devito.interfaces import SymbolicData
-from devito.logger import warning
+from devito.logger import warning, perfok, perfbad
 
 __all__ = ['dse_dimensions', 'dse_symbols', 'dse_dtype', 'dse_indexify',
            'dse_cse', 'dse_tolambda']
@@ -93,7 +96,7 @@ def dse_rewrite(expr, mode='basic'):
     """
 
     if mode == True:
-        return Rewriter(expr, mode='basic').run()
+        return Rewriter(expr, mode='advanced').run()
     elif mode in ['basic', 'advanced']:
         return Rewriter(expr, mode=mode).run()
     else:
@@ -107,6 +110,10 @@ class Rewriter(object):
     Transform expressions to reduce their operation count.
     """
 
+    # Do more factorization sweeps if the expression operation count is
+    # greater than this threshold
+    FACTORIZER_THS = 15
+
     def __init__(self, expr, mode='basic'):
         self.expr = expr
         self.mode = mode
@@ -116,6 +123,54 @@ class Rewriter(object):
 
         if self.mode in ['basic', 'advanced']:
             processed = self._cse()
+
+        if self.mode in ['advanced']:
+            processed = self._factorize(processed)
+
+        return processed
+
+    def _factorize(self, exprs, mode=None):
+        """
+        Collect terms in each expr in exprs based on the following heuristic:
+
+            * Iff mode is 'aggressive', apply product expansion;
+            * Collect all literals;
+            * Collect all temporaries produced by CSE;
+            * If the expression has an operation count higher than
+              self.FACTORIZER_THS, then this is applied recursively until
+              no more factorization opportunities are available.
+        """
+        if exprs is None:
+            exprs = self.expr
+        if not isinstance(exprs, list):
+            exprs = [exprs]
+
+        cost_original, cost_processed = 1, 1
+        processed, expensive = [], []
+        for expr in exprs:
+            handle = expand_mul(expr) if mode == 'aggressive' else expr
+
+            handle = collect_nested(handle)
+
+            cost_expr = estimate_cost(expr)
+            cost_original += cost_expr
+
+            cost_handle = estimate_cost(handle)
+
+            if cost_handle < cost_expr and cost_handle >= Rewriter.FACTORIZER_THS:
+                handle_prev = handle
+                cost_prev = cost_expr
+                while cost_handle < cost_prev:
+                    handle_prev, handle = handle, collect_nested(handle)
+                    cost_prev, cost_handle = cost_handle, estimate_cost(handle)
+                cost_handle, handle = cost_prev, handle_prev
+
+            processed.append(handle)
+            cost_processed += cost_handle
+
+        out = perfok if cost_processed < cost_original else perfbad
+        out("Rewriter: %d --> %d flops (Gain: %.2f X)" %
+            (cost_original, cost_processed, float(cost_original)/cost_processed))
 
         return processed
 
@@ -265,7 +320,7 @@ def free_terms(expr):
     return found
 
 
-def terminals(expr):
+def terminals(expr, discard_indexed=False):
     indexed = list(expr.find(Indexed))
 
     # To be discarded
@@ -274,7 +329,56 @@ def terminals(expr):
     symbols = list(expr.find(Symbol))
     symbols = [i for i in symbols if i not in junk]
 
-    return set(indexed + symbols)
+    if discard_indexed:
+        return set(symbols)
+    else:
+        return set(indexed + symbols)
+
+
+def collect_nested(expr):
+    """
+    Collect terms appearing in expr, checking all levels of the expression tree.
+
+    :param expr: the expression to be factorized.
+    """
+
+    def run(expr):
+        # Return semantic (rebuilt expression, factorization candidates)
+
+        if expr.is_Float:
+            return expr.func(*expr.atoms()), [expr]
+        elif expr.is_Symbol:
+            return expr.func(expr.name), [expr]
+        elif expr in [S.Zero, S.One, S.NegativeOne, S.Half]:
+            return expr.func(), [expr]
+        elif expr.is_Atom:
+            return expr.func(*expr.atoms()), []
+        elif isinstance(expr, Indexed):
+            return expr.func(*expr.args), []
+        elif expr.is_Add:
+            rebuilt, candidates = zip(*[run(arg) for arg in expr.args])
+
+            w_numbers = [i for i in rebuilt if any(j.is_Number for j in i.args)]
+            wo_numbers = [i for i in rebuilt if i not in w_numbers]
+
+            w_numbers = collect_const(expr.func(*w_numbers))
+            wo_numbers = expr.func(*wo_numbers)
+
+            if wo_numbers:
+                for i in flatten(candidates):
+                    wo_numbers = collect(wo_numbers, i)
+
+            rebuilt = expr.func(w_numbers, wo_numbers)
+            return rebuilt, []
+        elif expr.is_Mul:
+            rebuilt, candidates = zip(*[run(arg) for arg in expr.args])
+            rebuilt = collect_const(expr.func(*rebuilt))
+            return rebuilt, flatten(candidates)
+        else:
+            rebuilt, candidates = zip(*[run(arg) for arg in expr.args])
+            return expr.func(*rebuilt), flatten(candidates)
+
+    return run(expr)[0]
 
 
 def estimate_cost(handle):
