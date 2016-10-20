@@ -1,8 +1,8 @@
 from __future__ import absolute_import
 
 import ctypes
-import operator
 from ctypes.util import find_library
+from operator import mul
 
 import numpy as np
 from sympy import Eq
@@ -11,8 +11,6 @@ from sympy.abc import p
 from devito.iteration import Iteration
 from devito.logger import error
 from devito.tools import convert_dtype_to_ctype
-
-mul = operator.mul
 
 
 def malloc_aligned(shape, alignment=None, dtype=np.float32):
