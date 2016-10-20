@@ -7,6 +7,8 @@ classes of functions:
 All exposed functions are prefixed with 'dse' (devito symbolic engine)
 """
 
+from collections import OrderedDict
+
 import numpy as np
 from sympy import (Add, Eq, Function, Indexed, IndexedBase, Symbol, cse,
                    lambdify, numbered_symbols, preorder_traversal, symbols)
@@ -17,6 +19,7 @@ from devito.interfaces import SymbolicData
 __all__ = ['dse_dimensions', 'dse_symbols', 'dse_dtype', 'dse_indexify',
            'dse_cse', 'dse_tolambda']
 
+_temp_prefix = 'temp'
 
 # Inspection
 
@@ -108,17 +111,20 @@ class Rewriter(object):
 
         return processed
 
-    def _cse(self):
+    def _cse(self, exprs=None):
         """
         Perform common subexpression elimination.
         """
-        expr = self.expr if isinstance(self.expr, list) else [self.expr]
+        if exprs is None:
+            exprs = self.expr
+        if not isinstance(exprs, list):
+            exprs = [exprs]
 
-        temps, stencils = cse(expr, numbered_symbols("temp"))
+        temps, stencils = cse(exprs, numbered_symbols(_temp_prefix))
 
         # Restores the LHS
-        for i in range(len(expr)):
-            stencils[i] = Eq(expr[i].lhs, stencils[i].rhs)
+        for i in range(len(exprs)):
+            stencils[i] = Eq(exprs[i].lhs, stencils[i].rhs)
 
         to_revert = {}
         to_keep = []
@@ -170,24 +176,43 @@ class Rewriter(object):
                 if arg in to_revert:
                     subs_dict[arg] = to_revert[arg]
 
-        stencils = [stencil.xreplace(subs_dict) for stencil in stencils]
+        def recursive_replace(handle, subs_dict):
+            replaced = []
+            for i in handle:
+                old, new = i, i.xreplace(subs_dict)
+                while new != old:
+                    old, new = new, new.xreplace(subs_dict)
+                replaced.append(new)
+            return replaced
 
-        to_keep = [Eq(temp[0], temp[1].xreplace(subs_dict)) for temp in to_keep]
+        stencils = recursive_replace(stencils, subs_dict)
+        to_keep = recursive_replace([Eq(temp, assign) for temp, assign in to_keep],
+                                    subs_dict)
 
         # If the RHS of a temporary variable is the LHS of a stencil,
         # update the value of the temporary variable after the stencil
-
         new_stencils = []
-
         for stencil in stencils:
             new_stencils.append(stencil)
-
             for temp in to_keep:
                 if stencil.lhs in preorder_traversal(temp.rhs):
                     new_stencils.append(temp)
                     break
 
-        return to_keep + new_stencils
+        # Reshuffle to make sure temporaries come later than their read values
+        processed = OrderedDict([(i.lhs, i) for i in to_keep + new_stencils])
+        temporaries = set(processed.keys())
+        ordered = OrderedDict()
+        while processed:
+            k, v = processed.popitem(last=False)
+            temporary_reads = terminals(v.rhs) & temporaries - {v.lhs}
+            if all(i in ordered for i in temporary_reads):
+                ordered[k] = v
+            else:
+                # Must wait for some earlier temporaries, push back into queue
+                processed[k] = v
+
+        return ordered.values()
 
 
 # Creation
@@ -230,3 +255,15 @@ def free_terms(expr):
             found += free_terms(term)
 
     return found
+
+
+def terminals(expr):
+    indexed = list(expr.find(Indexed))
+
+    # To be discarded
+    junk = flatten(i.atoms() for i in indexed)
+
+    symbols = list(expr.find(Symbol))
+    symbols = [i for i in symbols if i not in junk]
+
+    return set(indexed + symbols)
