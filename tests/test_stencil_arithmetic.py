@@ -72,3 +72,22 @@ def test_arithmetic_deep(i, j, k, l, expr, result, mode):
     eqn = eval(expr)
     StencilKernel(eqn)(fa, fb)
     assert np.allclose(fa.data, result, rtol=1e-12)
+
+
+@pytest.mark.xfail(reason='Loop boundaries need adjusting with access offsets')
+@pytest.mark.parametrize('expr, result', [
+    ('Eq(a[k, l], a[k - 1 , l] + 1.)',
+     np.meshgrid(np.arange(2., 8.), np.arange(2., 7.))[1]),
+    ('Eq(a[k, l], a[k, l - 1] + 1.)',
+     np.meshgrid(np.arange(2., 8.), np.arange(2., 7.))[0]),
+])
+def test_arithmetic_indexed_single(i, j, k, l, expr, result):
+    """Tests basic point-wise arithmetic with stencil offsets
+    in indexed expression format"""
+    a = symbol(name='a', dimensions=(k, l), value=2., mode='indexed').base
+    fa = a.function
+    fa.data[1:, 1:] = 0
+
+    eqn = eval(expr)
+    StencilKernel(eqn)(fa)
+    assert np.allclose(fa.data, result, rtol=1e-12)
