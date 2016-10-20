@@ -45,4 +45,5 @@ script:
   - py.test -vs tests/
   - python examples/benchmark.py test -P tti -a -d 20 20 20 -n 5
   - python examples/benchmark.py test -P acoustic -a
+  - py.test -vs examples/diffusion/example_diffusion.py
   - if [[ $TRAVIS_OS_NAME == 'osx' ]]; then ./docs/deploy.sh; fi
