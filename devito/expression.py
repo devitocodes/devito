@@ -2,6 +2,7 @@ import cgen
 from sympy import Eq, IndexedBase, preorder_traversal
 
 from devito.codeprinter import ccode
+from devito.interfaces import SymbolicData
 from devito.symbolics import dse_indexify
 from devito.tools import filter_ordered
 
@@ -19,6 +20,9 @@ class Expression(object):
         self.functions = []
         # Traverse stencil to determine meta information
         for e in preorder_traversal(self.stencil):
+            if isinstance(e, SymbolicData):
+                self.dimensions += list(e.indices)
+                self.functions += [e]
             if isinstance(e, IndexedBase):
                 self.dimensions += list(e.function.indices)
                 self.functions += [e.function]
