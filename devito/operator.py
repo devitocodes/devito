@@ -117,8 +117,7 @@ class Operator(object):
         self.stencils = [eqn.subs(subs[0]) for eqn in self.stencils]
 
         # Applies CSE
-        if cse:
-            self.stencils = dse_rewrite(self.stencils, mode='basic')
+        self.stencils = dse_rewrite(self.stencils, mode=cse)
 
         self.propagator = Propagator(self.getName(), nt, shape, self.stencils,
                                      factorized=factorized, dtype=dtype,

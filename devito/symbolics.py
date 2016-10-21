@@ -16,6 +16,7 @@ from sympy import (Add, Eq, Function, Indexed, IndexedBase, Symbol,
 
 from devito.dimension import t, x, y, z
 from devito.interfaces import SymbolicData
+from devito.logger import warning
 
 __all__ = ['dse_dimensions', 'dse_symbols', 'dse_dtype', 'dse_indexify',
            'dse_cse', 'dse_tolambda']
@@ -90,8 +91,14 @@ def dse_rewrite(expr, mode='basic'):
     """
     Transform expressions to create time-invariant computation.
     """
-    assert mode in ['basic', 'advanced']
-    return Rewriter(expr, mode).run()
+
+    if mode == True:
+        return Rewriter(expr, mode='basic').run()
+    elif mode in ['basic', 'advanced']:
+        return Rewriter(expr, mode=mode).run()
+    else:
+        warning("Illegal rewrite mode %s" % str(mode))
+        return expr
 
 
 class Rewriter(object):
