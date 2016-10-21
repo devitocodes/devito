@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 from sympy import Eq  # noqa
 
-from devito import DenseData, Dimension, StencilKernel
+from devito import DenseData, Dimension, StencilKernel, clear_cache
 
 
 @pytest.fixture
@@ -43,7 +43,7 @@ def symbol(name, dimensions, value=0., mode='function'):
 @pytest.mark.parametrize('mode', ['function', 'indexed'])
 def test_arithmetic_flat(i, j, expr, result, mode):
     """Tests basic point-wise arithmetic on two-dimensional data"""
-
+    clear_cache()
     a = symbol(name='a', dimensions=(i, j), value=2., mode=mode)
     b = symbol(name='b', dimensions=(i, j), value=3., mode=mode)
     fa = a.base.function if mode == 'indexed' else a
@@ -63,7 +63,7 @@ def test_arithmetic_flat(i, j, expr, result, mode):
 @pytest.mark.parametrize('mode', ['function', 'indexed'])
 def test_arithmetic_deep(i, j, k, l, expr, result, mode):
     """Tests basic point-wise arithmetic on multi-dimensional data"""
-
+    clear_cache()
     a = symbol(name='a', dimensions=(i, j, k, l), value=2., mode=mode)
     b = symbol(name='b', dimensions=(j, k), value=3., mode=mode)
     fa = a.base.function if mode == 'indexed' else a
@@ -84,6 +84,7 @@ def test_arithmetic_deep(i, j, k, l, expr, result, mode):
 def test_arithmetic_indexed_single(i, j, k, l, expr, result):
     """Tests basic point-wise arithmetic with stencil offsets
     in indexed expression format"""
+    clear_cache()
     a = symbol(name='a', dimensions=(k, l), value=2., mode='indexed').base
     fa = a.function
     fa.data[1:, 1:] = 0
