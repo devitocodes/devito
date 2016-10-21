@@ -6,7 +6,7 @@ import sys
 __all__ = ('set_log_level', 'set_log_noperf', 'log',
            'DEBUG', 'INFO', 'AUTOTUNER', 'PERF_OK', 'PERF_WARN',
            'WARNING', 'ERROR', 'CRITICAL',
-           'log', 'warning', 'error', 'info_at',
+           'log', 'warning', 'error', 'info_at', 'perfok', 'perfbad',
            'RED', 'GREEN', 'BLUE')
 
 
@@ -96,3 +96,11 @@ def error(msg, *args, **kwargs):
 
 def debug(msg, *args, **kwargs):
     log(msg, DEBUG, *args, **kwargs)
+
+
+def perfok(msg, *args, **kwargs):
+    log(msg, PERF_OK, *args, **kwargs)
+
+
+def perfbad(msg, *args, **kwargs):
+    log(msg, PERF_WARN, *args, **kwargs)
