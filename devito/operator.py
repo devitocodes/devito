@@ -116,8 +116,7 @@ class Operator(object):
             factorized[name] = dse_indexify(value)
 
         # Applies CSE
-        if cse:
-            self.stencils = dse_rewrite(self.stencils, mode='basic')
+        self.stencils = dse_rewrite(self.stencils, mode=cse)
 
         # Apply user-defined subs to stencil
         self.stencils = [eqn.subs(subs[0]) for eqn in self.stencils]
