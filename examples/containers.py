@@ -71,7 +71,7 @@ class IGrid:
         return self.origin
 
     def padm(self):
-        return self.pad(self.vp**(-2))
+        return self.pad(1./(self.vp * self.vp))
 
     def pad(self, m):
         pad_list = []
