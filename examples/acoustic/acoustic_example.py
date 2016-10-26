@@ -40,7 +40,7 @@ def run(dimensions=(150, 150, 50), spacing=(20.0, 20.0, 20.0), tn=2000.0,
     # Smooth velocity
     initial_vp = smooth10(true_vp, dimensions)
 
-    dm = true_vp**-2 - initial_vp**-2
+    dm = 1. / (true_vp * true_vp) - 1. / (initial_vp * initial_vp)
 
     model = IGrid(origin, spacing, true_vp)
 

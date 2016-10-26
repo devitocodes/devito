@@ -1,145 +1,14 @@
 import numpy as np
-from sympy import (Add, Eq, Function, Indexed, IndexedBase, Symbol,
-                   cse, lambdify, preorder_traversal, solve, symbols)
-from sympy.utilities.iterables import numbered_symbols
+from sympy import Eq, solve
 
 from devito.compiler import get_compiler_from_env
 from devito.dimension import t, x, y, z
-from devito.interfaces import SymbolicData, TimeData
+from devito.interfaces import TimeData
 from devito.propagator import Propagator
+from devito.symbolics import (dse_cse, dse_dimensions, dse_indexify,
+                              dse_symbols, dse_tolambda)
 
 __all__ = ['Operator']
-
-
-def expr_dimensions(expr):
-    """Collects all function dimensions used in a sympy expression"""
-    dimensions = []
-
-    for e in preorder_traversal(expr):
-        if isinstance(e, SymbolicData):
-            dimensions += [i for i in e.indices if i not in dimensions]
-
-    return dimensions
-
-
-def expr_symbols(expr):
-    """Collects defined and undefined symbols used in a sympy expression
-
-    Defined symbols are functions that have an associated :class
-    SymbolicData: object, or dimensions that are known to the devito
-    engine. Undefined symbols are generic `sympy.Function` or
-    `sympy.Symbol` objects that need to be substituted before generating
-    operator C code.
-    """
-    defined = set()
-    undefined = set()
-
-    for e in preorder_traversal(expr):
-        if isinstance(e, SymbolicData):
-            defined.add(e.func(*e.indices))
-        elif isinstance(e, Function):
-            undefined.add(e)
-        elif isinstance(e, Symbol):
-            undefined.add(e)
-
-    return list(defined), list(undefined)
-
-
-def expr_indexify(expr):
-    """Convert functions into indexed matrix accesses in sympy expression
-
-    :param expr: SymPy function expression to be converted
-    """
-    replacements = {}
-
-    for e in preorder_traversal(expr):
-        if hasattr(e, 'indexed'):
-            replacements[e] = e.indexify()
-
-    return expr.xreplace(replacements)
-
-
-def expr_cse(expr):
-    """Performs common subexpression elimination on expressions
-
-    :param expr: Sympy equation or list of equations on which CSE needs to be performed
-
-    :return: A list of the resulting equations after performing CSE
-    """
-    expr = expr if isinstance(expr, list) else [expr]
-
-    temps, stencils = cse(expr, numbered_symbols("temp"))
-
-    # Restores the LHS
-    for i in range(len(expr)):
-        stencils[i] = Eq(expr[i].lhs, stencils[i].rhs)
-
-    to_revert = {}
-    to_keep = []
-
-    # Restores IndexedBases if they are collected by CSE and
-    # reverts changes to simple index operations (eg: t - 1)
-    for temp, value in temps:
-        if isinstance(value, IndexedBase):
-            to_revert[temp] = value
-        elif isinstance(value, Indexed):
-            to_revert[temp] = value
-        elif isinstance(value, Add) and not set([t, x, y, z]).isdisjoint(set(value.args)):
-            to_revert[temp] = value
-        else:
-            to_keep.append((temp, value))
-
-    # Restores the IndexedBases and the Indexes in the assignments to revert
-    for temp, value in to_revert.items():
-        s_dict = {}
-        for arg in preorder_traversal(value):
-            if isinstance(arg, Indexed):
-                new_indices = []
-                for index in arg.indices:
-                    if index in to_revert:
-                        new_indices.append(to_revert[index])
-                    else:
-                        new_indices.append(index)
-                if arg.base.label in to_revert:
-                    s_dict[arg] = Indexed(to_revert[value.base.label], *new_indices)
-        to_revert[temp] = value.xreplace(s_dict)
-
-    subs_dict = {}
-
-    # Builds a dictionary of the replacements
-    for expr in stencils + [assign for temp, assign in to_keep]:
-        for arg in preorder_traversal(expr):
-            if isinstance(arg, Indexed):
-                new_indices = []
-                for index in arg.indices:
-                    if index in to_revert:
-                        new_indices.append(to_revert[index])
-                    else:
-                        new_indices.append(index)
-                if arg.base.label in to_revert:
-                    subs_dict[arg] = Indexed(to_revert[arg.base.label], *new_indices)
-                elif tuple(new_indices) != arg.indices:
-                    subs_dict[arg] = Indexed(arg.base, *new_indices)
-            if arg in to_revert:
-                subs_dict[arg] = to_revert[arg]
-
-    stencils = [stencil.xreplace(subs_dict) for stencil in stencils]
-
-    to_keep = [Eq(temp[0], temp[1].xreplace(subs_dict)) for temp in to_keep]
-
-    # If the RHS of a temporary variable is the LHS of a stencil,
-    # update the value of the temporary variable after the stencil
-
-    new_stencils = []
-    for stencil in stencils:
-        new_stencils.append(stencil)
-
-        for temp in to_keep:
-            if stencil.lhs in preorder_traversal(temp.rhs):
-                new_stencils.append(temp)
-                break
-
-    return to_keep + new_stencils
 
 
 class Operator(object):
@@ -193,13 +62,13 @@ class Operator(object):
         sym_undef = set()
 
         for eqn in self.stencils:
-            lhs_def, lhs_undef = expr_symbols(eqn.lhs)
+            lhs_def, lhs_undef = dse_symbols(eqn.lhs)
             sym_undef.update(lhs_undef)
 
             if self.output_params is None:
                 self.output_params = list(lhs_def)
 
-            rhs_def, rhs_undef = expr_symbols(eqn.rhs)
+            rhs_def, rhs_undef = dse_symbols(eqn.rhs)
             sym_undef.update(rhs_undef)
 
             if self.input_params is None:
@@ -208,8 +77,8 @@ class Operator(object):
         # Pull all dimension indices from the incoming stencil
         dimensions = []
         for eqn in self.stencils:
-            dimensions += [i for i in expr_dimensions(eqn.lhs) if i not in dimensions]
-            dimensions += [i for i in expr_dimensions(eqn.rhs) if i not in dimensions]
+            dimensions += [i for i in dse_dimensions(eqn.lhs) if i not in dimensions]
+            dimensions += [i for i in dse_dimensions(eqn.rhs) if i not in dimensions]
 
         # Time dimension is fixed for now
         time_dim = t
@@ -218,7 +87,7 @@ class Operator(object):
         self.space_dims = None
 
         if len(dimensions) > 0:
-            self.space_dims = list(dimensions)
+            self.space_dims = dimensions
 
             if time_dim in self.space_dims:
                 self.space_dims.remove(time_dim)
@@ -238,11 +107,11 @@ class Operator(object):
                          for eqn in self.stencils]
 
         # Convert incoming stencil equations to "indexed access" format
-        self.stencils = [Eq(expr_indexify(eqn.lhs), expr_indexify(eqn.rhs))
+        self.stencils = [Eq(dse_indexify(eqn.lhs), dse_indexify(eqn.rhs))
                          for eqn in self.stencils]
 
         for name, value in factorized.items():
-            factorized[name] = expr_indexify(value)
+            factorized[name] = dse_indexify(value)
 
         # Apply user-defined subs to stencil
         # self.stencils = [eqn.subs(subs[0]) for eqn in self.stencils]
@@ -272,10 +141,10 @@ class Operator(object):
         for name, val in factorized.items():
             if forward:
                 self.propagator.factorized[name] = \
-                    expr_indexify(val.subs(t, t - 1)).subs(subs[1])
+                    dse_indexify(val.subs(t, t - 1)).subs(subs[1])
             else:
                 self.propagator.factorized[name] = \
-                    expr_indexify(val.subs(t, t + 1)).subs(subs[1])
+                    dse_indexify(val.subs(t, t + 1)).subs(subs[1])
 
     @property
     def signature(self):
@@ -308,22 +177,6 @@ class Operator(object):
 
         return tuple([param.data for param in self.output_params])
 
-    def find_free_terms(self, expr):
-        """Finds free terms in an expression
-
-        :param expr: The expression to search
-        :returns: A list of free terms in the expression
-        """
-        free_terms = []
-
-        for term in expr.args:
-            if isinstance(term, Indexed):
-                free_terms.append(term)
-            else:
-                free_terms += self.find_free_terms(term)
-
-        return free_terms
-
     def symbol_to_var(self, term, ti, indices=[]):
         """Retrieves the Python data from a symbol
 
@@ -341,33 +194,14 @@ class Operator(object):
 
         return (arr, tuple(num_ind))
 
-    def expr_to_lambda(self, expr_arr):
-        """Tranforms a list of expressions in a list of lambdas
-
-        :param expr_arr: The list of expressions to be transformed
-        :returns: The list of lambdas resulting from the expressions
-        """
-        lambdas = []
-
-        for expr in expr_arr:
-            terms = self.find_free_terms(expr.rhs)
-            term_symbols = [symbols("i%d" % i) for i in range(len(terms))]
-
-            # Substitute IndexedBase references to simple variables
-            # lambdify doesn't support IndexedBase references in expressions
-            expr_to_lambda = expr.rhs.subs(dict(zip(terms, term_symbols)))
-            lambdified = lambdify(term_symbols, expr_to_lambda)
-            lambdas.append((lambdified, terms))
-
-        return lambdas
-
     def run_python(self):
-        """Executes the operator using Python
+        """
+        Execute the operator using Python
         """
         time_loop_limits = self.propagator.time_loop_limits
-        time_loop_lambdas_b = self.expr_to_lambda(self.propagator.time_loop_stencils_b)
-        time_loop_lambdas_a = self.expr_to_lambda(self.propagator.time_loop_stencils_a)
-        stencil_lambdas = self.expr_to_lambda(self.stencils)
+        time_loop_lambdas_b = dse_tolambda(self.propagator.time_loop_stencils_b)
+        time_loop_lambdas_a = dse_tolambda(self.propagator.time_loop_stencils_a)
+        stencil_lambdas = dse_tolambda(self.stencils)
 
         for ti in range(*time_loop_limits):
             # Run time loop stencils before space loop

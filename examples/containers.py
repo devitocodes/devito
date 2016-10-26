@@ -94,7 +94,7 @@ class IGrid:
     def padm(self):
         """Padding function extending self.vp by `self.nbpml` in every direction
         for the absorbing boundary conditions"""
-        return self.pad(self.vp**(-2))
+        return self.pad(self.vp * self.vp)
 
     def pad(self, m):
         """Padding function extending m by `self.nbpml` in every direction

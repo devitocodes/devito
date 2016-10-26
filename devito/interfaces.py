@@ -1,7 +1,7 @@
 import weakref
 
 import numpy as np
-from sympy import Function, IndexedBase, as_finite_diff
+from sympy import Function, IndexedBase, as_finite_diff, symbols
 from sympy.abc import h, p, s
 
 from devito.dimension import t, x, y, z
@@ -9,6 +9,7 @@ from devito.finite_difference import (centered, cross_derivative, first_derivati
                                       left, right, second_derivative)
 from devito.logger import error
 from devito.memmap_manager import MemmapManager
+from devito.memory import first_touch, free, malloc_aligned
 
 __all__ = ['DenseData', 'TimeData', 'PointData']
 
@@ -43,7 +44,7 @@ class CachedSymbol(object):
     def _cached_init(self):
         """Initialise symbolic object with a cached object state"""
         original = _SymbolCache[self.__class__]
-        self.__dict__ = original().__dict__.copy()
+        self.__dict__ = original().__dict__
 
 
 class SymbolicData(Function, CachedSymbol):
@@ -111,7 +112,7 @@ class DenseData(SymbolicData):
 
     Note: :class:`DenseData` objects are assumed to be constant in time and
     therefore do not support time derivatives. Use :class:`TimeData` for
-    time-varying griad data.
+    time-varying grid data.
     """
     def __init__(self, *args, **kwargs):
         if not self._cached():
@@ -129,6 +130,7 @@ class DenseData(SymbolicData):
             self.initializer = initializer
             self._data = kwargs.get('_data', None)
             MemmapManager.setup(self, *args, **kwargs)
+            self.internal_pointer = None
 
     @classmethod
     def _indices(cls, **kwargs):
@@ -150,7 +152,10 @@ class DenseData(SymbolicData):
                 raise ValueError("Unknown symbol dimensions or shape")
             _indices = [x, y, z]
             shape = kwargs.get('shape')
-            dimensions = _indices[:len(shape)]
+            if len(shape) <= 3:
+                dimensions = _indices[:len(shape)]
+            else:
+                dimensions = [symbols("x%d" % i) for i in range(1, len(shape) + 1)]
         return dimensions
 
     @property
@@ -169,7 +174,6 @@ class DenseData(SymbolicData):
         :return: Index corrosponding to the indices
         """
         indices = [a.subs({h: 1, s: 1}) for a in self.args]
-
         return self.indexed[indices]
 
     def _allocate_memory(self):
@@ -181,9 +185,15 @@ class DenseData(SymbolicData):
             self._data = np.memmap(filename=self.f, dtype=self.dtype, mode='w+',
                                    shape=self.shape, order='C')
         else:
-            from devito.tools import aligned
-            self._data = aligned(np.zeros(self.shape, self.dtype, order='C'),
-                                 alignment=64)
+            debug("Allocating memory for %s (%s)" % (self.name, str(self.shape)))
+            self._data, self.internal_pointer = malloc_aligned(
+                self.shape, dtype=self.dtype)
+            first_touch(self)
+
+    def __del__(self):
+        if self.internal_pointer is not None:
+            free(self.internal_pointer)
+            self.internal_pointer = None
 
     @property
     def data(self):
@@ -468,9 +478,9 @@ class CoordinateData(SymbolicData):
             self.shape = (self.npoint, self.ndim)
             self.indices = self._indices(**kwargs)
             self.dtype = kwargs.get('dtype', np.float32)
-            from devito.tools import aligned
-            self.data = aligned(np.zeros(self.shape, self.dtype,
-                                         order='C'), alignment=64)
+            self.data, self.internal_pointer = malloc_aligned(
+                self.shape, dtype=self.dtype)
+            first_touch(self)
 
     def __new__(cls, *args, **kwargs):
         ndim = kwargs.get('ndim')
@@ -485,13 +495,18 @@ class CoordinateData(SymbolicData):
         :param shape: Shape of the spatial data
         :return: indices used for axis.
         """
-        _indices = [p]
+        _indices = [p, s]
         return _indices
 
     @property
     def indexed(self):
         """:return: Base symbol as devito.IndexedData"""
         return IndexedData(self.name, shape=self.shape, function=self)
+
+    def __del__(self):
+        if self.internal_pointer is not None:
+            free(self.internal_pointer)
+            self.internal_pointer = None
 
 
 class PointData(DenseData):
@@ -535,9 +550,8 @@ class PointData(DenseData):
         :param shape: Shape of the spatial data
         :return: indices used for axis.
         """
-        _indices = [t, x, y, z]
-        shape = kwargs.get('shape')
-        return _indices[:len(shape) + 1]
+        _indices = [t, p]
+        return _indices
 
 
 class IndexedData(IndexedBase):
