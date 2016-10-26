@@ -24,7 +24,7 @@ def source(t, f0):
     return (1-2.*r**2)*np.exp(-r**2)
 
 
-def run(dimensions=(150, 150, 50), spacing=(20.0, 20.0, 20.0), tn=2000.0,
+def run(dimensions=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=1000.0,
         time_order=2, space_order=2, nbpml=40, cse=True, auto_tuning=False,
         compiler=None, cache_blocking=None, full_run=False):
 

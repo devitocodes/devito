@@ -7,7 +7,7 @@ from sympy.abc import h, p, s
 from devito.dimension import t, x, y, z
 from devito.finite_difference import (centered, cross_derivative, first_derivative,
                                       left, right, second_derivative)
-from devito.logger import error
+from devito.logger import debug, error
 from devito.memmap_manager import MemmapManager
 from devito.memory import first_touch, free, malloc_aligned
 

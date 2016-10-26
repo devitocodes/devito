@@ -118,7 +118,8 @@ class Operator(object):
 
         # Applies CSE
         if cse:
-            self.stencils = expr_cse(self.stencils)
+            self.stencils = dse_cse(self.stencils)
+
         self.stencils = [eqn.subs(subs[0]) for eqn in self.stencils]
         self.propagator = Propagator(self.getName(), nt, shape, self.stencils,
                                      factorized=factorized, dtype=dtype,
