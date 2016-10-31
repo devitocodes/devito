@@ -14,7 +14,7 @@ class TestGradient(object):
         dimensions = request.param
         # dimensions are (x,z) and (x, y, z)
         origin = tuple([0]*len(dimensions))
-        spacing = tuple([15]*len(dimensions))
+        spacing = tuple([10]*len(dimensions))
 
         # velocity models
         def smooth10(vel):
