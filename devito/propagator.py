@@ -55,7 +55,6 @@ class Propagator(object):
                            number used for all dimensions except inner most or a list
                            explicitly stating block sizes for each dimension
                            Set cache_blocking to None to skip blocking on that dim
-                           Set cache_blocking to 0 to use best guess based on architecture
                            Set cache_blocking to AutoTuner instance, to use auto tuned
                            tune block sizes
     """

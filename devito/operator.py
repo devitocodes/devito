@@ -113,13 +113,11 @@ class Operator(object):
         for name, value in factorized.items():
             factorized[name] = dse_indexify(value)
 
-        # Apply user-defined subs to stencil
-        # self.stencils = [eqn.subs(subs[0]) for eqn in self.stencils]
-
         # Applies CSE
         if cse:
             self.stencils = dse_cse(self.stencils)
 
+        # Apply user-defined subs to stencil
         self.stencils = [eqn.subs(subs[0]) for eqn in self.stencils]
         self.propagator = Propagator(self.getName(), nt, shape, self.stencils,
                                      factorized=factorized, dtype=dtype,

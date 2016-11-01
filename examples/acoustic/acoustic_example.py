@@ -75,10 +75,11 @@ def run(dimensions=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=1000.0,
                            compiler=compiler)
 
     info("Applying Forward")
-    rec, u, gflopss, oi, timings = Acoustic.Forward(
+    rec, u, gflopss, oi, timings, cfunc = Acoustic.Forward(
         cache_blocking=cache_blocking, save=full_run, cse=cse,
         auto_tuning=auto_tuning, compiler=compiler
     )
+    print(cfunc)
 
     if not full_run:
         return gflopss, oi, timings, [rec, u.data]
@@ -91,4 +92,4 @@ def run(dimensions=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=1000.0,
     Acoustic.Born(dm)
 
 if __name__ == "__main__":
-    run(full_run=False, auto_tuning=True, space_order=6, time_order=4)
+    run(full_run=False, auto_tuning=False, space_order=6, time_order=2)

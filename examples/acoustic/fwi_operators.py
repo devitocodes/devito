@@ -239,7 +239,7 @@ class BornOperator(Operator):
     def __init__(self, model, src, damp, data, dmin, time_order=2, spc_order=6, **kwargs):
         nrec, nt = data.shape
         s, h = symbols('s h')
-        u = TimeData(name="u", shape=model.get_shape_comp(), time_dim=nt,
+        u = TimeData(name="u", shape=model.get_shape_comp(), time_dim=ntx,
                      time_order=2, space_order=spc_order,
                      save=False, dtype=damp.dtype)
         U = TimeData(name="U", shape=model.get_shape_comp(), time_dim=nt,

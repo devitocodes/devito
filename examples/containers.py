@@ -120,7 +120,7 @@ class ISource:
     def get_source(self):
         """ List of size nt
         """
-        return self._source
+        raise NotImplementedError
 
     def get_corner(self):
         """ Tuple of (x, y) or (x, y, z)
@@ -163,7 +163,7 @@ class IShot:
         return ntraces
 
     def reinterpolate(self, dt):
-        pass
+        raise NotImplementedError
 
     def __str__(self):
         return "Source: "+str(self.source_coords)+", Receiver:"+str(self.receiver_coords)
