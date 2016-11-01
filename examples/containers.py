@@ -117,6 +117,10 @@ class IGrid:
 
 class ISource:
     """Source class, currently not implemented"""
+
+    def __init__(self):
+        raise NotImplementedError
+
     def get_source(self):
         """ List of size nt
         """
