@@ -10,22 +10,23 @@ All exposed functions are prefixed with 'dse' (devito symbolic engine)
 from __future__ import absolute_import
 
 from collections import OrderedDict
-from operator import itemgetter
 
 import numpy as np
-from sympy import (Add, Eq, Function, Indexed, IndexedBase, Symbol, cse,
-                   lambdify, numbered_symbols, preorder_traversal, symbols)
+from sympy import (Add, Eq, Function, Indexed, IndexedBase, S, Symbol,
+                   collect, collect_const, count_ops, cse, flatten, lambdify,
+                   numbered_symbols, preorder_traversal, symbols)
 
 from devito.dimension import t, x, y, z
 from devito.interfaces import SymbolicData
-from devito.logger import warning, perfok, perfbad
+from devito.logger import perfbad, perfok, warning
 
 __all__ = ['dse_dimensions', 'dse_symbols', 'dse_dtype', 'dse_indexify',
-           'dse_cse', 'dse_tolambda']
+           'dse_tolambda', 'dse_rewrite']
 
 _temp_prefix = 'temp'
 
 # Inspection
+
 
 def dse_dimensions(expr):
     """
@@ -91,10 +92,17 @@ def dse_indexify(expr):
 
 def dse_rewrite(expr, mode='basic'):
     """
-    Transform expressions to create time-invariant computation.
+    Transform expressions to reduce their operation count.
+
+    :param expr: the target expression
+    :param mode: drive the expression transformation. Available modes are
+                 ['basic' (default), 'advanced']. Currently, with 'basic', only
+                 common sub-expressions elimination is applied. With 'advanced',
+                 all transformations applied in 'basic' are applied, plus
+                 factorization of common terms and constants.
     """
 
-    if mode == True:
+    if mode is True:
         return Rewriter(expr, mode='advanced').run()
     elif mode in ['basic', 'advanced']:
         return Rewriter(expr, mode=mode).run()
@@ -144,8 +152,8 @@ class Rewriter(object):
         if not isinstance(exprs, list):
             exprs = [exprs]
 
+        processed = []
         cost_original, cost_processed = 1, 1
-        processed, expensive = [], []
         for expr in exprs:
             handle = expand_mul(expr) if mode == 'aggressive' else expr
 
