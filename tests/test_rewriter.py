@@ -2,7 +2,6 @@ import numpy as np
 
 from examples.acoustic.Acoustic_codegen import Acoustic_cg
 from examples.containers import IGrid, IShot
-
 from examples.tti.tti_example import setup
 from examples.tti.tti_operators import ForwardOperator
 
@@ -67,8 +66,7 @@ def test_acoustic_rewrite_basic():
 # TTI
 
 def tti_operator(cse=False):
-    problem = setup(dimensions=(16, 16, 16), time_order=2, space_order=2, tn=10.0,
-                    cse=cse, auto_tuning=False, cache_blocking=None)
+    problem = setup(dimensions=(16, 16, 16), time_order=2, space_order=2, tn=10.0)
     handle = ForwardOperator(problem.model, problem.src, problem.damp,
                              problem.data, time_order=problem.t_order,
                              spc_order=problem.s_order, save=False,
