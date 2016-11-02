@@ -103,9 +103,11 @@ def dse_rewrite(expr, mode='basic'):
     """
 
     if mode is True:
-        return Rewriter(expr, mode='advanced').run()
+        return Rewriter(expr).run(mode='advanced')
     elif mode in ['basic', 'advanced']:
-        return Rewriter(expr, mode=mode).run()
+        return Rewriter(expr).run(mode)
+    elif not mode:
+        return expr
     else:
         warning("Illegal rewrite mode %s" % str(mode))
         return expr
@@ -121,26 +123,24 @@ class Rewriter(object):
     # greater than this threshold
     FACTORIZER_THS = 15
 
-    def __init__(self, expr, mode='basic'):
+    def __init__(self, expr):
         self.expr = expr
-        self.mode = mode
 
-    def run(self):
+    def run(self, mode):
         processed = self.expr
 
-        if self.mode in ['basic', 'advanced']:
+        if mode in ['basic', 'advanced']:
             processed = self._cse()
 
-        if self.mode in ['advanced']:
+        if mode in ['advanced']:
             processed = self._factorize(processed)
 
         return processed
 
-    def _factorize(self, exprs, mode=None):
+    def _factorize(self, exprs):
         """
         Collect terms in each expr in exprs based on the following heuristic:
 
-            * Iff mode is 'aggressive', apply product expansion;
             * Collect all literals;
             * Collect all temporaries produced by CSE;
             * If the expression has an operation count higher than
@@ -155,9 +155,7 @@ class Rewriter(object):
         processed = []
         cost_original, cost_processed = 1, 1
         for expr in exprs:
-            handle = expand_mul(expr) if mode == 'aggressive' else expr
-
-            handle = collect_nested(handle)
+            handle = collect_nested(expr)
 
             cost_expr = estimate_cost(expr)
             cost_original += cost_expr
