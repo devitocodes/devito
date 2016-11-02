@@ -38,7 +38,6 @@ def run(dimensions=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=250.0,
     dt = model.get_critical_dt()
     t0 = 0.0
     nt = int(1+(tn-t0)/dt)
-    data.reinterpolate(dt)
     # Set up the source as Ricker wavelet for f0
 
     time_series = source(np.linspace(t0, tn, nt), f0)
