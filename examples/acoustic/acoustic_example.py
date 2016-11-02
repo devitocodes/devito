@@ -79,7 +79,6 @@ def run(dimensions=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=1000.0,
         cache_blocking=cache_blocking, save=full_run, cse=cse,
         auto_tuning=auto_tuning, compiler=compiler
     )
-    print(cfunc)
 
     if not full_run:
         return gflopss, oi, timings, [rec, u.data]
