@@ -21,7 +21,6 @@ class TTI_cg:
         self.dt = model.get_critical_dt()
         self.model.nbpml = nbpml
         self.model.set_origin(nbpml)
-        self.data.reinterpolate(self.dt)
 
         if source is not None:
             self.source = source.read()
