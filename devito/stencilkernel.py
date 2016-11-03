@@ -98,7 +98,7 @@ class StencilKernel(object):
         :returns: The basename path as a string
         """
         expr_string = "\n".join([str(e) for e in self.expressions])
-        hash_key = sha1(expr_string).hexdigest()
+        hash_key = sha1(expr_string.encode()).hexdigest()
 
         return path.join(get_tmp_dir(), hash_key)
 

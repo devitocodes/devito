@@ -5,6 +5,7 @@ from collections import Iterable, defaultdict
 from hashlib import sha1
 from os import path
 from random import randint
+from functools import reduce
 
 import numpy as np
 from sympy import Indexed, IndexedBase, symbols
@@ -161,7 +162,7 @@ class Propagator(object):
         quantity is rounded to the closest unit).
         """
         itspace = map(lambda dim: dim - self.spc_border * 2, self.shape)
-        return int(round(self.nt * np.prod(itspace)) / (self.total_time * 10**6))
+        return int(round(self.nt * np.prod(list(itspace))) / (self.total_time * 10**6))
 
     @property
     def basename(self):
@@ -174,7 +175,7 @@ class Propagator(object):
         """
         string = "%s-%s" % (str(self.fd.params), randint(0, 100000000))
 
-        return path.join(get_tmp_dir(), sha1(string).hexdigest())
+        return path.join(get_tmp_dir(), sha1(string.encode()).hexdigest())
 
     @property
     def ccode(self):
@@ -615,7 +616,8 @@ class Propagator(object):
         omp_for = [cgen.Pragma("omp for schedule(static)"
                                )] if self.compiler.openmp else []
 
-        for spc_var, block_size in reversed(zip(list(self.space_dims), self.block_sizes)):
+        for spc_var, block_size in reversed(list(zip(list(self.space_dims),
+                                                     self.block_sizes))):
             orig_var = str(self._mapper[spc_var])
             block_var = orig_var + "b"
             loop_limits = self._space_loop_limits[spc_var]
@@ -637,7 +639,8 @@ class Propagator(object):
             inner_most_dim = False
 
         remainder_counter = 0  # indicates how many remainder loops we need
-        for spc_var, block_size in reversed(zip(list(self.space_dims), self.block_sizes)):
+        for spc_var, block_size in reversed(list(zip(list(self.space_dims),
+                                                     self.block_sizes))):
             # if block size set to None do not block this dimension
             if block_size is not None:
                 orig_var = str(self._mapper[spc_var])
@@ -662,8 +665,8 @@ class Propagator(object):
             remainder_loop = orig_loop_body
             inner_most_dim = True
 
-            for spc_var, block_size in reversed(zip(list(self.space_dims),
-                                                    self.block_sizes)):
+            for spc_var, block_size in reversed(list(zip(list(self.space_dims),
+                                                         self.block_sizes))):
                 orig_var = str(self._mapper[spc_var])
                 loop_limits = self._space_loop_limits[spc_var]  # Full loop limits
                 lower_limit_str = str(loop_limits[0])
