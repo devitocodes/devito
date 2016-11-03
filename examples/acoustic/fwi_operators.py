@@ -239,7 +239,7 @@ class BornOperator(Operator):
     def __init__(self, model, src, damp, data, dmin, time_order=2, spc_order=6, **kwargs):
         nrec, nt = data.shape
         s, h = symbols('s h')
-        u = TimeData(name="u", shape=model.get_shape_comp(), time_dim=ntx,
+        u = TimeData(name="u", shape=model.get_shape_comp(), time_dim=nt,
                      time_order=2, space_order=spc_order,
                      save=False, dtype=damp.dtype)
         U = TimeData(name="U", shape=model.get_shape_comp(), time_dim=nt,
@@ -250,10 +250,6 @@ class BornOperator(Operator):
 
         dm = DenseData(name="dm", shape=model.get_shape_comp(), dtype=damp.dtype)
         dm.data[:] = model.pad(dmin)
-
-        rec = SourceLike(name="rec", npoint=nrec, nt=nt, dt=dt, h=model.get_spacing(),
-                         coordinates=data.receiver_coords, ndim=len(damp.shape),
-                         dtype=damp.dtype, nbpml=model.nbpml)
 
         # Derive stencils from symbolic equation
         if time_order == 2:
@@ -284,6 +280,12 @@ class BornOperator(Operator):
         insert_second_source = Eq(U, U + (dt * dt) / m*src2)
         stencils = [Eq(u.forward, stencil1), Eq(U.forward, stencil2),
                     insert_second_source]
+
+
+        rec = SourceLike(name="rec", npoint=nrec, nt=nt, dt=dt, h=model.get_spacing(),
+                         coordinates=data.receiver_coords, ndim=len(damp.shape),
+                         dtype=damp.dtype, nbpml=model.nbpml)
+
         super(BornOperator, self).__init__(src.nt, m.shape,
                                            stencils=stencils,
                                            subs=[subs, subs, {}, {}],
