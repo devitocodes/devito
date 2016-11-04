@@ -12,10 +12,14 @@ from examples.acoustic.acoustic_example import run as acoustic_run
 from examples.tti.tti_example import run as tti_run
 
 try:
-    from opescibench import Benchmark, Executor, RooflinePlotter
+    from opescibench import Benchmark, Executor
 except:
     Benchmark = None
     Executor = None
+
+try:
+    from opescibench import RooflinePlotter
+except:
     RooflinePlotter = None
 
 
@@ -114,6 +118,8 @@ if __name__ == "__main__":
         if Benchmark is None and args.execmode != "test":
             raise ImportError("Could not find opescibench utility package.\n"
                               "Please install from https://github.com/opesci/opescibench")
+        if RooflinePlotter is None and args.execmode == "plot":
+            raise ImportError("Could not use RooflinePlotter in opescibench.")
 
         if parameters["auto_tuning"]:
             parameters["auto_tuning"] = [True, False]
