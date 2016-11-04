@@ -281,7 +281,6 @@ class BornOperator(Operator):
         stencils = [Eq(u.forward, stencil1), Eq(U.forward, stencil2),
                     insert_second_source]
 
-
         rec = SourceLike(name="rec", npoint=nrec, nt=nt, dt=dt, h=model.get_spacing(),
                          coordinates=data.receiver_coords, ndim=len(damp.shape),
                          dtype=damp.dtype, nbpml=model.nbpml)
