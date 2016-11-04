@@ -60,8 +60,8 @@ if __name__ == "__main__":
                             type=int, help="End time of the simulation in ms")
 
     devito = parser.add_argument_group("Devito")
-    devito.add_argument("--no_cse", action="store_true",
-                        help="Disables CSE")
+    devito.add_argument("-dse", default="advanced", choices=["basic", "advanced"],
+                        help="Devito symbolic engine (DSE) mode")
     devito.add_argument("-a", "--auto_tuning", action="store_true",
                         help=("Benchmark with auto tuning on and off. " +
                               "Enables auto tuning when execmode is run"))
@@ -94,15 +94,12 @@ if __name__ == "__main__":
     del parameters["max_bw"]
     del parameters["max_flops"]
     del parameters["omp"]
-    del parameters["no_cse"]
 
     parameters["dimensions"] = tuple(parameters["dimensions"])
     parameters["spacing"] = tuple(parameters["spacing"])
 
     if parameters["cache_blocking"]:
         parameters["cache_blocking"] = parameters["cache_blocking"] + [None]
-    if args.no_cse:
-        parameters["cse"] = False
 
     parameters["compiler"] = compiler_registry[args.compiler](openmp=args.omp)
 
