@@ -8,9 +8,8 @@ All exposed functions are prefixed with 'dse' (devito symbolic engine)
 """
 
 import numpy as np
-from sympy import (Add, Eq, Function, Indexed, IndexedBase, Symbol,
-                   cse, lambdify, numbered_symbols,
-                   preorder_traversal, symbols)
+from sympy import (Add, Eq, Function, Indexed, IndexedBase, Symbol, cse,
+                   lambdify, numbered_symbols, preorder_traversal, symbols)
 
 from devito.dimension import t, x, y, z
 from devito.interfaces import SymbolicData

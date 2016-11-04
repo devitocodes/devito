@@ -2,10 +2,10 @@ from __future__ import absolute_import
 
 import operator
 from collections import Iterable, defaultdict
+from functools import reduce
 from hashlib import sha1
 from os import path
 from random import randint
-from functools import reduce
 
 import numpy as np
 from sympy import Indexed, IndexedBase, symbols

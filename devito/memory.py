@@ -2,8 +2,8 @@ from __future__ import absolute_import
 
 import ctypes
 from ctypes.util import find_library
-from operator import mul
 from functools import reduce
+from operator import mul
 
 import numpy as np
 from sympy import Eq
