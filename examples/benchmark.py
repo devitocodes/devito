@@ -115,6 +115,9 @@ if __name__ == "__main__":
         if parameters["auto_tuning"]:
             parameters["auto_tuning"] = [True, False]
 
+        if parameters["dse"]:
+            parameters["dse"] = ["basic", "advanced"]
+
     if args.execmode == "test":
         values_sweep = [v if isinstance(v, list) else [v] for v in parameters.values()]
         params_sweep = [dict(zip(parameters.keys(), values))
@@ -169,14 +172,20 @@ if __name__ == "__main__":
         title = "%s - grid: %s, time order: %s" % (args.problem.capitalize(),
                                                    parameters["dimensions"],
                                                    parameters["time_order"])
+
+        at_runs = [True, False]
+        dse_runs = ["basic", "advanced"]
+        runs = list(product(at_runs, dse_runs))
+
         with RooflinePlotter(figname=name, plotdir=args.plotdir,
                              max_bw=args.max_bw, max_flops=args.max_flops) as plot:
             for key, gflopss in gflopss.items():
                 oi_value = oi[key]
                 key = dict(key)
-                at = key["auto_tuning"]
-                style = '%s%s' % (plot.color[0] if at else plot.color[1],
-                                  plot.marker[0] if at else plot.marker[1])
-                plot.add_point(gflops=gflopss, oi=oi_value, style=style, oi_line=at,
-                               label='Auto-tuned' if at else 'No Auto-tuning',
-                               oi_annotate='SO: %s' % key["space_order"] if at else None)
+                run = (key["auto_tuning"], key["dse"])
+                index = runs.index(run)
+                style = '%s%s' % (plot.color[index], plot.marker[index])
+                label = "[AT=%r,DSE=%s]" % run
+                annotation = 'SO=%s' % key["space_order"] if run[0] else None
+                plot.add_point(gflops=gflopss, oi=oi_value, style=style, oi_line=run[0],
+                               label=label, oi_annotate=annotation)
