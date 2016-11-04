@@ -9,7 +9,7 @@ from examples.tti.tti_operators import ForwardOperator
 # Acoustic
 
 
-def run_acoustic_forward(cse=False):
+def run_acoustic_forward(dse=None):
     dimensions = (50, 50, 50)
     origin = (0., 0.)
     spacing = (10., 10.)
@@ -44,15 +44,15 @@ def run_acoustic_forward(cse=False):
     receiver_coords[:, 2] = location[2]
     data.set_receiver_pos(receiver_coords)
     data.set_shape(nt, 101)
-    acoustic = Acoustic_cg(model, data, cse=cse)
-    rec, u, _, _, _ = acoustic.Forward(save=False, cse=cse)
+    acoustic = Acoustic_cg(model, data, dse=dse)
+    rec, u, _, _, _ = acoustic.Forward(save=False, dse=dse)
 
     return rec, u
 
 
 def test_acoustic_rewrite_basic():
-    output1 = run_acoustic_forward(cse=True)
-    output2 = run_acoustic_forward(cse=False)
+    output1 = run_acoustic_forward(dse=None)
+    output2 = run_acoustic_forward(dse='basic')
 
     assert np.allclose(output1[0], output2[0], 10e-7)
     assert np.allclose(output1[1].data, output2[1].data, 10e-7)
@@ -60,26 +60,26 @@ def test_acoustic_rewrite_basic():
 
 # TTI
 
-def tti_operator(cse=False):
+def tti_operator(dse=False):
     problem = setup(dimensions=(16, 16, 16), time_order=2, space_order=2, tn=10.0)
     handle = ForwardOperator(problem.model, problem.src, problem.damp,
                              problem.data, time_order=problem.t_order,
                              spc_order=problem.s_order, save=False,
-                             cache_blocking=None, cse=cse)
+                             cache_blocking=None, dse=dse)
     return handle
 
 
 def test_tti_rewrite_basic():
-    output1 = tti_operator(cse=False).apply()
-    output2 = tti_operator(cse='basic').apply()
+    output1 = tti_operator(dse=None).apply()
+    output2 = tti_operator(dse='basic').apply()
 
     assert np.allclose(output1[0].data, output2[0].data, rtol=10e-6)
     assert np.allclose(output1[1].data, output2[1].data, rtol=10e-6)
 
 
 def test_tti_rewrite_advanced():
-    output1 = tti_operator(cse=False).apply()
-    output2 = tti_operator(cse='advanced').apply()
+    output1 = tti_operator(dse=None).apply()
+    output2 = tti_operator(dse='advanced').apply()
 
     assert np.allclose(output1[0].data, output2[0].data, rtol=10e-6)
     assert np.allclose(output1[1].data, output2[1].data, rtol=10e-6)

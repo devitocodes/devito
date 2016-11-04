@@ -58,14 +58,14 @@ def setup(dimensions=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=250.0,
 
 
 def run(dimensions=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=250.0,
-        time_order=2, space_order=2, nbpml=10, cse=True,
+        time_order=2, space_order=2, nbpml=10, dse='advanced',
         auto_tuning=False, compiler=None, cache_blocking=None):
     if auto_tuning:
         cache_blocking = None
 
     TTI = setup(dimensions, spacing, tn, time_order, space_order, nbpml)
 
-    rec, u, v, gflopss, oi, timings = TTI.Forward(cse=cse,
+    rec, u, v, gflopss, oi, timings = TTI.Forward(dse=dse,
                                                   auto_tuning=auto_tuning,
                                                   cache_blocking=cache_blocking,
                                                   compiler=compiler)
