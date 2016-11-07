@@ -90,13 +90,13 @@ def dse_indexify(expr):
     return expr.xreplace(replacements)
 
 
-def dse_rewrite(expr, mode='basic'):
+def dse_rewrite(expr, mode='advanced'):
     """
     Transform expressions to reduce their operation count.
 
     :param expr: the target expression
     :param mode: drive the expression transformation. Available modes are
-                 ['basic' (default), 'advanced']. Currently, with 'basic', only
+                 ['basic', 'advanced' (default)]. Currently, with 'basic', only
                  common sub-expressions elimination is applied. With 'advanced',
                  all transformations applied in 'basic' are applied, plus
                  factorization of common terms and constants.
