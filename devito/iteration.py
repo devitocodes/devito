@@ -1,9 +1,12 @@
-from collections import Iterable
+from collections import defaultdict, Iterable
 from itertools import chain
+from sympy import Symbol
 
 import cgen
 
 from devito.expression import Expression
+from devito.dimension import Dimension
+from devito.logger import warning
 from devito.tools import filter_ordered
 
 __all__ = ['Iteration']
@@ -21,12 +24,20 @@ class Iteration(Expression):
     :param offsets: Optional map list of offsets to honour in the loop
     """
 
-    def __init__(self, expressions, index, limits, offsets=None):
+    def __init__(self, expressions, dimension, limits, offsets=None):
         # Ensure we deal with a list of Expression objects internally
         self.expressions = expressions if isinstance(expressions, list) else [expressions]
         self.expressions = [e if isinstance(e, Expression) else Expression(e)
                             for e in self.expressions]
-        self.index = str(index)
+        # Check that index is a dimension
+        if not isinstance(dimension, Dimension):
+            warning("Generating Iteration without Dimension object")
+        self.index = str(dimension.get_varname())
+
+        # Propagate variable names to the lower expressions
+        self.substitute({dimension: Symbol(self.index)})
+
+        # Generate loop limits
         if isinstance(limits, Iterable):
             assert(len(limits) == 3)
             self.limits = list(limits)
