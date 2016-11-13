@@ -75,7 +75,7 @@ def first_touch(array):
         space_dims = array.indices[1:]
     else:
         if isinstance(array, PointData):
-            it_init = [Iteration(exp_init, index=p, limits=array.shape[1])]
+            it_init = [Iteration(exp_init, dimension=p, limits=array.shape[1])]
             exp_init = []
             time_steps = array.shape[0]
             shape = []
