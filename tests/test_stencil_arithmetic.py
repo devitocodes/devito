@@ -74,7 +74,6 @@ def test_arithmetic_deep(i, j, k, l, expr, result, mode):
     assert np.allclose(fa.data, result, rtol=1e-12)
 
 
-@pytest.mark.xfail(reason='Loop boundaries need adjusting with access offsets')
 @pytest.mark.parametrize('expr, result', [
     ('Eq(a[k, l], a[k - 1 , l] + 1.)',
      np.meshgrid(np.arange(2., 8.), np.arange(2., 7.))[1]),

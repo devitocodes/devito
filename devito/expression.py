@@ -1,7 +1,11 @@
+from __future__ import absolute_import
+
 import cgen
-from sympy import Eq, IndexedBase, preorder_traversal
+from collections import defaultdict
+from sympy import Eq, IndexedBase, Indexed, preorder_traversal
 
 from devito.codeprinter import ccode
+from devito.dimension import Dimension
 from devito.interfaces import SymbolicData
 from devito.symbolics import dse_indexify
 from devito.tools import filter_ordered
@@ -56,3 +60,23 @@ class Expression(object):
     def indexify(self):
         """Convert stencil expression to "indexed" format"""
         self.stencil = dse_indexify(self.stencil)
+
+    @property
+    def index_offsets(self):
+        """Collect all non-zero offsets used with each index in a map
+
+        Note: This assumes we have indexified the stencil expression."""
+        offsets = defaultdict(list)
+        for e in preorder_traversal(self.stencil):
+            if isinstance(e, Indexed):
+                for a in e.args[1:]:
+                    d = None
+                    off = []
+                    for idx in a.args:
+                        if isinstance(idx, Dimension):
+                            d = idx
+                        else:
+                            off += [idx]
+                    if d is not None:
+                        offsets[d] += off
+        return offsets

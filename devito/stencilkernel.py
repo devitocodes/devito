@@ -36,8 +36,9 @@ class StencilKernel(object):
         # Wrap expressions with Iterations according to dimensions
         for i, expr in enumerate(self.expressions):
             newexpr = expr
+            offsets = newexpr.index_offsets
             for d in reversed(expr.dimensions):
-                newexpr = Iteration(newexpr, d, d.size)
+                newexpr = Iteration(newexpr, d, d.size, offsets=offsets[d])
             self.expressions[i] = newexpr
 
         # TODO: Merge Iterations iff outermost variables agree

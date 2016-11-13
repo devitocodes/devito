@@ -18,9 +18,10 @@ class Iteration(Expression):
                   to iterate.
     :param limits: Limits for the iteration space, either the loop size or a
                    tuple of the form (start, finish, stepping).
+    :param offsets: Optional map list of offsets to honour in the loop
     """
 
-    def __init__(self, expressions, index, limits):
+    def __init__(self, expressions, index, limits, offsets=None):
         # Ensure we deal with a list of Expression objects internally
         self.expressions = expressions if isinstance(expressions, list) else [expressions]
         self.expressions = [e if isinstance(e, Expression) else Expression(e)
@@ -28,9 +29,17 @@ class Iteration(Expression):
         self.index = str(index)
         if isinstance(limits, Iterable):
             assert(len(limits) == 3)
-            self.limits = limits
+            self.limits = list(limits)
         else:
-            self.limits = (0, limits, 1)
+            self.limits = list((0, limits, 1))
+
+        # Adjust loop limits according to provided offsets
+        o_min, o_max = 0, 0
+        for off in offsets:
+            o_min = min(o_min, int(off))
+            o_max = max(o_max, int(off))
+        self.limits[0] += -o_min
+        self.limits[1] -= o_max
 
     def __repr__(self):
         str_expr = "\n\t".join([str(s) for s in self.expressions])
