@@ -2,6 +2,7 @@ from __future__ import absolute_import
 
 import cgen
 from collections import defaultdict
+from operator import attrgetter
 from sympy import Eq, IndexedBase, Indexed, preorder_traversal
 
 from devito.codeprinter import ccode
@@ -55,7 +56,8 @@ class Expression(object):
 
         :returns: List of unique data objects required by the expression
         """
-        return self.functions
+        return filter_ordered([f for f in self.functions],
+                              key=attrgetter('name'))
 
     def indexify(self):
         """Convert stencil expression to "indexed" format"""
