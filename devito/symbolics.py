@@ -352,14 +352,14 @@ def collect_nested(expr):
 
         if expr.is_Float:
             return expr.func(*expr.atoms()), [expr]
+        elif isinstance(expr, Indexed):
+            return expr.func(*expr.args), []
         elif expr.is_Symbol:
             return expr.func(expr.name), [expr]
         elif expr in [S.Zero, S.One, S.NegativeOne, S.Half]:
             return expr.func(), [expr]
         elif expr.is_Atom:
             return expr.func(*expr.atoms()), []
-        elif isinstance(expr, Indexed):
-            return expr.func(*expr.args), []
         elif expr.is_Add:
             rebuilt, candidates = zip(*[run(arg) for arg in expr.args])
 
