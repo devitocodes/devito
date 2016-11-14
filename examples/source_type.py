@@ -1,7 +1,6 @@
 from sympy import Eq, Function, Matrix, symbols
-from sympy.abc import p
 
-from devito.dimension import t
+from devito.dimension import t, p
 from devito.interfaces import PointData
 from devito.iteration import Iteration
 

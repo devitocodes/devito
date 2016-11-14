@@ -1,6 +1,6 @@
 from sympy import Symbol
 
-__all__ = ['Dimension', 'x', 'y', 'z', 't']
+__all__ = ['Dimension', 'x', 'y', 'z', 't', 'p']
 
 
 class Dimension(Symbol):
@@ -27,3 +27,4 @@ x = Dimension('x')
 y = Dimension('y')
 z = Dimension('z')
 t = Dimension('t')
+p = Dimension('p')

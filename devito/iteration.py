@@ -32,7 +32,9 @@ class Iteration(Expression):
         # Check that index is a dimension
         if not isinstance(dimension, Dimension):
             warning("Generating Iteration without Dimension object")
-        self.index = str(dimension.get_varname())
+            self.index = str(dimension)
+        else:
+            self.index = str(dimension.get_varname())
 
         # Propagate variable names to the lower expressions
         self.substitute({dimension: Symbol(self.index)})
@@ -46,7 +48,7 @@ class Iteration(Expression):
 
         # Adjust loop limits according to provided offsets
         o_min, o_max = 0, 0
-        for off in offsets:
+        for off in (offsets or {}):
             o_min = min(o_min, int(off))
             o_max = max(o_max, int(off))
         self.limits[0] += -o_min
