@@ -730,11 +730,7 @@ class Propagator(object):
         :return: cgen.Block - loop body with pragma
         """
         if inner_most_dim and len(space_dims) > 1:
-            pragma = [self.get_aligned_pragma(self.sub_stencils, self.factorized,
-                                              self.time_steppers)]\
-                if self.compiler.openmp else (self.compiler.pragma_ivdep +
-                                              self.compiler.pragma_nontemporal)
-            loop_body = cgen.Block(pragma + [loop_body])
+            loop_body = cgen.Block(self.compiler.pragma_ivdep + [loop_body])
         return loop_body
 
     def _decide_weights(self, block_sizes, remainder_counter):

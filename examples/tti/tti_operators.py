@@ -1,3 +1,4 @@
+import sympy
 from sympy import *
 
 from devito.dimension import x, y, z
@@ -9,8 +10,10 @@ from examples.source_type import SourceLike
 
 class ForwardOperator(Operator):
     def __init__(self, model, src, damp, data, time_order=2, spc_order=4, save=False,
-                 **kwargs):
+                 trigonometry='normal', **kwargs):
+        trigonometry = 'original'
         nrec, nt = data.shape
+
         dt = model.get_critical_dt()
         u = TimeData(name="u", shape=model.get_shape_comp(),
                      time_dim=nt, time_order=time_order,
@@ -74,6 +77,9 @@ class ForwardOperator(Operator):
             else:
                 return Bhaskarasin(angle + 1.5708)
 
+        cos = Bhaskaracos if trigonometry == 'Bhaskara' else sympy.cos
+        sin = Bhaskarasin if trigonometry == 'Bhaskara' else sympy.sin
+
         Hp, Hzr = symbols('Hp Hzr')
         if len(m.shape) == 3:
             ang0 = Function('ang0')(x, y, z)
@@ -86,13 +92,13 @@ class ForwardOperator(Operator):
 
         s, h = symbols('s h')
 
-        ang0 = Bhaskaracos(theta)
-        ang1 = Bhaskarasin(theta)
+        ang0 = cos(theta)
+        ang1 = sin(theta)
         spc_brd = spc_order / 2
         # Derive stencil from symbolic equation
         if len(m.shape) == 3:
-            ang2 = Bhaskaracos(phi)
-            ang3 = Bhaskarasin(phi)
+            ang2 = cos(phi)
+            ang3 = sin(phi)
 
             Gy1p = (ang3 * u.dxl - ang2 * u.dyl)
             Gyy1 = (first_derivative(Gy1p, ang3, dim=x, side=right, order=spc_brd) -
