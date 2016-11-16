@@ -12,9 +12,11 @@ from __future__ import absolute_import
 from collections import OrderedDict
 
 import numpy as np
-from sympy import (Add, Eq, Function, Indexed, IndexedBase, S, Symbol,
+import sympy
+from sympy import (Eq, Expr, Function, Indexed, IndexedBase, S, Symbol,
                    collect, collect_const, count_ops, cse, flatten, lambdify,
                    numbered_symbols, preorder_traversal, symbols)
+from sympy.core.basic import _aresame
 
 from devito.dimension import t, x, y, z
 from devito.interfaces import SymbolicData
@@ -25,8 +27,8 @@ __all__ = ['dse_dimensions', 'dse_symbols', 'dse_dtype', 'dse_indexify',
 
 _temp_prefix = 'temp'
 
-# Inspection
 
+# Inspection
 
 def dse_dimensions(expr):
     """
@@ -135,6 +137,8 @@ class Rewriter(object):
         if mode in ['advanced']:
             processed = self._factorize(processed)
 
+        processed = self._finalize(processed)
+
         return processed
 
     def _factorize(self, exprs):
@@ -204,7 +208,7 @@ class Rewriter(object):
                 to_revert[temp] = value
             elif isinstance(value, Indexed):
                 to_revert[temp] = value
-            elif isinstance(value, Add) and not \
+            elif isinstance(value, sympy.Add) and not \
                     set([t, x, y, z]).isdisjoint(set(value.args)):
                 to_revert[temp] = value
             else:
@@ -281,6 +285,13 @@ class Rewriter(object):
                 processed[k] = v
 
         return ordered.values()
+
+    def _finalize(self, exprs):
+        """
+        Make sure that any subsequent sympy operation applied to the expressions
+        in ``exprs`` does not alter the structure of the transformed objects.
+        """
+        return [unevaluate_arithmetic(e) for e in exprs]
 
 
 # Creation
@@ -410,3 +421,61 @@ def estimate_cost(handle):
         return total_ops - non_flops
     except:
         warning("Cannot estimate cost of %s" % str(handle))
+
+
+def unevaluate_arithmetic(expr):
+    """
+    Reconstruct ``expr`` turning all :class:`sympy.Mul` and :class:`sympy.Add`
+    into, respectively, :class:`devito.Mul` and :class:`devito.Add`.
+    """
+    if expr.is_Float:
+        return expr.func(*expr.atoms())
+    elif isinstance(expr, Indexed):
+        return expr.func(*expr.args)
+    elif expr.is_Symbol:
+        return expr.func(expr.name)
+    elif expr in [S.Zero, S.One, S.NegativeOne, S.Half]:
+        return expr.func()
+    elif expr.is_Atom:
+        return expr.func(*expr.atoms())
+    if expr.is_Add:
+        rebuilt_args = [unevaluate_arithmetic(e) for e in expr.args]
+        return Add(*rebuilt_args, evaluate=False)
+    elif expr.is_Mul:
+        rebuilt_args = [unevaluate_arithmetic(e) for e in expr.args]
+        return Mul(*rebuilt_args, evaluate=False)
+    else:
+        return expr.func(*[unevaluate_arithmetic(e) for e in expr.args])
+
+
+# Extended Sympy hierarchy
+
+class UnevaluatedExpr(Expr):
+
+    """
+    Use :class:`UnevaluatedExpr` in place of :class:`sympy.Expr` to prevent
+    xreplace from unpicking factorizations.
+    """
+
+    def xreplace(self, rule):
+        if self in rule:
+            return rule[self]
+        elif rule:
+            args = []
+            for a in self.args:
+                try:
+                    args.append(a.xreplace(rule))
+                except AttributeError:
+                    args.append(a)
+            args = tuple(args)
+            if not _aresame(args, self.args):
+                return self.func(*args, evaluate=False)
+        return self
+
+
+class Mul(sympy.Mul, UnevaluatedExpr):
+    pass
+
+
+class Add(sympy.Add, UnevaluatedExpr):
+    pass

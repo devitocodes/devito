@@ -88,6 +88,9 @@ class CodePrinter(CCodePrinter):
 
         return rv + 'F'
 
+    def _print_UnevaluatedExpr(self, expr):
+        return self._print(expr.args[0])
+
 
 def ccode(expr, **settings):
     """Generate C++ code from an expression calling CodePrinter class
