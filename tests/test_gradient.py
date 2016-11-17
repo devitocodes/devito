@@ -118,10 +118,10 @@ class TestGradient(object):
         assert np.isclose(p1[0], 1.0, rtol=0.05)
         assert np.isclose(p2[0], 2.0, rtol=0.05)
 
+
 if __name__ == "__main__":
     t = TestGradient()
     request = type('', (), {})()
     request.param = (60, 70)
     ac = t.acoustic(request, 4, 2)
     t.test_grad(ac)
-

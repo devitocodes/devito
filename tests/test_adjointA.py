@@ -81,6 +81,7 @@ class TestAdjointA(object):
         print(term1, term2, term1 - term2, term1 / term2)
         assert np.isclose(term1 / term2, 1.0, atol=0.001)
 
+
 if __name__ == "__main__":
     t = TestAdjointA()
     request = type('', (), {})()
@@ -88,4 +89,3 @@ if __name__ == "__main__":
     ac = t.acoustic(request, 4, 2)
     fw = t.forward(ac)
     t.test_adjoint(ac, fw)
-
