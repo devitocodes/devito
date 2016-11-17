@@ -156,7 +156,7 @@ def first_derivative(*args, **kwargs):
     """
     dim = kwargs.get('dim', x)
     diff = kwargs.get('diff', h)
-    order = kwargs.get('order', 1)
+    order = int(kwargs.get('order', 1))
     side = kwargs.get('side', centered)
     deriv = 0
     sign = 1

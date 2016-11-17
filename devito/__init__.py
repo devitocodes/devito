@@ -17,6 +17,6 @@ def clear_cache():
     cache.clear_cache()
     gc.collect()
 
-    for key, val in _SymbolCache.items():
+    for key, val in list(_SymbolCache.items()):
         if val() is None:
             del _SymbolCache[key]

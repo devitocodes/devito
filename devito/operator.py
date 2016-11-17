@@ -1,3 +1,5 @@
+from functools import reduce
+
 import numpy as np
 from sympy import Eq, solve
 
@@ -244,8 +246,8 @@ class Operator(object):
                     arr_lhs, ind_lhs = self.symbol_to_var(expr.lhs, ti, indices)
                     args = []
 
-                    for x in subs:
-                        arr, ind = self.symbol_to_var(x, ti, indices)
+                    for s in subs:
+                        arr, ind = self.symbol_to_var(s, ti, indices)
                         args.append(arr[ind])
 
                     arr_lhs[ind_lhs] = lamda(*args)
@@ -258,8 +260,8 @@ class Operator(object):
                 arr_lhs, ind_lhs = self.symbol_to_var(expr.lhs, ti)
                 args = []
 
-                for x in subs:
-                    arr, ind = self.symbol_to_var(x, ti)
+                for s in subs:
+                    arr, ind = self.symbol_to_var(s, ti)
                     args.append(arr[ind])
 
                 arr_lhs[ind_lhs] = lamda(*args)
