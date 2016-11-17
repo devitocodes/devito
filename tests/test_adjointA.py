@@ -56,14 +56,14 @@ class TestAdjointA(object):
         data.set_shape(nt, 50)
         # Adjoint test
         wave_true = Acoustic_cg(model, data, t_order=time_order, s_order=space_order,
-                                nbpml=40)
+                                nbpml=10)
         return wave_true
 
     @pytest.fixture(params=[2, 4])
     def time_order(self, request):
         return request.param
 
-    @pytest.fixture(params=[2, 4, 6, 8, 10, 12])
+    @pytest.fixture(params=[4, 8, 10])
     def space_order(self, request):
         return request.param
 
