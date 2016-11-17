@@ -32,6 +32,8 @@ h = model.get_spacing()
 def source(t, f0):
     r = (np.pi * f0 * (t - 1./f0))
     return (1-2.*r**2)*np.exp(-r**2)
+
+
 time_series = source(np.linspace(t0, tn, nt), f0)
 location = (origin[0] + dimensions[0] * spacing[0] * 0.5, 40)
 data.set_source(time_series, dt, location)
