@@ -10,7 +10,7 @@ import numpy as np
 from sympy import Eq, Function, as_finite_diff, lambdify, solve
 from sympy.abc import h, s, t, x, y
 
-from devito import Operator, TimeData
+from devito import TimeData, StencilKernel
 from devito.logger import log
 
 try:
@@ -120,15 +120,18 @@ def execute_devito(ui, spacing=0.01, a=0.5, timesteps=500):
     # Note: This should be made simpler through the use of defaults
     u = TimeData(name='u', shape=(nx, ny), time_order=1, space_order=2)
     u.data[0, :] = ui[:]
+    u.indices[0].size = timesteps
+    u.indices[1].size = nx
+    u.indices[2].size = ny
 
     # Derive the stencil according to devito conventions
     eqn = Eq(u.dt, a * (u.dx2 + u.dy2))
     stencil = solve(eqn, u.forward)[0]
-    op = Operator(stencils=Eq(u.forward, stencil), subs={h: spacing, s: dt},
-                  nt=timesteps, shape=(nx, ny), spc_border=1, time_order=1)
+    op = StencilKernel(Eq(u.forward, stencil), subs={h: spacing, s: dt})
+
     # Execute the generated Devito stencil operator
     tstart = time.time()
-    op.apply()
+    op.apply(u)
     runtime = time.time() - tstart
     log("Devito: Diffusion with dx=%0.4f, dy=%0.4f, executed %d timesteps in %f seconds"
         % (spacing, spacing, timesteps, runtime))
