@@ -89,9 +89,10 @@ class Iteration(Expression):
         loop_body = [s.ccode for s in self.expressions]
         if self.dim.buffered is not None:
             modulo = self.dim.buffered
-            v_subs = [cgen.Assign(v, "(%s) %% %d" % (s, modulo))
+            v_subs = [cgen.Initializer(cgen.Value('int', v),
+                                       "(%s) %% %d" % (s, modulo))
                       for s, v in self.subs.items()]
-            loop_body = [cgen.Block(v_subs)] + loop_body
+            loop_body = v_subs + loop_body
         loop_init = cgen.InlineInitializer(
             cgen.Value("int", self.index), self.limits[0])
         loop_cond = '%s %s %s' % (self.index, '<' if forward else '>', self.limits[1])
