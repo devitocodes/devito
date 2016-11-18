@@ -83,7 +83,7 @@ def second_derivative(*args, **kwargs):
 
 
 def cross_derivative(*args, **kwargs):
-    """Derives corss derivative for a product of given functions.
+    """Derives cross derivative for a product of given functions.
 
     :param \*args: All positional arguments must be fully qualified
        function objects, eg. `f(x, y)` or `g(t, x, y, z)`.
@@ -139,15 +139,15 @@ def cross_derivative(*args, **kwargs):
 
 
 def first_derivative(*args, **kwargs):
-    """Derives corss derivative for a product of given functions.
+    """Derives first derivative for a product of given functions.
 
     :param \*args: All positional arguments must be fully qualified
        function objects, eg. `f(x, y)` or `g(t, x, y, z)`.
-    :param dims: 2-tuple of symbols defining the dimension wrt. which
+    :param dims: symbol defining the dimension wrt. which
        to differentiate, eg. `x`, `y`, `z` or `t`.
     :param diff: Finite Difference symbol to insert, default `h`.
     :param side: Side of the shift for the first derivatives.
-    :returns: The cross derivative
+    :returns: The first derivative
 
     Example: Deriving the first-derivative of f(x)*g(x) wrt. x via:
        ``cross_derivative(f(x), g(x), dim=x, side=1, order=1)``
@@ -180,4 +180,4 @@ def first_derivative(*args, **kwargs):
     for i in range(0, len(ind)):
             var = [a.subs({dim: ind[i]}) for a in args]
             deriv += c[i] * reduce(mul, var, 1)
-    return -sign*deriv
+    return sign*deriv

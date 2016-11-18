@@ -5,8 +5,8 @@ from sympy import Function, IndexedBase, as_finite_diff, symbols
 from sympy.abc import h, p, s
 
 from devito.dimension import t, x, y, z
-from devito.finite_difference import (cross_derivative, first_derivative, left,
-                                      right)
+from devito.finite_difference import (centered, cross_derivative, first_derivative,
+                                      left, right, second_derivative)
 from devito.logger import debug, error
 from devito.memmap_manager import MemmapManager
 from devito.memory import first_touch, free, malloc_aligned
@@ -213,59 +213,19 @@ class DenseData(SymbolicData):
         # Ignore if no initializer exists - assume no initialisation necessary
 
     @property
-    def dx2(self):
-        """Symbol for the second derivative wrt the x dimension"""
-        width_h = int(self.space_order/2)
-        indx = [(x + i * h) for i in range(-width_h, width_h + 1)]
-
-        return as_finite_diff(self.diff(x, x), indx)
-
-    @property
-    def dy2(self):
-        """Symbol for the second derivative wrt the y dimension"""
-        width_h = int(self.space_order/2)
-        indy = [(y + i * h) for i in range(-width_h, width_h + 1)]
-
-        return as_finite_diff(self.diff(y, y), indy)
-
-    @property
-    def dz2(self):
-        """Symbol for the second derivative wrt the z dimension"""
-        width_h = int(self.space_order/2)
-        indz = [(z + i * h) for i in range(-width_h, width_h + 1)]
-
-        return as_finite_diff(self.diff(z, z), indz)
-
-    @property
     def dx(self):
         """Symbol for the first derivative wrt the x dimension"""
-        width_h = int(self.space_order/2)
-        indx = [(x + i * h) for i in range(-width_h, width_h + 1)]
-
-        return as_finite_diff(self.diff(x), indx)
+        return first_derivative(self, order=self.space_order, dim=x, side=centered)
 
     @property
     def dy(self):
         """Symbol for the first derivative wrt the y dimension"""
-        width_h = int(self.space_order/2)
-        indy = [(y + i * h) for i in range(-width_h, width_h + 1)]
-
-        return as_finite_diff(self.diff(y), indy)
+        return first_derivative(self, order=self.space_order, dim=y, side=centered)
 
     @property
     def dz(self):
         """Symbol for the first derivative wrt the z dimension"""
-        width_h = int(self.space_order/2)
-        indz = [(z + i * h) for i in range(-width_h, width_h + 1)]
-
-        return as_finite_diff(self.diff(z), indz)
-
-    @property
-    def laplace(self):
-        """Symbol for the second derivative wrt all spatial dimensions"""
-        derivs = ['dx2', 'dy2', 'dz2']
-
-        return sum([getattr(self, d) for d in derivs[:self.dim]])
+        return first_derivative(self, order=self.space_order, dim=z, side=centered)
 
     @property
     def dxy(self):
@@ -311,6 +271,87 @@ class DenseData(SymbolicData):
     def dzr(self):
         """Symbol for the derivative wrt to z with a right stencil"""
         return first_derivative(self, order=self.space_order, dim=z, side=right)
+
+    @property
+    def dx2(self):
+        """Symbol for the second derivative wrt the x dimension"""
+        width_h = int(self.space_order/2)
+        indx = [(x + i * h) for i in range(-width_h, width_h + 1)]
+
+        return as_finite_diff(self.diff(x, x), indx)
+
+    @property
+    def dy2(self):
+        """Symbol for the second derivative wrt the y dimension"""
+        width_h = int(self.space_order/2)
+        indy = [(y + i * h) for i in range(-width_h, width_h + 1)]
+
+        return as_finite_diff(self.diff(y, y), indy)
+
+    @property
+    def dz2(self):
+        """Symbol for the second derivative wrt the z dimension"""
+        width_h = int(self.space_order/2)
+        indz = [(z + i * h) for i in range(-width_h, width_h + 1)]
+
+        return as_finite_diff(self.diff(z, z), indz)
+
+    @property
+    def dx2y2(self):
+        """Symbol for the second cross derivative wrt the x,y dimension"""
+        return second_derivative(self.dx2, dim=y, order=self.space_order)
+
+    @property
+    def dx2z2(self):
+        """Symbol for the second cross derivative wrt the x,z dimension"""
+        return second_derivative(self.dx2, dim=z, order=self.space_order)
+
+    @property
+    def dy2z2(self):
+        """Symbol for the second cross derivative wrt the y,z dimension"""
+        return second_derivative(self.dy2, dim=z, order=self.space_order)
+
+    @property
+    def dx4(self):
+        """Symbol for the fourth derivative wrt the x dimension"""
+        width_h = max(int(self.space_order / 2), 2)
+        indx = [(x + i * h) for i in range(-width_h, width_h + 1)]
+
+        return as_finite_diff(self.diff(x, x, x, x), indx)
+
+    @property
+    def dy4(self):
+        """Symbol for the fourth derivative wrt the y dimension"""
+        width_h = max(int(self.space_order / 2), 2)
+        indy = [(y + i * h) for i in range(-width_h, width_h + 1)]
+
+        return as_finite_diff(self.diff(y, y, y, y), indy)
+
+    @property
+    def dz4(self):
+        """Symbol for the fourth derivative wrt the z dimension"""
+        width_h = max(int(self.space_order / 2), 2)
+        indz = [(z + i * h) for i in range(-width_h, width_h + 1)]
+
+        return as_finite_diff(self.diff(z, z, z, z), indz)
+
+    @property
+    def laplace(self):
+        """Symbol for the second derivative wrt all spatial dimensions"""
+        derivs = ['dx2', 'dy2', 'dz2']
+
+        return sum([getattr(self, d) for d in derivs[:self.dim]])
+
+    def laplace2(self, weight=1):
+        """Symbol for the double laplacian wrt all spatial dimensions"""
+        order = self.space_order/2 + self.space_order/2 % 2
+        first = sum([second_derivative(self, dim=d,
+                                       order=order)
+                     for d in self.indices[1:]])
+        second = sum([second_derivative(first * weight, dim=d,
+                                        order=order)
+                      for d in self.indices[1:]])
+        return second
 
 
 class TimeData(DenseData):

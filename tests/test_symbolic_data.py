@@ -52,7 +52,7 @@ def test_preformed_derivatives(shape, SymbolType, derivative, dim):
 ])
 @pytest.mark.parametrize('order', [2, 4, 6, 8, 10, 12, 14, 16])
 def test_derivatives_space(derivative, dimension, order):
-    """Test second derivative expressions against native sympy"""
+    """Test first derivative expressions against native sympy"""
     u = TimeData(name='u', shape=(20, 20, 20), time_order=2, space_order=order)
     expr = getattr(u, derivative)
     # Establish native sympy derivative expression

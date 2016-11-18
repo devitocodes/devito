@@ -9,7 +9,6 @@ from examples.containers import IGrid, IShot
 class TestAdjointA(object):
     @pytest.fixture(params=[(60, 70), (60, 70, 80)])
     def acoustic(self, request, time_order, space_order):
-        model = IGrid()
         dimensions = request.param
         # dimensions are (x,z) and (x, y, z)
         origin = tuple([0.0]*len(dimensions))
@@ -18,15 +17,18 @@ class TestAdjointA(object):
         # True velocity
         true_vp = np.ones(dimensions) + .5
         if len(dimensions) == 2:
-            true_vp[:, int(dimensions[0] / 2):dimensions[0]] = 2.5
+            true_vp[:, int(dimensions[0] / 3):dimensions[0]] = 2.5
         else:
-            true_vp[:, :, int(dimensions[0] / 2):dimensions[0]] = 2.5
-        model.create_model(origin, spacing, true_vp)
+            true_vp[:, :, int(dimensions[0] / 3):dimensions[0]] = 2.5
+        model = IGrid(origin, spacing, true_vp)
         # Define seismic data.
         data = IShot()
 
         f0 = .010
-        dt = model.get_critical_dt()
+        if time_order == 4:
+            dt = 1.73 * model.get_critical_dt()
+        else:
+            dt = model.get_critical_dt()
         t0 = 0.0
         tn = 500.0
         nt = int(1+(tn-t0)/dt)
@@ -44,11 +46,12 @@ class TestAdjointA(object):
                         location[1])
         data.set_source(time_series, dt, location)
         receiver_coords = np.zeros((50, len(dimensions)))
-        receiver_coords[:, 0] = np.linspace(50, origin[0] + dimensions[0]*spacing[0] - 50,
+        receiver_coords[:, 0] = np.linspace(50, origin[0] +
+                                            dimensions[0]*spacing[0] - 50,
                                             num=50)
-        receiver_coords[:, -1] = location[-1]
         if len(dimensions) == 3:
-            receiver_coords[:, -1] = location[1]
+            receiver_coords[:, 1] = location[1]
+            receiver_coords[:, 2] = location[2]
         data.set_receiver_pos(receiver_coords)
         data.set_shape(nt, 50)
         # Adjoint test
@@ -56,11 +59,11 @@ class TestAdjointA(object):
                                 nbpml=10)
         return wave_true
 
-    @pytest.fixture(params=[2])
+    @pytest.fixture(params=[2, 4])
     def time_order(self, request):
         return request.param
 
-    @pytest.fixture(params=[2, 4, 6, 8, 10, 12])
+    @pytest.fixture(params=[4, 8, 10])
     def space_order(self, request):
         return request.param
 
@@ -72,19 +75,17 @@ class TestAdjointA(object):
     def test_adjoint(self, acoustic, forward):
         rec = forward
         srca = acoustic.Adjoint(rec)
-        nt = srca.shape[0]
         # Actual adjoint test
-        term1 = 0
-        for ti in range(0, nt):
-            term1 = term1 + srca[ti] * acoustic.data.get_source(ti)
+        term1 = np.dot(srca.reshape(-1), acoustic.data.get_source().reshape(-1))
         term2 = linalg.norm(rec)**2
         print(term1, term2, term1 - term2, term1 / term2)
         assert np.isclose(term1 / term2, 1.0, atol=0.001)
+
 
 if __name__ == "__main__":
     t = TestAdjointA()
     request = type('', (), {})()
     request.param = (60, 70, 80)
-    ac = t.acoustic(request, 2, 12)
+    ac = t.acoustic(request, 4, 2)
     fw = t.forward(ac)
     t.test_adjoint(ac, fw)

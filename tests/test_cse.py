@@ -12,20 +12,14 @@ def source(t, f0):
 
 def run_acoustic_forward(cse):
     dimensions = (50, 50, 50)
-    model = IGrid()
-    model0 = IGrid()
-    model1 = IGrid()
-    model.shape = dimensions
-    model0.shape = dimensions
-    model1.shape = dimensions
     origin = (0., 0.)
-    spacing = (20., 20.)
+    spacing = (10., 10.)
 
     # True velocity
     true_vp = np.ones(dimensions) + 2.0
     true_vp[:, :, int(dimensions[0] / 2):int(dimensions[0])] = 4.5
 
-    model.create_model(origin, spacing, true_vp)
+    model = IGrid(origin, spacing, true_vp)
 
     # Define seismic data.
     data = IShot()
@@ -42,8 +36,10 @@ def run_acoustic_forward(cse):
     data.set_source(time_series, dt, location)
 
     receiver_coords = np.zeros((101, 3))
-    receiver_coords[:, 0] = np.linspace(50, 950, num=101)
-    receiver_coords[:, 1] = 500
+    receiver_coords[:, 0] = np.linspace(0,
+                                        origin[0] + dimensions[0] * spacing[0],
+                                        num=101)
+    receiver_coords[:, 1] = origin[1] + dimensions[1] * spacing[1] * 0.5
     receiver_coords[:, 2] = location[2]
     data.set_receiver_pos(receiver_coords)
     data.set_shape(nt, 101)
@@ -57,4 +53,4 @@ def test_cse():
     rec_cse = run_acoustic_forward(True)
     rec = run_acoustic_forward(False)
 
-    assert np.isclose(np.linalg.norm(rec - rec_cse), 0.0)
+    assert np.isclose(np.linalg.norm(rec - rec_cse), 0.0, atol=1e-4)

@@ -19,7 +19,11 @@ class Acoustic_cg(object):
         self.s_order = s_order
         self.data = data
         self.dtype = np.float32
-        self.dt = model.get_critical_dt()
+        # Time step can be \sqrt{3}=1.73 bigger with 4th order
+        if t_order == 4:
+            self.dt = 1.73 * model.get_critical_dt()
+        else:
+            self.dt = model.get_critical_dt()
         self.model.nbpml = nbpml
         self.model.set_origin(nbpml)
         if source is not None:
@@ -58,6 +62,10 @@ class Acoustic_cg(object):
         # Initialize damp by calling the function that can precompute damping
         damp_boundary(self.damp.data)
         srccoord = np.array(self.data.source_coords, dtype=self.dtype)[np.newaxis, :]
+        if len(self.damp.shape) == 2 and srccoord.shape[1] == 3:
+            srccoord = np.delete(srccoord, 1, 1)
+        if len(self.damp.shape) == 2 and self.data.receiver_coords.shape[1] == 3:
+            self.data.receiver_coords = np.delete(self.data.receiver_coords, 1, 1)
         self.src = SourceLike(name="src", npoint=1, nt=data.shape[1],
                               dt=self.dt, h=self.model.get_spacing(),
                               coordinates=srccoord, ndim=len(self.damp.shape),

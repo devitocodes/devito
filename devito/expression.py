@@ -1,4 +1,4 @@
-import cgen as c
+import cgen
 from sympy import Eq, IndexedBase, preorder_traversal
 
 from devito.codeprinter import ccode
@@ -38,7 +38,7 @@ class Expression(object):
 
     @property
     def ccode(self):
-        return c.Assign(ccode(self.stencil.lhs), ccode(self.stencil.rhs))
+        return cgen.Assign(ccode(self.stencil.lhs), ccode(self.stencil.rhs))
 
     @property
     def signature(self):

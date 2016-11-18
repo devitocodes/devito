@@ -24,33 +24,34 @@ def source(t, f0):
     return (1-2.*r**2)*np.exp(-r**2)
 
 
-def run(dimensions=(150, 150, 50), spacing=(20.0, 20.0, 20.0), tn=250.0,
-        time_order=2, space_order=2, nbpml=10, cse=True, auto_tuning=False,
+def run(dimensions=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=1000.0,
+        time_order=2, space_order=2, nbpml=40, cse=True, auto_tuning=False,
         compiler=None, cache_blocking=None, full_run=False):
-    model = IGrid()
-    model0 = IGrid()
-    model1 = IGrid()
-    model.shape = dimensions
-    model0.shape = dimensions
-    model1.shape = dimensions
+
     origin = (0., 0., 0.)
 
     # True velocity
-    true_vp = np.ones(dimensions) + 2.0
-    true_vp[:, :, int(dimensions[0] / 2):int(dimensions[0])] = 4.5
+    true_vp = np.ones(dimensions) + .5
+    if len(dimensions) == 2:
+        true_vp[:, int(dimensions[0] / 2):dimensions[0]] = 2.5
+    else:
+        true_vp[:, :, int(dimensions[0] / 2):dimensions[0]] = 2.5
 
     # Smooth velocity
     initial_vp = smooth10(true_vp, dimensions)
 
     dm = 1. / (true_vp * true_vp) - 1. / (initial_vp * initial_vp)
 
-    model.create_model(origin, spacing, true_vp)
+    model = IGrid(origin, spacing, true_vp)
 
     # Define seismic data.
     data = IShot()
 
     f0 = .010
-    dt = model.get_critical_dt()
+    if time_order == 4:
+        dt = 1.73 * model.get_critical_dt()
+    else:
+        dt = model.get_critical_dt()
     t0 = 0.0
     nt = int(1+(tn-t0)/dt)
 
@@ -64,7 +65,7 @@ def run(dimensions=(150, 150, 50), spacing=(20.0, 20.0, 20.0), tn=250.0,
     receiver_coords[:, 0] = np.linspace(2 * spacing[0],
                                         origin[0] + (dimensions[0] - 2) * spacing[0],
                                         num=101)
-    receiver_coords[:, 1] = 500
+    receiver_coords[:, 1] = origin[1] + dimensions[1] * spacing[1] * 0.5
     receiver_coords[:, 2] = location[2]
     data.set_receiver_pos(receiver_coords)
     data.set_shape(nt, 101)
@@ -75,7 +76,7 @@ def run(dimensions=(150, 150, 50), spacing=(20.0, 20.0, 20.0), tn=250.0,
 
     info("Applying Forward")
     rec, u, gflopss, oi, timings = Acoustic.Forward(
-        cache_blocking=cache_blocking, save=True, cse=cse,
+        cache_blocking=cache_blocking, save=full_run, cse=cse,
         auto_tuning=auto_tuning, compiler=compiler
     )
 
@@ -89,5 +90,6 @@ def run(dimensions=(150, 150, 50), spacing=(20.0, 20.0, 20.0), tn=250.0,
     info("Applying Born")
     Acoustic.Born(dm)
 
+
 if __name__ == "__main__":
-    run(full_run=True, auto_tuning=True)
+    run(full_run=True, auto_tuning=False, space_order=6, time_order=2)

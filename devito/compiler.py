@@ -151,6 +151,7 @@ class IntelKNLCompiler(Compiler):
         else:
             log("WARNING: Running on Intel KNL without OpenMP is highly discouraged")
 
+
 # Registry dict for deriving Compiler classes according to
 # environment variable DEVITO_ARCH. Developers should add
 # new compiler classes here and provide a description in
