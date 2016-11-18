@@ -80,9 +80,8 @@ def test_arithmetic_deep(i, j, k, l, expr, result, mode):
     ('Eq(a[k, l], a[k, l - 1] + 1.)',
      np.meshgrid(np.arange(2., 8.), np.arange(2., 7.))[0]),
 ])
-def test_arithmetic_indexed_single(i, j, k, l, expr, result):
-    """Tests basic point-wise arithmetic with stencil offsets
-    in indexed expression format"""
+def test_arithmetic_indexed_increment(i, j, k, l, expr, result):
+    """Tests point-wise increments with stencil offsets in one dimension"""
     clear_cache()
     a = symbol(name='a', dimensions=(k, l), value=2., mode='indexed').base
     fa = a.function
@@ -91,3 +90,41 @@ def test_arithmetic_indexed_single(i, j, k, l, expr, result):
     eqn = eval(expr)
     StencilKernel(eqn)(fa)
     assert np.allclose(fa.data, result, rtol=1e-12)
+
+
+@pytest.mark.parametrize('expr, result', [
+    ('Eq(a[k, l], b[k - 1 , l] + 1.)', np.zeros((5, 6)) + 3.),
+    ('Eq(a[k, l], b[k , l - 1] + 1.)', np.zeros((5, 6)) + 3.),
+    ('Eq(a[k, l], b[k - 1, l - 1] + 1.)', np.zeros((5, 6)) + 3.),
+    ('Eq(a[k, l], b[k + 1, l + 1] + 1.)', np.zeros((5, 6)) + 3.),
+])
+def test_arithmetic_indexed_stencil(i, j, k, l, expr, result):
+    """Test point-wise arithmetic with stencil offsets across two
+    functions in indexed expression format"""
+    clear_cache()
+    a = symbol(name='a', dimensions=(k, l), value=0., mode='indexed').base
+    fa = a.function
+    b = symbol(name='b', dimensions=(k, l), value=2., mode='indexed').base
+    fb = b.function
+
+    eqn = eval(expr)
+    StencilKernel(eqn)(fa, fb)
+    assert np.allclose(fa.data[1:-1, 1:-1], result[1:-1, 1:-1], rtol=1e-12)
+
+
+@pytest.mark.parametrize('expr, result', [
+    ('Eq(a[1, k, l], a[0, k - 1 , l] + 1.)', np.zeros((5, 6)) + 3.),
+    ('Eq(a[1, k, l], a[0, k , l - 1] + 1.)', np.zeros((5, 6)) + 3.),
+    ('Eq(a[1, k, l], a[0, k - 1, l - 1] + 1.)', np.zeros((5, 6)) + 3.),
+    ('Eq(a[1, k, l], a[0, k + 1, l + 1] + 1.)', np.zeros((5, 6)) + 3.),
+])
+def test_arithmetic_indexed_buffered(i, j, k, l, expr, result):
+    """Test point-wise arithmetic with stencil offsets across a single
+    functions with buffering dimension in indexed expression format"""
+    clear_cache()
+    a = symbol(name='a', dimensions=(i, k, l), value=2., mode='indexed').base
+    fa = a.function
+
+    eqn = eval(expr)
+    StencilKernel(eqn)(fa)
+    assert np.allclose(fa.data[1, 1:-1, 1:-1], result[1:-1, 1:-1], rtol=1e-12)
