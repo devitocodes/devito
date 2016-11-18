@@ -29,15 +29,26 @@ class Iteration(Expression):
         self.expressions = expressions if isinstance(expressions, list) else [expressions]
         self.expressions = [e if isinstance(e, Expression) else Expression(e)
                             for e in self.expressions]
-        # Check that index is a dimension
-        if not isinstance(dimension, Dimension):
+
+        # Generate index variable name and variable substitutions
+        self.dim = dimension
+        if isinstance(self.dim, Dimension):
+            if self.dim.buffered is None:
+                # Generate index variable from dimension
+                self.index = str(self.dim.get_varname())
+                self.subs = {self.dim: Symbol(self.index)}
+            else:
+                # Generate numbered indices for each buffer
+                self.index = self.dim.name
+                self.subs = {self.dim: Symbol(self.dim.get_varname())}
+                for offset in self.index_offsets[self.dim]:
+                    self.subs[self.dim + offset] = Symbol(self.dim.get_varname())
+        else:
             warning("Generating Iteration without Dimension object")
             self.index = str(dimension)
-        else:
-            self.index = str(dimension.get_varname())
 
         # Propagate variable names to the lower expressions
-        self.substitute({dimension: Symbol(self.index)})
+        self.substitute(self.subs)
 
         # Generate loop limits
         if isinstance(limits, Iterable):
@@ -75,7 +86,12 @@ class Iteration(Expression):
         :returns: :class:`cgen.For` object representing the loop
         """
         forward = self.limits[1] >= self.limits[0]
-        loop_body = cgen.Block([s.ccode for s in self.expressions])
+        loop_body = [s.ccode for s in self.expressions]
+        if self.dim.buffered is not None:
+            modulo = self.dim.buffered
+            v_subs = [cgen.Assign(v, "(%s) %% %d" % (s, modulo))
+                      for s, v in self.subs.items()]
+            loop_body = [cgen.Block(v_subs)] + loop_body
         loop_init = cgen.InlineInitializer(
             cgen.Value("int", self.index), self.limits[0])
         loop_cond = '%s %s %s' % (self.index, '<' if forward else '>', self.limits[1])
@@ -84,7 +100,7 @@ class Iteration(Expression):
         else:
             loop_inc = '%s %s %s' % (self.index, '+=' if forward else '-=',
                                      self.limits[2])
-        return cgen.For(loop_init, loop_cond, loop_inc, loop_body)
+        return cgen.For(loop_init, loop_cond, loop_inc, cgen.Block(loop_body))
 
     @property
     def signature(self):
@@ -99,3 +115,13 @@ class Iteration(Expression):
         """Convert all enclosed stencil expressions to "indexed" format"""
         for e in self.expressions:
             e.indexify()
+
+    @property
+    def index_offsets(self):
+        """Collect all non-zero offsets used with each index in a map
+
+        Note: This assumes we have indexified the stencil expression."""
+        offsets = defaultdict(list)
+        for expr in self.expressions:
+            offsets.update(expr.index_offsets)
+        return offsets
