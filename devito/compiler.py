@@ -162,6 +162,8 @@ compiler_registry = {
     'gcc': GNUCompiler, 'gnu': GNUCompiler,
     'gcc-4.9': partial(GNUCompiler, version='4.9'),
     'g++-4.9': partial(GNUCompiler, version='4.9'),
+    'gcc-5': partial(GNUCompiler, version='5'),
+    'g++-5': partial(GNUCompiler, version='5'),
     'clang': ClangCompiler, 'osx': ClangCompiler,
     'intel': IntelCompiler, 'icpc': IntelCompiler,
     'icc': IntelCompiler,
@@ -178,6 +180,7 @@ def get_compiler_from_env():
     The key environment variable DEVITO_ARCH supports the following values:
      * 'gcc' or 'gnu' - (Default) Standard GNU compiler toolchain
      * 'gcc-4.9' or 'g++-4.9' - GNU compiler toolchain version 4.9
+     * 'gcc-5' or 'g++-5' - GNU compiler toolchain version 5
      * 'clang' or 'osx' - Clang compiler toolchain for Mac OSX
      * 'intel' or 'icpc' - Intel compiler toolchain via icpc
      * 'intel-mic' or 'mic' - Intel MIC using offload mode via pymic
