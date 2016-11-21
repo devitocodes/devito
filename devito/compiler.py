@@ -1,3 +1,4 @@
+from functools import partial
 from os import environ, getuid, mkdir, path
 from tempfile import gettempdir
 
@@ -39,7 +40,7 @@ class Compiler(GCCToolchain):
         * :data:`self.pragma_ivdep`
 
     """
-    def __init__(self, openmp=False):
+    def __init__(self, openmp=False, **kwargs):
         self.cc = 'unknown'
         self.ld = 'unknown'
         self.cflags = []
@@ -67,8 +68,9 @@ class GNUCompiler(Compiler):
 
     def __init__(self, *args, **kwargs):
         super(GNUCompiler, self).__init__(*args, **kwargs)
-        self.cc = 'g++'
-        self.ld = 'g++'
+        self.version = kwargs.get('version', None)
+        self.cc = 'g++' if self.version is None else 'g++-%s' % self.version
+        self.ld = 'g++' if self.version is None else 'g++-%s' % self.version
         self.cflags = ['-O3', '-g', '-fPIC', '-Wall']
         self.ldflags = ['-shared']
 
@@ -158,6 +160,8 @@ class IntelKNLCompiler(Compiler):
 # the docstring of get_compiler_from_env().
 compiler_registry = {
     'gcc': GNUCompiler, 'gnu': GNUCompiler,
+    'gcc-4.9': partial(GNUCompiler, version='4.9'),
+    'g++-4.9': partial(GNUCompiler, version='4.9'),
     'clang': ClangCompiler, 'osx': ClangCompiler,
     'intel': IntelCompiler, 'icpc': IntelCompiler,
     'icc': IntelCompiler,
@@ -173,6 +177,7 @@ def get_compiler_from_env():
 
     The key environment variable DEVITO_ARCH supports the following values:
      * 'gcc' or 'gnu' - (Default) Standard GNU compiler toolchain
+     * 'gcc-4.9' or 'g++-4.9' - GNU compiler toolchain version 4.9
      * 'clang' or 'osx' - Clang compiler toolchain for Mac OSX
      * 'intel' or 'icpc' - Intel compiler toolchain via icpc
      * 'intel-mic' or 'mic' - Intel MIC using offload mode via pymic
