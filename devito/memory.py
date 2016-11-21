@@ -7,8 +7,8 @@ from operator import mul
 
 import numpy as np
 from sympy import Eq
-from devito.dimension import p
 
+from devito.dimension import p
 from devito.logger import error
 from devito.tools import convert_dtype_to_ctype
 

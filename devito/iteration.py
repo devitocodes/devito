@@ -1,11 +1,11 @@
-from collections import defaultdict, Iterable
+from collections import Iterable, defaultdict
 from itertools import chain
-from sympy import Symbol
 
 import cgen
+from sympy import Symbol
 
-from devito.expression import Expression
 from devito.dimension import Dimension
+from devito.expression import Expression
 from devito.logger import warning
 from devito.tools import filter_ordered
 

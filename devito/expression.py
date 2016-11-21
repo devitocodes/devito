@@ -1,9 +1,10 @@
 from __future__ import absolute_import
 
-import cgen
 from collections import defaultdict
 from operator import attrgetter
-from sympy import Eq, IndexedBase, Indexed, preorder_traversal
+
+import cgen
+from sympy import Eq, Indexed, IndexedBase, preorder_traversal
 
 from devito.codeprinter import ccode
 from devito.dimension import Dimension
