@@ -154,6 +154,23 @@ class IntelKNLCompiler(Compiler):
             log("WARNING: Running on Intel KNL without OpenMP is highly discouraged")
 
 
+class CustomCompiler(Compiler):
+    """Custom compiler based on standard environment flags
+
+    :param openmp: Boolean indicating if openmp is enabled. False by default
+
+    Note: Currently honours CC, CFLAGS, LD and LDFLAGS, with defaults similar
+    to the default GNU settings.
+    """
+
+    def __init__(self, *args, **kwargs):
+        super(CustomCompiler, self).__init__(*args, **kwargs)
+        self.cc = environ.get('CC', 'g++')
+        self.ld = environ.get('LD', 'g++')
+        self.cflags = environ.get('CFLAGS', '-O3 -g -fPIC -Wall').split(' ')
+        self.ldflags = environ.get('LDFLAGS', '-shared').split(' ')
+
+
 # Registry dict for deriving Compiler classes according to
 # environment variable DEVITO_ARCH. Developers should add
 # new compiler classes here and provide a description in
@@ -188,10 +205,12 @@ def get_compiler_from_env():
     Additionally, the variable DEVITO_OPENMP can be used to enable OpenMP
     parallelisation on by setting it to "1".
     """
-    key = environ.get('DEVITO_ARCH', 'gnu')
+    key = environ.get('DEVITO_ARCH', None)
     openmp = environ.get('DEVITO_OPENMP', "0") == "1"
-
-    return compiler_registry[key.lower()](openmp=openmp)
+    if key is None:
+        return CustomCompiler(openmp=openmp)
+    else:
+        return compiler_registry[key.lower()](openmp=openmp)
 
 
 def get_tmp_dir():
