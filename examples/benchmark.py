@@ -173,6 +173,7 @@ if __name__ == "__main__":
         name = "%s_dim%s_so%s_to%s.pdf" % (args.problem, parameters["dimensions"],
                                            parameters["space_order"],
                                            parameters["time_order"])
+        name = name.replace(' ', '')
         title = "%s - grid: %s, time order: %s" % (args.problem.capitalize(),
                                                    parameters["dimensions"],
                                                    parameters["time_order"])
