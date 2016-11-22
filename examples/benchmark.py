@@ -78,6 +78,8 @@ if __name__ == "__main__":
                           help="Directory containing plots")
     plotting.add_argument("--max_bw", type=float, help="Maximum bandwith of the system")
     plotting.add_argument("--max_flops", type=float, help="Maximum FLOPS of the system")
+    plotting.add_argument("--point_runtime", action="store_true",
+                          help="Annotate points with runtime values")
 
     args = parser.parse_args()
 
@@ -94,6 +96,7 @@ if __name__ == "__main__":
     del parameters["max_bw"]
     del parameters["max_flops"]
     del parameters["omp"]
+    del parameters["point_runtime"]
 
     parameters["dimensions"] = tuple(parameters["dimensions"])
     parameters["spacing"] = tuple(parameters["spacing"])
@@ -165,6 +168,7 @@ if __name__ == "__main__":
 
         gflopss = bench.lookup(params=parameters, measure="gflopss", event="loop_body")
         oi = bench.lookup(params=parameters, measure="oi", event="loop_body")
+        time = bench.lookup(params=parameters, measure="timings", event="loop_body")
 
         name = "%s_dim%s_so%s_to%s.pdf" % (args.problem, parameters["dimensions"],
                                            parameters["space_order"],
@@ -184,11 +188,16 @@ if __name__ == "__main__":
                              legend={'fontsize': 8} ) as plot:
             for key, gflopss in gflopss.items():
                 oi_value = oi[key]
+                time_value = time[key]
                 key = dict(key)
                 run = (key["auto_tuning"], key["dse"])
                 index = runs.index(run)
                 label = "AT=%r, DSE=%s" % run
-                annotation = {'s': 'SO=%s' % key["space_order"],
-                              'size': 6} if run[0] else None
+                oi_annotate = {'s': 'SO=%s' % key["space_order"],
+                               'size': 6, 'xy': (oi_value, 0.09)} if run[0] else None
+                point_annotate = {'s': "%.1f s" % time_value,
+                                  'xytext': (-22, 18), 'size': 6,
+                                  'weight': 'bold'} if args.point_runtime else None
                 plot.add_point(gflops=gflopss, oi=oi_value, style=style[run],
-                               oi_line=run[0], label=label, oi_annotate=annotation)
+                               oi_line=run[0], label=label, oi_annotate=oi_annotate,
+                               annotate=point_annotate)
