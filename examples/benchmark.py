@@ -178,7 +178,8 @@ if __name__ == "__main__":
         runs = list(product(at_runs, dse_runs))
 
         with RooflinePlotter(figname=name, plotdir=args.plotdir,
-                             max_bw=args.max_bw, max_flops=args.max_flops) as plot:
+                             max_bw=args.max_bw, max_flops=args.max_flops,
+                             legend={'fontsize': 8} ) as plot:
             for key, gflopss in gflopss.items():
                 oi_value = oi[key]
                 key = dict(key)
@@ -186,6 +187,7 @@ if __name__ == "__main__":
                 index = runs.index(run)
                 style = '%s%s' % (plot.color[index], plot.marker[index])
                 label = "[AT=%r,DSE=%s]" % run
-                annotation = 'SO=%s' % key["space_order"] if run[0] else None
+                annotation = {'s': 'SO=%s' % key["space_order"],
+                              'size': 6} if run[0] else None
                 plot.add_point(gflops=gflopss, oi=oi_value, style=style, oi_line=run[0],
                                label=label, oi_annotate=annotation)
