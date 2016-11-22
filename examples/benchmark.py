@@ -176,6 +176,8 @@ if __name__ == "__main__":
         at_runs = [True, False]
         dse_runs = ["basic", "advanced"]
         runs = list(product(at_runs, dse_runs))
+        style = {(True, 'advanced'): 'ob', (True, 'basic'): 'or',
+                 (False, 'advanced'): 'Db', (False, 'basic'): 'Dr'}
 
         with RooflinePlotter(figname=name, plotdir=args.plotdir,
                              max_bw=args.max_bw, max_flops=args.max_flops,
@@ -185,9 +187,8 @@ if __name__ == "__main__":
                 key = dict(key)
                 run = (key["auto_tuning"], key["dse"])
                 index = runs.index(run)
-                style = '%s%s' % (plot.color[index], plot.marker[index])
-                label = "[AT=%r,DSE=%s]" % run
+                label = "AT=%r, DSE=%s" % run
                 annotation = {'s': 'SO=%s' % key["space_order"],
                               'size': 6} if run[0] else None
-                plot.add_point(gflops=gflopss, oi=oi_value, style=style, oi_line=run[0],
-                               label=label, oi_annotate=annotation)
+                plot.add_point(gflops=gflopss, oi=oi_value, style=style[run],
+                               oi_line=run[0], label=label, oi_annotate=annotation)
