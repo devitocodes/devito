@@ -186,7 +186,7 @@ if __name__ == "__main__":
 
         with RooflinePlotter(figname=name, plotdir=args.plotdir,
                              max_bw=args.max_bw, max_flops=args.max_flops,
-                             legend={'fontsize': 8} ) as plot:
+                             legend={'fontsize': 8}) as plot:
             for key, gflopss in gflopss.items():
                 oi_value = oi[key]
                 time_value = time[key]

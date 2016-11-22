@@ -13,8 +13,7 @@ def source(t, f0):
 
 def setup(dimensions=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=250.0,
           time_order=2, space_order=2, nbpml=10):
-    model = IGrid()
-    model.shape = dimensions
+
     origin = (0., 0., 0.)
 
     # True velocity

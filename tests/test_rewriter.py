@@ -54,8 +54,8 @@ def test_acoustic_rewrite_basic():
     output1 = run_acoustic_forward(dse=None)
     output2 = run_acoustic_forward(dse='basic')
 
-    assert np.allclose(output1[0], output2[0], 10e-7)
-    assert np.allclose(output1[1].data, output2[1].data, 10e-7)
+    assert np.allclose(output1[0], output2[0], atol=10e-6)
+    assert np.allclose(output1[1].data, output2[1].data, atol=10e-6)
 
 
 # TTI
