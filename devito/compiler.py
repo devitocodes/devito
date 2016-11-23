@@ -165,9 +165,9 @@ class CustomCompiler(Compiler):
 
     def __init__(self, *args, **kwargs):
         super(CustomCompiler, self).__init__(*args, **kwargs)
-        self.cc = environ.get('CC', 'g++')
+        self.cc = environ.get('CXX', 'g++')
         self.ld = environ.get('LD', 'g++')
-        self.cflags = environ.get('CFLAGS', '-O3 -g -fPIC -Wall').split(' ')
+        self.cflags = environ.get('CXXFLAGS', '-O3 -g -fPIC -Wall').split(' ')
         self.ldflags = environ.get('LDFLAGS', '-shared').split(' ')
 
 
