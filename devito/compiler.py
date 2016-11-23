@@ -69,9 +69,9 @@ class GNUCompiler(Compiler):
     def __init__(self, *args, **kwargs):
         super(GNUCompiler, self).__init__(*args, **kwargs)
         self.version = kwargs.get('version', None)
-        self.cc = 'g++' if self.version is None else 'g++-%s' % self.version
-        self.ld = 'g++' if self.version is None else 'g++-%s' % self.version
-        self.cflags = ['-O3', '-g', '-fPIC', '-Wall']
+        self.cc = 'gcc' if self.version is None else 'gcc-%s' % self.version
+        self.ld = 'gcc' if self.version is None else 'gcc-%s' % self.version
+        self.cflags = ['-O3', '-g', '-fPIC', '-Wall', '-std=c99']
         self.ldflags = ['-shared']
 
         if self.openmp:
@@ -91,7 +91,7 @@ class ClangCompiler(Compiler):
         super(ClangCompiler, self).__init__(*args, **kwargs)
         self.cc = 'clang'
         self.ld = 'clang'
-        self.cflags = ['-O3', '-g', '-fPIC', '-Wall']
+        self.cflags = ['-O3', '-g', '-fPIC', '-Wall', '-std=c99']
         self.ldflags = ['-shared']
 
         if self.openmp:
@@ -107,9 +107,9 @@ class IntelCompiler(Compiler):
 
     def __init__(self, *args, **kwargs):
         super(IntelCompiler, self).__init__(*args, **kwargs)
-        self.cc = 'icpc'
-        self.ld = 'icpc'
-        self.cflags = ['-O3', '-g', '-fPIC', '-Wall', "-xhost"]
+        self.cc = 'icc'
+        self.ld = 'icc'
+        self.cflags = ['-O3', '-g', '-fPIC', '-Wall', '-std=c99', "-xhost"]
         self.ldflags = ['-shared']
 
         if self.openmp:
@@ -127,9 +127,9 @@ class IntelMICCompiler(Compiler):
 
     def __init__(self, *args, **kwargs):
         super(IntelMICCompiler, self).__init__(*args, **kwargs)
-        self.cc = 'icpc'
-        self.ld = 'icpc'
-        self.cflags = ['-O3', '-g', '-fPIC', '-Wall', "-mmic"]
+        self.cc = 'icc'
+        self.ld = 'icc'
+        self.cflags = ['-O3', '-g', '-fPIC', '-Wall', '-std=c99', "-mmic"]
         self.ldflags = ['-shared']
 
         if self.openmp:
@@ -144,9 +144,9 @@ class IntelKNLCompiler(Compiler):
 
     def __init__(self, *args, **kwargs):
         super(IntelKNLCompiler, self).__init__(*args, **kwargs)
-        self.cc = 'icpc'
-        self.ld = 'icpc'
-        self.cflags = ['-O3', '-g', '-fPIC', '-Wall', "-xMIC-AVX512"]
+        self.cc = 'icc'
+        self.ld = 'icc'
+        self.cflags = ['-O3', '-g', '-fPIC', '-Wall', '-std=c99', "-xMIC-AVX512"]
         self.ldflags = ['-shared']
         if self.openmp:
             self.ldflags += ['-qopenmp']
@@ -165,9 +165,9 @@ class CustomCompiler(Compiler):
 
     def __init__(self, *args, **kwargs):
         super(CustomCompiler, self).__init__(*args, **kwargs)
-        self.cc = environ.get('CXX', 'g++')
-        self.ld = environ.get('LD', 'g++')
-        self.cflags = environ.get('CXXFLAGS', '-O3 -g -fPIC -Wall').split(' ')
+        self.cc = environ.get('CC', 'gcc')
+        self.ld = environ.get('LD', 'gcc')
+        self.cflags = environ.get('CFLAGS', '-O3 -g -fPIC -Wall -std=c99').split(' ')
         self.ldflags = environ.get('LDFLAGS', '-shared').split(' ')
 
 
@@ -178,9 +178,7 @@ class CustomCompiler(Compiler):
 compiler_registry = {
     'gcc': GNUCompiler, 'gnu': GNUCompiler,
     'gcc-4.9': partial(GNUCompiler, version='4.9'),
-    'g++-4.9': partial(GNUCompiler, version='4.9'),
     'gcc-5': partial(GNUCompiler, version='5'),
-    'g++-5': partial(GNUCompiler, version='5'),
     'clang': ClangCompiler, 'osx': ClangCompiler,
     'intel': IntelCompiler, 'icpc': IntelCompiler,
     'icc': IntelCompiler,
@@ -196,8 +194,8 @@ def get_compiler_from_env():
 
     The key environment variable DEVITO_ARCH supports the following values:
      * 'gcc' or 'gnu' - (Default) Standard GNU compiler toolchain
-     * 'gcc-4.9' or 'g++-4.9' - GNU compiler toolchain version 4.9
-     * 'gcc-5' or 'g++-5' - GNU compiler toolchain version 5
+     * 'gcc-4.9' - GNU compiler toolchain version 4.9
+     * 'gcc-5' - GNU compiler toolchain version 5
      * 'clang' or 'osx' - Clang compiler toolchain for Mac OSX
      * 'intel' or 'icpc' - Intel compiler toolchain via icpc
      * 'intel-mic' or 'mic' - Intel MIC using offload mode via pymic
@@ -234,7 +232,7 @@ def jit_compile(ccode, basename, compiler=GNUCompiler):
     :param compiler: The toolchain used for compilation. GNUCompiler by default.
     :return: Path to compiled lib
     """
-    src_file = "%s.cpp" % basename
+    src_file = "%s.c" % basename
     lib_file = "%s.so" % basename
     log("%s: Compiling %s" % (compiler, src_file))
     extension_file_from_string(toolchain=compiler, ext_file=lib_file,
