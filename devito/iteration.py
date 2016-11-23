@@ -57,6 +57,12 @@ class Iteration(Expression):
         else:
             self.limits = list((0, limits, 1))
 
+        # Replace open limits with variables names
+        if self.limits[1] is None:
+            self.limit_var = self.dim.get_varname()
+        else:
+            self.limit_var = None
+
         # Record offsets to later adjust loop limits accordingly
         self.offsets = [0, 0]
         for off in (offsets or {}):
@@ -83,7 +89,6 @@ class Iteration(Expression):
 
         :returns: :class:`cgen.For` object representing the loop
         """
-        forward = self.limits[2] > 0
         loop_body = [s.ccode for s in self.expressions]
         if self.dim.buffered is not None:
             modulo = self.dim.buffered
@@ -93,8 +98,9 @@ class Iteration(Expression):
             loop_body = v_subs + loop_body
         loop_init = cgen.InlineInitializer(
             cgen.Value("int", self.index), "%d + %d" % (self.limits[0], -self.offsets[0]))
-        loop_cond = '%s %s %s' % (self.index, '<' if forward else '>',
-                                  "%d - %d" % (self.limits[1], self.offsets[1]))
+        loop_limit = self.limit_var if self.limits[1] is None else self.limits[1]
+        loop_cond = '%s %s %s' % (self.index, '<' if self.limits[2] >= 0 else '>',
+                                  "%s - %d" % (loop_limit, self.offsets[1]))
         loop_inc = '%s += %s' % (self.index, self.limits[2])
         return cgen.For(loop_init, loop_cond, loop_inc, cgen.Block(loop_body))
 
@@ -104,8 +110,11 @@ class Iteration(Expression):
 
         :returns: List of unique data objects required by the loop
         """
-        signatures = [e.signature for e in self.expressions]
-        return filter_ordered(chain(*signatures))
+        signature = [e.signature for e in self.expressions]
+        signature = filter_ordered(chain(*signature))
+        if self.limits[1] is None:
+            signature += [self.limit_var]
+        return signature
 
     def indexify(self):
         """Convert all enclosed stencil expressions to "indexed" format"""
