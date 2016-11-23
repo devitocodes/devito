@@ -1,4 +1,5 @@
 from mpmath.libmp import prec_to_dps, to_str
+
 from sympy import Eq
 from sympy.printing.ccode import CCodePrinter
 
@@ -86,6 +87,9 @@ class CodePrinter(CCodePrinter):
             rv = '0.' + rv[2:]
 
         return rv + 'F'
+
+    def _print_UnevaluatedExpr(self, expr):
+        return self._print(expr.args[0])
 
 
 def ccode(expr, **settings):

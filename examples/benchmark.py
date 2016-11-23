@@ -38,6 +38,8 @@ if __name__ == "__main__":
                         default=environ.get("DEVITO_ARCH", "gnu"),
                         choices=compiler_registry.keys(),
                         help="Compiler/architecture to use. Defaults to DEVITO_ARCH")
+    parser.add_argument("--arch", default="unknown",
+                        help="Architecture on which the simulation is/was run.")
     parser.add_argument("-P", "--problem", nargs="?", default="tti",
                         choices=["acoustic", "tti"], help="Problem")
     simulation = parser.add_argument_group("Simulation")
@@ -60,8 +62,8 @@ if __name__ == "__main__":
                             type=int, help="End time of the simulation in ms")
 
     devito = parser.add_argument_group("Devito")
-    devito.add_argument("--no_cse", action="store_true",
-                        help="Disables CSE")
+    devito.add_argument("-dse", default="advanced", choices=["basic", "advanced"],
+                        help="Devito symbolic engine (DSE) mode")
     devito.add_argument("-a", "--auto_tuning", action="store_true",
                         help=("Benchmark with auto tuning on and off. " +
                               "Enables auto tuning when execmode is run"))
@@ -78,6 +80,8 @@ if __name__ == "__main__":
                           help="Directory containing plots")
     plotting.add_argument("--max_bw", type=float, help="Maximum bandwith of the system")
     plotting.add_argument("--max_flops", type=float, help="Maximum FLOPS of the system")
+    plotting.add_argument("--point_runtime", action="store_true",
+                          help="Annotate points with runtime values")
 
     args = parser.parse_args()
 
@@ -94,15 +98,14 @@ if __name__ == "__main__":
     del parameters["max_bw"]
     del parameters["max_flops"]
     del parameters["omp"]
-    del parameters["no_cse"]
+    del parameters["point_runtime"]
+    del parameters["arch"]
 
     parameters["dimensions"] = tuple(parameters["dimensions"])
     parameters["spacing"] = tuple(parameters["spacing"])
 
     if parameters["cache_blocking"]:
         parameters["cache_blocking"] = parameters["cache_blocking"] + [None]
-    if args.no_cse:
-        parameters["cse"] = False
 
     parameters["compiler"] = compiler_registry[args.compiler](openmp=args.omp)
 
@@ -117,6 +120,9 @@ if __name__ == "__main__":
 
         if parameters["auto_tuning"]:
             parameters["auto_tuning"] = [True, False]
+
+        if parameters["dse"]:
+            parameters["dse"] = ["basic", "advanced"]
 
     if args.execmode == "test":
         values_sweep = [v if isinstance(v, list) else [v] for v in parameters.values()]
@@ -165,21 +171,39 @@ if __name__ == "__main__":
 
         gflopss = bench.lookup(params=parameters, measure="gflopss", event="loop_body")
         oi = bench.lookup(params=parameters, measure="oi", event="loop_body")
+        time = bench.lookup(params=parameters, measure="timings", event="loop_body")
 
-        name = "%s_dim%s_so%s_to%s.pdf" % (args.problem, parameters["dimensions"],
-                                           parameters["space_order"],
-                                           parameters["time_order"])
+        name = "%s_dim%s_so%s_to%s_arch[%s].pdf" % (args.problem,
+                                                    parameters["dimensions"],
+                                                    parameters["space_order"],
+                                                    parameters["time_order"],
+                                                    args.arch)
+        name = name.replace(' ', '')
         title = "%s - grid: %s, time order: %s" % (args.problem.capitalize(),
                                                    parameters["dimensions"],
                                                    parameters["time_order"])
+
+        at_runs = [True, False]
+        dse_runs = ["basic", "advanced"]
+        runs = list(product(at_runs, dse_runs))
+        style = {(True, 'advanced'): 'ob', (True, 'basic'): 'or',
+                 (False, 'advanced'): 'Db', (False, 'basic'): 'Dr'}
+
         with RooflinePlotter(figname=name, plotdir=args.plotdir,
-                             max_bw=args.max_bw, max_flops=args.max_flops) as plot:
+                             max_bw=args.max_bw, max_flops=args.max_flops,
+                             legend={'fontsize': 8}) as plot:
             for key, gflopss in gflopss.items():
                 oi_value = oi[key]
+                time_value = time[key]
                 key = dict(key)
-                at = key["auto_tuning"]
-                style = '%s%s' % (plot.color[0] if at else plot.color[1],
-                                  plot.marker[0] if at else plot.marker[1])
-                plot.add_point(gflops=gflopss, oi=oi_value, style=style, oi_line=at,
-                               label='Auto-tuned' if at else 'No Auto-tuning',
-                               oi_annotate='SO: %s' % key["space_order"] if at else None)
+                run = (key["auto_tuning"], key["dse"])
+                index = runs.index(run)
+                label = "AT=%r, DSE=%s" % run
+                oi_annotate = {'s': 'SO=%s' % key["space_order"],
+                               'size': 6, 'xy': (oi_value, 0.09)} if run[0] else None
+                point_annotate = {'s': "%.1f s" % time_value,
+                                  'xytext': (-22, 18), 'size': 6,
+                                  'weight': 'bold'} if args.point_runtime else None
+                plot.add_point(gflops=gflopss, oi=oi_value, style=style[run],
+                               oi_line=run[0], label=label, oi_annotate=oi_annotate,
+                               annotate=point_annotate)

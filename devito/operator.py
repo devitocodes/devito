@@ -7,7 +7,7 @@ from devito.compiler import get_compiler_from_env
 from devito.dimension import t, x, y, z
 from devito.interfaces import TimeData
 from devito.propagator import Propagator
-from devito.symbolics import (dse_cse, dse_dimensions, dse_indexify,
+from devito.symbolics import (dse_dimensions, dse_indexify, dse_rewrite,
                               dse_symbols, dse_tolambda)
 
 __all__ = ['Operator']
@@ -34,7 +34,8 @@ class Operator(object):
                      If not provided, the compiler will be inferred from the
                      environment variable DEVITO_ARCH, or default to GNUCompiler.
     :param profile: Flag to enable performance profiling
-    :param cse: Flag to enable common subexpression elimination
+    :param dse: Set of transformations applied by the Devito Symbolic Engine.
+                Available: [None, 'basic', 'advanced' (default)]
     :param cache_blocking: Block sizes used for cache clocking. Can be either a single
                            number used for all dimensions except inner most or a list
                            explicitly stating block sizes for each dimension
@@ -48,7 +49,7 @@ class Operator(object):
     """
     def __init__(self, nt, shape, dtype=np.float32, stencils=[],
                  subs=[], spc_border=0, time_order=0,
-                 forward=True, compiler=None, profile=False, cse=True,
+                 forward=True, compiler=None, profile=False, dse='advanced',
                  cache_blocking=None, input_params=None,
                  output_params=None, factorized={}):
         # Derive JIT compilation infrastructure
@@ -116,8 +117,7 @@ class Operator(object):
             factorized[name] = dse_indexify(value)
 
         # Applies CSE
-        if cse:
-            self.stencils = dse_cse(self.stencils)
+        self.stencils = dse_rewrite(self.stencils, mode=dse)
 
         # Apply user-defined subs to stencil
         self.stencils = [eqn.subs(subs[0]) for eqn in self.stencils]

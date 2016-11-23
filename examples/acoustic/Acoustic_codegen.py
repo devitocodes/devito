@@ -13,7 +13,7 @@ class Acoustic_cg(object):
     Note: s_order must always be greater than t_order
     """
     def __init__(self, model, data, source=None, nbpml=40, t_order=2, s_order=2,
-                 auto_tuning=False, cse=True, compiler=None):
+                 auto_tuning=False, dse=True, compiler=None):
         self.model = model
         self.t_order = t_order
         self.s_order = s_order
@@ -75,18 +75,18 @@ class Acoustic_cg(object):
         if auto_tuning:  # auto tuning with dummy forward operator
             fw = ForwardOperator(self.model, self.src, self.damp, self.data,
                                  time_order=self.t_order, spc_order=self.s_order,
-                                 profile=True, save=False, cse=cse, compiler=compiler)
+                                 profile=True, save=False, dse=dse, compiler=compiler)
             self.at = AutoTuner(fw)
             self.at.auto_tune_blocks(self.s_order + 1, self.s_order * 4 + 2)
 
     def Forward(self, save=False, cache_blocking=None,
-                auto_tuning=False, cse=True, compiler=None):
+                auto_tuning=False, dse='advanced', compiler=None):
 
         if auto_tuning:
             cache_blocking = self.at.block_size
         fw = ForwardOperator(self.model, self.src, self.damp, self.data,
                              time_order=self.t_order, spc_order=self.s_order,
-                             save=save, cache_blocking=cache_blocking, cse=cse,
+                             save=save, cache_blocking=cache_blocking, dse=dse,
                              compiler=compiler, profile=True)
 
         u, rec = fw.apply()
