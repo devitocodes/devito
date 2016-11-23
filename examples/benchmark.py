@@ -38,6 +38,8 @@ if __name__ == "__main__":
                         default=environ.get("DEVITO_ARCH", "gnu"),
                         choices=compiler_registry.keys(),
                         help="Compiler/architecture to use. Defaults to DEVITO_ARCH")
+    parser.add_argument("--arch", default="unknown",
+                        help="Architecture on which the simulation is/was run.")
     parser.add_argument("-P", "--problem", nargs="?", default="tti",
                         choices=["acoustic", "tti"], help="Problem")
     simulation = parser.add_argument_group("Simulation")
@@ -97,6 +99,7 @@ if __name__ == "__main__":
     del parameters["max_flops"]
     del parameters["omp"]
     del parameters["point_runtime"]
+    del parameters["arch"]
 
     parameters["dimensions"] = tuple(parameters["dimensions"])
     parameters["spacing"] = tuple(parameters["spacing"])
@@ -170,9 +173,11 @@ if __name__ == "__main__":
         oi = bench.lookup(params=parameters, measure="oi", event="loop_body")
         time = bench.lookup(params=parameters, measure="timings", event="loop_body")
 
-        name = "%s_dim%s_so%s_to%s.pdf" % (args.problem, parameters["dimensions"],
-                                           parameters["space_order"],
-                                           parameters["time_order"])
+        name = "%s_dim%s_so%s_to%s_arch[%s].pdf" % (args.problem,
+                                                    parameters["dimensions"],
+                                                    parameters["space_order"],
+                                                    parameters["time_order"],
+                                                    args.arch)
         name = name.replace(' ', '')
         title = "%s - grid: %s, time order: %s" % (args.problem.capitalize(),
                                                    parameters["dimensions"],
