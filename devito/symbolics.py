@@ -284,7 +284,7 @@ class Rewriter(object):
                 # Must wait for some earlier temporaries, push back into queue
                 processed[k] = v
 
-        return ordered.values()
+        return list(ordered.values())
 
     def _finalize(self, exprs):
         """
