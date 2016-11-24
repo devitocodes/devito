@@ -14,12 +14,18 @@ prototype Full Waveform Inversion (FWI) code that can be found
 
 ## Quickstart
 
-Devito should be installed directly from github via:
+Devito can be installed from github via pip:
+```
+pip install --user git+https://github.com/opesci/devito.git
+```
+
+Alternatively Devito can be be installed manually from github via:
 ```
 git clone https://github.com/opesci/devito.git
 cd devito && pip install --user -r requirements.txt
 ```
-Please make sure you also add Devito to your `PYTHONPATH`.
+When manually installing Devito please make sure you also add Devito
+to your `PYTHONPATH`.
 
 ## Examples
 
