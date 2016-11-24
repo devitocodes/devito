@@ -1,3 +1,4 @@
+from ctypes import c_int
 from hashlib import sha1
 from itertools import chain
 from os import path
@@ -9,7 +10,7 @@ from devito.compiler import (get_compiler_from_env, get_tmp_dir,
                              jit_compile_and_load)
 from devito.expression import Expression
 from devito.interfaces import SymbolicData
-from devito.iteration import Iteration
+from devito.iteration import Iteration, IterationBound
 from devito.logger import error
 from devito.tools import filter_ordered
 
@@ -64,6 +65,7 @@ class StencilKernel(object):
 
     def apply(self, *args, **kwargs):
         """Apply defined stencil kernel to a set of data objects"""
+        # TODO Now the big question: how do I derive the bounds nicely?
         if len(args) <= 0:
             args = self.signature
         args = [a.data if isinstance(a, SymbolicData) else a for a in args]
@@ -95,11 +97,12 @@ class StencilKernel(object):
         and Expression objects, and adds the necessary template code
         around it.
         """
-        header_vars = [c.Pointer(c.POD(v.dtype, '%s_vec' % v.name))
+        header_vars = [v.ccode if isinstance(v, IterationBound) else
+                       c.Pointer(c.POD(v.dtype, '%s_vec' % v.name))
                        for v in self.signature]
         header = c.FunctionDeclaration(c.Value('int', self.name), header_vars)
         cast_shapes = [(v, ''.join(['[%d]' % d for d in v.shape[1:]]))
-                       for v in self.signature]
+                       for v in self.signature if not isinstance(v, IterationBound)]
         casts = [c.Initializer(c.POD(v.dtype, '(*%s)%s' % (v.name, shape)),
                                '(%s (*)%s) %s' % (c.dtype_to_ctype(v.dtype),
                                                   shape, '%s_vec' % v.name))
@@ -146,5 +149,6 @@ class StencilKernel(object):
 
         :returns: A list of ctypes of the matrix parameters and scalar parameters
         """
-        return [np.ctypeslib.ndpointer(dtype=v.dtype, flags='C')
+        return [c_int if isinstance(v, IterationBound) else
+                np.ctypeslib.ndpointer(dtype=v.dtype, flags='C')
                 for v in self.signature]

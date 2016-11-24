@@ -12,6 +12,25 @@ from devito.tools import filter_ordered
 __all__ = ['Iteration']
 
 
+class IterationBound(object):
+    """Utility class to encapsulate variable loop bounds and link them
+    back to the respective Dimension object.
+
+    :param name: Variable name for the open loop bound variable
+    """
+
+    def __init__(self, name):
+        self.name = name
+
+    def __repr__(self):
+        return self.name
+
+    @property
+    def ccode(self):
+        """C code for the variable declaration within a kernel signature"""
+        return cgen.Value('int', self.name)
+
+
 class Iteration(Expression):
     """Iteration object that encapsualtes a single loop over sympy expressions.
 
@@ -59,9 +78,7 @@ class Iteration(Expression):
 
         # Replace open limits with variables names
         if self.limits[1] is None:
-            self.limit_var = self.dim.get_varname()
-        else:
-            self.limit_var = None
+            self.limits[1] = IterationBound(self.dim.get_varname())
 
         # Record offsets to later adjust loop limits accordingly
         self.offsets = [0, 0]
@@ -98,9 +115,8 @@ class Iteration(Expression):
             loop_body = v_subs + loop_body
         loop_init = cgen.InlineInitializer(
             cgen.Value("int", self.index), "%d + %d" % (self.limits[0], -self.offsets[0]))
-        loop_limit = self.limit_var if self.limits[1] is None else self.limits[1]
         loop_cond = '%s %s %s' % (self.index, '<' if self.limits[2] >= 0 else '>',
-                                  "%s - %d" % (loop_limit, self.offsets[1]))
+                                  "%s - %d" % (self.limits[1], self.offsets[1]))
         loop_inc = '%s += %s' % (self.index, self.limits[2])
         return cgen.For(loop_init, loop_cond, loop_inc, cgen.Block(loop_body))
 
@@ -112,8 +128,8 @@ class Iteration(Expression):
         """
         signature = [e.signature for e in self.expressions]
         signature = filter_ordered(chain(*signature))
-        if self.limits[1] is None:
-            signature += [self.limit_var]
+        if isinstance(self.limits[1], IterationBound):
+            signature += [self.limits[1]]
         return signature
 
     def indexify(self):
