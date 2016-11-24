@@ -34,9 +34,9 @@ allow users to create efficient FD kernels from SymPy expressions.
 Examples of how to configure operators are provided:
 
 * A simple example of how to solve the 2D diffusion equation can be
-  found in `tests/test_diffusion.py`. This example also demonstrates
-  how the equation can be solved via pure Python and optimised
-  `numpy`, as well as Devito.
+  found in `examples/diffusion/example_diffusion.py`. This example
+  also demonstrates how the equation can be solved via pure Python and
+  optimised `numpy`, as well as Devito.
 * A more practical example of acoustic Forward, Adjoint, Gradient and Born
   operators for use in FWI can be found in
   `examples/acoustic/acoustic_example.py` and `examples/acoustic/fwi_operators.py`.
