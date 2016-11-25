@@ -14,7 +14,7 @@ class IGrid:
     :param: theta: Tilt angle in radian
     :param phi : Asymuth angle in radian
     """
-    def __init__(self, origin, spacing, vp, epsilon=None,
+    def __init__(self, origin, spacing, vp, rho=None, epsilon=None,
                  delta=None, theta=None, phi=None):
         self.vp = vp
         self.spacing = spacing
@@ -24,12 +24,27 @@ class IGrid:
             self.scale = np.sqrt(1 + 2 * np.max(self.epsilon))
         else:
             self.scale = 1
+            self.epsilon = None
+
         if delta is not None:
             self.delta = np.sqrt(1 + 2 * delta)
+        else:
+            self.delta = None
+
         if phi is not None:
             self.phi = phi
+        else:
+            self.phi = None
+
         if theta is not None:
             self.theta = theta
+        else:
+            self.theta = None
+
+        if rho is not None:
+            self.rho = rho
+        else:
+            self.rho = None
 
         self.origin = origin
 
@@ -151,7 +166,11 @@ class IShot:
 
     def set_shape(self, nt, nrec):
         """Set the data array shape"""
-        self.shape = (nrec, nt)
+        self.shape = (nt, nrec)
+
+    def set_traces(self, traces):
+        """ Add traces data  """
+        self.traces = traces
 
     def get_source(self, ti=None):
         """Return the source signature"""

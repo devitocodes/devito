@@ -22,7 +22,8 @@ class ForwardOperator(Operator):
     """
     def __init__(self, model, src, damp, data, time_order=2, spc_order=6,
                  save=False, **kwargs):
-        nrec, nt = data.shape
+        nt, nrec = data.shape
+        nt, nsrc = src.shape
         s, h = symbols('s h')
         u = TimeData(name="u", shape=model.get_shape_comp(), time_dim=nt,
                      time_order=2, space_order=spc_order, save=save,
@@ -55,6 +56,10 @@ class ForwardOperator(Operator):
         rec = SourceLike(name="rec", npoint=nrec, nt=nt, dt=dt, h=model.get_spacing(),
                          coordinates=data.receiver_coords, ndim=len(damp.shape),
                          dtype=damp.dtype, nbpml=model.nbpml)
+        source = SourceLike(name="src", npoint=nsrc, nt=nt, dt=dt, h=model.get_spacing(),
+                            coordinates=src.receiver_coords, ndim=len(damp.shape),
+                            dtype=damp.dtype, nbpml=model.nbpml)
+        source.data[:] = src.traces[:]
 
         super(ForwardOperator, self).__init__(nt, m.shape,
                                               stencils=Eq(u.forward, stencil),
@@ -66,11 +71,11 @@ class ForwardOperator(Operator):
                                               **kwargs)
 
         # Insert source and receiver terms post-hoc
-        self.input_params += [src, src.coordinates, rec, rec.coordinates]
+        self.input_params += [source, source.coordinates, rec, rec.coordinates]
         self.output_params += [rec]
-        self.propagator.time_loop_stencils_a = src.add(m, u) + rec.read(u)
-        self.propagator.add_devito_param(src)
-        self.propagator.add_devito_param(src.coordinates)
+        self.propagator.time_loop_stencils_a = source.add(m, u) + rec.read(u)
+        self.propagator.add_devito_param(source)
+        self.propagator.add_devito_param(source.coordinates)
         self.propagator.add_devito_param(rec)
         self.propagator.add_devito_param(rec.coordinates)
 
@@ -87,8 +92,8 @@ class AdjointOperator(Operator):
     :param: time_order: Time discretization order
     :param: spc_order: Space discretization order
     """
-    def __init__(self, model, damp, data, recin, time_order=2, spc_order=6, **kwargs):
-        nrec, nt = data.shape
+    def __init__(self, model, damp, data, src, recin, time_order=2, spc_order=6, **kwargs):
+        nt, nrec = data.shape
         s, h = symbols('s h')
         v = TimeData(name="v", shape=model.get_shape_comp(), time_dim=nt,
                      time_order=2, space_order=spc_order,
@@ -119,9 +124,9 @@ class AdjointOperator(Operator):
         # Add substitutions for spacing (temporal and spatial)
         subs = {s: dt, h: model.get_spacing()}
         # Source and receiver initialization
-        srca = SourceLike(name="srca", npoint=1, nt=nt, dt=dt, h=model.get_spacing(),
-                          coordinates=np.array(data.source_coords,
-                                               dtype=damp.dtype)[np.newaxis, :],
+        srca = SourceLike(name="srca", npoint=src.traces.shape[1],
+                          nt=nt, dt=dt, h=model.get_spacing(),
+                          coordinates=src.receiver_coords,
                           ndim=len(damp.shape), dtype=damp.dtype, nbpml=model.nbpml)
         rec = SourceLike(name="rec", npoint=nrec, nt=nt, dt=dt, h=model.get_spacing(),
                          coordinates=data.receiver_coords, ndim=len(damp.shape),
@@ -160,7 +165,7 @@ class GradientOperator(Operator):
     :param: spc_order: Space discretization order
     """
     def __init__(self, model, damp, data, recin, u, time_order=2, spc_order=6, **kwargs):
-        nrec, nt = data.shape
+        nt, nrec = data.shape
         s, h = symbols('s h')
         v = TimeData(name="v", shape=model.get_shape_comp(), time_dim=nt,
                      time_order=2, space_order=spc_order,
@@ -237,8 +242,8 @@ class BornOperator(Operator):
     :param: spc_order: Space discretization order
     """
     def __init__(self, model, src, damp, data, dmin, time_order=2, spc_order=6, **kwargs):
-        nrec, nt = data.shape
-        s, h = symbols('s h')
+        nt, nrec = data.shape
+        nt, nsrc = src.shape
         u = TimeData(name="u", shape=model.get_shape_comp(), time_dim=nt,
                      time_order=2, space_order=spc_order,
                      save=False, dtype=damp.dtype)
@@ -250,6 +255,7 @@ class BornOperator(Operator):
 
         dm = DenseData(name="dm", shape=model.get_shape_comp(), dtype=damp.dtype)
         dm.data[:] = model.pad(dmin)
+        s, h = symbols('s h')
 
         # Derive stencils from symbolic equation
         if time_order == 2:
@@ -264,30 +270,31 @@ class BornOperator(Operator):
             laplacianU = u.laplace
             biharmonicU = U.laplace2(1/m)
             dt = 1.73 * model.get_critical_dt()
-            # first_eqn = m * u.dt2 - u.laplace - damp * u.dt
-            # second_eqn = m * U.dt2 - U.laplace - damp * U.dt
+            # first_eqn = m * u.dt2 - u.laplace + damp * u.dt
+            # second_eqn = m * U.dt2 - U.laplace - dm* u.dt2 + damp * U.dt
 
         stencil1 = 1.0 / (2.0 * m + s * damp) * \
             (4.0 * m * u + (s * damp - 2.0 * m) *
              u.backward + 2.0 * s ** 2 * (laplacianu + s**2 / 12 * biharmonicu))
-        src2 = -(dt ** -2) * (- 2 * u + u.forward + u.backward) * dm
         stencil2 = 1.0 / (2.0 * m + s * damp) * \
             (4.0 * m * u + (s * damp - 2.0 * m) *
-             u.backward + 2.0 * s ** 2 * (laplacianU + s**2 / 12 * biharmonicU + src2))
+             u.backward + 2.0 * s ** 2 * (laplacianU + s**2 / 12 * biharmonicU - dm * u.dt2))
         # Add substitutions for spacing (temporal and spatial)
-        subs = {s: dt, h: src.h}
+        subs = {s: dt, h: model.get_spacing()}
         # Add Born-specific updates and resets
-        insert_second_source = Eq(U, U + (dt * dt) / m*src2)
-        stencils = [Eq(u.forward, stencil1), Eq(U.forward, stencil2),
-                    insert_second_source]
+        stencils = [Eq(u.forward, stencil1), Eq(U.forward, stencil2)]
 
         rec = SourceLike(name="rec", npoint=nrec, nt=nt, dt=dt, h=model.get_spacing(),
                          coordinates=data.receiver_coords, ndim=len(damp.shape),
                          dtype=damp.dtype, nbpml=model.nbpml)
+        source = SourceLike(name="src", npoint=nsrc, nt=nt, dt=dt, h=model.get_spacing(),
+                            coordinates=src.receiver_coords, ndim=len(damp.shape),
+                            dtype=damp.dtype, nbpml=model.nbpml)
+        source.data[:] = src.traces[:]
 
-        super(BornOperator, self).__init__(src.nt, m.shape,
+        super(BornOperator, self).__init__(nt, m.shape,
                                            stencils=stencils,
-                                           subs=[subs, subs, {}, {}],
+                                           subs=[subs, subs],
                                            spc_border=max(spc_order, 2),
                                            time_order=2,
                                            forward=True,
@@ -295,13 +302,13 @@ class BornOperator(Operator):
                                            **kwargs)
 
         # Insert source and receiver terms post-hoc
-        self.input_params += [dm, src, src.coordinates, rec, rec.coordinates, U]
+        self.input_params += [dm, source, source.coordinates, rec, rec.coordinates, U]
         self.output_params = [rec]
-        self.propagator.time_loop_stencils_b = src.add(m, u, t - 1)
+        self.propagator.time_loop_stencils_b = source.add(m, u, t - 1)
         self.propagator.time_loop_stencils_a = rec.read(U)
         self.propagator.add_devito_param(dm)
-        self.propagator.add_devito_param(src)
-        self.propagator.add_devito_param(src.coordinates)
+        self.propagator.add_devito_param(source)
+        self.propagator.add_devito_param(source.coordinates)
         self.propagator.add_devito_param(rec)
         self.propagator.add_devito_param(rec.coordinates)
         self.propagator.add_devito_param(U)

@@ -23,6 +23,7 @@ class TestAdjointA(object):
         model = IGrid(origin, spacing, true_vp)
         # Define seismic data.
         data = IShot()
+        src = IShot()
 
         f0 = .010
         if time_order == 4:
@@ -38,24 +39,31 @@ class TestAdjointA(object):
             r = (np.pi * f0 * (t - 1./f0))
             return (1-2.*r**2)*np.exp(-r**2)
 
-        time_series = source(np.linspace(t0, tn, nt), f0)
-        location = (origin[0] + dimensions[0] * spacing[0] * 0.5,
-                    origin[-1] + 2 * spacing[-1])
+        # Source geometry
+        time_series = np.zeros((nt, 1))
+        time_series[:, 0] = source(np.linspace(t0, tn, nt), f0)
+
+        location = np.zeros((1, 3))
+        location[0, 0] = origin[0] + dimensions[0] * spacing[0] * 0.5
+        location[0, 1] = origin[1] + 2 * spacing[1]
         if len(dimensions) == 3:
-            location = (location[0], origin[1] + dimensions[1] * spacing[1] * 0.5,
-                        location[1])
-        data.set_source(time_series, dt, location)
-        receiver_coords = np.zeros((50, len(dimensions)))
-        receiver_coords[:, 0] = np.linspace(50, origin[0] +
-                                            dimensions[0]*spacing[0] - 50,
-                                            num=50)
+            location[0, 1] = origin[1] + dimensions[1] * spacing[1] * 0.5
+            location[0, 2] = origin[1] + 2 * spacing[2]
+        src.set_receiver_pos(location)
+        src.set_shape(nt, 1)
+        src.set_traces(time_series)
+
+        receiver_coords = np.zeros((101, 3))
+        receiver_coords[:, 0] = np.linspace(50, 950, num=101)
+        receiver_coords[:, 1] = location[0, 1]
         if len(dimensions) == 3:
-            receiver_coords[:, 1] = location[1]
-            receiver_coords[:, 2] = location[2]
+            receiver_coords[:, 1] = origin[1] + dimensions[1] * spacing[1] * 0.5
+            receiver_coords[:, 2] = location[0, 2]
         data.set_receiver_pos(receiver_coords)
-        data.set_shape(nt, 50)
+        data.set_shape(nt, 101)
+
         # Adjoint test
-        wave_true = Acoustic_cg(model, data, t_order=time_order, s_order=space_order,
+        wave_true = Acoustic_cg(model, data, src, t_order=time_order, s_order=space_order,
                                 nbpml=10)
         return wave_true
 
@@ -76,7 +84,7 @@ class TestAdjointA(object):
         rec = forward
         srca = acoustic.Adjoint(rec)
         # Actual adjoint test
-        term1 = np.dot(srca.reshape(-1), acoustic.data.get_source().reshape(-1))
+        term1 = np.dot(srca.reshape(-1), acoustic.src.traces)
         term2 = linalg.norm(rec)**2
         print(term1, term2, term1 - term2, term1 / term2)
         assert np.isclose(term1 / term2, 1.0, atol=0.001)
@@ -85,7 +93,7 @@ class TestAdjointA(object):
 if __name__ == "__main__":
     t = TestAdjointA()
     request = type('', (), {})()
-    request.param = (60, 70, 80)
-    ac = t.acoustic(request, 4, 2)
+    request.param = (60, 70)
+    ac = t.acoustic(request, 2, 4)
     fw = t.forward(ac)
     t.test_adjoint(ac, fw)

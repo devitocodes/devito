@@ -46,7 +46,7 @@ def run(dimensions=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=1000.0,
 
     # Define seismic data.
     data = IShot()
-
+    src = IShot()
     f0 = .010
     if time_order == 4:
         dt = 1.73 * model.get_critical_dt()
@@ -55,22 +55,28 @@ def run(dimensions=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=1000.0,
     t0 = 0.0
     nt = int(1+(tn-t0)/dt)
 
-    time_series = source(np.linspace(t0, tn, nt), f0)
-    location = (origin[0] + dimensions[0] * spacing[0] * 0.5,
-                origin[1] + dimensions[1] * spacing[1] * 0.5,
-                origin[2] + 2 * spacing[2])
-    data.set_source(time_series, dt, location)
+    # Source geometry
+    time_series = np.zeros((nt, 1))
 
+    time_series[:, 0] = source(np.linspace(t0, tn, nt), f0)
+
+    location = np.zeros((1, 3))
+    location[0, 0] = origin[0] + dimensions[0] * spacing[0] * 0.5
+    location[0, 1] = origin[1] + dimensions[1] * spacing[1] * 0.5
+    location[0, 2] = origin[1] + 2 * spacing[2]
+    src.set_receiver_pos(location)
+    src.set_shape(nt, 1)
+    src.set_traces(time_series)
+
+    # Receiver geometry
     receiver_coords = np.zeros((101, 3))
-    receiver_coords[:, 0] = np.linspace(2 * spacing[0],
-                                        origin[0] + (dimensions[0] - 2) * spacing[0],
-                                        num=101)
+    receiver_coords[:, 0] = np.linspace(50, 950, num=101)
     receiver_coords[:, 1] = origin[1] + dimensions[1] * spacing[1] * 0.5
-    receiver_coords[:, 2] = location[2]
+    receiver_coords[:, 2] = location[0, 1]
     data.set_receiver_pos(receiver_coords)
     data.set_shape(nt, 101)
 
-    Acoustic = Acoustic_cg(model, data, nbpml=nbpml, t_order=time_order,
+    Acoustic = Acoustic_cg(model, data, src, nbpml=nbpml, t_order=time_order,
                            s_order=space_order, auto_tuning=auto_tuning, dse=dse,
                            compiler=compiler)
 
