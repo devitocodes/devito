@@ -54,7 +54,8 @@ class TestAdjointA(object):
         src.set_traces(time_series)
 
         receiver_coords = np.zeros((101, 3))
-        receiver_coords[:, 0] = np.linspace(50, 950, num=101)
+        receiver_coords[:, 0] = np.linspace(0, origin[0] +
+                                            dimensions[0] * spacing[0], num=101)
         receiver_coords[:, 1] = location[0, 1]
         if len(dimensions) == 3:
             receiver_coords[:, 1] = origin[1] + dimensions[1] * spacing[1] * 0.5

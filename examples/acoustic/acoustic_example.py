@@ -70,7 +70,8 @@ def run(dimensions=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=1000.0,
 
     # Receiver geometry
     receiver_coords = np.zeros((101, 3))
-    receiver_coords[:, 0] = np.linspace(50, 950, num=101)
+    receiver_coords[:, 0] = np.linspace(0, origin[0] +
+                                        dimensions[0] * spacing[0], num=101)
     receiver_coords[:, 1] = origin[1] + dimensions[1] * spacing[1] * 0.5
     receiver_coords[:, 2] = location[0, 1]
     data.set_receiver_pos(receiver_coords)
