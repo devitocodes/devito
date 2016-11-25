@@ -1,6 +1,8 @@
 # coding: utf-8
 from __future__ import print_function
 
+import numpy as np
+
 from devito.at_controller import AutoTuner
 from examples.acoustic.fwi_operators import *
 
