@@ -4,7 +4,6 @@ from __future__ import print_function
 import numpy as np
 
 from devito.at_controller import AutoTuner
-from examples.source_type import SourceLike
 from examples.tti.tti_operators import *
 
 

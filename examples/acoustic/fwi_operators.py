@@ -1,4 +1,3 @@
-import numpy as np
 from sympy import Eq, symbols
 
 from devito.dimension import t
@@ -92,7 +91,8 @@ class AdjointOperator(Operator):
     :param: time_order: Time discretization order
     :param: spc_order: Space discretization order
     """
-    def __init__(self, model, damp, data, src, recin, time_order=2, spc_order=6, **kwargs):
+    def __init__(self, model, damp, data, src, recin,
+                 time_order=2, spc_order=6, **kwargs):
         nt, nrec = data.shape
         s, h = symbols('s h')
         v = TimeData(name="v", shape=model.get_shape_comp(), time_dim=nt,
@@ -278,7 +278,8 @@ class BornOperator(Operator):
              u.backward + 2.0 * s ** 2 * (laplacianu + s**2 / 12 * biharmonicu))
         stencil2 = 1.0 / (2.0 * m + s * damp) * \
             (4.0 * m * u + (s * damp - 2.0 * m) *
-             u.backward + 2.0 * s ** 2 * (laplacianU + s**2 / 12 * biharmonicU - dm * u.dt2))
+             u.backward + 2.0 * s ** 2 * (laplacianU +
+                                          s**2 / 12 * biharmonicU - dm * u.dt2))
         # Add substitutions for spacing (temporal and spatial)
         subs = {s: dt, h: model.get_spacing()}
         # Add Born-specific updates and resets
