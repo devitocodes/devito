@@ -14,12 +14,18 @@ prototype Full Waveform Inversion (FWI) code that can be found
 
 ## Quickstart
 
-Devito should be installed directly from github via:
+Devito can be installed from github via pip:
+```
+pip install --user git+https://github.com/opesci/devito.git
+```
+
+Alternatively Devito can be be installed manually from github via:
 ```
 git clone https://github.com/opesci/devito.git
 cd devito && pip install --user -r requirements.txt
 ```
-Please make sure you also add Devito to your `PYTHONPATH`.
+When manually installing Devito please make sure you also add Devito
+to your `PYTHONPATH`.
 
 ## Examples
 
@@ -28,9 +34,9 @@ allow users to create efficient FD kernels from SymPy expressions.
 Examples of how to configure operators are provided:
 
 * A simple example of how to solve the 2D diffusion equation can be
-  found in `tests/test_diffusion.py`. This example also demonstrates
-  how the equation can be solved via pure Python and optimised
-  `numpy`, as well as Devito.
+  found in `examples/diffusion/example_diffusion.py`. This example
+  also demonstrates how the equation can be solved via pure Python and
+  optimised `numpy`, as well as Devito.
 * A more practical example of acoustic Forward, Adjoint, Gradient and Born
   operators for use in FWI can be found in
   `examples/acoustic/acoustic_example.py` and `examples/acoustic/fwi_operators.py`.
