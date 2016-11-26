@@ -36,6 +36,8 @@ class Compiler(GCCToolchain):
         * :data:`self.libraries`
         * :data:`self.library_dirs`
         * :data:`self.defines`
+        * :data:`self.src_ext`
+        * :data:`self.lib_ext`
         * :data:`self.undefines`
         * :data:`self.pragma_ivdep`
 
@@ -50,6 +52,8 @@ class Compiler(GCCToolchain):
         self.library_dirs = []
         self.defines = []
         self.undefines = []
+        self.src_ext = 'c'
+        self.lib_ext = 'so'
         # Devito-specific flags and properties
         self.openmp = openmp
         self.pragma_ivdep = [Pragma('ivdep')]
@@ -93,6 +97,7 @@ class ClangCompiler(Compiler):
         self.ld = 'clang'
         self.cflags = ['-O3', '-g', '-fPIC', '-Wall', '-std=c99']
         self.ldflags = ['-shared']
+        self.lib_ext = 'dylib'
 
         if self.openmp:
             log("WARNING: Disabling OpenMP because clang does not support it.")
@@ -232,8 +237,8 @@ def jit_compile(ccode, basename, compiler=GNUCompiler):
     :param compiler: The toolchain used for compilation. GNUCompiler by default.
     :return: Path to compiled lib
     """
-    src_file = "%s.c" % basename
-    lib_file = "%s.so" % basename
+    src_file = "%s.%s" % (basename, compiler.src_ext)
+    lib_file = "%s.%s" % (basename, compiler.lib_ext)
     log("%s: Compiling %s" % (compiler, src_file))
     extension_file_from_string(toolchain=compiler, ext_file=lib_file,
                                source_string=ccode, source_name=src_file)
@@ -251,7 +256,7 @@ def load(basename, compiler=GNUCompiler):
     Note: If the provided compiler is of type `IntelMICCompiler`
     we utilise the `pymic` package to manage device streams.
     """
-    lib_file = "%s.so" % basename
+    lib_file = "%s.%s" % (basename, compiler.lib_ext)
 
     if isinstance(compiler, IntelMICCompiler):
         compiler._device = compiler._mic.devices[0]
