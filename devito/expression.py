@@ -4,12 +4,12 @@ from collections import defaultdict
 from operator import attrgetter
 
 import cgen
-from sympy import Eq, Indexed, IndexedBase, preorder_traversal
+from sympy import Eq, IndexedBase, preorder_traversal
 
 from devito.codeprinter import ccode
 from devito.dimension import Dimension
 from devito.interfaces import SymbolicData
-from devito.symbolics import dse_indexify
+from devito.symbolics import dse_indexify, terminals
 from devito.tools import filter_ordered
 
 __all__ = ['Expression']
@@ -70,16 +70,15 @@ class Expression(object):
 
         Note: This assumes we have indexified the stencil expression."""
         offsets = defaultdict(list)
-        for e in preorder_traversal(self.stencil):
-            if isinstance(e, Indexed):
-                for a in e.args[1:]:
-                    d = None
-                    off = []
-                    for idx in a.args:
-                        if isinstance(idx, Dimension):
-                            d = idx
-                        else:
-                            off += [idx]
-                    if d is not None:
-                        offsets[d] += off
+        for e in terminals(self.stencil):
+            for a in e.indices:
+                d = None
+                off = []
+                for idx in a.args:
+                    if isinstance(idx, Dimension):
+                        d = idx
+                    else:
+                        off += [idx]
+                if d is not None:
+                    offsets[d] += off
         return offsets
