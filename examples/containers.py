@@ -9,6 +9,7 @@ class IGrid:
     :param origin: Origin of the model in m as a Tuple
     :param spacing:grid size in m as a Tuple
     :param vp: Velocity in km/s
+    :param rho: Density in kg/cm^3 (rho=1 for water)
     :param epsilon: Thomsen epsilon parameter (0<epsilon<1)
     :param delta: Thomsen delta parameter (0<delta<1), delta<epsilon
     :param: theta: Tilt angle in radian
@@ -19,6 +20,7 @@ class IGrid:
         self.vp = vp
         self.spacing = spacing
         self.dimensions = vp.shape
+
         if epsilon is not None:
             self.epsilon = 1 + 2 * epsilon
             self.scale = np.sqrt(1 + 2 * np.max(self.epsilon))
@@ -31,21 +33,9 @@ class IGrid:
         else:
             self.delta = None
 
-        if phi is not None:
-            self.phi = phi
-        else:
-            self.phi = None
-
-        if theta is not None:
-            self.theta = theta
-        else:
-            self.theta = None
-
-        if rho is not None:
-            self.rho = rho
-        else:
-            self.rho = None
-
+        self.phi = phi
+        self.theta = theta
+        self.rho = rho
         self.origin = origin
 
     def get_shape(self):
