@@ -1,9 +1,10 @@
 # coding: utf-8
 from __future__ import print_function
 
+import numpy as np
+
 from devito.at_controller import AutoTuner
 from examples.acoustic.fwi_operators import *
-from examples.source_type import SourceLike
 
 
 class Acoustic_cg(object):
@@ -12,12 +13,13 @@ class Acoustic_cg(object):
 
     Note: s_order must always be greater than t_order
     """
-    def __init__(self, model, data, source=None, nbpml=40, t_order=2, s_order=2,
+    def __init__(self, model, data, source, nbpml=40, t_order=2, s_order=2,
                  auto_tuning=False, dse=True, compiler=None):
         self.model = model
         self.t_order = t_order
         self.s_order = s_order
         self.data = data
+        self.src = source
         self.dtype = np.float32
         # Time step can be \sqrt{3}=1.73 bigger with 4th order
         if t_order == 4:
@@ -26,13 +28,6 @@ class Acoustic_cg(object):
             self.dt = model.get_critical_dt()
         self.model.nbpml = nbpml
         self.model.set_origin(nbpml)
-        if source is not None:
-            self.source = source.read()
-            self.source.reinterpolate(self.dt)
-            source_time = self.source.traces[0, :]
-            while len(source_time) < self.data.nsamples:
-                source_time = np.append(source_time, [0.0])
-            self.data.set_source(source_time, self.dt, self.data.source_coords)
 
         def damp_boundary(damp):
             h = self.model.get_spacing()
@@ -61,16 +56,11 @@ class Acoustic_cg(object):
 
         # Initialize damp by calling the function that can precompute damping
         damp_boundary(self.damp.data)
-        srccoord = np.array(self.data.source_coords, dtype=self.dtype)[np.newaxis, :]
-        if len(self.damp.shape) == 2 and srccoord.shape[1] == 3:
-            srccoord = np.delete(srccoord, 1, 1)
+
+        if len(self.damp.shape) == 2 and self.src.receiver_coords.shape[1] == 3:
+            self.src.receiver_coords = np.delete(self.src.receiver_coords, 1, 1)
         if len(self.damp.shape) == 2 and self.data.receiver_coords.shape[1] == 3:
             self.data.receiver_coords = np.delete(self.data.receiver_coords, 1, 1)
-        self.src = SourceLike(name="src", npoint=1, nt=data.shape[1],
-                              dt=self.dt, h=self.model.get_spacing(),
-                              coordinates=srccoord, ndim=len(self.damp.shape),
-                              dtype=self.dtype, nbpml=nbpml)
-        self.src.data[:] = data.get_source()[:, np.newaxis]
 
         if auto_tuning:  # auto tuning with dummy forward operator
             fw = ForwardOperator(self.model, self.src, self.damp, self.data,
@@ -93,7 +83,7 @@ class Acoustic_cg(object):
         return rec.data, u, fw.propagator.gflopss, fw.propagator.oi, fw.propagator.timings
 
     def Adjoint(self, rec, cache_blocking=None):
-        adj = AdjointOperator(self.model, self.damp, self.data, rec,
+        adj = AdjointOperator(self.model, self.damp, self.data, self.src, rec,
                               time_order=self.t_order, spc_order=self.s_order,
                               cache_blocking=cache_blocking)
         v = adj.apply()[0]

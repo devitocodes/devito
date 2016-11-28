@@ -9,28 +9,33 @@ class IGrid:
     :param origin: Origin of the model in m as a Tuple
     :param spacing:grid size in m as a Tuple
     :param vp: Velocity in km/s
+    :param rho: Density in kg/cm^3 (rho=1 for water)
     :param epsilon: Thomsen epsilon parameter (0<epsilon<1)
     :param delta: Thomsen delta parameter (0<delta<1), delta<epsilon
     :param: theta: Tilt angle in radian
     :param phi : Asymuth angle in radian
     """
-    def __init__(self, origin, spacing, vp, epsilon=None,
+    def __init__(self, origin, spacing, vp, rho=None, epsilon=None,
                  delta=None, theta=None, phi=None):
         self.vp = vp
         self.spacing = spacing
         self.dimensions = vp.shape
+
         if epsilon is not None:
             self.epsilon = 1 + 2 * epsilon
             self.scale = np.sqrt(1 + 2 * np.max(self.epsilon))
         else:
             self.scale = 1
+            self.epsilon = None
+
         if delta is not None:
             self.delta = np.sqrt(1 + 2 * delta)
-        if phi is not None:
-            self.phi = phi
-        if theta is not None:
-            self.theta = theta
+        else:
+            self.delta = None
 
+        self.phi = phi
+        self.theta = theta
+        self.rho = rho
         self.origin = origin
 
     def get_shape(self):
@@ -151,7 +156,11 @@ class IShot:
 
     def set_shape(self, nt, nrec):
         """Set the data array shape"""
-        self.shape = (nrec, nt)
+        self.shape = (nt, nrec)
+
+    def set_traces(self, traces):
+        """ Add traces data  """
+        self.traces = traces
 
     def get_source(self, ti=None):
         """Return the source signature"""

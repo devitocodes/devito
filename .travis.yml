@@ -13,22 +13,30 @@ matrix:
   include:
     - os: linux
       python: "2.7"
-      env: DEVITO_ARCH=gcc DEVITO_OPENMP=0
-    - os: linux
-      python: "3.5"
-      env: DEVITO_ARCH=gcc DEVITO_OPENMP=0
+      env: DEVITO_ARCH=gcc-4.9 DEVITO_OPENMP=0
     - os: linux
       python: "2.7"
-      env: DEVITO_ARCH=gcc DEVITO_OPENMP=1 OMP_NUM_THREADS=2
+      env: DEVITO_ARCH=gcc-5 DEVITO_OPENMP=0
+    - os: linux
+      python: "3.5"
+      env: DEVITO_ARCH=gcc-4.9 DEVITO_OPENMP=0
+    - os: linux
+      python: "2.7"
+      env: DEVITO_ARCH=gcc-4.9 DEVITO_OPENMP=1 OMP_NUM_THREADS=2
   allow_failures:
     - os: osx
+      python: "2.7"
       env: DEVITO_ARCH=clang DEVITO_OPENMP=0
 
 addons:
   apt:
+    sources:
+      - ubuntu-toolchain-r-test     # For gcc 4.9 and 5
     packages:
-        - python-dev
-        - python-pip
+      - gcc-4.9
+      - g++-4.9
+      - gcc-5
+      - g++-5
 
 install:
   - if [[ $TRAVIS_OS_NAME == 'osx' ]]; then brew update; brew install python; brew link --overwrite python ; fi

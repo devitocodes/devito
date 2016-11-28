@@ -97,8 +97,7 @@ class StencilKernel(object):
         """
         header_vars = [c.Pointer(c.POD(v.dtype, '%s_vec' % v.name))
                        for v in self.signature]
-        header = c.Extern("C", c.FunctionDeclaration(
-            c.Value('int', self.name), header_vars))
+        header = c.FunctionDeclaration(c.Value('int', self.name), header_vars)
         cast_shapes = [(v, ''.join(['[%d]' % d for d in v.shape[1:]]))
                        for v in self.signature]
         casts = [c.Initializer(c.POD(v.dtype, '(*%s)%s' % (v.name, shape)),
