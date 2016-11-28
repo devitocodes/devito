@@ -17,9 +17,19 @@ __all__ = ['StencilKernel']
 
 
 class StencilKernel(object):
-    """Code generation class, alternative to Propagator"""
+    """Code generation class, alternative to Propagator
 
-    def __init__(self, stencils, name="Kernel", compiler=None):
+    :param stencils: SymPy equation or list of equations that define the
+                     stencil used to create the kernel of this Operator.
+    :param name: Name of the kernel function - defaults to "Kernel"
+    :param subs: Dict or list of dicts containing the SymPy symbol
+                 substitutions for each stencil respectively.
+    :param compiler: Compiler class used to perform JIT compilation.
+                     If not provided, the compiler will be inferred from the
+                     environment variable DEVITO_ARCH, or default to GNUCompiler.
+    """
+
+    def __init__(self, stencils, name="Kernel", subs=None, compiler=None):
         # Default attributes required for compilation
         self.name = name
         self.compiler = compiler or get_compiler_from_env()
@@ -29,11 +39,22 @@ class StencilKernel(object):
         stencils = stencils if isinstance(stencils, list) else [stencils]
         self.expressions = [Expression(s) for s in stencils]
 
+        # Lower all expressions to "indexed" API
+        for e in self.expressions:
+            e.indexify()
+
+        # Apply supplied substitutions
+        if subs is not None:
+            for expr in self.expressions:
+                expr.substitute(subs)
+
         # Wrap expressions with Iterations according to dimensions
         for i, expr in enumerate(self.expressions):
             newexpr = expr
+            offsets = newexpr.index_offsets
             for d in reversed(expr.dimensions):
-                newexpr = Iteration(newexpr, d, d.size)
+                newexpr = Iteration(newexpr, dimension=d,
+                                    limits=d.size, offsets=offsets[d])
             self.expressions[i] = newexpr
 
         # TODO: Merge Iterations iff outermost variables agree

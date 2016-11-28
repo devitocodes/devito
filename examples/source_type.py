@@ -1,7 +1,6 @@
 from sympy import Eq, Function, Matrix, symbols
-from sympy.abc import p
 
-from devito.dimension import t
+from devito.dimension import p, t
 from devito.interfaces import PointData
 from devito.iteration import Iteration
 
@@ -104,13 +103,13 @@ class SourceLike(PointData):
     def read(self, u):
         """Read the value of the wavefield u at point locations with grid2point."""
         interp_expr = Eq(self.indexed[t, p], self.grid2point(u))
-        return [Iteration(interp_expr, index=p, limits=self.shape[1])]
+        return [Iteration(interp_expr, dimension=p, limits=self.shape[1])]
 
     def read2(self, u, v):
         """Read the value of the wavefield (u+v) at point locations with grid2point."""
         interp_expr = Eq(self.indexed[t, p], self.grid2point(u) + self.grid2point(v))
-        return [Iteration(interp_expr, index=p, limits=self.shape[1])]
+        return [Iteration(interp_expr, dimension=p, limits=self.shape[1])]
 
     def add(self, m, u, t=t):
         """Add a point source term to the wavefield u at time t"""
-        return [Iteration(self.point2grid(u, m, t), index=p, limits=self.shape[1])]
+        return [Iteration(self.point2grid(u, m, t), dimension=p, limits=self.shape[1])]

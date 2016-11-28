@@ -8,10 +8,12 @@ def flatten(l):
     return [item for sublist in l for item in sublist]
 
 
-def filter_ordered(elements):
+def filter_ordered(elements, key=None):
     """Filter elements in a list while preserving order"""
     seen = set()
-    return [e for e in elements if not (e in seen or seen.add(e))]
+    if key is None:
+        key = lambda x: x
+    return [e for e in elements if not (key(e) in seen or seen.add(key(e)))]
 
 
 def convert_dtype_to_ctype(dtype):

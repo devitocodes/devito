@@ -1,9 +1,12 @@
-from collections import Iterable
+from collections import Iterable, defaultdict
 from itertools import chain
 
 import cgen
+from sympy import Symbol
 
+from devito.dimension import Dimension
 from devito.expression import Expression
+from devito.logger import warning
 from devito.tools import filter_ordered
 
 __all__ = ['Iteration']
@@ -18,19 +21,49 @@ class Iteration(Expression):
                   to iterate.
     :param limits: Limits for the iteration space, either the loop size or a
                    tuple of the form (start, finish, stepping).
+    :param offsets: Optional map list of offsets to honour in the loop
     """
 
-    def __init__(self, expressions, index, limits):
+    def __init__(self, expressions, dimension, limits, offsets=None):
         # Ensure we deal with a list of Expression objects internally
         self.expressions = expressions if isinstance(expressions, list) else [expressions]
         self.expressions = [e if isinstance(e, Expression) else Expression(e)
                             for e in self.expressions]
-        self.index = str(index)
+
+        # Generate index variable name and variable substitutions
+        self.dim = dimension
+        if isinstance(self.dim, Dimension):
+            if self.dim.buffered is None:
+                # Generate index variable from dimension
+                self.index = str(self.dim.get_varname())
+                self.subs = {self.dim: Symbol(self.index)}
+            else:
+                # Generate numbered indices for each buffer
+                self.index = self.dim.name
+                self.subs = {self.dim: Symbol(self.dim.get_varname())}
+                for offset in self.index_offsets[self.dim]:
+                    self.subs[self.dim + offset] = Symbol(self.dim.get_varname())
+        else:
+            warning("Generating Iteration without Dimension object")
+            self.index = str(dimension)
+
+        # Propagate variable names to the lower expressions
+        self.substitute(self.subs)
+
+        # Generate loop limits
         if isinstance(limits, Iterable):
             assert(len(limits) == 3)
-            self.limits = limits
+            self.limits = list(limits)
         else:
-            self.limits = (0, limits, 1)
+            self.limits = list((0, limits, 1))
+
+        # Adjust loop limits according to provided offsets
+        o_min, o_max = 0, 0
+        for off in (offsets or {}):
+            o_min = min(o_min, int(off))
+            o_max = max(o_max, int(off))
+        self.limits[0] += -o_min
+        self.limits[1] -= o_max
 
     def __repr__(self):
         str_expr = "\n\t".join([str(s) for s in self.expressions])
@@ -53,7 +86,13 @@ class Iteration(Expression):
         :returns: :class:`cgen.For` object representing the loop
         """
         forward = self.limits[1] >= self.limits[0]
-        loop_body = cgen.Block([s.ccode for s in self.expressions])
+        loop_body = [s.ccode for s in self.expressions]
+        if self.dim.buffered is not None:
+            modulo = self.dim.buffered
+            v_subs = [cgen.Initializer(cgen.Value('int', v),
+                                       "(%s) %% %d" % (s, modulo))
+                      for s, v in self.subs.items()]
+            loop_body = v_subs + loop_body
         loop_init = cgen.InlineInitializer(
             cgen.Value("int", self.index), self.limits[0])
         loop_cond = '%s %s %s' % (self.index, '<' if forward else '>', self.limits[1])
@@ -62,7 +101,7 @@ class Iteration(Expression):
         else:
             loop_inc = '%s %s %s' % (self.index, '+=' if forward else '-=',
                                      self.limits[2])
-        return cgen.For(loop_init, loop_cond, loop_inc, loop_body)
+        return cgen.For(loop_init, loop_cond, loop_inc, cgen.Block(loop_body))
 
     @property
     def signature(self):
@@ -72,3 +111,18 @@ class Iteration(Expression):
         """
         signatures = [e.signature for e in self.expressions]
         return filter_ordered(chain(*signatures))
+
+    def indexify(self):
+        """Convert all enclosed stencil expressions to "indexed" format"""
+        for e in self.expressions:
+            e.indexify()
+
+    @property
+    def index_offsets(self):
+        """Collect all non-zero offsets used with each index in a map
+
+        Note: This assumes we have indexified the stencil expression."""
+        offsets = defaultdict(list)
+        for expr in self.expressions:
+            offsets.update(expr.index_offsets)
+        return offsets

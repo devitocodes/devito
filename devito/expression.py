@@ -1,7 +1,15 @@
+from __future__ import absolute_import
+
+from collections import defaultdict
+from operator import attrgetter
+
 import cgen
 from sympy import Eq, IndexedBase, preorder_traversal
 
 from devito.codeprinter import ccode
+from devito.dimension import Dimension
+from devito.interfaces import SymbolicData
+from devito.symbolics import dse_indexify, terminals
 from devito.tools import filter_ordered
 
 __all__ = ['Expression']
@@ -18,6 +26,9 @@ class Expression(object):
         self.functions = []
         # Traverse stencil to determine meta information
         for e in preorder_traversal(self.stencil):
+            if isinstance(e, SymbolicData):
+                self.dimensions += list(e.indices)
+                self.functions += [e]
             if isinstance(e, IndexedBase):
                 self.dimensions += list(e.function.indices)
                 self.functions += [e.function]
@@ -46,4 +57,28 @@ class Expression(object):
 
         :returns: List of unique data objects required by the expression
         """
-        return self.functions
+        return filter_ordered([f for f in self.functions],
+                              key=attrgetter('name'))
+
+    def indexify(self):
+        """Convert stencil expression to "indexed" format"""
+        self.stencil = dse_indexify(self.stencil)
+
+    @property
+    def index_offsets(self):
+        """Collect all non-zero offsets used with each index in a map
+
+        Note: This assumes we have indexified the stencil expression."""
+        offsets = defaultdict(list)
+        for e in terminals(self.stencil):
+            for a in e.indices:
+                d = None
+                off = []
+                for idx in a.args:
+                    if isinstance(idx, Dimension):
+                        d = idx
+                    else:
+                        off += [idx]
+                if d is not None:
+                    offsets[d] += off
+        return offsets

@@ -2,11 +2,12 @@ import weakref
 
 import numpy as np
 from sympy import Function, IndexedBase, as_finite_diff, symbols
-from sympy.abc import h, p, s
+from sympy.abc import h, s
 
-from devito.dimension import t, x, y, z
-from devito.finite_difference import (centered, cross_derivative, first_derivative,
-                                      left, right, second_derivative)
+from devito.dimension import p, t, x, y, z
+from devito.finite_difference import (centered, cross_derivative,
+                                      first_derivative, left, right,
+                                      second_derivative)
 from devito.logger import debug, error
 from devito.memmap_manager import MemmapManager
 from devito.memory import first_touch, free, malloc_aligned
@@ -389,6 +390,7 @@ class TimeData(DenseData):
                 time_dim += self.time_order
             else:
                 time_dim = self.time_order + 1
+                self.indices[0].buffered = time_dim
 
             self.shape = (time_dim,) + self.shape
 
