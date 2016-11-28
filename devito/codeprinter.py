@@ -12,8 +12,8 @@ class CodePrinter(CCodePrinter):
     def __init__(self, settings={}):
         CCodePrinter.__init__(self, settings)
         custom_functions = {
-            'INT': 'int',
-            'FLOAT': 'float'
+            'INT': '(int)',
+            'FLOAT': '(float)'
         }
         self.known_functions.update(custom_functions)
 
