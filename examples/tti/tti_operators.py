@@ -22,7 +22,8 @@ class ForwardOperator(Operator):
     """
     def __init__(self, model, src, damp, data, time_order=2, spc_order=4, save=False,
                  trigonometry='normal', **kwargs):
-        nrec, nt = data.shape
+        nt, nrec = data.shape
+        nt, nsrc = src.shape
         dt = model.get_critical_dt()
         u = TimeData(name="u", shape=model.get_shape_comp(),
                      time_dim=nt, time_order=time_order,
@@ -78,6 +79,12 @@ class ForwardOperator(Operator):
                          ndim=len(damp.shape),
                          dtype=damp.dtype,
                          nbpml=model.nbpml)
+        source = SourceLike(name="src", npoint=nsrc, nt=nt,
+                            dt=dt, h=model.get_spacing(),
+                            coordinates=src.receiver_coords,
+                            ndim=len(damp.shape),
+                            dtype=damp.dtype, nbpml=model.nbpml)
+        source.data[:] = src.traces[:]
 
         def Bhaskarasin(angle):
             if angle == 0:
@@ -187,11 +194,11 @@ class ForwardOperator(Operator):
                                               **kwargs)
 
         # Insert source and receiver terms post-hoc
-        self.input_params += [src, src.coordinates, rec, rec.coordinates]
+        self.input_params += [source, source.coordinates, rec, rec.coordinates]
         self.output_params += [v, rec]
-        self.propagator.time_loop_stencils_a = (src.add(m, u) + src.add(m, v) +
+        self.propagator.time_loop_stencils_a = (source.add(m, u) + source.add(m, v) +
                                                 rec.read2(u, v))
-        self.propagator.add_devito_param(src)
-        self.propagator.add_devito_param(src.coordinates)
+        self.propagator.add_devito_param(source)
+        self.propagator.add_devito_param(source.coordinates)
         self.propagator.add_devito_param(rec)
         self.propagator.add_devito_param(rec.coordinates)
