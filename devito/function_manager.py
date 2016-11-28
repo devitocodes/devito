@@ -12,9 +12,8 @@ class FunctionManager(object):
     :param mic_flag: True if using MIC. Default is False
     :param openmp: True if using OpenMP. Default is False
     """
-    libraries = ['cassert', 'cstdlib', 'cmath', 'iostream',
-                 'fstream', 'vector', 'cstdio', 'string',
-                 'inttypes.h', 'sys/time.h', 'math.h']
+    libraries = ['assert.h', 'stdlib.h', 'math.h',
+                 'stdio.h', 'string.h', 'sys/time.h']
 
     _pymic_attribute = 'PYMIC_KERNEL'
 
@@ -34,7 +33,7 @@ class FunctionManager(object):
         """
         statements = []
         statements += self._defines
-        statements += [cgen.Include(s) for s in self.libraries]
+        statements += [cgen.Include(s, system=False) for s in self.libraries]
 
         if self.mic_flag:
             statements += [cgen.Include('pymic_kernel.h')]
@@ -107,10 +106,8 @@ class FunctionManager(object):
                 cgen.Value(self._pymic_attribute + '\nint', function_descriptor.name),
                 function_params)
         else:
-            return cgen.Extern("C",
-                               cgen.FunctionDeclaration(
-                                   cgen.Value('int', function_descriptor.name),
-                                   function_params))
+            return cgen.FunctionDeclaration(cgen.Value('int', function_descriptor.name),
+                                            function_params)
 
     def generate_function_body(self, function_descriptor):
         """Generates a function body from a :class:`FunctionDescriptor`

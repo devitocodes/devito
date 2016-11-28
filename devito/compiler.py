@@ -1,3 +1,4 @@
+from functools import partial
 from os import environ, getuid, mkdir, path
 from tempfile import gettempdir
 
@@ -35,11 +36,13 @@ class Compiler(GCCToolchain):
         * :data:`self.libraries`
         * :data:`self.library_dirs`
         * :data:`self.defines`
+        * :data:`self.src_ext`
+        * :data:`self.lib_ext`
         * :data:`self.undefines`
         * :data:`self.pragma_ivdep`
 
     """
-    def __init__(self, openmp=False):
+    def __init__(self, openmp=False, **kwargs):
         self.cc = 'unknown'
         self.ld = 'unknown'
         self.cflags = []
@@ -49,6 +52,8 @@ class Compiler(GCCToolchain):
         self.library_dirs = []
         self.defines = []
         self.undefines = []
+        self.src_ext = 'c'
+        self.lib_ext = 'so'
         # Devito-specific flags and properties
         self.openmp = openmp
         self.pragma_ivdep = [Pragma('ivdep')]
@@ -67,9 +72,10 @@ class GNUCompiler(Compiler):
 
     def __init__(self, *args, **kwargs):
         super(GNUCompiler, self).__init__(*args, **kwargs)
-        self.cc = 'g++'
-        self.ld = 'g++'
-        self.cflags = ['-O3', '-g', '-fPIC', '-Wall']
+        self.version = kwargs.get('version', None)
+        self.cc = 'gcc' if self.version is None else 'gcc-%s' % self.version
+        self.ld = 'gcc' if self.version is None else 'gcc-%s' % self.version
+        self.cflags = ['-O3', '-g', '-fPIC', '-Wall', '-std=c99']
         self.ldflags = ['-shared']
 
         if self.openmp:
@@ -89,8 +95,9 @@ class ClangCompiler(Compiler):
         super(ClangCompiler, self).__init__(*args, **kwargs)
         self.cc = 'clang'
         self.ld = 'clang'
-        self.cflags = ['-O3', '-g', '-fPIC', '-Wall']
+        self.cflags = ['-O3', '-g', '-fPIC', '-Wall', '-std=c99']
         self.ldflags = ['-shared']
+        self.lib_ext = 'dylib'
 
         if self.openmp:
             log("WARNING: Disabling OpenMP because clang does not support it.")
@@ -105,9 +112,9 @@ class IntelCompiler(Compiler):
 
     def __init__(self, *args, **kwargs):
         super(IntelCompiler, self).__init__(*args, **kwargs)
-        self.cc = 'icpc'
-        self.ld = 'icpc'
-        self.cflags = ['-O3', '-g', '-fPIC', '-Wall', "-xhost"]
+        self.cc = 'icc'
+        self.ld = 'icc'
+        self.cflags = ['-O3', '-g', '-fPIC', '-Wall', '-std=c99', "-xhost"]
         self.ldflags = ['-shared']
 
         if self.openmp:
@@ -125,9 +132,9 @@ class IntelMICCompiler(Compiler):
 
     def __init__(self, *args, **kwargs):
         super(IntelMICCompiler, self).__init__(*args, **kwargs)
-        self.cc = 'icpc'
-        self.ld = 'icpc'
-        self.cflags = ['-O3', '-g', '-fPIC', '-Wall', "-mmic"]
+        self.cc = 'icc'
+        self.ld = 'icc'
+        self.cflags = ['-O3', '-g', '-fPIC', '-Wall', '-std=c99', "-mmic"]
         self.ldflags = ['-shared']
 
         if self.openmp:
@@ -142,14 +149,31 @@ class IntelKNLCompiler(Compiler):
 
     def __init__(self, *args, **kwargs):
         super(IntelKNLCompiler, self).__init__(*args, **kwargs)
-        self.cc = 'icpc'
-        self.ld = 'icpc'
-        self.cflags = ['-O3', '-g', '-fPIC', '-Wall', "-xMIC-AVX512"]
+        self.cc = 'icc'
+        self.ld = 'icc'
+        self.cflags = ['-O3', '-g', '-fPIC', '-Wall', '-std=c99', "-xMIC-AVX512"]
         self.ldflags = ['-shared']
         if self.openmp:
             self.ldflags += ['-qopenmp']
         else:
             log("WARNING: Running on Intel KNL without OpenMP is highly discouraged")
+
+
+class CustomCompiler(Compiler):
+    """Custom compiler based on standard environment flags
+
+    :param openmp: Boolean indicating if openmp is enabled. False by default
+
+    Note: Currently honours CC, CFLAGS, LD and LDFLAGS, with defaults similar
+    to the default GNU settings.
+    """
+
+    def __init__(self, *args, **kwargs):
+        super(CustomCompiler, self).__init__(*args, **kwargs)
+        self.cc = environ.get('CC', 'gcc')
+        self.ld = environ.get('LD', 'gcc')
+        self.cflags = environ.get('CFLAGS', '-O3 -g -fPIC -Wall -std=c99').split(' ')
+        self.ldflags = environ.get('LDFLAGS', '-shared').split(' ')
 
 
 # Registry dict for deriving Compiler classes according to
@@ -158,6 +182,8 @@ class IntelKNLCompiler(Compiler):
 # the docstring of get_compiler_from_env().
 compiler_registry = {
     'gcc': GNUCompiler, 'gnu': GNUCompiler,
+    'gcc-4.9': partial(GNUCompiler, version='4.9'),
+    'gcc-5': partial(GNUCompiler, version='5'),
     'clang': ClangCompiler, 'osx': ClangCompiler,
     'intel': IntelCompiler, 'icpc': IntelCompiler,
     'icc': IntelCompiler,
@@ -173,6 +199,8 @@ def get_compiler_from_env():
 
     The key environment variable DEVITO_ARCH supports the following values:
      * 'gcc' or 'gnu' - (Default) Standard GNU compiler toolchain
+     * 'gcc-4.9' - GNU compiler toolchain version 4.9
+     * 'gcc-5' - GNU compiler toolchain version 5
      * 'clang' or 'osx' - Clang compiler toolchain for Mac OSX
      * 'intel' or 'icpc' - Intel compiler toolchain via icpc
      * 'intel-mic' or 'mic' - Intel MIC using offload mode via pymic
@@ -180,10 +208,12 @@ def get_compiler_from_env():
     Additionally, the variable DEVITO_OPENMP can be used to enable OpenMP
     parallelisation on by setting it to "1".
     """
-    key = environ.get('DEVITO_ARCH', 'gnu')
+    key = environ.get('DEVITO_ARCH', None)
     openmp = environ.get('DEVITO_OPENMP', "0") == "1"
-
-    return compiler_registry[key.lower()](openmp=openmp)
+    if key is None:
+        return CustomCompiler(openmp=openmp)
+    else:
+        return compiler_registry[key.lower()](openmp=openmp)
 
 
 def get_tmp_dir():
@@ -207,8 +237,8 @@ def jit_compile(ccode, basename, compiler=GNUCompiler):
     :param compiler: The toolchain used for compilation. GNUCompiler by default.
     :return: Path to compiled lib
     """
-    src_file = "%s.cpp" % basename
-    lib_file = "%s.so" % basename
+    src_file = "%s.%s" % (basename, compiler.src_ext)
+    lib_file = "%s.%s" % (basename, compiler.lib_ext)
     log("%s: Compiling %s" % (compiler, src_file))
     extension_file_from_string(toolchain=compiler, ext_file=lib_file,
                                source_string=ccode, source_name=src_file)
@@ -226,7 +256,7 @@ def load(basename, compiler=GNUCompiler):
     Note: If the provided compiler is of type `IntelMICCompiler`
     we utilise the `pymic` package to manage device streams.
     """
-    lib_file = "%s.so" % basename
+    lib_file = "%s.%s" % (basename, compiler.lib_ext)
 
     if isinstance(compiler, IntelMICCompiler):
         compiler._device = compiler._mic.devices[0]
