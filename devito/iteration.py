@@ -19,8 +19,9 @@ class IterationBound(object):
     :param name: Variable name for the open loop bound variable
     """
 
-    def __init__(self, name):
+    def __init__(self, name, dim):
         self.name = name
+        self.dim = dim
 
     def __repr__(self):
         return self.name
@@ -78,7 +79,7 @@ class Iteration(Expression):
 
         # Replace open limits with variables names
         if self.limits[1] is None:
-            self.limits[1] = IterationBound(self.dim.get_varname())
+            self.limits[1] = IterationBound("%s_size" % self.dim.name, self.dim)
 
         # Record offsets to later adjust loop limits accordingly
         self.offsets = [0, 0]

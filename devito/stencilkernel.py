@@ -1,3 +1,4 @@
+from collections import OrderedDict
 from ctypes import c_int
 from hashlib import sha1
 from itertools import chain
@@ -65,20 +66,38 @@ class StencilKernel(object):
 
     def apply(self, *args, **kwargs):
         """Apply defined stencil kernel to a set of data objects"""
-        # TODO Now the big question: how do I derive the bounds nicely?
         if len(args) <= 0:
             args = self.signature
-        args = [a.data if isinstance(a, SymbolicData) else a for a in args]
-        # Check shape of argument data
-        for arg, v in zip(args, self.signature):
-            if not isinstance(arg, np.ndarray):
-                raise TypeError('No array data found for argument %s' % v.name)
-            if arg.shape != v.shape:
-                error('Expected argument %s with shape %s, but got shape %s'
-                      % (v.name, v.shape, arg))
-                raise ValueError('Argument with wrong shape')
+
+        # Map of required arguments and actual dimension sizes
+        arguments = OrderedDict([(arg.name, arg) for arg in self.signature])
+        dim_sizes = {}
+
+        # Traverse positional args and infer loop sizes for open dimensions
+        f_args = [f for f in arguments.values() if isinstance(f, SymbolicData)]
+        for f, arg in zip(f_args, args):
+            # Ensure we're dealing or deriving numpy arrays
+            data = f.data if isinstance(f, SymbolicData) else arg
+            if not isinstance(data, np.ndarray):
+                error('No array data found for argument %s' % f.name)
+            arguments[f.name] = data
+
+            # Ensure data dimensions match symbol dimensions
+            for i, dim in enumerate(f.indices):
+                if dim.size is None:
+                    if dim in dim_sizes:
+                        assert data.shape[i] == dim_sizes[dim]
+                    else:
+                        dim_sizes[dim] = data.shape[i]
+                else:
+                    assert dim.size == data.shape[i]
+        # Insert loop size arguments from dimension values
+        d_args = [d for d in arguments.values() if isinstance(d, IterationBound)]
+        for d in d_args:
+            arguments[d.name] = dim_sizes[d.dim]
+
         # Invoke kernel function with args
-        self.cfunction(*args)
+        self.cfunction(*list(arguments.values()))
 
     @property
     def signature(self):
@@ -86,8 +105,8 @@ class StencilKernel(object):
 
         :returns: List of unique data objects required by the kernel
         """
-        signatures = [e.signature for e in self.expressions]
-        return filter_ordered(chain(*signatures))
+        signature = [e.signature for e in self.expressions]
+        return filter_ordered(chain(*signature))
 
     @property
     def ccode(self):
