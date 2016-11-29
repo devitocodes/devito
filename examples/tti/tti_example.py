@@ -23,6 +23,7 @@ def setup(dimensions=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=250.0,
 
     model = IGrid(origin, spacing,
                   true_vp,
+                  None,
                   .4*np.ones(dimensions),
                   -.1*np.ones(dimensions),
                   -np.pi/7*np.ones(dimensions),
