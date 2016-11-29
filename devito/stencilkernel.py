@@ -84,10 +84,21 @@ class StencilKernel(object):
 
             # Ensure data dimensions match symbol dimensions
             for i, dim in enumerate(f.indices):
+                # Infer open loop limits
                 if dim.size is None:
-                    if dim in dim_sizes:
-                        assert data.shape[i] == dim_sizes[dim]
+                    if dim.buffered:
+                        # Check if provided as a keyword arg
+                        size = kwargs.get(dim.name, None)
+                        if size is None:
+                            error("Unknown dimension size, please provide "
+                                  "size via Kernel.apply(%s=<size>)" % dim.name)
+                            raise RuntimeError('Dimension of unspecified size')
+                        dim_sizes[dim] = size
+                    elif dim in dim_sizes:
+                        # Ensure size matches previously defined size
+                        assert dim_sizes[dim] == data.shape[i]
                     else:
+                        # Derive size from grid data shape and store
                         dim_sizes[dim] = data.shape[i]
                 else:
                     assert dim.size == data.shape[i]
