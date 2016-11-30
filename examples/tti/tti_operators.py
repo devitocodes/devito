@@ -21,7 +21,7 @@ class ForwardOperator(Operator):
     `Bhaskara` uses a rational approximation.
     """
     def __init__(self, model, src, damp, data, time_order=2, spc_order=4, save=False,
-                 trigonometry='Bhaskara', **kwargs):
+                 trigonometry='normal', **kwargs):
         nt, nrec = data.shape
         nt, nsrc = src.shape
         dt = model.get_critical_dt()
@@ -33,15 +33,19 @@ class ForwardOperator(Operator):
                      time_dim=nt, time_order=time_order,
                      space_order=spc_order,
                      save=save, dtype=damp.dtype)
+
+        u.pad_time = save
+        v.pad_time = save
+
         m = DenseData(name="m", shape=model.get_shape_comp(),
-                      dtype=damp.dtype)
+                      dtype=damp.dtype, space_order=spc_order)
         m.data[:] = model.padm()
 
         parm = [m, damp, u, v]
 
         if model.epsilon is not None:
             epsilon = DenseData(name="epsilon", shape=model.get_shape_comp(),
-                                dtype=damp.dtype)
+                                dtype=damp.dtype, space_order=spc_order)
             epsilon.data[:] = model.pad(model.epsilon)
             parm += [epsilon]
         else:
@@ -49,7 +53,7 @@ class ForwardOperator(Operator):
 
         if model.delta is not None:
             delta = DenseData(name="delta", shape=model.get_shape_comp(),
-                              dtype=damp.dtype)
+                              dtype=damp.dtype, space_order=spc_order)
             delta.data[:] = model.pad(model.delta)
             parm += [delta]
         else:
@@ -57,7 +61,7 @@ class ForwardOperator(Operator):
 
         if model.theta is not None:
             theta = DenseData(name="theta", shape=model.get_shape_comp(),
-                              dtype=damp.dtype)
+                              dtype=damp.dtype, space_order=spc_order)
             theta.data[:] = model.pad(model.theta)
             parm += [theta]
         else:
@@ -65,14 +69,13 @@ class ForwardOperator(Operator):
 
         if model.phi is not None:
             phi = DenseData(name="phi", shape=model.get_shape_comp(),
-                            dtype=damp.dtype)
+                            dtype=damp.dtype, space_order=spc_order)
             phi.data[:] = model.pad(model.phi)
+
             parm += [phi]
         else:
             phi = 0
 
-        u.pad_time = save
-        v.pad_time = save
         rec = SourceLike(name="rec", npoint=nrec, nt=nt, dt=dt,
                          h=model.get_spacing(),
                          coordinates=data.receiver_coords,
@@ -108,7 +111,6 @@ class ForwardOperator(Operator):
         ang1 = ssin(theta)
         spc_brd = spc_order
 
-
         # Derive stencil from symbolic equation
         if len(m.shape) == 3:
             ang2 = ccos(phi)
@@ -130,7 +132,8 @@ class ForwardOperator(Operator):
                                      dim=x, side=centered, order=spc_brd) +
                    first_derivative(Gxp * ang0 * ang3,
                                     dim=y, side=left, order=spc_brd) -
-                   first_derivative(Gxp * ang1, dim=z, side=left, order=spc_brd))
+                   first_derivative(Gxp * ang1,
+                                    dim=z, side=left, order=spc_brd))
             Gzz = (-first_derivative(Gzr * ang1 * ang2,
                                      dim=x, side=centered, order=spc_brd) +
                    first_derivative(Gzr * ang1 * ang3,
@@ -139,7 +142,8 @@ class ForwardOperator(Operator):
                                     dim=z, side=left, order=spc_brd))
             Gxp2 = (ang0 * ang2 * u.dxr + ang0 * ang3 * u.dy - ang1 * u.dz)
             Gzr2 = (ang1 * ang2 * v.dxr + ang1 * ang3 * v.dy + ang0 * v.dz)
-            Gxx2 = (first_derivative(Gxp2 * ang0 * ang2, dim=x, side=left, order=spc_brd) -
+            Gxx2 = (first_derivative(Gxp2 * ang0 * ang2,
+                                     dim=x, side=left, order=spc_brd) -
                     first_derivative(Gxp2 * ang0 * ang3,
                                      dim=y, side=centered, order=spc_brd) +
                     first_derivative(Gxp2 * ang1,
