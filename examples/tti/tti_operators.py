@@ -117,43 +117,43 @@ class ForwardOperator(Operator):
             ang3 = ssin(phi)
             Gyp = (ang3 * u.dx - ang2 * u.dyr)
             Gyy = (-first_derivative(Gyp * ang3,
-                                     dim=x, side=centered, order=spc_brd) -
+                                     dim=x, side=centered, order=spc_order) -
                    first_derivative(Gyp * ang2,
-                                    dim=y, side=left, order=spc_brd))
+                                    dim=y, side=left, order=spc_order))
             Gyp2 = (ang3 * u.dxr - ang2 * u.dy)
             Gyy2 = (first_derivative(Gyp2 * ang3,
-                                     dim=x, side=left, order=spc_brd) +
+                                     dim=x, side=left, order=spc_order) +
                     first_derivative(Gyp2 * ang2,
-                                     dim=y, side=centered, order=spc_brd))
+                                     dim=y, side=centered, order=spc_order))
 
             Gxp = (ang0 * ang2 * u.dx + ang0 * ang3 * u.dyr - ang1 * u.dzr)
             Gzr = (ang1 * ang2 * v.dx + ang1 * ang3 * v.dyr + ang0 * v.dzr)
             Gxx = (-first_derivative(Gxp * ang0 * ang2,
-                                     dim=x, side=centered, order=spc_brd) +
+                                     dim=x, side=centered, order=spc_order) +
                    first_derivative(Gxp * ang0 * ang3,
-                                    dim=y, side=left, order=spc_brd) -
+                                    dim=y, side=left, order=spc_order) -
                    first_derivative(Gxp * ang1,
-                                    dim=z, side=left, order=spc_brd))
+                                    dim=z, side=left, order=spc_order))
             Gzz = (-first_derivative(Gzr * ang1 * ang2,
-                                     dim=x, side=centered, order=spc_brd) +
+                                     dim=x, side=centered, order=spc_order) +
                    first_derivative(Gzr * ang1 * ang3,
-                                    dim=y, side=left, order=spc_brd) +
+                                    dim=y, side=left, order=spc_order) +
                    first_derivative(Gzr * ang0,
-                                    dim=z, side=left, order=spc_brd))
+                                    dim=z, side=left, order=spc_order))
             Gxp2 = (ang0 * ang2 * u.dxr + ang0 * ang3 * u.dy - ang1 * u.dz)
             Gzr2 = (ang1 * ang2 * v.dxr + ang1 * ang3 * v.dy + ang0 * v.dz)
             Gxx2 = (first_derivative(Gxp2 * ang0 * ang2,
-                                     dim=x, side=left, order=spc_brd) -
+                                     dim=x, side=left, order=spc_order) -
                     first_derivative(Gxp2 * ang0 * ang3,
-                                     dim=y, side=centered, order=spc_brd) +
+                                     dim=y, side=centered, order=spc_order) +
                     first_derivative(Gxp2 * ang1,
-                                     dim=z, side=centered, order=spc_brd))
+                                     dim=z, side=centered, order=spc_order))
             Gzz2 = (first_derivative(Gzr2 * ang1 * ang2,
-                                     dim=x, side=left, order=spc_brd) -
+                                     dim=x, side=left, order=spc_order) -
                     first_derivative(Gzr2 * ang1 * ang3,
-                                     dim=y, side=centered, order=spc_brd) -
+                                     dim=y, side=centered, order=spc_order) -
                     first_derivative(Gzr2 * ang0,
-                                     dim=z, side=centered, order=spc_brd))
+                                     dim=z, side=centered, order=spc_order))
             Hp = -(.5*Gxx + .5*Gxx2 + .5*Gyy + .5*Gyy2)
             Hzr = -(.5*Gzz + .5 * Gzz2)
 
@@ -161,23 +161,23 @@ class ForwardOperator(Operator):
             Gx1p = (ang0 * u.dxr - ang1 * u.dy)
             Gz1r = (ang1 * v.dxr + ang0 * v.dy)
             Gxx1 = (first_derivative(Gx1p * ang0, dim=x,
-                                     side=left, order=spc_brd) +
+                                     side=left, order=spc_order) +
                     first_derivative(Gx1p * ang1, dim=y,
-                                     side=centered, order=spc_brd))
+                                     side=centered, order=spc_order))
             Gzz1 = (first_derivative(Gz1r * ang1, dim=x,
-                                     side=left, order=spc_brd) -
+                                     side=left, order=spc_order) -
                     first_derivative(Gz1r * ang0, dim=y,
-                                     side=centered, order=spc_brd))
+                                     side=centered, order=spc_order))
             Gx2p = (ang0 * u.dx - ang1 * u.dyr)
             Gz2r = (ang1 * v.dx + ang0 * v.dyr)
             Gxx2 = (-first_derivative(Gx2p * ang0, dim=x,
-                    side=centered, order=spc_brd) -
+                    side=centered, order=spc_order) -
                     first_derivative(Gx2p * ang1, dim=y,
-                    side=left, order=spc_brd))
+                    side=left, order=spc_order))
             Gzz2 = (-first_derivative(Gz2r * ang1, dim=x,
-                    side=centered, order=spc_brd) +
+                    side=centered, order=spc_order) +
                     first_derivative(Gz2r * ang0, dim=y,
-                    side=left, order=spc_brd))
+                    side=left, order=spc_order))
 
             Hp = -(.5 * Gxx1 + .5 * Gxx2)
             Hzr = -(.5 * Gzz1 + .5 * Gzz2)
@@ -197,7 +197,7 @@ class ForwardOperator(Operator):
         super(ForwardOperator, self).__init__(nt, m.shape,
                                               stencils=stencils,
                                               subs=subs,
-                                              spc_border=spc_order,
+                                              spc_border=spc_brd,
                                               time_order=time_order,
                                               forward=True,
                                               dtype=m.dtype,

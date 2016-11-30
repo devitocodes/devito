@@ -14,7 +14,7 @@ class TTI_cg:
     def __init__(self, model, data, source, t_order=2, s_order=2, nbpml=40):
         self.model = model
         self.t_order = t_order
-        self.s_order = s_order
+        self.s_order = int(s_order/2)
         self.data = data
         self.src = source
         self.dtype = np.float32
@@ -69,5 +69,5 @@ class TTI_cg:
             fw.propagator.cache_blocking = at.block_size
 
         u, v, rec = fw.apply()
-        return (rec.data, u.data, v.data,
+        return (rec.data, u, v,
                 fw.propagator.gflopss, fw.propagator.oi, fw.propagator.timings)
