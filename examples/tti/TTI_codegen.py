@@ -14,7 +14,7 @@ class TTI_cg:
     def __init__(self, model, data, source, t_order=2, s_order=2, nbpml=40):
         self.model = model
         self.t_order = t_order
-        self.s_order = int(s_order/2)
+        self.s_order = s_order
         self.data = data
         self.src = source
         self.dtype = np.float32
