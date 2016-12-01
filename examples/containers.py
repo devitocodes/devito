@@ -38,7 +38,6 @@ class IGrid:
         self.theta = theta
         self.phi = phi
 
-
     def get_shape(self):
         """Return the size of the model as a Tuple of (x, y) or (x, y, z)
         """

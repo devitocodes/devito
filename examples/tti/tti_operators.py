@@ -99,8 +99,8 @@ class ForwardOperator(Operator):
                     return (16.0 * angle * (3.1416 - abs(angle)) /
                             (49.3483 - 4.0 * abs(angle) * (3.1416 - abs(angle))))
                 elif approx == 'Taylor':
-                    return angle - angle * angle * angle / 6.0 *\
-                                   (1.0 - angle * angle / 20.0)
+                    return angle - (angle * angle * angle / 6.0 *
+                                    (1.0 - angle * angle / 20.0))
                 else:
                     return cos(angle)
 
