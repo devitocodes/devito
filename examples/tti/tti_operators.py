@@ -93,7 +93,7 @@ class ForwardOperator(Operator):
 
         def ssin(angle, approx):
             if angle == 0:
-                return 1.0
+                return 0.0
             else:
                 if approx == 'Bhaskara':
                     return (16.0 * angle * (3.1416 - abs(angle)) /
