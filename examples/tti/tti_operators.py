@@ -102,7 +102,7 @@ class ForwardOperator(Operator):
                     return angle - (angle * angle * angle / 6.0 *
                                     (1.0 - angle * angle / 20.0))
                 else:
-                    return cos(angle)
+                    return sin(angle)
 
         def ccos(angle, approx):
             if angle == 0:
