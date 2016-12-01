@@ -69,5 +69,5 @@ class TTI_cg:
             fw.propagator.cache_blocking = at.block_size
 
         u, v, rec = fw.apply()
-        return (rec.data, u, v,
+        return (rec.data, u.data, v.data,
                 fw.propagator.gflopss, fw.propagator.oi, fw.propagator.timings)

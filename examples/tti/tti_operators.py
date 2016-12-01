@@ -89,32 +89,39 @@ class ForwardOperator(Operator):
                             dtype=damp.dtype, nbpml=model.nbpml)
         source.data[:] = src.traces[:]
 
-        def Bhaskarasin(angle):
-            if angle == 0:
-                return 0
-            else:
-                return (16.0 * angle * (3.1416 - abs(angle)) /
-                        (49.3483 - 4.0 * abs(angle) * (3.1416 - abs(angle))))
+        s, h = symbols('s h')
 
-        def Bhaskaracos(angle):
+        def ssin(angle, approx):
             if angle == 0:
                 return 1.0
             else:
-                return Bhaskarasin(angle + 1.5708)
+                if approx == 'Bhaskara':
+                    return (16.0 * angle * (3.1416 - abs(angle)) /
+                            (49.3483 - 4.0 * abs(angle) * (3.1416 - abs(angle))))
+                elif approx == 'Taylor':
+                    return angle - angle * angle * angle / 6.0 * (1.0 - angle * angle / 20.0)
+                else:
+                    return cos(angle)
 
-        s, h = symbols('s h')
+        def ccos(angle, approx):
+            if angle == 0:
+                return 1.0
+            else:
+                if approx == 'Bhaskara':
+                    return ssin(angle, 'Bhaskara')
+                elif approx == 'Taylor':
+                    return 1 - .5 * angle * angle * (1 - angle * angle / 12.0)
+                else:
+                    return cos(angle)
 
-        ccos = Bhaskaracos if trigonometry == 'Bhaskara' else cos
-        ssin = Bhaskarasin if trigonometry == 'Bhaskara' else sin
-
-        ang0 = ccos(theta)
-        ang1 = ssin(theta)
+        ang0 = ccos(theta, trigonometry)
+        ang1 = ssin(theta, trigonometry)
         spc_brd = spc_order
 
         # Derive stencil from symbolic equation
         if len(m.shape) == 3:
-            ang2 = ccos(phi)
-            ang3 = ssin(phi)
+            ang2 = ccos(phi, trigonometry)
+            ang3 = ssin(phi, trigonometry)
             Gyp = (ang3 * u.dx - ang2 * u.dyr)
             Gyy = (-first_derivative(Gyp * ang3,
                                      dim=x, side=centered, order=spc_order) -
