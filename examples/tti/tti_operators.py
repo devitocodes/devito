@@ -36,6 +36,8 @@ class ForwardOperator(Operator):
 
         u.pad_time = save
         v.pad_time = save
+        u._allocate_memory()
+        v._allocate_memory()
 
         m = DenseData(name="m", shape=model.get_shape_comp(),
                       dtype=damp.dtype, space_order=spc_order)
@@ -71,7 +73,6 @@ class ForwardOperator(Operator):
             phi = DenseData(name="phi", shape=model.get_shape_comp(),
                             dtype=damp.dtype, space_order=spc_order)
             phi.data[:] = model.pad(model.phi)
-
             parm += [phi]
         else:
             phi = 0
@@ -88,7 +89,6 @@ class ForwardOperator(Operator):
                             ndim=len(damp.shape),
                             dtype=damp.dtype, nbpml=model.nbpml)
         source.data[:] = src.traces[:]
-
         s, h = symbols('s h')
 
         def ssin(angle, approx):
@@ -99,7 +99,8 @@ class ForwardOperator(Operator):
                     return (16.0 * angle * (3.1416 - abs(angle)) /
                             (49.3483 - 4.0 * abs(angle) * (3.1416 - abs(angle))))
                 elif approx == 'Taylor':
-                    return angle - angle * angle * angle / 6.0 * (1.0 - angle * angle / 20.0)
+                    return angle - angle * angle * angle / 6.0 *\
+                                   (1.0 - angle * angle / 20.0)
                 else:
                     return cos(angle)
 

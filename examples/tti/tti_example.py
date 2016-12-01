@@ -23,11 +23,11 @@ def setup(dimensions=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=250.0,
 
     model = IGrid(origin, spacing,
                   true_vp,
-                  None,
-                  .4*np.ones(dimensions),
-                  -.1*np.ones(dimensions),
-                  -np.pi/7*np.ones(dimensions),
-                  np.pi/5*np.ones(dimensions))
+                  rho=None,
+                  epsilon=.4*np.ones(dimensions),
+                  delta=-.1*np.ones(dimensions),
+                  theta=-np.pi/7*np.ones(dimensions),
+                  phi=np.pi/5*np.ones(dimensions))
 
     # Define seismic data.
     data = IShot()
