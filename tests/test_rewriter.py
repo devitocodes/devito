@@ -1,5 +1,7 @@
 import numpy as np
 
+from devito.dse.graph import temporaries_graph
+
 from examples.acoustic.Acoustic_codegen import Acoustic_cg
 from examples.containers import IGrid, IShot
 from examples.tti.tti_example import setup
@@ -91,3 +93,13 @@ def test_tti_rewrite_advanced():
 
     assert np.allclose(output1[0].data, output2[0].data, atol=10e-3)
     assert np.allclose(output1[1].data, output2[1].data, atol=10e-3)
+
+
+def test_tti_rewrite_temporaries_graph():
+    operator = tti_operator(dse='basic')
+
+    graph = temporaries_graph(operator.stencils)
+
+    assert len([v for v in graph.values() if v.is_terminal]) == 2  # u and v
+    assert len(graph) == len(operator.stencils)
+    assert all(v.reads or v.readby for v in graph.values())
