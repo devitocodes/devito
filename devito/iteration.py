@@ -29,7 +29,7 @@ class IterationBound(object):
     @property
     def ccode(self):
         """C code for the variable declaration within a kernel signature"""
-        return cgen.Value('int', self.name)
+        return cgen.Value('const int', self.name)
 
 
 class Iteration(Expression):
