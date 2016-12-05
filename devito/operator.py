@@ -46,14 +46,12 @@ class Operator(object):
                            tuned block sizes
     :param input_params: List of symbols that are expected as input.
     :param output_params: List of symbols that define operator output.
-    :param factorized: A map given by {string_name:sympy_object} for including factorized
-                       terms
     """
     def __init__(self, nt, shape, dtype=np.float32, stencils=[],
                  subs=[], spc_border=0, time_order=0,
                  forward=True, compiler=None, profile=False, dse='advanced',
                  cache_blocking=None, input_params=None,
-                 output_params=None, factorized={}):
+                 output_params=None):
         # Derive JIT compilation infrastructure
         self.compiler = compiler or get_compiler_from_env()
 
@@ -115,20 +113,16 @@ class Operator(object):
         self.stencils = [Eq(indexify(eqn.lhs), indexify(eqn.rhs))
                          for eqn in self.stencils]
 
-        for name, value in factorized.items():
-            factorized[name] = indexify(value)
-
         # Applies CSE
         self.stencils = rewrite(self.stencils, mode=dse)
 
         # Apply user-defined subs to stencil
         self.stencils = [eqn.subs(subs[0]) for eqn in self.stencils]
         self.propagator = Propagator(self.getName(), nt, shape, self.stencils,
-                                     factorized=factorized, dtype=dtype,
-                                     spc_border=spc_border, time_order=time_order,
-                                     forward=forward, space_dims=self.space_dims,
-                                     compiler=self.compiler, profile=profile,
-                                     cache_blocking=cache_blocking)
+                                     dtype=dtype, spc_border=spc_border,
+                                     time_order=time_order, forward=forward,
+                                     space_dims=self.space_dims, compiler=self.compiler,
+                                     profile=profile, cache_blocking=cache_blocking)
         self.dtype = dtype
         self.nt = nt
         self.shape = shape
@@ -140,14 +134,6 @@ class Operator(object):
             self.propagator.add_devito_param(param)
             self.symbol_to_data[param.name] = param
         self.propagator.stencils = self.stencils
-        self.propagator.factorized = factorized
-        for name, val in factorized.items():
-            if forward:
-                self.propagator.factorized[name] = \
-                    indexify(val.subs(t, t - 1)).subs(subs[1])
-            else:
-                self.propagator.factorized[name] = \
-                    indexify(val.subs(t, t + 1)).subs(subs[1])
 
     @property
     def signature(self):
