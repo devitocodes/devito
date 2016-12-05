@@ -1,5 +1,6 @@
 from functools import partial
 from os import environ, getuid, mkdir, path
+from time import time
 from tempfile import gettempdir
 
 import numpy.ctypeslib as npct
@@ -243,9 +244,11 @@ def jit_compile(ccode, basename, compiler=GNUCompiler):
     """
     src_file = "%s.%s" % (basename, compiler.src_ext)
     lib_file = "%s.%s" % (basename, compiler.lib_ext)
-    log("%s: Compiling %s" % (compiler, src_file))
+    tic = time()
     extension_file_from_string(toolchain=compiler, ext_file=lib_file,
                                source_string=ccode, source_name=src_file)
+    toc = time()
+    log("%s: compiled %s [%.2f s]" % (compiler, src_file, toc-tic))
 
     return lib_file
 
