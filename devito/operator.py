@@ -7,8 +7,10 @@ from devito.compiler import get_compiler_from_env
 from devito.dimension import t, x, y, z
 from devito.interfaces import TimeData
 from devito.propagator import Propagator
-from devito.symbolics import (dse_dimensions, dse_indexify, dse_rewrite,
-                              dse_symbols, dse_tolambda)
+
+from devito.dse.inspection import (indexify, retrieve_dimensions,
+                                   retrieve_symbols, tolambda)
+from devito.dse.symbolics import rewrite
 
 __all__ = ['Operator']
 
@@ -65,13 +67,13 @@ class Operator(object):
         sym_undef = set()
 
         for eqn in self.stencils:
-            lhs_def, lhs_undef = dse_symbols(eqn.lhs)
+            lhs_def, lhs_undef = retrieve_symbols(eqn.lhs)
             sym_undef.update(lhs_undef)
 
             if self.output_params is None:
                 self.output_params = list(lhs_def)
 
-            rhs_def, rhs_undef = dse_symbols(eqn.rhs)
+            rhs_def, rhs_undef = retrieve_symbols(eqn.rhs)
             sym_undef.update(rhs_undef)
 
             if self.input_params is None:
@@ -80,8 +82,8 @@ class Operator(object):
         # Pull all dimension indices from the incoming stencil
         dimensions = []
         for eqn in self.stencils:
-            dimensions += [i for i in dse_dimensions(eqn.lhs) if i not in dimensions]
-            dimensions += [i for i in dse_dimensions(eqn.rhs) if i not in dimensions]
+            dimensions += [i for i in retrieve_dimensions(eqn.lhs) if i not in dimensions]
+            dimensions += [i for i in retrieve_dimensions(eqn.rhs) if i not in dimensions]
 
         # Time dimension is fixed for now
         time_dim = t
@@ -110,14 +112,14 @@ class Operator(object):
                          for eqn in self.stencils]
 
         # Convert incoming stencil equations to "indexed access" format
-        self.stencils = [Eq(dse_indexify(eqn.lhs), dse_indexify(eqn.rhs))
+        self.stencils = [Eq(indexify(eqn.lhs), indexify(eqn.rhs))
                          for eqn in self.stencils]
 
         for name, value in factorized.items():
-            factorized[name] = dse_indexify(value)
+            factorized[name] = indexify(value)
 
         # Applies CSE
-        self.stencils = dse_rewrite(self.stencils, mode=dse)
+        self.stencils = rewrite(self.stencils, mode=dse)
 
         # Apply user-defined subs to stencil
         self.stencils = [eqn.subs(subs[0]) for eqn in self.stencils]
@@ -142,10 +144,10 @@ class Operator(object):
         for name, val in factorized.items():
             if forward:
                 self.propagator.factorized[name] = \
-                    dse_indexify(val.subs(t, t - 1)).subs(subs[1])
+                    indexify(val.subs(t, t - 1)).subs(subs[1])
             else:
                 self.propagator.factorized[name] = \
-                    dse_indexify(val.subs(t, t + 1)).subs(subs[1])
+                    indexify(val.subs(t, t + 1)).subs(subs[1])
 
     @property
     def signature(self):
@@ -200,9 +202,9 @@ class Operator(object):
         Execute the operator using Python
         """
         time_loop_limits = self.propagator.time_loop_limits
-        time_loop_lambdas_b = dse_tolambda(self.propagator.time_loop_stencils_b)
-        time_loop_lambdas_a = dse_tolambda(self.propagator.time_loop_stencils_a)
-        stencil_lambdas = dse_tolambda(self.stencils)
+        time_loop_lambdas_b = tolambda(self.propagator.time_loop_stencils_b)
+        time_loop_lambdas_a = tolambda(self.propagator.time_loop_stencils_a)
+        stencil_lambdas = tolambda(self.stencils)
 
         for ti in range(*time_loop_limits):
             # Run time loop stencils before space loop

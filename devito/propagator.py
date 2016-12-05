@@ -21,8 +21,9 @@ from devito.function_manager import FunctionDescriptor, FunctionManager
 from devito.iteration import Iteration
 from devito.logger import info
 from devito.profiler import Profiler
-from devito.symbolics import dse_dtype
 from devito.tools import flatten
+
+from devito.dse.inspection import retrieve_dtype
 
 
 class Propagator(object):
@@ -435,7 +436,7 @@ class Propagator(object):
         for eqn in stencils:
             s_lhs = str(eqn.lhs)
             if s_lhs.find("temp") is not -1 and not declared[s_lhs]:
-                expr_dtype = dse_dtype(eqn.rhs) or self.dtype
+                expr_dtype = retrieve_dtype(eqn.rhs) or self.dtype
                 declared[s_lhs] = True
                 decl.append(cgen.Value(cgen.dtype_to_ctype(expr_dtype),
                                        ccode(eqn.lhs)))
