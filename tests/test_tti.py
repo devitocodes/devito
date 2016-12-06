@@ -80,15 +80,16 @@ class TestTTI(object):
         return request.param
 
     @pytest.fixture
-    def forward(self, acoustic, tti):
-        rec, u, _, _, _ = acoustic.Forward(save=False)
-        rec_tti, u_tti, v_tti, _, _, _ = tti.Forward(save=False)
+    def forward(self, tti):
+        rec, u, _, _, _ = tti[0].Forward(save=False)
+        rec_tti, u_tti, v_tti, _, _, _ = tti[1].Forward(save=False)
         return rec/linalg.norm(rec), rec_tti/linalg.norm(rec)
 
-    def test_tti(self, acoustic, tti, forward):
+    def test_tti(self, forward):
         rec, rec_tti = forward
         # Actual adjoint test
-        log("Difference between acoustic and TTI with all oefficients to 0 %f" % linalg.norm(rec-rec_tti))
+        log("Difference between acoustic and TTI with all coefficients to 0 %f"
+            % linalg.norm(rec-rec_tti))
         assert np.isclose(linalg.norm(rec-rec_tti), 0.0, atol=1e-1)
 
 
