@@ -97,8 +97,9 @@ class TestTTI(object):
     def forward(self, tti):
         rec, u, _, _, _ = tti[0].Forward(save=False, u_ini=tti[2].data)
         rec_tti, u_tti, v_tti, _, _, _ = tti[1].Forward(save=False, u_ini=tti[2].data)
-        return u.data/linalg.norm(u.data.reshape(-1)), u_tti/linalg.norm(u_tti.reshape(-1)),\
-               v_tti/linalg.norm(v_tti.reshape(-1))
+        return (u.data/linalg.norm(u.data.reshape(-1)),
+                u_tti/linalg.norm(u_tti.reshape(-1)),
+               v_tti/linalg.norm(v_tti.reshape(-1)))
 
     def test_tti(self, forward):
         u1, u2, u3 = forward
