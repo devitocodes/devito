@@ -53,11 +53,11 @@ class TTI_cg:
             self.data.receiver_coords = np.delete(self.data.receiver_coords, 1, 1)
 
     def Forward(self, save=False, dse='advanced', auto_tuning=False,
-                cache_blocking=None, compiler=None):
+                cache_blocking=None, compiler=None, u_ini=None):
         fw = ForwardOperator(self.model, self.src, self.damp, self.data,
                              time_order=self.t_order, spc_order=self.s_order,
                              profile=True, save=save, cache_blocking=cache_blocking,
-                             dse=dse, compiler=compiler)
+                             dse=dse, compiler=compiler, u_ini=u_ini)
 
         if auto_tuning:
             fw_new = ForwardOperator(self.model, self.src, self.damp, self.data,

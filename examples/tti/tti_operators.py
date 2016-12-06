@@ -21,7 +21,7 @@ class ForwardOperator(Operator):
     `Bhaskara` uses a rational approximation.
     """
     def __init__(self, model, src, damp, data, time_order=2, spc_order=4, save=False,
-                 trigonometry='normal', **kwargs):
+                 trigonometry='normal', u_ini=None, **kwargs):
         nt, nrec = data.shape
         nt, nsrc = src.shape
         dt = model.get_critical_dt()
@@ -36,8 +36,10 @@ class ForwardOperator(Operator):
 
         u.pad_time = save
         v.pad_time = save
-        u._allocate_memory()
-        v._allocate_memory()
+
+        if u_ini is not None:
+            u.data[0:3, :] = .5 * u_ini[:]
+            v.data[0:3, :] = .5 * u_ini[:]
 
         m = DenseData(name="m", shape=model.get_shape_comp(),
                       dtype=damp.dtype, space_order=spc_order)

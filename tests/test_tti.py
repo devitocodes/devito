@@ -34,7 +34,7 @@ class TestTTI(object):
         f0 = .010
         dt = model.get_critical_dt()
         t0 = 0.0
-        tn = 750.0
+        tn = 700.0
         nt = int(1+(tn-t0)/dt)
 
         # Set up the source as Ricker wavelet for f0
@@ -71,9 +71,23 @@ class TestTTI(object):
         # Adjoint test
         wave_acou = Acoustic_cg(model, data, src, t_order=2, s_order=space_order,
                                 nbpml=10)
+        rec, u1, _, _, _ = wave_acou.Forward(save=False)
+
+        tn = 50.0
+        nt = int(1 + (tn - t0) / dt)
+        # Source geometry
+        time_series = np.zeros((nt, 1))
+        time_series[:, 0] = source(np.linspace(t0, tn, nt), f0)
+        src.set_shape(nt, 1)
+        src.set_traces(time_series)
+        data.set_shape(nt, 101)
+
+        wave_acou = Acoustic_cg(model, data, src, t_order=2, s_order=space_order,
+                                nbpml=10)
+
         wave_tti = TTI_cg(model, data, src, t_order=2, s_order=space_order,
                           nbpml=10)
-        return wave_acou, wave_tti
+        return wave_acou, wave_tti, u1
 
     @pytest.fixture(params=[4, 8])
     def space_order(self, request):
@@ -81,22 +95,23 @@ class TestTTI(object):
 
     @pytest.fixture
     def forward(self, tti):
-        rec, u, _, _, _ = tti[0].Forward(save=False)
-        rec_tti, u_tti, v_tti, _, _, _ = tti[1].Forward(save=False)
-        return rec/linalg.norm(rec), rec_tti/linalg.norm(rec)
+        rec, u, _, _, _ = tti[0].Forward(save=False, u_ini=tti[2].data)
+        rec_tti, u_tti, v_tti, _, _, _ = tti[1].Forward(save=False, u_ini=tti[2].data)
+        return u.data/linalg.norm(u.data.reshape(-1)), u_tti/linalg.norm(u_tti.reshape(-1)),\
+               v_tti/linalg.norm(v_tti.reshape(-1))
 
     def test_tti(self, forward):
-        rec, rec_tti = forward
+        u1, u2, u3 = forward
+        res = linalg.norm(u1.reshape(-1) - .5 * u2.reshape(-1) - .5 * u3.reshape(-1))
         # Actual adjoint test
-        log("Difference between acoustic and TTI with all coefficients to 0 %f"
-            % linalg.norm(rec-rec_tti))
-        assert np.isclose(linalg.norm(rec-rec_tti), 0.0, atol=1e-1)
+        log("Difference between acoustic and TTI with all coefficients to 0 %f" % res)
+        assert np.isclose(res, 0.0, atol=1e-1)
 
 
 if __name__ == "__main__":
     t = TestTTI()
     request = type('', (), {})()
     request.param = (120, 140, 150)
-    ac, ani = t.tti(request, 4)
-    fw = t.forward(ac, ani)
-    t.test_tti(ac, ani, fw)
+    prop = t.tti(request, 4)
+    fw = t.forward(prop)
+    t.test_tti(fw)
