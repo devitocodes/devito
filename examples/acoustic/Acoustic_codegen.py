@@ -29,16 +29,13 @@ class Acoustic_cg(object):
         self.model.nbpml = nbpml
         self.model.set_origin(nbpml)
 
-        def damp_boundary(damp):
+        def damp_boundary(damp, nbp):
             h = self.model.get_spacing()
             dampcoeff = 1.5 * np.log(1.0 / 0.001) / (40 * h)
-            nbpml = self.model.nbpml
             num_dim = len(damp.shape)
-
-            for i in range(nbpml):
-                pos = np.abs((nbpml-i)/float(nbpml))
+            for i in range(nbp):
+                pos = np.abs((nbp-i+1)/float(nbp))
                 val = dampcoeff * (pos - np.sin(2*np.pi*pos)/(2*np.pi))
-
                 if num_dim == 2:
                     damp[i, :] += val
                     damp[-(i + 1), :] += val
@@ -51,11 +48,11 @@ class Acoustic_cg(object):
                     damp[:, -(i + 1), :] += val
                     damp[:, :, i] += val
                     damp[:, :, -(i + 1)] += val
+
         self.damp = DenseData(name="damp", shape=self.model.get_shape_comp(),
                               dtype=self.dtype)
-
         # Initialize damp by calling the function that can precompute damping
-        damp_boundary(self.damp.data)
+        damp_boundary(self.damp.data, nbpml)
 
         if len(self.damp.shape) == 2 and self.src.receiver_coords.shape[1] == 3:
             self.src.receiver_coords = np.delete(self.src.receiver_coords, 1, 1)
