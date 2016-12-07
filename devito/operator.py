@@ -5,12 +5,11 @@ from sympy import Eq, solve
 
 from devito.compiler import get_compiler_from_env
 from devito.dimension import t, x, y, z
-from devito.interfaces import TimeData
-from devito.propagator import Propagator
-
 from devito.dse.inspection import (indexify, retrieve_dimensions,
                                    retrieve_symbols, tolambda)
 from devito.dse.symbolics import rewrite
+from devito.interfaces import TimeData
+from devito.propagator import Propagator
 
 __all__ = ['Operator']
 

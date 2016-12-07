@@ -16,15 +16,14 @@ from devito.codeprinter import ccode
 from devito.compiler import (IntelMICCompiler, get_compiler_from_env,
                              get_tmp_dir, jit_compile_and_load)
 from devito.dimension import t, x, y, z
+from devito.dse.inspection import retrieve_dtype
+from devito.dse.symbolics import _temp_prefix
 from devito.expression import Expression
 from devito.function_manager import FunctionDescriptor, FunctionManager
 from devito.iteration import Iteration
 from devito.logger import info
 from devito.profiler import Profiler
 from devito.tools import flatten
-
-from devito.dse.inspection import retrieve_dtype
-from devito.dse.symbolics import _temp_prefix
 
 
 class Propagator(object):
