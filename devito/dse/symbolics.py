@@ -38,15 +38,29 @@ def rewrite(expr, mode='advanced'):
                  factorization of common terms and constants.
     """
 
-    if mode is True:
-        return Rewriter(expr).run(mode='advanced')
-    elif mode in ['basic', 'advanced']:
-        return Rewriter(expr).run(mode)
-    elif not mode:
+    if isinstance(expr, Sequence):
+        assert all(isinstance(e, Eq) for e in expr)
+        expr = list(expr)
+    elif isinstance(expr, Eq):
+        expr = [expr]
+    else:
+        raise ValueError("Got illegal expr of type %s." % type(expr))
+
+    if not mode:
+        return expr
+    elif isinstance(mode, str):
+        mode = set([mode])
+    else:
+        try:
+            mode = set(mode)
+        except TypeError:
+            warning("Arg mode must be a str or tuple (got %s instead)" % type(mode))
+            return expr
+    if mode.isdisjoint({'basic', 'factorize', 'approx-trigonometry', 'advanced'}):
+        warning("Unknown rewrite mode(s) %s" % str(mode))
         return expr
     else:
-        warning("Illegal rewrite mode %s" % str(mode))
-        return expr
+        return Rewriter(expr).run(mode)
 
 
 class Rewriter(object):
@@ -59,23 +73,19 @@ class Rewriter(object):
     # greater than this threshold
     FACTORIZER_THS = 15
 
-    def __init__(self, expr):
-        if isinstance(expr, Sequence):
-            assert all(isinstance(e, Eq) for e in expr)
-            self.expr = list(expr)
-        elif isinstance(expr, Eq):
-            self.expr = [expr]
-        else:
-            raise ValueError("Got illegal expr of type %s." % type(expr))
+    def __init__(self, exprs):
+        self.exprs = exprs
 
     def run(self, mode):
-        processed = self.expr
+        processed = self.exprs
 
-        if mode in ['basic', 'advanced']:
+        if mode.intersection({'basic', 'advanced'}):
             processed = self._cse(processed)
 
-        if mode in ['advanced']:
+        if mode.intersection({'factorize', 'advanced'}):
             processed = self._factorize(processed)
+
+        if mode.intersection({'approx-trigonometry', 'advanced'}):
             processed = self._optimize_trigonometry(processed)
 
         processed = self._finalize(processed)
@@ -120,7 +130,7 @@ class Rewriter(object):
 
         return processed
 
-    def _cse(self, exprs=None):
+    def _cse(self, exprs):
         """
         Perform common subexpression elimination.
         """
