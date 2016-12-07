@@ -9,7 +9,7 @@ All exposed functions are prefixed with 'dse' (devito symbolic engine)
 
 from __future__ import absolute_import
 
-from collections import OrderedDict
+from collections import OrderedDict, Sequence
 
 from sympy import (Add, Eq, Indexed, IndexedBase, S,
                    collect, collect_const, cse, flatten,
@@ -59,13 +59,19 @@ class Rewriter(object):
     FACTORIZER_THS = 15
 
     def __init__(self, expr):
-        self.expr = expr
+        if isinstance(expr, Sequence):
+            assert all(isinstance(e, Eq) for e in expr)
+            self.expr = list(expr)
+        elif isinstance(expr, Eq):
+            self.expr = [expr]
+        else:
+            raise ValueError("Got illegal expr of type %s." % type(expr))
 
     def run(self, mode):
         processed = self.expr
 
         if mode in ['basic', 'advanced']:
-            processed = self._cse()
+            processed = self._cse(processed)
 
         if mode in ['advanced']:
             processed = self._factorize(processed)
@@ -84,10 +90,6 @@ class Rewriter(object):
               self.FACTORIZER_THS, then this is applied recursively until
               no more factorization opportunities are available.
         """
-        if exprs is None:
-            exprs = self.expr
-        if not isinstance(exprs, list):
-            exprs = [exprs]
 
         processed = []
         cost_original, cost_processed = 1, 1
@@ -120,10 +122,6 @@ class Rewriter(object):
         """
         Perform common subexpression elimination.
         """
-        if exprs is None:
-            exprs = self.expr
-        if not isinstance(exprs, list):
-            exprs = [exprs]
 
         temps, stencils = cse(exprs, numbered_symbols(_temp_prefix))
 
