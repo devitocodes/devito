@@ -12,12 +12,13 @@ from __future__ import absolute_import
 from collections import OrderedDict, Sequence
 
 from sympy import (Add, Eq, Indexed, IndexedBase, S,
-                   collect, collect_const, cse, flatten,
-                   numbered_symbols, preorder_traversal)
+                   collect, collect_const, cos, cse, flatten,
+                   numbered_symbols, preorder_traversal, sin)
 
 from devito.dimension import t, x, y, z
 from devito.logger import perfbad, perfok, warning
 
+from devito.dse.extended_sympy import bhaskara_sin, bhaskara_cos
 from devito.dse.inspection import estimate_cost, terminals, unevaluate_arithmetic
 
 __all__ = ['rewrite']
@@ -75,6 +76,7 @@ class Rewriter(object):
 
         if mode in ['advanced']:
             processed = self._factorize(processed)
+            processed = self._optimize_trigonometry(processed)
 
         processed = self._finalize(processed)
 
@@ -216,6 +218,20 @@ class Rewriter(object):
                 processed[k] = v
 
         return list(ordered.values())
+
+    def _optimize_trigonometry(self, exprs):
+        """
+        Rebuild ``exprs`` replacing trigonometric functions with Bhaskara
+        polynomials.
+        """
+
+        processed = []
+        for expr in exprs:
+            handle = expr.replace(sin, bhaskara_sin)
+            handle = handle.replace(cos, bhaskara_cos)
+            processed.append(handle)
+
+        return processed
 
     def _finalize(self, exprs):
         """

@@ -5,6 +5,7 @@ Extended SymPy hierarchy.
 import sympy
 from sympy import Expr
 from sympy.core.basic import _aresame
+from sympy.functions.elementary.trigonometric import TrigonometricFunction
 
 
 class UnevaluatedExpr(Expr):
@@ -36,3 +37,31 @@ class Mul(sympy.Mul, UnevaluatedExpr):
 
 class Add(sympy.Add, UnevaluatedExpr):
     pass
+
+
+class bhaskara_sin(TrigonometricFunction):
+
+    """
+    Approximation of the sine function using a Bhaskara polynomial.
+    """
+
+    @classmethod
+    def eval(cls, arg):
+        return 0.0 if arg == 0.0 else eval_bhaskara_sin(arg)
+
+
+class bhaskara_cos(TrigonometricFunction):
+
+    """
+    Approximation of the cosine function using a Bhaskara polynomial.
+    """
+
+    @classmethod
+    def eval(cls, arg):
+        return 1.0 if arg == 0.0 else eval_bhaskara_sin(arg + 1.5708)
+
+
+# Utils
+
+def eval_bhaskara_sin(angle):
+    return 16.0*angle*(3.1416-abs(angle))/(49.3483-4.0*abs(angle)*(3.1416-abs(angle)))
