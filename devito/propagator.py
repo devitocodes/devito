@@ -425,9 +425,7 @@ class Propagator(object):
                 sub = str(ccode(self.time_substitutions(expr).xreplace(self._mapper)))
                 if self.dtype is np.float32:
                     factors.append(cgen.Assign(name, (sub.replace("pow", "powf")
-                                                      .replace("fabs", "fabsf")
-                                                      .replace("cos", "cosf")
-                                                      .replace("sin", "sinf"))))
+                                                      .replace("fabs", "fabsf"))))
                 else:
                     factors.append(cgen.Assign(name, sub))
 
@@ -473,8 +471,6 @@ class Propagator(object):
             if self.dtype is np.float32:
                 s_rhs = str(s_rhs).replace("pow", "powf")
                 s_rhs = str(s_rhs).replace("fabs", "fabsf")
-                s_rhs = str(s_rhs).replace("cos", "cosf")
-                s_rhs = str(s_rhs).replace("sin", "sinf")
 
             return cgen.Assign(s_lhs, s_rhs)
 

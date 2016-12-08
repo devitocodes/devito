@@ -18,7 +18,7 @@ model = IGrid(origin, spacing, true_vp,
               epsilon=0.1*(true_vp - 2),
               delta=0.08 * (true_vp - 2),
               theta=np.pi/5*np.ones(dimensions),
-              phi=0*np.ones(dimensions))
+              phi=0.1*np.ones(dimensions))
 
 # Define seismic data.
 data = IShot()

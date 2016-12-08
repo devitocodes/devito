@@ -159,12 +159,6 @@ class DenseData(SymbolicData):
                 dimensions = [symbols("x%d" % i) for i in range(1, len(shape) + 1)]
         return dimensions
 
-    def _cached_init(self):
-        super(DenseData, self)._cached_init()
-
-        # Drop ownership of allocated data
-        self.internal_pointer = None
-
     @property
     def dim(self):
         """Returns the spatial dimension of the data object"""

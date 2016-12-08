@@ -28,7 +28,7 @@ class Acoustic_cg(object):
             self.dt = model.get_critical_dt()
         self.model.nbpml = nbpml
         self.model.set_origin(nbpml)
-
+        # Fill the dampening field with nbp points in the absorbing layer
         def damp_boundary(damp, nbp):
             h = self.model.get_spacing()
             dampcoeff = 1.5 * np.log(1.0 / 0.001) / (40 * h)

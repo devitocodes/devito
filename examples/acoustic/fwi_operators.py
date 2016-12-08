@@ -17,6 +17,7 @@ class ForwardOperator(Operator):
     :param: time_order: Time discretization order
     :param: spc_order: Space discretization order
     :param save : Saving flag, True saves all time steps, False only the three
+    :param: u_ini : wavefield at the three first time step for non-zero initial condition
      required for the time marching scheme
     """
     def __init__(self, model, src, damp, data, time_order=2, spc_order=6,

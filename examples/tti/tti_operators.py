@@ -18,6 +18,7 @@ class ForwardOperator(Operator):
     :param: time_order: Time discretization order
     :param: spc_order: Space discretization order
     :param: trigonometry : COS/SIN functions choice. The default is to use C functions
+    :param: u_ini : wavefield at the three first time step for non-zero initial condition
     `Bhaskara` uses a rational approximation.
     """
     def __init__(self, model, src, damp, data, time_order=2, spc_order=4, save=False,
@@ -25,6 +26,9 @@ class ForwardOperator(Operator):
         nt, nrec = data.shape
         nt, nsrc = src.shape
         dt = model.get_critical_dt()
+        # uses space_order/2 for the first derivatives to
+        # have spc_order second derivatives for consistency
+        # with the acoustic kernel
         u = TimeData(name="u", shape=model.get_shape_comp(),
                      time_dim=nt, time_order=time_order,
                      space_order=spc_order/2,
