@@ -68,7 +68,8 @@ def test_acoustic_rewrite_basic():
 # TTI
 
 def tti_operator(dse=False):
-    problem = setup(dimensions=(16, 16, 16), time_order=2, space_order=2, tn=10.0)
+    problem = setup(dimensions=(50, 50, 50), time_order=2,
+                    space_order=4, tn=250.0, nbpml=10)
     handle = ForwardOperator(problem.model, problem.src, problem.damp,
                              problem.data, time_order=problem.t_order,
                              spc_order=problem.s_order, save=False,
