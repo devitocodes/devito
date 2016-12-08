@@ -1,7 +1,38 @@
 import numpy as np
+import pytest
 
-from devito import DenseData, clear_cache
+from devito import DenseData, TimeData, clear_cache
 from devito.interfaces import _SymbolCache
+
+
+@pytest.mark.xfail(reason="New function instances currently don't cache")
+@pytest.mark.parametrize('FunctionType', [DenseData, TimeData])
+def test_cache_function_new(FunctionType):
+    """Test caching of a new u[x, y] instance"""
+    u0 = FunctionType(name='u', shape=(3, 4))
+    u0.data[:] = 6.
+    u = FunctionType(name='u', shape=(3, 4))
+    assert np.allclose(u.data, u0.data)
+
+
+@pytest.mark.parametrize('FunctionType', [DenseData, TimeData])
+def test_cache_function_same_indices(FunctionType):
+    """Test caching of derived u[x, y] instance from derivative"""
+    u0 = FunctionType(name='u', shape=(3, 4))
+    u0.data[:] = 6.
+    # Pick u[x, y] from derivative
+    u = u0.dx.args[1].args[2]
+    assert np.allclose(u.data, u0.data)
+
+
+@pytest.mark.parametrize('FunctionType', [DenseData, TimeData])
+def test_cache_function_different_indices(FunctionType):
+    """Test caching of u[x + h, y] instance from derivative"""
+    u0 = FunctionType(name='u', shape=(3, 4))
+    u0.data[:] = 6.
+    # Pick u[x + h, y] (different indices) from derivative
+    u = u0.dx.args[0].args[1]
+    assert np.allclose(u.data, u0.data)
 
 
 @pytest.mark.xfail(reason="Known symbol caching bug due to false aliasing")
