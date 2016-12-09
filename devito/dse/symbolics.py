@@ -12,7 +12,7 @@ from __future__ import absolute_import
 from collections import OrderedDict, Sequence
 from time import time
 
-from sympy import (Add, Eq, Indexed, IndexedBase, S,
+from sympy import (Add, Atom, Eq, Indexed, IndexedBase, S,
                    collect, collect_const, cos, cse, flatten,
                    numbered_symbols, preorder_traversal, sin)
 
@@ -20,6 +20,7 @@ from devito.dimension import t, x, y, z
 from devito.logger import dse, dse_warning
 
 from devito.dse.extended_sympy import taylor_sin, taylor_cos, unevaluate_arithmetic
+from devito.dse.graph import temporaries_graph
 from devito.dse.inspection import estimate_cost, terminals
 
 __all__ = ['rewrite']
@@ -95,6 +96,9 @@ class Rewriter(object):
 
         if mode.intersection({'approx-trigonometry', 'advanced'}):
             processed = self._optimize_trigonometry(processed)
+
+        if mode.intersection({'glicm', 'advanced'}):
+            processed = self._replace_time_invariants(processed)
 
         processed = self._finalize(processed)
 
@@ -255,6 +259,53 @@ class Rewriter(object):
 
         return processed
 
+    def _replace_time_invariants(self, exprs):
+        """
+        Create a new expr' given expr where the longest time-invariant
+        sub-expressions are replaced by temporaries. A mapper from the
+        introduced temporaries to the corresponding time-invariant
+        sub-expressions is also returned.
+
+        Examples
+        ========
+
+        (a+b)*c[t] + s*d[t] + v*(d + e[t] + r)
+            --> (t1*c[t] + s*d[t] + v*(e[t] + t2), {t1: (a+b), t2: (d+r)})
+        (a*b[t] + c*d[t])*v[t]
+            --> ((a*b[t] + c*d[t])*v[t], {})
+        """
+
+        graph = temporaries_graph(exprs)
+
+        processed = []
+        mapper = OrderedDict()
+        while graph:
+            k, v = graph.popitem(last=False)
+
+            make_ti = lambda m: Indexed("ti%d" % (len(m)+len(mapper)), (x, y, z))
+            is_invariant = lambda e: e not in graph or graph[e].is_time_invariant
+            handle, flag, mapped = replace_invariants(v, t, make_ti, is_invariant)
+
+            mapper.update(mapped)
+
+            if flag:
+                for i in v.readby:
+                    graph[i] = Eq(i, graph[i].rhs.xreplace({k: handle.rhs}))
+                graph = temporaries_graph(graph.values())
+            else:
+                processed.append(Eq(v.lhs, handle.rhs))
+
+        self.ops['...'] = estimate_cost(processed)
+
+        # TODO
+        # 1) introduce decorator for: op count and timing.
+        # 2) minimize temporaries by using
+        #    - template (theta[i] aliases to theta[i+1]
+        #    - full pusing if a temporary just lives out of time
+        # 3) introduce the invariants in the generated code
+
+        return processed, mapper
+
     def _finalize(self, exprs):
         """
         Make sure that any subsequent sympy operation applied to the expressions
@@ -324,3 +375,57 @@ def collect_nested(expr):
             return expr.func(*rebuilt), flatten(candidates)
 
     return run(expr)[0]
+
+
+def replace_invariants(expr, dim, make_ti, is_invariant=lambda e: e):
+    """
+    Replace all sub-expressions of expr that are invariant in the dimension
+    dim. Additional invariance rules can be set through the optional lambda
+    function is_invariant.
+    """
+
+    def run(expr, root, mapper):
+        # Return semantic: (rebuilt expr, time invariant flag)
+
+        if expr.is_Float:
+            return expr.func(*expr.atoms()), True
+        elif expr in [S.Zero, S.One, S.NegativeOne, S.Half]:
+            return expr.func(), True
+        elif expr.is_Symbol:
+            return expr.func(expr.name), is_invariant(expr)
+        elif expr.is_Atom:
+            return expr.func(*expr.atoms()), True
+        elif expr.is_Equality:
+            handle, flag = run(expr.rhs, expr.rhs, mapper)
+            return expr.func(expr.lhs, handle), flag
+        elif isinstance(expr, Indexed):
+            return expr.func(*expr.args), dim not in expr.atoms()
+        else:
+            children = [run(a, root, mapper) for a in expr.args]
+            invs = [a for a, flag in children if flag]
+            varying = [a for a, _ in children if a not in invs]
+            if not invs:
+                # Nothing is time-invariant
+                return (expr.func(*varying), False)
+            if len(invs) == len(children):
+                # Everything is time-invariant
+                if expr == root:
+                    # Root is a special case
+                    temporary = make_ti(mapper)
+                    mapper[temporary] = expr.func(*expr.args)
+                    return temporary, True
+                else:
+                    # Go look for longer expressions first
+                    return expr.func(*invs), True
+            else:
+                # Some children are time-invariant, but expr is time-dependent
+                if len(invs) == 1 and isinstance(invs[0], (Atom, Indexed)):
+                    return expr.func(*(invs + varying)), False
+                else:
+                    temporary = make_ti(mapper)
+                    mapper[temporary] = expr.func(*invs)
+                    return expr.func(*(varying + [temporary])), False
+
+    mapper = OrderedDict()
+    handle, flag = run(expr, expr, mapper)
+    return handle, flag, mapper
