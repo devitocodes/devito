@@ -18,7 +18,7 @@ from sympy import (Add, Eq, Indexed, IndexedBase, S,
 from devito.dimension import t, x, y, z
 from devito.logger import perfbad, perfok, warning
 
-from devito.dse.extended_sympy import bhaskara_sin, bhaskara_cos
+from devito.dse.extended_sympy import taylor_sin, taylor_cos
 from devito.dse.inspection import estimate_cost, terminals, unevaluate_arithmetic
 
 __all__ = ['rewrite']
@@ -241,8 +241,8 @@ class Rewriter(object):
 
         processed = []
         for expr in exprs:
-            handle = expr.replace(sin, bhaskara_sin)
-            handle = handle.replace(cos, bhaskara_cos)
+            handle = expr.replace(sin, taylor_sin)
+            handle = handle.replace(cos, taylor_cos)
             processed.append(handle)
 
         return processed
