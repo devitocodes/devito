@@ -1,3 +1,4 @@
+from devito.dimension import t
 from devito.interfaces import SymbolicData
 from devito.logger import warning
 
@@ -8,7 +9,7 @@ from sympy import (Indexed, Function, Symbol,
                    count_ops, flatten, lambdify, preorder_traversal)
 
 __all__ = ['indexify', 'retrieve_dimensions', 'retrieve_dtype', 'retrieve_symbols',
-           'terminals', 'tolambda']
+           'retrieve_shape', 'terminals', 'tolambda']
 
 
 def free_terms(expr):
@@ -110,6 +111,43 @@ def retrieve_dtype(expr):
     """
     dtypes = [e.dtype for e in preorder_traversal(expr) if hasattr(e, 'dtype')]
     return np.find_common_type(dtypes, [])
+
+
+def retrieve_shape(expr):
+    indexed = set([e for e in preorder_traversal(expr) if isinstance(e, Indexed)])
+    if not indexed:
+        return ()
+    indexed = sorted(indexed, key=lambda s: len(s.indices), reverse=True)
+    indices = [flatten(j.free_symbols for j in i.indices) for i in indexed]
+    assert all(set(indices[0]).issuperset(set(i)) for i in indices)
+    return tuple(indices[0])
+
+
+def is_time_invariant(expr, graph=None):
+    """
+    Check if expr is time invariant. A temporaries graph may be provided
+    to determine whether any of the symbols involved in the evaluation
+    of expr are time-dependent. If a symbol in expr does not appear in the
+    graph, then time invariance is inferred from its shape.
+    """
+    is_time_dependent = lambda e: t in e.atoms()
+    graph = graph or {}
+
+    if expr.is_Equality:
+        if is_time_dependent(expr.lhs):
+            return False
+        else:
+            expr = expr.rhs
+
+    to_visit = terminals(expr)
+    while to_visit:
+        symbol = to_visit.pop()
+        if is_time_dependent(symbol):
+            return False
+        if symbol in graph:
+            to_visit |= terminals(graph[symbol].rhs)
+
+    return True
 
 
 def indexify(expr):
