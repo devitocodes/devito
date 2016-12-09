@@ -10,13 +10,14 @@ All exposed functions are prefixed with 'dse' (devito symbolic engine)
 from __future__ import absolute_import
 
 from collections import OrderedDict, Sequence
+from time import time
 
 from sympy import (Add, Eq, Indexed, IndexedBase, S,
                    collect, collect_const, cos, cse, flatten,
                    numbered_symbols, preorder_traversal, sin)
 
 from devito.dimension import t, x, y, z
-from devito.logger import perfbad, perfok, warning
+from devito.logger import dse, dse_warning
 
 from devito.dse.extended_sympy import taylor_sin, taylor_cos, unevaluate_arithmetic
 from devito.dse.inspection import estimate_cost, terminals
@@ -58,10 +59,10 @@ def rewrite(expr, mode='advanced'):
         try:
             mode = set(mode)
         except TypeError:
-            warning("Arg mode must be a str or tuple (got %s instead)" % type(mode))
+            dse_warning("Arg mode must be str or tuple (got %s)" % type(mode))
             return expr
     if mode.isdisjoint({'basic', 'factorize', 'approx-trigonometry', 'advanced'}):
-        warning("Unknown rewrite mode(s) %s" % str(mode))
+        dse_warning("Unknown rewrite mode(s) %s" % str(mode))
         return expr
     else:
         return Rewriter(expr).run(mode)
@@ -79,9 +80,12 @@ class Rewriter(object):
 
     def __init__(self, exprs):
         self.exprs = exprs
+        self.ops = OrderedDict()
 
     def run(self, mode):
         processed = self.exprs
+
+        tic = time()
 
         if mode.intersection({'basic', 'advanced'}):
             processed = self._cse(processed)
@@ -93,6 +97,10 @@ class Rewriter(object):
             processed = self._optimize_trigonometry(processed)
 
         processed = self._finalize(processed)
+
+        toc = time()
+
+        self._summary(mode, toc-tic)
 
         return processed
 
@@ -108,13 +116,10 @@ class Rewriter(object):
         """
 
         processed = []
-        cost_original, cost_processed = 1, 1
         for expr in exprs:
-            handle = collect_nested(expr)
-
             cost_expr = estimate_cost(expr)
-            cost_original += cost_expr
 
+            handle = collect_nested(expr)
             cost_handle = estimate_cost(handle)
 
             if cost_handle < cost_expr and cost_handle >= Rewriter.FACTORIZER_THS:
@@ -126,11 +131,8 @@ class Rewriter(object):
                 cost_handle, handle = cost_prev, handle_prev
 
             processed.append(handle)
-            cost_processed += cost_handle
 
-        out = perfok if cost_processed < cost_original else perfbad
-        out("Rewriter: %d --> %d flops (Gain: %.2f X)" %
-            (cost_original, cost_processed, float(cost_original)/cost_processed))
+        self.ops['factorizer'] = estimate_cost(processed)
 
         return processed
 
@@ -231,7 +233,11 @@ class Rewriter(object):
                 # Must wait for some earlier temporaries, push back into queue
                 processed[k] = v
 
-        return list(ordered.values())
+        processed = list(ordered.values())
+
+        self.ops['cse'] = estimate_cost(processed)
+
+        return processed
 
     def _optimize_trigonometry(self, exprs):
         """
@@ -245,6 +251,8 @@ class Rewriter(object):
             handle = handle.replace(cos, taylor_cos)
             processed.append(handle)
 
+        self.ops['opt-trigo'] = estimate_cost(processed)
+
         return processed
 
     def _finalize(self, exprs):
@@ -253,6 +261,23 @@ class Rewriter(object):
         in ``exprs`` does not alter the structure of the transformed objects.
         """
         return [unevaluate_arithmetic(e) for e in exprs]
+
+    def _summary(self, mode, elapsed):
+        """
+        Print a summary of the DSE transformations
+        """
+
+        if mode.intersection({'basic', 'advanced'}):
+            baseline = self.ops['cse']
+        else:
+            summary = ""
+
+        if baseline:
+            steps = " --> ".join("(%s) %d" % (k, v) for k, v in self.ops.items())
+            gain = float(baseline) / self.ops.values()[-1]
+            summary = " %s flops; gain: %.2f X" % (steps, gain)
+
+        dse("Rewriter:%s [%.2f s]" % (summary, elapsed))
 
 
 def collect_nested(expr):

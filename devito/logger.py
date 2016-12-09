@@ -4,9 +4,9 @@ import logging
 import sys
 
 __all__ = ('set_log_level', 'set_log_noperf', 'log',
-           'DEBUG', 'INFO', 'AUTOTUNER', 'PERF_OK', 'PERF_WARN',
-           'WARNING', 'ERROR', 'CRITICAL',
-           'log', 'warning', 'error', 'info_at', 'perfok', 'perfbad',
+           'DEBUG', 'INFO', 'AUTOTUNER', 'DSE', 'DSE_WARN', 'WARNING',
+           'ERROR', 'CRITICAL',
+           'log', 'warning', 'error', 'info_at', 'dse', 'dse_warning',
            'RED', 'GREEN', 'BLUE')
 
 
@@ -18,15 +18,15 @@ logger.addHandler(_ch)
 DEBUG = logging.DEBUG
 INFO = logging.INFO
 AUTOTUNER = 27
-PERF_OK = 28
-PERF_WARN = 29
+DSE = 28
+DSE_WARN = 29
 WARNING = logging.WARNING
 ERROR = logging.ERROR
 CRITICAL = logging.CRITICAL
 
 logging.addLevelName(AUTOTUNER, "AUTOTUNER")
-logging.addLevelName(PERF_OK, "PERF_OK")
-logging.addLevelName(PERF_WARN, "PERF_WARN")
+logging.addLevelName(DSE, "DSE")
+logging.addLevelName(DSE_WARN, "DSE_WARN")
 
 logger.setLevel(INFO)
 
@@ -39,8 +39,8 @@ COLORS = {
     DEBUG: RED,
     INFO: NOCOLOR,
     AUTOTUNER: GREEN,
-    PERF_OK: GREEN,
-    PERF_WARN: BLUE,
+    DSE: NOCOLOR,
+    DSE_WARN: BLUE,
     WARNING: BLUE,
     ERROR: RED,
     CRITICAL: RED
@@ -51,7 +51,7 @@ def set_log_level(level):
     """
     Set the log level of the Devito logger.
 
-    :param level: accepted values are: DEBUG, INFO, AUTOTUNER, PERF_OK, PERF_WARN,
+    :param level: accepted values are: DEBUG, INFO, AUTOTUNER, DSE, DSE_WARN,
                   WARNING, ERROR, CRITICAL
     """
     logger.setLevel(level)
@@ -68,10 +68,10 @@ def log(msg, level=INFO, *args, **kwargs):
     the severity 'level'.
 
     :param msg: the message to be printed.
-    :param level: accepted values are: DEBUG, INFO, AUTOTUNER, PERF_OK, PERF_WARN,
+    :param level: accepted values are: DEBUG, INFO, AUTOTUNER, DSE, DSE_WARN,
                   WARNING, ERROR, CRITICAL
     """
-    assert level in [DEBUG, INFO, AUTOTUNER, PERF_OK, PERF_WARN,
+    assert level in [DEBUG, INFO, AUTOTUNER, DSE, DSE_WARN,
                      WARNING, ERROR, CRITICAL]
 
     color = COLORS[level] if sys.stdout.isatty() and sys.stderr.isatty() else '%s'
@@ -98,9 +98,9 @@ def debug(msg, *args, **kwargs):
     log(msg, DEBUG, *args, **kwargs)
 
 
-def perfok(msg, *args, **kwargs):
-    log(msg, PERF_OK, *args, **kwargs)
+def dse(msg, *args, **kwargs):
+    log("DSE: %s" % msg, DSE, *args, **kwargs)
 
 
-def perfbad(msg, *args, **kwargs):
-    log(msg, PERF_WARN, *args, **kwargs)
+def dse_warning(msg, *args, **kwargs):
+    log(msg, DSE_WARN, *args, **kwargs)
