@@ -4,7 +4,7 @@ from devito.logger import warning
 from devito.dse.extended_sympy import Add, Mul
 
 import numpy as np
-from sympy import (Indexed, Function, S, Symbol,
+from sympy import (Indexed, Function, Symbol,
                    count_ops, flatten, lambdify, preorder_traversal)
 
 __all__ = ['indexify', 'retrieve_dimensions', 'retrieve_dtype', 'retrieve_symbols',
@@ -65,31 +65,6 @@ def estimate_cost(handle):
         return total_ops - non_flops
     except:
         warning("Cannot estimate cost of %s" % str(handle))
-
-
-def unevaluate_arithmetic(expr):
-    """
-    Reconstruct ``expr`` turning all :class:`sympy.Mul` and :class:`sympy.Add`
-    into, respectively, :class:`devito.Mul` and :class:`devito.Add`.
-    """
-    if expr.is_Float:
-        return expr.func(*expr.atoms())
-    elif isinstance(expr, Indexed):
-        return expr.func(*expr.args)
-    elif expr.is_Symbol:
-        return expr.func(expr.name)
-    elif expr in [S.Zero, S.One, S.NegativeOne, S.Half]:
-        return expr.func()
-    elif expr.is_Atom:
-        return expr.func(*expr.atoms())
-    elif expr.is_Add:
-        rebuilt_args = [unevaluate_arithmetic(e) for e in expr.args]
-        return Add(*rebuilt_args, evaluate=False)
-    elif expr.is_Mul:
-        rebuilt_args = [unevaluate_arithmetic(e) for e in expr.args]
-        return Mul(*rebuilt_args, evaluate=False)
-    else:
-        return expr.func(*[unevaluate_arithmetic(e) for e in expr.args])
 
 
 def retrieve_dimensions(expr):

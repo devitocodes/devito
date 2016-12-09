@@ -18,8 +18,8 @@ from sympy import (Add, Eq, Indexed, IndexedBase, S,
 from devito.dimension import t, x, y, z
 from devito.logger import perfbad, perfok, warning
 
-from devito.dse.extended_sympy import taylor_sin, taylor_cos
-from devito.dse.inspection import estimate_cost, terminals, unevaluate_arithmetic
+from devito.dse.extended_sympy import taylor_sin, taylor_cos, unevaluate_arithmetic
+from devito.dse.inspection import estimate_cost, terminals
 
 __all__ = ['rewrite']
 
