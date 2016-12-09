@@ -69,64 +69,89 @@ def rewrite(expr, mode='advanced'):
         return Rewriter(expr).run(mode)
 
 
+def dse_transformation(func):
+
+    def wrapper(self, state, **kwargs):
+        if kwargs['mode'].intersection(set(self.triggers[func.func_name])):
+            tic = time()
+            state.update(**func(self, state))
+            toc = time()
+
+            self.ops[func.func_name] = estimate_cost(state.exprs)
+            self.timings[func.func_name] = toc - tic
+
+    return wrapper
+
+
+class State(object):
+
+    def __init__(self, exprs):
+        self.exprs = exprs
+        self.mapper = OrderedDict()
+
+    def update(self, exprs=None, mapper=None):
+        self.exprs = exprs or self.exprs
+        self.mapper = mapper or self.mapper
+
+
 class Rewriter(object):
 
     """
     Transform expressions to reduce their operation count.
     """
 
+    triggers = {
+        '_cse': ('basic', 'advanced'),
+        '_factorize': ('factorize', 'advanced'),
+        '_optimize_trigonometry': ('approx-trigonometry', 'advanced'),
+        '_replace_time_invariants': ('glicm', 'advanced')
+    }
+
     # Do more factorization sweeps if the expression operation count is
     # greater than this threshold
-    FACTORIZER_THS = 15
+    fact_driver = 15
 
     def __init__(self, exprs):
         self.exprs = exprs
+
         self.ops = OrderedDict()
+        self.timings = OrderedDict()
 
     def run(self, mode):
-        processed = self.exprs
+        state = State(self.exprs)
 
-        tic = time()
+        self._cse(state, mode=mode)
+        self._factorize(state, mode=mode)
+        self._optimize_trigonometry(state, mode=mode)
+        self._replace_time_invariants(state, mode=mode)
 
-        if mode.intersection({'basic', 'advanced'}):
-            processed = self._cse(processed)
+        from IPython import embed; embed()
+        self._finalize(state)
 
-        if mode.intersection({'factorize', 'advanced'}):
-            processed = self._factorize(processed)
+        self._summary(mode)
 
-        if mode.intersection({'approx-trigonometry', 'advanced'}):
-            processed = self._optimize_trigonometry(processed)
+        return state
 
-        if mode.intersection({'glicm', 'advanced'}):
-            processed = self._replace_time_invariants(processed)
-
-        processed = self._finalize(processed)
-
-        toc = time()
-
-        self._summary(mode, toc-tic)
-
-        return processed
-
-    def _factorize(self, exprs):
+    @dse_transformation
+    def _factorize(self, state, **kwargs):
         """
         Collect terms in each expr in exprs based on the following heuristic:
 
             * Collect all literals;
             * Collect all temporaries produced by CSE;
             * If the expression has an operation count higher than
-              self.FACTORIZER_THS, then this is applied recursively until
+              self.fact_driver, then this is applied recursively until
               no more factorization opportunities are available.
         """
 
         processed = []
-        for expr in exprs:
+        for expr in state.exprs:
             cost_expr = estimate_cost(expr)
 
             handle = collect_nested(expr)
             cost_handle = estimate_cost(handle)
 
-            if cost_handle < cost_expr and cost_handle >= Rewriter.FACTORIZER_THS:
+            if cost_handle < cost_expr and cost_handle >= Rewriter.fact_driver:
                 handle_prev = handle
                 cost_prev = cost_expr
                 while cost_handle < cost_prev:
@@ -136,20 +161,19 @@ class Rewriter(object):
 
             processed.append(handle)
 
-        self.ops['factorizer'] = estimate_cost(processed)
+        return {'exprs': processed}
 
-        return processed
-
-    def _cse(self, exprs):
+    @dse_transformation
+    def _cse(self, state, **kwargs):
         """
         Perform common subexpression elimination.
         """
 
-        temps, stencils = cse(exprs, numbered_symbols(_temp_prefix))
+        temps, stencils = cse(state.exprs, numbered_symbols(_temp_prefix))
 
         # Restores the LHS
-        for i in range(len(exprs)):
-            stencils[i] = Eq(exprs[i].lhs, stencils[i].rhs)
+        for i in range(len(state.exprs)):
+            stencils[i] = Eq(state.exprs[i].lhs, stencils[i].rhs)
 
         to_revert = {}
         to_keep = []
@@ -237,29 +261,25 @@ class Rewriter(object):
                 # Must wait for some earlier temporaries, push back into queue
                 processed[k] = v
 
-        processed = list(ordered.values())
+        return {'exprs': list(ordered.values())}
 
-        self.ops['cse'] = estimate_cost(processed)
-
-        return processed
-
-    def _optimize_trigonometry(self, exprs):
+    @dse_transformation
+    def _optimize_trigonometry(self, state, **kwargs):
         """
         Rebuild ``exprs`` replacing trigonometric functions with Bhaskara
         polynomials.
         """
 
         processed = []
-        for expr in exprs:
+        for expr in state.exprs:
             handle = expr.replace(sin, taylor_sin)
             handle = handle.replace(cos, taylor_cos)
             processed.append(handle)
 
-        self.ops['opt-trigo'] = estimate_cost(processed)
+        return {'exprs': processed}
 
-        return processed
-
-    def _replace_time_invariants(self, exprs):
+    @dse_transformation
+    def _replace_time_invariants(self, state, **kwargs):
         """
         Create a new expr' given expr where the longest time-invariant
         sub-expressions are replaced by temporaries. A mapper from the
@@ -275,7 +295,7 @@ class Rewriter(object):
             --> ((a*b[t] + c*d[t])*v[t], {})
         """
 
-        graph = temporaries_graph(exprs)
+        graph = temporaries_graph(state.exprs)
 
         processed = []
         mapper = OrderedDict()
@@ -295,31 +315,29 @@ class Rewriter(object):
             else:
                 processed.append(Eq(v.lhs, handle.rhs))
 
-        self.ops['...'] = estimate_cost(processed)
-
         # TODO
-        # 1) introduce decorator for: op count and timing.
+        # 1) [DONE] introduce decorator for: op count and timing.
         # 2) minimize temporaries by using
-        #    - template (theta[i] aliases to theta[i+1]
+        #    - template (theta[i] aliases to theta[i+1)
         #    - full pusing if a temporary just lives out of time
         # 3) introduce the invariants in the generated code
 
-        return processed, mapper
+        return {'exprs': processed, 'mapper': mapper}
 
-    def _finalize(self, exprs):
+    def _finalize(self, state):
         """
         Make sure that any subsequent sympy operation applied to the expressions
-        in ``exprs`` does not alter the structure of the transformed objects.
+        in ``state.exprs`` does not alter the structure of the transformed objects.
         """
-        return [unevaluate_arithmetic(e) for e in exprs]
+        state.update(exprs=[unevaluate_arithmetic(e) for e in state.exprs])
 
-    def _summary(self, mode, elapsed):
+    def _summary(self, mode):
         """
         Print a summary of the DSE transformations
         """
 
         if mode.intersection({'basic', 'advanced'}):
-            baseline = self.ops['cse']
+            baseline = self.ops['_cse']
         else:
             summary = ""
 
@@ -327,6 +345,8 @@ class Rewriter(object):
             steps = " --> ".join("(%s) %d" % (k, v) for k, v in self.ops.items())
             gain = float(baseline) / self.ops.values()[-1]
             summary = " %s flops; gain: %.2f X" % (steps, gain)
+
+        elapsed = sum(self.timings.values())
 
         dse("Rewriter:%s [%.2f s]" % (summary, elapsed))
 
