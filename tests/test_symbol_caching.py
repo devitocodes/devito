@@ -1,3 +1,5 @@
+import weakref
+
 import numpy as np
 import pytest
 
@@ -35,7 +37,6 @@ def test_cache_function_different_indices(FunctionType):
     assert np.allclose(u.data, u0.data)
 
 
-@pytest.mark.xfail(reason="Known symbol caching bug due to false aliasing")
 def test_symbol_cache_aliasing():
     """Test to assert that our aiasing cache isn't defeated by sympys
     non-aliasing symbol cache.
@@ -47,8 +48,8 @@ def test_symbol_cache_aliasing():
     SymPy treats these two instances as separate functions and thus is
     allowed to delete one or the other when the cache is cleared.
 
-    The test below asserts that if either of these instances is deleted,
-    the data on u is still intact through our own caching mechanism."""
+    The test below asserts that u[x + h, y] is deleted, the data on u
+    is still intact through our own caching mechanism."""
 
     # Ensure a clean cache to start with
     clear_cache()
@@ -56,22 +57,47 @@ def test_symbol_cache_aliasing():
     # Create first instance of u and fill its data
     u = DenseData(name='u', shape=(3, 4))
     u.data[:] = 6.
+    u_ref = weakref.ref(u.data)
 
-    # Test 1: Create u[x + h, y] and delete it again
+    # Create u[x + h, y] and delete it again
     dx = u.dx  # Contains two u symbols: u[x, y] and u[x + h, y]
     del dx
     clear_cache()
     assert len(_SymbolCache) == 1  # We still have a reference to u
-    assert np.allclose(u.data, 6.)  # u.data is alive
+    assert np.allclose(u.data, 6.)  # u.data is alive and well
 
-    # Test 2: Create and keep u[x, y + h] and delete u[x, y]
-    dy = u.dy
-    u_h = dy.args[0].args[1]  # Store a copy of the second variant
-    del dy
+    # Remove the final instance and ensure u.data got deallocated
     del u
     clear_cache()
-    assert len(_SymbolCache) == 1  # We still have a reference to u_h
-    assert np.allclose(u_h.data, 6.)  # u_h.data is alive
+    assert u_ref() is None
+
+
+def test_symbol_cache_aliasing_reverse():
+    """Test to assert that removing he original u[x, y] instance does
+    not impede our alisaing cache or leaks memory.
+    """
+
+    # Ensure a clean cache to start with
+    clear_cache()
+    assert(len(_SymbolCache) == 0)
+    # Create first instance of u and fill its data
+    u = DenseData(name='u', shape=(3, 4))
+    u.data[:] = 6.
+    u_ref = weakref.ref(u.data)
+
+    # Create derivative and delete orignal u[x, y]
+    dx = u.dx
+    del u
+    clear_cache()
+    # We still have a references to u
+    assert len(_SymbolCache) == 1
+    # Ensure u[x + h, y] still holds valid data
+    assert np.allclose(dx.args[0].args[1].data, 6.)
+
+    del dx
+    clear_cache()
+    assert len(_SymbolCache) == 0  # We still have a reference to u_h
+    assert u_ref() is None
 
 
 def test_clear_cache(nx=1000, ny=1000):
