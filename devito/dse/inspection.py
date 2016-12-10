@@ -1,43 +1,34 @@
-from devito.dimension import t
-from devito.interfaces import SymbolicData
-from devito.logger import warning
-
 import numpy as np
 from sympy import (Indexed, Function, Symbol,
                    count_ops, flatten, lambdify, preorder_traversal)
+
+from devito.dimension import t
+from devito.interfaces import SymbolicData
+from devito.logger import warning
+from devito.tools import flatten
 
 __all__ = ['indexify', 'retrieve_dimensions', 'retrieve_dtype', 'retrieve_symbols',
            'retrieve_shape', 'terminals', 'tolambda']
 
 
-def free_terms(expr):
-    """
-    Find the free terms in an expression.
-    """
-    found = []
-
-    for term in expr.args:
-        if isinstance(term, Indexed):
-            found.append(term)
-        else:
-            found += free_terms(term)
-
-    return found
-
-
 def terminals(expr, discard_indexed=False):
-    indexed = list(expr.find(Indexed))
+    """
+    Return all Indexed and Symbols in a SymPy expression.
+    """
 
-    # To be discarded
-    junk = flatten(i.atoms() for i in indexed)
+    indexed = retrieve_indexed(expr)
 
-    symbols = list(expr.find(Symbol))
-    symbols = [i for i in symbols if i not in junk]
+    # Use '.name' for quickly checking uniqueness
+    junk = flatten([i.free_symbols for i in indexed])
+    junk = [i.name for i in junk]
+
+    symbols = {i for i in expr.free_symbols if i.name not in junk}
 
     if discard_indexed:
-        return set(symbols)
+        return symbols
     else:
-        return set(indexed + symbols)
+        indexed.update(symbols)
+        return indexed
 
 
 def estimate_cost(handle):
@@ -52,7 +43,7 @@ def estimate_cost(handle):
     except AttributeError:
         try:
             # Must be a list of dicts then
-            handle = flatten(i.values() for i in handle)
+            handle = flatten([i.values() for i in handle])
         except AttributeError:
             pass
     try:
@@ -116,9 +107,24 @@ def retrieve_shape(expr):
     if not indexed:
         return ()
     indexed = sorted(indexed, key=lambda s: len(s.indices), reverse=True)
-    indices = [flatten(j.free_symbols for j in i.indices) for i in indexed]
+    indices = [flatten([j.free_symbols for j in i.indices]) for i in indexed]
     assert all(set(indices[0]).issuperset(set(i)) for i in indices)
     return tuple(indices[0])
+
+
+def retrieve_indexed(expr):
+    """
+    Find the free terms in an expression. This is much quicker than the more general
+    SymPy's find.
+    """
+
+    if isinstance(expr, Indexed):
+        return {expr}
+    else:
+        found = set()
+        for a in expr.args:
+            found.update(retrieve_indexed(a))
+        return found
 
 
 def is_time_invariant(expr, graph=None):
@@ -128,22 +134,26 @@ def is_time_invariant(expr, graph=None):
     of expr are time-dependent. If a symbol in expr does not appear in the
     graph, then time invariance is inferred from its shape.
     """
-    is_time_dependent = lambda e: t in e.atoms()
     graph = graph or {}
 
-    if expr.is_Equality:
-        if is_time_dependent(expr.lhs):
-            return False
-        else:
-            expr = expr.rhs
+    if t in expr.free_symbols:
+        return False
+    elif expr in graph:
+        return graph[expr].is_time_invariant
 
-    to_visit = terminals(expr)
+    if expr.is_Equality:
+        to_visit = [expr.rhs]
+    else:
+        to_visit = [expr]
+
     while to_visit:
-        symbol = to_visit.pop()
-        if is_time_dependent(symbol):
-            return False
-        if symbol in graph:
-            to_visit |= terminals(graph[symbol].rhs)
+        handle = to_visit.pop()
+        for i in retrieve_indexed(handle):
+            if t in i.free_symbols:
+                return False
+        temporaries = [i for i in handle.free_symbols if i in graph]
+        for i in temporaries:
+            to_visit.append(graph[i].rhs)
 
     return True
 
