@@ -97,13 +97,13 @@ def eval_taylor_sin(expr):
     try:
         Float(expr)
         return v.doit()
-    except TypeError, ValueError:
+    except (TypeError, ValueError):
         return v
 
 
 def eval_taylor_cos(expr):
     expr_square = Mul(expr, expr, evaluate=False)
-    b =  1.0-.5*expr_square*(1.0-expr_square/12.0)
+    b = 1.0-.5*expr_square*(1.0-expr_square/12.0)
     v = 1.0 + Mul(-0.5,
                   Mul(expr, expr, evaluate=False),
                   1.0 + Mul(expr, expr, -1/12.0, evaluate=False),
@@ -111,7 +111,7 @@ def eval_taylor_cos(expr):
     try:
         Float(expr)
         return b, v.doit()
-    except TypeError, ValueError:
+    except (TypeError, ValueError):
         return v
 
 

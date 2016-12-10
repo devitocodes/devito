@@ -2,8 +2,6 @@ from devito.dimension import t
 from devito.interfaces import SymbolicData
 from devito.logger import warning
 
-from devito.dse.extended_sympy import Add, Mul
-
 import numpy as np
 from sympy import (Indexed, Function, Symbol,
                    count_ops, flatten, lambdify, preorder_traversal)
