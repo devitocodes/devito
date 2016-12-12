@@ -10,7 +10,7 @@ from devito.finite_difference import (centered, cross_derivative,
                                       second_derivative)
 from devito.logger import debug, error
 from devito.memmap_manager import MemmapManager
-from devito.memory import first_touch, free, malloc_aligned
+from devito.memory import CMemory, first_touch
 
 __all__ = ['DenseData', 'TimeData', 'PointData']
 
@@ -131,7 +131,6 @@ class DenseData(SymbolicData):
             self.initializer = initializer
             self._data = kwargs.get('_data', None)
             MemmapManager.setup(self, *args, **kwargs)
-            self.internal_pointer = None
 
     @classmethod
     def _indices(cls, **kwargs):
@@ -187,14 +186,9 @@ class DenseData(SymbolicData):
                                    shape=self.shape, order='C')
         else:
             debug("Allocating memory for %s (%s)" % (self.name, str(self.shape)))
-            self._data, self.internal_pointer = malloc_aligned(
-                self.shape, dtype=self.dtype)
+            self._data_object = CMemory(self.shape, dtype=self.dtype)
+            self._data = self._data_object.ndpointer
             first_touch(self)
-
-    def __del__(self):
-        if self.internal_pointer is not None:
-            free(self.internal_pointer)
-            self.internal_pointer = None
 
     @property
     def data(self):
@@ -480,8 +474,8 @@ class CoordinateData(SymbolicData):
             self.shape = (self.npoint, self.ndim)
             self.indices = self._indices(**kwargs)
             self.dtype = kwargs.get('dtype', np.float32)
-            self.data, self.internal_pointer = malloc_aligned(
-                self.shape, dtype=self.dtype)
+            self._data_object = CMemory(self.shape, dtype=self.dtype)
+            self.data = self._data_object.ndpointer
             first_touch(self)
 
     def __new__(cls, *args, **kwargs):
@@ -504,11 +498,6 @@ class CoordinateData(SymbolicData):
     def indexed(self):
         """:return: Base symbol as devito.IndexedData"""
         return IndexedData(self.name, shape=self.shape, function=self)
-
-    def __del__(self):
-        if self.internal_pointer is not None:
-            free(self.internal_pointer)
-            self.internal_pointer = None
 
 
 class PointData(DenseData):

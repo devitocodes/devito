@@ -165,7 +165,8 @@ class CustomCompiler(Compiler):
     :param openmp: Boolean indicating if openmp is enabled. False by default
 
     Note: Currently honours CC, CFLAGS, LD and LDFLAGS, with defaults similar
-    to the default GNU settings.
+    to the default GNU settings. If DEVITO_ARCH is enabled, the OpenMP linker
+    flags are read from OMP_LDFLAGS or otherwise default to ``-fopenmp``.
     """
 
     def __init__(self, *args, **kwargs):
@@ -174,6 +175,9 @@ class CustomCompiler(Compiler):
         self.ld = environ.get('LD', 'gcc')
         self.cflags = environ.get('CFLAGS', '-O3 -g -fPIC -Wall -std=c99').split(' ')
         self.ldflags = environ.get('LDFLAGS', '-shared').split(' ')
+
+        if self.openmp:
+            self.ldflags += environ.get('OMP_LDFLAGS', '-fopenmp').split(' ')
 
 
 # Registry dict for deriving Compiler classes according to
