@@ -129,12 +129,11 @@ class Rewriter(object):
         self._optimize_trigonometry(state, mode=mode)
         self._replace_time_invariants(state, mode=mode)
 
-        from IPython import embed; embed()
         self._finalize(state)
 
         self._summary(mode)
 
-        return state
+        return state.exprs
 
     @dse_transformation
     def _factorize(self, state, **kwargs):
@@ -357,7 +356,8 @@ class Rewriter(object):
         Make sure that any subsequent sympy operation applied to the expressions
         in ``state.exprs`` does not alter the structure of the transformed objects.
         """
-        state.update(exprs=[unevaluate_arithmetic(e) for e in state.exprs])
+        exprs = [Eq(k, v) for k, v in state.mapper.items()] + state.exprs
+        state.update(exprs=[unevaluate_arithmetic(e) for e in exprs])
 
     def _summary(self, mode):
         """

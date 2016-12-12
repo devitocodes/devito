@@ -136,7 +136,7 @@ class FunctionManager(object):
                                                 '*%s' % (param[1]+"_pointer"))
                 statements.append(cast_pointer)
 
-        statements.append(function_descriptor.body)
+        statements.extend(function_descriptor.body)
         statements.append(cgen.Statement("return 0"))
 
         return cgen.Block(statements)
