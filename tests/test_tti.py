@@ -9,7 +9,6 @@ from examples.containers import IGrid, IShot
 from examples.tti.TTI_codegen import TTI_cg
 
 
-@pytest.mark.xfail(reason='May segfault in 3D, needs caching fix')
 @pytest.mark.parametrize('dimensions', [(120, 140), (120, 140, 150)])
 @pytest.mark.parametrize('space_order', [4, 8])
 def test_tti(dimensions, space_order):
