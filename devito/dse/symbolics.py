@@ -12,7 +12,7 @@ from __future__ import absolute_import
 from collections import OrderedDict, Sequence
 from time import time
 
-from sympy import (Add, Atom, Eq, Indexed, IndexedBase, S,
+from sympy import (Add, Eq, Indexed, IndexedBase, S,
                    collect, collect_const, cos, cse, flatten,
                    numbered_symbols, preorder_traversal, sin)
 
@@ -22,7 +22,8 @@ from devito.logger import dse, dse_warning
 from devito.dse.extended_sympy import (bhaskara_sin, bhaskara_cos, unevaluate_arithmetic,
                                        flip_indices)
 from devito.dse.graph import temporaries_graph
-from devito.dse.inspection import estimate_cost, terminals
+from devito.dse.inspection import (collect_aliases, estimate_cost,
+                                   is_time_invariant, terminals)
 
 __all__ = ['rewrite']
 
@@ -42,7 +43,8 @@ def rewrite(expr, mode='advanced'):
                     * 'factorize': apply heuristic factorization of temporaries.
                     * 'approx-trigonometry': replace expensive trigonometric
                         functions with suitable polynomial approximations.
-                    * 'advanced': 'basic' + 'factorize' + 'approx-trigonometry'.
+                    * 'glicm': apply heuristic hoisting of time-invariant terms.
+                    * 'advanced': compose all known transformations.
     """
 
     if isinstance(expr, Sequence):
@@ -63,7 +65,8 @@ def rewrite(expr, mode='advanced'):
         except TypeError:
             dse_warning("Arg mode must be str or tuple (got %s)" % type(mode))
             return expr
-    if mode.isdisjoint({'basic', 'factorize', 'approx-trigonometry', 'advanced'}):
+    if mode.isdisjoint({'basic', 'factorize', 'approx-trigonometry',
+                        'glicm', 'advanced'}):
         dse_warning("Unknown rewrite mode(s) %s" % str(mode))
         return expr
     else:
@@ -108,9 +111,9 @@ class Rewriter(object):
         '_replace_time_invariants': ('glicm', 'advanced')
     }
 
-    # Do more factorization sweeps if the expression operation count is
-    # greater than this threshold
-    fact_driver = 15
+    # Aggressive transformation if the operation count is greather than this
+    # empirically determined threshold
+    threshold = 15
 
     def __init__(self, exprs):
         self.exprs = exprs
@@ -141,7 +144,7 @@ class Rewriter(object):
             * Collect all literals;
             * Collect all temporaries produced by CSE;
             * If the expression has an operation count higher than
-              self.fact_driver, then this is applied recursively until
+              self.threshold, then this is applied recursively until
               no more factorization opportunities are available.
         """
 
@@ -152,7 +155,7 @@ class Rewriter(object):
             handle = collect_nested(expr)
             cost_handle = estimate_cost(handle)
 
-            if cost_handle < cost_expr and cost_handle >= Rewriter.fact_driver:
+            if cost_handle < cost_expr and cost_handle >= Rewriter.threshold:
                 handle_prev = handle
                 cost_prev = cost_expr
                 while cost_handle < cost_prev:
@@ -296,34 +299,58 @@ class Rewriter(object):
             --> ((a*b[t] + c*d[t])*v[t], {})
         """
 
+        template = "ti%d"
         graph = temporaries_graph(state.exprs)
+        queue = graph.copy()
 
+        # What expressions is it worth transforming (cm=cost model)?
+        # Formula: ops(expr)*aliases(expr) > self.threshold <==> do it
+        # For more information about "aliases", check out collect_aliases.__doc__
+        aliases, clusters = collect_aliases([e.rhs for e in state.exprs])
+        cm = lambda e: estimate_cost(e, True)*len(aliases.get(e, [e])) > self.threshold
+
+        # Replace time invariants
         processed = []
         mapper = OrderedDict()
-        while graph:
-            k, v = graph.popitem(last=False)
+        while queue:
+            k, v = queue.popitem(last=False)
 
-            make_ti = lambda m: Indexed("ti%d" % (len(m)+len(mapper)), (x, y, z))
-            is_invariant = lambda e: e not in graph or graph[e].is_time_invariant
-            handle, flag, mapped = replace_invariants(v, t, make_ti, is_invariant)
-
-            mapper.update(mapped)
+            make_ti = lambda m: Indexed(template % (len(m)+len(mapper)), x, y, z)
+            invariant = lambda e: is_time_invariant(e, graph)
+            handle, flag, mapped = replace_invariants(v, make_ti, invariant, cm)
 
             if flag:
+                mapper.update(mapped)
                 for i in v.readby:
-                    graph[i] = Eq(i, graph[i].rhs.xreplace({k: handle.rhs}))
-                graph = temporaries_graph(graph.values())
+                    graph[i] = graph[i].construct({k: handle.rhs})
             else:
-                processed.append(Eq(v.lhs, handle.rhs))
+                processed.append(Eq(v.lhs, graph[v.lhs].rhs))
 
-        # TODO
-        # 1) [DONE] introduce decorator for: op count and timing.
-        # 2) minimize temporaries by using
-        #    - template (theta[i] aliases to theta[i+1)
-        #    - full pusing if a temporary just lives out of time
-        # 3) introduce the invariants in the generated code
+        # Squash aliases and tweak the affected indices accordingly
+        reducible = OrderedDict()
+        others = OrderedDict()
+        for k, v in mapper.items():
+            cluster = aliases.get(v)
+            if cluster:
+                index = clusters.index(cluster)
+                reducible.setdefault(index, []).append(k)
+            else:
+                others[k] = v
+        rule = {}
+        reduced_mapper = OrderedDict()
+        for i, cluster in enumerate(reducible.values()):
+            for k in cluster:
+                v, flipped = flip_indices(mapper[k], (x, y, z))
+                assert len(flipped) == 1
+                reduced_mapper[Indexed(template % i, x, y, z)] = v
+                rule[k] = Indexed(template % i, *flipped.pop())
+        handle, processed = list(processed), []
+        for e in handle:
+            processed.append(e.xreplace(rule))
+        for k, v in others.items():
+            reduced_mapper[k] = v.xreplace(rule)
 
-        return {'exprs': processed, 'mapper': mapper}
+        return {'exprs': processed, 'mapper': reduced_mapper}
 
     def _finalize(self, state):
         """
@@ -398,54 +425,56 @@ def collect_nested(expr):
     return run(expr)[0]
 
 
-def replace_invariants(expr, dim, make_ti, is_invariant=lambda e: e):
+def replace_invariants(expr, make_ti, invariant=lambda e: e, cm=lambda e: True):
     """
-    Replace all sub-expressions of expr that are invariant in the dimension
-    dim. Additional invariance rules can be set through the optional lambda
-    function is_invariant.
+    Replace all sub-expressions of ``expr`` such that ``invariant(expr) == True``
+    with a temporary created through ``make_ti(expr)``. A sub-expression ``e``
+    within ``expr`` is not visited if ``cm(e) == False``.
     """
 
     def run(expr, root, mapper):
-        # Return semantic: (rebuilt expr, time invariant flag)
+        # Return semantic: (rebuilt expr, True <==> invariant)
 
         if expr.is_Float:
             return expr.func(*expr.atoms()), True
         elif expr in [S.Zero, S.One, S.NegativeOne, S.Half]:
             return expr.func(), True
         elif expr.is_Symbol:
-            return expr.func(expr.name), is_invariant(expr)
+            return expr.func(expr.name), invariant(expr)
         elif expr.is_Atom:
             return expr.func(*expr.atoms()), True
+        elif isinstance(expr, Indexed):
+            return expr.func(*expr.args), invariant(expr)
         elif expr.is_Equality:
             handle, flag = run(expr.rhs, expr.rhs, mapper)
-            return expr.func(expr.lhs, handle), flag
-        elif isinstance(expr, Indexed):
-            return expr.func(*expr.args), dim not in expr.atoms()
+            return expr.func(expr.lhs, handle, evaluate=False), flag
         else:
             children = [run(a, root, mapper) for a in expr.args]
             invs = [a for a, flag in children if flag]
             varying = [a for a, _ in children if a not in invs]
             if not invs:
                 # Nothing is time-invariant
-                return (expr.func(*varying), False)
-            if len(invs) == len(children):
+                return (expr.func(*varying, evaluate=False), False)
+            elif len(invs) == len(children):
                 # Everything is time-invariant
                 if expr == root:
-                    # Root is a special case
-                    temporary = make_ti(mapper)
-                    mapper[temporary] = expr.func(*expr.args)
-                    return temporary, True
+                    if cm(expr):
+                        temporary = make_ti(mapper)
+                        mapper[temporary] = expr.func(*invs, evaluate=False)
+                        return temporary, True
+                    else:
+                        return expr.func(*invs, evaluate=False), False
                 else:
                     # Go look for longer expressions first
-                    return expr.func(*invs), True
+                    return expr.func(*invs, evaluate=False), True
             else:
                 # Some children are time-invariant, but expr is time-dependent
-                if len(invs) == 1 and isinstance(invs[0], (Atom, Indexed)):
-                    return expr.func(*(invs + varying)), False
-                else:
+                if cm(expr) and len(invs) > 1:
                     temporary = make_ti(mapper)
-                    mapper[temporary] = expr.func(*invs)
-                    return expr.func(*(varying + [temporary])), False
+                    mapper[temporary] = expr.func(*invs, evaluate=False)
+                    return expr.func(*(varying + [temporary]), evaluate=False), False
+                else:
+                    return expr.func(*(varying + invs), evaluate=False), False
 
     mapper = OrderedDict()
     handle, flag = run(expr, expr, mapper)
