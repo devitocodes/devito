@@ -42,8 +42,8 @@ class ForwardOperator(Operator):
         v.pad_time = save
 
         if u_ini is not None:
-            u.data[0:3, :] = .5 * u_ini[:]
-            v.data[0:3, :] = .5 * u_ini[:]
+            u.data[0:3, :] = u_ini[:]
+            v.data[0:3, :] = u_ini[:]
 
         m = DenseData(name="m", shape=model.get_shape_comp(),
                       dtype=damp.dtype, space_order=spc_order)
