@@ -31,6 +31,74 @@ def terminals(expr, discard_indexed=False):
         return indexed
 
 
+def collect_aliases(exprs):
+    """
+    Determine all expressions in ``exprs`` that alias to the same expression.
+
+    An expression A aliases an expression B if both A and B apply the same
+    operations to the same input operands, with the possibility for
+    :class:`Indexed` to index into locations at a fixed constant offset in
+    each dimension.
+
+    For example: ::
+
+        exprs = (a[i+1] + b[i+1], a[i+1] + b[j+1], a[i] + c[i],
+                 a[i+2] - b[i+2], a[i+2] + b[i], a[i-1] + b[i-1])
+
+    The following expressions in ``exprs`` alias to ``a[i] + b[i]``: ::
+
+        ``(a[i+1] + b[i+1], a[i-1] + b[i-1])``
+
+    Whereas the following do not: ::
+
+        ``a[i+1] + b[j+1]``: because at least one index differs
+        ``a[i] + c[i]``: because at least one of the operands differs
+        ``a[i+2] - b[i+2]``: because at least one operation differs
+        ``a[i+2] + b[i]``: because there are two offsets (+2 and +0)
+    """
+
+    def check_ofs(e):
+        return len(set([i.indices for i in retrieve_indexed(e)])) <= 1
+
+    def compare_ops(e1, e2):
+        if type(e1) == type(e2) and len(e1.args) == len(e2.args):
+            if e1.is_Atom:
+                return True if e1 == e2 else False
+            elif isinstance(e1, Indexed) and isinstance(e2, Indexed):
+                return True if e1.base == e2.base else False
+            else:
+                for a1, a2 in zip(e1.args, e2.args):
+                    if not compare_ops(a1, a2):
+                        return False
+                return True
+        else:
+            return False
+
+    def compare(e1, e2):
+        return compare_ops(e1, e2) and check_ofs(e1) and check_ofs(e2)
+
+    found = {}
+    clusters = []
+    unseen = list(exprs)
+    while unseen:
+        handle = unseen[0]
+        alias = []
+        for e in list(unseen):
+            if compare(handle, e):
+                alias.append(e)
+                unseen.remove(e)
+        if alias:
+            cluster = tuple(alias)
+            for e in alias:
+                found[e] = cluster
+            clusters.append(cluster)
+        else:
+            unseen.remove(handle)
+            found[handle] = ()
+
+    return found, clusters
+
+
 def estimate_cost(handle):
     try:
         # Is it a plain SymPy object ?
