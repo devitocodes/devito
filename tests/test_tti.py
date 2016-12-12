@@ -90,19 +90,9 @@ def test_tti(dimensions, space_order):
     rec, u, _, _, _ = wave_acou.Forward(save=False, u_ini=u1.data)
     rec_tti, u_tti, v_tti, _, _, _ = wave_tti.Forward(save=False, u_ini=u1.data)
 
-    import matplotlib.pyplot as plt
-    from matplotlib import cm
-
-    plt.figure()
-    plt.imshow(np.transpose(u.data[2, :, :]), vmin=-1, vmax=1, cmap=cm.gray, aspect=1)
-
-    plt.figure()
-    plt.imshow(np.transpose(u_tti[2, :, :] + v_tti[2, :, :]), vmin=-1, vmax=1, cmap=cm.gray, aspect=1)
-    plt.show()
-
-    res = linalg.norm(u.data.reshape(-1) - .5 * u_tti.reshape(-1) - .5 * v_tti.reshape(-1)) /\
-          linalg.norm(u.data.reshape(-1))
-    # Actual adjoint test
+    res = linalg.norm(u.data.reshape(-1) -
+                      .5 * u_tti.reshape(-1) - .5 * v_tti.reshape(-1))
+    res /= linalg.norm(u.data.reshape(-1))
     log("Difference between acoustic and TTI with all coefficients to 0 %f" % res)
     assert np.isclose(res, 0.0, atol=1e-1)
 
