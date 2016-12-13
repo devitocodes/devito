@@ -49,14 +49,17 @@ def test_preformed_derivatives(shape, SymbolType, derivative, dim):
 @pytest.mark.parametrize('derivative, dimension', [
     ('dx', x), ('dy', y), ('dz', z)
 ])
-@pytest.mark.parametrize('order', [2, 4, 6, 8, 10, 12, 14, 16])
+@pytest.mark.parametrize('order', [1, 2, 4, 6, 8, 10, 12, 14, 16])
 def test_derivatives_space(derivative, dimension, order):
     """Test first derivative expressions against native sympy"""
     u = TimeData(name='u', shape=(20, 20, 20), time_order=2, space_order=order)
     expr = getattr(u, derivative)
     # Establish native sympy derivative expression
     width = int(order / 2)
-    indices = [(dimension + i * h) for i in range(-width, width + 1)]
+    if order == 1:
+        indices = [dimension, dimension + h]
+    else:
+        indices = [(dimension + i * h) for i in range(-width, width + 1)]
     s_expr = as_finite_diff(u.diff(dimension), indices)
     assert(simplify(expr - s_expr) == 0)  # Symbolic equality
     assert(expr == s_expr)  # Exact equailty
