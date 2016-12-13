@@ -79,6 +79,8 @@ class Iteration(Expression):
 
         # Replace open limits with variables names
         if self.limits[1] is None:
+            # FIXME: Add dimension size as variable bound.
+            # Needs further generalisation to support loop blocking.
             self.limits[1] = IterationBound("%s_size" % self.dim.name, self.dim)
 
         # Record offsets to later adjust loop limits accordingly
@@ -130,7 +132,7 @@ class Iteration(Expression):
         signature = [e.signature for e in self.expressions]
         signature = filter_ordered(chain(*signature))
         if isinstance(self.limits[1], IterationBound):
-            signature += [self.limits[1]]
+            signature += [self.dim]
         return signature
 
     def indexify(self):

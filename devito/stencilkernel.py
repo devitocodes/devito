@@ -9,9 +9,10 @@ import numpy as np
 
 from devito.compiler import (get_compiler_from_env, get_tmp_dir,
                              jit_compile_and_load)
+from devito.dimension import Dimension
 from devito.expression import Expression
 from devito.interfaces import SymbolicData
-from devito.iteration import Iteration, IterationBound
+from devito.iteration import Iteration
 from devito.logger import error
 from devito.tools import filter_ordered
 
@@ -103,9 +104,9 @@ class StencilKernel(object):
                 else:
                     assert dim.size == data.shape[i]
         # Insert loop size arguments from dimension values
-        d_args = [d for d in arguments.values() if isinstance(d, IterationBound)]
+        d_args = [d for d in arguments.values() if isinstance(d, Dimension)]
         for d in d_args:
-            arguments[d.name] = dim_sizes[d.dim]
+            arguments[d.name] = dim_sizes[d]
 
         # Invoke kernel function with args
         self.cfunction(*list(arguments.values()))
@@ -127,13 +128,12 @@ class StencilKernel(object):
         and Expression objects, and adds the necessary template code
         around it.
         """
-        header_vars = [v.ccode if isinstance(v, IterationBound) else
+        header_vars = [v.decl if isinstance(v, Dimension) else
                        c.Pointer(c.POD(v.dtype, '%s_vec' % v.name))
                        for v in self.signature]
         header = c.FunctionDeclaration(c.Value('int', self.name), header_vars)
-        functions = [v for v in self.signature if not isinstance(v, IterationBound)]
-        cast_shapes = [(f, ''.join(["[%s_size]" % i.name if i.size is None else i.size
-                                    for i in f.indices[1:]]))
+        functions = [f for f in self.signature if isinstance(f, SymbolicData)]
+        cast_shapes = [(f, ''.join(["[%s]" % i.ccode for i in f.indices[1:]]))
                        for f in functions]
         casts = [c.Initializer(c.POD(v.dtype, '(*%s)%s' % (v.name, shape)),
                                '(%s (*)%s) %s' % (c.dtype_to_ctype(v.dtype),
@@ -181,6 +181,6 @@ class StencilKernel(object):
 
         :returns: A list of ctypes of the matrix parameters and scalar parameters
         """
-        return [c_int if isinstance(v, IterationBound) else
+        return [c_int if isinstance(v, Dimension) else
                 np.ctypeslib.ndpointer(dtype=v.dtype, flags='C')
                 for v in self.signature]
