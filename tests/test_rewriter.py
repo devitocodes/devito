@@ -81,7 +81,6 @@ def test_tti_rewrite_basic():
     output1 = tti_operator(dse=None).apply()
     output2 = tti_operator(dse='basic').apply()
 
-    print(np.max(output1[0].data - output2[0].data))
     assert np.allclose(output1[0].data, output2[0].data, atol=10e-3)
     assert np.allclose(output1[1].data, output2[1].data, atol=10e-3)
 
