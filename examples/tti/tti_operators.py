@@ -18,61 +18,71 @@ class ForwardOperator(Operator):
     :param: time_order: Time discretization order
     :param: spc_order: Space discretization order
     :param: trigonometry : COS/SIN functions choice. The default is to use C functions
+    :param: u_ini : wavefield at the three first time step for non-zero initial condition
     `Bhaskara` uses a rational approximation.
     """
     def __init__(self, model, src, damp, data, time_order=2, spc_order=4, save=False,
-                 trigonometry='normal', **kwargs):
+                 trigonometry='normal', u_ini=None, **kwargs):
         nt, nrec = data.shape
         nt, nsrc = src.shape
         dt = model.get_critical_dt()
+        # uses space_order/2 for the first derivatives to
+        # have spc_order second derivatives for consistency
+        # with the acoustic kernel
         u = TimeData(name="u", shape=model.get_shape_comp(),
                      time_dim=nt, time_order=time_order,
-                     space_order=spc_order,
+                     space_order=spc_order/2,
                      save=save, dtype=damp.dtype)
         v = TimeData(name="v", shape=model.get_shape_comp(),
                      time_dim=nt, time_order=time_order,
-                     space_order=spc_order,
+                     space_order=spc_order/2,
                      save=save, dtype=damp.dtype)
+
+        u.pad_time = save
+        v.pad_time = save
+
+        if u_ini is not None:
+            u.data[0:3, :] = u_ini[:]
+            v.data[0:3, :] = u_ini[:]
+
         m = DenseData(name="m", shape=model.get_shape_comp(),
-                      dtype=damp.dtype)
+                      dtype=damp.dtype, space_order=spc_order)
         m.data[:] = model.padm()
 
         parm = [m, damp, u, v]
 
         if model.epsilon is not None:
             epsilon = DenseData(name="epsilon", shape=model.get_shape_comp(),
-                                dtype=damp.dtype)
+                                dtype=damp.dtype, space_order=spc_order)
             epsilon.data[:] = model.pad(model.epsilon)
             parm += [epsilon]
         else:
-            epsilon = 1.0
+            epsilon = 1
 
         if model.delta is not None:
             delta = DenseData(name="delta", shape=model.get_shape_comp(),
-                              dtype=damp.dtype)
+                              dtype=damp.dtype, space_order=spc_order)
             delta.data[:] = model.pad(model.delta)
             parm += [delta]
         else:
-            delta = 1.0
+            delta = 1
+
         if model.theta is not None:
             theta = DenseData(name="theta", shape=model.get_shape_comp(),
-                              dtype=damp.dtype)
+                              dtype=damp.dtype, space_order=spc_order)
             theta.data[:] = model.pad(model.theta)
             parm += [theta]
         else:
             theta = 0
 
-        if len(model.get_shape_comp()) == 3:
-            if model.phi is not None:
-                phi = DenseData(name="phi", shape=model.get_shape_comp(),
-                                dtype=damp.dtype)
-                phi.data[:] = model.pad(model.phi)
-                parm += [phi]
-            else:
-                phi = 0
+        if model.phi is not None:
+            phi = DenseData(name="phi", shape=model.get_shape_comp(),
+                            dtype=damp.dtype, space_order=spc_order)
+            phi.data[:] = model.pad(model.phi)
+            parm += [phi]
+        else:
+            phi = 0
 
-        u.pad_time = save
-        v.pad_time = save
         rec = SourceLike(name="rec", npoint=nrec, nt=nt, dt=dt,
                          h=model.get_spacing(),
                          coordinates=data.receiver_coords,
@@ -84,65 +94,80 @@ class ForwardOperator(Operator):
                             coordinates=src.receiver_coords,
                             ndim=len(damp.shape),
                             dtype=damp.dtype, nbpml=model.nbpml)
-        source.data[:] = src.traces[:]
+        source.data[:] = .5*src.traces[:]
+        s, h = symbols('s h')
 
-        def Bhaskarasin(angle):
+        def ssin(angle, approx):
             if angle == 0:
-                return 0
+                return 0.0
             else:
-                return (16.0 * angle * (3.1416 - abs(angle)) /
-                        (49.3483 - 4.0 * abs(angle) * (3.1416 - abs(angle))))
+                if approx == 'Bhaskara':
+                    return (16.0 * angle * (3.1416 - abs(angle)) /
+                            (49.3483 - 4.0 * abs(angle) * (3.1416 - abs(angle))))
+                elif approx == 'Taylor':
+                    return angle - (angle * angle * angle / 6.0 *
+                                    (1.0 - angle * angle / 20.0))
+                else:
+                    return sin(angle)
 
-        def Bhaskaracos(angle):
+        def ccos(angle, approx):
             if angle == 0:
                 return 1.0
             else:
-                return Bhaskarasin(angle + 1.5708)
+                if approx == 'Bhaskara':
+                    return ssin(angle, 'Bhaskara')
+                elif approx == 'Taylor':
+                    return 1 - .5 * angle * angle * (1 - angle * angle / 12.0)
+                else:
+                    return cos(angle)
 
-        s, h = symbols('s h')
+        ang0 = ccos(theta, trigonometry)
+        ang1 = ssin(theta, trigonometry)
+        spc_brd = spc_order/2
 
-        ccos = Bhaskaracos if trigonometry == 'Bhaskara' else cos
-        ssin = Bhaskarasin if trigonometry == 'Bhaskara' else sin
-
-        ang0 = ccos(theta)
-        ang1 = ssin(theta)
-        spc_brd = spc_order
         # Derive stencil from symbolic equation
         if len(m.shape) == 3:
-            ang2 = ccos(phi)
-            ang3 = ssin(phi)
-
+            ang2 = ccos(phi, trigonometry)
+            ang3 = ssin(phi, trigonometry)
             Gyp = (ang3 * u.dx - ang2 * u.dyr)
-            Gyy = (-first_derivative(Gyp, ang3, dim=x, side=centered, order=spc_brd) -
-                   first_derivative(Gyp, ang2, dim=y, side=left, order=spc_brd))
+            Gyy = (-first_derivative(Gyp * ang3,
+                                     dim=x, side=centered, order=spc_brd) -
+                   first_derivative(Gyp * ang2,
+                                    dim=y, side=left, order=spc_brd))
             Gyp2 = (ang3 * u.dxr - ang2 * u.dy)
-            Gyy2 = (first_derivative(Gyp2, ang3, dim=x, side=left, order=spc_brd) +
-                    first_derivative(Gyp2, ang2, dim=y, side=centered, order=spc_brd))
+            Gyy2 = (first_derivative(Gyp2 * ang3,
+                                     dim=x, side=left, order=spc_brd) +
+                    first_derivative(Gyp2 * ang2,
+                                     dim=y, side=centered, order=spc_brd))
 
             Gxp = (ang0 * ang2 * u.dx + ang0 * ang3 * u.dyr - ang1 * u.dzr)
             Gzr = (ang1 * ang2 * v.dx + ang1 * ang3 * v.dyr + ang0 * v.dzr)
-            Gxx = (-first_derivative(Gxp, ang0,
-                                     ang2, dim=x, side=centered, order=spc_brd) +
-                   first_derivative(Gxp, ang0,
-                                    ang3, dim=y, side=left, order=spc_brd) -
-                   first_derivative(Gxp, ang1, dim=z, side=left, order=spc_brd))
-            Gzz = (-first_derivative(Gzr, ang1,
-                                     ang2, dim=x, side=centered, order=spc_brd) +
-                   first_derivative(Gzr, ang1,
-                                    ang3, dim=y, side=left, order=spc_brd) +
-                   first_derivative(Gzr, ang0, dim=z, side=left, order=spc_brd))
+            Gxx = (-first_derivative(Gxp * ang0 * ang2,
+                                     dim=x, side=centered, order=spc_brd) +
+                   first_derivative(Gxp * ang0 * ang3,
+                                    dim=y, side=left, order=spc_brd) -
+                   first_derivative(Gxp * ang1,
+                                    dim=z, side=left, order=spc_brd))
+            Gzz = (-first_derivative(Gzr * ang1 * ang2,
+                                     dim=x, side=centered, order=spc_brd) +
+                   first_derivative(Gzr * ang1 * ang3,
+                                    dim=y, side=left, order=spc_brd) +
+                   first_derivative(Gzr * ang0,
+                                    dim=z, side=left, order=spc_brd))
             Gxp2 = (ang0 * ang2 * u.dxr + ang0 * ang3 * u.dy - ang1 * u.dz)
             Gzr2 = (ang1 * ang2 * v.dxr + ang1 * ang3 * v.dy + ang0 * v.dz)
-            Gxx2 = (first_derivative(Gxp2, ang0,
-                                     ang2, dim=x, side=left, order=spc_brd) -
-                    first_derivative(Gxp2, ang0,
-                                     ang3, dim=y, side=centered, order=spc_brd) +
-                    first_derivative(Gxp2, ang1, dim=z, side=centered, order=spc_brd))
-            Gzz2 = (first_derivative(Gzr2, ang1,
-                                     ang2, dim=x, side=left, order=spc_brd) -
-                    first_derivative(Gzr2, ang1,
-                                     ang3, dim=y, side=centered, order=spc_brd) -
-                    first_derivative(Gzr2, ang0, dim=z, side=centered, order=spc_brd))
+            Gxx2 = (first_derivative(Gxp2 * ang0 * ang2,
+                                     dim=x, side=left, order=spc_brd) -
+                    first_derivative(Gxp2 * ang0 * ang3,
+                                     dim=y, side=centered, order=spc_brd) +
+                    first_derivative(Gxp2 * ang1,
+                                     dim=z, side=centered, order=spc_brd))
+            Gzz2 = (first_derivative(Gzr2 * ang1 * ang2,
+                                     dim=x, side=left, order=spc_brd) -
+                    first_derivative(Gzr2 * ang1 * ang3,
+                                     dim=y, side=centered, order=spc_brd) -
+                    first_derivative(Gzr2 * ang0,
+                                     dim=z, side=centered, order=spc_brd))
             Hp = -(.5*Gxx + .5*Gxx2 + .5*Gyy + .5*Gyy2)
             Hzr = -(.5*Gzz + .5 * Gzz2)
 

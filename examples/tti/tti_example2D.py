@@ -13,9 +13,12 @@ true_vp = np.ones(dimensions) + 1.0
 true_vp[:, int(dimensions[1] / 3):int(2*dimensions[1]/3)] = 3.0
 true_vp[:, int(2*dimensions[1] / 3):int(dimensions[1])] = 4.0
 
-model = IGrid(origin, spacing, true_vp, 0.1*(true_vp - 2),
-              0.08 * (true_vp - 2), np.pi/5*np.ones(dimensions),
-              0*np.ones(dimensions))
+model = IGrid(origin, spacing, true_vp,
+              rho=None,
+              epsilon=0.1*(true_vp - 2),
+              delta=0.08 * (true_vp - 2),
+              theta=np.pi/5*np.ones(dimensions),
+              phi=0.1*np.ones(dimensions))
 
 # Define seismic data.
 data = IShot()

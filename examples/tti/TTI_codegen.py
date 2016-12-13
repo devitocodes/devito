@@ -22,13 +22,13 @@ class TTI_cg:
         self.model.nbpml = nbpml
         self.model.set_origin(nbpml)
 
-        def damp_boundary(damp):
+        # Fill the dampening field with nbp points in the absorbing layer
+        def damp_boundary(damp, nbp):
             h = self.model.get_spacing()
             dampcoeff = 1.5 * np.log(1.0 / 0.001) / (40 * h)
-            nbpml = self.model.nbpml
             num_dim = len(damp.shape)
-            for i in range(nbpml):
-                pos = np.abs((nbpml-i)/float(nbpml))
+            for i in range(nbp):
+                pos = np.abs((nbp-i+1)/float(nbp))
                 val = dampcoeff * (pos - np.sin(2*np.pi*pos)/(2*np.pi))
                 if num_dim == 2:
                     damp[i, :] += val
@@ -46,7 +46,7 @@ class TTI_cg:
         self.damp = DenseData(name="damp", shape=self.model.get_shape_comp(),
                               dtype=self.dtype)
         # Initialize damp by calling the function that can precompute damping
-        damp_boundary(self.damp.data)
+        damp_boundary(self.damp.data, nbpml)
 
         if len(self.damp.shape) == 2 and self.src.receiver_coords.shape[1] == 3:
             self.src.receiver_coords = np.delete(self.src.receiver_coords, 1, 1)
@@ -54,11 +54,11 @@ class TTI_cg:
             self.data.receiver_coords = np.delete(self.data.receiver_coords, 1, 1)
 
     def Forward(self, save=False, dse='advanced', auto_tuning=False,
-                cache_blocking=None, compiler=None):
+                cache_blocking=None, compiler=None, u_ini=None):
         fw = ForwardOperator(self.model, self.src, self.damp, self.data,
                              time_order=self.t_order, spc_order=self.s_order,
                              profile=True, save=save, cache_blocking=cache_blocking,
-                             dse=dse, compiler=compiler)
+                             dse=dse, compiler=compiler, u_ini=u_ini)
 
         if auto_tuning:
             fw_new = ForwardOperator(self.model, self.src, self.damp, self.data,

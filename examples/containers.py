@@ -18,6 +18,8 @@ class IGrid:
     def __init__(self, origin, spacing, vp, rho=None, epsilon=None,
                  delta=None, theta=None, phi=None):
         self.vp = vp
+        self.rho = rho
+        self.origin = origin
         self.spacing = spacing
         self.dimensions = vp.shape
 
@@ -33,10 +35,8 @@ class IGrid:
         else:
             self.delta = None
 
-        self.phi = phi
         self.theta = theta
-        self.rho = rho
-        self.origin = origin
+        self.phi = phi
 
     def get_shape(self):
         """Return the size of the model as a Tuple of (x, y) or (x, y, z)

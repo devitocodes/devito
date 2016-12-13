@@ -17,16 +17,19 @@ class ForwardOperator(Operator):
     :param: time_order: Time discretization order
     :param: spc_order: Space discretization order
     :param save : Saving flag, True saves all time steps, False only the three
+    :param: u_ini : wavefield at the three first time step for non-zero initial condition
      required for the time marching scheme
     """
     def __init__(self, model, src, damp, data, time_order=2, spc_order=6,
-                 save=False, **kwargs):
+                 save=False, u_ini=None, **kwargs):
         nt, nrec = data.shape
         nt, nsrc = src.shape
         s, h = symbols('s h')
         u = TimeData(name="u", shape=model.get_shape_comp(), time_dim=nt,
                      time_order=2, space_order=spc_order, save=save,
                      dtype=damp.dtype)
+        if u_ini is not None:
+            u.data[0:3, :] = u_ini[:]
         m = DenseData(name="m", shape=model.get_shape_comp(), dtype=damp.dtype)
         m.data[:] = model.padm()
         u.pad_time = save

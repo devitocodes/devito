@@ -68,7 +68,8 @@ def test_acoustic_rewrite_basic():
 # TTI
 
 def tti_operator(dse=False):
-    problem = setup(dimensions=(16, 16, 16), time_order=2, space_order=2, tn=10.0)
+    problem = setup(dimensions=(50, 50, 50), time_order=2,
+                    space_order=4, tn=250.0, nbpml=10)
     handle = ForwardOperator(problem.model, problem.src, problem.damp,
                              problem.data, time_order=problem.t_order,
                              spc_order=problem.s_order, save=False,
@@ -80,13 +81,13 @@ def test_tti_rewrite_basic():
     output1 = tti_operator(dse=None).apply()
     output2 = tti_operator(dse='basic').apply()
 
-    assert np.allclose(output1[0].data, output2[0].data, rtol=10e-6)
-    assert np.allclose(output1[1].data, output2[1].data, rtol=10e-6)
+    assert np.allclose(output1[0].data, output2[0].data, atol=10e-3)
+    assert np.allclose(output1[1].data, output2[1].data, atol=10e-3)
 
 
 def test_tti_rewrite_advanced():
     output1 = tti_operator(dse=None).apply()
     output2 = tti_operator(dse='advanced').apply()
 
-    assert np.allclose(output1[0].data, output2[0].data, rtol=10e-6)
-    assert np.allclose(output1[1].data, output2[1].data, rtol=10e-6)
+    assert np.allclose(output1[0].data, output2[0].data, atol=10e-3)
+    assert np.allclose(output1[1].data, output2[1].data, atol=10e-3)
