@@ -82,7 +82,7 @@ def unevaluate_arithmetic(expr):
         return expr.func()
     elif expr.is_Atom:
         return expr.func(*expr.atoms())
-    if expr.is_Add:
+    elif expr.is_Add:
         rebuilt_args = [unevaluate_arithmetic(e) for e in expr.args]
         return Add(*rebuilt_args, evaluate=False)
     elif expr.is_Mul:

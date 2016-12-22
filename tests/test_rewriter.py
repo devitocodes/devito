@@ -91,29 +91,29 @@ def tti_nodse():
 def test_tti_rewrite_basic(tti_nodse):
     output = tti_operator(dse='basic').apply()
 
-    assert np.allclose(tti_nodse[0], output[0].data, rtol=10e-6)
-    assert np.allclose(tti_nodse[1], output[1].data, rtol=10e-6)
+    assert np.allclose(tti_nodse[0], output[0].data, atol=10e-3)
+    assert np.allclose(tti_nodse[1], output[1].data, atol=10e-3)
 
 
 def test_tti_rewrite_factorizer(tti_nodse):
     output = tti_operator(dse=('basic', 'factorize')).apply()
 
-    assert np.allclose(tti_nodse[0], output[0].data, rtol=10e-6)
-    assert np.allclose(tti_nodse[1], output[1].data, rtol=10e-6)
+    assert np.allclose(tti_nodse[0], output[0].data, atol=10e-3)
+    assert np.allclose(tti_nodse[1], output[1].data, atol=10e-3)
 
 
 def test_tti_rewrite_trigonometry(tti_nodse):
     output = tti_operator(dse=('basic', 'approx-trigonometry')).apply()
 
-    assert np.allclose(tti_nodse[0], output[0].data, rtol=10e-1)
-    assert np.allclose(tti_nodse[1], output[1].data, rtol=10e-1)
+    assert np.allclose(tti_nodse[0], output[0].data, atol=10e-1)
+    assert np.allclose(tti_nodse[1], output[1].data, atol=10e-1)
 
 
 def test_tti_rewrite_advanced(tti_nodse):
     output = tti_operator(dse='advanced').apply()
 
-    assert np.allclose(tti_nodse[0], output[0].data, rtol=10e-1)
-    assert np.allclose(tti_nodse[1], output[1].data, rtol=10e-1)
+    assert np.allclose(tti_nodse[0], output[0].data, atol=10e-1)
+    assert np.allclose(tti_nodse[1], output[1].data, atol=10e-1)
 
 
 def test_tti_rewrite_temporaries_graph():

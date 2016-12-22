@@ -30,12 +30,16 @@ def rewrite(expr, mode='advanced'):
     """
     Transform expressions to reduce their operation count.
 
-    :param expr: the target expression
+    :param expr: the target expression.
     :param mode: drive the expression transformation. Available modes are
-                 ['basic', 'advanced' (default)]. Currently, with 'basic', only
-                 common sub-expressions elimination is applied. With 'advanced',
-                 all transformations applied in 'basic' are applied, plus
-                 factorization of common terms and constants.
+                 'basic', 'factorize', 'approx-trigonometry' and 'advanced'
+                 (default). They act as follows: ::
+
+                    * 'basic': apply common sub-expressions elimination.
+                    * 'factorize': apply heuristic factorization of temporaries.
+                    * 'approx-trigonometry': replace expensive trigonometric
+                        functions with suitable polynomial approximations.
+                    * 'advanced': 'basic' + 'factorize' + 'approx-trigonometry'.
     """
 
     if isinstance(expr, Sequence):
