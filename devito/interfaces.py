@@ -73,6 +73,11 @@ class SymbolicData(Function, CachedSymbol):
     to (re-)create the dimension arguments of the symbolic function.
     """
 
+    is_DenseData = False
+    is_TimeData = False
+    is_Coordinates = False
+    is_PointData = False
+
     def __new__(cls, *args, **kwargs):
         if cls in _SymbolCache:
             newobj = Function.__new__(cls, *args)
@@ -115,6 +120,9 @@ class DenseData(SymbolicData):
     therefore do not support time derivatives. Use :class:`TimeData` for
     time-varying grid data.
     """
+
+    is_DenseData = True
+
     def __init__(self, *args, **kwargs):
         if not self._cached():
             self.name = kwargs.get('name')
@@ -371,6 +379,8 @@ class TimeData(DenseData):
     and whether we want to write intermediate timesteps in the buffer.
     """
 
+    is_TimeData = True
+
     def __init__(self, *args, **kwargs):
         if not self._cached():
             super(TimeData, self).__init__(*args, **kwargs)
@@ -462,9 +472,11 @@ class TimeData(DenseData):
 
 
 class CoordinateData(SymbolicData):
-    """Data object for sparse coordinate data that acts as a Function symbol
-
     """
+    Data object for sparse coordinate data that acts as a Function symbol
+    """
+
+    is_Coordinates = True
 
     def __init__(self, *args, **kwargs):
         if not self._cached():
@@ -501,7 +513,8 @@ class CoordinateData(SymbolicData):
 
 
 class PointData(DenseData):
-    """Data object for sparse point data that acts as a Function symbol
+    """
+    Data object for sparse point data that acts as a Function symbol
 
     :param name: Name of the resulting :class:`sympy.Function` symbol
     :param npoint: Number of points to sample
@@ -513,6 +526,8 @@ class PointData(DenseData):
     full-fledged sparse data container. For now, the naming and
     symbolic behaviour follows the use in the current problem.
     """
+
+    is_PointData = True
 
     def __init__(self, *args, **kwargs):
         if not self._cached():
