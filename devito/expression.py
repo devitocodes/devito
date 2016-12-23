@@ -8,8 +8,8 @@ from sympy import Eq, IndexedBase, preorder_traversal
 
 from devito.codeprinter import ccode
 from devito.dimension import Dimension
+from devito.dse.inspection import indexify, terminals
 from devito.interfaces import SymbolicData
-from devito.symbolics import dse_indexify, terminals
 from devito.tools import filter_ordered
 
 __all__ = ['Expression']
@@ -62,7 +62,7 @@ class Expression(object):
 
     def indexify(self):
         """Convert stencil expression to "indexed" format"""
-        self.stencil = dse_indexify(self.stencil)
+        self.stencil = indexify(self.stencil)
 
     @property
     def index_offsets(self):

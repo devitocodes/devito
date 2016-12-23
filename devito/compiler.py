@@ -1,12 +1,12 @@
 from functools import partial
 from os import environ, getuid, mkdir, path
 from tempfile import gettempdir
+from time import time
 
 import numpy.ctypeslib as npct
 from cgen import Pragma
 from codepy.jit import extension_file_from_string
 from codepy.toolchain import GCCToolchain
-
 from devito.logger import log
 
 __all__ = ['get_tmp_dir', 'get_compiler_from_env',
@@ -243,9 +243,11 @@ def jit_compile(ccode, basename, compiler=GNUCompiler):
     """
     src_file = "%s.%s" % (basename, compiler.src_ext)
     lib_file = "%s.%s" % (basename, compiler.lib_ext)
-    log("%s: Compiling %s" % (compiler, src_file))
+    tic = time()
     extension_file_from_string(toolchain=compiler, ext_file=lib_file,
                                source_string=ccode, source_name=src_file)
+    toc = time()
+    log("%s: compiled %s [%.2f s]" % (compiler, src_file, toc-tic))
 
     return lib_file
 

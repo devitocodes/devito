@@ -16,12 +16,13 @@ from devito.codeprinter import ccode
 from devito.compiler import (IntelMICCompiler, get_compiler_from_env,
                              get_tmp_dir, jit_compile_and_load)
 from devito.dimension import t, x, y, z
+from devito.dse.inspection import retrieve_dtype
+from devito.dse.symbolics import _temp_prefix
 from devito.expression import Expression
 from devito.function_manager import FunctionDescriptor, FunctionManager
 from devito.iteration import Iteration
 from devito.logger import info
 from devito.profiler import Profiler
-from devito.symbolics import dse_dtype
 from devito.tools import flatten
 
 
@@ -41,8 +42,6 @@ class Propagator(object):
     :param nt: Number of timesteps to execute
     :param shape: Shape of the data buffer over which to execute
     :param stencils: List of :class:`sympy.Eq` used to create the kernel
-    :param factorized: A map given by {string_name:sympy_object} for including
-                       factorized terms
     :param spc_border: Number of spatial padding layers
     :param time_order: Order of the time discretisation
     :param time_dim: Symbol that defines the time dimension
@@ -60,12 +59,11 @@ class Propagator(object):
                            tune block sizes
     """
 
-    def __init__(self, name, nt, shape, stencils, factorized=None, spc_border=0,
-                 time_order=0, time_dim=None, space_dims=None, dtype=np.float32,
-                 forward=True, compiler=None, profile=False, cache_blocking=None):
+    def __init__(self, name, nt, shape, stencils, spc_border=0, time_order=0,
+                 time_dim=None, space_dims=None, dtype=np.float32, forward=True,
+                 compiler=None, profile=False, cache_blocking=None):
         self.stencils = stencils
         self.dtype = dtype
-        self.factorized = factorized or {}
         self.time_order = time_order
         self.spc_border = spc_border
         self.loop_body = None
@@ -416,38 +414,22 @@ class Propagator(object):
         :param stencils: A list of stencils to be converted
         :returns: :class:`cgen.Block` containing the converted kernel
         """
-
-        factors = []
-        if len(self.factorized) > 0:
-            for name, term in zip(self.factorized.keys(), self.factorized):
-                expr = self.factorized[name]
-                self.add_local_var(name, self.dtype)
-                sub = str(ccode(self.time_substitutions(expr).xreplace(self._mapper)))
-                if self.dtype is np.float32:
-                    factors.append(cgen.Assign(name, (sub.replace("pow", "powf")
-                                                      .replace("fabs", "fabsf"))))
-                else:
-                    factors.append(cgen.Assign(name, sub))
-
-        decl = []
-
+        declarations = []
         declared = defaultdict(bool)
         for eqn in stencils:
             s_lhs = str(eqn.lhs)
-            if s_lhs.find("temp") is not -1 and not declared[s_lhs]:
-                expr_dtype = dse_dtype(eqn.rhs) or self.dtype
+            if s_lhs.find(_temp_prefix) is not -1 and not declared[s_lhs]:
+                expr_dtype = retrieve_dtype(eqn.rhs) or self.dtype
                 declared[s_lhs] = True
-                decl.append(cgen.Value(cgen.dtype_to_ctype(expr_dtype),
-                                       ccode(eqn.lhs)))
+                value = cgen.Value(cgen.dtype_to_ctype(expr_dtype), ccode(eqn.lhs))
+                declarations.append(value)
 
         stmts = [self.convert_equality_to_cgen(x) for x in stencils]
 
-        for idx, dec in enumerate(decl):
+        for idx, dec in enumerate(declarations):
             stmts[idx] = cgen.Assign(dec.inline(), stmts[idx].rvalue)
 
-        kernel = stmts
-
-        return cgen.Block(factors+kernel)
+        return cgen.Block(stmts)
 
     def convert_equality_to_cgen(self, equality):
         """Convert given equality to :class:`cgen.Generable` statement
@@ -474,19 +456,17 @@ class Propagator(object):
 
             return cgen.Assign(s_lhs, s_rhs)
 
-    def get_aligned_pragma(self, stencils, factorized, time_steppers):
+    def get_aligned_pragma(self, stencils, time_steppers):
         """
         Sets the alignment for the pragma.
         :param stencils: List of stencils.
-        :param factorized:  dict of factorized elements
         :param time_steppers: list of time stepper symbols
         """
         array_names = set()
         for item in flatten([stencil.free_symbols for stencil in stencils]):
             if (
-                str(item) not in factorized
-                and item not in self._mapper.values() + time_steppers
-                and str(item).find("temp") == -1
+                item not in self._mapper.values() + time_steppers
+                and str(item).find(_temp_prefix) == -1
             ):
                 array_names.add(item)
         if len(array_names) == 0:
@@ -733,10 +713,10 @@ class Propagator(object):
         :return: cgen.Block - loop body with pragma
         """
         if inner_most_dim and len(space_dims) > 1:
-            pragma = [self.get_aligned_pragma(self.sub_stencils, self.factorized,
-                                              self.time_steppers)]\
-                if self.compiler.openmp else (self.compiler.pragma_ivdep +
-                                              self.compiler.pragma_nontemporal)
+            if self.compiler.openmp:
+                pragma = [self.get_aligned_pragma(self.sub_stencils, self.time_steppers)]
+            else:
+                pragma = self.compiler.pragma_ivdep + self.compiler.pragma_nontemporal
             loop_body = cgen.Block(pragma + [loop_body])
         return loop_body
 

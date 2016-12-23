@@ -9,110 +9,62 @@ All exposed functions are prefixed with 'dse' (devito symbolic engine)
 
 from __future__ import absolute_import
 
-from collections import OrderedDict
+from collections import OrderedDict, Sequence
 
-import numpy as np
-import sympy
-from sympy import (Eq, Expr, Function, Indexed, IndexedBase, S, Symbol,
-                   collect, collect_const, count_ops, cse, flatten, lambdify,
-                   numbered_symbols, preorder_traversal, symbols)
-from sympy.core.basic import _aresame
+from sympy import (Add, Eq, Indexed, IndexedBase, S,
+                   collect, collect_const, cos, cse, flatten,
+                   numbered_symbols, preorder_traversal, sin)
 
 from devito.dimension import t, x, y, z
-from devito.interfaces import SymbolicData
 from devito.logger import perfbad, perfok, warning
 
-__all__ = ['dse_dimensions', 'dse_symbols', 'dse_dtype', 'dse_indexify',
-           'dse_tolambda', 'dse_rewrite']
+from devito.dse.extended_sympy import bhaskara_sin, bhaskara_cos
+from devito.dse.inspection import estimate_cost, terminals, unevaluate_arithmetic
+
+__all__ = ['rewrite']
 
 _temp_prefix = 'temp'
 
 
-# Inspection
-
-def dse_dimensions(expr):
-    """
-    Collect all function dimensions used in a sympy expression.
-    """
-    dimensions = []
-
-    for e in preorder_traversal(expr):
-        if isinstance(e, SymbolicData):
-            dimensions += [i for i in e.indices if i not in dimensions]
-
-    return dimensions
-
-
-def dse_symbols(expr):
-    """
-    Collect defined and undefined symbols used in a sympy expression.
-
-    Defined symbols are functions that have an associated :class
-    SymbolicData: object, or dimensions that are known to the devito
-    engine. Undefined symbols are generic `sympy.Function` or
-    `sympy.Symbol` objects that need to be substituted before generating
-    operator C code.
-    """
-    defined = set()
-    undefined = set()
-
-    for e in preorder_traversal(expr):
-        if isinstance(e, SymbolicData):
-            defined.add(e.func(*e.indices))
-        elif isinstance(e, Function):
-            undefined.add(e)
-        elif isinstance(e, Symbol):
-            undefined.add(e)
-
-    return list(defined), list(undefined)
-
-
-def dse_dtype(expr):
-    """
-    Try to infer the data type of an expression.
-    """
-    dtypes = [e.dtype for e in preorder_traversal(expr) if hasattr(e, 'dtype')]
-    return np.find_common_type(dtypes, [])
-
-
-# Manipulation
-
-def dse_indexify(expr):
-    """
-    Convert functions into indexed matrix accesses in sympy expression.
-
-    :param expr: sympy function expression to be converted.
-    """
-    replacements = {}
-
-    for e in preorder_traversal(expr):
-        if hasattr(e, 'indexed'):
-            replacements[e] = e.indexify()
-
-    return expr.xreplace(replacements)
-
-
-def dse_rewrite(expr, mode='advanced'):
+def rewrite(expr, mode='advanced'):
     """
     Transform expressions to reduce their operation count.
 
-    :param expr: the target expression
+    :param expr: the target expression.
     :param mode: drive the expression transformation. Available modes are
-                 ['basic', 'advanced' (default)]. Currently, with 'basic', only
-                 common sub-expressions elimination is applied. With 'advanced',
-                 all transformations applied in 'basic' are applied, plus
-                 factorization of common terms and constants.
+                 'basic', 'factorize', 'approx-trigonometry' and 'advanced'
+                 (default). They act as follows: ::
+
+                    * 'basic': apply common sub-expressions elimination.
+                    * 'factorize': apply heuristic factorization of temporaries.
+                    * 'approx-trigonometry': replace expensive trigonometric
+                        functions with suitable polynomial approximations.
+                    * 'advanced': 'basic' + 'factorize' + 'approx-trigonometry'.
     """
 
-    if mode is True:
-        return Rewriter(expr).run(mode='advanced')
-    elif mode in ['basic', 'advanced']:
-        return Rewriter(expr).run(mode)
-    elif not mode:
+    if isinstance(expr, Sequence):
+        assert all(isinstance(e, Eq) for e in expr)
+        expr = list(expr)
+    elif isinstance(expr, Eq):
+        expr = [expr]
+    else:
+        raise ValueError("Got illegal expr of type %s." % type(expr))
+
+    if not mode:
+        return expr
+    elif isinstance(mode, str):
+        mode = set([mode])
+    else:
+        try:
+            mode = set(mode)
+        except TypeError:
+            warning("Arg mode must be a str or tuple (got %s instead)" % type(mode))
+            return expr
+    if mode.isdisjoint({'basic', 'factorize', 'approx-trigonometry', 'advanced'}):
+        warning("Unknown rewrite mode(s) %s" % str(mode))
         return expr
     else:
-        warning("Illegal rewrite mode %s" % str(mode))
-        return expr
+        return Rewriter(expr).run(mode)
 
 
 class Rewriter(object):
@@ -125,17 +77,20 @@ class Rewriter(object):
     # greater than this threshold
     FACTORIZER_THS = 15
 
-    def __init__(self, expr):
-        self.expr = expr
+    def __init__(self, exprs):
+        self.exprs = exprs
 
     def run(self, mode):
-        processed = self.expr
+        processed = self.exprs
 
-        if mode in ['basic', 'advanced']:
-            processed = self._cse()
+        if mode.intersection({'basic', 'advanced'}):
+            processed = self._cse(processed)
 
-        if mode in ['advanced']:
+        if mode.intersection({'factorize', 'advanced'}):
             processed = self._factorize(processed)
+
+        if mode.intersection({'approx-trigonometry', 'advanced'}):
+            processed = self._optimize_trigonometry(processed)
 
         processed = self._finalize(processed)
 
@@ -151,10 +106,6 @@ class Rewriter(object):
               self.FACTORIZER_THS, then this is applied recursively until
               no more factorization opportunities are available.
         """
-        if exprs is None:
-            exprs = self.expr
-        if not isinstance(exprs, list):
-            exprs = [exprs]
 
         processed = []
         cost_original, cost_processed = 1, 1
@@ -183,14 +134,10 @@ class Rewriter(object):
 
         return processed
 
-    def _cse(self, exprs=None):
+    def _cse(self, exprs):
         """
         Perform common subexpression elimination.
         """
-        if exprs is None:
-            exprs = self.expr
-        if not isinstance(exprs, list):
-            exprs = [exprs]
 
         temps, stencils = cse(exprs, numbered_symbols(_temp_prefix))
 
@@ -208,7 +155,7 @@ class Rewriter(object):
                 to_revert[temp] = value
             elif isinstance(value, Indexed):
                 to_revert[temp] = value
-            elif isinstance(value, sympy.Add) and not \
+            elif isinstance(value, Add) and not \
                     set([t, x, y, z]).isdisjoint(set(value.args)):
                 to_revert[temp] = value
             else:
@@ -286,69 +233,26 @@ class Rewriter(object):
 
         return list(ordered.values())
 
+    def _optimize_trigonometry(self, exprs):
+        """
+        Rebuild ``exprs`` replacing trigonometric functions with Bhaskara
+        polynomials.
+        """
+
+        processed = []
+        for expr in exprs:
+            handle = expr.replace(sin, bhaskara_sin)
+            handle = handle.replace(cos, bhaskara_cos)
+            processed.append(handle)
+
+        return processed
+
     def _finalize(self, exprs):
         """
         Make sure that any subsequent sympy operation applied to the expressions
         in ``exprs`` does not alter the structure of the transformed objects.
         """
         return [unevaluate_arithmetic(e) for e in exprs]
-
-
-# Creation
-
-def dse_tolambda(exprs):
-    """
-    Tranform an expression into a lambda.
-
-    :param exprs: an expression or a list of expressions.
-    """
-    exprs = exprs if isinstance(exprs, list) else [exprs]
-
-    lambdas = []
-
-    for expr in exprs:
-        terms = free_terms(expr.rhs)
-        term_symbols = [symbols("i%d" % i) for i in range(len(terms))]
-
-        # Substitute IndexedBase references to simple variables
-        # lambdify doesn't support IndexedBase references in expressions
-        tolambdify = expr.rhs.subs(dict(zip(terms, term_symbols)))
-        lambdified = lambdify(term_symbols, tolambdify)
-        lambdas.append((lambdified, terms))
-
-    return lambdas
-
-
-# Utilities
-
-def free_terms(expr):
-    """
-    Find the free terms in an expression.
-    """
-    found = []
-
-    for term in expr.args:
-        if isinstance(term, Indexed):
-            found.append(term)
-        else:
-            found += free_terms(term)
-
-    return found
-
-
-def terminals(expr, discard_indexed=False):
-    indexed = list(expr.find(Indexed))
-
-    # To be discarded
-    junk = flatten(i.atoms() for i in indexed)
-
-    symbols = list(expr.find(Symbol))
-    symbols = [i for i in symbols if i not in junk]
-
-    if discard_indexed:
-        return set(symbols)
-    else:
-        return set(indexed + symbols)
 
 
 def collect_nested(expr):
@@ -395,87 +299,3 @@ def collect_nested(expr):
             return expr.func(*rebuilt), flatten(candidates)
 
     return run(expr)[0]
-
-
-def estimate_cost(handle):
-    try:
-        # Is it a plain SymPy object ?
-        iter(handle)
-    except TypeError:
-        handle = [handle]
-    try:
-        # Is it a dict ?
-        handle = handle.values()
-    except AttributeError:
-        try:
-            # Must be a list of dicts then
-            handle = flatten(i.values() for i in handle)
-        except AttributeError:
-            pass
-    try:
-        # At this point it must be a list of SymPy objects
-        # We don't count non floating point operations
-        handle = [i.rhs if i.is_Equality else i for i in handle]
-        total_ops = sum(count_ops(i.args) for i in handle)
-        non_flops = sum(count_ops(i.find(Indexed)) for i in handle)
-        return total_ops - non_flops
-    except:
-        warning("Cannot estimate cost of %s" % str(handle))
-
-
-def unevaluate_arithmetic(expr):
-    """
-    Reconstruct ``expr`` turning all :class:`sympy.Mul` and :class:`sympy.Add`
-    into, respectively, :class:`devito.Mul` and :class:`devito.Add`.
-    """
-    if expr.is_Float:
-        return expr.func(*expr.atoms())
-    elif isinstance(expr, Indexed):
-        return expr.func(*expr.args)
-    elif expr.is_Symbol:
-        return expr.func(expr.name)
-    elif expr in [S.Zero, S.One, S.NegativeOne, S.Half]:
-        return expr.func()
-    elif expr.is_Atom:
-        return expr.func(*expr.atoms())
-    if expr.is_Add:
-        rebuilt_args = [unevaluate_arithmetic(e) for e in expr.args]
-        return Add(*rebuilt_args, evaluate=False)
-    elif expr.is_Mul:
-        rebuilt_args = [unevaluate_arithmetic(e) for e in expr.args]
-        return Mul(*rebuilt_args, evaluate=False)
-    else:
-        return expr.func(*[unevaluate_arithmetic(e) for e in expr.args])
-
-
-# Extended Sympy hierarchy
-
-class UnevaluatedExpr(Expr):
-
-    """
-    Use :class:`UnevaluatedExpr` in place of :class:`sympy.Expr` to prevent
-    xreplace from unpicking factorizations.
-    """
-
-    def xreplace(self, rule):
-        if self in rule:
-            return rule[self]
-        elif rule:
-            args = []
-            for a in self.args:
-                try:
-                    args.append(a.xreplace(rule))
-                except AttributeError:
-                    args.append(a)
-            args = tuple(args)
-            if not _aresame(args, self.args):
-                return self.func(*args, evaluate=False)
-        return self
-
-
-class Mul(sympy.Mul, UnevaluatedExpr):
-    pass
-
-
-class Add(sympy.Add, UnevaluatedExpr):
-    pass
