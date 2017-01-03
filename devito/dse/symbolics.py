@@ -300,6 +300,7 @@ class Rewriter(object):
 
         template = "ti%d"
         graph = temporaries_graph(state.exprs)
+        space_dimensions = graph.space_dimensions()
         queue = graph.copy()
 
         # What expressions is it worth transforming (cm=cost model)?
@@ -314,9 +315,9 @@ class Rewriter(object):
         while queue:
             k, v = queue.popitem(last=False)
 
-            make_ti = lambda m: Indexed(template % (len(m)+len(mapper)), x, y, z)
+            make = lambda m: Indexed(template % (len(m)+len(mapper)), *space_dimensions)
             invariant = lambda e: is_time_invariant(e, graph)
-            handle, flag, mapped = replace_invariants(v, make_ti, invariant, cm)
+            handle, flag, mapped = replace_invariants(v, make, invariant, cm)
 
             if flag:
                 mapper.update(mapped)
@@ -339,9 +340,9 @@ class Rewriter(object):
         reduced_mapper = OrderedDict()
         for i, cluster in enumerate(reducible.values()):
             for k in cluster:
-                v, flipped = flip_indices(mapper[k], (x, y, z))
+                v, flipped = flip_indices(mapper[k], space_dimensions)
                 assert len(flipped) == 1
-                reduced_mapper[Indexed(template % i, x, y, z)] = v
+                reduced_mapper[Indexed(template % i, *space_dimensions)] = v
                 rule[k] = Indexed(template % i, *flipped.pop())
         handle, processed = list(processed), []
         for e in handle:
@@ -423,10 +424,10 @@ def collect_nested(expr):
     return run(expr)[0]
 
 
-def replace_invariants(expr, make_ti, invariant=lambda e: e, cm=lambda e: True):
+def replace_invariants(expr, make, invariant=lambda e: e, cm=lambda e: True):
     """
     Replace all sub-expressions of ``expr`` such that ``invariant(expr) == True``
-    with a temporary created through ``make_ti(expr)``. A sub-expression ``e``
+    with a temporary created through ``make(expr)``. A sub-expression ``e``
     within ``expr`` is not visited if ``cm(e) == False``.
     """
 
@@ -457,7 +458,7 @@ def replace_invariants(expr, make_ti, invariant=lambda e: e, cm=lambda e: True):
                 # Everything is time-invariant
                 if expr == root:
                     if cm(expr):
-                        temporary = make_ti(mapper)
+                        temporary = make(mapper)
                         mapper[temporary] = expr.func(*invs, evaluate=False)
                         return temporary, True
                     else:
@@ -468,7 +469,7 @@ def replace_invariants(expr, make_ti, invariant=lambda e: e, cm=lambda e: True):
             else:
                 # Some children are time-invariant, but expr is time-dependent
                 if cm(expr) and len(invs) > 1:
-                    temporary = make_ti(mapper)
+                    temporary = make(mapper)
                     mapper[temporary] = expr.func(*invs, evaluate=False)
                     return expr.func(*(varying + [temporary]), evaluate=False), False
                 else:
