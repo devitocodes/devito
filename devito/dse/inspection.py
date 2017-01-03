@@ -1,6 +1,6 @@
 import numpy as np
 from sympy import (Indexed, Function, Symbol,
-                   count_ops, flatten, lambdify, preorder_traversal)
+                   count_ops, lambdify, preorder_traversal, sin, cos)
 
 from devito.dimension import t
 from devito.interfaces import SymbolicData
@@ -180,19 +180,43 @@ def retrieve_shape(expr):
     return tuple(indices[0])
 
 
-def retrieve_indexed(expr):
+def retrieve(expr, query):
     """
-    Find the free terms in an expression. This is much quicker than the more general
+    Find objects in an expression. This is much quicker than the more general
     SymPy's find.
     """
 
-    if isinstance(expr, Indexed):
-        return {expr}
-    else:
-        found = set()
-        for a in expr.args:
-            found.update(retrieve_indexed(a))
-        return found
+    rules = {
+        'indexed': lambda e: isinstance(e, Indexed),
+        'trigonometry': lambda e: e.is_Function and e.func in [sin, cos]
+    }
+    assert query in rules, "Unknown query"
+    rule = rules[query]
+
+    def run(expr):
+        if rule(expr):
+            return {expr}
+        else:
+            found = set()
+            for a in expr.args:
+                found.update(run(a))
+            return found
+
+    return run(expr)
+
+
+def retrieve_indexed(expr):
+    """
+    Shorthand for ``retrieve(expr, 'indexed')``.
+    """
+    return retrieve(expr, 'indexed')
+
+
+def retrieve_trigonometry(expr):
+    """
+    Shorthand for ``retrieve(expr, 'trigonometry')``.
+    """
+    return retrieve(expr, 'trigonometry')
 
 
 def is_time_invariant(expr, graph=None):
@@ -252,7 +276,7 @@ def tolambda(exprs):
     lambdas = []
 
     for expr in exprs:
-        terms = free_terms(expr.rhs)
+        terms = retrieve_indexed(expr.rhs)
         term_symbols = [Symbol("i%d" % i) for i in range(len(terms))]
 
         # Substitute IndexedBase references to simple variables
