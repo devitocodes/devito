@@ -4,7 +4,7 @@ Extended SymPy hierarchy.
 
 import sympy
 from sympy import Expr, Float, Indexed, S
-from sympy.core.basic import _aresame, Basic
+from sympy.core.basic import _aresame
 from sympy.functions.elementary.trigonometric import TrigonometricFunction
 
 
@@ -102,15 +102,13 @@ def eval_taylor_sin(expr):
 
 
 def eval_taylor_cos(expr):
-    expr_square = Mul(expr, expr, evaluate=False)
-    b = 1.0-.5*expr_square*(1.0-expr_square/12.0)
     v = 1.0 + Mul(-0.5,
                   Mul(expr, expr, evaluate=False),
                   1.0 + Mul(expr, expr, -1/12.0, evaluate=False),
                   evaluate=False)
     try:
         Float(expr)
-        return b, v.doit()
+        return v.doit()
     except (TypeError, ValueError):
         return v
 
