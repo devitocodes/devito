@@ -99,7 +99,8 @@ def collect_aliases(exprs):
     return found, clusters
 
 
-def estimate_cost(handle):
+def estimate_cost(handle, estimate_external_functions=False):
+    internal_ops = {'trigonometry': 50}
     try:
         # Is it a plain SymPy object ?
         iter(handle)
@@ -120,6 +121,9 @@ def estimate_cost(handle):
         handle = [i.rhs if i.is_Equality else i for i in handle]
         total_ops = sum(count_ops(i.args) for i in handle)
         non_flops = sum(count_ops(i.find(Indexed)) for i in handle)
+        if estimate_external_functions:
+            costly_ops = [retrieve_trigonometry(i) for i in handle]
+            total_ops += sum([internal_ops['trigonometry']*len(i) for i in costly_ops])
         return total_ops - non_flops
     except:
         warning("Cannot estimate cost of %s" % str(handle))
