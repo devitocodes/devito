@@ -364,18 +364,16 @@ class Rewriter(object):
         Print a summary of the DSE transformations
         """
 
+        summary = ""
         if mode.intersection({'basic', 'advanced'}):
             baseline = self.ops['_cse']
-        else:
-            summary = ""
-
-        if baseline:
             steps = " --> ".join("(%s) %d" % (k, v) for k, v in self.ops.items())
-            gain = float(baseline) / self.ops.values()[-1]
-            summary = " %s flops; gain: %.2f X" % (steps, gain)
-
+            try:
+                gain = float(baseline) / self.ops.values()[-1]
+                summary = " %s flops; gain: %.2f X" % (steps, gain)
+            except ZeroDivisionError:
+                pass
         elapsed = sum(self.timings.values())
-
         dse("Rewriter:%s [%.2f s]" % (summary, elapsed))
 
 
