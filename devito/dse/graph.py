@@ -79,6 +79,16 @@ class Temporary(Eq):
     def scope(self):
         return self._scope
 
+    def construct(self, rule):
+        """
+        Create a new temporary starting from ``self`` replacing symbols in
+        the equation as specified by the dictionary ``rule``.
+        """
+        reads = set(self.reads) - set(rule.keys()) | set(rule.values())
+        rhs = self.rhs.xreplace(rule)
+        return Temporary(self.lhs, rhs, reads=reads, readby=self.readby,
+                         time_invariant=self.is_time_invariant, scope=self.scope)
+
     def __repr__(self):
         return "DSE(%s, reads=%s, readby=%s)" % (super(Temporary, self).__repr__(),
                                                  str(self.reads), str(self.readby))
