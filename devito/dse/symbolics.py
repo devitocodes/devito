@@ -19,7 +19,8 @@ from sympy import (Add, Atom, Eq, Indexed, IndexedBase, S,
 from devito.dimension import t, x, y, z
 from devito.logger import dse, dse_warning
 
-from devito.dse.extended_sympy import taylor_sin, taylor_cos, unevaluate_arithmetic
+from devito.dse.extended_sympy import (bhaskara_sin, bhaskara_cos, unevaluate_arithmetic,
+                                       flip_indices)
 from devito.dse.graph import temporaries_graph
 from devito.dse.inspection import estimate_cost, terminals
 
@@ -272,8 +273,8 @@ class Rewriter(object):
 
         processed = []
         for expr in state.exprs:
-            handle = expr.replace(sin, taylor_sin)
-            handle = handle.replace(cos, taylor_cos)
+            handle = expr.replace(sin, bhaskara_sin)
+            handle = handle.replace(cos, bhaskara_cos)
             processed.append(handle)
 
         return {'exprs': processed}
