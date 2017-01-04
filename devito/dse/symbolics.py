@@ -76,13 +76,13 @@ def rewrite(expr, mode='advanced'):
 def dse_transformation(func):
 
     def wrapper(self, state, **kwargs):
-        if kwargs['mode'].intersection(set(self.triggers[func.func_name])):
+        if kwargs['mode'].intersection(set(self.triggers[func.__name__])):
             tic = time()
             state.update(**func(self, state))
             toc = time()
 
-            self.ops[func.func_name] = estimate_cost(state.exprs)
-            self.timings[func.func_name] = toc - tic
+            self.ops[func.__name__] = estimate_cost(state.exprs)
+            self.timings[func.__name__] = toc - tic
 
     return wrapper
 
@@ -370,7 +370,7 @@ class Rewriter(object):
             baseline = self.ops['_cse']
             steps = " --> ".join("(%s) %d" % (k, v) for k, v in self.ops.items())
             try:
-                gain = float(baseline) / self.ops.values()[-1]
+                gain = float(baseline) / list(self.ops.values())[-1]
                 summary = " %s flops; gain: %.2f X" % (steps, gain)
             except ZeroDivisionError:
                 pass
