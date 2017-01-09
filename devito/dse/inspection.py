@@ -1,5 +1,5 @@
 import numpy as np
-from sympy import (Indexed, Function, Symbol,
+from sympy import (Indexed, Function, Number, Symbol,
                    count_ops, lambdify, preorder_traversal, sin, cos)
 
 from devito.dimension import t
@@ -252,6 +252,17 @@ def is_time_invariant(expr, graph=None):
             to_visit.append(graph[i].rhs)
 
     return True
+
+
+def is_binary_op(expr):
+    """
+    Return True if ``expr`` is a binary operation, False otherwise.
+    """
+
+    if not (expr.is_Add or expr.is_Mul) and not len(expr.args) == 2:
+        return False
+
+    return all(isinstance(a, (Number, Symbol, Indexed)) for a in expr.args)
 
 
 def indexify(expr):
