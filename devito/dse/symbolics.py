@@ -19,11 +19,11 @@ from sympy import (Add, Eq, Indexed, IndexedBase, S,
 from devito.dimension import t, x, y, z
 from devito.logger import dse, dse_warning
 
-from devito.dse.extended_sympy import (bhaskara_sin, bhaskara_cos, unevaluate_arithmetic,
-                                       flip_indices)
+from devito.dse.extended_sympy import bhaskara_sin, bhaskara_cos
 from devito.dse.graph import temporaries_graph
 from devito.dse.inspection import (collect_aliases, estimate_cost,
-                                   is_time_invariant, terminals)
+                                   is_binary_op, is_time_invariant, terminals)
+from devito.dse.manipulation import flip_indices, rxreplace, unevaluate_arithmetic
 
 __all__ = ['rewrite']
 
