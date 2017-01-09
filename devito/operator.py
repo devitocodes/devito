@@ -112,11 +112,12 @@ class Operator(object):
         self.stencils = [Eq(indexify(eqn.lhs), indexify(eqn.rhs))
                          for eqn in self.stencils]
 
-        # Applies CSE
-        self.stencils = rewrite(self.stencils, mode=dse)
-
         # Apply user-defined subs to stencil
         self.stencils = [eqn.subs(subs[0]) for eqn in self.stencils]
+
+        # Use the Devito Symbolic Engine to reduce the operation count
+        self.stencils = rewrite(self.stencils, mode=dse)
+
         self.propagator = Propagator(self.getName(), nt, shape, self.stencils,
                                      dtype=dtype, spc_border=spc_border,
                                      time_order=time_order, forward=forward,
