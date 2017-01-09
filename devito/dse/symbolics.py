@@ -12,7 +12,7 @@ from __future__ import absolute_import
 from collections import OrderedDict, Sequence
 from time import time
 
-from sympy import (Add, Eq, Indexed, IndexedBase, S,
+from sympy import (Eq, Indexed, IndexedBase, S,
                    collect, collect_const, cos, cse, flatten,
                    numbered_symbols, preorder_traversal, sin)
 
@@ -172,87 +172,70 @@ class Rewriter(object):
         Perform common subexpression elimination.
         """
 
-        temps, stencils = cse(state.exprs, numbered_symbols(_temp_prefix))
-
-        # Restores the LHS
+        temporaries, leaves = cse(state.exprs, numbered_symbols(_temp_prefix))
         for i in range(len(state.exprs)):
-            stencils[i] = Eq(state.exprs[i].lhs, stencils[i].rhs)
+            leaves[i] = Eq(state.exprs[i].lhs, leaves[i].rhs)
 
-        to_revert = {}
-        to_keep = []
-
-        # Restores IndexedBases if they are collected by CSE and
-        # reverts changes to simple index operations (eg: t - 1)
-        for temp, value in temps:
-            if isinstance(value, IndexedBase):
-                to_revert[temp] = value
-            elif isinstance(value, Indexed):
-                to_revert[temp] = value
-            elif isinstance(value, Add) and not \
-                    set([t, x, y, z]).isdisjoint(set(value.args)):
-                to_revert[temp] = value
+        # Restore some of the common sub-expressions that have potentially
+        # been collected: simple index calculations (eg, t - 1), IndexedBase,
+        # Indexed, binary Add, binary Mul.
+        revert = OrderedDict()
+        keep = OrderedDict()
+        for k, v in temporaries:
+            if isinstance(v, (IndexedBase, Indexed)):
+                revert[k] = v
+            elif v.is_Add and not set([t, x, y, z]).isdisjoint(set(v.args)):
+                revert[k] = v
+            elif is_binary_op(v):
+                revert[k] = v
             else:
-                to_keep.append((temp, value))
-
-        # Restores the IndexedBases and the Indexes in the assignments to revert
-        for temp, value in to_revert.items():
-            s_dict = {}
-            for arg in preorder_traversal(value):
-                if isinstance(arg, Indexed):
+                keep[k] = v
+        for k, v in revert.items():
+            mapper = {}
+            for i in preorder_traversal(v):
+                if isinstance(i, Indexed):
                     new_indices = []
-                    for index in arg.indices:
-                        if index in to_revert:
-                            new_indices.append(to_revert[index])
+                    for index in i.indices:
+                        if index in revert:
+                            new_indices.append(revert[index])
                         else:
                             new_indices.append(index)
-                    if arg.base.label in to_revert:
-                        s_dict[arg] = Indexed(to_revert[value.base.label], *new_indices)
-            to_revert[temp] = value.xreplace(s_dict)
-
-        subs_dict = {}
-
-        # Builds a dictionary of the replacements
-        for expr in stencils + [assign for temp, assign in to_keep]:
-            for arg in preorder_traversal(expr):
-                if isinstance(arg, Indexed):
+                    if i.base.label in revert:
+                        mapper[i] = Indexed(revert[i.base.label], *new_indices)
+                if i in revert:
+                    mapper[i] = revert[i]
+            revert[k] = v.xreplace(mapper)
+        mapper = {}
+        for e in leaves + keep.values():
+            for i in preorder_traversal(e):
+                if isinstance(i, Indexed):
                     new_indices = []
-                    for index in arg.indices:
-                        if index in to_revert:
-                            new_indices.append(to_revert[index])
+                    for index in i.indices:
+                        if index in revert:
+                            new_indices.append(revert[index])
                         else:
                             new_indices.append(index)
-                    if arg.base.label in to_revert:
-                        subs_dict[arg] = Indexed(to_revert[arg.base.label], *new_indices)
-                    elif tuple(new_indices) != arg.indices:
-                        subs_dict[arg] = Indexed(arg.base, *new_indices)
-                if arg in to_revert:
-                    subs_dict[arg] = to_revert[arg]
+                    if i.base.label in revert:
+                        mapper[i] = Indexed(revert[i.base.label], *new_indices)
+                    elif tuple(new_indices) != i.indices:
+                        mapper[i] = Indexed(i.base, *new_indices)
+                if i in revert:
+                    mapper[i] = revert[i]
+        leaves = rxreplace(leaves, mapper)
+        kept = rxreplace([Eq(k, v) for k, v in keep.items()], mapper)
 
-        def recursive_replace(handle, subs_dict):
-            replaced = []
-            for i in handle:
-                old, new = i, i.xreplace(subs_dict)
-                while new != old:
-                    old, new = new, new.xreplace(subs_dict)
-                replaced.append(new)
-            return replaced
-
-        stencils = recursive_replace(stencils, subs_dict)
-        to_keep = recursive_replace([Eq(temp, assign) for temp, assign in to_keep],
-                                    subs_dict)
-
-        # If the RHS of a temporary variable is the LHS of a stencil,
-        # update the value of the temporary variable after the stencil
-        new_stencils = []
-        for stencil in stencils:
-            new_stencils.append(stencil)
-            for temp in to_keep:
-                if stencil.lhs in preorder_traversal(temp.rhs):
-                    new_stencils.append(temp)
+        # If the RHS of a temporary variable is the LHS of a leaf,
+        # update the value of the temporary variable after the leaf
+        new_leaves = []
+        for leaf in leaves:
+            new_leaves.append(leaf)
+            for i in kept:
+                if leaf.lhs in preorder_traversal(i.rhs):
+                    new_leaves.append(i)
                     break
 
         # Reshuffle to make sure temporaries come later than their read values
-        processed = OrderedDict([(i.lhs, i) for i in to_keep + new_stencils])
+        processed = OrderedDict([(i.lhs, i) for i in kept + new_leaves])
         temporaries = set(processed.keys())
         ordered = OrderedDict()
         while processed:
