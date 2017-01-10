@@ -184,24 +184,49 @@ def retrieve_shape(expr):
     return tuple(indices[0])
 
 
-def retrieve(expr, query):
+def retrieve(expr, query, mode):
     """
     Find objects in an expression. This is much quicker than the more general
     SymPy's find.
+
+    :param expr: The searched expression
+    :param query: Search query (accepted: 'indexed', 'trigonometry')
+    :param mode: either 'unique' or 'all' (catch all instances)
     """
+
+    class Set(set):
+
+        @staticmethod
+        def wrap(obj):
+            return {obj}
+
+    class List(list):
+
+        @staticmethod
+        def wrap(obj):
+            return [obj]
+
+        def update(self, obj):
+            return self.extend(obj)
 
     rules = {
         'indexed': lambda e: isinstance(e, Indexed),
         'trigonometry': lambda e: e.is_Function and e.func in [sin, cos]
     }
+    modes = {
+        'unique': Set,
+        'all': List
+    }
+    assert mode in modes
+    collection = modes[mode]
     assert query in rules, "Unknown query"
     rule = rules[query]
 
     def run(expr):
         if rule(expr):
-            return {expr}
+            return collection.wrap(expr)
         else:
-            found = set()
+            found = collection()
             for a in expr.args:
                 found.update(run(a))
             return found
@@ -209,18 +234,18 @@ def retrieve(expr, query):
     return run(expr)
 
 
-def retrieve_indexed(expr):
+def retrieve_indexed(expr, mode='unique'):
     """
-    Shorthand for ``retrieve(expr, 'indexed')``.
+    Shorthand for ``retrieve(expr, 'indexed', 'unique')``.
     """
-    return retrieve(expr, 'indexed')
+    return retrieve(expr, 'indexed', mode)
 
 
-def retrieve_trigonometry(expr):
+def retrieve_trigonometry(expr, mode='unique'):
     """
-    Shorthand for ``retrieve(expr, 'trigonometry')``.
+    Shorthand for ``retrieve(expr, 'trigonometry', 'unique')``.
     """
-    return retrieve(expr, 'trigonometry')
+    return retrieve(expr, 'trigonometry', mode)
 
 
 def is_time_invariant(expr, graph=None):
