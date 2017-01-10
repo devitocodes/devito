@@ -81,8 +81,9 @@ def dse_transformation(func):
             state.update(**func(self, state))
             toc = time()
 
-            self.ops[func.__name__] = estimate_cost(state.exprs)
-            self.timings[func.__name__] = toc - tic
+            key = '%s%d' % (func.__name__, len(self.timings))
+            self.ops[key] = estimate_cost(state.exprs)
+            self.timings[key] = toc - tic
 
     return wrapper
 
@@ -118,7 +119,7 @@ class Rewriter(object):
     def __init__(self, exprs):
         self.exprs = exprs
 
-        self.ops = OrderedDict()
+        self.ops = OrderedDict([('baseline', estimate_cost(exprs))])
         self.timings = OrderedDict()
 
     def run(self, mode):
@@ -350,8 +351,14 @@ class Rewriter(object):
 
         summary = ""
         if mode.intersection({'basic', 'advanced'}):
-            baseline = self.ops['_cse']
-            steps = " --> ".join("(%s) %d" % (k, v) for k, v in self.ops.items())
+            try:
+                # The state after CSE should be used as baseline for fairness
+                baseline = self.ops['_cse0']
+            except KeyError:
+                baseline = self.ops['baseline']
+            self.ops.pop('baseline')
+            steps = " --> ".join("(%s) %d" % (filter(lambda c: not c.isdigit(), k), v)
+                                 for k, v in self.ops.items())
             try:
                 gain = float(baseline) / list(self.ops.values())[-1]
                 summary = " %s flops; gain: %.2f X" % (steps, gain)
