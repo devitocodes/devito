@@ -119,8 +119,8 @@ def estimate_cost(handle, estimate_external_functions=False):
         # At this point it must be a list of SymPy objects
         # We don't count non floating point operations
         handle = [i.rhs if i.is_Equality else i for i in handle]
-        total_ops = sum(count_ops(i.args) for i in handle)
-        non_flops = sum(count_ops(i.find(Indexed)) for i in handle)
+        total_ops = count_ops(handle)
+        non_flops = sum(count_ops(retrieve_indexed(i, mode='all')) for i in handle)
         if estimate_external_functions:
             costly_ops = [retrieve_trigonometry(i) for i in handle]
             total_ops += sum([internal_ops['trigonometry']*len(i) for i in costly_ops])
