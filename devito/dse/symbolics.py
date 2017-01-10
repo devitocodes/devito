@@ -129,6 +129,7 @@ class Rewriter(object):
         self._factorize(state, mode=mode)
         self._optimize_trigonometry(state, mode=mode)
         self._replace_time_invariants(state, mode=mode)
+        self._factorize(state, mode=mode)
 
         self._finalize(state)
 
