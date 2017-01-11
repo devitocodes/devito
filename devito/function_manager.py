@@ -13,7 +13,8 @@ class FunctionManager(object):
     :param openmp: True if using OpenMP. Default is False
     """
     libraries = ['assert.h', 'stdlib.h', 'math.h',
-                 'stdio.h', 'string.h', 'sys/time.h']
+                 'stdio.h', 'string.h', 'sys/time.h',
+                 'xmmintrin.h', 'pmmintrin.h']
 
     _pymic_attribute = 'PYMIC_KERNEL'
 

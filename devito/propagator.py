@@ -551,6 +551,10 @@ class Propagator(object):
         else:
             header = []
 
+        # Avoid denormal numbers
+        extra = [cgen.Line('_MM_SET_DENORMALS_ZERO_MODE(_MM_DENORMALS_ZERO_ON);'),
+                 cgen.Line('_MM_SET_FLUSH_ZERO_MODE(_MM_FLUSH_ZERO_ON);')]
+
         # Statements to be inserted into the time loop before the spatial loop
         pre_stencils = [self.time_substitutions(x)
                         for x in self.time_loop_stencils_b]
@@ -597,7 +601,8 @@ class Propagator(object):
         # Code to declare the time stepping variables (outside the time loop)
         def_time_step = [cgen.Value("int", t_var_def.name)
                          for t_var_def in self.time_steppers]
-        body = cgen.Block(time_invariants + def_time_step + omp_parallel + [loop_body])
+        body = cgen.Block(extra + time_invariants + def_time_step +
+                          omp_parallel + [loop_body])
 
         return header + [body]
 
