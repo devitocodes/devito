@@ -251,7 +251,8 @@ class Propagator(object):
             niters_per_section[key] = with_time_loop(niters)
 
         key = LOOP_BODY.name
-        niters = reduce(operator.mul, self.shape)
+        niters = reduce(operator.mul,
+                        [j - i for i, j in self._space_loop_limits.values()])
         niters_per_section[key] = with_time_loop(niters)
 
         for i, subsection in enumerate(self.time_loop_stencils_a):
