@@ -34,6 +34,9 @@ if __name__ == "__main__":
     parser.add_argument(dest="execmode", nargs="?", default="run",
                         choices=["run", "test", "bench", "plot"],
                         help="Exec modes")
+    parser.add_argument("--bench-mode", "-bm", dest="benchmode", default="all",
+                        choices=["all", "blocking", "dse"],
+                        help="Choose what to benchmark (all, blocking, dse).")
     parser.add_argument(dest="compiler", nargs="?",
                         default=environ.get("DEVITO_ARCH", "gnu"),
                         choices=compiler_registry.keys(),
@@ -62,7 +65,9 @@ if __name__ == "__main__":
                             type=int, help="End time of the simulation in ms")
 
     devito = parser.add_argument_group("Devito")
-    devito.add_argument("-dse", default="advanced", choices=["basic", "advanced"],
+    devito.add_argument("-dse", default="advanced", nargs="*",
+                        choices=["basic", "factorize", "approx-trigonometry",
+                                 "glicm", "advanced"],
                         help="Devito symbolic engine (DSE) mode")
     devito.add_argument("-a", "--auto_tuning", action="store_true",
                         help=("Benchmark with auto tuning on and off. " +
@@ -92,6 +97,7 @@ if __name__ == "__main__":
 
     parameters = vars(args).copy()
     del parameters["execmode"]
+    del parameters["benchmode"]
     del parameters["problem"]
     del parameters["resultsdir"]
     del parameters["plotdir"]
@@ -118,11 +124,18 @@ if __name__ == "__main__":
             raise ImportError("Could not find opescibench utility package.\n"
                               "Please install from https://github.com/opesci/opescibench")
 
-        if parameters["auto_tuning"]:
+        if args.benchmode == 'all':
             parameters["auto_tuning"] = [True, False]
-
-        if parameters["dse"]:
             parameters["dse"] = ["basic", "advanced"]
+        elif args.benchmode == 'blocking':
+            parameters["auto_tuning"] = [True, False]
+            parameters["dse"] = ["basic"]
+        elif args.benchmode == 'dse':
+            parameters["auto_tuning"] = [False]
+            parameters["dse"] = ["basic",
+                                 ('basic', 'factorize'),
+                                 ('basic', 'glicm'),
+                                 "advanced"]
 
     if args.execmode == "test":
         values_sweep = [v if isinstance(v, list) else [v] for v in parameters.values()]
@@ -184,10 +197,16 @@ if __name__ == "__main__":
                                                    parameters["time_order"])
 
         at_runs = [True, False]
-        dse_runs = ["basic", "advanced"]
+        dse_runs = ["basic", ("basic", "factorize"), ("basic", "glicm"), "advanced"]
         runs = list(product(at_runs, dse_runs))
-        style = {(True, 'advanced'): 'ob', (True, 'basic'): 'or',
-                 (False, 'advanced'): 'Db', (False, 'basic'): 'Dr'}
+        styles = {
+            # AT true
+            (True, 'advanced'): 'ob', (True, 'basic'): 'or',
+            (True, ('basic', 'factorize')): 'og', (True, ('basic', 'glicm')): 'oy',
+            # AT false
+            (False, 'advanced'): 'Db', (False, 'basic'): 'Dr',
+            (False, ('basic', 'factorize')): 'Dg', (False, ('basic', 'glicm')): 'Dy'
+        }
 
         with RooflinePlotter(figname=name, plotdir=args.plotdir,
                              max_bw=args.max_bw, max_flops=args.max_flops,
@@ -204,6 +223,6 @@ if __name__ == "__main__":
                 point_annotate = {'s': "%.1f s" % time_value,
                                   'xytext': (-22, 18), 'size': 6,
                                   'weight': 'bold'} if args.point_runtime else None
-                plot.add_point(gflops=gflopss, oi=oi_value, style=style[run],
+                plot.add_point(gflops=gflopss, oi=oi_value, style=styles[run],
                                oi_line=run[0], label=label, oi_annotate=oi_annotate,
                                annotate=point_annotate)
