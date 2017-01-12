@@ -499,6 +499,11 @@ class Propagator(object):
             time_invariants = []
             loop_body = self.sympy_to_cgen(self.stencils)
 
+        # Init code before the time loop
+        header = [cgen.Value("int", i.name) for i in self.time_steppers]
+        # Clean-up code after the time loop
+        bottom = []
+
         # Space loops
         if not isinstance(loop_body, cgen.Block) or len(loop_body.contents) > 0:
             if self.cache_blocking is not None:
@@ -537,23 +542,27 @@ class Propagator(object):
                 "size": "".join("[%d]" % j for j in self.shape)
             }
             declaration = "%(type)s (*%(name)s)%(dsize)s;" % values
-            header = [cgen.Line(declaration % {'name': getname(i)})
-                      for i in time_invariants]
+            header.extend([cgen.Line(declaration % {'name': getname(i)})
+                           for i in time_invariants])
             funcall = "posix_memalign((void**)&%(name)s, 64, sizeof(%(type)s%(size)s));"
             funcall = funcall % values
             funcalls = [cgen.Line(funcall % {'name': getname(i)})
                         for i in time_invariants]
+            bottom = [cgen.Line('free(%s);' % getname(i)) for i in time_invariants]
             time_invariants = [self.convert_equality_to_cgen(i)
                                for i in time_invariants]
             time_invariants = self.generate_space_loops(cgen.Block(time_invariants),
                                                         full=True)
-            time_invariants = [cgen.Block(funcalls + time_invariants)]
-        else:
-            header = []
+            time_invariants = [cgen.Block(funcalls + omp_for + time_invariants)]
+            if self.profile:
+                time_invariants = self.profiler.add_profiling(time_invariants,
+                                                              TIME_INVARIANTS.name)
+            header.extend(time_invariants)
 
         # Avoid denormal numbers
         extra = [cgen.Line('_MM_SET_DENORMALS_ZERO_MODE(_MM_DENORMALS_ZERO_ON);'),
                  cgen.Line('_MM_SET_FLUSH_ZERO_MODE(_MM_FLUSH_ZERO_ON);')]
+        header.extend(omp_parallel + [cgen.Block(extra)])
 
         # Statements to be inserted into the time loop before the spatial loop
         pre_stencils = [self.time_substitutions(x)
@@ -597,14 +606,9 @@ class Propagator(object):
             t_var + "+=" + str(self._time_step),
             loop_body
         )
+        loop_body = omp_parallel + [cgen.Block([loop_body])]
 
-        # Code to declare the time stepping variables (outside the time loop)
-        def_time_step = [cgen.Value("int", t_var_def.name)
-                         for t_var_def in self.time_steppers]
-        body = cgen.Block(extra + time_invariants + def_time_step +
-                          omp_parallel + [loop_body])
-
-        return header + [body]
+        return header + loop_body + bottom
 
     def generate_space_loops(self, loop_body, full=False):
         """Generate list<cgen.For> for a non cache blocking space loop
@@ -915,6 +919,7 @@ class Section(object):
         self.name = name
 
 
+TIME_INVARIANTS = Section('time_invariants')
 PRE_STENCILS = Section('pre_stencils')
 LOOP_BODY = Section('loop_body')
 POST_STENCILS = Section('post_stencils')
