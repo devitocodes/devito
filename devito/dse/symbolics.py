@@ -98,6 +98,26 @@ class State(object):
         self.exprs = exprs or self.exprs
         self.mapper = mapper or self.mapper
 
+    @property
+    def time_invariants(self):
+        return [i for i in self.exprs if i.lhs in self.mapper]
+
+    @property
+    def time_varying(self):
+        return [i for i in self.exprs if i not in self.time_invariants]
+
+    @property
+    def ops_time_invariants(self):
+        return estimate_cost(self.time_invariants)
+
+    @property
+    def ops_time_varying(self):
+        return estimate_cost(self.time_varying)
+
+    @property
+    def ops(self):
+        return self.ops_time_invariants + self.ops_time_varying
+
 
 class Rewriter(object):
 
@@ -344,6 +364,7 @@ class Rewriter(object):
         """
         exprs = [Eq(k, v) for k, v in state.mapper.items()] + state.exprs
         state.update(exprs=[unevaluate_arithmetic(e) for e in exprs])
+
 
     def _summary(self, mode):
         """
