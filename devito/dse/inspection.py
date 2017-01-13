@@ -100,6 +100,12 @@ def collect_aliases(exprs):
 
 
 def estimate_cost(handle, estimate_external_functions=False):
+    """Estimate the operation count of ``handle``.
+
+    :param handle: a SymPy expression or an iterator of SymPy expressions.
+    :param estimate_external_functions: approximate the operation count of known
+                                        functions (eg, sin, cos).
+    """
     internal_ops = {'trigonometry': 50}
     try:
         # Is it a plain SymPy object ?
@@ -127,6 +133,49 @@ def estimate_cost(handle, estimate_external_functions=False):
         return total_ops - non_flops
     except:
         warning("Cannot estimate cost of %s" % str(handle))
+
+
+def estimate_memory(handle, mode='realistic'):
+    """Estimate the number of memory reads and writes.
+
+    :param handle: a SymPy expression or an iterator of SymPy expressions.
+    :param mode: There are multiple ways of computing the estimate: ::
+
+        * ideal: also known as "compulsory traffic", which is the minimum
+            number of read/writes to be performed (ie, models an infinite cache).
+        * ideal_with_stores: like ideal, but a data item which is both read
+            and written is counted twice (ie both load and store are counted).
+        * realistic: assume that all datasets, even the time-independent ones,
+            need to be re-read at each time iteration.
+    """
+    assert mode in ['ideal', 'ideal_with_stores', 'realistic']
+
+    def access(symbol):
+        assert isinstance(symbol, Indexed)
+        # Irregular accesses (eg A[B[i]]) are counted as compulsory traffic
+        if any(i.atoms(Indexed) for i in symbol.indices):
+            return symbol
+        else:
+            return symbol.base
+
+    try:
+        # Is it a plain SymPy object ?
+        iter(handle)
+    except TypeError:
+        handle = [handle]
+
+    if mode in ['ideal', 'ideal_with_stores']:
+        filter = lambda s: t in s.atoms()
+    else:
+        filter = lambda s: s
+    reads = set(flatten([retrieve_indexed(e.rhs) for e in handle]))
+    writes = set(flatten([retrieve_indexed(e.lhs) for e in handle]))
+    reads = set([access(s) for s in reads if filter(s)])
+    writes = set([access(s) for s in writes if filter(s)])
+    if mode == 'ideal':
+        return len(set(reads) | set(writes))
+    else:
+        return len(reads) + len(writes)
 
 
 def retrieve_dimensions(expr):
