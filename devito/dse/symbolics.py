@@ -21,7 +21,7 @@ from devito.logger import dse, dse_warning
 
 from devito.dse.extended_sympy import bhaskara_sin, bhaskara_cos
 from devito.dse.graph import temporaries_graph
-from devito.dse.inspection import (collect_aliases, estimate_cost,
+from devito.dse.inspection import (collect_aliases, estimate_cost, estimate_memory,
                                    is_binary_op, is_time_invariant, terminals)
 from devito.dse.manipulation import flip_indices, rxreplace, unevaluate_arithmetic
 
@@ -117,6 +117,18 @@ class State(object):
     @property
     def ops(self):
         return self.ops_time_invariants + self.ops_time_varying
+
+    @property
+    def memory_time_invariants(self):
+        return estimate_memory(self.time_invariants)
+
+    @property
+    def memory_time_varying(self):
+        return estimate_memory(self.time_varying)
+
+    @property
+    def memory(self):
+        return self.memory_time_invariants + self.memory_time_varying
 
 
 class Rewriter(object):
@@ -364,6 +376,7 @@ class Rewriter(object):
         """
         exprs = [Eq(k, v) for k, v in state.mapper.items()] + state.exprs
         state.update(exprs=[unevaluate_arithmetic(e) for e in exprs])
+
 
     def _summary(self, mode):
         """
