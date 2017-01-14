@@ -365,7 +365,6 @@ class Rewriter(object):
         exprs = [Eq(k, v) for k, v in state.mapper.items()] + state.exprs
         state.update(exprs=[unevaluate_arithmetic(e) for e in exprs])
 
-
     def _summary(self, mode):
         """
         Print a summary of the DSE transformations
