@@ -39,12 +39,13 @@ def rewrite(expr, mode='advanced'):
                  'basic', 'factorize', 'approx-trigonometry' and 'advanced'
                  (default). They act as follows: ::
 
-                    * 'basic': apply common sub-expressions elimination.
-                    * 'factorize': apply heuristic factorization of temporaries.
-                    * 'approx-trigonometry': replace expensive trigonometric
-                        functions with suitable polynomial approximations.
-                    * 'glicm': apply heuristic hoisting of time-invariant terms.
-                    * 'advanced': compose all known transformations.
+                     * 'noop': do nothing, but track performance metrics
+                     * 'basic': apply common sub-expressions elimination.
+                     * 'factorize': apply heuristic factorization of temporaries.
+                     * 'approx-trigonometry': replace expensive trigonometric
+                         functions with suitable polynomial approximations.
+                     * 'glicm': apply heuristic hoisting of time-invariant terms.
+                     * 'advanced': compose all known transformations.
     """
 
     if isinstance(expr, Sequence):
@@ -56,7 +57,7 @@ def rewrite(expr, mode='advanced'):
         raise ValueError("Got illegal expr of type %s." % type(expr))
 
     if not mode:
-        return expr
+        return State(expr)
     elif isinstance(mode, str):
         mode = set([mode])
     else:
@@ -65,10 +66,10 @@ def rewrite(expr, mode='advanced'):
         except TypeError:
             dse_warning("Arg mode must be str or tuple (got %s)" % type(mode))
             return expr
-    if mode.isdisjoint({'basic', 'factorize', 'approx-trigonometry',
+    if mode.isdisjoint({'noop', 'basic', 'factorize', 'approx-trigonometry',
                         'glicm', 'advanced'}):
         dse_warning("Unknown rewrite mode(s) %s" % str(mode))
-        return expr
+        return State(expr)
     else:
         return Rewriter(expr).run(mode)
 
@@ -167,7 +168,7 @@ class Rewriter(object):
 
         self._summary(mode)
 
-        return state.exprs
+        return state
 
     @dse_transformation
     def _factorize(self, state, **kwargs):
@@ -383,7 +384,6 @@ class Rewriter(object):
         Print a summary of the DSE transformations
         """
 
-        summary = ""
         if mode.intersection({'basic', 'advanced'}):
             try:
                 # The state after CSE should be used as baseline for fairness
@@ -397,9 +397,9 @@ class Rewriter(object):
                 gain = float(baseline) / list(self.ops.values())[-1]
                 summary = " %s flops; gain: %.2f X" % (steps, gain)
             except ZeroDivisionError:
-                pass
-        elapsed = sum(self.timings.values())
-        dse("Rewriter:%s [%.2f s]" % (summary, elapsed))
+                summary = ""
+            elapsed = sum(self.timings.values())
+            dse("Rewriter:%s [%.2f s]" % (summary, elapsed))
 
 
 def collect_nested(expr):
