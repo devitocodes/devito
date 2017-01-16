@@ -69,10 +69,9 @@ class Propagator(object):
         self.loop_body = None
         # Default time and space symbols if not provided
         self.time_dim = time_dim or t
-        if space_dims is not None:
-            self.space_dims = space_dims
-        else:
-            self.space_dims = (x, z) if len(shape) == 2 else (x, y, z)[:len(shape)]
+        if not space_dims:
+            space_dims = (x, z) if len(shape) == 2 else (x, y, z)[:len(shape)]
+        self.space_dims = tuple(space_dims)
         self.shape = shape
 
         # Internal flags and meta-data
@@ -476,7 +475,7 @@ class Propagator(object):
                                               ", ".join([str(i) for i in array_names])
                                               ))
 
-    def generate_loops(self, loop_body):
+    def generate_loops(self):
         """Assuming that the variable order defined in init (#var_order) is the
         order the corresponding dimensions are layout in memory, the last variable
         in that definition should be the fastest varying dimension in the arrays.
@@ -486,6 +485,19 @@ class Propagator(object):
         :param loop_body: Statement representing the loop body
         :returns: :class:`cgen.Block` representing the loop
         """
+
+        if self.loop_body:
+            time_invariants = []
+            loop_body = self.loop_body
+        elif self.time_order:
+            time_invariants = [i for i in self.stencils if isinstance(i.lhs, Indexed)
+                               and i.lhs.indices == self.space_dims]
+            loop_body = [i for i in self.stencils if i not in time_invariants]
+            loop_body = self.sympy_to_cgen(loop_body)
+        else:
+            time_invariants = []
+            loop_body = self.sympy_to_cgen(self.stencils)
+
         # Space loops
         if not isinstance(loop_body, cgen.Block) or len(loop_body.contents) > 0:
             if self.cache_blocking is not None:
@@ -512,6 +524,32 @@ class Propagator(object):
             time_stepping = []
         if len(loop_body) > 0:
             loop_body = [cgen.Block(omp_for + loop_body)]
+
+        # Generate code to be inserted outside of the space loops
+        if time_invariants:
+            ctype = cgen.dtype_to_ctype(self.dtype)
+            getname = lambda i: i.lhs.base if isinstance(i.lhs, Indexed) else i.lhs
+            values = {
+                "type": ctype,
+                "name": "%(name)s",
+                "dsize": "".join("[%d]" % j for j in self.shape[:-1]),
+                "size": "".join("[%d]" % j for j in self.shape)
+            }
+            declaration = "%(type)s (*%(name)s)%(dsize)s;" % values
+            header = [cgen.Line(declaration % {'name': getname(i)})
+                      for i in time_invariants]
+            funcall = "posix_memalign((void**)&%(name)s, 64, sizeof(%(type)s%(size)s));"
+            funcall = funcall % values
+            funcalls = [cgen.Line(funcall % {'name': getname(i)})
+                        for i in time_invariants]
+            time_invariants = [self.convert_equality_to_cgen(i)
+                               for i in time_invariants]
+            time_invariants = self.generate_space_loops(cgen.Block(time_invariants),
+                                                        full=True)
+            time_invariants = [cgen.Block(funcalls + time_invariants)]
+        else:
+            header = []
+
         # Statements to be inserted into the time loop before the spatial loop
         pre_stencils = [self.time_substitutions(x)
                         for x in self.time_loop_stencils_b]
@@ -558,11 +596,11 @@ class Propagator(object):
         # Code to declare the time stepping variables (outside the time loop)
         def_time_step = [cgen.Value("int", t_var_def.name)
                          for t_var_def in self.time_steppers]
-        body = def_time_step + omp_parallel + [loop_body]
+        body = cgen.Block(time_invariants + def_time_step + omp_parallel + [loop_body])
 
-        return cgen.Block(body)
+        return header + [body]
 
-    def generate_space_loops(self, loop_body):
+    def generate_space_loops(self, loop_body, full=False):
         """Generate list<cgen.For> for a non cache blocking space loop
         :param loop_body: Statement representing the loop body
         :returns: :list<cgen.For> a list of for loops
@@ -572,6 +610,9 @@ class Propagator(object):
         for spc_var in reversed(list(self.space_dims)):
             dim_var = self._mapper[spc_var]
             loop_limits = self._space_loop_limits[spc_var]
+            if full:
+                loop_limits = (loop_limits[0] - self.spc_border,
+                               loop_limits[1] + self.spc_border)
             loop_body = cgen.For(
                 cgen.InlineInitializer(cgen.Value("int", dim_var), str(loop_limits[0])),
                 str(dim_var) + "<" + str(loop_limits[1]),
@@ -804,13 +845,8 @@ class Propagator(object):
 
         :returns: The resulting :class:`devito.function_manager.FunctionDescriptor`
         """
-        # Assume we have been given a a loop body in cgen types
-        if self.loop_body is not None:
-            self.fd.set_body(self.generate_loops(self.loop_body))
-        else:  # We might have been given Sympy expression to evaluate
-            # This is the more common use case so this will show up in error messages
-            self.fd.set_body(self.generate_loops(self.sympy_to_cgen(self.stencils)))
 
+        self.fd.set_body(self.generate_loops())
         return self.fd
 
     def get_time_stepping(self):
@@ -858,17 +894,9 @@ class Propagator(object):
 
         for arg in postorder_traversal(sympy_expr):
             if isinstance(arg, Indexed):
-                array_term = arg
-
-                if not str(array_term.base.label) in self.save_vars:
-                    raise ValueError(
-                        "Invalid variable '%s' in sympy expression."
-                        " Did you add it to the operator's params?"
-                        % str(array_term.base.label)
-                    )
-
-                if not self.save_vars[str(array_term.base.label)]:
-                    subs_dict[arg] = array_term.xreplace(self.t_replace)
+                is_saved = self.save_vars.get(str(arg.base.label), True)
+                if not is_saved:
+                    subs_dict[arg] = arg.xreplace(self.t_replace)
 
         return sympy_expr.xreplace(subs_dict)
 

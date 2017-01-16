@@ -3,7 +3,7 @@ Extended SymPy hierarchy.
 """
 
 import sympy
-from sympy import Expr
+from sympy import Expr, Float, Indexed, S
 from sympy.core.basic import _aresame
 from sympy.functions.elementary.trigonometric import TrigonometricFunction
 
@@ -39,6 +39,28 @@ class Add(sympy.Add, UnevaluatedExpr):
     pass
 
 
+class taylor_sin(TrigonometricFunction):
+
+    """
+    Approximation of the sine function using a Taylor polynomial.
+    """
+
+    @classmethod
+    def eval(cls, arg):
+        return eval_taylor_sin(arg)
+
+
+class taylor_cos(TrigonometricFunction):
+
+    """
+    Approximation of the cosine function using a Taylor polynomial.
+    """
+
+    @classmethod
+    def eval(cls, arg):
+        return 1.0 if arg == 0.0 else eval_taylor_cos(arg + 1.5708)
+
+
 class bhaskara_sin(TrigonometricFunction):
 
     """
@@ -47,7 +69,7 @@ class bhaskara_sin(TrigonometricFunction):
 
     @classmethod
     def eval(cls, arg):
-        return 0.0 if arg == 0.0 else eval_bhaskara_sin(arg)
+        return eval_bhaskara_sin(arg)
 
 
 class bhaskara_cos(TrigonometricFunction):
@@ -63,5 +85,84 @@ class bhaskara_cos(TrigonometricFunction):
 
 # Utils
 
-def eval_bhaskara_sin(angle):
-    return 16.0*angle*(3.1416-abs(angle))/(49.3483-4.0*abs(angle)*(3.1416-abs(angle)))
+def eval_bhaskara_sin(expr):
+    return 16.0*expr*(3.1416-abs(expr))/(49.3483-4.0*abs(expr)*(3.1416-abs(expr)))
+
+
+def eval_taylor_sin(expr):
+    v = expr + Mul(-1/6.0,
+                   Mul(expr, expr, expr, evaluate=False),
+                   1.0 + Mul(Mul(expr, expr, evaluate=False), -0.05, evaluate=False),
+                   evaluate=False)
+    try:
+        Float(expr)
+        return v.doit()
+    except (TypeError, ValueError):
+        return v
+
+
+def eval_taylor_cos(expr):
+    v = 1.0 + Mul(-0.5,
+                  Mul(expr, expr, evaluate=False),
+                  1.0 + Mul(expr, expr, -1/12.0, evaluate=False),
+                  evaluate=False)
+    try:
+        Float(expr)
+        return v.doit()
+    except (TypeError, ValueError):
+        return v
+
+
+def unevaluate_arithmetic(expr):
+    """
+    Reconstruct ``expr`` turning all :class:`sympy.Mul` and :class:`sympy.Add`
+    into, respectively, :class:`devito.Mul` and :class:`devito.Add`.
+    """
+    if expr.is_Float:
+        return expr.func(*expr.atoms())
+    elif isinstance(expr, Indexed):
+        return expr.func(*expr.args)
+    elif expr.is_Symbol:
+        return expr.func(expr.name)
+    elif expr in [S.Zero, S.One, S.NegativeOne, S.Half]:
+        return expr.func()
+    elif expr.is_Atom:
+        return expr.func(*expr.atoms())
+    elif expr.is_Add:
+        rebuilt_args = [unevaluate_arithmetic(e) for e in expr.args]
+        return Add(*rebuilt_args, evaluate=False)
+    elif expr.is_Mul:
+        rebuilt_args = [unevaluate_arithmetic(e) for e in expr.args]
+        return Mul(*rebuilt_args, evaluate=False)
+    else:
+        return expr.func(*[unevaluate_arithmetic(e) for e in expr.args])
+
+
+def flip_indices(expr, rule):
+    """
+    Construct a new ``expr'`` from ``expr`` such that all indices are shifted as
+    established by ``rule``.
+
+    For example: ::
+
+        (rule=(x, y)) a[i][j+2] + b[j][i] --> a[x][y] + b[x][y]
+    """
+
+    def run(expr, flipped):
+        if expr.is_Float:
+            return expr.func(*expr.atoms())
+        elif isinstance(expr, Indexed):
+            flipped.add(expr.indices)
+            return Indexed(expr.base, *rule)
+        elif expr.is_Symbol:
+            return expr.func(expr.name)
+        elif expr in [S.Zero, S.One, S.NegativeOne, S.Half]:
+            return expr.func()
+        elif expr.is_Atom:
+            return expr.func(*expr.atoms())
+        else:
+            return expr.func(*[run(e, flipped) for e in expr.args], evaluate=False)
+
+    flipped = set()
+    handle = run(expr, flipped)
+    return handle, flipped

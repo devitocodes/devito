@@ -1,47 +1,106 @@
+import numpy as np
+from sympy import (Indexed, Function, Symbol,
+                   count_ops, lambdify, preorder_traversal, sin, cos)
+
+from devito.dimension import t
 from devito.interfaces import SymbolicData
 from devito.logger import warning
-
-from devito.dse.extended_sympy import Add, Mul
-
-import numpy as np
-from sympy import (Indexed, Function, S, Symbol,
-                   count_ops, flatten, lambdify, preorder_traversal)
+from devito.tools import flatten
 
 __all__ = ['indexify', 'retrieve_dimensions', 'retrieve_dtype', 'retrieve_symbols',
-           'terminals', 'tolambda']
-
-
-def free_terms(expr):
-    """
-    Find the free terms in an expression.
-    """
-    found = []
-
-    for term in expr.args:
-        if isinstance(term, Indexed):
-            found.append(term)
-        else:
-            found += free_terms(term)
-
-    return found
+           'retrieve_shape', 'terminals', 'tolambda']
 
 
 def terminals(expr, discard_indexed=False):
-    indexed = list(expr.find(Indexed))
+    """
+    Return all Indexed and Symbols in a SymPy expression.
+    """
 
-    # To be discarded
-    junk = flatten(i.atoms() for i in indexed)
+    indexed = retrieve_indexed(expr)
 
-    symbols = list(expr.find(Symbol))
-    symbols = [i for i in symbols if i not in junk]
+    # Use '.name' for quickly checking uniqueness
+    junk = flatten([i.free_symbols for i in indexed])
+    junk = [i.name for i in junk]
+
+    symbols = {i for i in expr.free_symbols if i.name not in junk}
 
     if discard_indexed:
-        return set(symbols)
+        return symbols
     else:
-        return set(indexed + symbols)
+        indexed.update(symbols)
+        return indexed
 
 
-def estimate_cost(handle):
+def collect_aliases(exprs):
+    """
+    Determine all expressions in ``exprs`` that alias to the same expression.
+
+    An expression A aliases an expression B if both A and B apply the same
+    operations to the same input operands, with the possibility for
+    :class:`Indexed` to index into locations at a fixed constant offset in
+    each dimension.
+
+    For example: ::
+
+        exprs = (a[i+1] + b[i+1], a[i+1] + b[j+1], a[i] + c[i],
+                 a[i+2] - b[i+2], a[i+2] + b[i], a[i-1] + b[i-1])
+
+    The following expressions in ``exprs`` alias to ``a[i] + b[i]``: ::
+
+        ``(a[i+1] + b[i+1], a[i-1] + b[i-1])``
+
+    Whereas the following do not: ::
+
+        ``a[i+1] + b[j+1]``: because at least one index differs
+        ``a[i] + c[i]``: because at least one of the operands differs
+        ``a[i+2] - b[i+2]``: because at least one operation differs
+        ``a[i+2] + b[i]``: because there are two offsets (+2 and +0)
+    """
+
+    def check_ofs(e):
+        return len(set([i.indices for i in retrieve_indexed(e)])) <= 1
+
+    def compare_ops(e1, e2):
+        if type(e1) == type(e2) and len(e1.args) == len(e2.args):
+            if e1.is_Atom:
+                return True if e1 == e2 else False
+            elif isinstance(e1, Indexed) and isinstance(e2, Indexed):
+                return True if e1.base == e2.base else False
+            else:
+                for a1, a2 in zip(e1.args, e2.args):
+                    if not compare_ops(a1, a2):
+                        return False
+                return True
+        else:
+            return False
+
+    def compare(e1, e2):
+        return compare_ops(e1, e2) and check_ofs(e1) and check_ofs(e2)
+
+    found = {}
+    clusters = []
+    unseen = list(exprs)
+    while unseen:
+        handle = unseen[0]
+        alias = []
+        for e in list(unseen):
+            if compare(handle, e):
+                alias.append(e)
+                unseen.remove(e)
+        if alias:
+            cluster = tuple(alias)
+            for e in alias:
+                found[e] = cluster
+            clusters.append(cluster)
+        else:
+            unseen.remove(handle)
+            found[handle] = ()
+
+    return found, clusters
+
+
+def estimate_cost(handle, estimate_external_functions=False):
+    internal_ops = {'trigonometry': 50}
     try:
         # Is it a plain SymPy object ?
         iter(handle)
@@ -53,7 +112,7 @@ def estimate_cost(handle):
     except AttributeError:
         try:
             # Must be a list of dicts then
-            handle = flatten(i.values() for i in handle)
+            handle = flatten([i.values() for i in handle])
         except AttributeError:
             pass
     try:
@@ -62,34 +121,12 @@ def estimate_cost(handle):
         handle = [i.rhs if i.is_Equality else i for i in handle]
         total_ops = sum(count_ops(i.args) for i in handle)
         non_flops = sum(count_ops(i.find(Indexed)) for i in handle)
+        if estimate_external_functions:
+            costly_ops = [retrieve_trigonometry(i) for i in handle]
+            total_ops += sum([internal_ops['trigonometry']*len(i) for i in costly_ops])
         return total_ops - non_flops
     except:
         warning("Cannot estimate cost of %s" % str(handle))
-
-
-def unevaluate_arithmetic(expr):
-    """
-    Reconstruct ``expr`` turning all :class:`sympy.Mul` and :class:`sympy.Add`
-    into, respectively, :class:`devito.Mul` and :class:`devito.Add`.
-    """
-    if expr.is_Float:
-        return expr.func(*expr.atoms())
-    elif isinstance(expr, Indexed):
-        return expr.func(*expr.args)
-    elif expr.is_Symbol:
-        return expr.func(expr.name)
-    elif expr in [S.Zero, S.One, S.NegativeOne, S.Half]:
-        return expr.func()
-    elif expr.is_Atom:
-        return expr.func(*expr.atoms())
-    elif expr.is_Add:
-        rebuilt_args = [unevaluate_arithmetic(e) for e in expr.args]
-        return Add(*rebuilt_args, evaluate=False)
-    elif expr.is_Mul:
-        rebuilt_args = [unevaluate_arithmetic(e) for e in expr.args]
-        return Mul(*rebuilt_args, evaluate=False)
-    else:
-        return expr.func(*[unevaluate_arithmetic(e) for e in expr.args])
 
 
 def retrieve_dimensions(expr):
@@ -137,6 +174,86 @@ def retrieve_dtype(expr):
     return np.find_common_type(dtypes, [])
 
 
+def retrieve_shape(expr):
+    indexed = set([e for e in preorder_traversal(expr) if isinstance(e, Indexed)])
+    if not indexed:
+        return ()
+    indexed = sorted(indexed, key=lambda s: len(s.indices), reverse=True)
+    indices = [flatten([j.free_symbols for j in i.indices]) for i in indexed]
+    assert all(set(indices[0]).issuperset(set(i)) for i in indices)
+    return tuple(indices[0])
+
+
+def retrieve(expr, query):
+    """
+    Find objects in an expression. This is much quicker than the more general
+    SymPy's find.
+    """
+
+    rules = {
+        'indexed': lambda e: isinstance(e, Indexed),
+        'trigonometry': lambda e: e.is_Function and e.func in [sin, cos]
+    }
+    assert query in rules, "Unknown query"
+    rule = rules[query]
+
+    def run(expr):
+        if rule(expr):
+            return {expr}
+        else:
+            found = set()
+            for a in expr.args:
+                found.update(run(a))
+            return found
+
+    return run(expr)
+
+
+def retrieve_indexed(expr):
+    """
+    Shorthand for ``retrieve(expr, 'indexed')``.
+    """
+    return retrieve(expr, 'indexed')
+
+
+def retrieve_trigonometry(expr):
+    """
+    Shorthand for ``retrieve(expr, 'trigonometry')``.
+    """
+    return retrieve(expr, 'trigonometry')
+
+
+def is_time_invariant(expr, graph=None):
+    """
+    Check if expr is time invariant. A temporaries graph may be provided
+    to determine whether any of the symbols involved in the evaluation
+    of expr are time-dependent. If a symbol in expr does not appear in the
+    graph, then time invariance is inferred from its shape.
+    """
+    graph = graph or {}
+
+    if t in expr.free_symbols:
+        return False
+    elif expr in graph:
+        return graph[expr].is_time_invariant
+
+    if expr.is_Equality:
+        to_visit = [expr.rhs]
+    else:
+        to_visit = [expr]
+
+    while to_visit:
+        handle = to_visit.pop()
+        for i in retrieve_indexed(handle):
+            if t in i.free_symbols:
+                return False
+        temporaries = [i for i in handle.free_symbols if i in graph]
+        for i in temporaries:
+            to_visit.append(graph[i].rhs)
+
+    return True
+
+
 def indexify(expr):
     """
     Convert functions into indexed matrix accesses in sympy expression.
@@ -163,7 +280,7 @@ def tolambda(exprs):
     lambdas = []
 
     for expr in exprs:
-        terms = free_terms(expr.rhs)
+        terms = retrieve_indexed(expr.rhs)
         term_symbols = [Symbol("i%d" % i) for i in range(len(terms))]
 
         # Substitute IndexedBase references to simple variables

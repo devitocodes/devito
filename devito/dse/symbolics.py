@@ -10,16 +10,20 @@ All exposed functions are prefixed with 'dse' (devito symbolic engine)
 from __future__ import absolute_import
 
 from collections import OrderedDict, Sequence
+from time import time
 
 from sympy import (Add, Eq, Indexed, IndexedBase, S,
                    collect, collect_const, cos, cse, flatten,
                    numbered_symbols, preorder_traversal, sin)
 
 from devito.dimension import t, x, y, z
-from devito.logger import perfbad, perfok, warning
+from devito.logger import dse, dse_warning
 
-from devito.dse.extended_sympy import bhaskara_sin, bhaskara_cos
-from devito.dse.inspection import estimate_cost, terminals, unevaluate_arithmetic
+from devito.dse.extended_sympy import (bhaskara_sin, bhaskara_cos, unevaluate_arithmetic,
+                                       flip_indices)
+from devito.dse.graph import temporaries_graph
+from devito.dse.inspection import (collect_aliases, estimate_cost,
+                                   is_time_invariant, terminals)
 
 __all__ = ['rewrite']
 
@@ -39,7 +43,8 @@ def rewrite(expr, mode='advanced'):
                     * 'factorize': apply heuristic factorization of temporaries.
                     * 'approx-trigonometry': replace expensive trigonometric
                         functions with suitable polynomial approximations.
-                    * 'advanced': 'basic' + 'factorize' + 'approx-trigonometry'.
+                    * 'glicm': apply heuristic hoisting of time-invariant terms.
+                    * 'advanced': compose all known transformations.
     """
 
     if isinstance(expr, Sequence):
@@ -58,13 +63,39 @@ def rewrite(expr, mode='advanced'):
         try:
             mode = set(mode)
         except TypeError:
-            warning("Arg mode must be a str or tuple (got %s instead)" % type(mode))
+            dse_warning("Arg mode must be str or tuple (got %s)" % type(mode))
             return expr
-    if mode.isdisjoint({'basic', 'factorize', 'approx-trigonometry', 'advanced'}):
-        warning("Unknown rewrite mode(s) %s" % str(mode))
+    if mode.isdisjoint({'basic', 'factorize', 'approx-trigonometry',
+                        'glicm', 'advanced'}):
+        dse_warning("Unknown rewrite mode(s) %s" % str(mode))
         return expr
     else:
         return Rewriter(expr).run(mode)
+
+
+def dse_transformation(func):
+
+    def wrapper(self, state, **kwargs):
+        if kwargs['mode'].intersection(set(self.triggers[func.__name__])):
+            tic = time()
+            state.update(**func(self, state))
+            toc = time()
+
+            self.ops[func.__name__] = estimate_cost(state.exprs)
+            self.timings[func.__name__] = toc - tic
+
+    return wrapper
+
+
+class State(object):
+
+    def __init__(self, exprs):
+        self.exprs = exprs
+        self.mapper = OrderedDict()
+
+    def update(self, exprs=None, mapper=None):
+        self.exprs = exprs or self.exprs
+        self.mapper = mapper or self.mapper
 
 
 class Rewriter(object):
@@ -73,51 +104,57 @@ class Rewriter(object):
     Transform expressions to reduce their operation count.
     """
 
-    # Do more factorization sweeps if the expression operation count is
-    # greater than this threshold
-    FACTORIZER_THS = 15
+    triggers = {
+        '_cse': ('basic', 'advanced'),
+        '_factorize': ('factorize', 'advanced'),
+        '_optimize_trigonometry': ('approx-trigonometry', 'advanced'),
+        '_replace_time_invariants': ('glicm', 'advanced')
+    }
+
+    # Aggressive transformation if the operation count is greather than this
+    # empirically determined threshold
+    threshold = 15
 
     def __init__(self, exprs):
         self.exprs = exprs
 
+        self.ops = OrderedDict()
+        self.timings = OrderedDict()
+
     def run(self, mode):
-        processed = self.exprs
+        state = State(self.exprs)
 
-        if mode.intersection({'basic', 'advanced'}):
-            processed = self._cse(processed)
+        self._cse(state, mode=mode)
+        self._factorize(state, mode=mode)
+        self._optimize_trigonometry(state, mode=mode)
+        self._replace_time_invariants(state, mode=mode)
 
-        if mode.intersection({'factorize', 'advanced'}):
-            processed = self._factorize(processed)
+        self._finalize(state)
 
-        if mode.intersection({'approx-trigonometry', 'advanced'}):
-            processed = self._optimize_trigonometry(processed)
+        self._summary(mode)
 
-        processed = self._finalize(processed)
+        return state.exprs
 
-        return processed
-
-    def _factorize(self, exprs):
+    @dse_transformation
+    def _factorize(self, state, **kwargs):
         """
         Collect terms in each expr in exprs based on the following heuristic:
 
             * Collect all literals;
             * Collect all temporaries produced by CSE;
             * If the expression has an operation count higher than
-              self.FACTORIZER_THS, then this is applied recursively until
+              self.threshold, then this is applied recursively until
               no more factorization opportunities are available.
         """
 
         processed = []
-        cost_original, cost_processed = 1, 1
-        for expr in exprs:
-            handle = collect_nested(expr)
-
+        for expr in state.exprs:
             cost_expr = estimate_cost(expr)
-            cost_original += cost_expr
 
+            handle = collect_nested(expr)
             cost_handle = estimate_cost(handle)
 
-            if cost_handle < cost_expr and cost_handle >= Rewriter.FACTORIZER_THS:
+            if cost_handle < cost_expr and cost_handle >= Rewriter.threshold:
                 handle_prev = handle
                 cost_prev = cost_expr
                 while cost_handle < cost_prev:
@@ -126,24 +163,20 @@ class Rewriter(object):
                 cost_handle, handle = cost_prev, handle_prev
 
             processed.append(handle)
-            cost_processed += cost_handle
 
-        out = perfok if cost_processed < cost_original else perfbad
-        out("Rewriter: %d --> %d flops (Gain: %.2f X)" %
-            (cost_original, cost_processed, float(cost_original)/cost_processed))
+        return {'exprs': processed}
 
-        return processed
-
-    def _cse(self, exprs):
+    @dse_transformation
+    def _cse(self, state, **kwargs):
         """
         Perform common subexpression elimination.
         """
 
-        temps, stencils = cse(exprs, numbered_symbols(_temp_prefix))
+        temps, stencils = cse(state.exprs, numbered_symbols(_temp_prefix))
 
         # Restores the LHS
-        for i in range(len(exprs)):
-            stencils[i] = Eq(exprs[i].lhs, stencils[i].rhs)
+        for i in range(len(state.exprs)):
+            stencils[i] = Eq(state.exprs[i].lhs, stencils[i].rhs)
 
         to_revert = {}
         to_keep = []
@@ -231,28 +264,118 @@ class Rewriter(object):
                 # Must wait for some earlier temporaries, push back into queue
                 processed[k] = v
 
-        return list(ordered.values())
+        return {'exprs': list(ordered.values())}
 
-    def _optimize_trigonometry(self, exprs):
+    @dse_transformation
+    def _optimize_trigonometry(self, state, **kwargs):
         """
         Rebuild ``exprs`` replacing trigonometric functions with Bhaskara
         polynomials.
         """
 
         processed = []
-        for expr in exprs:
+        for expr in state.exprs:
             handle = expr.replace(sin, bhaskara_sin)
             handle = handle.replace(cos, bhaskara_cos)
             processed.append(handle)
 
-        return processed
+        return {'exprs': processed}
 
-    def _finalize(self, exprs):
+    @dse_transformation
+    def _replace_time_invariants(self, state, **kwargs):
+        """
+        Create a new expr' given expr where the longest time-invariant
+        sub-expressions are replaced by temporaries. A mapper from the
+        introduced temporaries to the corresponding time-invariant
+        sub-expressions is also returned.
+
+        Examples
+        ========
+
+        (a+b)*c[t] + s*d[t] + v*(d + e[t] + r)
+            --> (t1*c[t] + s*d[t] + v*(e[t] + t2), {t1: (a+b), t2: (d+r)})
+        (a*b[t] + c*d[t])*v[t]
+            --> ((a*b[t] + c*d[t])*v[t], {})
+        """
+
+        template = "ti%d"
+        graph = temporaries_graph(state.exprs)
+        space_dimensions = graph.space_dimensions()
+        queue = graph.copy()
+
+        # What expressions is it worth transforming (cm=cost model)?
+        # Formula: ops(expr)*aliases(expr) > self.threshold <==> do it
+        # For more information about "aliases", check out collect_aliases.__doc__
+        aliases, clusters = collect_aliases([e.rhs for e in state.exprs])
+        cm = lambda e: estimate_cost(e, True)*len(aliases.get(e, [e])) > self.threshold
+
+        # Replace time invariants
+        processed = []
+        mapper = OrderedDict()
+        while queue:
+            k, v = queue.popitem(last=False)
+
+            make = lambda m: Indexed(template % (len(m)+len(mapper)), *space_dimensions)
+            invariant = lambda e: is_time_invariant(e, graph)
+            handle, flag, mapped = replace_invariants(v, make, invariant, cm)
+
+            if flag:
+                mapper.update(mapped)
+                for i in v.readby:
+                    graph[i] = graph[i].construct({k: handle.rhs})
+            else:
+                processed.append(Eq(v.lhs, graph[v.lhs].rhs))
+
+        # Squash aliases and tweak the affected indices accordingly
+        reducible = OrderedDict()
+        others = OrderedDict()
+        for k, v in mapper.items():
+            cluster = aliases.get(v)
+            if cluster:
+                index = clusters.index(cluster)
+                reducible.setdefault(index, []).append(k)
+            else:
+                others[k] = v
+        rule = {}
+        reduced_mapper = OrderedDict()
+        for i, cluster in enumerate(reducible.values()):
+            for k in cluster:
+                v, flipped = flip_indices(mapper[k], space_dimensions)
+                assert len(flipped) == 1
+                reduced_mapper[Indexed(template % i, *space_dimensions)] = v
+                rule[k] = Indexed(template % i, *flipped.pop())
+        handle, processed = list(processed), []
+        for e in handle:
+            processed.append(e.xreplace(rule))
+        for k, v in others.items():
+            reduced_mapper[k] = v.xreplace(rule)
+
+        return {'exprs': processed, 'mapper': reduced_mapper}
+
+    def _finalize(self, state):
         """
         Make sure that any subsequent sympy operation applied to the expressions
-        in ``exprs`` does not alter the structure of the transformed objects.
+        in ``state.exprs`` does not alter the structure of the transformed objects.
         """
-        return [unevaluate_arithmetic(e) for e in exprs]
+        exprs = [Eq(k, v) for k, v in state.mapper.items()] + state.exprs
+        state.update(exprs=[unevaluate_arithmetic(e) for e in exprs])
+
+    def _summary(self, mode):
+        """
+        Print a summary of the DSE transformations
+        """
+
+        summary = ""
+        if mode.intersection({'basic', 'advanced'}):
+            baseline = self.ops['_cse']
+            steps = " --> ".join("(%s) %d" % (k, v) for k, v in self.ops.items())
+            try:
+                gain = float(baseline) / list(self.ops.values())[-1]
+                summary = " %s flops; gain: %.2f X" % (steps, gain)
+            except ZeroDivisionError:
+                pass
+        elapsed = sum(self.timings.values())
+        dse("Rewriter:%s [%.2f s]" % (summary, elapsed))
 
 
 def collect_nested(expr):
@@ -299,3 +422,59 @@ def collect_nested(expr):
             return expr.func(*rebuilt), flatten(candidates)
 
     return run(expr)[0]
+
+
+def replace_invariants(expr, make, invariant=lambda e: e, cm=lambda e: True):
+    """
+    Replace all sub-expressions of ``expr`` such that ``invariant(expr) == True``
+    with a temporary created through ``make(expr)``. A sub-expression ``e``
+    within ``expr`` is not visited if ``cm(e) == False``.
+    """
+
+    def run(expr, root, mapper):
+        # Return semantic: (rebuilt expr, True <==> invariant)
+
+        if expr.is_Float:
+            return expr.func(*expr.atoms()), True
+        elif expr in [S.Zero, S.One, S.NegativeOne, S.Half]:
+            return expr.func(), True
+        elif expr.is_Symbol:
+            return expr.func(expr.name), invariant(expr)
+        elif expr.is_Atom:
+            return expr.func(*expr.atoms()), True
+        elif isinstance(expr, Indexed):
+            return expr.func(*expr.args), invariant(expr)
+        elif expr.is_Equality:
+            handle, flag = run(expr.rhs, expr.rhs, mapper)
+            return expr.func(expr.lhs, handle, evaluate=False), flag
+        else:
+            children = [run(a, root, mapper) for a in expr.args]
+            invs = [a for a, flag in children if flag]
+            varying = [a for a, _ in children if a not in invs]
+            if not invs:
+                # Nothing is time-invariant
+                return (expr.func(*varying, evaluate=False), False)
+            elif len(invs) == len(children):
+                # Everything is time-invariant
+                if expr == root:
+                    if cm(expr):
+                        temporary = make(mapper)
+                        mapper[temporary] = expr.func(*invs, evaluate=False)
+                        return temporary, True
+                    else:
+                        return expr.func(*invs, evaluate=False), False
+                else:
+                    # Go look for longer expressions first
+                    return expr.func(*invs, evaluate=False), True
+            else:
+                # Some children are time-invariant, but expr is time-dependent
+                if cm(expr) and len(invs) > 1:
+                    temporary = make(mapper)
+                    mapper[temporary] = expr.func(*invs, evaluate=False)
+                    return expr.func(*(varying + [temporary]), evaluate=False), False
+                else:
+                    return expr.func(*(varying + invs), evaluate=False), False
+
+    mapper = OrderedDict()
+    handle, flag = run(expr, expr, mapper)
+    return handle, flag, mapper

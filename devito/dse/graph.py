@@ -23,7 +23,8 @@ from collections import OrderedDict, namedtuple
 
 from sympy import (Eq, Indexed)
 
-from devito.dse.inspection import terminals
+from devito.dse.inspection import is_time_invariant, terminals
+from devito.dimension import t
 
 __all__ = ['temporaries_graph']
 
@@ -42,10 +43,12 @@ class Temporary(Eq):
     def __new__(cls, lhs, rhs, **kwargs):
         reads = kwargs.pop('reads', [])
         readby = kwargs.pop('readby', [])
+        time_invariant = kwargs.pop('time_invariant', False)
         scope = kwargs.pop('scope', 0)
         obj = super(Temporary, cls).__new__(cls, lhs, rhs, **kwargs)
         obj._reads = set(reads)
         obj._readby = set(readby)
+        obj._is_time_invariant = time_invariant
         obj._scope = scope
         return obj
 
@@ -56,6 +59,10 @@ class Temporary(Eq):
     @property
     def readby(self):
         return self._readby
+
+    @property
+    def is_time_invariant(self):
+        return self._is_time_invariant
 
     @property
     def is_terminal(self):
@@ -73,9 +80,33 @@ class Temporary(Eq):
     def scope(self):
         return self._scope
 
+    def construct(self, rule):
+        """
+        Create a new temporary starting from ``self`` replacing symbols in
+        the equation as specified by the dictionary ``rule``.
+        """
+        reads = set(self.reads) - set(rule.keys()) | set(rule.values())
+        rhs = self.rhs.xreplace(rule)
+        return Temporary(self.lhs, rhs, reads=reads, readby=self.readby,
+                         time_invariant=self.is_time_invariant, scope=self.scope)
+
     def __repr__(self):
         return "DSE(%s, reads=%s, readby=%s)" % (super(Temporary, self).__repr__(),
                                                  str(self.reads), str(self.readby))
+
+
+class TemporariesGraph(OrderedDict):
+
+    """
+    A temporaries graph built on top of an OrderedDict.
+    """
+
+    def space_dimensions(self):
+        for v in self.values():
+            if v.is_terminal:
+                found = v.lhs.free_symbols - {t, v.lhs.base.label}
+                return tuple(sorted(found, key=lambda i: v.lhs.indices.index(i)))
+        return ()
 
 
 class Trace(OrderedDict):
@@ -119,16 +150,17 @@ def temporaries_graph(temporaries, scope=0):
     """
 
     mapper = OrderedDict()
-    Node = namedtuple('Node', ['rhs', 'reads', 'readby'])
+    Node = namedtuple('Node', ['rhs', 'reads', 'readby', 'time_invariant'])
 
     for lhs, rhs in [i.args for i in temporaries]:
         reads = {i for i in terminals(rhs) if i in mapper}
-        mapper[lhs] = Node(rhs, reads, set())
+        mapper[lhs] = Node(rhs, reads, set(), is_time_invariant(rhs, mapper))
         for i in mapper[lhs].reads:
             assert i in mapper, "Illegal Flow"
             mapper[i].readby.add(lhs)
 
-    nodes = [Temporary(k, v.rhs, reads=v.reads, readby=v.readby, scope=scope)
+    nodes = [Temporary(k, v.rhs, reads=v.reads, readby=v.readby,
+                       time_invariant=v.time_invariant, scope=scope)
              for k, v in mapper.items()]
 
-    return OrderedDict([(i.lhs, i) for i in nodes])
+    return TemporariesGraph([(i.lhs, i) for i in nodes])
