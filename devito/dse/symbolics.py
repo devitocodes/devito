@@ -228,7 +228,7 @@ class Rewriter(object):
                     mapper[i] = revert[i]
             revert[k] = v.xreplace(mapper)
         mapper = {}
-        for e in leaves + keep.values():
+        for e in leaves + list(keep.values()):
             for i in preorder_traversal(e):
                 if isinstance(i, Indexed):
                     new_indices = []
