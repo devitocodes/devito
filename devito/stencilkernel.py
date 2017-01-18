@@ -10,6 +10,8 @@ import numpy as np
 from devito.compiler import (get_compiler_from_env, get_tmp_dir,
                              jit_compile_and_load)
 from devito.dimension import Dimension
+from devito.dse.inspection import indexify
+from devito.dse.symbolics import rewrite
 from devito.expression import Expression
 from devito.interfaces import SymbolicData
 from devito.iteration import Iteration
@@ -24,32 +26,36 @@ class StencilKernel(object):
 
     :param stencils: SymPy equation or list of equations that define the
                      stencil used to create the kernel of this Operator.
-    :param name: Name of the kernel function - defaults to "Kernel"
-    :param subs: Dict or list of dicts containing the SymPy symbol
+    :param kwargs: Accept the following entries: ::
+
+        * name : Name of the kernel function - defaults to "Kernel".
+        * subs : Dict or list of dicts containing the SymPy symbol
                  substitutions for each stencil respectively.
-    :param compiler: Compiler class used to perform JIT compilation.
-                     If not provided, the compiler will be inferred from the
-                     environment variable DEVITO_ARCH, or default to GNUCompiler.
+        * dse : Use the Devito Symbolic Engine to optimize the expressions -
+                defaults to "advanced".
+        * compiler: Compiler class used to perform JIT compilation.
+                    If not provided, the compiler will be inferred from the
+                    environment variable DEVITO_ARCH, or default to GNUCompiler.
     """
 
-    def __init__(self, stencils, name="Kernel", subs=None, compiler=None):
+    def __init__(self, stencils, **kwargs):
+        name = kwargs.get("name", "Kernel")
+        subs = kwargs.get("subs", {})
+        dse = kwargs.get("dse", "advanced")
+        compiler = kwargs.get("compiler", None)
+
         # Default attributes required for compilation
         self.name = name
         self.compiler = compiler or get_compiler_from_env()
         self._lib = None
         self._cfunction = None
-        # Ensure we always deal with Expression lists
+
+        # Normalize stencils
         stencils = stencils if isinstance(stencils, list) else [stencils]
+        stencils = [indexify(s) for s in stencils]
+        stencils = [s.xreplace(subs) for s in stencils]
+        stencils = rewrite(stencils, mode=dse).exprs
         self.expressions = [Expression(s) for s in stencils]
-
-        # Lower all expressions to "indexed" API
-        for e in self.expressions:
-            e.indexify()
-
-        # Apply supplied substitutions
-        if subs is not None:
-            for expr in self.expressions:
-                expr.substitute(subs)
 
         # Wrap expressions with Iterations according to dimensions
         for i, expr in enumerate(self.expressions):

@@ -8,7 +8,7 @@ from sympy import Eq, IndexedBase, preorder_traversal
 
 from devito.codeprinter import ccode
 from devito.dimension import Dimension
-from devito.dse.inspection import indexify, terminals
+from devito.dse.inspection import terminals
 from devito.interfaces import SymbolicData
 from devito.tools import filter_ordered
 
