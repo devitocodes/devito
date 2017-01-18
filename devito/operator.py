@@ -7,7 +7,6 @@ from devito.compiler import get_compiler_from_env
 from devito.dimension import t, x, y, z
 from devito.dse.inspection import (indexify, retrieve_dimensions,
                                    retrieve_symbols, tolambda)
-from devito.dse.symbolics import rewrite
 from devito.interfaces import TimeData
 from devito.propagator import Propagator
 
@@ -112,12 +111,10 @@ class Operator(object):
         self.stencils = [Eq(indexify(eqn.lhs), indexify(eqn.rhs))
                          for eqn in self.stencils]
 
-        # Applies CSE
-        self.stencils = rewrite(self.stencils, mode=dse)
-
         # Apply user-defined subs to stencil
         self.stencils = [eqn.subs(subs[0]) for eqn in self.stencils]
-        self.propagator = Propagator(self.getName(), nt, shape, self.stencils,
+
+        self.propagator = Propagator(self.getName(), nt, shape, self.stencils, dse=dse,
                                      dtype=dtype, spc_border=spc_border,
                                      time_order=time_order, forward=forward,
                                      space_dims=self.space_dims, compiler=self.compiler,
@@ -132,7 +129,6 @@ class Operator(object):
         for param in self.signature:
             self.propagator.add_devito_param(param)
             self.symbol_to_data[param.name] = param
-        self.propagator.stencils = self.stencils
 
     @property
     def signature(self):

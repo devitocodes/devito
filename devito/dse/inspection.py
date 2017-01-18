@@ -1,5 +1,5 @@
 import numpy as np
-from sympy import (Indexed, Function, Symbol,
+from sympy import (Indexed, Function, Number, Symbol,
                    count_ops, lambdify, preorder_traversal, sin, cos)
 
 from devito.dimension import t
@@ -100,6 +100,12 @@ def collect_aliases(exprs):
 
 
 def estimate_cost(handle, estimate_external_functions=False):
+    """Estimate the operation count of ``handle``.
+
+    :param handle: a SymPy expression or an iterator of SymPy expressions.
+    :param estimate_external_functions: approximate the operation count of known
+                                        functions (eg, sin, cos).
+    """
     internal_ops = {'trigonometry': 50}
     try:
         # Is it a plain SymPy object ?
@@ -119,14 +125,57 @@ def estimate_cost(handle, estimate_external_functions=False):
         # At this point it must be a list of SymPy objects
         # We don't count non floating point operations
         handle = [i.rhs if i.is_Equality else i for i in handle]
-        total_ops = sum(count_ops(i.args) for i in handle)
-        non_flops = sum(count_ops(i.find(Indexed)) for i in handle)
+        total_ops = count_ops(handle)
+        non_flops = sum(count_ops(retrieve_indexed(i, mode='all')) for i in handle)
         if estimate_external_functions:
             costly_ops = [retrieve_trigonometry(i) for i in handle]
             total_ops += sum([internal_ops['trigonometry']*len(i) for i in costly_ops])
         return total_ops - non_flops
     except:
         warning("Cannot estimate cost of %s" % str(handle))
+
+
+def estimate_memory(handle, mode='realistic'):
+    """Estimate the number of memory reads and writes.
+
+    :param handle: a SymPy expression or an iterator of SymPy expressions.
+    :param mode: There are multiple ways of computing the estimate: ::
+
+        * ideal: also known as "compulsory traffic", which is the minimum
+            number of read/writes to be performed (ie, models an infinite cache).
+        * ideal_with_stores: like ideal, but a data item which is both read
+            and written is counted twice (ie both load and store are counted).
+        * realistic: assume that all datasets, even the time-independent ones,
+            need to be re-read at each time iteration.
+    """
+    assert mode in ['ideal', 'ideal_with_stores', 'realistic']
+
+    def access(symbol):
+        assert isinstance(symbol, Indexed)
+        # Irregular accesses (eg A[B[i]]) are counted as compulsory traffic
+        if any(i.atoms(Indexed) for i in symbol.indices):
+            return symbol
+        else:
+            return symbol.base
+
+    try:
+        # Is it a plain SymPy object ?
+        iter(handle)
+    except TypeError:
+        handle = [handle]
+
+    if mode in ['ideal', 'ideal_with_stores']:
+        filter = lambda s: t in s.atoms()
+    else:
+        filter = lambda s: s
+    reads = set(flatten([retrieve_indexed(e.rhs) for e in handle]))
+    writes = set(flatten([retrieve_indexed(e.lhs) for e in handle]))
+    reads = set([access(s) for s in reads if filter(s)])
+    writes = set([access(s) for s in writes if filter(s)])
+    if mode == 'ideal':
+        return len(set(reads) | set(writes))
+    else:
+        return len(reads) + len(writes)
 
 
 def retrieve_dimensions(expr):
@@ -184,24 +233,49 @@ def retrieve_shape(expr):
     return tuple(indices[0])
 
 
-def retrieve(expr, query):
+def retrieve(expr, query, mode):
     """
     Find objects in an expression. This is much quicker than the more general
     SymPy's find.
+
+    :param expr: The searched expression
+    :param query: Search query (accepted: 'indexed', 'trigonometry')
+    :param mode: either 'unique' or 'all' (catch all instances)
     """
+
+    class Set(set):
+
+        @staticmethod
+        def wrap(obj):
+            return {obj}
+
+    class List(list):
+
+        @staticmethod
+        def wrap(obj):
+            return [obj]
+
+        def update(self, obj):
+            return self.extend(obj)
 
     rules = {
         'indexed': lambda e: isinstance(e, Indexed),
         'trigonometry': lambda e: e.is_Function and e.func in [sin, cos]
     }
+    modes = {
+        'unique': Set,
+        'all': List
+    }
+    assert mode in modes
+    collection = modes[mode]
     assert query in rules, "Unknown query"
     rule = rules[query]
 
     def run(expr):
         if rule(expr):
-            return {expr}
+            return collection.wrap(expr)
         else:
-            found = set()
+            found = collection()
             for a in expr.args:
                 found.update(run(a))
             return found
@@ -209,18 +283,18 @@ def retrieve(expr, query):
     return run(expr)
 
 
-def retrieve_indexed(expr):
+def retrieve_indexed(expr, mode='unique'):
     """
-    Shorthand for ``retrieve(expr, 'indexed')``.
+    Shorthand for ``retrieve(expr, 'indexed', 'unique')``.
     """
-    return retrieve(expr, 'indexed')
+    return retrieve(expr, 'indexed', mode)
 
 
-def retrieve_trigonometry(expr):
+def retrieve_trigonometry(expr, mode='unique'):
     """
-    Shorthand for ``retrieve(expr, 'trigonometry')``.
+    Shorthand for ``retrieve(expr, 'trigonometry', 'unique')``.
     """
-    return retrieve(expr, 'trigonometry')
+    return retrieve(expr, 'trigonometry', mode)
 
 
 def is_time_invariant(expr, graph=None):
@@ -252,6 +326,17 @@ def is_time_invariant(expr, graph=None):
             to_visit.append(graph[i].rhs)
 
     return True
+
+
+def is_binary_op(expr):
+    """
+    Return True if ``expr`` is a binary operation, False otherwise.
+    """
+
+    if not (expr.is_Add or expr.is_Mul) and not len(expr.args) == 2:
+        return False
+
+    return all(isinstance(a, (Number, Symbol, Indexed)) for a in expr.args)
 
 
 def indexify(expr):

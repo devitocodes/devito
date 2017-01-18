@@ -12,18 +12,18 @@ from __future__ import absolute_import
 from collections import OrderedDict, Sequence
 from time import time
 
-from sympy import (Add, Eq, Indexed, IndexedBase, S,
+from sympy import (Eq, Indexed, IndexedBase, S,
                    collect, collect_const, cos, cse, flatten,
                    numbered_symbols, preorder_traversal, sin)
 
 from devito.dimension import t, x, y, z
 from devito.logger import dse, dse_warning
 
-from devito.dse.extended_sympy import (bhaskara_sin, bhaskara_cos, unevaluate_arithmetic,
-                                       flip_indices)
+from devito.dse.extended_sympy import bhaskara_sin, bhaskara_cos
 from devito.dse.graph import temporaries_graph
-from devito.dse.inspection import (collect_aliases, estimate_cost,
-                                   is_time_invariant, terminals)
+from devito.dse.inspection import (collect_aliases, estimate_cost, estimate_memory,
+                                   is_binary_op, is_time_invariant, terminals)
+from devito.dse.manipulation import flip_indices, rxreplace, unevaluate_arithmetic
 
 __all__ = ['rewrite']
 
@@ -39,12 +39,13 @@ def rewrite(expr, mode='advanced'):
                  'basic', 'factorize', 'approx-trigonometry' and 'advanced'
                  (default). They act as follows: ::
 
-                    * 'basic': apply common sub-expressions elimination.
-                    * 'factorize': apply heuristic factorization of temporaries.
-                    * 'approx-trigonometry': replace expensive trigonometric
-                        functions with suitable polynomial approximations.
-                    * 'glicm': apply heuristic hoisting of time-invariant terms.
-                    * 'advanced': compose all known transformations.
+                     * 'noop': do nothing, but track performance metrics
+                     * 'basic': apply common sub-expressions elimination.
+                     * 'factorize': apply heuristic factorization of temporaries.
+                     * 'approx-trigonometry': replace expensive trigonometric
+                         functions with suitable polynomial approximations.
+                     * 'glicm': apply heuristic hoisting of time-invariant terms.
+                     * 'advanced': compose all known transformations.
     """
 
     if isinstance(expr, Sequence):
@@ -56,7 +57,7 @@ def rewrite(expr, mode='advanced'):
         raise ValueError("Got illegal expr of type %s." % type(expr))
 
     if not mode:
-        return expr
+        return State(expr)
     elif isinstance(mode, str):
         mode = set([mode])
     else:
@@ -65,10 +66,10 @@ def rewrite(expr, mode='advanced'):
         except TypeError:
             dse_warning("Arg mode must be str or tuple (got %s)" % type(mode))
             return expr
-    if mode.isdisjoint({'basic', 'factorize', 'approx-trigonometry',
+    if mode.isdisjoint({'noop', 'basic', 'factorize', 'approx-trigonometry',
                         'glicm', 'advanced'}):
         dse_warning("Unknown rewrite mode(s) %s" % str(mode))
-        return expr
+        return State(expr)
     else:
         return Rewriter(expr).run(mode)
 
@@ -81,8 +82,9 @@ def dse_transformation(func):
             state.update(**func(self, state))
             toc = time()
 
-            self.ops[func.__name__] = estimate_cost(state.exprs)
-            self.timings[func.__name__] = toc - tic
+            key = '%s%d' % (func.__name__, len(self.timings))
+            self.ops[key] = estimate_cost(state.exprs)
+            self.timings[key] = toc - tic
 
     return wrapper
 
@@ -96,6 +98,38 @@ class State(object):
     def update(self, exprs=None, mapper=None):
         self.exprs = exprs or self.exprs
         self.mapper = mapper or self.mapper
+
+    @property
+    def time_invariants(self):
+        return [i for i in self.exprs if i.lhs in self.mapper]
+
+    @property
+    def time_varying(self):
+        return [i for i in self.exprs if i not in self.time_invariants]
+
+    @property
+    def ops_time_invariants(self):
+        return estimate_cost(self.time_invariants)
+
+    @property
+    def ops_time_varying(self):
+        return estimate_cost(self.time_varying)
+
+    @property
+    def ops(self):
+        return self.ops_time_invariants + self.ops_time_varying
+
+    @property
+    def memory_time_invariants(self):
+        return estimate_memory(self.time_invariants)
+
+    @property
+    def memory_time_varying(self):
+        return estimate_memory(self.time_varying)
+
+    @property
+    def memory(self):
+        return self.memory_time_invariants + self.memory_time_varying
 
 
 class Rewriter(object):
@@ -118,7 +152,7 @@ class Rewriter(object):
     def __init__(self, exprs):
         self.exprs = exprs
 
-        self.ops = OrderedDict()
+        self.ops = OrderedDict([('baseline', estimate_cost(exprs))])
         self.timings = OrderedDict()
 
     def run(self, mode):
@@ -128,12 +162,13 @@ class Rewriter(object):
         self._factorize(state, mode=mode)
         self._optimize_trigonometry(state, mode=mode)
         self._replace_time_invariants(state, mode=mode)
+        self._factorize(state, mode=mode)
 
         self._finalize(state)
 
         self._summary(mode)
 
-        return state.exprs
+        return state
 
     @dse_transformation
     def _factorize(self, state, **kwargs):
@@ -172,87 +207,70 @@ class Rewriter(object):
         Perform common subexpression elimination.
         """
 
-        temps, stencils = cse(state.exprs, numbered_symbols(_temp_prefix))
-
-        # Restores the LHS
+        temporaries, leaves = cse(state.exprs, numbered_symbols(_temp_prefix))
         for i in range(len(state.exprs)):
-            stencils[i] = Eq(state.exprs[i].lhs, stencils[i].rhs)
+            leaves[i] = Eq(state.exprs[i].lhs, leaves[i].rhs)
 
-        to_revert = {}
-        to_keep = []
-
-        # Restores IndexedBases if they are collected by CSE and
-        # reverts changes to simple index operations (eg: t - 1)
-        for temp, value in temps:
-            if isinstance(value, IndexedBase):
-                to_revert[temp] = value
-            elif isinstance(value, Indexed):
-                to_revert[temp] = value
-            elif isinstance(value, Add) and not \
-                    set([t, x, y, z]).isdisjoint(set(value.args)):
-                to_revert[temp] = value
+        # Restore some of the common sub-expressions that have potentially
+        # been collected: simple index calculations (eg, t - 1), IndexedBase,
+        # Indexed, binary Add, binary Mul.
+        revert = OrderedDict()
+        keep = OrderedDict()
+        for k, v in temporaries:
+            if isinstance(v, (IndexedBase, Indexed)):
+                revert[k] = v
+            elif v.is_Add and not set([t, x, y, z]).isdisjoint(set(v.args)):
+                revert[k] = v
+            elif is_binary_op(v):
+                revert[k] = v
             else:
-                to_keep.append((temp, value))
-
-        # Restores the IndexedBases and the Indexes in the assignments to revert
-        for temp, value in to_revert.items():
-            s_dict = {}
-            for arg in preorder_traversal(value):
-                if isinstance(arg, Indexed):
+                keep[k] = v
+        for k, v in revert.items():
+            mapper = {}
+            for i in preorder_traversal(v):
+                if isinstance(i, Indexed):
                     new_indices = []
-                    for index in arg.indices:
-                        if index in to_revert:
-                            new_indices.append(to_revert[index])
+                    for index in i.indices:
+                        if index in revert:
+                            new_indices.append(revert[index])
                         else:
                             new_indices.append(index)
-                    if arg.base.label in to_revert:
-                        s_dict[arg] = Indexed(to_revert[value.base.label], *new_indices)
-            to_revert[temp] = value.xreplace(s_dict)
-
-        subs_dict = {}
-
-        # Builds a dictionary of the replacements
-        for expr in stencils + [assign for temp, assign in to_keep]:
-            for arg in preorder_traversal(expr):
-                if isinstance(arg, Indexed):
+                    if i.base.label in revert:
+                        mapper[i] = Indexed(revert[i.base.label], *new_indices)
+                if i in revert:
+                    mapper[i] = revert[i]
+            revert[k] = v.xreplace(mapper)
+        mapper = {}
+        for e in leaves + list(keep.values()):
+            for i in preorder_traversal(e):
+                if isinstance(i, Indexed):
                     new_indices = []
-                    for index in arg.indices:
-                        if index in to_revert:
-                            new_indices.append(to_revert[index])
+                    for index in i.indices:
+                        if index in revert:
+                            new_indices.append(revert[index])
                         else:
                             new_indices.append(index)
-                    if arg.base.label in to_revert:
-                        subs_dict[arg] = Indexed(to_revert[arg.base.label], *new_indices)
-                    elif tuple(new_indices) != arg.indices:
-                        subs_dict[arg] = Indexed(arg.base, *new_indices)
-                if arg in to_revert:
-                    subs_dict[arg] = to_revert[arg]
+                    if i.base.label in revert:
+                        mapper[i] = Indexed(revert[i.base.label], *new_indices)
+                    elif tuple(new_indices) != i.indices:
+                        mapper[i] = Indexed(i.base, *new_indices)
+                if i in revert:
+                    mapper[i] = revert[i]
+        leaves = rxreplace(leaves, mapper)
+        kept = rxreplace([Eq(k, v) for k, v in keep.items()], mapper)
 
-        def recursive_replace(handle, subs_dict):
-            replaced = []
-            for i in handle:
-                old, new = i, i.xreplace(subs_dict)
-                while new != old:
-                    old, new = new, new.xreplace(subs_dict)
-                replaced.append(new)
-            return replaced
-
-        stencils = recursive_replace(stencils, subs_dict)
-        to_keep = recursive_replace([Eq(temp, assign) for temp, assign in to_keep],
-                                    subs_dict)
-
-        # If the RHS of a temporary variable is the LHS of a stencil,
-        # update the value of the temporary variable after the stencil
-        new_stencils = []
-        for stencil in stencils:
-            new_stencils.append(stencil)
-            for temp in to_keep:
-                if stencil.lhs in preorder_traversal(temp.rhs):
-                    new_stencils.append(temp)
+        # If the RHS of a temporary variable is the LHS of a leaf,
+        # update the value of the temporary variable after the leaf
+        new_leaves = []
+        for leaf in leaves:
+            new_leaves.append(leaf)
+            for i in kept:
+                if leaf.lhs in preorder_traversal(i.rhs):
+                    new_leaves.append(i)
                     break
 
         # Reshuffle to make sure temporaries come later than their read values
-        processed = OrderedDict([(i.lhs, i) for i in to_keep + new_stencils])
+        processed = OrderedDict([(i.lhs, i) for i in kept + new_leaves])
         temporaries = set(processed.keys())
         ordered = OrderedDict()
         while processed:
@@ -365,17 +383,22 @@ class Rewriter(object):
         Print a summary of the DSE transformations
         """
 
-        summary = ""
         if mode.intersection({'basic', 'advanced'}):
-            baseline = self.ops['_cse']
-            steps = " --> ".join("(%s) %d" % (k, v) for k, v in self.ops.items())
+            try:
+                # The state after CSE should be used as baseline for fairness
+                baseline = self.ops['_cse0']
+            except KeyError:
+                baseline = self.ops['baseline']
+            self.ops.pop('baseline')
+            steps = " --> ".join("(%s) %d" % (filter(lambda c: not c.isdigit(), k), v)
+                                 for k, v in self.ops.items())
             try:
                 gain = float(baseline) / list(self.ops.values())[-1]
                 summary = " %s flops; gain: %.2f X" % (steps, gain)
             except ZeroDivisionError:
-                pass
-        elapsed = sum(self.timings.values())
-        dse("Rewriter:%s [%.2f s]" % (summary, elapsed))
+                summary = ""
+            elapsed = sum(self.timings.values())
+            dse("Rewriter:%s [%.2f s]" % (summary, elapsed))
 
 
 def collect_nested(expr):

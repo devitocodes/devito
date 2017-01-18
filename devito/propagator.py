@@ -1,7 +1,7 @@
 from __future__ import absolute_import
 
 import operator
-from collections import Iterable, defaultdict
+from collections import Iterable, OrderedDict, defaultdict
 from functools import reduce
 from hashlib import sha1
 from os import path
@@ -17,7 +17,7 @@ from devito.compiler import (IntelMICCompiler, get_compiler_from_env,
                              get_tmp_dir, jit_compile_and_load)
 from devito.dimension import t, x, y, z
 from devito.dse.inspection import retrieve_dtype
-from devito.dse.symbolics import _temp_prefix
+from devito.dse.symbolics import _temp_prefix, rewrite
 from devito.expression import Expression
 from devito.function_manager import FunctionDescriptor, FunctionManager
 from devito.iteration import Iteration
@@ -51,6 +51,8 @@ class Propagator(object):
                      If not provided, the compiler will be inferred from the
                      environment variable DEVITO_ARCH, or default to GNUCompiler
     :param profile: Flag to enable performance profiling
+    :param dse: Set of transformations applied by the Devito Symbolic Engine.
+                Available: [None, 'basic', 'advanced' (default)]
     :param cache_blocking: Block sizes used for cache clocking. Can be either a single
                            number used for all dimensions except inner most or a list
                            explicitly stating block sizes for each dimension
@@ -59,7 +61,7 @@ class Propagator(object):
                            tune block sizes
     """
 
-    def __init__(self, name, nt, shape, stencils, spc_border=0, time_order=0,
+    def __init__(self, name, nt, shape, stencils, dse=None, spc_border=0, time_order=0,
                  time_dim=None, space_dims=None, dtype=np.float32, forward=True,
                  compiler=None, profile=False, cache_blocking=None):
         self.stencils = stencils
@@ -80,6 +82,7 @@ class Propagator(object):
         self.time_steppers = []
         self.time_order = time_order
         self.nt = nt
+        self.time_invariants = []
         self.time_loop_stencils_b = []
         self.time_loop_stencils_a = []
 
@@ -111,6 +114,11 @@ class Propagator(object):
         self.profile = profile
         # Profiler needs to know whether openmp is set
         self.profiler = Profiler(self.compiler.openmp, self.dtype)
+
+        # Performance data
+        self._dse = dse
+        self._ops = {}
+        self._memory = {}
 
         # Cache blocking and block sizes
         self.cache_blocking = cache_blocking
@@ -182,8 +190,12 @@ class Propagator(object):
         if self._ccode is None:
             manager = FunctionManager([self.fd], mic_flag=self.mic_flag,
                                       openmp=self.compiler.openmp)
-            # For some reason we need this call to trigger fd.body
-            self.get_fd()
+
+            # Go through the Devito Symbolic Engine to generate optimized code
+            self._optimize()
+
+            # Perform code generation
+            self._get_fd()
 
             if self.profile:
                 manager.add_struct_definition(self.profiler.as_cgen_struct(Profiler.TIME))
@@ -220,20 +232,18 @@ class Propagator(object):
     def oi(self):
         """Summary of operational intensities, by code section."""
 
-        gflops_per_section = self.gflops
-        bytes_per_section = self.traffic()
         oi_per_section = {}
 
         for i, subsection in enumerate(self.time_loop_stencils_b):
             key = "%s%d" % (PRE_STENCILS.name, i)
-            oi_per_section[key] = 1.0*gflops_per_section[key]/bytes_per_section[key]
+            oi_per_section[key] = 1.0*self.gflops[key]/self.traffic[key]
 
         key = LOOP_BODY.name
-        oi_per_section[key] = 1.0*gflops_per_section[key]/bytes_per_section[key]
+        oi_per_section[key] = 1.0*self.gflops[key]/self.traffic[key]
 
         for i, subsection in enumerate(self.time_loop_stencils_a):
             key = "%s%d" % (POST_STENCILS.name, i)
-            oi_per_section[key] = 1.0*gflops_per_section[key]/bytes_per_section[key]
+            oi_per_section[key] = 1.0*self.gflops[key]/self.traffic[key]
 
         return oi_per_section
 
@@ -250,9 +260,10 @@ class Propagator(object):
             niters = subsection.limits[1] if isinstance(subsection, Iteration) else 1
             niters_per_section[key] = with_time_loop(niters)
 
-        key = LOOP_BODY.name
-        niters = reduce(operator.mul, self.shape)
-        niters_per_section[key] = with_time_loop(niters)
+        niters = reduce(operator.mul,
+                        [j - i for i, j in self._space_loop_limits.values()])
+        niters_per_section[TIME_INVARIANTS.name] = niters
+        niters_per_section[LOOP_BODY.name] = with_time_loop(niters)
 
         for i, subsection in enumerate(self.time_loop_stencils_a):
             key = "%s%d" % (POST_STENCILS.name, i)
@@ -261,89 +272,37 @@ class Propagator(object):
 
         return niters_per_section
 
-    def traffic(self, mode='realistic'):
+    @property
+    def dataspace(self):
+        """Summary of data items accessed, by code section."""
+        handle = self.niters
+        handle[LOOP_BODY.name] = reduce(operator.mul, (self.nt,) + self.shape)
+        return handle
+
+    @property
+    def traffic(self):
         """Summary of Bytes moved between CPU (last level cache) and DRAM,
-        by code section.
-
-        :param mode: Several estimates are possible: ::
-
-            * ideal: also known as "compulsory traffic", which is the minimum
-                number of bytes to be moved (ie, models an infinite cache)
-            * ideal_with_stores: like ideal, but a data item which is both read
-                and written is counted twice (load + store)
-            * realistic: assume that all datasets, even those that do not depend
-                on time, need to be re-loaded at each time iteration
-        """
-
-        assert mode in ['ideal', 'ideal_with_stores', 'realistic']
-
-        def access(symbol):
-            assert isinstance(symbol, Indexed)
-            # Irregular accesses (eg A[B[i]]) are counted as compulsory traffic
-            if any(i.atoms(Indexed) for i in symbol.indices):
-                return symbol
-            else:
-                return symbol.base
-
-        def count(self, expressions):
-            if mode in ['ideal', 'ideal_with_stores']:
-                filter = lambda s: self.time_dim in s.atoms()
-            else:
-                filter = lambda s: s
-            reads = set(flatten([e.rhs.atoms(Indexed) for e in expressions]))
-            writes = set(flatten([e.lhs.atoms(Indexed) for e in expressions]))
-            reads = set([access(s) for s in reads if filter(s)])
-            writes = set([access(s) for s in writes if filter(s)])
-            if mode == 'ideal':
-                return len(set(reads) | set(writes))
-            else:
-                return len(reads) + len(writes)
-
-        niters = self.niters
+        by code section."""
         dsize = np.dtype(self.dtype).itemsize
-
-        bytes_per_section = {}
-
-        for i, subsection in enumerate(self.time_loop_stencils_b):
-            key = "%s%d" % (PRE_STENCILS.name, i)
-            if isinstance(subsection, Iteration):
-                expressions = [e.stencil for e in subsection.expressions]
-            else:
-                expressions = subsection.stencil
-            bytes_per_section[key] = dsize*count(self, expressions)*niters[key]
-
-        key = LOOP_BODY.name
-        bytes_per_section[key] = dsize*count(self, self.stencils)*niters[key]
-
-        for i, subsection in enumerate(self.time_loop_stencils_a):
-            key = "%s%d" % (POST_STENCILS.name, i)
-            if isinstance(subsection, Iteration):
-                expressions = [e.stencil for e in subsection.expressions]
-            else:
-                expressions = subsection.stencil
-            bytes_per_section[key] = dsize*count(self, expressions)*niters[key]
-
-        return bytes_per_section
+        return {k: dsize*self.dataspace[k]*v for k, v in self._memory.items()}
 
     @property
     def gflops(self):
         """Summary of GFlops performed, by code section."""
 
         niters = self.niters
-
-        gflops_per_iteration = self.profiler.gflops
         gflops_per_section = {}
 
         for i, subsection in enumerate(self.time_loop_stencils_b):
             key = "%s%d" % (PRE_STENCILS.name, i)
-            gflops_per_section[key] = gflops_per_iteration[key]*niters[key]
+            gflops_per_section[key] = self._ops[key]*niters[key]
 
         key = LOOP_BODY.name
-        gflops_per_section[key] = gflops_per_iteration[key]*niters[key]
+        gflops_per_section[key] = self._ops[key]*niters[key]
 
         for i, subsection in enumerate(self.time_loop_stencils_a):
             key = "%s%d" % (POST_STENCILS.name, i)
-            gflops_per_section[key] = gflops_per_iteration[key]*niters[key]
+            gflops_per_section[key] = self._ops[key]*niters[key]
 
         return gflops_per_section
 
@@ -475,6 +434,36 @@ class Propagator(object):
                                               ", ".join([str(i) for i in array_names])
                                               ))
 
+    def _optimize(self):
+        """
+        Use the Devito Symbolic Engine to reduce the operation count of stencils
+        and any other expressions appearing in the kernel.
+        """
+
+        handle = rewrite(self.stencils, mode=self._dse)
+
+        self.stencils = handle.time_varying
+        self._ops[LOOP_BODY.name] = handle.ops_time_varying
+        self._memory[LOOP_BODY.name] = handle.memory_time_varying
+
+        self.time_invariants.extend(handle.time_invariants)
+        self._ops[TIME_INVARIANTS.name] = handle.ops_time_invariants
+        self._memory[TIME_INVARIANTS.name] = handle.memory_time_invariants
+
+        sections = OrderedDict()
+        sections[PRE_STENCILS.name] = self.time_loop_stencils_b
+        sections[POST_STENCILS.name] = self.time_loop_stencils_a
+        for k, section in sections.items():
+            for i, subsection in enumerate(section):
+                if isinstance(subsection, Iteration):
+                    exprs = [e.stencil for e in subsection.expressions]
+                else:
+                    exprs = subsection.stencil
+                handle = rewrite(exprs, mode='noop')
+                key = "%s%d" % (k, i)
+                self._ops[key] = handle.ops_time_varying
+                self._memory[key] = handle.memory_time_varying
+
     def generate_loops(self):
         """Assuming that the variable order defined in init (#var_order) is the
         order the corresponding dimensions are layout in memory, the last variable
@@ -490,13 +479,16 @@ class Propagator(object):
             time_invariants = []
             loop_body = self.loop_body
         elif self.time_order:
-            time_invariants = [i for i in self.stencils if isinstance(i.lhs, Indexed)
-                               and i.lhs.indices == self.space_dims]
-            loop_body = [i for i in self.stencils if i not in time_invariants]
-            loop_body = self.sympy_to_cgen(loop_body)
+            time_invariants = self.time_invariants
+            loop_body = self.sympy_to_cgen(self.stencils)
         else:
             time_invariants = []
             loop_body = self.sympy_to_cgen(self.stencils)
+
+        # Init code before the time loop
+        header = [cgen.Value("int", i.name) for i in self.time_steppers]
+        # Clean-up code after the time loop
+        bottom = []
 
         # Space loops
         if not isinstance(loop_body, cgen.Block) or len(loop_body.contents) > 0:
@@ -536,19 +528,27 @@ class Propagator(object):
                 "size": "".join("[%d]" % j for j in self.shape)
             }
             declaration = "%(type)s (*%(name)s)%(dsize)s;" % values
-            header = [cgen.Line(declaration % {'name': getname(i)})
-                      for i in time_invariants]
+            header.extend([cgen.Line(declaration % {'name': getname(i)})
+                           for i in time_invariants])
             funcall = "posix_memalign((void**)&%(name)s, 64, sizeof(%(type)s%(size)s));"
             funcall = funcall % values
             funcalls = [cgen.Line(funcall % {'name': getname(i)})
                         for i in time_invariants]
+            bottom = [cgen.Line('free(%s);' % getname(i)) for i in time_invariants]
             time_invariants = [self.convert_equality_to_cgen(i)
                                for i in time_invariants]
             time_invariants = self.generate_space_loops(cgen.Block(time_invariants),
                                                         full=True)
-            time_invariants = [cgen.Block(funcalls + time_invariants)]
-        else:
-            header = []
+            time_invariants = [cgen.Block(funcalls + omp_for + time_invariants)]
+            if self.profile:
+                time_invariants = self.profiler.add_profiling(time_invariants,
+                                                              TIME_INVARIANTS.name)
+            header.extend(time_invariants)
+
+        # Avoid denormal numbers
+        extra = [cgen.Line('_MM_SET_DENORMALS_ZERO_MODE(_MM_DENORMALS_ZERO_ON);'),
+                 cgen.Line('_MM_SET_FLUSH_ZERO_MODE(_MM_FLUSH_ZERO_ON);')]
+        header.extend(omp_parallel + [cgen.Block(extra)])
 
         # Statements to be inserted into the time loop before the spatial loop
         pre_stencils = [self.time_substitutions(x)
@@ -592,13 +592,9 @@ class Propagator(object):
             t_var + "+=" + str(self._time_step),
             loop_body
         )
+        loop_body = omp_parallel + [cgen.Block([loop_body])]
 
-        # Code to declare the time stepping variables (outside the time loop)
-        def_time_step = [cgen.Value("int", t_var_def.name)
-                         for t_var_def in self.time_steppers]
-        body = cgen.Block(time_invariants + def_time_step + omp_parallel + [loop_body])
-
-        return header + [body]
+        return header + loop_body + bottom
 
     def generate_space_loops(self, loop_body, full=False):
         """Generate list<cgen.For> for a non cache blocking space loop
@@ -837,7 +833,7 @@ class Propagator(object):
 
         return symbols(name)
 
-    def get_fd(self):
+    def _get_fd(self):
         """Get a FunctionDescriptor that describes the code represented by this Propagator
         in the format that FunctionManager and JitManager can deal with it.
         Before calling, make sure you have either called set_jit_params
@@ -909,6 +905,7 @@ class Section(object):
         self.name = name
 
 
+TIME_INVARIANTS = Section('time_invariants')
 PRE_STENCILS = Section('pre_stencils')
 LOOP_BODY = Section('loop_body')
 POST_STENCILS = Section('post_stencils')
