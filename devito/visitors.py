@@ -4,7 +4,10 @@ Visitor hierarchy to inspect and/or create Expression/Iteration trees.
 The main Visitor class is extracted from https://github.com/coneoproject/COFFEE.
 """
 
+from collections import OrderedDict
 import inspect
+
+__all__ = ["FindSections"]
 
 
 class Visitor(object):
@@ -121,3 +124,41 @@ class Visitor(object):
         ops, okwargs = o.operands()
         new_ops = [self.visit(op, *args, **kwargs) for op in ops]
         return o._rebuild(*new_ops, **okwargs)
+
+
+class FindSections(Visitor):
+
+    @classmethod
+    def default_retval(cls):
+        return OrderedDict()
+
+    """Find all sections in an Iteration/Expression tree. A section is a map
+    from an iteration space (ie, a sequence of :class:`Iteration` obects) to
+    a set of expressions (ie, the :class:`Expression` objects enclosed by the
+    iteration space).
+    """
+
+    def visit_object(self, o, **kwargs):
+        return self.default_retval()
+
+    def visit_list(self, o, ret=None, queue=None):
+        for i in o:
+            ret = self.visit(i, ret=ret, queue=queue)
+        return ret
+
+    def visit_Iteration(self, o, ret=None, queue=None):
+        if queue is None:
+            queue = [o]
+        else:
+            queue.append(o)
+        for i in o._children():
+            ret = self.visit(i, ret=ret, queue=queue)
+        queue.remove(o)
+        return ret
+
+    def visit_Expression(self, o, ret=None, queue=None):
+        if ret is None:
+            ret = self.default_retval()
+        key = tuple(queue) if queue is not None else ()
+        ret.setdefault(key, []).append(o)
+        return ret
