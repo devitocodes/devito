@@ -6,8 +6,9 @@ from sympy import Symbol
 
 from devito.dimension import Dimension
 from devito.expression import Expression
+from devito.node import Node
 from devito.logger import warning
-from devito.tools import filter_ordered
+from devito.tools import as_tuple, filter_ordered
 
 __all__ = ['Iteration']
 
@@ -32,23 +33,24 @@ class IterationBound(object):
         return cgen.Value('const int', self.name)
 
 
-class Iteration(Expression):
-    """Iteration object that encapsualtes a single loop over sympy expressions.
+class Iteration(Node):
+    """Iteration object that encapsualtes a single loop over nodes, possibly
+    just SymPy expressions.
 
-    :param expressions: Single or list of SymPy expressions or :class:`Expression`
-                        objects that define the loop body.
-    :param index: Symbol that defines the name of the variable over which
-                  to iterate.
+    :param nodes: Single or list of :class:`Node` objects that
+                        define the loop body.
+    :param dimension: :class:`Dimension` object over which to iterate.
     :param limits: Limits for the iteration space, either the loop size or a
                    tuple of the form (start, finish, stepping).
     :param offsets: Optional map list of offsets to honour in the loop
     """
 
-    def __init__(self, expressions, dimension, limits, offsets=None):
+    is_Iteration = True
+
+    def __init__(self, nodes, dimension, limits, offsets=None):
         # Ensure we deal with a list of Expression objects internally
-        self.expressions = expressions if isinstance(expressions, list) else [expressions]
-        self.expressions = [e if isinstance(e, Expression) else Expression(e)
-                            for e in self.expressions]
+        self.nodes = as_tuple(nodes)
+        assert all(isinstance(i, Node) for i in self.nodes)
 
         # Generate index variable name and variable substitutions
         self.dim = dimension
@@ -90,18 +92,9 @@ class Iteration(Expression):
             self.offsets[1] = max(self.offsets[1], int(off))
 
     def __repr__(self):
-        str_expr = "\n\t".join([str(s) for s in self.expressions])
+        str_expr = "\n\t".join([str(s) for s in self.nodes])
         return "Iteration<%s; %s>::\n\t%s" % (self.index, self.limits,
                                               str_expr)
-
-    def substitute(self, substitutions):
-        """Apply substitutions to expressions in loop body
-
-        :param substitutions: Dict containing the substitutions to apply to
-                              the stored loop stencils.
-        """
-        for expr in self.expressions:
-            expr.substitute(substitutions)
 
     @property
     def ccode(self):
@@ -109,7 +102,7 @@ class Iteration(Expression):
 
         :returns: :class:`cgen.For` object representing the loop
         """
-        loop_body = [s.ccode for s in self.expressions]
+        loop_body = [s.ccode for s in self.nodes]
         if self.dim.buffered is not None:
             modulo = self.dim.buffered
             v_subs = [cgen.Initializer(cgen.Value('int', v),
@@ -129,16 +122,11 @@ class Iteration(Expression):
 
         :returns: List of unique data objects required by the loop
         """
-        signature = [e.signature for e in self.expressions]
+        signature = [e.signature for e in self.nodes]
         signature = filter_ordered(chain(*signature))
         if isinstance(self.limits[1], IterationBound):
             signature += [self.dim]
         return signature
-
-    def indexify(self):
-        """Convert all enclosed stencil expressions to "indexed" format"""
-        for e in self.expressions:
-            e.indexify()
 
     @property
     def index_offsets(self):
@@ -146,6 +134,14 @@ class Iteration(Expression):
 
         Note: This assumes we have indexified the stencil expression."""
         offsets = defaultdict(list)
-        for expr in self.expressions:
-            offsets.update(expr.index_offsets)
+        for n in self.nodes:
+            offsets.update(n.index_offsets)
         return offsets
+
+    def _children(self):
+        """Return the traversable children."""
+        return self.nodes
+
+    def _rebuild(self, nodes, dimension, limits, offsets):
+        """Reconstruct the Iteration as a plain new object."""
+        return Iteration(nodes, dimension, limits, offsets)

@@ -10,13 +10,16 @@ from devito.codeprinter import ccode
 from devito.dimension import Dimension
 from devito.dse.inspection import terminals
 from devito.interfaces import SymbolicData
+from devito.node import Node
 from devito.tools import filter_ordered
 
 __all__ = ['Expression']
 
 
-class Expression(object):
+class Expression(Node):
     """Class encpasulating a single stencil expressions"""
+
+    is_Expression = True
 
     def __init__(self, stencil):
         assert isinstance(stencil, Eq)
@@ -82,3 +85,8 @@ class Expression(object):
                 if d is not None:
                     offsets[d] += off
         return offsets
+
+    def _rebuild(self, stencil):
+        """Reconstruct the Expression as a plain new object. None of the
+        embedded Sympy expressions are reconstructed."""
+        return Expression(stencil)
