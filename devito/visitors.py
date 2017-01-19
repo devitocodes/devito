@@ -183,3 +183,32 @@ class IsPerfectIteration(Visitor):
             return False
         multi = len(o._children()) > 1
         return all(self.visit(o, found=True, multi=multi) for o in o._children())
+
+
+class Transformer(Visitor):
+
+    """Given an Iteration/Expression tree T and a mapper from nodes in T to
+    a set of new nodes L, M : N --> L, build a new Iteration/Expression tree T'
+    where a node ``n`` in N is replaced with ``M[n]``."""
+
+    def __init__(self, mapper):
+        super(Transformer, self).__init__()
+        self.mapper = mapper
+
+    def visit_object(self, o):
+        return o
+
+    def visit_list(self, o):
+        return [self.visit(i) for i in o]
+
+    def visit_Node(self, o):
+        rebuilt = []
+        for i in o._children():
+            if i in self.mapper:
+                rebuilt.append(self.mapper[i])
+            else:
+                rebuilt.append(self.visit(i))
+        return o._rebuild(*rebuilt, **o.args_frozen)
+
+    def visit_Expression(self, o):
+        return o._rebuild(**o.args)
