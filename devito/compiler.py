@@ -76,8 +76,8 @@ class GNUCompiler(Compiler):
         self.version = kwargs.get('version', None)
         self.cc = 'gcc' if self.version is None else 'gcc-%s' % self.version
         self.ld = 'gcc' if self.version is None else 'gcc-%s' % self.version
-        self.cflags = ['-O3', '-g', '-march=native', '-fPIC', '-Wall', '-std=c99',
-                       '-Wno-unused-result', '-Wno-unused-variable']
+        self.cflags = ['-O3', '-g', '-march=native', '-mno-avx', '-fPIC', '-Wall',
+                       '-std=c99', '-Wno-unused-result', '-Wno-unused-variable']
         self.ldflags = ['-shared']
 
         if self.openmp:
@@ -175,7 +175,7 @@ class CustomCompiler(Compiler):
         super(CustomCompiler, self).__init__(*args, **kwargs)
         self.cc = environ.get('CC', 'gcc')
         self.ld = environ.get('LD', 'gcc')
-        default = '-O3 -g -march=native -fPIC -Wall -std=c99'
+        default = '-O3 -g -march=native -fPIC -mno-avx -Wall -std=c99'
         self.cflags = environ.get('CFLAGS', default).split(' ')
         self.ldflags = environ.get('LDFLAGS', '-shared').split(' ')
 
