@@ -1,5 +1,10 @@
 import numpy as np
 
+import pytest
+
+from devito.dse.graph import temporaries_graph
+from devito.dse.symbolics import rewrite
+
 from examples.acoustic.Acoustic_codegen import Acoustic_cg
 from examples.containers import IGrid, IShot
 from examples.tti.tti_example import setup
@@ -77,17 +82,47 @@ def tti_operator(dse=False):
     return handle
 
 
-def test_tti_rewrite_basic():
-    output1 = tti_operator(dse=None).apply()
-    output2 = tti_operator(dse='basic').apply()
+@pytest.fixture(scope="session")
+def tti_nodse():
+    # FIXME: note that np.copy is necessary because of the broken caching system
+    output = tti_operator(dse=None).apply()
+    return (np.copy(output[0].data), np.copy(output[1].data))
 
-    assert np.allclose(output1[0].data, output2[0].data, atol=10e-3)
-    assert np.allclose(output1[1].data, output2[1].data, atol=10e-3)
+
+def test_tti_rewrite_temporaries_graph():
+    operator = tti_operator()
+    handle = rewrite(operator.stencils, mode='basic')
+
+    graph = temporaries_graph(handle.exprs)
+
+    assert len([v for v in graph.values() if v.is_terminal]) == 2  # u and v
+    assert len(graph) == len(handle.exprs)
+    assert all(v.reads or v.readby for v in graph.values())
 
 
-def test_tti_rewrite_advanced():
-    output1 = tti_operator(dse=None).apply()
-    output2 = tti_operator(dse='advanced').apply()
+def test_tti_rewrite_basic(tti_nodse):
+    output = tti_operator(dse='basic').apply()
 
-    assert np.allclose(output1[0].data, output2[0].data, atol=10e-3)
-    assert np.allclose(output1[1].data, output2[1].data, atol=10e-3)
+    assert np.allclose(tti_nodse[0], output[0].data, atol=10e-3)
+    assert np.allclose(tti_nodse[1], output[1].data, atol=10e-3)
+
+
+def test_tti_rewrite_factorizer(tti_nodse):
+    output = tti_operator(dse=('basic', 'factorize')).apply()
+
+    assert np.allclose(tti_nodse[0], output[0].data, atol=10e-3)
+    assert np.allclose(tti_nodse[1], output[1].data, atol=10e-3)
+
+
+def test_tti_rewrite_trigonometry(tti_nodse):
+    output = tti_operator(dse=('basic', 'approx-trigonometry')).apply()
+
+    assert np.allclose(tti_nodse[0], output[0].data, atol=10e-1)
+    assert np.allclose(tti_nodse[1], output[1].data, atol=10e-1)
+
+
+def test_tti_rewrite_advanced(tti_nodse):
+    output = tti_operator(dse='advanced').apply()
+
+    assert np.allclose(tti_nodse[0], output[0].data, atol=10e-1)
+    assert np.allclose(tti_nodse[1], output[1].data, atol=10e-1)

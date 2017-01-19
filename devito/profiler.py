@@ -2,7 +2,7 @@ from ctypes import Structure, byref, c_double
 
 import numpy as np
 
-from devito.cgen_wrapper import Assign, Block, For, Statement, Struct, Value
+from devito.cgen_wrapper import Block, Statement, Struct, Value
 
 
 class Profiler(object):
@@ -21,8 +21,6 @@ class Profiler(object):
         self.t_fields = []
 
         self._C_timings = None
-
-        self.num_flops = {}
 
     def add_profiling(self, code, name, omp_flag=None, to_ignore=None):
         """Function to add profiling code to the given :class:`cgen.Block`.
@@ -47,9 +45,6 @@ class Profiler(object):
         omp_flag = omp_flag or []
 
         self.t_fields.append((name, c_double))
-
-        self.num_flops[name] = FlopsCounter(code, name, self.openmp,
-                                            self.float_size, to_ignore or []).run()
 
         init = [
             Statement("struct timeval start_%s, end_%s" % (name, name))
@@ -124,136 +119,3 @@ class Profiler(object):
                     for field, _ in self._C_timings._fields_}
         else:
             return {}
-
-    @property
-    def gflops(self):
-        """GFlops per loop iteration, keyed by code section."""
-        return self.num_flops
-
-
-class FlopsCounter(object):
-
-    """Compute the operational intensity of a stencil."""
-
-    def __init__(self, code, name, openmp, float_size, to_ignore):
-        self.code = code
-        self.name = name
-        self.openmp = openmp
-        self.float_size = float_size
-
-        self.to_ignore = [
-            "int",
-            "float",
-            "double",
-            "F",
-            "e",
-            "fabsf",
-            "powf",
-            "floor",
-            "ceil",
-            "temp",
-            "i",
-            "t",
-            "p",  # This one shouldn't be here.
-                  # It should be passed in by an Iteration object.
-                  # Added only because tti_example uses it.
-        ] + to_ignore
-        self.seen = set()
-
-    def run(self):
-        """
-        Calculates the total operation intensity of the code provided.
-        If needed, lets the C code calculate it.
-        """
-        num_flops = 0
-
-        for elem in self.code:
-            if isinstance(elem, Assign):
-                num_flops += self._handle_assign(elem)
-            elif isinstance(elem, For):
-                num_flops += self._handle_for(elem)
-            elif isinstance(elem, Block):
-                num_flops += self._handle_block(elem)[0]
-            else:
-                # no op
-                pass
-
-        return num_flops
-
-    def _handle_for(self, loop):
-        loop_flops = 0
-        loop_oi_f = 0
-
-        if isinstance(loop.body, Assign):
-            loop_flops = self._handle_assign(loop.body)
-            loop_oi_f = loop_flops
-        elif isinstance(loop.body, Block):
-            loop_oi_f, loop_flops = self._handle_block(loop.body)
-        elif isinstance(loop.body, For):
-            loop_oi_f = self._handle_for(loop.body)
-        else:
-            # no op
-            pass
-
-        old_body = loop.body
-
-        while isinstance(old_body, Block) and isinstance(old_body.contents[0], Statement):
-            old_body = old_body.contents[1]
-
-        if loop_flops == 0:
-            if old_body in self.seen:
-                return 0
-
-            self.seen.add(old_body)
-
-            return loop_oi_f
-
-        if old_body in self.seen:
-            return 0
-
-        self.seen.add(old_body)
-        return loop_oi_f
-
-    def _handle_block(self, block):
-        block_flops = 0
-        block_oi = 0
-
-        for elem in block.contents:
-            if isinstance(elem, Assign):
-                a_flops = self._handle_assign(elem)
-                block_flops += a_flops
-                block_oi += a_flops
-            elif isinstance(elem, Block):
-                nblock_oi, nblock_flops = self._handle_block(elem)
-                block_oi += nblock_oi
-                block_flops += nblock_flops
-            elif isinstance(elem, For):
-                block_oi += self._handle_for(elem)
-            else:
-                # no op
-                pass
-
-        return block_oi, block_flops
-
-    def _handle_assign(self, assign):
-        flops = 0
-
-        # removing casting statements and function calls to floor
-        # that can confuse the parser
-        string = assign.lvalue + " " + assign.rvalue
-
-        brackets = 0
-        for idx in range(len(string)):
-            c = string[idx]
-
-            # We skip index operations. The third check works because in the
-            # generated code constants always precede variables in operations
-            # and is needed because Sympy prints fractions like this: 1.0F/4.0F
-            if brackets == 0 and c in "*/-+" and not string[idx+1].isdigit():
-                flops += 1
-            elif c == "[":
-                brackets += 1
-            elif c == "]":
-                brackets -= 1
-
-        return flops
