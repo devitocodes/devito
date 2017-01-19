@@ -1,3 +1,4 @@
+import cgen
 from sympy import Symbol
 
 __all__ = ['Dimension', 'x', 'y', 'z', 't', 'p']
@@ -27,6 +28,16 @@ class Dimension(Symbol):
         name = "%s%d" % (self.name, self._count)
         self._count += 1
         return name
+
+    @property
+    def ccode(self):
+        """C-level variable name of this dimension"""
+        return "%s_size" % self.name if self.size is None else "%d" % self.size
+
+    @property
+    def decl(self):
+        """Variable declaration for C-level kernel headers"""
+        return cgen.Value("const int", self.ccode)
 
 
 # Set of default dimensions for space and time

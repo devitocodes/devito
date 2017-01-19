@@ -12,6 +12,26 @@ from devito.tools import filter_ordered
 __all__ = ['Iteration']
 
 
+class IterationBound(object):
+    """Utility class to encapsulate variable loop bounds and link them
+    back to the respective Dimension object.
+
+    :param name: Variable name for the open loop bound variable
+    """
+
+    def __init__(self, name, dim):
+        self.name = name
+        self.dim = dim
+
+    def __repr__(self):
+        return self.name
+
+    @property
+    def ccode(self):
+        """C code for the variable declaration within a kernel signature"""
+        return cgen.Value('const int', self.name)
+
+
 class Iteration(Expression):
     """Iteration object that encapsualtes a single loop over sympy expressions.
 
@@ -57,13 +77,17 @@ class Iteration(Expression):
         else:
             self.limits = list((0, limits, 1))
 
-        # Adjust loop limits according to provided offsets
-        o_min, o_max = 0, 0
+        # Replace open limits with variables names
+        if self.limits[1] is None:
+            # FIXME: Add dimension size as variable bound.
+            # Needs further generalisation to support loop blocking.
+            self.limits[1] = IterationBound("%s_size" % self.dim.name, self.dim)
+
+        # Record offsets to later adjust loop limits accordingly
+        self.offsets = [0, 0]
         for off in (offsets or {}):
-            o_min = min(o_min, int(off))
-            o_max = max(o_max, int(off))
-        self.limits[0] += -o_min
-        self.limits[1] -= o_max
+            self.offsets[0] = min(self.offsets[0], int(off))
+            self.offsets[1] = max(self.offsets[1], int(off))
 
     def __repr__(self):
         str_expr = "\n\t".join([str(s) for s in self.expressions])
@@ -85,7 +109,6 @@ class Iteration(Expression):
 
         :returns: :class:`cgen.For` object representing the loop
         """
-        forward = self.limits[1] >= self.limits[0]
         loop_body = [s.ccode for s in self.expressions]
         if self.dim.buffered is not None:
             modulo = self.dim.buffered
@@ -94,13 +117,10 @@ class Iteration(Expression):
                       for s, v in self.subs.items()]
             loop_body = v_subs + loop_body
         loop_init = cgen.InlineInitializer(
-            cgen.Value("int", self.index), self.limits[0])
-        loop_cond = '%s %s %s' % (self.index, '<' if forward else '>', self.limits[1])
-        if self.limits[2] == 1:
-            loop_inc = '%s%s' % (self.index, '++' if forward else '--')
-        else:
-            loop_inc = '%s %s %s' % (self.index, '+=' if forward else '-=',
-                                     self.limits[2])
+            cgen.Value("int", self.index), "%d + %d" % (self.limits[0], -self.offsets[0]))
+        loop_cond = '%s %s %s' % (self.index, '<' if self.limits[2] >= 0 else '>',
+                                  "%s - %d" % (self.limits[1], self.offsets[1]))
+        loop_inc = '%s += %s' % (self.index, self.limits[2])
         return cgen.For(loop_init, loop_cond, loop_inc, cgen.Block(loop_body))
 
     @property
@@ -109,8 +129,11 @@ class Iteration(Expression):
 
         :returns: List of unique data objects required by the loop
         """
-        signatures = [e.signature for e in self.expressions]
-        return filter_ordered(chain(*signatures))
+        signature = [e.signature for e in self.expressions]
+        signature = filter_ordered(chain(*signature))
+        if isinstance(self.limits[1], IterationBound):
+            signature += [self.dim]
+        return signature
 
     def indexify(self):
         """Convert all enclosed stencil expressions to "indexed" format"""
