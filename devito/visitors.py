@@ -7,7 +7,9 @@ The main Visitor class is extracted from https://github.com/coneoproject/COFFEE.
 from collections import OrderedDict
 import inspect
 
-__all__ = ["FindSections"]
+import cgen
+
+__all__ = ["FindSections", "IsPerfectIteration"]
 
 
 class Visitor(object):
@@ -162,3 +164,22 @@ class FindSections(Visitor):
         key = tuple(queue) if queue is not None else ()
         ret.setdefault(key, []).append(o)
         return ret
+
+
+class IsPerfectIteration(Visitor):
+
+    """Return True if an :class:`Iteration` defines a perfect loop nest,
+    False otherwise."""
+
+    def visit_object(self, o, **kwargs):
+        return False
+
+    def visit_Node(self, o, found=False, **kwargs):
+        # Assume all nodes are in a perfect loop if they're in a loop.
+        return found
+
+    def visit_Iteration(self, o, found=False, multi=False):
+        if found and multi:
+            return False
+        multi = len(o._children()) > 1
+        return all(self.visit(o, found=True, multi=multi) for o in o._children())
