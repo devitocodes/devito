@@ -1,5 +1,9 @@
+from __future__ import absolute_import
+
+import operator
 from collections import OrderedDict
 from ctypes import c_int
+from functools import reduce
 from hashlib import sha1
 from itertools import chain
 from os import path
@@ -10,13 +14,14 @@ import numpy as np
 from devito.compiler import (get_compiler_from_env, get_tmp_dir,
                              jit_compile_and_load)
 from devito.dimension import Dimension
-from devito.dse.inspection import indexify
+from devito.dse.inspection import estimate_cost, estimate_memory, indexify
 from devito.dse.symbolics import rewrite
 from devito.expression import Expression
 from devito.interfaces import SymbolicData
 from devito.iteration import Iteration
-from devito.logger import error
+from devito.logger import error, info
 from devito.tools import filter_ordered
+from devito.visitors import FindSections
 
 __all__ = ['StencilKernel']
 
@@ -117,6 +122,17 @@ class StencilKernel(object):
         # Invoke kernel function with args
         self.cfunction(*list(arguments.values()))
 
+        # Summary of performance achieved
+        for itspace, expressions in self._sections.items():
+            stencils = [e.stencil for e in expressions]
+            niters = reduce(operator.mul, [i.size or dim_sizes[i] for i in itspace])
+            flops = float(estimate_cost(stencils)*niters)
+            gflops = flops/10**9
+            # TODO: need to tweak the calculation below once padding is in
+            traffic = estimate_memory(stencils)*niters
+            info("Computed block %s in X s [OI=%.2f, Perf=%.3f GFlops/s]" %
+                 (str(itspace), flops/traffic, gflops))
+
     @property
     def signature(self):
         """List of data objects that define the kernel signature
@@ -190,3 +206,26 @@ class StencilKernel(object):
         return [c_int if isinstance(v, Dimension) else
                 np.ctypeslib.ndpointer(dtype=v.dtype, flags='C')
                 for v in self.signature]
+
+    @property
+    def _sections(self):
+        """Return the sections of the StencilKernel as a map from iteration
+        spaces to expressions therein embedded. For example, given the loop tree:
+
+            .. code-block::
+               Iteration t
+                 Iteration p
+                   expr0
+                 Iteration x
+                   Iteration y
+                     expr1
+                     expr2
+                 Iteration s
+                   expr3
+
+        Return the ordered map: ::
+
+            {(t, p): [expr0], (t, x, y): [expr1, expr2], (t, s): [expr3]}
+        """
+        sections = FindSections().visit(self.expressions)
+        return OrderedDict([(tuple(i.dim for i in k), v) for k, v in sections.items()])
