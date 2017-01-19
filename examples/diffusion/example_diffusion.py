@@ -120,9 +120,6 @@ def execute_devito(ui, spacing=0.01, a=0.5, timesteps=500):
     # Note: This should be made simpler through the use of defaults
     u = TimeData(name='u', shape=(nx, ny), time_order=1, space_order=2)
     u.data[0, :] = ui[:]
-    u.indices[0].size = timesteps
-    u.indices[1].size = nx
-    u.indices[2].size = ny
 
     # Derive the stencil according to devito conventions
     eqn = Eq(u.dt, a * (u.dx2 + u.dy2))
@@ -131,7 +128,7 @@ def execute_devito(ui, spacing=0.01, a=0.5, timesteps=500):
 
     # Execute the generated Devito stencil operator
     tstart = time.time()
-    op.apply(u)
+    op.apply(u, t=timesteps)
     runtime = time.time() - tstart
     log("Devito: Diffusion with dx=%0.4f, dy=%0.4f, executed %d timesteps in %f seconds"
         % (spacing, spacing, timesteps, runtime))

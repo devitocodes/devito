@@ -123,3 +123,20 @@ def test_arithmetic_indexed_buffered(i, j, k, l, expr, result):
     eqn = eval(expr)
     StencilKernel(eqn)(fa)
     assert np.allclose(fa.data[1, 1:-1, 1:-1], result[1:-1, 1:-1], rtol=1e-12)
+
+
+@pytest.mark.parametrize('expr, result', [
+    ('Eq(a[1, k, l], a[0, k - 1 , l] + 1.)', np.zeros((5, 6)) + 3.),
+])
+def test_arithmetic_indexed_open_loops(i, j, k, l, expr, result):
+    """Test point-wise arithmetic with stencil offsets and open loop
+    boundaries in indexed expression format"""
+    k.size = None
+    l.size = None
+    a = DenseData(name='a', dimensions=(i, k, l), shape=(3, 5, 6)).indexed
+    fa = a.function
+    fa.data[0, :, :] = 2.
+
+    eqn = eval(expr)
+    StencilKernel(eqn)(fa)
+    assert np.allclose(fa.data[1, 1:-1, 1:-1], result[1:-1, 1:-1], rtol=1e-12)
