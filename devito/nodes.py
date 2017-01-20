@@ -2,7 +2,8 @@
 
 from __future__ import absolute_import
 
-from collections import Iterable, defaultdict
+import inspect
+from collections import Iterable, OrderedDict, defaultdict
 from itertools import chain
 from operator import attrgetter
 
@@ -14,7 +15,7 @@ from devito.dimension import Dimension
 from devito.dse.inspection import terminals
 from devito.interfaces import SymbolicData
 from devito.logger import warning
-from devito.tools import as_tuple, filter_ordered
+from devito.tools import as_tuple, filter_ordered, flatten
 
 __all__ = ['Node', 'Block', 'Expression', 'Iteration', 'Timer']
 
@@ -26,18 +27,28 @@ class Node(object):
     is_Iteration = False
     is_Expression = False
 
+    """
+    :attr:`_traversable`. A list of traversable objects (ie, traversed by
+    :class:`Visitor` objects). A traversable object is intended as an argument
+    of a Node constructor and is represented as a string.
+    """
+    _traversable = []
+
     def __new__(cls, *args, **kwargs):
         obj = super(Node, cls).__new__(cls)
-        obj._args = args + (kwargs,)
+        argnames = inspect.getargspec(cls.__init__).args
+        obj._args = OrderedDict(list(zip(argnames[1:], args)) + list(kwargs.items()))
         return obj
 
     def _children(self):
         """Return the traversable children."""
         return []
 
-    def _rebuild(self):
-        """Reconstruct the Node."""
-        raise NotImplementedError()
+    def _rebuild(self, *args, **kwargs):
+        """Reconstruct self. None of the embedded Sympy expressions are rebuilt."""
+        handle = [i for i in self._traversable if i not in kwargs]
+        handle = OrderedDict([(k, v) for k, v in zip(handle, args)])
+        return type(self)(**dict(handle.items() + kwargs.items()))
 
     def indexify(self):
         """Convert all enclosed nodes to "indexed" format"""
@@ -68,16 +79,25 @@ class Node(object):
     @property
     def signature(self):
         """List of data objects used by the Node."""
-        raise NotImplementedError()
+        return list(flatten([e.signature for e in self._children()]))
 
     @property
     def args(self):
+        """Arguments used to construct the Node."""
         return self._args
+
+    @property
+    def args_frozen(self):
+        """Arguments used to construct the Node that cannot be traversed."""
+        return OrderedDict([(k, v) for k, v in self.args.items()
+                            if k not in self._traversable])
 
 
 class Block(Node):
 
     is_Block = True
+
+    _traversable = ['body']
 
     def __init__(self, header=None, body=None, footer=None):
         self.header = as_tuple(header)
@@ -96,7 +116,7 @@ class Block(Node):
         return c.Block(self.header + body + self.footer)
 
     def _children(self):
-        return self.header + self.body + self.footer
+        return self.body
 
 
 class Expression(Node):
@@ -170,11 +190,6 @@ class Expression(Node):
                     offsets[d] += off
         return offsets
 
-    def _rebuild(self, stencil):
-        """Reconstruct the Expression as a plain new object. None of the
-        embedded Sympy expressions are reconstructed."""
-        return Expression(stencil)
-
 
 class Iteration(Node):
     """Iteration object that encapsualtes a single loop over nodes, possibly
@@ -189,6 +204,8 @@ class Iteration(Node):
     """
 
     is_Iteration = True
+
+    _traversable = ['nodes']
 
     def __init__(self, nodes, dimension, limits, offsets=None):
         # Ensure we deal with a list of Expression objects internally
@@ -283,10 +300,6 @@ class Iteration(Node):
     def _children(self):
         """Return the traversable children."""
         return self.nodes
-
-    def _rebuild(self, nodes, dimension, limits, offsets):
-        """Reconstruct the Iteration as a plain new object."""
-        return Iteration(nodes, dimension, limits, offsets)
 
 
 # Utilities
