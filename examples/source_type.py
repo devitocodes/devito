@@ -2,7 +2,7 @@ from sympy import Eq, Function, Matrix, symbols
 
 from devito.dimension import p, t
 from devito.interfaces import PointData
-from devito.iteration import Iteration
+from devito.nodes import Iteration
 
 
 class SourceLike(PointData):

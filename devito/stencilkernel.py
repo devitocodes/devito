@@ -16,10 +16,9 @@ from devito.compiler import (get_compiler_from_env, get_tmp_dir,
 from devito.dimension import Dimension
 from devito.dse.inspection import estimate_cost, estimate_memory, indexify
 from devito.dse.symbolics import rewrite
-from devito.expression import Expression
 from devito.interfaces import SymbolicData
-from devito.iteration import Iteration
 from devito.logger import error, info
+from devito.nodes import Expression, Iteration
 from devito.tools import filter_ordered
 from devito.visitors import FindSections
 

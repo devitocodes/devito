@@ -4,10 +4,8 @@ import cgen as c
 from sympy import Eq, Symbol  # noqa
 
 from devito.dimension import Dimension
-from devito.expression import Expression
 from devito.interfaces import DenseData
-from devito.iteration import Iteration
-from devito.node import Block
+from devito.nodes import Block, Expression, Iteration
 from devito.visitors import FindSections, IsPerfectIteration, Transformer
 
 
