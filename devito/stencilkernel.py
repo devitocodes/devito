@@ -18,9 +18,9 @@ from devito.dse.inspection import estimate_cost, estimate_memory, indexify
 from devito.dse.symbolics import rewrite
 from devito.interfaces import SymbolicData
 from devito.logger import error, info
-from devito.nodes import Expression, Iteration
+from devito.nodes import Block, Expression, Iteration, Timer
 from devito.tools import filter_ordered
-from devito.visitors import FindSections
+from devito.visitors import FindSections, IsPerfectIteration, Transformer
 
 __all__ = ['StencilKernel']
 
@@ -71,6 +71,17 @@ class StencilKernel(object):
             self.expressions[i] = newexpr
 
         # TODO: Merge Iterations iff outermost variables agree
+
+        # Introduce timers for profiling (only perfect nests are timed)
+        mapper = {}
+        for i, expr in enumerate(self.expressions):
+            for itspace in FindSections().visit(expr).keys():
+                for j in itspace:
+                    if IsPerfectIteration().visit(j) and j not in mapper:
+                        mapper[j] = Timer("%s%d" % (cnames['loc_timer'], i),
+                                          cnames['glb_timer'], j)
+                        break
+        self.expressions = [Transformer(mapper).visit(Block(body=self.expressions))]
 
     def __call__(self, *args, **kwargs):
         self.apply(*args, **kwargs)
@@ -228,3 +239,12 @@ class StencilKernel(object):
         """
         sections = FindSections().visit(self.expressions)
         return OrderedDict([(tuple(i.dim for i in k), v) for k, v in sections.items()])
+
+
+"""
+A dict of standard names to be used for code generation
+"""
+cnames = {
+    'loc_timer': 'loc_timer',
+    'glb_timer': 'glb_timer'
+}
