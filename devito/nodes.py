@@ -16,7 +16,7 @@ from devito.interfaces import SymbolicData
 from devito.logger import warning
 from devito.tools import as_tuple, filter_ordered
 
-__all__ = ['Node', 'Block', 'Expression', 'Iteration']
+__all__ = ['Node', 'Block', 'Expression', 'Iteration', 'Timer']
 
 
 class Node(object):
@@ -290,6 +290,34 @@ class Iteration(Node):
 
 
 # Utilities
+
+class Timer(Block):
+
+    """Wrap a Node with C-level timers."""
+
+    def __init__(self, lname, gname, body):
+        """
+        Initialize a Timer object.
+
+        :param lname: Timer name in the local scope.
+        :param gname: Name of the global struct tracking all timers.
+        :param body: Timed block of code.
+        """
+        self._name = lname
+        # TODO: need omp master pragma to be thread safe
+        header = [c.Statement("struct timeval start_%s, end_%s" % (lname, lname)),
+                  c.Statement("gettimeofday(&start_%s, NULL)" % lname)]
+        footer = [c.Statement("gettimeofday(&end_%s, NULL)" % lname),
+                  c.Statement(("%(gn)s->%(ln)s += " +
+                               "(double)(end_%(ln)s.tv_sec-start_%(ln)s.tv_sec)+" +
+                               "(double)(end_%(ln)s.tv_usec-start_%(ln)s.tv_usec)" +
+                               "/1000000") % {'gn': gname, 'ln': lname})]
+        super(Timer, self).__init__(header, body, footer)
+
+    @property
+    def name(self):
+        return self._name
+
 
 class IterationBound(object):
     """Utility class to encapsulate variable loop bounds and link them
