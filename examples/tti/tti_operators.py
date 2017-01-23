@@ -2,7 +2,7 @@ from sympy import *
 
 from devito.dimension import x, y, z
 from devito.finite_difference import centered, first_derivative, left
-from devito.interfaces import DenseData, TimeData
+from devito.interfaces import DenseData, Forward, TimeData
 from devito.operator import Operator
 from examples.source_type import SourceLike
 
@@ -30,11 +30,11 @@ class ForwardOperator(Operator):
         u = TimeData(name="u", shape=model.get_shape_comp(),
                      time_dim=nt, time_order=time_order,
                      space_order=spc_order/2,
-                     save=save, dtype=damp.dtype)
+                     save=save, dtype=damp.dtype, taxis=Forward)
         v = TimeData(name="v", shape=model.get_shape_comp(),
                      time_dim=nt, time_order=time_order,
                      space_order=spc_order/2,
-                     save=save, dtype=damp.dtype)
+                     save=save, dtype=damp.dtype, taxis=Forward)
 
         u.pad_time = save
         v.pad_time = save

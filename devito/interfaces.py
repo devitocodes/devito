@@ -15,6 +15,28 @@ from devito.memory import CMemory, first_touch
 __all__ = ['DenseData', 'TimeData', 'PointData']
 
 
+# This class encapsulates the type of time data in two case
+# Forward : means the time derivative has to be taken to the left (t-2, t-1, t
+# Backward : means the time derivative has to be taken to the right (t+2, t+1, t)
+# Keeping track of this information allows to have interleaving forward and backward
+# wavefield and is specially handy for the computation of the gradient computing
+# the correlation of a forward and adjoint wavefield
+class Taxis(object):
+    """Class encapsulating the side of the shift for derivatives."""
+
+    def __init__(self, taxis):
+        self._taxis = taxis
+
+    def __eq__(self, other):
+        return self._taxis == other._taxis
+
+    def __repr__(self):
+        return {-1: 'Backward', 1: 'Forward'}[self._taxis]
+
+
+Forward = Taxis(1)
+Backward = Taxis(-1)
+
 # This cache stores a reference to each created data object
 # so that we may re-create equivalent symbols during symbolic
 # manipulation with the correct shapes, pointers, etc.
@@ -389,6 +411,7 @@ class TimeData(DenseData):
             self.time_order = kwargs.get('time_order', 1)
             self.save = kwargs.get('save', False)
             self.pad_time = kwargs.get('pad_time', False)
+            self.taxis = kwargs.get('taxis', Forward)
 
             if self.save:
                 time_dim += self.time_order
@@ -430,6 +453,19 @@ class TimeData(DenseData):
 
         if self.pad_time:
             self._data = self._data[self.time_order:, :, :]
+
+    def indexify(self):
+        """Convert base symbol and dimensions to indexed data accesses
+
+        :return: Index corrosponding to the indices with the type of time axis
+        """
+        i = int(self.time_order / 2) if self.time_order >= 2 else 1
+        if self.taxis == Forward:
+            indices = [a.subs({h: 1, t: t - i * s, s: 1}) for a in self.args]
+            return self.indexed[indices]
+        else:
+            indices = [a.subs({h: 1, t: t + i * s, s: 1}) for a in self.args]
+            return self.indexed[indices]
 
     @property
     def dim(self):

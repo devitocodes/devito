@@ -1,7 +1,7 @@
 from sympy import Eq, symbols
 
 from devito.dimension import t
-from devito.interfaces import DenseData, TimeData
+from devito.interfaces import Backward, DenseData, Forward, TimeData
 from devito.operator import *
 from examples.source_type import SourceLike
 
@@ -27,7 +27,7 @@ class ForwardOperator(Operator):
         s, h = symbols('s h')
         u = TimeData(name="u", shape=model.get_shape_comp(), time_dim=nt,
                      time_order=2, space_order=spc_order, save=save,
-                     dtype=damp.dtype)
+                     dtype=damp.dtype, taxis=Forward)
         if u_ini is not None:
             u.data[0:3, :] = u_ini[:]
         m = DenseData(name="m", shape=model.get_shape_comp(), dtype=damp.dtype)
@@ -100,7 +100,7 @@ class AdjointOperator(Operator):
         s, h = symbols('s h')
         v = TimeData(name="v", shape=model.get_shape_comp(), time_dim=nt,
                      time_order=2, space_order=spc_order,
-                     save=False, dtype=damp.dtype)
+                     save=False, dtype=damp.dtype, taxis=Backward)
         m = DenseData(name="m", shape=model.get_shape_comp(), dtype=damp.dtype)
         m.data[:] = model.padm()
         v.pad_time = False
@@ -172,7 +172,7 @@ class GradientOperator(Operator):
         s, h = symbols('s h')
         v = TimeData(name="v", shape=model.get_shape_comp(), time_dim=nt,
                      time_order=2, space_order=spc_order,
-                     save=False, dtype=damp.dtype)
+                     save=False, dtype=damp.dtype, taxis=Backward)
         m = DenseData(name="m", shape=model.get_shape_comp(), dtype=damp.dtype)
         m.data[:] = model.padm()
         v.pad_time = False
@@ -208,7 +208,6 @@ class GradientOperator(Operator):
         # Add Gradient-specific updates. The dt2 is currently hacky
         #  as it has to match the cyclic indices
         stencils = [gradient_update, Eq(v.backward, stencil)]
-
         # Receiver initialization
         rec = SourceLike(name="rec", npoint=nrec, nt=nt, dt=dt, h=model.get_spacing(),
                          coordinates=data.receiver_coords, ndim=len(damp.shape),
@@ -249,10 +248,10 @@ class BornOperator(Operator):
         nt, nsrc = src.shape
         u = TimeData(name="u", shape=model.get_shape_comp(), time_dim=nt,
                      time_order=2, space_order=spc_order,
-                     save=False, dtype=damp.dtype)
+                     save=False, dtype=damp.dtype, taxis=Forward)
         U = TimeData(name="U", shape=model.get_shape_comp(), time_dim=nt,
                      time_order=2, space_order=spc_order,
-                     save=False, dtype=damp.dtype)
+                     save=False, dtype=damp.dtype, taxis=Forward)
         m = DenseData(name="m", shape=model.get_shape_comp(), dtype=damp.dtype)
         m.data[:] = model.padm()
 
@@ -264,13 +263,13 @@ class BornOperator(Operator):
         if time_order == 2:
             laplacianu = u.laplace
             biharmonicu = 0
-            laplacianU = u.laplace
+            laplacianU = U.laplace
             biharmonicU = 0
             dt = model.get_critical_dt()
         else:
             laplacianu = u.laplace
-            biharmonicu = U.laplace2(1/m)
-            laplacianU = u.laplace
+            biharmonicu = u.laplace2(1/m)
+            laplacianU = U.laplace
             biharmonicU = U.laplace2(1/m)
             dt = 1.73 * model.get_critical_dt()
             # first_eqn = m * u.dt2 - u.laplace + damp * u.dt
