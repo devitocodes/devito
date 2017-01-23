@@ -114,28 +114,55 @@ def test_is_perfect_iteration(block1, block2, block3):
     assert checker.visit(block3._children()[2]) is True
 
 
-def test_transformer(block1, block2, block3):
+def test_transformer_wrap(exprs, block1, block2, block3):
+    """Basic transformer test that wraps an expression in comments"""
     line1 = '// This is the opening comment'
     line2 = '// This is the closing comment'
-    line3 = '// Adding a simple line'
-    line4 = '// Replaced expression'
     wrapper = lambda n: Block(c.Line(line1), n, c.Line(line2))
-    adder = lambda n: Block(c.Line(line3), n)
-    replacer = Block(c.Line(line4))
-
-    finder = FindSections()
-    sections = finder.visit(block1)
-    exprs = sections.values()[0]
     transformer = Transformer({exprs[0]: wrapper(exprs[0])})
 
-    newblock = transformer.visit(block1)
-    assert """
-        // This is the opening comment
-        a[i0] = a[i0] + b[i0] + 5.0F;
-        // This is the closing comment
-""" in str(newblock.ccode)
+    for block in [block1, block2, block3]:
+        newblock = transformer.visit(block)
+        newcode = str(newblock.ccode)
+        oldnumlines = len(str(block.ccode).split('\n'))
+        newnumlines = len(newcode.split('\n'))
+        assert newnumlines >= oldnumlines + 2
+        assert line1 in newcode
+        assert line2 in newcode
+        assert "a[i] = a[i] + b[i] + 5.0F;" in newcode
 
-    # TODO: add block2 and block3
-    #transformer = Transformer({exprs[0]: wrapper(exprs[0]),
-    #                           exprs[1]: adder(exprs[1]),
-    #                           exprs[3]: replacer})
+
+def test_transformer_replace(exprs, block1, block2, block3):
+    """Basic transformer test that replaces an expression"""
+    line1 = '// Replaced expression'
+    replacer = Block(c.Line(line1))
+    transformer = Transformer({exprs[0]: replacer})
+
+    for block in [block1, block2, block3]:
+        newblock = transformer.visit(block)
+        newcode = str(newblock.ccode)
+        oldnumlines = len(str(block.ccode).split('\n'))
+        newnumlines = len(newcode.split('\n'))
+        assert newnumlines >= oldnumlines
+        assert line1 in newcode
+        assert "a[i0] = a[i0] + b[i0] + 5.0F;" not in newcode
+
+
+def test_transformer_add_replace(exprs, block2, block3):
+    """Basic transformer test that adds one expression and replaces another"""
+    line1 = '// Replaced expression'
+    line2 = '// Adding a simple line'
+    replacer = Block(c.Line(line1))
+    adder = lambda n: Block(c.Line(line2), n)
+    transformer = Transformer({exprs[0]: replacer,
+                               exprs[1]: adder(exprs[1])})
+
+    for block in [block2, block3]:
+        newblock = transformer.visit(block)
+        newcode = str(newblock.ccode)
+        oldnumlines = len(str(block.ccode).split('\n'))
+        newnumlines = len(newcode.split('\n'))
+        assert newnumlines >= oldnumlines + 1
+        assert line1 in newcode
+        assert line2 in newcode
+        assert "a[i0] = a[i0] + b[i0] + 5.0F;" not in newcode
