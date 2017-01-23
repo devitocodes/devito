@@ -1,7 +1,7 @@
 import pytest
 
 import cgen as c
-from sympy import Eq, Symbol  # noqa
+from sympy import Eq
 
 from devito.dimension import Dimension
 from devito.interfaces import DenseData
@@ -71,7 +71,7 @@ def block3(exprs, iters):
                      iters[4](exprs[3])])
 
 
-def test_find_sections(block1, block2, block3, exprs):
+def test_find_sections(exprs, block1, block2, block3):
     finder = FindSections()
 
     sections = finder.visit(block1)
@@ -100,18 +100,18 @@ def test_find_sections(block1, block2, block3, exprs):
 def test_is_perfect_iteration(block1, block2, block3):
     checker = IsPerfectIteration()
 
-    assert checker.visit(block1) == True
-    assert checker.visit(block1._children()[0]) == True
-    assert checker.visit(block1._children()[0]._children()[0]) == True
+    assert checker.visit(block1) is True
+    assert checker.visit(block1._children()[0]) is True
+    assert checker.visit(block1._children()[0]._children()[0]) is True
 
-    assert checker.visit(block2) == False
-    assert checker.visit(block2._children()[1]) == True
-    assert checker.visit(block2._children()[1]._children()[0]) == True
+    assert checker.visit(block2) is False
+    assert checker.visit(block2._children()[1]) is True
+    assert checker.visit(block2._children()[1]._children()[0]) is True
 
-    assert checker.visit(block3) == False
-    assert checker.visit(block3._children()[0]) == True
-    assert checker.visit(block3._children()[1]) == True
-    assert checker.visit(block3._children()[2]) == True
+    assert checker.visit(block3) is False
+    assert checker.visit(block3._children()[0]) is True
+    assert checker.visit(block3._children()[1]) is True
+    assert checker.visit(block3._children()[2]) is True
 
 
 def test_transformer(block1, block2, block3):
