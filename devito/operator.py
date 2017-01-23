@@ -1,13 +1,12 @@
 from functools import reduce
 
 import numpy as np
-from sympy import Eq, solve
+from sympy import Eq
 
 from devito.compiler import get_compiler_from_env
 from devito.dimension import t, x, y, z
 from devito.dse.inspection import (indexify, retrieve_dimensions,
                                    retrieve_symbols, tolambda)
-from devito.interfaces import TimeData
 from devito.propagator import Propagator
 
 __all__ = ['Operator']

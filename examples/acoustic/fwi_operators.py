@@ -185,7 +185,7 @@ class GradientOperator(Operator):
             # PDE for information
             # eqn = m * v.dt2 - laplacian - damp * v.dt
             dt = model.get_critical_dt()
-            gradient_update = Eq(grad, grad - u.dt2 * v.forward)
+            gradient_update = Eq(grad, grad - u.forward * v.dt2)
         else:
             laplacian = v.laplace
             biharmonic = v.laplace2(1/m)
@@ -195,7 +195,7 @@ class GradientOperator(Operator):
             dt = 1.73 * model.get_critical_dt()
             gradient_update = Eq(grad, grad -
                                  (u.dt2 -
-                                  s ** 2 / 12.0 * biharmonicu) * v.forward)
+                                  s ** 2 / 12.0 * biharmonicu) * v.backward)
 
         # Create the stencil by hand instead of calling numpy solve for speed purposes
         # Simple linear solve of a v(t+dt) + b u(t) + c v(t-dt) = L for v(t-dt)
@@ -207,23 +207,23 @@ class GradientOperator(Operator):
         subs = {s: dt, h: model.get_spacing()}
         # Add Gradient-specific updates. The dt2 is currently hacky
         #  as it has to match the cyclic indices
-        stencils = [gradient_update, Eq(v.backward, stencil)]
+        stencils = [Eq(v.backward, stencil), gradient_update]
         # Receiver initialization
         rec = SourceLike(name="rec", npoint=nrec, nt=nt, dt=dt, h=model.get_spacing(),
                          coordinates=data.receiver_coords, ndim=len(damp.shape),
                          dtype=damp.dtype, nbpml=model.nbpml)
         rec.data[:] = recin
-        super(GradientOperator, self).__init__(rec.nt - 1, m.shape,
+        super(GradientOperator, self).__init__(rec.nt, m.shape,
                                                stencils=stencils,
                                                subs=[subs, subs, {}],
                                                spc_border=max(spc_order, 2),
                                                time_order=2,
                                                forward=False,
                                                dtype=m.dtype,
-                                               input_params=[m, v, damp, u],
+                                               input_params=[m, v, damp, u, grad],
                                                **kwargs)
         # Insert receiver term post-hoc
-        self.input_params += [grad, rec, rec.coordinates]
+        self.input_params += [rec, rec.coordinates]
         self.output_params = [grad]
         self.propagator.time_loop_stencils_b = rec.add(m, v, t + 1)
         self.propagator.add_devito_param(rec)
