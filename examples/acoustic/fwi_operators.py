@@ -213,7 +213,7 @@ class GradientOperator(Operator):
                          coordinates=data.receiver_coords, ndim=len(damp.shape),
                          dtype=damp.dtype, nbpml=model.nbpml)
         rec.data[:] = recin
-        super(GradientOperator, self).__init__(rec.nt, m.shape,
+        super(GradientOperator, self).__init__(rec.nt-1, m.shape,
                                                stencils=stencils,
                                                subs=[subs, subs, {}],
                                                spc_border=max(spc_order, 2),
