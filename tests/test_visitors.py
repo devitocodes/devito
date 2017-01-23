@@ -13,51 +13,49 @@ def _symbol(name, dimensions):
     return DenseData(name=name, dimensions=dimensions).indexify()
 
 
-def _exprs():
+@pytest.fixture(scope="session")
+def exprs():
     i = Dimension(name='i', size=3)
     a = _symbol(name='a', dimensions=(i,))
     b = _symbol(name='b', dimensions=(i,))
-    return [Expression(eval('Eq(a, a + b + 5.)')),
-            Expression(eval('Eq(a, b - a)')),
-            Expression(eval('Eq(a, 4 * (b * a))')),
-            Expression(eval('Eq(a, (6. / b) + (8. * a))'))]
-
-
-def _iterations():
-    return [lambda exprs: Iteration(exprs, Dimension('i', size=3), (0, 3, 1)),
-            lambda exprs: Iteration(exprs, Dimension('j', size=5), (0, 5, 1)),
-            lambda exprs: Iteration(exprs, Dimension('k', size=7), (0, 7, 1)),
-            lambda exprs: Iteration(exprs, Dimension('s', size=4), (0, 4, 1)),
-            lambda exprs: Iteration(exprs, Dimension('p', size=4), (0, 4, 1))]
+    return [Expression(Eq(a, a + b + 5.)),
+            Expression(Eq(a, b - a)),
+            Expression(Eq(a, 4 * (b * a))),
+            Expression(Eq(a, (6. / b) + (8. * a)))]
 
 
 @pytest.fixture(scope="session")
-def block1():
+def iters():
+    return [lambda ex: Iteration(ex, Dimension('i', size=3), (0, 3, 1)),
+            lambda ex: Iteration(ex, Dimension('j', size=5), (0, 5, 1)),
+            lambda ex: Iteration(ex, Dimension('k', size=7), (0, 7, 1)),
+            lambda ex: Iteration(ex, Dimension('s', size=4), (0, 4, 1)),
+            lambda ex: Iteration(ex, Dimension('p', size=4), (0, 4, 1))]
+
+
+@pytest.fixture(scope="session")
+def block1(exprs, iters):
     # Perfect loop nest:
     # for i
     #   for j
     #     for k
     #       expr0
-    exprs = _exprs()
-    iters = _iterations()
     return iters[0](iters[1](iters[2](exprs[0])))
 
 
 @pytest.fixture(scope="session")
-def block2():
+def block2(exprs, iters):
     # Non-perfect simple loop nest:
     # for i
     #   expr0
     #   for j
     #     for k
     #       expr1
-    exprs = _exprs()
-    iters = _iterations()
     return iters[0]([exprs[0], iters[1](iters[2](exprs[1]))])
 
 
 @pytest.fixture(scope="session")
-def block3():
+def block3(exprs, iters):
     # Non-perfect non-trivial loop nest:
     # for i
     #   for s
@@ -68,15 +66,12 @@ def block3():
     #       expr2
     #   for p
     #     expr3
-    exprs = _exprs()
-    iters = _iterations()
     return iters[0]([iters[3](exprs[0]),
                      iters[1](iters[2]([exprs[1], exprs[2]])),
                      iters[4](exprs[3])])
 
 
-def test_find_sections(block1, block2, block3):
-    exprs = _exprs()
+def test_find_sections(block1, block2, block3, exprs):
     finder = FindSections()
 
     sections = finder.visit(block1)
@@ -86,20 +81,20 @@ def test_find_sections(block1, block2, block3):
     assert len(sections) == 2
     found = sections.values()
     assert len(found[0]) == 1
-    assert found[0][0].args['stencil'] == exprs[0].stencil
+    assert found[0][0].stencil == exprs[0].stencil
     assert len(found[1]) == 1
-    assert found[1][0].args['stencil'] == exprs[1].stencil
+    assert found[1][0].stencil == exprs[1].stencil
 
     sections = finder.visit(block3)
     assert len(sections) == 3
     found = sections.values()
     assert len(found[0]) == 1
-    assert found[0][0].args['stencil'] == exprs[0].stencil
+    assert found[0][0].stencil == exprs[0].stencil
     assert len(found[1]) == 2
-    assert found[1][0].args['stencil'] == exprs[1].stencil
-    assert found[1][1].args['stencil'] == exprs[2].stencil
+    assert found[1][0].stencil == exprs[1].stencil
+    assert found[1][1].stencil == exprs[2].stencil
     assert len(found[2]) == 1
-    assert found[2][0].args['stencil'] == exprs[3].stencil
+    assert found[2][0].stencil == exprs[3].stencil
 
 
 def test_is_perfect_iteration(block1, block2, block3):
