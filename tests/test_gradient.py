@@ -2,7 +2,6 @@ import numpy as np
 import pytest
 from numpy import linalg
 
-from devito import clear_cache
 from examples.acoustic.Acoustic_codegen import Acoustic_cg
 from examples.containers import IGrid, IShot
 
@@ -93,7 +92,6 @@ class TestGradient(object):
         return request.param
 
     def test_grad(self, acoustic):
-        #clear_cache()
         rec = acoustic[0].Forward()[0]
         rec0, u0, _, _, _ = acoustic[1].Forward(save=True)
         F0 = .5*linalg.norm(rec0 - rec)**2
@@ -111,8 +109,8 @@ class TestGradient(object):
             error1[i] = np.absolute(.5*linalg.norm(d - rec)**2 - F0)
             error2[i] = np.absolute(.5*linalg.norm(d - rec)**2 - F0 - H[i] * G)
             # print(F0, .5*linalg.norm(d - rec)**2, error1[i], H[i] *G, error2[i])
-            print('For h = ', H[i], '\nFirst order errors is : ', error1[i],
-                   '\nSecond order errors is ', error2[i])
+            # print('For h = ', H[i], '\nFirst order errors is : ', error1[i],
+            #        '\nSecond order errors is ', error2[i])
 
         hh = np.zeros(7)
         for i in range(0, 7):
