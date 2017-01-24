@@ -2,7 +2,7 @@ from __future__ import absolute_import
 
 import operator
 from collections import OrderedDict
-from ctypes import c_int
+from ctypes import c_double, c_int
 from functools import reduce
 from hashlib import sha1
 from itertools import chain
@@ -19,6 +19,7 @@ from devito.dse.symbolics import rewrite
 from devito.interfaces import SymbolicData
 from devito.logger import error, info
 from devito.nodes import Block, Expression, Iteration, Timer
+from devito.profiler import Profiler
 from devito.tools import filter_ordered
 from devito.visitors import FindSections, IsPerfectIteration, Transformer
 
@@ -44,6 +45,8 @@ class StencilKernel(object):
         * compiler: Compiler class used to perform JIT compilation.
                     If not provided, the compiler will be inferred from the
                     environment variable DEVITO_ARCH, or default to GNUCompiler.
+        * profiler: :class:`devito.Profiler` instance to collect profiling
+                    meta-data at runtime. Use profiler=None to disable profiling.
     """
     def __init__(self, stencils, **kwargs):
         name = kwargs.get("name", "Kernel")
@@ -54,6 +57,7 @@ class StencilKernel(object):
         # Default attributes required for compilation
         self.name = name
         self.compiler = compiler or get_compiler_from_env()
+        self.profiler = kwargs.get("profiler", Profiler(self.compiler.openmp))
         self._lib = None
         self._cfunction = None
 
@@ -81,8 +85,12 @@ class StencilKernel(object):
             for itspace in FindSections().visit(expr).keys():
                 for j in itspace:
                     if IsPerfectIteration().visit(j) and j not in mapper:
-                        mapper[j] = Timer("%s%d" % (cnames['loc_timer'], i),
-                                          cnames['glb_timer'], j)
+                        # Insert `Timer` block. This should come from
+                        # the profiler, but we do this manually for now.
+                        lname = 'loop_%s' % j.index
+                        mapper[j] = Timer(gname=self.profiler.t_name,
+                                          lname=lname, body=j)
+                        self.profiler.t_fields += [(lname, c_double)]
                         break
         self.expressions = [Transformer(mapper).visit(Block(body=self.expressions))]
 
@@ -132,6 +140,11 @@ class StencilKernel(object):
         for d in d_args:
             arguments[d.name] = dim_sizes[d]
 
+        # Add profiler structs
+        if self.profiler:
+            cpointer = self.profiler.as_ctypes_pointer(Profiler.TIME)
+            arguments[self.profiler.s_name] = cpointer
+
         # Invoke kernel function with args
         self.cfunction(*list(arguments.values()))
 
@@ -163,10 +176,14 @@ class StencilKernel(object):
         and Expression objects, and adds the necessary template code
         around it.
         """
+        blankline = c.Line("")
+
         # Generate argument signature
         header_vars = [v.decl if isinstance(v, Dimension) else
                        c.Pointer(c.POD(v.dtype, '%s_vec' % v.name))
                        for v in self.signature]
+        header_vars += [c.Pointer(c.Value('struct %s' % self.profiler.s_name,
+                                          self.profiler.t_name))]
         header = c.FunctionDeclaration(c.Value('int', self.name), header_vars)
 
         # Generate data casts
@@ -187,9 +204,11 @@ class StencilKernel(object):
         ret = [c.Statement("return 0")]
         kernel = c.FunctionBody(header, c.Block(casts + denormal + body + ret))
 
+        # Generate file header with includes and definitions
         includes = [c.Include(i, system=False) for i in self._includes]
-        blankline = c.Line("")
-        return c.Module(includes + [blankline, kernel])
+        includes += [blankline]
+        profiling = [self.profiler.as_cgen_struct(Profiler.TIME), blankline]
+        return c.Module(includes + profiling + [kernel])
 
     @property
     def basename(self):
