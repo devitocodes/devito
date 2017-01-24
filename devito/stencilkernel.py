@@ -26,6 +26,10 @@ __all__ = ['StencilKernel']
 
 
 class StencilKernel(object):
+
+    _includes = ['stdlib.h', 'math.h', 'sys/time.h',
+                 'xmmintrin.h', 'pmmintrin.h']
+
     """Code generation class, alternative to Propagator
 
     :param stencils: SymPy equation or list of equations that define the
@@ -41,7 +45,6 @@ class StencilKernel(object):
                     If not provided, the compiler will be inferred from the
                     environment variable DEVITO_ARCH, or default to GNUCompiler.
     """
-
     def __init__(self, stencils, **kwargs):
         name = kwargs.get("name", "Kernel")
         subs = kwargs.get("subs", {})
@@ -160,10 +163,13 @@ class StencilKernel(object):
         and Expression objects, and adds the necessary template code
         around it.
         """
+        # Generate argument signature
         header_vars = [v.decl if isinstance(v, Dimension) else
                        c.Pointer(c.POD(v.dtype, '%s_vec' % v.name))
                        for v in self.signature]
         header = c.FunctionDeclaration(c.Value('int', self.name), header_vars)
+
+        # Generate data casts
         functions = [f for f in self.signature if isinstance(f, SymbolicData)]
         cast_shapes = [(f, ''.join(["[%s]" % i.ccode for i in f.indices[1:]]))
                        for f in functions]
@@ -171,9 +177,19 @@ class StencilKernel(object):
                                '(%s (*)%s) %s' % (c.dtype_to_ctype(v.dtype),
                                                   shape, '%s_vec' % v.name))
                  for v, shape in cast_shapes]
+
+        # Gnerate function body with all the trimmings
+        extra = [c.Comment('Force flushing of denormals to zero in hardware'),
+                 c.Line('_MM_SET_DENORMALS_ZERO_MODE(_MM_DENORMALS_ZERO_ON);'),
+                 c.Line('_MM_SET_FLUSH_ZERO_MODE(_MM_FLUSH_ZERO_ON);')]
+        denormal = [c.Block(extra)]
         body = [e.ccode for e in self.expressions]
         ret = [c.Statement("return 0")]
-        return c.FunctionBody(header, c.Block(casts + body + ret))
+        kernel = c.FunctionBody(header, c.Block(casts + denormal + body + ret))
+
+        includes = [c.Include(i, system=False) for i in self._includes]
+        blankline = c.Line("")
+        return c.Module(includes + [blankline, kernel])
 
     @property
     def basename(self):
