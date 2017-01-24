@@ -210,6 +210,8 @@ class Iteration(Node):
     def __init__(self, nodes, dimension, limits, offsets=None):
         # Ensure we deal with a list of Expression objects internally
         self.nodes = as_tuple(nodes)
+        self.nodes = [n if isinstance(n, Node) else Expression(n)
+                      for n in self.nodes]
         assert all(isinstance(i, Node) for i in self.nodes)
 
         # Generate index variable name and variable substitutions

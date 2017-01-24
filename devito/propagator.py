@@ -455,7 +455,7 @@ class Propagator(object):
         for k, section in sections.items():
             for i, subsection in enumerate(section):
                 if isinstance(subsection, Iteration):
-                    exprs = [e.stencil for e in subsection.expressions]
+                    exprs = [e.stencil for e in subsection.nodes]
                 else:
                     exprs = subsection.stencil
                 handle = rewrite(exprs, mode='noop')
@@ -883,8 +883,8 @@ class Propagator(object):
 
         # For Iteration objects we apply time subs to the stencil list
         if isinstance(sympy_expr, Iteration):
-            sympy_expr.expressions = [Expression(self.time_substitutions(s.stencil))
-                                      for s in sympy_expr.expressions]
+            sympy_expr.nodes = [Expression(self.time_substitutions(s.stencil))
+                                for s in sympy_expr.nodes]
             return sympy_expr
 
         for arg in postorder_traversal(sympy_expr):
