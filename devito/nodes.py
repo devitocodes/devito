@@ -4,8 +4,6 @@ from __future__ import absolute_import
 
 import inspect
 from collections import Iterable, OrderedDict, defaultdict
-from itertools import chain
-from operator import attrgetter
 
 import cgen as c
 from sympy import Eq, IndexedBase, Symbol, preorder_traversal
@@ -15,7 +13,7 @@ from devito.dimension import Dimension
 from devito.dse.inspection import terminals
 from devito.interfaces import SymbolicData
 from devito.logger import warning
-from devito.tools import as_tuple, filter_ordered, flatten
+from devito.tools import as_tuple, filter_ordered
 
 __all__ = ['Node', 'Block', 'Expression', 'Iteration', 'Timer']
 
@@ -77,11 +75,6 @@ class Node(object):
     def ccode(self):
         """Generate C code."""
         raise NotImplementedError()
-
-    @property
-    def signature(self):
-        """List of data objects used by the Node."""
-        return list(flatten([e.signature for e in self._children()]))
 
     @property
     def args(self):
@@ -159,15 +152,6 @@ class Expression(Node):
     @property
     def ccode(self):
         return c.Assign(ccode(self.stencil.lhs), ccode(self.stencil.rhs))
-
-    @property
-    def signature(self):
-        """List of data objects used by the expression
-
-        :returns: List of unique data objects required by the expression
-        """
-        return filter_ordered([f for f in self.functions],
-                              key=attrgetter('name'))
 
     def indexify(self):
         """Convert stencil expression to "indexed" format"""
@@ -278,18 +262,6 @@ class Iteration(Node):
                                   "%s - %d" % (self.limits[1], self.offsets[1]))
         loop_inc = '%s += %s' % (self.index, self.limits[2])
         return c.For(loop_init, loop_cond, loop_inc, c.Block(loop_body))
-
-    @property
-    def signature(self):
-        """List of data objects used by the loop and it's body
-
-        :returns: List of unique data objects required by the loop
-        """
-        signature = [e.signature for e in self.nodes]
-        signature = filter_ordered(chain(*signature))
-        if isinstance(self.limits[1], IterationBound):
-            signature += [self.dim]
-        return signature
 
     @property
     def index_offsets(self):

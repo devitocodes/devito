@@ -5,7 +5,6 @@ from collections import OrderedDict
 from ctypes import c_double, c_int
 from functools import reduce
 from hashlib import sha1
-from itertools import chain
 from os import path
 
 import cgen as c
@@ -20,8 +19,7 @@ from devito.interfaces import SymbolicData
 from devito.logger import error, info
 from devito.nodes import Block, Expression, Iteration, Timer
 from devito.profiler import Profiler
-from devito.tools import filter_ordered
-from devito.visitors import FindSections, IsPerfectIteration, Transformer
+from devito.visitors import FindSections, IsPerfectIteration, Transformer, FindSymbols
 
 __all__ = ['StencilKernel']
 
@@ -165,8 +163,7 @@ class StencilKernel(object):
 
         :returns: List of unique data objects required by the kernel
         """
-        signature = [e.signature for e in self.expressions]
-        return filter_ordered(chain(*signature))
+        return FindSymbols().visit(self.expressions)
 
     @property
     def ccode(self):

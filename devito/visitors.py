@@ -4,12 +4,17 @@ Visitor hierarchy to inspect and/or create Expression/Iteration trees.
 The main Visitor class is extracted from https://github.com/coneoproject/COFFEE.
 """
 
+from __future__ import absolute_import
+
+from devito.tools import as_tuple, filter_ordered, flatten
+from devito.nodes import IterationBound
 from collections import OrderedDict, Hashable
+from operator import attrgetter
 import inspect
 
 import cgen
 
-__all__ = ["FindSections", "IsPerfectIteration"]
+__all__ = ["FindSections", "FindSymbols", "IsPerfectIteration"]
 
 
 class Visitor(object):
@@ -109,6 +114,12 @@ class Visitor(object):
         meth = self.lookup_method(o)
         return meth(o, *args, **kwargs)
 
+    def visit_object(self, o, **kwargs):
+        return self.default_retval()
+
+    def visit_Node(self, o, **kwargs):
+        return [self.visit(o._children(), **kwargs)]
+
     def reuse(self, o, *args, **kwargs):
         """A visit method to reuse a node, ignoring children."""
         return o
@@ -164,6 +175,31 @@ class FindSections(Visitor):
         key = tuple(queue) if queue is not None else ()
         ret.setdefault(key, []).append(o)
         return ret
+
+
+class FindSymbols(Visitor):
+
+    @classmethod
+    def default_retval(cls):
+        return []
+
+    """Find all :class:`SymbolicData` and :class:`IndexedData`
+    instances in an Iteration/Expression tree.
+    """
+
+    def visit_list(self, o):
+        symbols = flatten([self.visit(i) for i in o])
+        return filter_ordered(symbols, key=attrgetter('name'))
+
+    def visit_Iteration(self, o):
+        symbols = flatten([self.visit(i) for i in o._children()])
+        if isinstance(o.limits[1], IterationBound):
+            symbols += [o.dim]
+        return filter_ordered(symbols, key=attrgetter('name'))
+
+    def visit_Expression(self, o):
+        return filter_ordered([f for f in o.functions],
+                              key=attrgetter('name'))
 
 
 class IsPerfectIteration(Visitor):
