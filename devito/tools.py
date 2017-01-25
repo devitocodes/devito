@@ -3,6 +3,8 @@ import ctypes
 import numpy as np
 from sympy import symbols
 
+from collections import Iterable
+
 
 def as_tuple(item, type=None, length=None):
     """
@@ -28,7 +30,15 @@ def as_tuple(item, type=None, length=None):
 
 
 def flatten(l):
-    return [item for sublist in l for item in sublist]
+    """Flatten a hierarchy of nested lists into a plain list."""
+    newlist = []
+    for el in l:
+        if isinstance(el, Iterable) and not isinstance(el, (str, bytes)):
+            for sub in flatten(el):
+                newlist.append(sub)
+        else:
+            newlist.append(el)
+    return newlist
 
 
 def filter_ordered(elements, key=None):
