@@ -4,7 +4,7 @@ Visitor hierarchy to inspect and/or create Expression/Iteration trees.
 The main Visitor class is extracted from https://github.com/coneoproject/COFFEE.
 """
 
-from collections import OrderedDict
+from collections import OrderedDict, Hashable
 import inspect
 
 import cgen
@@ -199,12 +199,18 @@ class Transformer(Visitor):
         return o
 
     def visit_list(self, o):
-        return [self.visit(i) for i in o]
+        rebuilt = []
+        for i in o:
+            if isinstance(i, Hashable) and i in self.mapper:
+                rebuilt.append(self.mapper[i])
+            else:
+                rebuilt.append(self.visit(i))
+        return rebuilt
 
     def visit_Node(self, o):
         rebuilt = []
         for i in o._children():
-            if i in self.mapper:
+            if isinstance(i, Hashable) and i in self.mapper:
                 rebuilt.append(self.mapper[i])
             else:
                 rebuilt.append(self.visit(i))

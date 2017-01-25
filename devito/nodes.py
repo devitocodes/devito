@@ -118,7 +118,7 @@ class Block(Node):
         return c.Block(self.header + body + self.footer)
 
     def _children(self):
-        return self.body
+        return [self.body]
 
 
 class Expression(Node):
@@ -303,7 +303,7 @@ class Iteration(Node):
 
     def _children(self):
         """Return the traversable children."""
-        return self.nodes
+        return [self.nodes]
 
 
 # Utilities
