@@ -46,9 +46,11 @@ class Node(object):
 
     def _rebuild(self, *args, **kwargs):
         """Reconstruct self. None of the embedded Sympy expressions are rebuilt."""
-        handle = [i for i in self._traversable if i not in kwargs]
-        handle = OrderedDict([(k, v) for k, v in zip(handle, args)])
-        return type(self)(**dict(handle.items() + kwargs.items()))
+        handle = self._args  # Original constructor arguments
+        argnames = [i for i in self._traversable if i not in kwargs]
+        handle.update(OrderedDict([(k, v) for k, v in zip(argnames, args)]))
+        handle.update(kwargs)
+        return type(self)(**handle)
 
     def indexify(self):
         """Convert all enclosed nodes to "indexed" format"""
