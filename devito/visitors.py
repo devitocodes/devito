@@ -248,8 +248,7 @@ class Transformer(Visitor):
     def visit_tuple(self, o, **kwargs):
         return tuple(self.visit(i, **kwargs) for i in o)
 
-    def visit_list(self, o, **kwargs):
-        return tuple(self.visit(i, **kwargs) for i in o)
+    visit_list = visit_tuple
 
     def visit_Node(self, o, **kwargs):
         if o in self.mapper:
