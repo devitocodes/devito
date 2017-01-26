@@ -452,7 +452,7 @@ class TimeData(DenseData):
         self._full_data = self._data.view()
 
         if self.pad_time:
-            self._data = self._data[self.time_order:, :, :]
+            self._data = self._data[self.time_order:, ...]
 
     def indexify(self):
         """Convert base symbol and dimensions to indexed data accesses
