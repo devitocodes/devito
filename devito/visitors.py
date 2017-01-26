@@ -6,9 +6,9 @@ The main Visitor class is extracted from https://github.com/coneoproject/COFFEE.
 
 from __future__ import absolute_import
 
-from devito.tools import as_tuple, filter_ordered, flatten
+from devito.tools import filter_ordered, flatten
 from devito.nodes import IterationBound
-from collections import OrderedDict, Hashable
+from collections import OrderedDict
 from operator import attrgetter
 import inspect
 
@@ -237,23 +237,13 @@ class Transformer(Visitor):
     def visit_object(self, o):
         return o
 
-    def visit_list(self, o):
-        rebuilt = []
-        for i in o:
-            if isinstance(i, Hashable) and i in self.mapper:
-                rebuilt.append(self.mapper[i])
-            else:
-                rebuilt.append(self.visit(i))
-        return rebuilt
+    def visit_tuple(self, o):
+        return tuple(self.visit(i) for i in o)
 
     def visit_Node(self, o):
-        rebuilt = []
-        for i in o.children():
-            if isinstance(i, Hashable) and i in self.mapper:
-                rebuilt.append(self.mapper[i])
-            else:
-                rebuilt.append(self.visit(i))
-        return o._rebuild(*rebuilt, **o.args_frozen)
-
-    def visit_Expression(self, o):
-        return o._rebuild(**o.args)
+        if o in self.mapper:
+            handle = self.mapper[o]
+            return handle._rebuild(**handle.args)
+        else:
+            rebuilt = [self.visit(i) for i in o.children]
+            return o._rebuild(*rebuilt, **o.args_frozen)
