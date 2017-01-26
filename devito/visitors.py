@@ -210,6 +210,9 @@ class IsPerfectIteration(Visitor):
     def visit_object(self, o, **kwargs):
         return False
 
+    def visit_list(self, o, **kwargs):
+        return all(self.visit(i, **kwargs) for i in o)
+
     def visit_Node(self, o, found=False, **kwargs):
         # Assume all nodes are in a perfect loop if they're in a loop.
         return found
@@ -217,8 +220,8 @@ class IsPerfectIteration(Visitor):
     def visit_Iteration(self, o, found=False, multi=False):
         if found and multi:
             return False
-        multi = len(o._children()) > 1
-        return all(self.visit(o, found=True, multi=multi) for o in o._children())
+        multi = len(o.nodes) > 1
+        return all(self.visit(i, found=True, multi=multi) for i in o._children())
 
 
 class Transformer(Visitor):
