@@ -162,6 +162,11 @@ class FindSections(Visitor):
             ret = self.visit(i, ret=ret, queue=queue)
         return ret
 
+    def visit_Node(self, o, ret=None, queue=None):
+        for i in o.children:
+            ret = self.visit(i, ret=ret, queue=queue)
+        return ret
+
     def visit_Iteration(self, o, ret=None, queue=None):
         if queue is None:
             queue = [o]
