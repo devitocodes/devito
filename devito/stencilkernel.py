@@ -17,7 +17,7 @@ from devito.dse.inspection import estimate_cost, estimate_memory, indexify
 from devito.dse.symbolics import rewrite
 from devito.interfaces import SymbolicData
 from devito.logger import error, info
-from devito.nodes import Block, Expression, Iteration, Timer
+from devito.nodes import Block, Expression, Function, Iteration, Timer
 from devito.profiler import Profiler
 from devito.visitors import (FindSections, FindSymbols, IsPerfectIteration,
                              ResolveIterationVariable, SubstituteExpression,
@@ -26,12 +26,13 @@ from devito.visitors import (FindSections, FindSymbols, IsPerfectIteration,
 __all__ = ['StencilKernel']
 
 
-class StencilKernel(object):
+class StencilKernel(Function):
 
     _includes = ['stdlib.h', 'math.h', 'sys/time.h',
                  'xmmintrin.h', 'pmmintrin.h']
 
-    """Code generation class, alternative to Propagator
+    """A special :class:`Function` to evaluate stencils through just-in-time
+    compilation of C code.
 
     :param stencils: SymPy equation or list of equations that define the
                      stencil used to create the kernel of this Operator.
@@ -55,7 +56,6 @@ class StencilKernel(object):
         compiler = kwargs.get("compiler", None)
 
         # Default attributes required for compilation
-        self.name = name
         self.compiler = compiler or get_compiler_from_env()
         self.profiler = kwargs.get("profiler", Profiler(self.compiler.openmp))
         self._lib = None
@@ -66,22 +66,22 @@ class StencilKernel(object):
         stencils = [indexify(s) for s in stencils]
         stencils = [s.xreplace(subs) for s in stencils]
         stencils = rewrite(stencils, mode=dse).exprs
-        self.nodes = [Expression(s) for s in stencils]
+        nodes = [Expression(s) for s in stencils]
 
         # Wrap expressions with Iterations according to dimensions
-        for i, expr in enumerate(self.nodes):
+        for i, expr in enumerate(nodes):
             newexpr = expr
             offsets = newexpr.index_offsets
             for d in reversed(expr.dimensions):
                 newexpr = Iteration(newexpr, dimension=d,
                                     limits=d.size, offsets=offsets[d])
-            self.nodes[i] = newexpr
+            nodes[i] = newexpr
 
         # TODO: Merge Iterations iff outermost variables agree
 
         # Introduce timers for profiling (only perfect nests are timed)
         mapper = {}
-        for i, expr in enumerate(self.nodes):
+        for i, expr in enumerate(nodes):
             for itspace in FindSections().visit(expr).keys():
                 for j in itspace:
                     if IsPerfectIteration().visit(j) and j not in mapper:
@@ -92,12 +92,18 @@ class StencilKernel(object):
                                           lname=lname, body=j)
                         self.profiler.t_fields += [(lname, c_double)]
                         break
-        self.nodes = [Transformer(mapper).visit(Block(body=self.nodes))]
+        nodes = [Transformer(mapper).visit(Block(body=nodes))]
 
         # Now resolve and substitute dimensions for loop index variables
         subs = {}
-        self.nodes = ResolveIterationVariable().visit(self.nodes, subs=subs)
-        self.nodes = SubstituteExpression(subs=subs).visit(self.nodes)
+        nodes = ResolveIterationVariable().visit(nodes, subs=subs)
+        nodes = SubstituteExpression(subs=subs).visit(nodes)
+
+        super(StencilKernel, self).__init__(name=name,
+                                            body=nodes,
+                                            retval='int',
+                                            parameters=SymbolFinder().visit(nodes),
+                                            prefix=())
 
     def __call__(self, *args, **kwargs):
         self.apply(*args, **kwargs)
@@ -105,10 +111,10 @@ class StencilKernel(object):
     def apply(self, *args, **kwargs):
         """Apply defined stencil kernel to a set of data objects"""
         if len(args) <= 0:
-            args = self.signature
+            args = self.parameters
 
         # Map of required arguments and actual dimension sizes
-        arguments = OrderedDict([(arg.name, arg) for arg in self.signature])
+        arguments = OrderedDict([(arg.name, arg) for arg in self.parameters])
         dim_sizes = {}
 
         # Traverse positional args and infer loop sizes for open dimensions
@@ -154,7 +160,7 @@ class StencilKernel(object):
         self.cfunction(*list(arguments.values()))
 
         # Summary of performance achieved
-        for itspace, expressions in self._sections.items():
+        for itspace, expressions in self.sections.items():
             stencils = [e.stencil for e in expressions]
             niters = reduce(operator.mul, [i.size or dim_sizes[i] for i in itspace])
             flops = float(estimate_cost(stencils)*niters)
@@ -165,12 +171,11 @@ class StencilKernel(object):
                  (str(itspace), flops/traffic, gflops))
 
     @property
-    def signature(self):
-        """List of data objects that define the kernel signature
-
-        :returns: List of unique data objects required by the kernel
-        """
-        return FindSymbols().visit(self.nodes)
+    def _cparameters(self):
+        cparameters = super(StencilKernel, self)._cparameters
+        cparameters += [c.Pointer(c.Value('struct %s' % self.profiler.s_name,
+                                          self.profiler.t_name))]
+        return cparameters
 
     @property
     def ccode(self):
@@ -182,23 +187,6 @@ class StencilKernel(object):
         """
         blankline = c.Line("")
 
-        # Generate argument signature
-        header_vars = [v.decl if isinstance(v, Dimension) else
-                       c.Pointer(c.POD(v.dtype, '%s_vec' % v.name))
-                       for v in self.signature]
-        header_vars += [c.Pointer(c.Value('struct %s' % self.profiler.s_name,
-                                          self.profiler.t_name))]
-        header = c.FunctionDeclaration(c.Value('int', self.name), header_vars)
-
-        # Generate data casts
-        functions = [f for f in self.signature if isinstance(f, SymbolicData)]
-        cast_shapes = [(f, ''.join(["[%s]" % i.ccode for i in f.indices[1:]]))
-                       for f in functions]
-        casts = [c.Initializer(c.POD(v.dtype, '(*%s)%s' % (v.name, shape)),
-                               '(%s (*)%s) %s' % (c.dtype_to_ctype(v.dtype),
-                                                  shape, '%s_vec' % v.name))
-                 for v, shape in cast_shapes]
-
         # Gnerate function body with all the trimmings
         extra = [c.Comment('Force flushing of denormals to zero in hardware'),
                  c.Line('_MM_SET_DENORMALS_ZERO_MODE(_MM_DENORMALS_ZERO_ON);'),
@@ -206,7 +194,8 @@ class StencilKernel(object):
         denormal = [c.Block(extra)]
         body = [e.ccode for e in self.nodes]
         ret = [c.Statement("return 0")]
-        kernel = c.FunctionBody(header, c.Block(casts + denormal + body + ret))
+        kernel = c.FunctionBody(self._ctop,
+                                c.Block(self._ccasts + denormal + body + ret))
 
         # Generate file header with includes and definitions
         includes = [c.Include(i, system=False) for i in self._includes]
@@ -254,30 +243,7 @@ class StencilKernel(object):
         """
         return [c_int if isinstance(v, Dimension) else
                 np.ctypeslib.ndpointer(dtype=v.dtype, flags='C')
-                for v in self.signature]
-
-    @property
-    def _sections(self):
-        """Return the sections of the StencilKernel as a map from iteration
-        spaces to expressions therein embedded. For example, given the loop tree:
-
-            .. code-block::
-               Iteration t
-                 Iteration p
-                   expr0
-                 Iteration x
-                   Iteration y
-                     expr1
-                     expr2
-                 Iteration s
-                   expr3
-
-        Return the ordered map: ::
-
-            {(t, p): [expr0], (t, x, y): [expr1, expr2], (t, s): [expr3]}
-        """
-        sections = FindSections().visit(self.nodes)
-        return OrderedDict([(tuple(i.dim for i in k), v) for k, v in sections.items()])
+                for v in self.parameters]
 
 
 """

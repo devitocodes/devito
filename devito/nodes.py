@@ -14,7 +14,7 @@ from devito.dse.inspection import terminals
 from devito.interfaces import SymbolicData
 from devito.tools import as_tuple, filter_ordered
 
-__all__ = ['Node', 'Block', 'Expression', 'Iteration', 'Timer']
+__all__ = ['Node', 'Block', 'Expression', 'Function', 'Iteration', 'Timer']
 
 
 class Node(object):
@@ -23,6 +23,7 @@ class Node(object):
     is_Block = False
     is_Iteration = False
     is_Expression = False
+    is_Function = False
 
     """
     :attr:`_traversable`. A list of traversable objects (ie, traversed by
@@ -221,6 +222,97 @@ class Iteration(Node):
     def children(self):
         """Return the traversable children."""
         return (self.nodes,)
+
+
+class Function(Node):
+
+    """Represent a C function.
+
+    :param name: The name of the function.
+    :param body: A :class:`Node` or an iterable of :class:`Node` objects representing
+                 the body of the function.
+    :param retval: The type of the value returned by the function.
+    :param parameters: An iterable of :class:`SymbolicData` objects in input to the
+                       function, or ``None`` if the function takes no parameter.
+    :param prefix: An iterable of qualifiers to prepend to the function declaration.
+                   The default value is ('static', 'inline').
+    """
+
+    is_Function = True
+
+    _traversable = ['body']
+
+    def __init__(self, name, body, retval, parameters=None, prefix=('static', 'inline')):
+        self.name = name
+        self.body = as_tuple(body)
+        self.retval = retval
+        self.parameters = as_tuple(parameters)
+        self.prefix = prefix
+
+    def __repr__(self):
+        parameters = ",".join([c.dtype_to_ctype(i) for i in self.parameters])
+        body = "\n\t".join([str(s) for s in self.body])
+        return "Function[%s]<%s; %s>::\n\t%s" % (self.name, self.retval, parameters, body)
+
+    @property
+    def _cparameters(self):
+        """Generate arguments signature."""
+        return [v.decl if isinstance(v, Dimension) else
+                c.Pointer(c.POD(v.dtype, '%s_vec' % v.name))
+                for v in self.parameters]
+
+    @property
+    def _ccasts(self):
+        """Generate data casts."""
+        handle = [f for f in self.parameters if isinstance(f, SymbolicData)]
+        shapes = [(f, ''.join(["[%s]" % i.ccode for i in f.indices[1:]])) for f in handle]
+        casts = [c.Initializer(c.POD(v.dtype, '(*%s)%s' % (v.name, shape)),
+                               '(%s (*)%s) %s' % (c.dtype_to_ctype(v.dtype),
+                                                  shape, '%s_vec' % v.name))
+                 for v, shape in shapes]
+        return casts
+
+    @property
+    def _ctop(self):
+        """Generate the function declaration."""
+        return c.FunctionDeclaration(c.Value(self.retval, self.name), self._cparameters)
+
+    @property
+    def ccode(self):
+        """Generate C code for the represented C routine.
+
+        :returns: :class:`cgen.FunctionDeclaration` object representing the function.
+        """
+        body = [e.ccode for e in self.body]
+        return c.FunctionBody(self._ctop, c.Block(self._ccasts + body))
+
+    @property
+    def sections(self):
+        """Return the sections of the Function as a map from iteration
+        spaces to expressions therein embedded. For example, given the loop tree:
+
+            .. code-block::
+               Iteration t
+                 Iteration p
+                   expr0
+                 Iteration x
+                   Iteration y
+                     expr1
+                     expr2
+                 Iteration s
+                   expr3
+
+        Return the ordered map: ::
+
+            {(t, p): [expr0], (t, x, y): [expr1, expr2], (t, s): [expr3]}
+        """
+        from devito.visitors import FindSections
+        sections = FindSections().visit(self.body)
+        return OrderedDict([(tuple(i.dim for i in k), v) for k, v in sections.items()])
+
+    @property
+    def children(self):
+        return (self.body,)
 
 
 # Utilities
