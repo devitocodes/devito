@@ -79,7 +79,7 @@ def test_find_sections(exprs, block1, block2, block3):
 
     sections = finder.visit(block2)
     assert len(sections) == 2
-    found = sections.values()
+    found = list(sections.values())
     assert len(found[0]) == 1
     assert found[0][0].stencil == exprs[0].stencil
     assert len(found[1]) == 1
@@ -87,7 +87,7 @@ def test_find_sections(exprs, block1, block2, block3):
 
     sections = finder.visit(block3)
     assert len(sections) == 3
-    found = sections.values()
+    found = list(sections.values())
     assert len(found[0]) == 1
     assert found[0][0].stencil == exprs[0].stencil
     assert len(found[1]) == 2
@@ -101,17 +101,17 @@ def test_is_perfect_iteration(block1, block2, block3):
     checker = IsPerfectIteration()
 
     assert checker.visit(block1) is True
-    assert checker.visit(block1._children()[0]) is True
-    assert checker.visit(block1._children()[0]._children()[0]) is True
+    assert checker.visit(block1.nodes[0]) is True
+    assert checker.visit(block1.nodes[0].nodes[0]) is True
 
     assert checker.visit(block2) is False
-    assert checker.visit(block2._children()[1]) is True
-    assert checker.visit(block2._children()[1]._children()[0]) is True
+    assert checker.visit(block2.nodes[1]) is True
+    assert checker.visit(block2.nodes[1].nodes[0]) is True
 
     assert checker.visit(block3) is False
-    assert checker.visit(block3._children()[0]) is True
-    assert checker.visit(block3._children()[1]) is True
-    assert checker.visit(block3._children()[2]) is True
+    assert checker.visit(block3.nodes[0]) is True
+    assert checker.visit(block3.nodes[1]) is True
+    assert checker.visit(block3.nodes[2]) is True
 
 
 def test_transformer_wrap(exprs, block1, block2, block3):
