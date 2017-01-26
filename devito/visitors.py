@@ -118,7 +118,7 @@ class Visitor(object):
         return self.default_retval()
 
     def visit_Node(self, o, **kwargs):
-        return [self.visit(o._children(), **kwargs)]
+        return self.visit(o.children, **kwargs)
 
     def reuse(self, o, *args, **kwargs):
         """A visit method to reuse a node, ignoring children."""
@@ -154,7 +154,7 @@ class FindSections(Visitor):
     def visit_object(self, o, **kwargs):
         return self.default_retval()
 
-    def visit_list(self, o, ret=None, queue=None):
+    def visit_tuple(self, o, ret=None, queue=None):
         for i in o:
             ret = self.visit(i, ret=ret, queue=queue)
         return ret
@@ -164,7 +164,7 @@ class FindSections(Visitor):
             queue = [o]
         else:
             queue.append(o)
-        for i in o._children():
+        for i in o.children:
             ret = self.visit(i, ret=ret, queue=queue)
         queue.remove(o)
         return ret
@@ -187,12 +187,12 @@ class FindSymbols(Visitor):
     instances in an Iteration/Expression tree.
     """
 
-    def visit_list(self, o):
+    def visit_tuple(self, o):
         symbols = flatten([self.visit(i) for i in o])
         return filter_ordered(symbols, key=attrgetter('name'))
 
     def visit_Iteration(self, o):
-        symbols = flatten([self.visit(i) for i in o._children()])
+        symbols = flatten([self.visit(i) for i in o.children])
         if isinstance(o.limits[1], IterationBound):
             symbols += [o.dim]
         return filter_ordered(symbols, key=attrgetter('name'))
@@ -210,7 +210,7 @@ class IsPerfectIteration(Visitor):
     def visit_object(self, o, **kwargs):
         return False
 
-    def visit_list(self, o, **kwargs):
+    def visit_tuple(self, o, **kwargs):
         return all(self.visit(i, **kwargs) for i in o)
 
     def visit_Node(self, o, found=False, **kwargs):
@@ -221,7 +221,7 @@ class IsPerfectIteration(Visitor):
         if found and multi:
             return False
         multi = len(o.nodes) > 1
-        return all(self.visit(i, found=True, multi=multi) for i in o._children())
+        return all(self.visit(i, found=True, multi=multi) for i in o.children)
 
 
 class Transformer(Visitor):
@@ -248,7 +248,7 @@ class Transformer(Visitor):
 
     def visit_Node(self, o):
         rebuilt = []
-        for i in o._children():
+        for i in o.children():
             if isinstance(i, Hashable) and i in self.mapper:
                 rebuilt.append(self.mapper[i])
             else:

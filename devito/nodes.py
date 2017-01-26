@@ -38,10 +38,6 @@ class Node(object):
         obj._args = OrderedDict(list(zip(argnames[1:], args)) + list(kwargs.items()))
         return obj
 
-    def _children(self):
-        """Return the traversable children."""
-        return []
-
     def _rebuild(self, *args, **kwargs):
         """Reconstruct self. None of the embedded Sympy expressions are rebuilt."""
         handle = self._args  # Original constructor arguments
@@ -52,7 +48,7 @@ class Node(object):
 
     def indexify(self):
         """Convert all enclosed nodes to "indexed" format"""
-        for e in self._children():
+        for e in self.children:
             e.indexify()
 
     def substitute(self, substitutions):
@@ -60,7 +56,7 @@ class Node(object):
 
         :param substitutions: Dict containing the substitutions to apply.
         """
-        candidates = [n for n in self._children() if isinstance(n, Node)]
+        candidates = [n for n in self.children if isinstance(n, Node)]
         for n in candidates:
             n.substitute(substitutions)
 
@@ -75,6 +71,11 @@ class Node(object):
     def ccode(self):
         """Generate C code."""
         raise NotImplementedError()
+
+    @property
+    def children(self):
+        """Return the traversable children."""
+        return ()
 
     @property
     def args(self):
@@ -110,8 +111,9 @@ class Block(Node):
         body = tuple(s.ccode for s in self.body)
         return c.Block(self.header + body + self.footer)
 
-    def _children(self):
-        return [self.body]
+    @property
+    def children(self):
+        return (self.body,)
 
 
 class Expression(Node):
@@ -195,9 +197,9 @@ class Iteration(Node):
 
     def __init__(self, nodes, dimension, limits, offsets=None):
         # Ensure we deal with a list of Expression objects internally
-        self.nodes = as_tuple(nodes)
-        self.nodes = [n if isinstance(n, Node) else Expression(n)
-                      for n in self.nodes]
+        nodes = as_tuple(nodes)
+        self.nodes = as_tuple([n if isinstance(n, Node) else Expression(n)
+                               for n in nodes])
         assert all(isinstance(i, Node) for i in self.nodes)
 
         # Generate index variable name and variable substitutions
@@ -273,9 +275,10 @@ class Iteration(Node):
             offsets.update(n.index_offsets)
         return offsets
 
-    def _children(self):
+    @property
+    def children(self):
         """Return the traversable children."""
-        return [self.nodes]
+        return (self.nodes,)
 
 
 # Utilities
