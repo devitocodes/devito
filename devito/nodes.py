@@ -6,13 +6,12 @@ import inspect
 from collections import Iterable, OrderedDict, defaultdict
 
 import cgen as c
-from sympy import Eq, IndexedBase, Symbol, preorder_traversal
+from sympy import Eq, IndexedBase, preorder_traversal
 
 from devito.codeprinter import ccode
 from devito.dimension import Dimension
 from devito.dse.inspection import terminals
 from devito.interfaces import SymbolicData
-from devito.logger import warning
 from devito.tools import as_tuple, filter_ordered
 
 __all__ = ['Node', 'Block', 'Expression', 'Iteration', 'Timer']
@@ -59,13 +58,6 @@ class Node(object):
         candidates = [n for n in self.children if isinstance(n, Node)]
         for n in candidates:
             n.substitute(substitutions)
-
-    @property
-    def index_offsets(self):
-        """Collect all non-zero offsets used with each index in a map
-
-        Note: This assumes we have indexified the stencil expression."""
-        return defaultdict(list)
 
     @property
     def ccode(self):
@@ -195,32 +187,15 @@ class Iteration(Node):
 
     _traversable = ['nodes']
 
-    def __init__(self, nodes, dimension, limits, offsets=None):
+    def __init__(self, nodes, dimension, limits, index=None, offsets=None):
         # Ensure we deal with a list of Expression objects internally
         nodes = as_tuple(nodes)
         self.nodes = as_tuple([n if isinstance(n, Node) else Expression(n)
                                for n in nodes])
         assert all(isinstance(i, Node) for i in self.nodes)
 
-        # Generate index variable name and variable substitutions
         self.dim = dimension
-        if isinstance(self.dim, Dimension):
-            if self.dim.buffered is None:
-                # Generate index variable from dimension
-                self.index = str(self.dim.get_varname())
-                self.subs = {self.dim: Symbol(self.index)}
-            else:
-                # Generate numbered indices for each buffer
-                self.index = self.dim.name
-                self.subs = {self.dim: Symbol(self.dim.get_varname())}
-                for offset in self.index_offsets[self.dim]:
-                    self.subs[self.dim + offset] = Symbol(self.dim.get_varname())
-        else:
-            warning("Generating Iteration without Dimension object")
-            self.index = str(dimension)
-
-        # Propagate variable names to the lower expressions
-        self.substitute(self.subs)
+        self.index = index or self.dim.name
 
         # Generate loop limits
         if isinstance(limits, Iterable):
@@ -253,27 +228,12 @@ class Iteration(Node):
         :returns: :class:`cgen.For` object representing the loop
         """
         loop_body = [s.ccode for s in self.nodes]
-        if self.dim.buffered is not None:
-            modulo = self.dim.buffered
-            v_subs = [c.Initializer(c.Value('int', v), "(%s) %% %d" % (s, modulo))
-                      for s, v in self.subs.items()]
-            loop_body = v_subs + loop_body
         loop_init = c.InlineInitializer(
             c.Value("int", self.index), "%d + %d" % (self.limits[0], -self.offsets[0]))
         loop_cond = '%s %s %s' % (self.index, '<' if self.limits[2] >= 0 else '>',
                                   "%s - %d" % (self.limits[1], self.offsets[1]))
         loop_inc = '%s += %s' % (self.index, self.limits[2])
         return c.For(loop_init, loop_cond, loop_inc, c.Block(loop_body))
-
-    @property
-    def index_offsets(self):
-        """Collect all non-zero offsets used with each index in a map
-
-        Note: This assumes we have indexified the stencil expression."""
-        offsets = defaultdict(list)
-        for n in self.nodes:
-            offsets.update(n.index_offsets)
-        return offsets
 
     @property
     def children(self):

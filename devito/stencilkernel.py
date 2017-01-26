@@ -19,7 +19,10 @@ from devito.interfaces import SymbolicData
 from devito.logger import error, info
 from devito.nodes import Block, Expression, Iteration, Timer
 from devito.profiler import Profiler
-from devito.visitors import FindSections, IsPerfectIteration, Transformer, FindSymbols
+from devito.visitors import (
+    FindSections, IsPerfectIteration, Transformer, FindSymbols,
+    SubstituteExpression, ResolveIterationVariable
+)
 
 __all__ = ['StencilKernel']
 
@@ -91,6 +94,11 @@ class StencilKernel(object):
                         self.profiler.t_fields += [(lname, c_double)]
                         break
         self.expressions = [Transformer(mapper).visit(Block(body=self.expressions))]
+
+        # Now resolve and substitute dimensions for loop index variables
+        subs = {}
+        self.expressions = ResolveIterationVariable().visit(self.expressions, subs=subs)
+        self.expressions = SubstituteExpression(subs=subs).visit(self.expressions)
 
     def __call__(self, *args, **kwargs):
         self.apply(*args, **kwargs)

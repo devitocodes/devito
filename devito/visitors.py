@@ -7,14 +7,17 @@ The main Visitor class is extracted from https://github.com/coneoproject/COFFEE.
 from __future__ import absolute_import
 
 from devito.tools import filter_ordered, flatten
-from devito.nodes import IterationBound
+from devito.nodes import IterationBound, Block
 from collections import OrderedDict
 from operator import attrgetter
 import inspect
 
-import cgen
+import cgen as c
 
-__all__ = ["FindSections", "FindSymbols", "IsPerfectIteration"]
+from sympy import Symbol
+
+__all__ = ["FindSections", "FindSymbols", "IsPerfectIteration",
+           "SubstituteExpression", "ResolveIterationVariable"]
 
 
 class Visitor(object):
@@ -230,20 +233,84 @@ class Transformer(Visitor):
     a set of new nodes L, M : N --> L, build a new Iteration/Expression tree T'
     where a node ``n`` in N is replaced with ``M[n]``."""
 
-    def __init__(self, mapper):
+    def __init__(self, mapper={}):
         super(Transformer, self).__init__()
         self.mapper = mapper
 
-    def visit_object(self, o):
+    def visit_object(self, o, **kwargs):
         return o
 
-    def visit_tuple(self, o):
-        return tuple(self.visit(i) for i in o)
+    def visit_tuple(self, o, **kwargs):
+        return tuple(self.visit(i, **kwargs) for i in o)
 
-    def visit_Node(self, o):
+    def visit_list(self, o, **kwargs):
+        return tuple(self.visit(i, **kwargs) for i in o)
+
+    def visit_Node(self, o, **kwargs):
         if o in self.mapper:
             handle = self.mapper[o]
             return handle._rebuild(**handle.args)
         else:
-            rebuilt = [self.visit(i) for i in o.children]
+            rebuilt = [self.visit(i, **kwargs) for i in o.children]
             return o._rebuild(*rebuilt, **o.args_frozen)
+
+
+class SubstituteExpression(Transformer):
+    """
+    :class:`Transformer` that performs symbol substitution on
+    :class:`Expression` objects in a given tree.
+
+    :param subs: Dict defining the symbol substitution
+    """
+
+    def __init__(self, subs={}):
+        super(SubstituteExpression, self).__init__()
+        self.subs = subs
+
+    def visit_Expression(self, o):
+        o.substitute(self.subs)
+        return self.reuse(o)
+
+
+class ResolveIterationVariable(Transformer):
+    """
+    :class:`Transformer` class that creates a substitution dictionary
+    for replacing :class:`Dimension` instances with explicit loop
+    variables in :class:`Iteration` nodes. For buffered dimensions it
+    also inserts the relevant definitions for buffer index variables,
+    for exaple.:
+
+        .. code-block::
+      for (int t = 0; t < t_size; t += 1)
+      {
+          int t0 = (t) % 2;
+          int t1 = (t + 1) % 2;
+    """
+
+    def visit_Iteration(self, o, subs={}, offsets={}):
+        nodes = self.visit(o.children, subs=subs, offsets=offsets)
+        if o.dim.buffered:
+            # For buffered dimensions insert the explicit
+            # definition of buffere variables, eg. t+1 => t1
+            init = []
+            for off in [0] + offsets[o.dim]:
+                vname = o.dim.get_varname()
+                value = o.dim + off
+                modulo = o.dim.buffered
+                init += [c.Initializer(c.Value('int', vname),
+                                       "(%s) %% %d" % (value, modulo))]
+                subs[o.dim + off] = Symbol(vname)
+            # Insert block with modulo initialisations
+            newnodes = (Block(header=init, body=nodes[0]), )
+            return o._rebuild(newnodes)
+        else:
+            vname = o.dim.get_varname()
+            subs[o.dim] = Symbol(vname)
+            return o._rebuild(*nodes, index=vname)
+
+    def visit_Expression(self, o, subs={}, offsets={}):
+        # Collect all offsets used with a dimension
+        # TODO: Straight update is not really safe,
+        # since we're mapping into a list...
+        offsets.update(o.index_offsets)
+        return o
