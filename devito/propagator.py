@@ -23,6 +23,7 @@ from devito.nodes import Expression, Iteration
 from devito.logger import info
 from devito.profiler import Profiler
 from devito.tools import flatten
+from devito.visitors import SubstituteExpression
 
 
 class Propagator(object):
@@ -397,7 +398,7 @@ class Propagator(object):
         if isinstance(equality, cgen.Generable):
             return equality
         elif isinstance(equality, Iteration):
-            equality.substitute(self._mapper)
+            SubstituteExpression(subs=self._mapper).visit(equality)
             return equality.ccode
         else:
             s_lhs = ccode(self.time_substitutions(equality.lhs).xreplace(self._mapper))
