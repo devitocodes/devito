@@ -1,9 +1,19 @@
-from collections import OrderedDict, Sequence
+from __future__ import absolute_import
 
+from collections import OrderedDict, Sequence
 from time import time
 
+import numpy as np
+
+import cgen as c
+
+from devito.dimension import Dimension
+from devito.dle.inspection import retrieve_iteration_tree
+from devito.interfaces import ScalarData, SymbolicData
 from devito.logger import dle, dle_warning
-from devito.visitors import FindSections, FunctionBuilder
+from devito.nodes import Element, Function
+from devito.tools import as_tuple
+from devito.visitors import FindSymbols, Transformer
 
 
 def transform(node, mode='basic'):
@@ -38,9 +48,9 @@ def transform(node, mode='basic'):
         dle_warning("Unknown transformer mode(s) %s" % str(mode))
         return State(node)
     else:
-        return Transformer(node).run(mode)
+        return Rewriter(node).run(mode)
 
-    return Transformer(node).run(mode)
+    return Rewriter(node).run(mode)
 
 
 def dle_transformation(func):
@@ -60,16 +70,19 @@ def dle_transformation(func):
 class State(object):
 
     def __init__(self, nodes):
-        self.nodes = nodes
+        self.nodes = as_tuple(nodes)
+        self.elemental_functions = []
 
-    def update(self, nodes=None):
-        self.nodes = nodes or self.nodes
+    def update(self, nodes=None, elemental_functions=None):
+        self.nodes = as_tuple(nodes) or self.nodes
+        self.elemental_functions = as_tuple(elemental_functions) or\
+            self.elemental_functions
 
 
-class Transformer(object):
+class Rewriter(object):
 
     triggers = {
-        '_extract_loops': ('basic',)
+        '_create_elemental_functions': ('basic',)
     }
 
     def __init__(self, nodes):
@@ -80,19 +93,66 @@ class Transformer(object):
     def run(self, mode):
         state = State(self.nodes)
 
-        self._extract_loops(state, mode=mode)
+        self._create_elemental_functions(state, mode=mode)
 
         self._summary(mode)
 
         return state
 
     @dle_transformation
-    def _extract_loops(self, state, **kwargs):
+    def _create_elemental_functions(self, state, **kwargs):
         """
-        Move inner loops to separate functions.
+        Move :class:`Iteration` sub-trees to separate functions.
+
+        By default, inner iteration trees are moved. To move different types of
+        :class:`Iteration`, one can provide a lambda function in ``kwargs['rule']``,
+        taking as input an iterable of :class:`Iteration` and returning an iterable
+        of :class:`Iteration` (eg, a subset, the whole iteration tree).
         """
 
-        return {'nodes': state.nodes}
+        rule = kwargs.get('rule', lambda tree: tree[-1:])
+
+        functions = []
+        processed = []
+        for i, node in enumerate(state.nodes):
+            for j, subtree in enumerate(retrieve_iteration_tree(node)):
+                name = "f_%d_%d" % (i, j)
+
+                candidate = rule(subtree)
+                leftover = tuple(k for k in subtree if k not in candidate)
+
+                args = FindSymbols().visit(candidate)
+                args += [k.dim for k in leftover if k not in args]
+
+                known = [k.name for k in args]
+                known += [k.index for k in candidate]
+                maybe_unknown = FindSymbols(mode='free-symbols').visit(candidate)
+                args += [k for k in maybe_unknown if k.name not in known]
+
+                call = []
+                parameters = []
+                for k in args:
+                    if isinstance(k, Dimension):
+                        call.append(k.ccode)
+                        parameters.append(k)
+                    elif isinstance(k, SymbolicData):
+                        call.append("%s_vec" % k.name)
+                        parameters.append(k)
+                    else:
+                        call.append(k.name)
+                        parameters.append(ScalarData(name=k.name, dtype=np.int32))
+
+                root = candidate[0]
+
+                # Transform the main tree
+                call = '%s(%s)' % (name, ','.join(call))
+                mapper = {root: Element(c.Statement(call))}
+                processed.append(Transformer(mapper).visit(node))
+
+                # Produce the new functions
+                functions.append(Function(name, root, 'void', parameters, ('static')))
+
+        return {'nodes': processed, 'elemental_functions': functions}
 
     def _summary(self, mode):
         """
