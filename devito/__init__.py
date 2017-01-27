@@ -20,3 +20,8 @@ def clear_cache():
     for key, val in list(_SymbolCache.items()):
         if val() is None:
             del _SymbolCache[key]
+
+
+from ._version import get_versions  # noqa
+__version__ = get_versions()['version']
+del get_versions
