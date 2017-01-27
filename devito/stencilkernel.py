@@ -67,22 +67,22 @@ class StencilKernel(object):
         stencils = [indexify(s) for s in stencils]
         stencils = [s.xreplace(subs) for s in stencils]
         stencils = rewrite(stencils, mode=dse).exprs
-        self.expressions = [Expression(s) for s in stencils]
+        self.nodes = [Expression(s) for s in stencils]
 
         # Wrap expressions with Iterations according to dimensions
-        for i, expr in enumerate(self.expressions):
+        for i, expr in enumerate(self.nodes):
             newexpr = expr
             offsets = newexpr.index_offsets
             for d in reversed(expr.dimensions):
                 newexpr = Iteration(newexpr, dimension=d,
                                     limits=d.size, offsets=offsets[d])
-            self.expressions[i] = newexpr
+            self.nodes[i] = newexpr
 
         # TODO: Merge Iterations iff outermost variables agree
 
         # Introduce timers for profiling (only perfect nests are timed)
         mapper = {}
-        for i, expr in enumerate(self.expressions):
+        for i, expr in enumerate(self.nodes):
             for itspace in FindSections().visit(expr).keys():
                 for j in itspace:
                     if IsPerfectIteration().visit(j) and j not in mapper:
@@ -93,12 +93,12 @@ class StencilKernel(object):
                                           lname=lname, body=j)
                         self.profiler.t_fields += [(lname, c_double)]
                         break
-        self.expressions = [Transformer(mapper).visit(Block(body=self.expressions))]
+        self.nodes = [Transformer(mapper).visit(Block(body=self.nodes))]
 
         # Now resolve and substitute dimensions for loop index variables
         subs = {}
-        self.expressions = ResolveIterationVariable().visit(self.expressions, subs=subs)
-        self.expressions = SubstituteExpression(subs=subs).visit(self.expressions)
+        self.nodes = ResolveIterationVariable().visit(self.nodes, subs=subs)
+        self.nodes = SubstituteExpression(subs=subs).visit(self.nodes)
 
     def __call__(self, *args, **kwargs):
         self.apply(*args, **kwargs)
@@ -171,7 +171,7 @@ class StencilKernel(object):
 
         :returns: List of unique data objects required by the kernel
         """
-        return FindSymbols().visit(self.expressions)
+        return FindSymbols().visit(self.nodes)
 
     @property
     def ccode(self):
@@ -205,7 +205,7 @@ class StencilKernel(object):
                  c.Line('_MM_SET_DENORMALS_ZERO_MODE(_MM_DENORMALS_ZERO_ON);'),
                  c.Line('_MM_SET_FLUSH_ZERO_MODE(_MM_FLUSH_ZERO_ON);')]
         denormal = [c.Block(extra)]
-        body = [e.ccode for e in self.expressions]
+        body = [e.ccode for e in self.nodes]
         ret = [c.Statement("return 0")]
         kernel = c.FunctionBody(header, c.Block(casts + denormal + body + ret))
 
@@ -224,7 +224,7 @@ class StencilKernel(object):
 
         :returns: The basename path as a string
         """
-        expr_string = "\n".join([str(e) for e in self.expressions])
+        expr_string = "\n".join([str(e) for e in self.nodes])
         hash_key = sha1(expr_string.encode()).hexdigest()
 
         return path.join(get_tmp_dir(), hash_key)
@@ -277,7 +277,7 @@ class StencilKernel(object):
 
             {(t, p): [expr0], (t, x, y): [expr1, expr2], (t, s): [expr3]}
         """
-        sections = FindSections().visit(self.expressions)
+        sections = FindSections().visit(self.nodes)
         return OrderedDict([(tuple(i.dim for i in k), v) for k, v in sections.items()])
 
 
