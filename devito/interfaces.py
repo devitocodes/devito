@@ -562,7 +562,13 @@ class PointData(DenseData):
 
 class IndexedData(IndexedBase):
     """Wrapper class that inserts a pointer to the symbolic data object"""
-    def __new__(self, name, shape, function):
-        indexed = IndexedBase(name, shape=shape)
-        indexed.function = function
-        return indexed
+
+    def __new__(cls, label, shape=None, function=None, **kw_args):
+        obj = IndexedBase.__new__(cls, label, shape)
+        obj.function = function
+        return obj
+
+    def func(self, *args):
+        obj = super(IndexedData, self).func(*args)
+        obj.function = self.function
+        return obj
