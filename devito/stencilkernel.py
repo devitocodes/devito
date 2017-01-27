@@ -1,7 +1,7 @@
 from __future__ import absolute_import
 
 import operator
-from collections import OrderedDict
+from collections import OrderedDict, namedtuple
 from ctypes import c_double, c_int
 from functools import reduce
 from hashlib import sha1
@@ -14,14 +14,14 @@ from devito.compiler import (get_compiler_from_env, get_tmp_dir,
                              jit_compile_and_load)
 from devito.dimension import Dimension
 from devito.dle import transform
-from devito.dse import estimate_cost, estimate_memory, indexify, rewrite
+from devito.dse import indexify, rewrite
 from devito.interfaces import SymbolicData
 from devito.logger import error, info
 from devito.nodes import Block, Expression, Function, Iteration, TimedList
 from devito.profiler import Profiler
-from devito.visitors import (FindSections, FindSymbols, IsPerfectIteration,
-                             ResolveIterationVariable, SubstituteExpression,
-                             Transformer)
+from devito.visitors import (EstimateCost, FindSections, FindSymbols,
+                             IsPerfectIteration, ResolveIterationVariable,
+                             SubstituteExpression, Transformer)
 
 __all__ = ['StencilKernel']
 
@@ -82,8 +82,9 @@ class StencilKernel(Function):
 
         # TODO: Merge Iterations iff outermost variables agree
 
-        # Introduce timers for profiling (only perfect nests are timed)
+        # Introduce profiling infrastructure
         mapper = {}
+        self.sections = OrderedDict()
         for i, expr in enumerate(nodes):
             for itspace in FindSections().visit(expr).keys():
                 for j in itspace:
@@ -94,22 +95,28 @@ class StencilKernel(Function):
                         mapper[j] = TimedList(gname=self.profiler.t_name,
                                               lname=lname, body=j)
                         self.profiler.t_fields += [(lname, c_double)]
+
+                        # Estimate computational properties of the timed section
+                        # (operational intensity, memory accesses)
+                        k = tuple(k.dim for k in itspace)
+                        v = EstimateCost().visit(j)
+                        self.sections[k] = Profile(lname, v.ops, v.mem)
                         break
         nodes = [Transformer(mapper).visit(Block(body=nodes))]
-
-        # Apply the Devito Loop Engine for loop optimization
-        nodes = transform(nodes, mode=dle).nodes
 
         # Now resolve and substitute dimensions for loop index variables
         subs = {}
         nodes = ResolveIterationVariable().visit(nodes, subs=subs)
         nodes = SubstituteExpression(subs=subs).visit(nodes)
 
-        super(StencilKernel, self).__init__(name=name,
-                                            body=nodes,
-                                            retval='int',
-                                            parameters=SymbolFinder().visit(nodes),
-                                            prefix=())
+        # Apply the Devito Loop Engine for loop optimization and finalize instantiation
+        handle = transform(nodes, mode=dle)
+        body = handle.nodes
+        parameters = FindSymbols().visit(nodes)
+        super(StencilKernel, self).__init__(name, body, 'int', parameters, ())
+
+        # Track the addition functions created by the DLE
+        self.elemental_functions = handle.elemental_functions
 
     def __call__(self, *args, **kwargs):
         self.apply(*args, **kwargs)
@@ -166,15 +173,20 @@ class StencilKernel(Function):
         self.cfunction(*list(arguments.values()))
 
         # Summary of performance achieved
-        for itspace, expressions in self.sections.items():
-            stencils = [e.stencil for e in expressions]
+        info("="*71)
+        for itspace, profile in self.sections.items():
+            # Time
+            elapsed = self.profiler.timings[profile.timer]
+            # Flops
             niters = reduce(operator.mul, [i.size or dim_sizes[i] for i in itspace])
-            flops = float(estimate_cost(stencils)*niters)
+            flops = float(profile.ops*niters)
             gflops = flops/10**9
-            # TODO: need to tweak the calculation below once padding is in
-            traffic = estimate_memory(stencils)*niters
-            info("Computed block %s in X s [OI=%.2f, Perf=%.3f GFlops/s]" %
-                 (str(itspace), flops/traffic, gflops))
+            # Memory (FIXME: need to tweak the calculation below once padding is in)
+            traffic = profile.memory*niters
+
+            info("Section %s with OI=%.2f computed in %.2f s [Perf: %.2f GFlops/s]" %
+                 (str(itspace), flops/traffic, elapsed, gflops/elapsed))
+        info("="*71)
 
     @property
     def _cparameters(self):
@@ -193,21 +205,25 @@ class StencilKernel(Function):
         """
         blankline = c.Line("")
 
-        # Gnerate function body with all the trimmings
+        # Generate function body with all the trimmings
         extra = [c.Comment('Force flushing of denormals to zero in hardware'),
                  c.Line('_MM_SET_DENORMALS_ZERO_MODE(_MM_DENORMALS_ZERO_ON);'),
                  c.Line('_MM_SET_FLUSH_ZERO_MODE(_MM_FLUSH_ZERO_ON);')]
         denormal = [c.Block(extra)]
-        body = [e.ccode for e in self.nodes]
+        body = [e.ccode for e in self.body]
         ret = [c.Statement("return 0")]
         kernel = c.FunctionBody(self._ctop,
                                 c.Block(self._ccasts + denormal + body + ret))
+
+        # Generate elemental functions produced by the DLE
+        elemental_functions = [e.ccode for e in self.elemental_functions]
+        elemental_functions += [blankline]
 
         # Generate file header with includes and definitions
         includes = [c.Include(i, system=False) for i in self._includes]
         includes += [blankline]
         profiling = [self.profiler.as_cgen_struct(Profiler.TIME), blankline]
-        return c.Module(includes + profiling + [kernel])
+        return c.Module(includes + profiling + elemental_functions + [kernel])
 
     @property
     def basename(self):
@@ -218,7 +234,7 @@ class StencilKernel(Function):
 
         :returns: The basename path as a string
         """
-        expr_string = "\n".join([str(e) for e in self.nodes])
+        expr_string = "\n".join([str(e) for e in self.body])
         hash_key = sha1(expr_string.encode()).hexdigest()
 
         return path.join(get_tmp_dir(), hash_key)
@@ -259,3 +275,8 @@ cnames = {
     'loc_timer': 'loc_timer',
     'glb_timer': 'glb_timer'
 }
+
+"""
+A helper to track profiled sections of code.
+"""
+Profile = namedtuple('Profile', 'timer ops memory')
