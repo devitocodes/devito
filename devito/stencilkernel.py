@@ -13,8 +13,8 @@ import numpy as np
 from devito.compiler import (get_compiler_from_env, get_tmp_dir,
                              jit_compile_and_load)
 from devito.dimension import Dimension
-from devito.dse.inspection import estimate_cost, estimate_memory, indexify
-from devito.dse.symbolics import rewrite
+from devito.dle import transform
+from devito.dse import estimate_cost, estimate_memory, indexify, rewrite
 from devito.interfaces import SymbolicData
 from devito.logger import error, info
 from devito.nodes import Block, Expression, Function, Iteration, Timer
@@ -43,6 +43,8 @@ class StencilKernel(Function):
                  substitutions for each stencil respectively.
         * dse : Use the Devito Symbolic Engine to optimize the expressions -
                 defaults to "advanced".
+        * dle : Use the Devito Loop Engine to optimize the loops -
+                defaults to "basic".
         * compiler: Compiler class used to perform JIT compilation.
                     If not provided, the compiler will be inferred from the
                     environment variable DEVITO_ARCH, or default to GNUCompiler.
@@ -53,6 +55,7 @@ class StencilKernel(Function):
         name = kwargs.get("name", "Kernel")
         subs = kwargs.get("subs", {})
         dse = kwargs.get("dse", "advanced")
+        dle = kwargs.get("dle", "basic")
         compiler = kwargs.get("compiler", None)
 
         # Default attributes required for compilation
@@ -93,6 +96,9 @@ class StencilKernel(Function):
                         self.profiler.t_fields += [(lname, c_double)]
                         break
         nodes = [Transformer(mapper).visit(Block(body=nodes))]
+
+        # Apply the Devito Loop Engine for loop optimization
+        nodes = transform(nodes, mode=dle).nodes
 
         # Now resolve and substitute dimensions for loop index variables
         subs = {}
