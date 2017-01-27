@@ -1,9 +1,8 @@
 import ctypes
+from collections import Iterable
 
 import numpy as np
 from sympy import symbols
-
-from collections import Iterable
 
 
 def as_tuple(item, type=None, length=None):

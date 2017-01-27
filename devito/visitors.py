@@ -6,15 +6,15 @@ The main Visitor class is extracted from https://github.com/coneoproject/COFFEE.
 
 from __future__ import absolute_import
 
-from devito.tools import filter_ordered, flatten
-from devito.nodes import IterationBound, Block
+import inspect
 from collections import OrderedDict
 from operator import attrgetter
-import inspect
 
 import cgen as c
-
 from sympy import Symbol
+
+from devito.nodes import Block, IterationBound
+from devito.tools import filter_ordered, flatten
 
 __all__ = ["FindSections", "FindSymbols", "IsPerfectIteration",
            "SubstituteExpression", "ResolveIterationVariable"]

@@ -1,6 +1,5 @@
-import pytest
-
 import cgen as c
+import pytest
 from sympy import Eq
 
 from devito.dimension import Dimension

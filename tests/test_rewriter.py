@@ -1,10 +1,8 @@
 import numpy as np
-
 import pytest
 
 from devito.dse.graph import temporaries_graph
 from devito.dse.symbolics import rewrite
-
 from examples.acoustic.Acoustic_codegen import Acoustic_cg
 from examples.containers import IGrid, IShot
 from examples.tti.tti_example import setup

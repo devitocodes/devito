@@ -19,8 +19,8 @@ from devito.dimension import t, x, y, z
 from devito.dse.inspection import retrieve_dtype
 from devito.dse.symbolics import _temp_prefix, rewrite
 from devito.function_manager import FunctionDescriptor, FunctionManager
-from devito.nodes import Expression, Iteration
 from devito.logger import info
+from devito.nodes import Expression, Iteration
 from devito.profiler import Profiler
 from devito.tools import flatten
 from devito.visitors import SubstituteExpression
