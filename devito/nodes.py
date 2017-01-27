@@ -45,20 +45,6 @@ class Node(object):
         handle.update(kwargs)
         return type(self)(**handle)
 
-    def indexify(self):
-        """Convert all enclosed nodes to "indexed" format"""
-        for e in self.children:
-            e.indexify()
-
-    def substitute(self, substitutions):
-        """Apply substitutions to children nodes
-
-        :param substitutions: Dict containing the substitutions to apply.
-        """
-        candidates = [n for n in self.children if isinstance(n, Node)]
-        for n in candidates:
-            n.substitute(substitutions)
-
     @property
     def ccode(self):
         """Generate C code."""
@@ -146,10 +132,6 @@ class Expression(Node):
     @property
     def ccode(self):
         return c.Assign(ccode(self.stencil.lhs), ccode(self.stencil.rhs))
-
-    def indexify(self):
-        """Convert stencil expression to "indexed" format"""
-        self.stencil = indexify(self.stencil)
 
     @property
     def index_offsets(self):
