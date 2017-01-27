@@ -17,7 +17,7 @@ from devito.dle import transform
 from devito.dse import estimate_cost, estimate_memory, indexify, rewrite
 from devito.interfaces import SymbolicData
 from devito.logger import error, info
-from devito.nodes import Block, Expression, Function, Iteration, Timer
+from devito.nodes import Block, Expression, Function, Iteration, TimedList
 from devito.profiler import Profiler
 from devito.visitors import (FindSections, FindSymbols, IsPerfectIteration,
                              ResolveIterationVariable, SubstituteExpression,
@@ -88,11 +88,11 @@ class StencilKernel(Function):
             for itspace in FindSections().visit(expr).keys():
                 for j in itspace:
                     if IsPerfectIteration().visit(j) and j not in mapper:
-                        # Insert `Timer` block. This should come from
+                        # Insert `TimedList` block. This should come from
                         # the profiler, but we do this manually for now.
                         lname = 'loop_%s' % j.index
-                        mapper[j] = Timer(gname=self.profiler.t_name,
-                                          lname=lname, body=j)
+                        mapper[j] = TimedList(gname=self.profiler.t_name,
+                                              lname=lname, body=j)
                         self.profiler.t_fields += [(lname, c_double)]
                         break
         nodes = [Transformer(mapper).visit(Block(body=nodes))]

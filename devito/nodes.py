@@ -14,7 +14,8 @@ from devito.dse.inspection import terminals
 from devito.interfaces import SymbolicData
 from devito.tools import as_tuple, filter_ordered
 
-__all__ = ['Node', 'Block', 'Expression', 'Function', 'Iteration', 'Timer']
+__all__ = ['Node', 'Block', 'Expression', 'Function', 'Iteration', 'List',
+           'TimedList']
 
 
 class Node(object):
@@ -24,6 +25,7 @@ class Node(object):
     is_Iteration = False
     is_Expression = False
     is_Function = False
+    is_List = False
 
     """
     :attr:`_traversable`. A list of traversable objects (ie, traversed by
@@ -72,6 +74,8 @@ class Block(Node):
 
     is_Block = True
 
+    _wrapper = c.Block
+
     _traversable = ['body']
 
     def __init__(self, header=None, body=None, footer=None):
@@ -81,18 +85,27 @@ class Block(Node):
 
     def __repr__(self):
         header = "".join([str(s) for s in self.header])
-        body = "Block::\n\t%s" % "\n\t".join([str(s) for s in self.body])
+        body = "\n\t".join([str(s) for s in self.body])
         footer = "".join([str(s) for s in self.footer])
-        return header + body + footer
+        return "%s::\n\t%s" % (self.__class__.__name__, header + body + footer)
 
     @property
     def ccode(self):
         body = tuple(s.ccode for s in self.body)
-        return c.Block(self.header + body + self.footer)
+        return self._wrapper(self.header + body + self.footer)
 
     @property
     def children(self):
         return (self.body,)
+
+
+class List(Block):
+
+    """Class representing a sequence of one or more statements."""
+
+    is_List = True
+
+    _wrapper = c.Collection
 
 
 class Expression(Node):
@@ -250,16 +263,22 @@ class Function(Node):
         self.prefix = prefix
 
     def __repr__(self):
-        parameters = ",".join([c.dtype_to_ctype(i) for i in self.parameters])
+        parameters = ",".join([c.dtype_to_ctype(i.dtype) for i in self.parameters])
         body = "\n\t".join([str(s) for s in self.body])
         return "Function[%s]<%s; %s>::\n\t%s" % (self.name, self.retval, parameters, body)
 
     @property
     def _cparameters(self):
         """Generate arguments signature."""
-        return [v.decl if isinstance(v, Dimension) else
-                c.Pointer(c.POD(v.dtype, '%s_vec' % v.name))
-                for v in self.parameters]
+        cparameters = []
+        for v in self.parameters:
+            if isinstance(v, Dimension):
+                cparameters.append(v.decl)
+            elif v.is_ScalarData:
+                cparameters.append(c.Value('const int', v.name))
+            else:
+                cparameters.append(c.Pointer(c.POD(v.dtype, '%s_vec' % v.name)))
+        return cparameters
 
     @property
     def _ccasts(self):
@@ -317,13 +336,13 @@ class Function(Node):
 
 # Utilities
 
-class Timer(Block):
+class TimedList(List):
 
     """Wrap a Node with C-level timers."""
 
     def __init__(self, lname, gname, body):
         """
-        Initialize a Timer object.
+        Initialize a TimedList object.
 
         :param lname: Timer name in the local scope.
         :param gname: Name of the global struct tracking all timers.
@@ -338,7 +357,11 @@ class Timer(Block):
                                "(double)(end_%(ln)s.tv_sec-start_%(ln)s.tv_sec)+" +
                                "(double)(end_%(ln)s.tv_usec-start_%(ln)s.tv_usec)" +
                                "/1000000") % {'gn': gname, 'ln': lname})]
-        super(Timer, self).__init__(header, body, footer)
+        super(TimedList, self).__init__(header, body, footer)
+
+    def __repr__(self):
+        body = "\n\t".join([str(s) for s in self.body])
+        return "%s::\n\t%s" % (self.__class__.__name__, body)
 
     @property
     def name(self):
