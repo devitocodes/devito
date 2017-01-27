@@ -1,5 +1,8 @@
 import cgen
+
+import numpy as np
 from sympy import Symbol
+
 
 __all__ = ['Dimension', 'x', 'y', 'z', 't', 'p']
 
@@ -38,6 +41,11 @@ class Dimension(Symbol):
     def decl(self):
         """Variable declaration for C-level kernel headers"""
         return cgen.Value("const int", self.ccode)
+
+    @property
+    def dtype(self):
+        """The data type of the iteration variable"""
+        return np.int32
 
 
 # Set of default dimensions for space and time
