@@ -15,14 +15,13 @@ from devito.memory import CMemory, first_touch
 __all__ = ['DenseData', 'TimeData', 'PointData']
 
 
-# This class encapsulates the type of time data in two case
-# Forward : means the time derivative has to be taken to the left (t-2, t-1, t
-# Backward : means the time derivative has to be taken to the right (t+2, t+1, t)
-# Keeping track of this information allows to have interleaving forward and backward
-# wavefield and is specially handy for the computation of the gradient computing
-# the correlation of a forward and adjoint wavefield
 class Taxis(object):
-    """Class encapsulating the side of the shift for derivatives."""
+    """This class encapsulates the type of time data in two case
+    Forward : means the time derivative has to be taken to the left (t-2, t-1, t
+    Backward : means the time derivative has to be taken to the right (t+2, t+1, t)
+    Keeping track of this information allows to have interleaving forward and backward
+    wavefield and is specially handy for the computation of the gradient computing
+    the correlation of a forward and adjoint wavefield"""
 
     def __init__(self, taxis):
         self._taxis = taxis
