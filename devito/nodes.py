@@ -43,7 +43,7 @@ class Node(object):
 
     def _rebuild(self, *args, **kwargs):
         """Reconstruct self. None of the embedded Sympy expressions are rebuilt."""
-        handle = self._args  # Original constructor arguments
+        handle = self._args.copy()  # Original constructor arguments
         argnames = [i for i in self._traversable if i not in kwargs]
         handle.update(OrderedDict([(k, v) for k, v in zip(argnames, args)]))
         handle.update(kwargs)
