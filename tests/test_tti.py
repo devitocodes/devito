@@ -3,7 +3,6 @@ import pytest
 from numpy import linalg
 
 from devito.logger import log
-
 from examples.acoustic.Acoustic_codegen import Acoustic_cg
 from examples.containers import IGrid, IShot
 from examples.tti.TTI_codegen import TTI_cg

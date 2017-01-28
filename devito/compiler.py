@@ -7,6 +7,7 @@ import numpy.ctypeslib as npct
 from cgen import Pragma
 from codepy.jit import extension_file_from_string
 from codepy.toolchain import GCCToolchain
+
 from devito.logger import log
 
 __all__ = ['get_tmp_dir', 'get_compiler_from_env',

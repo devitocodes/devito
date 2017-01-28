@@ -1,11 +1,43 @@
 import ctypes
+from collections import Iterable
 
 import numpy as np
 from sympy import symbols
 
 
+def as_tuple(item, type=None, length=None):
+    """
+    Force item to a tuple.
+
+    Partly extracted from: https://github.com/OP2/PyOP2/.
+    """
+    # Empty list if we get passed None
+    if item is None:
+        t = ()
+    else:
+        # Convert iterable to list...
+        try:
+            t = tuple(item)
+        # ... or create a list of a single item
+        except (TypeError, NotImplementedError):
+            t = (item,) * (length or 1)
+    if length and not len(t) == length:
+        raise ValueError("Tuple needs to be of length %d" % length)
+    if type and not all(isinstance(i, type) for i in t):
+        raise TypeError("Items need to be of type %s" % type)
+    return t
+
+
 def flatten(l):
-    return [item for sublist in l for item in sublist]
+    """Flatten a hierarchy of nested lists into a plain list."""
+    newlist = []
+    for el in l:
+        if isinstance(el, Iterable) and not isinstance(el, (str, bytes)):
+            for sub in flatten(el):
+                newlist.append(sub)
+        else:
+            newlist.append(el)
+    return newlist
 
 
 def filter_ordered(elements, key=None):
