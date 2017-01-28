@@ -193,9 +193,24 @@ class FindSymbols(Visitor):
     def default_retval(cls):
         return []
 
-    """Find all :class:`SymbolicData` and :class:`IndexedData`
-    instances in an Iteration/Expression tree.
+    """Find symbols in an Iteration/Expression tree.
+
+    :param mode: Drive the search for symbols. Accepted values are: ::
+
+        * 'with-data' (default): all :class:`SymbolicData` and :class:`IndexedData`
+          instances are collected.
+        * 'free-symbols': all free symbols appearing in :class:`Expression` are
+          collected.
     """
+
+    rules = {
+        'with-data': lambda e: e.functions,
+        'free-symbols': lambda e: e.stencil.free_symbols
+    }
+
+    def __init__(self, mode='with-data'):
+        super(FindSymbols, self).__init__()
+        self.rule = self.rules[mode]
 
     def visit_tuple(self, o):
         symbols = flatten([self.visit(i) for i in o])
@@ -208,8 +223,7 @@ class FindSymbols(Visitor):
         return filter_ordered(symbols, key=attrgetter('name'))
 
     def visit_Expression(self, o):
-        return filter_ordered([f for f in o.functions],
-                              key=attrgetter('name'))
+        return filter_ordered([f for f in self.rule(o)], key=attrgetter('name'))
 
 
 class IsPerfectIteration(Visitor):
