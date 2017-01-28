@@ -31,6 +31,10 @@ class UnevaluatedExpr(Expr):
         return self
 
 
+class Eq(sympy.Eq, UnevaluatedExpr):
+    pass
+
+
 class Mul(sympy.Mul, UnevaluatedExpr):
     pass
 

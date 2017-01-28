@@ -18,12 +18,12 @@ from devito.compiler import (IntelMICCompiler, get_compiler_from_env,
 from devito.dimension import t, x, y, z
 from devito.dse.inspection import retrieve_dtype
 from devito.dse.symbolics import _temp_prefix, rewrite
-from devito.expression import Expression
 from devito.function_manager import FunctionDescriptor, FunctionManager
-from devito.iteration import Iteration
 from devito.logger import info
+from devito.nodes import Expression, Iteration
 from devito.profiler import Profiler
 from devito.tools import flatten
+from devito.visitors import SubstituteExpression
 
 
 class Propagator(object):
@@ -398,7 +398,7 @@ class Propagator(object):
         if isinstance(equality, cgen.Generable):
             return equality
         elif isinstance(equality, Iteration):
-            equality.substitute(self._mapper)
+            SubstituteExpression(subs=self._mapper).visit(equality)
             return equality.ccode
         else:
             s_lhs = ccode(self.time_substitutions(equality.lhs).xreplace(self._mapper))
@@ -456,7 +456,7 @@ class Propagator(object):
         for k, section in sections.items():
             for i, subsection in enumerate(section):
                 if isinstance(subsection, Iteration):
-                    exprs = [e.stencil for e in subsection.expressions]
+                    exprs = [e.stencil for e in subsection.nodes]
                 else:
                     exprs = subsection.stencil
                 handle = rewrite(exprs, mode='noop')
@@ -884,8 +884,8 @@ class Propagator(object):
 
         # For Iteration objects we apply time subs to the stencil list
         if isinstance(sympy_expr, Iteration):
-            sympy_expr.expressions = [Expression(self.time_substitutions(s.stencil))
-                                      for s in sympy_expr.expressions]
+            sympy_expr.nodes = [Expression(self.time_substitutions(s.stencil))
+                                for s in sympy_expr.nodes]
             return sympy_expr
 
         for arg in postorder_traversal(sympy_expr):
