@@ -116,13 +116,16 @@ class Rewriter(object):
         processed = []
         for i, node in enumerate(state.nodes):
             for j, subtree in enumerate(retrieve_iteration_tree(node)):
+                if len(subtree) <= 1:
+                    continue
+
                 name = "f_%d_%d" % (i, j)
 
                 candidate = rule(subtree)
                 leftover = tuple(k for k in subtree if k not in candidate)
 
                 args = FindSymbols().visit(candidate)
-                args += [k.dim for k in leftover if k not in args]
+                args += [k.dim for k in leftover if k not in args and k.is_Closed]
 
                 known = [k.name for k in args]
                 known += [k.index for k in candidate]
@@ -150,7 +153,7 @@ class Rewriter(object):
                 processed.append(Transformer(mapper).visit(node))
 
                 # Produce the new functions
-                functions.append(Function(name, root, 'void', parameters, ('static')))
+                functions.append(Function(name, root, 'void', parameters, ('static',)))
 
         return {'nodes': processed, 'elemental_functions': functions}
 
