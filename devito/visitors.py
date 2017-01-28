@@ -184,6 +184,8 @@ class FindSections(Visitor):
         ret.setdefault(key, []).append(o)
         return ret
 
+    visit_Element = visit_Expression
+
 
 class FindSymbols(Visitor):
 
