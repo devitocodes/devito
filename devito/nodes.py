@@ -11,7 +11,7 @@ from sympy import Eq, IndexedBase, preorder_traversal
 from devito.codeprinter import ccode
 from devito.dimension import Dimension
 from devito.dse.inspection import terminals
-from devito.interfaces import SymbolicData
+from devito.interfaces import SymbolicData, TensorData
 from devito.tools import as_tuple, filter_ordered
 
 __all__ = ['Node', 'Block', 'Expression', 'Function', 'Iteration', 'List',
@@ -305,7 +305,7 @@ class Function(Node):
     @property
     def _ccasts(self):
         """Generate data casts."""
-        handle = [f for f in self.parameters if isinstance(f, SymbolicData)]
+        handle = [f for f in self.parameters if isinstance(f, TensorData)]
         shapes = [(f, ''.join(["[%s]" % i.ccode for i in f.indices[1:]])) for f in handle]
         casts = [c.Initializer(c.POD(v.dtype, '(*%s)%s' % (v.name, shape)),
                                '(%s (*)%s) %s' % (c.dtype_to_ctype(v.dtype),
@@ -326,30 +326,6 @@ class Function(Node):
         """
         body = [e.ccode for e in self.body]
         return c.FunctionBody(self._ctop, c.Block(self._ccasts + body))
-
-    @property
-    def sections(self):
-        """Return the sections of the Function as a map from iteration
-        spaces to expressions therein embedded. For example, given the loop tree:
-
-            .. code-block::
-               Iteration t
-                 Iteration p
-                   expr0
-                 Iteration x
-                   Iteration y
-                     expr1
-                     expr2
-                 Iteration s
-                   expr3
-
-        Return the ordered map: ::
-
-            {(t, p): [expr0], (t, x, y): [expr1, expr2], (t, s): [expr3]}
-        """
-        from devito.visitors import FindSections
-        sections = FindSections().visit(self.body)
-        return OrderedDict([(tuple(i.dim for i in k), v) for k, v in sections.items()])
 
     @property
     def children(self):
