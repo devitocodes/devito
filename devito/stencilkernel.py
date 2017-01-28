@@ -235,6 +235,7 @@ class StencilKernel(Function):
         :returns: The basename path as a string
         """
         expr_string = "\n".join([str(e) for e in self.body])
+        expr_string += "\n".join([str(e) for e in self.elemental_functions])
         hash_key = sha1(expr_string.encode()).hexdigest()
 
         return path.join(get_tmp_dir(), hash_key)
