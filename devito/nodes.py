@@ -254,6 +254,14 @@ class Iteration(Node):
         return c.For(loop_init, loop_cond, loop_inc, c.Block(loop_body))
 
     @property
+    def is_Open(self):
+        return self.dim.size is not None
+
+    @property
+    def is_Closed(self):
+        return not self.is_Open
+
+    @property
     def children(self):
         """Return the traversable children."""
         return (self.nodes,)
