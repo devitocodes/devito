@@ -7,16 +7,17 @@ The main Visitor class is extracted from https://github.com/coneoproject/COFFEE.
 from __future__ import absolute_import
 
 import inspect
-from collections import OrderedDict
+from collections import OrderedDict, namedtuple
 from operator import attrgetter
 
 import cgen as c
 from sympy import Symbol
 
+from devito.dse import estimate_cost, estimate_memory
 from devito.nodes import Block, IterationBound
 from devito.tools import filter_ordered, flatten
 
-__all__ = ["FindSections", "FindSymbols", "IsPerfectIteration",
+__all__ = ["EstimateCost", "FindSections", "FindSymbols", "IsPerfectIteration",
            "SubstituteExpression", "ResolveIterationVariable"]
 
 
@@ -246,6 +247,40 @@ class IsPerfectIteration(Visitor):
             return False
         multi = len(o.nodes) > 1
         return all(self.visit(i, found=True, multi=multi) for i in o.children)
+
+
+class EstimateCost(Visitor):
+
+    Cost = namedtuple('Cost', 'ops mem')
+
+    @classmethod
+    def default_retval(cls):
+        return cls.Cost(0, 0)
+
+    """
+    Estimate the number of floating point operations and memory accesses per
+    loop iteration in an Iteration/Expression tree.
+    """
+
+    def visit_object(self, o):
+        return self.default_retval()
+
+    def visit_tuple(self, o):
+        cost = self.default_retval()
+        for i in o:
+            ret = self.visit(i)
+            cost = self.Cost(cost.ops + ret.ops, cost.mem + ret.mem)
+        return cost
+
+    def visit_Node(self, o):
+        cost = self.default_retval()
+        for i in o.children:
+            ret = self.visit(i)
+            cost = self.Cost(cost.ops + ret.ops, cost.mem + ret.mem)
+        return cost
+
+    def visit_Expression(self, o):
+        return self.Cost(estimate_cost(o.stencil), estimate_memory(o.stencil))
 
 
 class Transformer(Visitor):
