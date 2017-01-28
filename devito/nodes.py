@@ -26,6 +26,7 @@ class Node(object):
     is_Expression = False
     is_Function = False
     is_List = False
+    is_Element = False
 
     """
     :attr:`_traversable`. A list of traversable objects (ie, traversed by
@@ -106,6 +107,27 @@ class List(Block):
     is_List = True
 
     _wrapper = c.Collection
+
+
+class Element(Node):
+
+    """A generic node that is worth identifying in an Iteration/Expression tree.
+
+    It corresponds to a single :class:`cgen.Statement`.
+    """
+
+    is_Element = True
+
+    def __init__(self, element):
+        assert isinstance(element, c.Statement)
+        self.element = element
+
+    def __repr__(self):
+        return "Element::\n\t%s" % (self.element)
+
+    @property
+    def ccode(self):
+        return self.element
 
 
 class Expression(Node):
