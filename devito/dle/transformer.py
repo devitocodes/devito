@@ -115,6 +115,7 @@ class Rewriter(object):
         functions = []
         processed = []
         for i, node in enumerate(state.nodes):
+            mapper = {}
             for j, subtree in enumerate(retrieve_iteration_tree(node)):
                 if len(subtree) <= 1:
                     continue
@@ -147,13 +148,15 @@ class Rewriter(object):
 
                 root = candidate[0]
 
-                # Transform the main tree
+                # Track info to transform the main tree
                 call = '%s(%s)' % (name, ','.join(call))
-                mapper = {root: Element(c.Statement(call))}
-                processed.append(Transformer(mapper).visit(node))
+                mapper[root] = Element(c.Statement(call))
 
-                # Produce the new functions
+                # Produce the new function
                 functions.append(Function(name, root, 'void', parameters, ('static',)))
+
+            # Transform the main tree
+            processed.append(Transformer(mapper).visit(node))
 
         return {'nodes': processed, 'elemental_functions': functions}
 
