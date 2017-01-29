@@ -6,7 +6,8 @@ import sys
 __all__ = ('set_log_level', 'set_log_noperf', 'log',
            'DEBUG', 'INFO', 'AUTOTUNER', 'DSE', 'DSE_WARN', 'DLE', 'DLE_WARN',
            'WARNING', 'ERROR', 'CRITICAL',
-           'log', 'warning', 'error', 'info_at', 'dse', 'dse_warning', 'dle', 'dle_warning'
+           'log', 'warning', 'error', 'info_at', 'dse', 'dse_warning', 'dle',
+           'dle_warning',
            'RED', 'GREEN', 'BLUE')
 
 

@@ -1,5 +1,3 @@
-from collections import OrderedDict
-
 from devito.visitors import FindSections
 
 __all__ = ['retrieve_iteration_tree']

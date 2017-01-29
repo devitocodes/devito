@@ -1,10 +1,9 @@
-import cgen as c
 import pytest
 from sympy import Eq
 
-from devito.dimension import Dimension
-from devito.interfaces import DenseData
-from devito.nodes import Block, Expression, Function, Iteration
+import cgen as c
+
+from devito import Block, DenseData, Dimension, Expression, Function, Iteration
 from devito.visitors import FindSections, FindSymbols, IsPerfectIteration, Transformer
 
 

@@ -1,2 +1,2 @@
-from devito.dse.inspection import *
-from devito.dse.symbolics import rewrite
+from devito.dse.inspection import *  # noqa
+from devito.dse.symbolics import rewrite  # noqa
