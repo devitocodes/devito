@@ -116,14 +116,14 @@ class Rewriter(object):
         processed = []
         for i, node in enumerate(state.nodes):
             mapper = {}
-            for j, subtree in enumerate(retrieve_iteration_tree(node)):
-                if len(subtree) <= 1:
+            for j, tree in enumerate(retrieve_iteration_tree(node)):
+                if len(tree) <= 1:
                     continue
 
                 name = "f_%d_%d" % (i, j)
 
-                candidate = rule(subtree)
-                leftover = tuple(k for k in subtree if k not in candidate)
+                candidate = rule(tree)
+                leftover = tuple(k for k in tree if k not in candidate)
 
                 args = FindSymbols().visit(candidate)
                 args += [k.dim for k in leftover if k not in args and k.is_Closed]
