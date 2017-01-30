@@ -91,7 +91,7 @@ class StencilKernel(Function):
                     if IsPerfectIteration().visit(j) and j not in mapper:
                         # Insert `TimedList` block. This should come from
                         # the profiler, but we do this manually for now.
-                        lname = 'loop_%s' % j.index
+                        lname = 'loop_%s_%d' % (j.index, i)
                         mapper[j] = TimedList(gname=self.profiler.t_name,
                                               lname=lname, body=j)
                         self.profiler.t_fields += [(lname, c_double)]
