@@ -17,8 +17,13 @@ from devito.dse import estimate_cost, estimate_memory
 from devito.nodes import Block, IterationBound
 from devito.tools import filter_sorted, flatten
 
-__all__ = ["EstimateCost", "FindSections", "FindSymbols", "IsPerfectIteration",
-           "SubstituteExpression", "ResolveIterationVariable"]
+__all__ = ['EstimateCost', 'FindSections', 'FindSymbols',
+           'IsPerfectIteration', 'SubstituteExpression',
+           'ResolveIterationVariable', 'Transformer', 'printAST']
+
+
+def printAST(node):
+    return PrintAST().visit(node)
 
 
 class Visitor(object):
@@ -141,6 +146,42 @@ class Visitor(object):
         ops, okwargs = o.operands()
         new_ops = [self.visit(op, *args, **kwargs) for op in ops]
         return o._rebuild(*new_ops, **okwargs)
+
+
+class PrintAST(Visitor):
+
+    _depth = 0
+
+    @classmethod
+    def default_retval(cls):
+        return "<>"
+
+    @property
+    def indent(self):
+        return '  ' * self._depth
+
+    def visit_list(self, o):
+        return ('\n').join([self.visit(i) for i in o])
+
+    def visit_tuple(self, o):
+        return '\n'.join([self.visit(i) for i in o])
+
+    def visit_Block(self, o):
+        self._depth += 1
+        header = self.visit(o.header)
+        body = self.visit(o.body)
+        footer = self.visit(o.footer)
+        self._depth -= 1
+        return self.indent + "<Block>\n%s" % header + body + footer
+
+    def visit_Iteration(self, o):
+        self._depth += 1
+        body = self.visit(o.children)
+        self._depth -= 1
+        return self.indent + "<Iteration %s>\n%s" % (o.dim.name, body)
+
+    def visit_Expression(self, o):
+        return self.indent + "<Expression %s = %s>" % (o.stencil.lhs, o.stencil.rhs)
 
 
 class FindSections(Visitor):

@@ -6,7 +6,7 @@ from devito.dimension import Dimension
 from devito.interfaces import DenseData
 from devito.nodes import Block, Expression, Function, Iteration
 from devito.visitors import (FindSections, FindSymbols, IsPerfectIteration,
-                             Transformer)
+                             Transformer, printAST)
 
 
 def _symbol(name, dimensions):
@@ -69,6 +69,38 @@ def block3(exprs, iters):
     return iters[0]([iters[3](exprs[0]),
                      iters[1](iters[2]([exprs[1], exprs[2]])),
                      iters[4](exprs[3])])
+
+
+def test_printAST(block1, block2, block3):
+    str1 = printAST(block1)
+    assert str1 in """
+<Iteration i>
+  <Iteration j>
+    <Iteration k>
+      <Expression a[i] = a[i] + b[i] + 5.0>
+"""
+
+    str2 = printAST(block2)
+    assert str2 in """
+<Iteration i>
+  <Expression a[i] = a[i] + b[i] + 5.0>
+  <Iteration j>
+    <Iteration k>
+      <Expression a[i] = -a[i] + b[i]>
+"""
+
+    str3 = printAST(block3)
+    assert str3 in """
+<Iteration i>
+  <Iteration s>
+    <Expression a[i] = a[i] + b[i] + 5.0>
+  <Iteration j>
+    <Iteration k>
+      <Expression a[i] = -a[i] + b[i]>
+      <Expression a[i] = 4*a[i]*b[i]>
+  <Iteration p>
+    <Expression a[i] = 8.0*a[i] + 6.0/b[i]>
+"""
 
 
 def test_find_sections(exprs, block1, block2, block3):
