@@ -348,7 +348,7 @@ class ResolveIterationVariable(Transformer):
             # For buffered dimensions insert the explicit
             # definition of buffere variables, eg. t+1 => t1
             init = []
-            for off in [0] + offsets[o.dim]:
+            for off in filter_ordered(offsets[o.dim]):
                 vname = o.dim.get_varname()
                 value = o.dim + off
                 modulo = o.dim.buffered

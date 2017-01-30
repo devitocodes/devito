@@ -171,21 +171,28 @@ class Expression(Node):
 
     @property
     def index_offsets(self):
-        """Collect all non-zero offsets used with each index in a map
+        """Mapping of :class:`Dimension` symbols to each integer
+        stencil offset used with it in this expression.
+
+        This also include zero offsets, so that the keys of this map
+        may be used as the set of :class:`Dimension` symbols used in
+        this expression.
 
         Note: This assumes we have indexified the stencil expression."""
-        offsets = defaultdict(list)
+        offsets = defaultdict(set)
         for e in terminals(self.stencil):
             for a in e.indices:
+                if isinstance(a, Dimension):
+                    offsets[a].update([0])
                 d = None
                 off = []
                 for idx in a.args:
                     if isinstance(idx, Dimension):
                         d = idx
-                    else:
+                    elif idx.is_integer:
                         off += [idx]
                 if d is not None:
-                    offsets[d] += off
+                    offsets[d].update(off)
         return offsets
 
 
