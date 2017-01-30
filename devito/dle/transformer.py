@@ -9,9 +9,10 @@ import cgen as c
 
 from devito.dimension import Dimension
 from devito.dle.inspection import retrieve_iteration_tree
+from devito.dse import terminals
 from devito.interfaces import ScalarData, SymbolicData
 from devito.logger import dle, dle_warning
-from devito.nodes import Element, Function
+from devito.nodes import Element, Function, Property
 from devito.tools import as_tuple
 from devito.visitors import FindSymbols, Transformer
 
@@ -93,11 +94,69 @@ class Rewriter(object):
     def run(self, mode):
         state = State(self.nodes)
 
+        self._analyze_and_decorate(state)
+
         self._create_elemental_functions(state, mode=mode)
 
         self._summary(mode)
 
         return state
+
+    def _analyze_and_decorate(self, state):
+        """
+        Visit the Iteration/Expression trees in ``state.nodes`` and collect
+        useful information:
+
+            * Identification of deepest loop nest(s), the candidates for most
+                loop optimizations applied by the DLE;
+            * Presence of "outermost-sequential inner-parallel" (OSIP) loop trees:
+                that is, Iteration/Expression subtrees in which the outermost
+                :class:`Iteration` represents an inherently sequential dimension,
+                whereas all inner :class:`Iteration` represent parallelizable
+                dimensions.
+
+        The presence of OSIP subtrees is marked in the input Iteration/Expression
+        tree by introducing suitable mixin nodes.
+        """
+
+        nodes = state.nodes
+
+        sections = FindSections().visit(nodes)
+        trees = sections.keys()
+        deepest = max(trees, key=lambda i: len(i))
+        deepest = [i for i in trees if len(i) == len(deepest)]
+
+        # The analysis below may return "false positives" (ie, existance of a
+        # LCD when this is actually not true), but we expect this to never be the
+        # case given the stencil codes that the DLE will attempt to optimize.
+        for k in deepest:
+            exprs = [e.stencil for e in sections[k]]
+
+            # Retain only expressions that may induce true dependencies (ie, tensors)
+            exprs = [e for e in exprs if not e.lhs.is_Symbol]
+
+            # Is the loop nest of type "outermost sequential (LCD), inners parallel" ?
+            match = True
+            for e1 in exprs:
+                lhs = e1.lhs
+                for e2 in exprs:
+                    terms = [i for i in terminals(e2.rhs)
+                             if i.base.label == lhs.base.label]
+
+                    # Check is of type -- a[j][][] = a[i][][] + b[i][][] + c[i][][]
+                    match = (all(len(i.indices) == len(lhs.indices) for i in terms) and
+                             all(i.indices[0] == terms[0].indices[0] for i in terms) and
+                             lhs.indices[0] != terms[0].indices[0])
+                    if not match:
+                        break
+                if not match:
+                    break
+
+            if match:
+                mapper = {i: Property(i, ('parallel',)) for i in k[1:]}
+                nodes = Transformer(mapper).visit(nodes)
+
+        state.update(nodes=nodes)
 
     @dle_transformation
     def _create_elemental_functions(self, state, **kwargs):
