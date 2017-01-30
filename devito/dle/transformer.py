@@ -1,6 +1,7 @@
 from __future__ import absolute_import
 
-from collections import OrderedDict, Sequence
+from collections import OrderedDict, Sequence, namedtuple
+from itertools import combinations
 from time import time
 
 import numpy as np
@@ -9,12 +10,13 @@ import cgen as c
 
 from devito.dimension import Dimension
 from devito.dle.inspection import retrieve_iteration_tree
+from devito.dle.manipulation import compose_nodes
 from devito.dse import terminals
 from devito.interfaces import ScalarData, SymbolicData
 from devito.logger import dle, dle_warning
-from devito.nodes import Element, Function, Property
-from devito.tools import as_tuple
-from devito.visitors import FindSymbols, Transformer
+from devito.nodes import Element, Function, Iteration, List
+from devito.tools import as_tuple, flatten
+from devito.visitors import FindSections, FindSymbols, IsPerfectIteration, Transformer
 
 
 def transform(node, mode='basic'):
@@ -23,8 +25,11 @@ def transform(node, mode='basic'):
 
     :param node: The Iteration/Expression tree to be transformed, or an iterable
                  of Iteration/Expression trees.
-    :param mode: Drive the tree transformation. Currently, only the default
-                 'basic' option is available.
+    :param mode: Drive the tree transformation. Available modes are: ::
+
+                    * 'noop': Do nothing.
+                    * 'blocking': Apply loop blocking
+                    * 'advanced': Identify elemental functions and apply loop blocking.
     """
 
     if isinstance(node, Sequence):
@@ -45,7 +50,7 @@ def transform(node, mode='basic'):
         except TypeError:
             dle_warning("Arg mode must be str or tuple (got %s)" % type(mode))
             return State(node)
-    if mode.isdisjoint({'noop', 'basic'}):
+    if mode.isdisjoint({'noop', 'blocking', 'advanced'}):
         dle_warning("Unknown transformer mode(s) %s" % str(mode))
         return State(node)
     else:
@@ -123,11 +128,13 @@ class BlockingArg(Arg):
 class Rewriter(object):
 
     triggers = {
-        '_create_elemental_functions': ('basic',)
+        '_create_elemental_functions': ('advanced',),
+        '_loop_blocking': ('blocking', 'advanced')
     }
 
-    def __init__(self, nodes):
+    def __init__(self, nodes, params):
         self.nodes = nodes
+        self.params = params
 
         self.timings = OrderedDict()
 
@@ -137,6 +144,7 @@ class Rewriter(object):
         self._analyze_and_decorate(state)
 
         self._create_elemental_functions(state, mode=mode)
+        self._loop_blocking(state, mode=mode)
 
         self._summary(mode)
 
@@ -259,12 +267,151 @@ class Rewriter(object):
 
         return {'nodes': processed, 'elemental_functions': functions}
 
+    @dle_transformation
+    def _loop_blocking(self, state, **kwargs):
+        """
+        Apply loop blocking to :class:`Iteartion` trees.
+
+        By default, the blocked :class:`Iteration` objects and the block size are
+        determined heuristically. The heuristic consists of searching the deepest
+        Iteration/Expression tree and blocking all dimensions except:
+
+            * The innermost (eg, to retain SIMD vectorization);
+            * Those dimensions inducing loop-carried dependencies.
+
+        The caller may take over the heuristic through ``kwargs['blocking']``,
+        a dictionary indicating the block size of each blocked dimension. For
+        example, for the :class:`Iteration` tree below: ::
+
+            for i
+              for j
+                for k
+                  ...
+
+        one may pass in ``kwargs['blocking'] = {i: 4, j: 7}``, in which case the
+        two outer loops would be blocked, and the resulting 2-dimensional block
+        would be of size 4x7.
+        """
+
+        Region = namedtuple('Region', 'main leftover')
+
+        is_InnerBlockable = self.params.get('blockinner',
+                                            len(state.elemental_functions) > 0)
+
+        dims = OrderedDict()
+        processed = []
+        for node in state.nodes:
+            mapper = {}
+            for tree in retrieve_iteration_tree(node):
+                # Is the Iteration tree blockable ?
+                iterations = [i for i in tree if 'parallel' in i.properties]
+                iterations = iterations if is_InnerBlockable else iterations[:-1]
+                if not iterations:
+                    continue
+                root = iterations[0]
+                if not IsPerfectIteration().visit(root):
+                    continue
+
+                # Construct the blocked loop nest, as well as all necessary
+                # remainder loops
+                regions = {}
+                blocked_iterations = []
+                for i in iterations:
+                    # Build Iteration over blocks
+                    dim = dims.setdefault((i.dim, 'inter-block'),
+                                          Dimension("%sb" % i.dim.name))
+
+                    block_size = dim.symbolic_size
+                    iter_size = i.dim.symbolic_size
+
+                    start = i.limits[0] - i.offsets[0]
+                    finish = iter_size - ((iter_size - i.offsets[1]) % block_size)
+                    inter_block = Iteration([], dim, [start, finish, block_size])
+
+                    # Build Iteration within a block
+                    dim = dims.setdefault((i.dim, 'intra-block'),
+                                          Dimension(i.dim.name))
+
+                    start = inter_block.dim
+                    finish = start + block_size
+                    intra_block = Iteration([], dim, [start, finish, 1], i.index)
+
+                    blocked_iterations.append((inter_block, intra_block))
+
+                    # Build unitary-increment Iteration over the 'main' region
+                    # (the one blocked); necessary to generate code iterating over
+                    # non-blocked ("remainder") iterations.
+                    start = inter_block.limits[0]
+                    finish = inter_block.limits[1]
+                    main = Iteration([], i.dim, [start, finish, 1], i.index)
+
+                    # Build unitary-increment Iteration over the 'leftover' region:
+                    # again as above, this may be necessary when the dimension size
+                    # is not a multiple of the block size.
+                    start = inter_block.limits[1]
+                    finish = iter_size - i.offsets[1]
+                    leftover = Iteration([], i.dim, [start, finish, 1], i.index)
+
+                    regions[i] = Region(main, leftover)
+
+                blocked_tree = list(flatten(zip(*blocked_iterations)))
+                blocked = compose_nodes(blocked_tree + [iterations[-1].nodes])
+
+                # Build remainder loops
+                remainder_tree = []
+                for n in range(len(iterations)):
+                    for i in combinations(iterations, n + 1):
+                        nodes = [v.leftover if k in i else v.main
+                                 for k, v in regions.items()]
+                        nodes += [iterations[-1].nodes]
+                        remainder_tree.append(compose_nodes(nodes))
+
+                # Will replace with blocked loop tree
+                mapper[root] = List(body=[blocked] + remainder_tree)
+
+            rebuilt = Transformer(mapper).visit(node)
+
+            processed.append(rebuilt)
+
+        # All blocked dimensions
+        blocked = OrderedDict([(k, v) for k, v in dims.items() if k[1] == 'inter-block'])
+        if not blocked:
+            return {'nodes': processed}
+
+        # Determine the block shape
+        blockshape = self.params.get('blockshape')
+        if not blockshape:
+            # Use trivial heuristic for a suitable blockshape
+            def heuristic(dim_size):
+                ths = 8  # FIXME: This really needs to be improved
+                return ths if dim_size > ths else 1
+            blockshape = {k: heuristic for k in blocked.keys()}
+        else:
+            try:
+                nitems, nrequired = len(blockshape), len(blocked)
+                blockshape = {k: v for k, v in zip(blocked, blockshape)}
+                if nitems > nrequired:
+                    dle_warning("Provided 'blockshape' has more entries than "
+                                "blocked loops; dropping entries ...")
+                if nitems < nrequired:
+                    dle_warning("Provided 'blockshape' has fewer entries than "
+                                "blocked loops; dropping dimensions ...")
+            except TypeError:
+                blockshape = {blocked.keys()[0]: blockshape}
+            blockshape.update({k: None for k in blocked.keys()
+                               if k not in blockshape})
+
+        # Track any additional arguments required to execute /state.nodes/
+        arguments = [BlockingArg(v, k[0], blockshape[k]) for k, v in blocked.items()]
+
+        return {'nodes': processed, 'arguments': arguments}
+
     def _summary(self, mode):
         """
         Print a summary of the DLE transformations
         """
 
-        if mode.intersection({'basic'}):
+        if mode.intersection({'blocking', 'advanced'}):
             steps = " --> ".join("(%s)" % i for i in self.timings.keys())
             elapsed = sum(self.timings.values())
             dle("%s [%.2f s]" % (steps, elapsed))
