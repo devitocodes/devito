@@ -405,17 +405,21 @@ class TimedList(List):
 
 class IterationBound(object):
     """Utility class to encapsulate variable loop bounds and link them
-    back to the respective Dimension object.
+    back to the respective :class:`Dimension` object.
 
-    :param name: Variable name for the open loop bound variable
+    :param name: Variable name for the open loop bound variable.
+    :param dim: The corresponding :class:`Dimension` object.
+    :param expr: An expression to calculate the loop limit, in case this does
+                 not coincide with the open loop bound variable itself.
     """
 
-    def __init__(self, name, dim):
+    def __init__(self, name, dim, expr=None):
         self.name = name
         self.dim = dim
+        self.expr = expr
 
     def __repr__(self):
-        return self.name
+        return repr(self.expr).replace(' ', '') if self.expr else self.name
 
     def __eq__(self, bound):
         return self.name == bound.name and self.dim == bound.dim
