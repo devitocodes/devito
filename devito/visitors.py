@@ -22,8 +22,8 @@ __all__ = ['EstimateCost', 'FindSections', 'FindSymbols',
            'ResolveIterationVariable', 'Transformer', 'printAST']
 
 
-def printAST(node):
-    return PrintAST().visit(node)
+def printAST(node, verbose=True):
+    return PrintAST(verbose=verbose).visit(node)
 
 
 class Visitor(object):
@@ -151,6 +151,10 @@ class Visitor(object):
 class PrintAST(Visitor):
 
     _depth = 0
+
+    def __init__(self, verbose=True):
+        super(PrintAST, self).__init__()
+        self.verbose = verbose
 
     @classmethod
     def default_retval(cls):

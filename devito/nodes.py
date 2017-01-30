@@ -85,10 +85,8 @@ class Block(Node):
         self.footer = as_tuple(footer)
 
     def __repr__(self):
-        header = "".join([str(s) for s in self.header])
-        body = "\n\t".join([str(s) for s in self.body])
-        footer = "".join([str(s) for s in self.footer])
-        return "%s::\n\t%s" % (self.__class__.__name__, header + body + footer)
+        return "<%s (%d, %d, %d)>" % (self.__class__.__name__, len(self.header),
+                                      len(self.body), len(self.footer))
 
     @property
     def ccode(self):
@@ -155,7 +153,7 @@ class Expression(Node):
         self.functions = filter_ordered(self.functions)
 
     def __repr__(self):
-        return "Expression<%s = %s>" % (self.stencil.lhs, self.stencil.rhs)
+        return "<Expression::%s>" % filter_ordered([f.func for f in self.functions])
 
     def substitute(self, substitutions):
         """Apply substitutions to the expression stencil
@@ -242,9 +240,7 @@ class Iteration(Node):
             self.offsets[1] = max(self.offsets[1], int(off))
 
     def __repr__(self):
-        str_expr = "\n\t".join([str(s) for s in self.nodes])
-        return "Iteration<%s; %s>::\n\t%s" % (self.index, self.limits,
-                                              str_expr)
+        return "<Iteration %s; %s>" % (self.index, self.limits)
 
     @property
     def ccode(self):
