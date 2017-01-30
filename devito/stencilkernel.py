@@ -72,10 +72,12 @@ class StencilKernel(Function):
         nodes = [Expression(s) for s in stencils]
 
         # Wrap expressions with Iterations according to dimensions
+        # TODO: This should probably be done more safely in a visitor
+        # that tracks free and bound loop variables in the AST.
         for i, expr in enumerate(nodes):
             newexpr = expr
             offsets = newexpr.index_offsets
-            for d in reversed(expr.dimensions):
+            for d in reversed(list(offsets.keys())):
                 newexpr = Iteration(newexpr, dimension=d,
                                     limits=d.size, offsets=offsets[d])
             nodes[i] = newexpr
