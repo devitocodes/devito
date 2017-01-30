@@ -18,13 +18,9 @@ from devito.nodes import Block, Iteration, IterationBound
 from devito.tools import as_tuple, filter_ordered, filter_sorted, flatten
 
 
-__all__ = ['EstimateCost', 'FindSections', 'FindSymbols',
+__all__ = ['EstimateCost', 'FindNodeType', 'FindSections', 'FindSymbols',
            'IsPerfectIteration', 'SubstituteExpression',
            'ResolveIterationVariable', 'Transformer', 'printAST']
-
-
-def printAST(node, verbose=True):
-    return PrintAST(verbose=verbose).visit(node)
 
 
 class Visitor(object):
@@ -296,6 +292,36 @@ class FindSymbols(Visitor):
         return filter_sorted([f for f in self.rule(o)], key=attrgetter('name'))
 
 
+class FindNodeType(Visitor):
+
+    @classmethod
+    def default_retval(cls):
+        return []
+
+    """Find all :class:`Node` instances of a given type."""
+
+    def __init__(self, match):
+        super(FindNodeType, self).__init__()
+        self.match = match
+
+    def visit_object(self, o, ret=None):
+        return ret
+
+    def visit_tuple(self, o, ret=None):
+        for i in o:
+            ret = self.visit(i, ret=ret)
+        return ret
+
+    def visit_Node(self, o, ret=None):
+        if ret is None:
+            ret = self.default_retval()
+        if isinstance(o, self.match):
+            ret.append(o)
+        for i in o.children:
+            ret = self.visit(i, ret=ret)
+        return ret
+
+
 class IsPerfectIteration(Visitor):
 
     """Return True if an :class:`Iteration` defines a perfect loop nest,
@@ -492,3 +518,7 @@ class MergeOuterIterations(Transformer):
                 ret = self.visit([newit] + list(body[1:]))
                 return as_tuple(ret)
         return tuple([head] + list(body))
+
+
+def printAST(node, verbose=True):
+    return PrintAST(verbose=verbose).visit(node)
