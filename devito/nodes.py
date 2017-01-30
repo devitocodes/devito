@@ -254,11 +254,32 @@ class Iteration(Node):
         :returns: :class:`cgen.For` object representing the loop
         """
         loop_body = [s.ccode for s in self.nodes]
-        loop_init = c.InlineInitializer(
-            c.Value("int", self.index), "%d + %d" % (self.limits[0], -self.offsets[0]))
-        loop_cond = '%s %s %s' % (self.index, '<' if self.limits[2] >= 0 else '>',
-                                  "%s - %d" % (self.limits[1], self.offsets[1]))
+
+        # Start
+        if self.offsets[0] != 0:
+            val = "%s + %s" % (self.limits[0], -self.offsets[0])
+            try:
+                val = eval(val)
+            except (NameError, TypeError):
+                pass
+        else:
+            val = self.limits[0]
+        loop_init = c.InlineInitializer(c.Value("int", self.index), ccode(val))
+
+        # Bound
+        if self.offsets[1] != 0:
+            val = "%s - %s" % (self.limits[1], self.offsets[1])
+            try:
+                val = eval(val)
+            except (NameError, TypeError):
+                pass
+        else:
+            val = self.limits[1]
+        loop_cond = '%s < %s' % (self.index, ccode(val))
+
+        # Increment
         loop_inc = '%s += %s' % (self.index, self.limits[2])
+
         return c.For(loop_init, loop_cond, loop_inc, c.Block(loop_body))
 
     @property
