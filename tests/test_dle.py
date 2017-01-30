@@ -92,7 +92,7 @@ def test_create_elemental_functions_simple(simple_function):
     handle = transform(simple_function, mode=('basic',))
     block = List(body=handle.nodes + handle.elemental_functions)
     assert str(block.ccode) == \
-("""void foo(float *a_vec, float *b_vec, float *c_vec, float *d_vec)
+        ("""void foo(float *a_vec, float *b_vec, float *c_vec, float *d_vec)
 {
   float (*a) = (float (*)) a_vec;
   float (*b) = (float (*)) b_vec;
@@ -107,7 +107,7 @@ def test_create_elemental_functions_simple(simple_function):
   }
 }
 void f_0_0(float *a_vec, float *b_vec, float *d_vec, float *c_vec,"""
-""" const int i0, const int j0)
+         """ const int i0, const int j0)
 {
   float (*a) = (float (*)) a_vec;
   float (*b) = (float (*)) b_vec;
@@ -125,7 +125,7 @@ def test_create_elemental_functions_complex(complex_function):
     handle = transform(complex_function, mode=('basic',))
     block = List(body=handle.nodes + handle.elemental_functions)
     assert str(block.ccode) == \
-("""void foo(float *a_vec, float *b_vec, float *c_vec, float *d_vec)
+        ("""void foo(float *a_vec, float *b_vec, float *c_vec, float *d_vec)
 {
   float (*a) = (float (*)) a_vec;
   float (*b) = (float (*)) b_vec;
@@ -151,7 +151,7 @@ void f_0_0(float *a_vec, float *b_vec, const int i1)
   }
 }
 void f_0_1(float *a_vec, float *b_vec, float *c_vec, float *d_vec,"""
-""" const int j1, const int i1)
+         """ const int j1, const int i1)
 {
   float (*a) = (float (*)) a_vec;
   float (*b) = (float (*)) b_vec;
