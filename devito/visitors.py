@@ -419,7 +419,7 @@ class SubstituteExpression(Transformer):
 
     def visit_Expression(self, o):
         o.substitute(self.subs)
-        return self.reuse(o)
+        return o._rebuild(stencil=o.stencil)
 
 
 class ResolveIterationVariable(Transformer):
