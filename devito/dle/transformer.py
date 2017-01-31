@@ -70,14 +70,54 @@ def dle_transformation(func):
 
 class State(object):
 
+    """Represent the output of the DLE."""
+
     def __init__(self, nodes):
         self.nodes = as_tuple(nodes)
-        self.elemental_functions = []
 
-    def update(self, nodes=None, elemental_functions=None):
+        self.elemental_functions = ()
+        self.arguments = ()
+
+    def update(self, nodes=None, elemental_functions=None, arguments=None):
         self.nodes = as_tuple(nodes) or self.nodes
         self.elemental_functions = as_tuple(elemental_functions) or\
             self.elemental_functions
+        self.arguments += as_tuple(arguments)
+
+
+class Arg(object):
+
+    """A DLE-produced argument."""
+
+    from_Blocking = False
+
+    def __init__(self, argument, value):
+        self.argument = argument
+        self.value = value
+
+    def __repr__(self):
+        return "DLE-GenericArg"
+
+
+class BlockingArg(Arg):
+
+    from_Blocking = True
+
+    def __init__(self, blocked_dim, original_dim, value):
+        """
+        Represent an argument introduced in the kernel by Rewriter._loop_blocking.
+
+        :param blocked_dim: The blocked :class:`Dimension`.
+        :param original_dim: The original :class:`Dimension` corresponding
+                             to ``blocked_dim``.
+        :param value: A suggested value determined by the DLE.
+        """
+        super(BlockingArg, self).__init__(blocked_dim, value)
+        self.original_dim = original_dim
+
+    def __repr__(self):
+        bsize = self.value if self.value else '<unused>'
+        return "DLE-BlockingArg[%s,%s,%s]" % (self.argument, self.original_dim, bsize)
 
 
 class Rewriter(object):
