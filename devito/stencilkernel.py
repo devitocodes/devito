@@ -21,7 +21,8 @@ from devito.nodes import Block, Expression, Function, Iteration, TimedList
 from devito.profiler import Profiler
 from devito.visitors import (EstimateCost, FindSections, FindSymbols,
                              IsPerfectIteration, ResolveIterationVariable,
-                             SubstituteExpression, Transformer)
+                             SubstituteExpression, Transformer, printAST)
+
 
 __all__ = ['StencilKernel']
 
@@ -236,8 +237,8 @@ class StencilKernel(Function):
 
         :returns: The basename path as a string
         """
-        expr_string = "\n".join([str(e) for e in self.body])
-        expr_string += "\n".join([str(e) for e in self.elemental_functions])
+        expr_string = printAST(self.body, verbose=True)
+        expr_string += printAST(self.elemental_functions, verbose=True)
         hash_key = sha1(expr_string.encode()).hexdigest()
 
         return path.join(get_tmp_dir(), hash_key)
