@@ -29,7 +29,8 @@ def transform(node, mode='basic'):
 
                     * 'noop': Do nothing.
                     * 'blocking': Apply loop blocking
-                    * 'advanced': Identify elemental functions and apply loop blocking.
+                    * 'split': Identify and split elemental functions
+                    * 'advanced': Split elemental functions and apply loop blocking.
     """
 
     if isinstance(node, Sequence):
@@ -50,7 +51,7 @@ def transform(node, mode='basic'):
         except TypeError:
             dle_warning("Arg mode must be str or tuple (got %s)" % type(mode))
             return State(node)
-    if mode.isdisjoint({'noop', 'blocking', 'advanced'}):
+    if mode.isdisjoint({'noop', 'blocking', 'split', 'advanced'}):
         dle_warning("Unknown transformer mode(s) %s" % str(mode))
         return State(node)
     else:
@@ -128,7 +129,7 @@ class BlockingArg(Arg):
 class Rewriter(object):
 
     triggers = {
-        '_create_elemental_functions': ('advanced',),
+        '_create_elemental_functions': ('split', 'advanced',),
         '_loop_blocking': ('blocking', 'advanced')
     }
 
