@@ -20,8 +20,9 @@ from devito.logger import error, info
 from devito.nodes import Block, Expression, Function, Iteration, TimedList
 from devito.profiler import Profiler
 from devito.visitors import (EstimateCost, FindSections, FindSymbols,
-                             IsPerfectIteration, ResolveIterationVariable,
-                             SubstituteExpression, Transformer, printAST)
+                             IsPerfectIteration, MergeOuterIterations,
+                             ResolveIterationVariable, SubstituteExpression,
+                             Transformer, printAST)
 
 
 __all__ = ['StencilKernel']
@@ -83,7 +84,8 @@ class StencilKernel(Function):
                                     limits=d.size, offsets=offsets[d])
             nodes[i] = newexpr
 
-        # TODO: Merge Iterations iff outermost variables agree
+        # Merge Iterations iff outermost iterations agree
+        nodes = MergeOuterIterations().visit(nodes)
 
         # Introduce profiling infrastructure
         mapper = {}
