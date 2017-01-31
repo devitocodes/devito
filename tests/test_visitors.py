@@ -5,7 +5,8 @@ from sympy import Eq
 from devito.dimension import Dimension
 from devito.interfaces import DenseData
 from devito.nodes import Block, Expression, Function, Iteration
-from devito.visitors import FindSections, FindSymbols, IsPerfectIteration, Transformer
+from devito.visitors import (FindSections, FindSymbols, IsPerfectIteration,
+                             Transformer)
 
 
 def _symbol(name, dimensions):
