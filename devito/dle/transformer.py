@@ -153,57 +153,62 @@ class Rewriter(object):
 
     def _analyze_and_decorate(self, state):
         """
-        Visit the Iteration/Expression trees in ``state.nodes`` and collect
-        useful information:
+        Analyze the Iteration/Expression trees in ``state.nodes`` and track
+        useful information for the subsequent DLE's transformation steps.
 
-            * Identification of deepest loop nest(s), the candidates for most
-                loop optimizations applied by the DLE;
-            * Presence of "outermost-sequential inner-parallel" (OSIP) loop trees:
-                that is, Iteration/Expression subtrees in which the outermost
-                :class:`Iteration` represents an inherently sequential dimension,
-                whereas all inner :class:`Iteration` represent parallelizable
-                dimensions.
-
-        The presence of OSIP subtrees is marked in the input Iteration/Expression
-        tree by introducing suitable mixin nodes.
+        In particular, the presence of fully-parallel or "outermost-sequential
+        inner-parallel" (OSIP) :class:`Iteration` trees is tracked. In an OSIP
+        :class:`Iteration` tree, outermost :class:`Iteration` objects represent
+        an inherently sequential dimension, whereas all inner :class:`Iteration`
+        objects represent parallelizable dimensions.
         """
 
         nodes = state.nodes
 
         sections = FindSections().visit(nodes)
         trees = sections.keys()
-        deepest = max(trees, key=lambda i: len(i))
-        deepest = [i for i in trees if len(i) == len(deepest)]
+        candidate = max(trees, key=lambda i: len(i))
+        candidates = [i for i in trees if len(i) == len(candidate)]
 
-        # The analysis below may return "false positives" (ie, existance of a
-        # LCD when this is actually not true), but we expect this to never be the
-        # case given the stencil codes that the DLE will attempt to optimize.
-        for k in deepest:
-            exprs = [e.stencil for e in sections[k]]
+        # The analysis below may return "false positives" (ie, absence of fully-
+        # parallel or OSIP trees when this is actually false), but this should
+        # never be the case in practice, given the targeted stencil codes.
+        for tree in candidates:
+            exprs = [e.stencil for e in sections[tree]]
 
-            # Retain only expressions that may induce true dependencies (ie, tensors)
-            exprs = [e for e in exprs if not e.lhs.is_Symbol]
+            # "Prefetch" terminals to speed up the checks below
+            terms = {e: tuple(terminals(e.rhs)) for e in exprs}
 
-            # Is the loop nest of type "outermost sequential (LCD), inners parallel" ?
-            match = True
-            for e1 in exprs:
-                lhs = e1.lhs
-                for e2 in exprs:
-                    terms = [i for i in terminals(e2.rhs)
-                             if i.base.label == lhs.base.label]
-
-                    # Check is of type -- a[j][][] = a[i][][] + b[i][][] + c[i][][]
-                    match = (all(len(i.indices) == len(lhs.indices) for i in terms) and
-                             all(i.indices[0] == terms[0].indices[0] for i in terms) and
-                             lhs.indices[0] != terms[0].indices[0])
-                    if not match:
+            # Does the Iteration index only appear in the outermost dimension ?
+            has_parallel_dimension = True
+            sample = None
+            for k, v in terms.items():
+                if v:
+                    handle = v[0]
+                    sample = sample or handle.indices[0]
+                    if any(sample in i.indices[1:] or sample != i.indices[0] for i in v):
+                        has_parallel_dimension = False
                         break
-                if not match:
+            if not has_parallel_dimension:
+                continue
+
+            # Is the Iteration tree fully-parallel or OSIP?
+            is_OSIP = False
+            for e in exprs:
+                lhs = e.lhs
+                if lhs.is_Symbol:
+                    continue
+                handle = [i for i in terms[e] if i.base.label == lhs.base.label]
+                if any(lhs.indices[0] != i.indices[0] for i in handle):
+                    is_OSIP = True
                     break
 
-            if match:
-                mapper = {i: Property(i, ('parallel',)) for i in k[1:]}
-                nodes = Transformer(mapper).visit(nodes)
+            # Track parallelism in the Iteration/Expression tree
+            for i in tree[is_OSIP:]:
+                args = i.args
+                properties = as_tuple(args.pop('properties')) + ('parallel',)
+                transformer = Transformer({i: Iteration(properties=properties, **args)})
+                nodes = transformer.visit(nodes)
 
         state.update(nodes=nodes)
 
