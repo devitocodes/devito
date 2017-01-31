@@ -65,7 +65,7 @@ def rewrite(expr, mode='advanced'):
             mode = set(mode)
         except TypeError:
             dse_warning("Arg mode must be str or tuple (got %s)" % type(mode))
-            return expr
+            return State(expr)
     if mode.isdisjoint({'noop', 'basic', 'factorize', 'approx-trigonometry',
                         'glicm', 'advanced'}):
         dse_warning("Unknown rewrite mode(s) %s" % str(mode))
@@ -398,7 +398,7 @@ class Rewriter(object):
             except ZeroDivisionError:
                 summary = ""
             elapsed = sum(self.timings.values())
-            dse("Rewriter:%s [%.2f s]" % (summary, elapsed))
+            dse("%s [%.2f s]" % (summary, elapsed))
 
 
 def collect_nested(expr):

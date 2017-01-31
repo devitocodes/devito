@@ -1,7 +1,7 @@
 from __future__ import absolute_import
 
 import operator
-from collections import OrderedDict
+from collections import OrderedDict, namedtuple
 from ctypes import c_double, c_int
 from functools import reduce
 from hashlib import sha1
@@ -13,25 +13,26 @@ import numpy as np
 from devito.compiler import (get_compiler_from_env, get_tmp_dir,
                              jit_compile_and_load)
 from devito.dimension import Dimension
-from devito.dse.inspection import estimate_cost, estimate_memory, indexify
-from devito.dse.symbolics import rewrite
+from devito.dle import transform
+from devito.dse import indexify, rewrite
 from devito.interfaces import SymbolicData
 from devito.logger import error, info
-from devito.nodes import Block, Expression, Iteration, Timer
+from devito.nodes import Block, Expression, Function, Iteration, TimedList
 from devito.profiler import Profiler
-from devito.visitors import (FindSections, FindSymbols, IsPerfectIteration,
-                             ResolveIterationVariable, SubstituteExpression,
-                             Transformer)
+from devito.visitors import (EstimateCost, FindSections, FindSymbols,
+                             IsPerfectIteration, ResolveIterationVariable,
+                             SubstituteExpression, Transformer)
 
 __all__ = ['StencilKernel']
 
 
-class StencilKernel(object):
+class StencilKernel(Function):
 
     _includes = ['stdlib.h', 'math.h', 'sys/time.h',
                  'xmmintrin.h', 'pmmintrin.h']
 
-    """Code generation class, alternative to Propagator
+    """A special :class:`Function` to evaluate stencils through just-in-time
+    compilation of C code.
 
     :param stencils: SymPy equation or list of equations that define the
                      stencil used to create the kernel of this Operator.
@@ -42,6 +43,8 @@ class StencilKernel(object):
                  substitutions for each stencil respectively.
         * dse : Use the Devito Symbolic Engine to optimize the expressions -
                 defaults to "advanced".
+        * dle : Use the Devito Loop Engine to optimize the loops -
+                defaults to "basic".
         * compiler: Compiler class used to perform JIT compilation.
                     If not provided, the compiler will be inferred from the
                     environment variable DEVITO_ARCH, or default to GNUCompiler.
@@ -52,10 +55,10 @@ class StencilKernel(object):
         name = kwargs.get("name", "Kernel")
         subs = kwargs.get("subs", {})
         dse = kwargs.get("dse", "advanced")
+        dle = kwargs.get("dle", "basic")
         compiler = kwargs.get("compiler", None)
 
         # Default attributes required for compilation
-        self.name = name
         self.compiler = compiler or get_compiler_from_env()
         self.profiler = kwargs.get("profiler", Profiler(self.compiler.openmp))
         self._lib = None
@@ -66,38 +69,54 @@ class StencilKernel(object):
         stencils = [indexify(s) for s in stencils]
         stencils = [s.xreplace(subs) for s in stencils]
         stencils = rewrite(stencils, mode=dse).exprs
-        self.nodes = [Expression(s) for s in stencils]
+        nodes = [Expression(s) for s in stencils]
 
         # Wrap expressions with Iterations according to dimensions
-        for i, expr in enumerate(self.nodes):
+        for i, expr in enumerate(nodes):
             newexpr = expr
             offsets = newexpr.index_offsets
             for d in reversed(expr.dimensions):
                 newexpr = Iteration(newexpr, dimension=d,
                                     limits=d.size, offsets=offsets[d])
-            self.nodes[i] = newexpr
+            nodes[i] = newexpr
 
         # TODO: Merge Iterations iff outermost variables agree
 
-        # Introduce timers for profiling (only perfect nests are timed)
+        # Introduce profiling infrastructure
         mapper = {}
-        for i, expr in enumerate(self.nodes):
+        self.sections = OrderedDict()
+        for i, expr in enumerate(nodes):
             for itspace in FindSections().visit(expr).keys():
                 for j in itspace:
                     if IsPerfectIteration().visit(j) and j not in mapper:
-                        # Insert `Timer` block. This should come from
+                        # Insert `TimedList` block. This should come from
                         # the profiler, but we do this manually for now.
                         lname = 'loop_%s' % j.index
-                        mapper[j] = Timer(gname=self.profiler.t_name,
-                                          lname=lname, body=j)
+                        mapper[j] = TimedList(gname=self.profiler.t_name,
+                                              lname=lname, body=j)
                         self.profiler.t_fields += [(lname, c_double)]
+
+                        # Estimate computational properties of the timed section
+                        # (operational intensity, memory accesses)
+                        k = tuple(k.dim for k in itspace)
+                        v = EstimateCost().visit(j)
+                        self.sections[k] = Profile(lname, v.ops, v.mem)
                         break
-        self.nodes = [Transformer(mapper).visit(Block(body=self.nodes))]
+        nodes = [Transformer(mapper).visit(Block(body=nodes))]
 
         # Now resolve and substitute dimensions for loop index variables
         subs = {}
-        self.nodes = ResolveIterationVariable().visit(self.nodes, subs=subs)
-        self.nodes = SubstituteExpression(subs=subs).visit(self.nodes)
+        nodes = ResolveIterationVariable().visit(nodes, subs=subs)
+        nodes = SubstituteExpression(subs=subs).visit(nodes)
+
+        # Apply the Devito Loop Engine for loop optimization and finalize instantiation
+        handle = transform(nodes, mode=dle)
+        body = handle.nodes
+        parameters = FindSymbols().visit(nodes)
+        super(StencilKernel, self).__init__(name, body, 'int', parameters, ())
+
+        # Track the addition functions created by the DLE
+        self.elemental_functions = handle.elemental_functions
 
     def __call__(self, *args, **kwargs):
         self.apply(*args, **kwargs)
@@ -105,10 +124,10 @@ class StencilKernel(object):
     def apply(self, *args, **kwargs):
         """Apply defined stencil kernel to a set of data objects"""
         if len(args) <= 0:
-            args = self.signature
+            args = self.parameters
 
         # Map of required arguments and actual dimension sizes
-        arguments = OrderedDict([(arg.name, arg) for arg in self.signature])
+        arguments = OrderedDict([(arg.name, arg) for arg in self.parameters])
         dim_sizes = {}
 
         # Traverse positional args and infer loop sizes for open dimensions
@@ -154,23 +173,27 @@ class StencilKernel(object):
         self.cfunction(*list(arguments.values()))
 
         # Summary of performance achieved
-        for itspace, expressions in self._sections.items():
-            stencils = [e.stencil for e in expressions]
+        info("="*71)
+        for itspace, profile in self.sections.items():
+            # Time
+            elapsed = self.profiler.timings[profile.timer]
+            # Flops
             niters = reduce(operator.mul, [i.size or dim_sizes[i] for i in itspace])
-            flops = float(estimate_cost(stencils)*niters)
+            flops = float(profile.ops*niters)
             gflops = flops/10**9
-            # TODO: need to tweak the calculation below once padding is in
-            traffic = estimate_memory(stencils)*niters
-            info("Computed block %s in X s [OI=%.2f, Perf=%.3f GFlops/s]" %
-                 (str(itspace), flops/traffic, gflops))
+            # Memory (FIXME: need to tweak the calculation below once padding is in)
+            traffic = profile.memory*niters
+
+            info("Section %s with OI=%.2f computed in %.2f s [Perf: %.2f GFlops/s]" %
+                 (str(itspace), flops/traffic, elapsed, gflops/elapsed))
+        info("="*71)
 
     @property
-    def signature(self):
-        """List of data objects that define the kernel signature
-
-        :returns: List of unique data objects required by the kernel
-        """
-        return FindSymbols().visit(self.nodes)
+    def _cparameters(self):
+        cparameters = super(StencilKernel, self)._cparameters
+        cparameters += [c.Pointer(c.Value('struct %s' % self.profiler.s_name,
+                                          self.profiler.t_name))]
+        return cparameters
 
     @property
     def ccode(self):
@@ -182,37 +205,25 @@ class StencilKernel(object):
         """
         blankline = c.Line("")
 
-        # Generate argument signature
-        header_vars = [v.decl if isinstance(v, Dimension) else
-                       c.Pointer(c.POD(v.dtype, '%s_vec' % v.name))
-                       for v in self.signature]
-        header_vars += [c.Pointer(c.Value('struct %s' % self.profiler.s_name,
-                                          self.profiler.t_name))]
-        header = c.FunctionDeclaration(c.Value('int', self.name), header_vars)
-
-        # Generate data casts
-        functions = [f for f in self.signature if isinstance(f, SymbolicData)]
-        cast_shapes = [(f, ''.join(["[%s]" % i.ccode for i in f.indices[1:]]))
-                       for f in functions]
-        casts = [c.Initializer(c.POD(v.dtype, '(*%s)%s' % (v.name, shape)),
-                               '(%s (*)%s) %s' % (c.dtype_to_ctype(v.dtype),
-                                                  shape, '%s_vec' % v.name))
-                 for v, shape in cast_shapes]
-
-        # Gnerate function body with all the trimmings
+        # Generate function body with all the trimmings
         extra = [c.Comment('Force flushing of denormals to zero in hardware'),
                  c.Line('_MM_SET_DENORMALS_ZERO_MODE(_MM_DENORMALS_ZERO_ON);'),
                  c.Line('_MM_SET_FLUSH_ZERO_MODE(_MM_FLUSH_ZERO_ON);')]
         denormal = [c.Block(extra)]
-        body = [e.ccode for e in self.nodes]
+        body = [e.ccode for e in self.body]
         ret = [c.Statement("return 0")]
-        kernel = c.FunctionBody(header, c.Block(casts + denormal + body + ret))
+        kernel = c.FunctionBody(self._ctop,
+                                c.Block(self._ccasts + denormal + body + ret))
+
+        # Generate elemental functions produced by the DLE
+        elemental_functions = [e.ccode for e in self.elemental_functions]
+        elemental_functions += [blankline]
 
         # Generate file header with includes and definitions
         includes = [c.Include(i, system=False) for i in self._includes]
         includes += [blankline]
         profiling = [self.profiler.as_cgen_struct(Profiler.TIME), blankline]
-        return c.Module(includes + profiling + [kernel])
+        return c.Module(includes + profiling + elemental_functions + [kernel])
 
     @property
     def basename(self):
@@ -223,7 +234,8 @@ class StencilKernel(object):
 
         :returns: The basename path as a string
         """
-        expr_string = "\n".join([str(e) for e in self.nodes])
+        expr_string = "\n".join([str(e) for e in self.body])
+        expr_string += "\n".join([str(e) for e in self.elemental_functions])
         hash_key = sha1(expr_string.encode()).hexdigest()
 
         return path.join(get_tmp_dir(), hash_key)
@@ -254,30 +266,7 @@ class StencilKernel(object):
         """
         return [c_int if isinstance(v, Dimension) else
                 np.ctypeslib.ndpointer(dtype=v.dtype, flags='C')
-                for v in self.signature]
-
-    @property
-    def _sections(self):
-        """Return the sections of the StencilKernel as a map from iteration
-        spaces to expressions therein embedded. For example, given the loop tree:
-
-            .. code-block::
-               Iteration t
-                 Iteration p
-                   expr0
-                 Iteration x
-                   Iteration y
-                     expr1
-                     expr2
-                 Iteration s
-                   expr3
-
-        Return the ordered map: ::
-
-            {(t, p): [expr0], (t, x, y): [expr1, expr2], (t, s): [expr3]}
-        """
-        sections = FindSections().visit(self.nodes)
-        return OrderedDict([(tuple(i.dim for i in k), v) for k, v in sections.items()])
+                for v in self.parameters]
 
 
 """
@@ -287,3 +276,8 @@ cnames = {
     'loc_timer': 'loc_timer',
     'glb_timer': 'glb_timer'
 }
+
+"""
+A helper to track profiled sections of code.
+"""
+Profile = namedtuple('Profile', 'timer ops memory')

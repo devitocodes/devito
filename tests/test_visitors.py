@@ -4,8 +4,9 @@ from sympy import Eq
 
 from devito.dimension import Dimension
 from devito.interfaces import DenseData
-from devito.nodes import Block, Expression, Iteration
-from devito.visitors import FindSections, IsPerfectIteration, Transformer
+from devito.nodes import Block, Expression, Function, Iteration
+from devito.visitors import (FindSections, FindSymbols, IsPerfectIteration,
+                             Transformer)
 
 
 def _symbol(name, dimensions):
@@ -145,6 +146,45 @@ def test_transformer_replace(exprs, block1, block2, block3):
         assert newnumlines >= oldnumlines
         assert line1 in newcode
         assert "a[i0] = a[i0] + b[i0] + 5.0F;" not in newcode
+
+
+def test_transformer_replace_function_body(block1, block2):
+    """Create a Function and replace its body with another."""
+    args = FindSymbols().visit(block1)
+    f = Function('foo', block1, 'void', args)
+    assert str(f.ccode) == """void foo(float *a_vec, float *b_vec)
+{
+  float (*a) = (float (*)) a_vec;
+  float (*b) = (float (*)) b_vec;
+  for (int i = 0 + 0; i < 3 - 0; i += 1)
+  {
+    for (int j = 0 + 0; j < 5 - 0; j += 1)
+    {
+      for (int k = 0 + 0; k < 7 - 0; k += 1)
+      {
+        a[i] = a[i] + b[i] + 5.0F;
+      }
+    }
+  }
+}"""
+
+    f = Transformer({block1: block2}).visit(f)
+    assert str(f.ccode) == """void foo(float *a_vec, float *b_vec)
+{
+  float (*a) = (float (*)) a_vec;
+  float (*b) = (float (*)) b_vec;
+  for (int i = 0 + 0; i < 3 - 0; i += 1)
+  {
+    a[i] = a[i] + b[i] + 5.0F;
+    for (int j = 0 + 0; j < 5 - 0; j += 1)
+    {
+      for (int k = 0 + 0; k < 7 - 0; k += 1)
+      {
+        a[i] = -a[i] + b[i];
+      }
+    }
+  }
+}"""
 
 
 def test_transformer_add_replace(exprs, block2, block3):

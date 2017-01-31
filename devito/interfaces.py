@@ -73,6 +73,9 @@ class SymbolicData(Function, CachedSymbol):
     to (re-)create the dimension arguments of the symbolic function.
     """
 
+    is_SymbolicData = True
+    is_ScalarData = False
+    is_TensorData = False
     is_DenseData = False
     is_TimeData = False
     is_Coordinates = False
@@ -89,7 +92,8 @@ class SymbolicData(Function, CachedSymbol):
 
             # Create the new Function object and invoke __init__
             newcls = cls._symbol_type(name)
-            newobj = Function.__new__(newcls, *args)
+            options = kwargs.get('options', {})
+            newobj = Function.__new__(newcls, *args, **options)
             newobj.__init__(*args, **kwargs)
             # Store new instance in symbol cache
             newcls._cache_put(newobj)
@@ -107,7 +111,38 @@ class SymbolicData(Function, CachedSymbol):
                                   ' `SymbolicData` does not have default indices')
 
 
-class DenseData(SymbolicData):
+class ScalarData(SymbolicData):
+    """Data object representing a scalar.
+
+    :param name: Name of the resulting :class:`sympy.Function` symbol
+    :param dtype: Data type of the scalar
+    :param initializer: Function to initialize the data, optional
+    """
+
+    is_ScalarData = True
+
+    def __new__(cls, *args, **kwargs):
+        kwargs.update({'options': {'evaluate': False}})
+        return SymbolicData.__new__(cls, *args, **kwargs)
+
+    @classmethod
+    def _indices(cls, **kwargs):
+        return []
+
+    def __init__(self, *args, **kwargs):
+        if not self._cached():
+            self.name = kwargs.get('name')
+            self.dtype = kwargs.get('dtype', np.float32)
+            self._data = kwargs.get('_data', None)
+
+
+class TensorData(SymbolicData):
+    """Data object representing a tensor."""
+
+    is_TensorData = True
+
+
+class DenseData(TensorData):
     """Data object for spatially varying data that acts as a Function symbol
 
     :param name: Name of the resulting :class:`sympy.Function` symbol
@@ -471,7 +506,7 @@ class TimeData(DenseData):
         return as_finite_diff(self.diff(t, t), indt)
 
 
-class CoordinateData(SymbolicData):
+class CoordinateData(TensorData):
     """
     Data object for sparse coordinate data that acts as a Function symbol
     """

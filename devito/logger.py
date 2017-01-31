@@ -4,9 +4,10 @@ import logging
 import sys
 
 __all__ = ('set_log_level', 'set_log_noperf', 'log',
-           'DEBUG', 'INFO', 'AUTOTUNER', 'DSE', 'DSE_WARN', 'WARNING',
-           'ERROR', 'CRITICAL',
-           'log', 'warning', 'error', 'info_at', 'dse', 'dse_warning',
+           'DEBUG', 'INFO', 'AUTOTUNER', 'DSE', 'DSE_WARN', 'DLE', 'DLE_WARN',
+           'WARNING', 'ERROR', 'CRITICAL',
+           'log', 'warning', 'error', 'info_at', 'dse', 'dse_warning', 'dle',
+           'dle_warning',
            'RED', 'GREEN', 'BLUE')
 
 
@@ -19,7 +20,9 @@ DEBUG = logging.DEBUG
 INFO = logging.INFO
 AUTOTUNER = 27
 DSE = 28
+DLE = DSE
 DSE_WARN = 29
+DLE_WARN = DSE_WARN
 WARNING = logging.WARNING
 ERROR = logging.ERROR
 CRITICAL = logging.CRITICAL
@@ -27,6 +30,8 @@ CRITICAL = logging.CRITICAL
 logging.addLevelName(AUTOTUNER, "AUTOTUNER")
 logging.addLevelName(DSE, "DSE")
 logging.addLevelName(DSE_WARN, "DSE_WARN")
+logging.addLevelName(DSE, "DLE")
+logging.addLevelName(DSE_WARN, "DLE_WARN")
 
 logger.setLevel(INFO)
 
@@ -41,6 +46,8 @@ COLORS = {
     AUTOTUNER: GREEN,
     DSE: NOCOLOR,
     DSE_WARN: BLUE,
+    DLE: NOCOLOR,
+    DLE_WARN: BLUE,
     WARNING: BLUE,
     ERROR: RED,
     CRITICAL: RED
@@ -52,7 +59,7 @@ def set_log_level(level):
     Set the log level of the Devito logger.
 
     :param level: accepted values are: DEBUG, INFO, AUTOTUNER, DSE, DSE_WARN,
-                  WARNING, ERROR, CRITICAL
+                  DLE, DLE_WARN, WARNING, ERROR, CRITICAL
     """
     logger.setLevel(level)
 
@@ -69,9 +76,9 @@ def log(msg, level=INFO, *args, **kwargs):
 
     :param msg: the message to be printed.
     :param level: accepted values are: DEBUG, INFO, AUTOTUNER, DSE, DSE_WARN,
-                  WARNING, ERROR, CRITICAL
+                  DLE, DLE_WARN, WARNING, ERROR, CRITICAL
     """
-    assert level in [DEBUG, INFO, AUTOTUNER, DSE, DSE_WARN,
+    assert level in [DEBUG, INFO, AUTOTUNER, DSE, DSE_WARN, DLE, DLE_WARN,
                      WARNING, ERROR, CRITICAL]
 
     color = COLORS[level] if sys.stdout.isatty() and sys.stderr.isatty() else '%s'
@@ -104,3 +111,11 @@ def dse(msg, *args, **kwargs):
 
 def dse_warning(msg, *args, **kwargs):
     log(msg, DSE_WARN, *args, **kwargs)
+
+
+def dle(msg, *args, **kwargs):
+    log("DLE: %s" % msg, DLE, *args, **kwargs)
+
+
+def dle_warning(msg, *args, **kwargs):
+    log(msg, DLE_WARN, *args, **kwargs)

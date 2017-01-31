@@ -11,10 +11,11 @@ from sympy import Eq, IndexedBase, preorder_traversal
 from devito.codeprinter import ccode
 from devito.dimension import Dimension
 from devito.dse.inspection import terminals
-from devito.interfaces import SymbolicData
+from devito.interfaces import SymbolicData, TensorData
 from devito.tools import as_tuple, filter_ordered
 
-__all__ = ['Node', 'Block', 'Expression', 'Iteration', 'Timer']
+__all__ = ['Node', 'Block', 'Expression', 'Function', 'Iteration', 'List',
+           'TimedList']
 
 
 class Node(object):
@@ -23,6 +24,9 @@ class Node(object):
     is_Block = False
     is_Iteration = False
     is_Expression = False
+    is_Function = False
+    is_List = False
+    is_Element = False
 
     """
     :attr:`_traversable`. A list of traversable objects (ie, traversed by
@@ -39,7 +43,7 @@ class Node(object):
 
     def _rebuild(self, *args, **kwargs):
         """Reconstruct self. None of the embedded Sympy expressions are rebuilt."""
-        handle = self._args  # Original constructor arguments
+        handle = self._args.copy()  # Original constructor arguments
         argnames = [i for i in self._traversable if i not in kwargs]
         handle.update(OrderedDict([(k, v) for k, v in zip(argnames, args)]))
         handle.update(kwargs)
@@ -71,6 +75,8 @@ class Block(Node):
 
     is_Block = True
 
+    _wrapper = c.Block
+
     _traversable = ['body']
 
     def __init__(self, header=None, body=None, footer=None):
@@ -80,18 +86,48 @@ class Block(Node):
 
     def __repr__(self):
         header = "".join([str(s) for s in self.header])
-        body = "Block::\n\t%s" % "\n\t".join([str(s) for s in self.body])
+        body = "\n\t".join([str(s) for s in self.body])
         footer = "".join([str(s) for s in self.footer])
-        return header + body + footer
+        return "%s::\n\t%s" % (self.__class__.__name__, header + body + footer)
 
     @property
     def ccode(self):
         body = tuple(s.ccode for s in self.body)
-        return c.Block(self.header + body + self.footer)
+        return self._wrapper(self.header + body + self.footer)
 
     @property
     def children(self):
         return (self.body,)
+
+
+class List(Block):
+
+    """Class representing a sequence of one or more statements."""
+
+    is_List = True
+
+    _wrapper = c.Collection
+
+
+class Element(Node):
+
+    """A generic node that is worth identifying in an Iteration/Expression tree.
+
+    It corresponds to a single :class:`cgen.Statement`.
+    """
+
+    is_Element = True
+
+    def __init__(self, element):
+        assert isinstance(element, c.Statement)
+        self.element = element
+
+    def __repr__(self):
+        return "Element::\n\t%s" % (self.element)
+
+    @property
+    def ccode(self):
+        return self.element
 
 
 class Expression(Node):
@@ -218,20 +254,101 @@ class Iteration(Node):
         return c.For(loop_init, loop_cond, loop_inc, c.Block(loop_body))
 
     @property
+    def is_Open(self):
+        return self.dim.size is not None
+
+    @property
+    def is_Closed(self):
+        return not self.is_Open
+
+    @property
     def children(self):
         """Return the traversable children."""
         return (self.nodes,)
 
 
+class Function(Node):
+
+    """Represent a C function.
+
+    :param name: The name of the function.
+    :param body: A :class:`Node` or an iterable of :class:`Node` objects representing
+                 the body of the function.
+    :param retval: The type of the value returned by the function.
+    :param parameters: An iterable of :class:`SymbolicData` objects in input to the
+                       function, or ``None`` if the function takes no parameter.
+    :param prefix: An iterable of qualifiers to prepend to the function declaration.
+                   The default value is ('static', 'inline').
+    """
+
+    is_Function = True
+
+    _traversable = ['body']
+
+    def __init__(self, name, body, retval, parameters=None, prefix=('static', 'inline')):
+        self.name = name
+        self.body = as_tuple(body)
+        self.retval = retval
+        self.parameters = as_tuple(parameters)
+        self.prefix = prefix
+
+    def __repr__(self):
+        parameters = ",".join([c.dtype_to_ctype(i.dtype) for i in self.parameters])
+        body = "\n\t".join([str(s) for s in self.body])
+        return "Function[%s]<%s; %s>::\n\t%s" % (self.name, self.retval, parameters, body)
+
+    @property
+    def _cparameters(self):
+        """Generate arguments signature."""
+        cparameters = []
+        for v in self.parameters:
+            if isinstance(v, Dimension):
+                cparameters.append(v.decl)
+            elif v.is_ScalarData:
+                cparameters.append(c.Value('const int', v.name))
+            else:
+                cparameters.append(c.Pointer(c.POD(v.dtype, '%s_vec' % v.name)))
+        return cparameters
+
+    @property
+    def _ccasts(self):
+        """Generate data casts."""
+        handle = [f for f in self.parameters if isinstance(f, TensorData)]
+        shapes = [(f, ''.join(["[%s]" % i.ccode for i in f.indices[1:]])) for f in handle]
+        casts = [c.Initializer(c.POD(v.dtype, '(*%s)%s' % (v.name, shape)),
+                               '(%s (*)%s) %s' % (c.dtype_to_ctype(v.dtype),
+                                                  shape, '%s_vec' % v.name))
+                 for v, shape in shapes]
+        return casts
+
+    @property
+    def _ctop(self):
+        """Generate the function declaration."""
+        return c.FunctionDeclaration(c.Value(self.retval, self.name), self._cparameters)
+
+    @property
+    def ccode(self):
+        """Generate C code for the represented C routine.
+
+        :returns: :class:`cgen.FunctionDeclaration` object representing the function.
+        """
+        body = [e.ccode for e in self.body]
+        return c.FunctionBody(self._ctop, c.Block(self._ccasts + body))
+
+    @property
+    def children(self):
+        return (self.body,)
+
+
 # Utilities
 
-class Timer(Block):
+class TimedList(List):
 
     """Wrap a Node with C-level timers."""
 
     def __init__(self, lname, gname, body):
         """
-        Initialize a Timer object.
+        Initialize a TimedList object.
 
         :param lname: Timer name in the local scope.
         :param gname: Name of the global struct tracking all timers.
@@ -246,7 +363,11 @@ class Timer(Block):
                                "(double)(end_%(ln)s.tv_sec-start_%(ln)s.tv_sec)+" +
                                "(double)(end_%(ln)s.tv_usec-start_%(ln)s.tv_usec)" +
                                "/1000000") % {'gn': gname, 'ln': lname})]
-        super(Timer, self).__init__(header, body, footer)
+        super(TimedList, self).__init__(header, body, footer)
+
+    def __repr__(self):
+        body = "\n\t".join([str(s) for s in self.body])
+        return "%s::\n\t%s" % (self.__class__.__name__, body)
 
     @property
     def name(self):

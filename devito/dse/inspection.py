@@ -7,8 +7,9 @@ from devito.interfaces import SymbolicData
 from devito.logger import warning
 from devito.tools import flatten
 
-__all__ = ['indexify', 'retrieve_dimensions', 'retrieve_dtype', 'retrieve_symbols',
-           'retrieve_shape', 'terminals', 'tolambda']
+__all__ = ['estimate_cost', 'estimate_memory', 'indexify', 'retrieve_dimensions',
+           'retrieve_dtype', 'retrieve_symbols', 'retrieve_shape', 'terminals',
+           'tolambda']
 
 
 def terminals(expr, discard_indexed=False):

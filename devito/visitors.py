@@ -7,16 +7,17 @@ The main Visitor class is extracted from https://github.com/coneoproject/COFFEE.
 from __future__ import absolute_import
 
 import inspect
-from collections import OrderedDict
+from collections import OrderedDict, namedtuple
 from operator import attrgetter
 
 import cgen as c
 from sympy import Symbol
 
+from devito.dse import estimate_cost, estimate_memory
 from devito.nodes import Block, IterationBound
 from devito.tools import filter_ordered, flatten
 
-__all__ = ["FindSections", "FindSymbols", "IsPerfectIteration",
+__all__ = ["EstimateCost", "FindSections", "FindSymbols", "IsPerfectIteration",
            "SubstituteExpression", "ResolveIterationVariable"]
 
 
@@ -162,6 +163,11 @@ class FindSections(Visitor):
             ret = self.visit(i, ret=ret, queue=queue)
         return ret
 
+    def visit_Node(self, o, ret=None, queue=None):
+        for i in o.children:
+            ret = self.visit(i, ret=ret, queue=queue)
+        return ret
+
     def visit_Iteration(self, o, ret=None, queue=None):
         if queue is None:
             queue = [o]
@@ -179,6 +185,8 @@ class FindSections(Visitor):
         ret.setdefault(key, []).append(o)
         return ret
 
+    visit_Element = visit_Expression
+
 
 class FindSymbols(Visitor):
 
@@ -186,9 +194,24 @@ class FindSymbols(Visitor):
     def default_retval(cls):
         return []
 
-    """Find all :class:`SymbolicData` and :class:`IndexedData`
-    instances in an Iteration/Expression tree.
+    """Find symbols in an Iteration/Expression tree.
+
+    :param mode: Drive the search for symbols. Accepted values are: ::
+
+        * 'with-data' (default): all :class:`SymbolicData` and :class:`IndexedData`
+          instances are collected.
+        * 'free-symbols': all free symbols appearing in :class:`Expression` are
+          collected.
     """
+
+    rules = {
+        'with-data': lambda e: e.functions,
+        'free-symbols': lambda e: e.stencil.free_symbols
+    }
+
+    def __init__(self, mode='with-data'):
+        super(FindSymbols, self).__init__()
+        self.rule = self.rules[mode]
 
     def visit_tuple(self, o):
         symbols = flatten([self.visit(i) for i in o])
@@ -201,8 +224,7 @@ class FindSymbols(Visitor):
         return filter_ordered(symbols, key=attrgetter('name'))
 
     def visit_Expression(self, o):
-        return filter_ordered([f for f in o.functions],
-                              key=attrgetter('name'))
+        return filter_ordered([f for f in self.rule(o)], key=attrgetter('name'))
 
 
 class IsPerfectIteration(Visitor):
@@ -227,6 +249,40 @@ class IsPerfectIteration(Visitor):
         return all(self.visit(i, found=True, multi=multi) for i in o.children)
 
 
+class EstimateCost(Visitor):
+
+    Cost = namedtuple('Cost', 'ops mem')
+
+    @classmethod
+    def default_retval(cls):
+        return cls.Cost(0, 0)
+
+    """
+    Estimate the number of floating point operations and memory accesses per
+    loop iteration in an Iteration/Expression tree.
+    """
+
+    def visit_object(self, o):
+        return self.default_retval()
+
+    def visit_tuple(self, o):
+        cost = self.default_retval()
+        for i in o:
+            ret = self.visit(i)
+            cost = self.Cost(cost.ops + ret.ops, cost.mem + ret.mem)
+        return cost
+
+    def visit_Node(self, o):
+        cost = self.default_retval()
+        for i in o.children:
+            ret = self.visit(i)
+            cost = self.Cost(cost.ops + ret.ops, cost.mem + ret.mem)
+        return cost
+
+    def visit_Expression(self, o):
+        return self.Cost(estimate_cost(o.stencil), estimate_memory(o.stencil))
+
+
 class Transformer(Visitor):
 
     """Given an Iteration/Expression tree T and a mapper from nodes in T to
@@ -243,8 +299,7 @@ class Transformer(Visitor):
     def visit_tuple(self, o, **kwargs):
         return tuple(self.visit(i, **kwargs) for i in o)
 
-    def visit_list(self, o, **kwargs):
-        return tuple(self.visit(i, **kwargs) for i in o)
+    visit_list = visit_tuple
 
     def visit_Node(self, o, **kwargs):
         if o in self.mapper:
