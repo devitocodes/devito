@@ -1,10 +1,16 @@
+from __future__ import absolute_import
+
+from functools import reduce
+from operator import mul
+import numpy as np
 import pytest
 from sympy import Eq
 
 from devito.dimension import Dimension
 from devito.dle import transform
-from devito.interfaces import DenseData
+from devito.interfaces import DenseData, TimeData
 from devito.nodes import Expression, Function, Iteration, List
+from devito.stencilkernel import StencilKernel
 from devito.visitors import ResolveIterationVariable, SubstituteExpression
 
 
@@ -88,8 +94,37 @@ def complex_function(symbols, exprs, iters):
     return f
 
 
+def _new_operator1(shape, **kwargs):
+    infield = DenseData(name='in', shape=shape, dtype=np.int32)
+    infield.data[:] = np.arange(reduce(mul, shape), dtype=np.int32).reshape(shape)
+
+    outfield = DenseData(name='out', shape=shape, dtype=np.int32)
+
+    stencil = Eq(outfield.indexify(), outfield.indexify() + infield.indexify()*3.0)
+
+    # Run the operator
+    StencilKernel(stencil, **kwargs)(infield, outfield)
+
+    return outfield
+
+
+def _new_operator2(shape, time_order, **kwargs):
+    infield = TimeData(name='in', shape=shape, time_order=time_order, dtype=np.int32)
+    infield.data[:] = np.arange(reduce(mul, shape), dtype=np.int32).reshape(shape)
+
+    outfield = TimeData(name='out', shape=shape, time_order=time_order, dtype=np.int32)
+
+    stencil = Eq(outfield.forward.indexify(),
+                 outfield.indexify() + infield.indexify()*3.0)
+
+    # Run the operator
+    StencilKernel(stencil, **kwargs)(infield, outfield, t=10)
+
+    return outfield
+
+
 def test_create_elemental_functions_simple(simple_function):
-    handle = transform(simple_function, mode=('basic',))
+    handle = transform(simple_function, mode=('split',))
     block = List(body=handle.nodes + handle.elemental_functions)
     assert str(block.ccode) == \
         ("""void foo(float *a_vec, float *b_vec, float *c_vec, float *d_vec)
@@ -98,9 +133,9 @@ def test_create_elemental_functions_simple(simple_function):
   float (*b) = (float (*)) b_vec;
   float (*c)[5] = (float (*)[5]) c_vec;
   float (*d)[5][7] = (float (*)[5][7]) d_vec;
-  for (int i0 = 0 + 0; i0 < 3 - 0; i0 += 1)
+  for (int i0 = 0; i0 < 3; i0 += 1)
   {
-    for (int j0 = 0 + 0; j0 < 5 - 0; j0 += 1)
+    for (int j0 = 0; j0 < 5; j0 += 1)
     {
       f_0_0(a_vec,b_vec,c_vec,d_vec,i0,j0);
     }
@@ -113,7 +148,7 @@ void f_0_0(float *a_vec, float *b_vec, float *c_vec, float *d_vec,"""
   float (*b) = (float (*)) b_vec;
   float (*c)[5] = (float (*)[5]) c_vec;
   float (*d)[5][7] = (float (*)[5][7]) d_vec;
-  for (int k0 = 0 + 0; k0 < 7 - 0; k0 += 1)
+  for (int k0 = 0; k0 < 7; k0 += 1)
   {
     a[i0] = a[i0] + b[i0] + 5.0F;
     a[i0] = -a[i0]*c[i0][j0] + b[i0]*d[i0][j0][k0];
@@ -122,7 +157,7 @@ void f_0_0(float *a_vec, float *b_vec, float *c_vec, float *d_vec,"""
 
 
 def test_create_elemental_functions_complex(complex_function):
-    handle = transform(complex_function, mode=('basic',))
+    handle = transform(complex_function, mode=('split',))
     block = List(body=handle.nodes + handle.elemental_functions)
     assert str(block.ccode) == \
         ("""void foo(float *a_vec, float *b_vec, float *c_vec, float *d_vec)
@@ -131,10 +166,10 @@ def test_create_elemental_functions_complex(complex_function):
   float (*b) = (float (*)) b_vec;
   float (*c)[5] = (float (*)[5]) c_vec;
   float (*d)[5][7] = (float (*)[5][7]) d_vec;
-  for (int i1 = 0 + 0; i1 < 3 - 0; i1 += 1)
+  for (int i1 = 0; i1 < 3; i1 += 1)
   {
     f_0_0(a_vec,b_vec,i1);
-    for (int j1 = 0 + 0; j1 < 5 - 0; j1 += 1)
+    for (int j1 = 0; j1 < 5; j1 += 1)
     {
       f_0_1(a_vec,b_vec,c_vec,d_vec,i1,j1);
     }
@@ -145,7 +180,7 @@ void f_0_0(float *a_vec, float *b_vec, const int i1)
 {
   float (*a) = (float (*)) a_vec;
   float (*b) = (float (*)) b_vec;
-  for (int s0 = 0 + 0; s0 < 4 - 0; s0 += 1)
+  for (int s0 = 0; s0 < 4; s0 += 1)
   {
     a[i1] = a[i1] + pow(b[i1], 2) + 3;
   }
@@ -157,7 +192,7 @@ void f_0_1(float *a_vec, float *b_vec, float *c_vec, float *d_vec,"""
   float (*b) = (float (*)) b_vec;
   float (*c)[5] = (float (*)[5]) c_vec;
   float (*d)[5][7] = (float (*)[5][7]) d_vec;
-  for (int k1 = 0 + 0; k1 < 7 - 0; k1 += 1)
+  for (int k1 = 0; k1 < 7; k1 += 1)
   {
     a[i1] = a[i1]*b[i1]*c[i1][j1]*d[i1][j1][k1];
     a[i1] = 4*(a[i1] + c[i1][j1])*(b[i1] + d[i1][j1][k1]);
@@ -167,8 +202,67 @@ void f_0_2(float *a_vec, float *b_vec, const int i1)
 {
   float (*a) = (float (*)) a_vec;
   float (*b) = (float (*)) b_vec;
-  for (int p0 = 0 + 0; p0 < 4 - 0; p0 += 1)
+  for (int p0 = 0; p0 < 4; p0 += 1)
   {
     a[i1] = 8.0F*a[i1] + 6.0F/b[i1];
   }
 }""")
+
+
+# Loop blocking tests
+# ATM, these tests resemble the ones in test_cache_blocking.py, with the main
+# difference being that here the new StencilKernel interface is used
+
+@pytest.mark.parametrize("shape", [(10,), (10, 45), (10, 31, 45)])
+@pytest.mark.parametrize("blockshape", [2, 7, (3, 3), (2, 9, 1)])
+@pytest.mark.parametrize("blockinner", [False, True])
+def test_cache_blocking_no_time_loop(shape, blockshape, blockinner):
+    wo_blocking = _new_operator1(shape, dle='noop')
+    w_blocking = _new_operator1(shape, dle=('blocking', {'blockshape': blockshape,
+                                                         'blockinner': blockinner}))
+
+    assert np.equal(wo_blocking.data, w_blocking.data).all()
+
+
+@pytest.mark.parametrize("shape", [(20, 33), (45, 31, 45)])
+@pytest.mark.parametrize("time_order", [2])
+@pytest.mark.parametrize("blockshape", [2, (13, 20), (11, 15, 23)])
+@pytest.mark.parametrize("blockinner", [False, True])
+def test_cache_blocking_time_loop(shape, time_order, blockshape, blockinner):
+    wo_blocking = _new_operator2(shape, time_order, dle='noop')
+    w_blocking = _new_operator2(shape, time_order,
+                                dle=('blocking', {'blockshape': blockshape,
+                                                  'blockinner': blockinner}))
+
+    assert np.equal(wo_blocking.data, w_blocking.data).all()
+
+
+@pytest.mark.parametrize("shape,blockshape", [
+    ((25, 25, 46), (None, None, None)),
+    ((25, 25, 46), (7, None, None)),
+    ((25, 25, 46), (None, None, 7)),
+    ((25, 25, 46), (None, 7, None)),
+    ((25, 25, 46), (5, None, 7)),
+    ((25, 25, 46), (10, 3, None)),
+    ((25, 25, 46), (None, 7, 11)),
+    ((25, 25, 46), (8, 2, 4)),
+    ((25, 25, 46), (2, 4, 8)),
+    ((25, 25, 46), (4, 8, 2)),
+    ((25, 46), (None, 7)),
+    ((25, 46), (7, None))
+])
+def test_cache_blocking_edge_cases(shape, blockshape):
+    wo_blocking = _new_operator2(shape, time_order=2, dle='noop')
+    w_blocking = _new_operator2(shape, time_order=2,
+                                dle=('blocking', {'blockshape': blockshape,
+                                                  'blockinner': True}))
+
+    assert np.equal(wo_blocking.data, w_blocking.data).all()
+
+
+@pytest.mark.parametrize("shape", [(41,), (20, 33), (45, 31, 45)])
+def test_composite_transformation(shape):
+    wo_blocking = _new_operator1(shape, dle='noop')
+    w_blocking = _new_operator1(shape, dle='advanced')
+
+    assert np.equal(wo_blocking.data, w_blocking.data).all()
