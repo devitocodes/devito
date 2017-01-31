@@ -14,8 +14,9 @@ import cgen as c
 from sympy import Symbol
 
 from devito.dse import estimate_cost, estimate_memory
-from devito.nodes import Block, IterationBound
-from devito.tools import filter_sorted, flatten
+from devito.nodes import Block, Iteration, IterationBound
+from devito.tools import as_tuple, filter_ordered, filter_sorted, flatten
+
 
 __all__ = ['EstimateCost', 'FindSections', 'FindSymbols',
            'IsPerfectIteration', 'SubstituteExpression',
@@ -185,7 +186,11 @@ class PrintAST(Visitor):
         return self.indent + "<Iteration %s>\n%s" % (o.dim.name, body)
 
     def visit_Expression(self, o):
-        return self.indent + "<Expression %s = %s>" % (o.stencil.lhs, o.stencil.rhs)
+        if self.verbose:
+            body = "%s = %s" % (o.stencil.lhs, o.stencil.rhs)
+            return self.indent + "<Expression %s>" % body
+        else:
+            return self.indent + str(o)
 
 
 class FindSections(Visitor):
@@ -414,3 +419,50 @@ class ResolveIterationVariable(Transformer):
         # since we're mapping into a list...
         offsets.update(o.index_offsets)
         return o
+
+
+class MergeOuterIterations(Transformer):
+    """
+    :class:`Transformer` that merges subsequent :class:`Iteration`
+    objects iff their dimenions agree.
+    """
+
+    def is_mergable(self, iter1, iter2):
+        return (iter1.dim == iter2.dim and
+                iter1.index == iter2.index and
+                iter1.limits == iter2.limits)
+
+    def merge(self, iter1, iter2):
+        # Create a new merged loop
+        newexpr = iter1.nodes + iter2.nodes
+        return Iteration(newexpr, dimension=iter1.dim,
+                         limits=iter1.limits)
+
+    def visit_Iteration(self, o):
+        rebuilt = self.visit(o.children)
+        ret = o._rebuild(*rebuilt, **o.args_frozen)
+        return ret
+
+    def visit_list(self, o):
+        head = self.visit(o[0])
+        if len(o) < 2:
+            return tuple([head])
+        body = self.visit(o[1:])
+        if head.is_Iteration and body[0].is_Iteration:
+            if self.is_mergable(head, body[0]):
+                newit = self.merge(head, body[0])
+                ret = self.visit([newit] + list(body[1:]))
+                return ret
+        return tuple([head] + list(body))
+
+    def visit_tuple(self, o):
+        head = self.visit(o[0])
+        if len(o) < 2:
+            return tuple([head])
+        body = self.visit(o[1:])
+        if head.is_Iteration and body[0].is_Iteration:
+            if self.is_mergable(head, body[0]):
+                newit = self.merge(head, body[0])
+                ret = self.visit([newit] + list(body[1:]))
+                return as_tuple(ret)
+        return tuple([head] + list(body))

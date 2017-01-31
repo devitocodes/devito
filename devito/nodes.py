@@ -391,6 +391,9 @@ class IterationBound(object):
     def __repr__(self):
         return self.name
 
+    def __eq__(self, bound):
+        return self.name == bound.name and self.dim == bound.dim
+
     @property
     def ccode(self):
         """C code for the variable declaration within a kernel signature"""
