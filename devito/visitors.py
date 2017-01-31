@@ -7,7 +7,7 @@ The main Visitor class is extracted from https://github.com/coneoproject/COFFEE.
 from __future__ import absolute_import
 
 import inspect
-from collections import OrderedDict, namedtuple
+from collections import OrderedDict, defaultdict, namedtuple
 from operator import attrgetter
 
 import cgen as c
@@ -393,7 +393,7 @@ class ResolveIterationVariable(Transformer):
           int t1 = (t + 1) % 2;
     """
 
-    def visit_Iteration(self, o, subs={}, offsets={}):
+    def visit_Iteration(self, o, subs={}, offsets=defaultdict(set)):
         nodes = self.visit(o.children, subs=subs, offsets=offsets)
         if o.dim.buffered:
             # For buffered dimensions insert the explicit
@@ -414,11 +414,10 @@ class ResolveIterationVariable(Transformer):
             subs[o.dim] = Symbol(vname)
             return o._rebuild(*nodes, index=vname)
 
-    def visit_Expression(self, o, subs={}, offsets={}):
-        # Collect all offsets used with a dimension
-        # TODO: Straight update is not really safe,
-        # since we're mapping into a list...
-        offsets.update(o.index_offsets)
+    def visit_Expression(self, o, subs={}, offsets=defaultdict(set)):
+        """Collect all offsets used with a dimension"""
+        for dim, offs in o.index_offsets.items():
+            offsets[dim].update(offs)
         return o
 
 
