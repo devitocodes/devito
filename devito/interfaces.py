@@ -4,7 +4,7 @@ import numpy as np
 from sympy import Function, IndexedBase, as_finite_diff, symbols
 from sympy.abc import h, s
 
-from devito.dimension import p, r, t, x, y, z
+from devito.dimension import d, p, t, x, y, z
 from devito.finite_difference import (centered, cross_derivative,
                                       first_derivative, left, right,
                                       second_derivative)
@@ -538,7 +538,7 @@ class CoordinateData(TensorData):
         :param shape: Shape of the spatial data
         :return: indices used for axis.
         """
-        _indices = [p, r]
+        _indices = [p, d]
         return _indices
 
     @property
