@@ -25,12 +25,26 @@ def transform(node, mode='basic'):
 
     :param node: The Iteration/Expression tree to be transformed, or an iterable
                  of Iteration/Expression trees.
-    :param mode: Drive the tree transformation. Available modes are: ::
+    :param mode: Drive the tree transformation. ``mode`` can be a string indicating
+                 a pre-established optimization sequence [S] or a tuple of individual
+                 transformations [T]; in the latter case, the individual transformations
+                 are composed. Available modes are: ::
 
-                    * 'noop': Do nothing.
-                    * 'blocking': Apply loop blocking
-                    * 'split': Identify and split elemental functions
-                    * 'advanced': Split elemental functions and apply loop blocking.
+                    * 'noop': Do nothing [S]
+                    * 'advanced': Split elemental functions and apply loop blocking [S]
+                    * 'blocking': Apply loop blocking [T]
+                    * 'split': Identify and split elemental functions [T]
+
+                 If ``mode`` is a tuple, the last entry may be used to provide optional
+                 arguments to the DLE transformations. Accepted key-value pairs are: ::
+
+                    * 'blockshape': A tuple representing the shape of a block created
+                                    by loop blocking.
+                    * 'blockinner': By default, loop blocking is not applied to the
+                                    innermost dimension of an Iteration/Expression tree
+                                    to maximize the chances of SIMD vectorization. To
+                                    force the blocking of this loop, the ``blockinner``
+                                    flag should be set to True.
     """
 
     if isinstance(node, Sequence):
@@ -44,18 +58,30 @@ def transform(node, mode='basic'):
     if not mode:
         return State(node)
     elif isinstance(mode, str):
-        mode = set([mode])
+        mode = list([mode])
+    elif not isinstance(mode, Sequence):
+        return State(node)
     else:
         try:
-            mode = set(mode)
+            mode = list(mode)
         except TypeError:
             dle_warning("Arg mode must be str or tuple (got %s)" % type(mode))
             return State(node)
+
+    params = {}
+    if isinstance(mode[-1], dict):
+        params = mode.pop(-1)
+    for k in params.keys():
+        if k not in ('blockshape', 'blockinner'):
+            dle_warning("Illegal DLE parameter '%s'" % str(k))
+            params.pop(k)
+
+    mode = set(mode)
     if mode.isdisjoint({'noop', 'blocking', 'split', 'advanced'}):
         dle_warning("Unknown transformer mode(s) %s" % str(mode))
         return State(node)
     else:
-        return Rewriter(node).run(mode)
+        return Rewriter(node, params).run(mode)
 
     return Rewriter(node).run(mode)
 
