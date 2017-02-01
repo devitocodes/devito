@@ -209,14 +209,19 @@ class Iteration(Node):
     :param dimension: :class:`Dimension` object over which to iterate.
     :param limits: Limits for the iteration space, either the loop size or a
                    tuple of the form (start, finish, stepping).
-    :param offsets: Optional map list of offsets to honour in the loop
+    :param index: Symbol to be used as iteration variable.
+    :param offsets: Optional map list of offsets to honour in the loop.
+    :param properties: A bag of strings indicating properties of this Iteration.
+                       For example, the string 'parallel' may be used to identify
+                       a parallelizable Iteration.
     """
 
     is_Iteration = True
 
     _traversable = ['nodes']
 
-    def __init__(self, nodes, dimension, limits, index=None, offsets=None):
+    def __init__(self, nodes, dimension, limits, index=None, offsets=None,
+                 properties=None):
         # Ensure we deal with a list of Expression objects internally
         nodes = as_tuple(nodes)
         self.nodes = as_tuple([n if isinstance(n, Node) else Expression(n)
@@ -245,8 +250,14 @@ class Iteration(Node):
             self.offsets[0] = min(self.offsets[0], int(off))
             self.offsets[1] = max(self.offsets[1], int(off))
 
+        # Track this Iteration's properties
+        self.properties = as_tuple(properties)
+
     def __repr__(self):
-        return "<Iteration %s; %s>" % (self.index, self.limits)
+        properties = ""
+        if self.properties:
+            properties = "WithProperties[%s]::" % ",".join(self.properties)
+        return "<%sIteration %s; %s>" % (properties, self.index, self.limits)
 
     @property
     def ccode(self):
