@@ -38,7 +38,9 @@ class Node(object):
     def __new__(cls, *args, **kwargs):
         obj = super(Node, cls).__new__(cls)
         argnames = inspect.getargspec(cls.__init__).args
-        obj._args = OrderedDict(list(zip(argnames[1:], args)) + list(kwargs.items()))
+        obj._args = {k: v for k, v in zip(argnames[1:], args)}
+        obj._args.update(kwargs.items())
+        obj._args.update({k: None for k in argnames[1:] if k not in obj._args})
         return obj
 
     def _rebuild(self, *args, **kwargs):
@@ -62,13 +64,12 @@ class Node(object):
     @property
     def args(self):
         """Arguments used to construct the Node."""
-        return self._args
+        return self._args.copy()
 
     @property
     def args_frozen(self):
         """Arguments used to construct the Node that cannot be traversed."""
-        return OrderedDict([(k, v) for k, v in self.args.items()
-                            if k not in self._traversable])
+        return {k: v for k, v in self.args.items() if k not in self._traversable}
 
 
 class Block(Node):
