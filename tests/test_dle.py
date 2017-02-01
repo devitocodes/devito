@@ -102,17 +102,17 @@ def test_create_elemental_functions_simple(simple_function):
   {
     for (int j0 = 0 + 0; j0 < 5 - 0; j0 += 1)
     {
-      f_0_0(a_vec,b_vec,d_vec,c_vec,i0,j0);
+      f_0_0(a_vec,b_vec,c_vec,d_vec,i0,j0);
     }
   }
 }
-void f_0_0(float *a_vec, float *b_vec, float *d_vec, float *c_vec,"""
+void f_0_0(float *a_vec, float *b_vec, float *c_vec, float *d_vec,"""
          """ const int i0, const int j0)
 {
   float (*a) = (float (*)) a_vec;
   float (*b) = (float (*)) b_vec;
-  float (*d)[5][7] = (float (*)[5][7]) d_vec;
   float (*c)[5] = (float (*)[5]) c_vec;
+  float (*d)[5][7] = (float (*)[5][7]) d_vec;
   for (int k0 = 0 + 0; k0 < 7 - 0; k0 += 1)
   {
     a[i0] = a[i0] + b[i0] + 5.0F;
@@ -136,7 +136,7 @@ def test_create_elemental_functions_complex(complex_function):
     f_0_0(a_vec,b_vec,i1);
     for (int j1 = 0 + 0; j1 < 5 - 0; j1 += 1)
     {
-      f_0_1(a_vec,b_vec,c_vec,d_vec,j1,i1);
+      f_0_1(a_vec,b_vec,c_vec,d_vec,i1,j1);
     }
     f_0_2(a_vec,b_vec,i1);
   }
@@ -151,7 +151,7 @@ void f_0_0(float *a_vec, float *b_vec, const int i1)
   }
 }
 void f_0_1(float *a_vec, float *b_vec, float *c_vec, float *d_vec,"""
-         """ const int j1, const int i1)
+         """ const int i1, const int j1)
 {
   float (*a) = (float (*)) a_vec;
   float (*b) = (float (*)) b_vec;

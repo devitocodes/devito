@@ -15,7 +15,7 @@ from sympy import Symbol
 
 from devito.dse import estimate_cost, estimate_memory
 from devito.nodes import Block, IterationBound
-from devito.tools import filter_ordered, flatten
+from devito.tools import filter_sorted, flatten
 
 __all__ = ["EstimateCost", "FindSections", "FindSymbols", "IsPerfectIteration",
            "SubstituteExpression", "ResolveIterationVariable"]
@@ -215,16 +215,16 @@ class FindSymbols(Visitor):
 
     def visit_tuple(self, o):
         symbols = flatten([self.visit(i) for i in o])
-        return filter_ordered(symbols, key=attrgetter('name'))
+        return filter_sorted(symbols, key=attrgetter('name'))
 
     def visit_Iteration(self, o):
         symbols = flatten([self.visit(i) for i in o.children])
         if isinstance(o.limits[1], IterationBound):
             symbols += [o.dim]
-        return filter_ordered(symbols, key=attrgetter('name'))
+        return filter_sorted(symbols, key=attrgetter('name'))
 
     def visit_Expression(self, o):
-        return filter_ordered([f for f in self.rule(o)], key=attrgetter('name'))
+        return filter_sorted([f for f in self.rule(o)], key=attrgetter('name'))
 
 
 class IsPerfectIteration(Visitor):
