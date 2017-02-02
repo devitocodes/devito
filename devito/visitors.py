@@ -165,6 +165,13 @@ class PrintAST(Visitor):
     def indent(self):
         return '  ' * self._depth
 
+    def visit_Node(self, o):
+        return self.indent + '<%s>' % o.__class__.__name__
+
+    def visit_Generable(self, o):
+        body = ' %s' % str(o) if self.verbose else ''
+        return self.indent + '<C.%s%s>' % (o.__class__.__name__, body)
+
     def visit_list(self, o):
         return ('\n').join([self.visit(i) for i in o])
 
@@ -177,7 +184,8 @@ class PrintAST(Visitor):
         body = self.visit(o.body)
         footer = self.visit(o.footer)
         self._depth -= 1
-        return self.indent + "<Block>\n%s" % header + body + footer
+        return self.indent + "<%s>\n%s" % (o.__class__.__name__,
+                                           '\n'.join([header, body, footer]))
 
     def visit_Iteration(self, o):
         self._depth += 1
