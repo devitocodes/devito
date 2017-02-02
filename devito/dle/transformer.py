@@ -16,7 +16,8 @@ from devito.interfaces import ScalarData, SymbolicData
 from devito.logger import dle, dle_warning
 from devito.nodes import Denormals, Element, Function, Iteration, List
 from devito.tools import as_tuple, flatten
-from devito.visitors import FindSections, FindSymbols, IsPerfectIteration, Transformer
+from devito.visitors import (FindNodeType, FindSections, FindSymbols,
+                             IsPerfectIteration, Transformer)
 
 
 def transform(node, mode='basic'):
@@ -46,6 +47,7 @@ def transform(node, mode='basic'):
                                     to maximize the chances of SIMD vectorization. To
                                     force the blocking of this loop, the ``blockinner``
                                     flag should be set to True.
+                    * 'openmp': True to emit OpenMP code, False otherwise.
     """
 
     if isinstance(node, Sequence):
@@ -73,12 +75,14 @@ def transform(node, mode='basic'):
     if isinstance(mode[-1], dict):
         params = mode.pop(-1)
     for k in params.keys():
-        if k not in ('blockshape', 'blockinner'):
+        if k not in ('blockshape', 'blockinner', 'openmp'):
             dle_warning("Illegal DLE parameter '%s'" % str(k))
             params.pop(k)
 
     mode = set(mode)
-    if mode.isdisjoint({'noop', 'blocking', 'split', 'advanced'}):
+    if params.pop('openmp', False):
+        mode |= {'openmp'}
+    if mode.isdisjoint({'noop', 'blocking', 'split', 'advanced', 'openmp'}):
         dle_warning("Unknown transformer mode(s) %s" % str(mode))
         return State(node)
     else:
@@ -160,7 +164,8 @@ class Rewriter(object):
     triggers = {
         '_avoid_denormals': ('advanced',),
         '_create_elemental_functions': ('split', 'advanced',),
-        '_loop_blocking': ('blocking', 'advanced')
+        '_loop_blocking': ('blocking', 'advanced'),
+        '_ompize': ('openmp',)
     }
 
     def __init__(self, nodes, params):
@@ -177,6 +182,7 @@ class Rewriter(object):
         self._avoid_denormals(state, mode=mode)
         self._create_elemental_functions(state, mode=mode)
         self._loop_blocking(state, mode=mode)
+        self._ompize(state, mode=mode)
 
         self._summary(mode)
 
@@ -453,6 +459,21 @@ class Rewriter(object):
         arguments = [BlockingArg(v, k[0], blockshape[k]) for k, v in blocked.items()]
 
         return {'nodes': processed, 'arguments': arguments}
+
+    @dle_transformation
+    def _ompize(self, state, **kwargs):
+        """
+        Add OpenMP pragmas to the Iteration/Expression tree to emit parallel code
+        """
+        from IPython import embed; embed()
+        #for node in state.nodes:
+        #    mapper = {}
+        #    for tree in retrieve_iteration_tree(node):
+        #denormals = FindNodeType(Denormals).visit(state.nodes)
+
+
+        # Take Denormals
+        # Take outer 'parallel' iterations
 
     def _summary(self, mode):
         """
