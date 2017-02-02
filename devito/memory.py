@@ -8,7 +8,6 @@ from operator import mul
 import numpy as np
 from sympy import Eq
 
-from devito.dimension import p
 from devito.logger import error
 from devito.tools import convert_dtype_to_ctype
 
@@ -85,7 +84,8 @@ def first_touch(array):
         space_dims = array.indices[1:]
     else:
         if isinstance(array, PointData):
-            it_init = [Iteration(exp_init, dimension=p, limits=array.shape[1])]
+            it_init = [Iteration(exp_init, dimension=array.indices[1],
+                                 limits=array.shape[1])]
             exp_init = []
             time_steps = array.shape[0]
             shape = []

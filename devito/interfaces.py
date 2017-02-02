@@ -591,8 +591,8 @@ class PointData(DenseData):
         :param shape: Shape of the spatial data
         :return: indices used for axis.
         """
-        _indices = [t, p]
-        return _indices
+        dimensions = kwargs.get('dimensions', None)
+        return dimensions or [t, p]
 
 
 class IndexedData(IndexedBase):
