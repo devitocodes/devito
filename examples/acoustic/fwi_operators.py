@@ -11,7 +11,7 @@ class ForwardOperator(Operator):
     Class to setup the forward modelling operator in an acoustic media
 
     :param model: IGrid() object containing the physical parameters
-    :param src: None ot IShot() (not currently supported properly)
+    :param source: None or IShot() (not currently supported properly)
     :param damp: Dampening coeeficents for the ABCs
     :param data: IShot() object containing the acquisition geometry and field data
     :param: time_order: Time discretization order
@@ -20,10 +20,10 @@ class ForwardOperator(Operator):
     :param: u_ini : wavefield at the three first time step for non-zero initial condition
      required for the time marching scheme
     """
-    def __init__(self, model, src, damp, data, time_order=2, spc_order=6,
+    def __init__(self, model, source, damp, data, time_order=2, spc_order=6,
                  save=False, u_ini=None, **kwargs):
         nt, nrec = data.shape
-        nt, nsrc = src.shape
+        nt, nsrc = source.shape
         s, h = symbols('s h')
         u = TimeData(name="u", shape=model.get_shape_comp(), time_dim=nt,
                      time_order=2, space_order=spc_order, save=save,
@@ -58,10 +58,10 @@ class ForwardOperator(Operator):
         rec = SourceLike(name="rec", npoint=nrec, nt=nt, dt=dt, h=model.get_spacing(),
                          coordinates=data.receiver_coords, ndim=len(damp.shape),
                          dtype=damp.dtype, nbpml=model.nbpml)
-        source = SourceLike(name="src", npoint=nsrc, nt=nt, dt=dt, h=model.get_spacing(),
-                            coordinates=src.receiver_coords, ndim=len(damp.shape),
-                            dtype=damp.dtype, nbpml=model.nbpml)
-        source.data[:] = src.traces[:]
+        src = SourceLike(name="src", npoint=nsrc, nt=nt, dt=dt, h=model.get_spacing(),
+                         coordinates=source.receiver_coords, ndim=len(damp.shape),
+                         dtype=damp.dtype, nbpml=model.nbpml)
+        src.data[:] = source.traces[:]
 
         super(ForwardOperator, self).__init__(nt, m.shape,
                                               stencils=Eq(u.forward, stencil),
@@ -73,11 +73,11 @@ class ForwardOperator(Operator):
                                               **kwargs)
 
         # Insert source and receiver terms post-hoc
-        self.input_params += [source, source.coordinates, rec, rec.coordinates]
+        self.input_params += [src, src.coordinates, rec, rec.coordinates]
         self.output_params += [rec]
-        self.propagator.time_loop_stencils_a = source.add(m, u) + rec.read(u)
-        self.propagator.add_devito_param(source)
-        self.propagator.add_devito_param(source.coordinates)
+        self.propagator.time_loop_stencils_a = src.add(m, u) + rec.read(u)
+        self.propagator.add_devito_param(src)
+        self.propagator.add_devito_param(src.coordinates)
         self.propagator.add_devito_param(rec)
         self.propagator.add_devito_param(rec.coordinates)
 
