@@ -88,6 +88,14 @@ def aligned(a, alignment=16):
     return aa
 
 
+def pprint(node, verbose=True):
+    """
+    Shortcut to pretty print Iteration/Expression trees.
+    """
+    from devito.visitors import printAST
+    print printAST(node, verbose)
+
+
 class DefaultOrderedDict(OrderedDict):
     # Source: http://stackoverflow.com/a/6190500/562769
     def __init__(self, default_factory=None, *a, **kw):
