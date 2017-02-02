@@ -190,12 +190,12 @@ class PrintAST(Visitor):
 
     def visit_Block(self, o):
         self._depth += 1
-        header = self.visit(o.header)
-        body = self.visit(o.body)
-        footer = self.visit(o.footer)
+        if self.verbose:
+            body = [self.visit(o.header), self.visit(o.body), self.visit(o.footer)]
+        else:
+            body = [self.visit(o.body)]
         self._depth -= 1
-        return self.indent + "<%s>\n%s" % (o.__class__.__name__,
-                                           '\n'.join([header, body, footer]))
+        return self.indent + "<%s>\n%s" % (o.__class__.__name__, '\n'.join(body))
 
     def visit_Iteration(self, o):
         self._depth += 1
