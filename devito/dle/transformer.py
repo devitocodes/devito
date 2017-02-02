@@ -380,7 +380,8 @@ class Rewriter(object):
 
                     start = i.limits[0] - i.offsets[0]
                     finish = iter_size - ((iter_size - i.offsets[1]) % block_size)
-                    inter_block = Iteration([], dim, [start, finish, block_size])
+                    inter_block = Iteration([], dim, [start, finish, block_size],
+                                            properties=('parallel', 'blocked'))
 
                     # Build Iteration within a block
                     dim = dims.setdefault((i.dim, 'intra-block'),
@@ -388,7 +389,8 @@ class Rewriter(object):
 
                     start = inter_block.dim
                     finish = start + block_size
-                    intra_block = Iteration([], dim, [start, finish, 1], i.index)
+                    intra_block = Iteration([], dim, [start, finish, 1], i.index,
+                                            properties=('parallel',))
 
                     blocked_iterations.append((inter_block, intra_block))
 
@@ -397,14 +399,16 @@ class Rewriter(object):
                     # non-blocked ("remainder") iterations.
                     start = inter_block.limits[0]
                     finish = inter_block.limits[1]
-                    main = Iteration([], i.dim, [start, finish, 1], i.index)
+                    main = Iteration([], i.dim, [start, finish, 1], i.index,
+                                     properties=('parallel',))
 
                     # Build unitary-increment Iteration over the 'leftover' region:
                     # again as above, this may be necessary when the dimension size
                     # is not a multiple of the block size.
                     start = inter_block.limits[1]
                     finish = iter_size - i.offsets[1]
-                    leftover = Iteration([], i.dim, [start, finish, 1], i.index)
+                    leftover = Iteration([], i.dim, [start, finish, 1], i.index,
+                                         properties=('parallel',))
 
                     regions[i] = Region(main, leftover)
 
