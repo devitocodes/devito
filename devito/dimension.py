@@ -18,7 +18,6 @@ class Dimension(Symbol):
     def __new__(cls, name, **kwargs):
         newobj = Symbol.__new__(cls, name)
         newobj.size = kwargs.get('size', None)
-        newobj.buffered = kwargs.get('buffered', None)
         newobj._count = 0
         return newobj
 
@@ -52,10 +51,33 @@ class Dimension(Symbol):
         return np.int32
 
 
-# Set of default dimensions for space and time
+class BufferedDimension(Dimension):
+    """Dimension symbils that implies modulo buffered iteration.
+
+    :param parent: Parent dimension over which to loop in modulo fashion.
+    """
+
+    def __new__(cls, name, parent, **kwargs):
+        newobj = Symbol.__new__(cls, name)
+        assert isinstance(parent, Dimension)
+        newobj.parent = parent
+        newobj.modulo = kwargs.get('modulo', 2)
+        newobj._count = 0
+        return newobj
+
+    @property
+    def size(self):
+        return self.parent.size
+
+
+# Default dimensions for time
+time = Dimension('time')
+t = BufferedDimension('t', parent=time)
+
+# Default dimensions for space
 x = Dimension('x')
 y = Dimension('y')
 z = Dimension('z')
-t = Dimension('t')
+
+d = Dimension('d')
 p = Dimension('p')
-r = Dimension('r')

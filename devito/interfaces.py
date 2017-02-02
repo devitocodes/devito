@@ -429,7 +429,7 @@ class TimeData(DenseData):
                 time_dim += self.time_order
             else:
                 time_dim = self.time_order + 1
-                self.indices[0].buffered = time_dim
+                self.indices[0].modulo = time_dim
 
             self.shape = (time_dim,) + self.shape
 
