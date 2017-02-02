@@ -21,4 +21,4 @@ def retrieve_iteration_tree(node):
         [(Iteration i, Iteration j, Iteration k), (Iteration i, Iteration p)]
     """
 
-    return FindSections().visit(node).keys()
+    return [i for i in FindSections().visit(node).keys() if i]
