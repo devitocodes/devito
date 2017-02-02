@@ -95,8 +95,7 @@ def dle_transformation(func):
             state.update(**func(self, state))
             toc = time()
 
-            key = '%s%d' % (func.__name__, len(self.timings))
-            self.timings[key] = toc - tic
+            self.timings[func.__name__] = toc - tic
 
     return wrapper
 
