@@ -14,6 +14,8 @@ def as_tuple(item, type=None, length=None):
     # Empty list if we get passed None
     if item is None:
         t = ()
+    elif isinstance(item, str):
+        t = (item,)
     else:
         # Convert iterable to list...
         try:
