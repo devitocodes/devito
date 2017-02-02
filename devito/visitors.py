@@ -436,12 +436,20 @@ class MergeOuterIterations(Transformer):
     """
 
     def is_mergable(self, iter1, iter2):
+        """Defines if two :class:`Iteration` objects are mergeable.
+
+        Note: This currently does not(!) consider data dependencies
+        between the loops. A deeper analysis is required for this that
+        will be added soon.
+        """
         return (iter1.dim == iter2.dim and
                 iter1.index == iter2.index and
                 iter1.limits == iter2.limits)
 
     def merge(self, iter1, iter2):
-        # Create a new merged loop
+        """Creates a new merged :class:`Iteration` object from two
+        loops along the same dimension.
+        """
         newexpr = iter1.nodes + iter2.nodes
         return Iteration(newexpr, dimension=iter1.dim,
                          limits=iter1.limits)
