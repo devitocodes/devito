@@ -14,7 +14,7 @@ from devito.dle.manipulation import compose_nodes
 from devito.dse import terminals
 from devito.interfaces import ScalarData, SymbolicData
 from devito.logger import dle, dle_warning
-from devito.nodes import Element, Function, Iteration, List
+from devito.nodes import Denormals, Element, Function, Iteration, List
 from devito.tools import as_tuple, flatten
 from devito.visitors import FindSections, FindSymbols, IsPerfectIteration, Transformer
 
@@ -31,7 +31,8 @@ def transform(node, mode='basic'):
                  are composed. Available modes are: ::
 
                     * 'noop': Do nothing [S]
-                    * 'advanced': Split elemental functions and apply loop blocking [S]
+                    * 'advanced': Add code to avoid denormal numbers, split elemental
+                                  functions, apply loop blocking [S]
                     * 'blocking': Apply loop blocking [T]
                     * 'split': Identify and split elemental functions [T]
 
@@ -109,12 +110,15 @@ class State(object):
 
         self.elemental_functions = ()
         self.arguments = ()
+        self.includes = ()
 
-    def update(self, nodes=None, elemental_functions=None, arguments=None):
+    def update(self, nodes=None, elemental_functions=None, arguments=None,
+               includes=None):
         self.nodes = as_tuple(nodes) or self.nodes
         self.elemental_functions = as_tuple(elemental_functions) or\
             self.elemental_functions
         self.arguments += as_tuple(arguments)
+        self.includes += as_tuple(includes)
 
 
 class Arg(object):
@@ -155,6 +159,7 @@ class BlockingArg(Arg):
 class Rewriter(object):
 
     triggers = {
+        '_avoid_denormals': ('advanced',),
         '_create_elemental_functions': ('split', 'advanced',),
         '_loop_blocking': ('blocking', 'advanced')
     }
@@ -170,6 +175,7 @@ class Rewriter(object):
 
         self._analyze_and_decorate(state)
 
+        self._avoid_denormals(state, mode=mode)
         self._create_elemental_functions(state, mode=mode)
         self._loop_blocking(state, mode=mode)
 
@@ -237,6 +243,17 @@ class Rewriter(object):
                 nodes = transformer.visit(nodes)
 
         state.update(nodes=nodes)
+
+    @dle_transformation
+    def _avoid_denormals(self, state, **kwargs):
+        """
+        Introduce nodes in the Iteration/Expression tree that will generate macros
+        to avoid computing with denormal numbers. These are normally flushed away
+        when using SSE-like instruction sets in a complete C program, but when
+        compiling shared objects specific instructions must instead be inserted.
+        """
+        return {'nodes': (Denormals(),) + state.nodes,
+                'includes': ('xmmintrin.h', 'pmmintrin.h')}
 
     @dle_transformation
     def _create_elemental_functions(self, state, **kwargs):

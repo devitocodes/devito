@@ -30,9 +30,6 @@ __all__ = ['StencilKernel']
 
 class StencilKernel(Function):
 
-    _includes = ['stdlib.h', 'math.h', 'sys/time.h',
-                 'xmmintrin.h', 'pmmintrin.h']
-
     """A special :class:`Function` to evaluate stencils through just-in-time
     compilation of C code.
 
@@ -63,6 +60,7 @@ class StencilKernel(Function):
         # Default attributes required for compilation
         self.compiler = compiler or get_compiler_from_env()
         self.profiler = kwargs.get("profiler", Profiler(self.compiler.openmp))
+        self._includes = ['stdlib.h', 'math.h', 'sys/time.h']
         self._lib = None
         self._cfunction = None
 
@@ -121,6 +119,9 @@ class StencilKernel(Function):
         parameters = FindSymbols().visit(nodes)
         parameters += [i.argument for i in dle_state.arguments]
         super(StencilKernel, self).__init__(name, body, 'int', parameters, ())
+
+        # DLE might have introduced additional headers
+        self._includes.extend(list(dle_state.includes))
 
         # Track the DSE and DLE output, as they may be useful later
         self._dse_state = dse_state
@@ -227,14 +228,9 @@ class StencilKernel(Function):
         blankline = c.Line("")
 
         # Generate function body with all the trimmings
-        extra = [c.Comment('Force flushing of denormals to zero in hardware'),
-                 c.Line('_MM_SET_DENORMALS_ZERO_MODE(_MM_DENORMALS_ZERO_ON);'),
-                 c.Line('_MM_SET_FLUSH_ZERO_MODE(_MM_FLUSH_ZERO_ON);')]
-        denormal = [c.Block(extra)]
         body = [e.ccode for e in self.body]
         ret = [c.Statement("return 0")]
-        kernel = c.FunctionBody(self._ctop,
-                                c.Block(self._ccasts + denormal + body + ret))
+        kernel = c.FunctionBody(self._ctop, c.Block(self._ccasts + body + ret))
 
         # Generate elemental functions produced by the DLE
         elemental_functions = [e.ccode for e in self._dle_state.elemental_functions]

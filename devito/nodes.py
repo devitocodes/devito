@@ -415,6 +415,21 @@ class TimedList(List):
         return self._name
 
 
+class Denormals(Block):
+
+    """Macros to make sure denormal numbers are flushed in hardware."""
+
+    def __init__(self, **kwargs):
+        b = [Element(c.Comment('Flush denormal numbers to zero in hardware')),
+             Element(c.Statement('_MM_SET_DENORMALS_ZERO_MODE(_MM_DENORMALS_ZERO_ON)')),
+             Element(c.Statement('_MM_SET_FLUSH_ZERO_MODE(_MM_FLUSH_ZERO_ON)'))]
+        super(Denormals, self).__init__(body=b)
+
+    def __repr__(self):
+        return "<DenormalsMacro>"
+
+
+
 class IterationBound(object):
     """Utility class to encapsulate variable loop bounds and link them
     back to the respective :class:`Dimension` object.
