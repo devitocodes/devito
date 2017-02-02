@@ -7,18 +7,24 @@ The main Visitor class is extracted from https://github.com/coneoproject/COFFEE.
 from __future__ import absolute_import
 
 import inspect
-from collections import OrderedDict, namedtuple
+from collections import OrderedDict, defaultdict, namedtuple
 from operator import attrgetter
 
 import cgen as c
 from sympy import Symbol
 
 from devito.dse import estimate_cost, estimate_memory
-from devito.nodes import Block, IterationBound
-from devito.tools import filter_sorted, flatten
+from devito.nodes import Block, Iteration, IterationBound
+from devito.tools import as_tuple, filter_ordered, filter_sorted, flatten
 
-__all__ = ["EstimateCost", "FindSections", "FindSymbols", "IsPerfectIteration",
-           "SubstituteExpression", "ResolveIterationVariable"]
+
+__all__ = ['EstimateCost', 'FindSections', 'FindSymbols',
+           'IsPerfectIteration', 'SubstituteExpression',
+           'ResolveIterationVariable', 'Transformer', 'printAST']
+
+
+def printAST(node, verbose=True):
+    return PrintAST(verbose=verbose).visit(node)
 
 
 class Visitor(object):
@@ -141,6 +147,69 @@ class Visitor(object):
         ops, okwargs = o.operands()
         new_ops = [self.visit(op, *args, **kwargs) for op in ops]
         return o._rebuild(*new_ops, **okwargs)
+
+
+class PrintAST(Visitor):
+
+    _depth = 0
+
+    def __init__(self, verbose=True):
+        super(PrintAST, self).__init__()
+        self.verbose = verbose
+
+    @classmethod
+    def default_retval(cls):
+        return "<>"
+
+    @property
+    def indent(self):
+        return '  ' * self._depth
+
+    def visit_Node(self, o):
+        return self.indent + '<%s>' % o.__class__.__name__
+
+    def visit_Generable(self, o):
+        body = ' %s' % str(o) if self.verbose else ''
+        return self.indent + '<C.%s%s>' % (o.__class__.__name__, body)
+
+    def visit_Element(self, o):
+        body = ' %s' % str(o.element) if self.verbose else ''
+        return self.indent + '<Element%s>' % body
+
+    def visit_Function(self, o):
+        self._depth += 1
+        body = self.visit(o.children)
+        self._depth -= 1
+        return self.indent + '<Function %s>\n%s' % (o.name, body)
+
+    def visit_list(self, o):
+        return ('\n').join([self.visit(i) for i in o])
+
+    def visit_tuple(self, o):
+        return '\n'.join([self.visit(i) for i in o])
+
+    def visit_Block(self, o):
+        self._depth += 1
+        if self.verbose:
+            body = [self.visit(o.header), self.visit(o.body), self.visit(o.footer)]
+        else:
+            body = [self.visit(o.body)]
+        self._depth -= 1
+        return self.indent + "<%s>\n%s" % (o.__class__.__name__, '\n'.join(body))
+
+    def visit_Iteration(self, o):
+        self._depth += 1
+        body = self.visit(o.children)
+        self._depth -= 1
+        detail = '::%s::%s' % (o.index, o.limits) if self.verbose else ''
+        return self.indent + "<Iteration %s%s>\n%s" % (o.dim.name, detail, body)
+
+    def visit_Expression(self, o):
+        if self.verbose:
+            body = "%s = %s" % (o.stencil.lhs, o.stencil.rhs)
+            return self.indent + "<Expression %s>" % body
+        else:
+            return self.indent + str(o)
 
 
 class FindSections(Visitor):
@@ -342,13 +411,13 @@ class ResolveIterationVariable(Transformer):
           int t1 = (t + 1) % 2;
     """
 
-    def visit_Iteration(self, o, subs={}, offsets={}):
+    def visit_Iteration(self, o, subs={}, offsets=defaultdict(set)):
         nodes = self.visit(o.children, subs=subs, offsets=offsets)
         if o.dim.buffered:
             # For buffered dimensions insert the explicit
             # definition of buffere variables, eg. t+1 => t1
             init = []
-            for off in [0] + offsets[o.dim]:
+            for off in filter_ordered(offsets[o.dim]):
                 vname = o.dim.get_varname()
                 value = o.dim + off
                 modulo = o.dim.buffered
@@ -363,9 +432,63 @@ class ResolveIterationVariable(Transformer):
             subs[o.dim] = Symbol(vname)
             return o._rebuild(*nodes, index=vname)
 
-    def visit_Expression(self, o, subs={}, offsets={}):
-        # Collect all offsets used with a dimension
-        # TODO: Straight update is not really safe,
-        # since we're mapping into a list...
-        offsets.update(o.index_offsets)
+    def visit_Expression(self, o, subs={}, offsets=defaultdict(set)):
+        """Collect all offsets used with a dimension"""
+        for dim, offs in o.index_offsets.items():
+            offsets[dim].update(offs)
         return o
+
+
+class MergeOuterIterations(Transformer):
+    """
+    :class:`Transformer` that merges subsequent :class:`Iteration`
+    objects iff their dimenions agree.
+    """
+
+    def is_mergable(self, iter1, iter2):
+        """Defines if two :class:`Iteration` objects are mergeable.
+
+        Note: This currently does not(!) consider data dependencies
+        between the loops. A deeper analysis is required for this that
+        will be added soon.
+        """
+        return (iter1.dim == iter2.dim and
+                iter1.index == iter2.index and
+                iter1.limits == iter2.limits)
+
+    def merge(self, iter1, iter2):
+        """Creates a new merged :class:`Iteration` object from two
+        loops along the same dimension.
+        """
+        newexpr = iter1.nodes + iter2.nodes
+        return Iteration(newexpr, dimension=iter1.dim,
+                         limits=iter1.limits)
+
+    def visit_Iteration(self, o):
+        rebuilt = self.visit(o.children)
+        ret = o._rebuild(*rebuilt, **o.args_frozen)
+        return ret
+
+    def visit_list(self, o):
+        head = self.visit(o[0])
+        if len(o) < 2:
+            return tuple([head])
+        body = self.visit(o[1:])
+        if head.is_Iteration and body[0].is_Iteration:
+            if self.is_mergable(head, body[0]):
+                newit = self.merge(head, body[0])
+                ret = self.visit([newit] + list(body[1:]))
+                return ret
+        return tuple([head] + list(body))
+
+    def visit_tuple(self, o):
+        head = self.visit(o[0])
+        if len(o) < 2:
+            return tuple([head])
+        body = self.visit(o[1:])
+        if head.is_Iteration and body[0].is_Iteration:
+            if self.is_mergable(head, body[0]):
+                newit = self.merge(head, body[0])
+                ret = self.visit([newit] + list(body[1:]))
+                return as_tuple(ret)
+        return tuple([head] + list(body))

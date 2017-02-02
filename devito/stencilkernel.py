@@ -20,8 +20,10 @@ from devito.logger import error, info
 from devito.nodes import Block, Expression, Function, Iteration, TimedList
 from devito.profiler import Profiler
 from devito.visitors import (EstimateCost, FindSections, FindSymbols,
-                             IsPerfectIteration, ResolveIterationVariable,
-                             SubstituteExpression, Transformer)
+                             IsPerfectIteration, MergeOuterIterations,
+                             ResolveIterationVariable, SubstituteExpression,
+                             Transformer, printAST)
+
 
 __all__ = ['StencilKernel']
 
@@ -72,15 +74,18 @@ class StencilKernel(Function):
         nodes = [Expression(s) for s in stencils]
 
         # Wrap expressions with Iterations according to dimensions
+        # TODO: This should probably be done more safely in a visitor
+        # that tracks free and bound loop variables in the AST.
         for i, expr in enumerate(nodes):
             newexpr = expr
             offsets = newexpr.index_offsets
-            for d in reversed(expr.dimensions):
+            for d in reversed(list(offsets.keys())):
                 newexpr = Iteration(newexpr, dimension=d,
                                     limits=d.size, offsets=offsets[d])
             nodes[i] = newexpr
 
-        # TODO: Merge Iterations iff outermost variables agree
+        # Merge Iterations iff outermost iterations agree
+        nodes = MergeOuterIterations().visit(nodes)
 
         # Introduce profiling infrastructure
         mapper = {}
@@ -91,7 +96,7 @@ class StencilKernel(Function):
                     if IsPerfectIteration().visit(j) and j not in mapper:
                         # Insert `TimedList` block. This should come from
                         # the profiler, but we do this manually for now.
-                        lname = 'loop_%s' % j.index
+                        lname = 'loop_%s_%d' % (j.index, i)
                         mapper[j] = TimedList(gname=self.profiler.t_name,
                                               lname=lname, body=j)
                         self.profiler.t_fields += [(lname, c_double)]
@@ -234,8 +239,8 @@ class StencilKernel(Function):
 
         :returns: The basename path as a string
         """
-        expr_string = "\n".join([str(e) for e in self.body])
-        expr_string += "\n".join([str(e) for e in self.elemental_functions])
+        expr_string = printAST(self.body, verbose=True)
+        expr_string += printAST(self.elemental_functions, verbose=True)
         hash_key = sha1(expr_string.encode()).hexdigest()
 
         return path.join(get_tmp_dir(), hash_key)

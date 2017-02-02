@@ -3,16 +3,16 @@
 from __future__ import absolute_import
 
 import inspect
-from collections import Iterable, OrderedDict, defaultdict
+from collections import Iterable, OrderedDict
 
 import cgen as c
 from sympy import Eq, IndexedBase, preorder_traversal
 
 from devito.codeprinter import ccode
 from devito.dimension import Dimension
-from devito.dse.inspection import terminals
+from devito.dse.inspection import retrieve_indexed
 from devito.interfaces import SymbolicData, TensorData
-from devito.tools import as_tuple, filter_ordered
+from devito.tools import DefaultOrderedDict, as_tuple, filter_ordered
 
 __all__ = ['Node', 'Block', 'Expression', 'Function', 'Iteration', 'List',
            'TimedList']
@@ -85,10 +85,8 @@ class Block(Node):
         self.footer = as_tuple(footer)
 
     def __repr__(self):
-        header = "".join([str(s) for s in self.header])
-        body = "\n\t".join([str(s) for s in self.body])
-        footer = "".join([str(s) for s in self.footer])
-        return "%s::\n\t%s" % (self.__class__.__name__, header + body + footer)
+        return "<%s (%d, %d, %d)>" % (self.__class__.__name__, len(self.header),
+                                      len(self.body), len(self.footer))
 
     @property
     def ccode(self):
@@ -155,7 +153,7 @@ class Expression(Node):
         self.functions = filter_ordered(self.functions)
 
     def __repr__(self):
-        return "Expression<%s = %s>" % (self.stencil.lhs, self.stencil.rhs)
+        return "<Expression::%s>" % filter_ordered([f.func for f in self.functions])
 
     def substitute(self, substitutions):
         """Apply substitutions to the expression stencil
@@ -171,21 +169,33 @@ class Expression(Node):
 
     @property
     def index_offsets(self):
-        """Collect all non-zero offsets used with each index in a map
+        """Mapping of :class:`Dimension` symbols to each integer
+        stencil offset used with it in this expression.
 
-        Note: This assumes we have indexified the stencil expression."""
-        offsets = defaultdict(list)
-        for e in terminals(self.stencil):
+        This also include zero offsets, so that the keys of this map
+        may be used as the set of :class:`Dimension` symbols used in
+        this expression.
+
+        Note: This assumes we have indexified the stencil expression.
+        """
+        offsets = DefaultOrderedDict(set)
+
+        # Enforce left-first traversal order
+        indexed = list(retrieve_indexed(self.stencil.lhs))
+        indexed += list(retrieve_indexed(self.stencil.rhs))
+        for e in indexed:
             for a in e.indices:
+                if isinstance(a, Dimension):
+                    offsets[a].update([0])
                 d = None
                 off = []
                 for idx in a.args:
                     if isinstance(idx, Dimension):
                         d = idx
-                    else:
+                    elif idx.is_integer:
                         off += [idx]
                 if d is not None:
-                    offsets[d] += off
+                    offsets[d].update(off)
         return offsets
 
 
@@ -235,9 +245,7 @@ class Iteration(Node):
             self.offsets[1] = max(self.offsets[1], int(off))
 
     def __repr__(self):
-        str_expr = "\n\t".join([str(s) for s in self.nodes])
-        return "Iteration<%s; %s>::\n\t%s" % (self.index, self.limits,
-                                              str_expr)
+        return "<Iteration %s; %s>" % (self.index, self.limits)
 
     @property
     def ccode(self):
@@ -387,6 +395,9 @@ class IterationBound(object):
 
     def __repr__(self):
         return self.name
+
+    def __eq__(self, bound):
+        return self.name == bound.name and self.dim == bound.dim
 
     @property
     def ccode(self):
