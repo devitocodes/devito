@@ -63,7 +63,8 @@ class SourceLike(PointData):
     @property
     def sym_coordinates(self):
         """Symbol representing the coordinate values in each dimension"""
-        return tuple([self.coordinates.indexed[p, i]
+        p_dim = self.indices[1]
+        return tuple([self.coordinates.indexed[p_dim, i]
                       for i in range(self.ndim)])
 
     @property
@@ -87,7 +88,7 @@ class SourceLike(PointData):
                                in zip(inc, self.sym_coord_indices)])
                         for inc in self.increments]
         eqns = [Eq(u.indexed[(t, ) + idx], u.indexed[(t, ) + idx]
-                   + self.indexed[t, p] * dt * dt / m.indexed[idx] * b.subs(subs))
+                   + self.indexed[self.indices] * dt * dt / m.indexed[idx] * b.subs(subs))
                 for idx, b in zip(index_matrix, self.bs)]
         return eqns
 
