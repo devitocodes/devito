@@ -48,6 +48,11 @@ def filter_ordered(elements, key=None):
     return [e for e in elements if not (key(e) in seen or seen.add(key(e)))]
 
 
+def filter_sorted(elements, key=None):
+    """Filter elements in a list and sort them by key"""
+    return sorted(filter_ordered(elements, key=key), key=key)
+
+
 def convert_dtype_to_ctype(dtype):
     """Maps numpy types to C types.
 
