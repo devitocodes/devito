@@ -351,7 +351,7 @@ class Rewriter(object):
                 for i in iterations:
                     # Build Iteration over blocks
                     dim = dims.setdefault((i.dim, 'inter-block'),
-                                          Dimension("%sb" % i.dim.name))
+                                          Dimension("%s_block" % i.dim.name))
 
                     block_size = dim.symbolic_size
                     iter_size = i.dim.symbolic_size
@@ -362,7 +362,7 @@ class Rewriter(object):
 
                     # Build Iteration within a block
                     dim = dims.setdefault((i.dim, 'intra-block'),
-                                          Dimension(i.dim.name))
+                                          Dimension("%s_intrab" % i.dim.name))
 
                     start = inter_block.dim
                     finish = start + block_size

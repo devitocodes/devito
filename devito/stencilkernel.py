@@ -168,17 +168,17 @@ class StencilKernel(Function):
                 else:
                     assert dim.size == data.shape[i]
         # Add user-provided block sizes, if any
-        dle_arguments = {}
-        self._dle_state.arguments
+        dle_arguments = OrderedDict()
         for i in self._dle_state.arguments:
-            assert i.original_dim in dim_sizes, "Unable to match arguments and values"
+            dim_size = dim_sizes.get(i.original_dim, i.original_dim.size)
+            assert dim_size is not None, "Unable to match arguments and values"
             if i.value:
                 try:
-                    dle_arguments[i.argument] = i.value(dim_sizes[i.original_dim])
+                    dle_arguments[i.argument] = i.value(dim_size)
                 except TypeError:
                     dle_arguments[i.argument] = i.value
             else:
-                dle_arguments[i.argument] = dim_sizes[i.original_dim]
+                dle_arguments[i.argument] = dim_size
         dim_sizes.update(dle_arguments)
         # Insert loop size arguments from dimension values
         d_args = [d for d in arguments.values() if isinstance(d, Dimension)]
