@@ -3,16 +3,16 @@
 from __future__ import absolute_import
 
 import inspect
-from collections import Iterable, OrderedDict, defaultdict
+from collections import Iterable, OrderedDict
 
 import cgen as c
 from sympy import Eq, IndexedBase, preorder_traversal
 
 from devito.codeprinter import ccode
 from devito.dimension import Dimension
-from devito.dse.inspection import terminals
+from devito.dse.inspection import retrieve_indexed
 from devito.interfaces import SymbolicData, TensorData
-from devito.tools import as_tuple, filter_ordered
+from devito.tools import DefaultOrderedDict, as_tuple, filter_ordered
 
 __all__ = ['Node', 'Block', 'Expression', 'Function', 'Iteration', 'List',
            'TimedList']
@@ -176,9 +176,14 @@ class Expression(Node):
         may be used as the set of :class:`Dimension` symbols used in
         this expression.
 
-        Note: This assumes we have indexified the stencil expression."""
-        offsets = defaultdict(set)
-        for e in terminals(self.stencil):
+        Note: This assumes we have indexified the stencil expression.
+        """
+        offsets = DefaultOrderedDict(set)
+
+        # Enforce left-first traversal order
+        indexed = list(retrieve_indexed(self.stencil.lhs))
+        indexed += list(retrieve_indexed(self.stencil.rhs))
+        for e in indexed:
             for a in e.indices:
                 if isinstance(a, Dimension):
                     offsets[a].update([0])
