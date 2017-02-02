@@ -23,7 +23,7 @@ from devito.visitors import (EstimateCost, FindSections, FindSymbols,
                              IsPerfectIteration, MergeOuterIterations,
                              ResolveIterationVariable, SubstituteExpression,
                              Transformer, printAST)
-
+from devito.tools import as_tuple
 
 __all__ = ['StencilKernel']
 
@@ -114,7 +114,7 @@ class StencilKernel(Function):
         nodes = SubstituteExpression(subs=subs).visit(nodes)
 
         # Apply the Devito Loop Engine for loop optimization and finalize instantiation
-        dle_state = transform(nodes, mode=dle)
+        dle_state = transform(nodes, mode=set_dle_mode(dle, self.compiler))
         body = dle_state.nodes
         parameters = FindSymbols().visit(nodes)
         parameters += [i.argument for i in dle_state.arguments]
@@ -298,3 +298,19 @@ cnames = {
 A helper to track profiled sections of code.
 """
 Profile = namedtuple('Profile', 'timer ops memory')
+
+
+def set_dle_mode(mode, compiler):
+    """
+    Transform :class:`StencilKernel` input in a format understandable by the DLE.
+    """
+    if not mode:
+        return 'noop'
+    mode = as_tuple(mode)
+    params = mode[-1]
+    if isinstance(params, dict):
+        params['openmp'] = compiler.openmp
+    else:
+        params = {'openmp': compiler.openmp}
+        mode += (params,)
+    return mode
