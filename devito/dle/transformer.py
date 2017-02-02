@@ -429,7 +429,7 @@ class Rewriter(object):
                     dle_warning("Provided 'blockshape' has fewer entries than "
                                 "blocked loops; dropping dimensions ...")
             except TypeError:
-                blockshape = {blocked.keys()[0]: blockshape}
+                blockshape = {list(blocked)[0]: blockshape}
             blockshape.update({k: None for k in blocked.keys()
                                if k not in blockshape})
 
