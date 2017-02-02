@@ -5,6 +5,7 @@ from itertools import combinations
 from time import time
 
 import numpy as np
+import psutil
 
 import cgen as c
 
@@ -161,11 +162,21 @@ class BlockingArg(Arg):
 
 class Rewriter(object):
 
+    """
+    Track what options trigger a given transformation.
+    """
     triggers = {
         '_avoid_denormals': ('advanced',),
         '_create_elemental_functions': ('split', 'advanced',),
         '_loop_blocking': ('blocking', 'advanced'),
         '_ompize': ('openmp',)
+    }
+
+    """
+    Bag of thresholds, to be used to trigger or prevent certain transformations.
+    """
+    thresholds = {
+        'collapse': 32
     }
 
     def __init__(self, nodes, params):
@@ -469,15 +480,38 @@ class Rewriter(object):
         """
         Add OpenMP pragmas to the Iteration/Expression tree to emit parallel code
         """
-        from IPython import embed; embed()
-        #for node in state.nodes:
-        #    mapper = {}
-        #    for tree in retrieve_iteration_tree(node):
-        #denormals = FindNodeType(Denormals).visit(state.nodes)
 
+        processed = []
+        for node in state.nodes:
 
-        # Take Denormals
-        # Take outer 'parallel' iterations
+            # Handle denormals
+            denormals = FindNodeType(Denormals).visit(state.nodes)
+            mapper = {i: Denormals(header=omplang['par-region']) for i in denormals}
+
+            # Handle parallelizable loops
+            for tree in retrieve_iteration_tree(node):
+                # Note: a 'blocked' Iteration is guaranteed to be 'parallel' too
+                blocked = [i for i in tree if 'blocked' in i.properties]
+                parallelizable = [i for i in tree if 'parallel' in i.properties]
+                candidates = blocked or parallelizable
+                if not candidates:
+                    continue
+
+                # Heuristic: if at least two parallel loops are available and the
+                # physical core count is greater than self.thresholds['collapse'],
+                # then omp-collapse the loops
+                if psutil.cpu_count(logical=False) < self.thresholds['collapse'] or\
+                        len(candidates) < 2:
+                    n = candidates[0]
+                    mapper[n] = List(header=omplang['par-for'], body=n)
+                else:
+                    nodes = candidates[:2]
+                    mapper.update({n: List(header=omplang['par-for-collapse2'], body=n)
+                                   for n in nodes})
+
+            processed.append(Transformer(mapper).visit(node))
+
+        return {'nodes': processed}
 
     def _summary(self, mode):
         """
@@ -488,3 +522,15 @@ class Rewriter(object):
             steps = " --> ".join("(%s)" % i for i in self.timings.keys())
             elapsed = sum(self.timings.values())
             dle("%s [%.2f s]" % (steps, elapsed))
+
+
+# Utilities
+
+"""
+A dictionary to quickly access standard OpenMP pragmas
+"""
+omplang = {
+    'par-region': c.Pragma('omp parallel'),
+    'par-for': c.Pragma('omp parallel for schedule(static)'),
+    'par-for-collapse2': c.Pragma('omp parallel for collapse(2) schedule(static)')
+}
