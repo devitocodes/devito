@@ -8,6 +8,7 @@ from operator import mul
 import numpy as np
 from sympy import Eq
 
+from devito.dimension import t
 from devito.logger import error
 from devito.tools import convert_dtype_to_ctype
 
@@ -77,6 +78,7 @@ def first_touch(array):
 
     exp_init = [Eq(array.indexed[array.indices], 0)]
     it_init = []
+    time_dim = t
     if isinstance(array, TimeData):
         shape = array.shape
         time_steps = shape[0]
@@ -88,6 +90,7 @@ def first_touch(array):
                                  limits=array.shape[1])]
             exp_init = []
             time_steps = array.shape[0]
+            time_dim = array.indices[0]
             shape = []
             space_dims = []
         else:
@@ -95,7 +98,8 @@ def first_touch(array):
             time_steps = 1
             space_dims = array.indices
     prop = Propagator(name="init", nt=time_steps, shape=shape,
-                      stencils=exp_init, space_dims=space_dims)
+                      stencils=exp_init, space_dims=space_dims,
+                      time_dim=time_dim)
     prop.add_devito_param(array)
     prop.save_vars[array.name] = True
     prop.time_loop_stencils_a = it_init
