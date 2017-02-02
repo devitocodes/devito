@@ -172,6 +172,16 @@ class PrintAST(Visitor):
         body = ' %s' % str(o) if self.verbose else ''
         return self.indent + '<C.%s%s>' % (o.__class__.__name__, body)
 
+    def visit_Element(self, o):
+        body = ' %s' % str(o.element) if self.verbose else ''
+        return self.indent + '<Element%s>' % body
+
+    def visit_Function(self, o):
+        self._depth += 1
+        body = self.visit(o.children)
+        self._depth -= 1
+        return self.indent + '<Function %s>\n%s' % (o.name, body)
+
     def visit_list(self, o):
         return ('\n').join([self.visit(i) for i in o])
 
