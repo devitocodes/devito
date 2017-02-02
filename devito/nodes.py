@@ -92,7 +92,7 @@ class Block(Node):
     @property
     def ccode(self):
         body = tuple(s.ccode for s in self.body)
-        return self._wrapper(self.header + body + self.footer)
+        return c.Module(self.header + (self._wrapper(body),) + self.footer)
 
     @property
     def children(self):
@@ -419,11 +419,11 @@ class Denormals(Block):
 
     """Macros to make sure denormal numbers are flushed in hardware."""
 
-    def __init__(self, **kwargs):
+    def __init__(self, header=None, body=None, footer=None):
         b = [Element(c.Comment('Flush denormal numbers to zero in hardware')),
              Element(c.Statement('_MM_SET_DENORMALS_ZERO_MODE(_MM_DENORMALS_ZERO_ON)')),
              Element(c.Statement('_MM_SET_FLUSH_ZERO_MODE(_MM_FLUSH_ZERO_ON)'))]
-        super(Denormals, self).__init__(body=b)
+        super(Denormals, self).__init__(header, b, footer)
 
     def __repr__(self):
         return "<DenormalsMacro>"
