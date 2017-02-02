@@ -538,8 +538,8 @@ class CoordinateData(TensorData):
         :param shape: Shape of the spatial data
         :return: indices used for axis.
         """
-        _indices = [p, d]
-        return _indices
+        dimensions = kwargs.get('dimensions', None)
+        return dimensions or [p, d]
 
     @property
     def indexed(self):
@@ -573,6 +573,7 @@ class PointData(DenseData):
             super(PointData, self).__init__(self, *args, **kwargs)
             coordinates = kwargs.get('coordinates')
             self.coordinates = CoordinateData(name='%s_coords' % self.name,
+                                              dimensions=[self.indices[1], d],
                                               data=coordinates, ndim=ndim,
                                               nt=self.nt, npoint=self.npoint)
             self.coordinates.data[:] = kwargs.get('coordinates')[:]
