@@ -429,7 +429,6 @@ class Denormals(Block):
         return "<DenormalsMacro>"
 
 
-
 class IterationBound(object):
     """Utility class to encapsulate variable loop bounds and link them
     back to the respective :class:`Dimension` object.

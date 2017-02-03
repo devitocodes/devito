@@ -19,11 +19,11 @@ from devito.interfaces import SymbolicData
 from devito.logger import error, info
 from devito.nodes import Block, Expression, Function, Iteration, TimedList
 from devito.profiler import Profiler
+from devito.tools import as_tuple
 from devito.visitors import (EstimateCost, FindSections, FindSymbols,
                              IsPerfectIteration, MergeOuterIterations,
                              ResolveIterationVariable, SubstituteExpression,
                              Transformer, printAST)
-from devito.tools import as_tuple
 
 __all__ = ['StencilKernel']
 

@@ -2,7 +2,6 @@ import ctypes
 from collections import Callable, Iterable, OrderedDict
 
 import numpy as np
-from sympy import symbols
 
 
 def as_tuple(item, type=None, length=None):
@@ -93,7 +92,7 @@ def pprint(node, verbose=True):
     Shortcut to pretty print Iteration/Expression trees.
     """
     from devito.visitors import printAST
-    print printAST(node, verbose)
+    print(printAST(node, verbose))
 
 
 class DefaultOrderedDict(OrderedDict):
