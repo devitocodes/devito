@@ -1,6 +1,6 @@
 from sympy import Eq, Function, Matrix, symbols
 
-from devito.dimension import p, t
+from devito.dimension import t
 from devito.interfaces import PointData
 from devito.nodes import Iteration
 
@@ -84,11 +84,12 @@ class SourceLike(PointData):
         """Generates an expression for generic point-to-grid interpolation"""
         dt = self.dt
         subs = dict(zip(self.rs, self.sym_coord_bases))
+        indices = [t] + self.indices[1:]
         index_matrix = [tuple([idx + ii + self.nbpml for ii, idx
                                in zip(inc, self.sym_coord_indices)])
                         for inc in self.increments]
         eqns = [Eq(u.indexed[(t, ) + idx], u.indexed[(t, ) + idx]
-                   + self.indexed[self.indices] * dt * dt / m.indexed[idx] * b.subs(subs))
+                   + self.indexed[indices] * dt * dt / m.indexed[idx] * b.subs(subs))
                 for idx, b in zip(index_matrix, self.bs)]
         return eqns
 
@@ -103,14 +104,18 @@ class SourceLike(PointData):
 
     def read(self, u):
         """Read the value of the wavefield u at point locations with grid2point."""
-        interp_expr = Eq(self.indexed[t, p], self.grid2point(u))
-        return [Iteration(interp_expr, dimension=p, limits=self.shape[1])]
+        sym_p = self.indices[1]
+        interp_expr = Eq(self.indexed[t, sym_p], self.grid2point(u))
+        return [Iteration(interp_expr, dimension=sym_p, limits=self.shape[1])]
 
     def read2(self, u, v):
         """Read the value of the wavefield (u+v) at point locations with grid2point."""
-        interp_expr = Eq(self.indexed[t, p], self.grid2point(u) + self.grid2point(v))
-        return [Iteration(interp_expr, dimension=p, limits=self.shape[1])]
+        sym_p = self.indices[1]
+        interp_expr = Eq(self.indexed[t, sym_p], self.grid2point(u) + self.grid2point(v))
+        return [Iteration(interp_expr, dimension=sym_p, limits=self.shape[1])]
 
     def add(self, m, u, t=t):
         """Add a point source term to the wavefield u at time t"""
-        return [Iteration(self.point2grid(u, m, t), dimension=p, limits=self.shape[1])]
+        sym_p = self.indices[1]
+        return [Iteration(self.point2grid(u, m, t), dimension=sym_p,
+                          limits=self.shape[1])]
