@@ -7,6 +7,9 @@ __all__ = ['Dimension', 'x', 'y', 'z', 't', 'p', 'r']
 
 
 class Dimension(Symbol):
+
+    is_Buffered = False
+
     """Index object that represents a problem dimension and thus
     defines a potential iteration space.
 
@@ -52,6 +55,9 @@ class Dimension(Symbol):
 
 
 class BufferedDimension(Dimension):
+
+    is_Buffered = True
+
     """Dimension symbils that implies modulo buffered iteration.
 
     :param parent: Parent dimension over which to loop in modulo fashion.

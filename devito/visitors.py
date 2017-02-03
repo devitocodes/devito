@@ -485,9 +485,12 @@ class MergeOuterIterations(Transformer):
         between the loops. A deeper analysis is required for this that
         will be added soon.
         """
-        return (iter1.dim == iter2.dim and
-                iter1.index == iter2.index and
-                iter1.limits == iter2.limits)
+        equal = (iter1.dim == iter2.dim and
+                 iter1.index == iter2.index and
+                 iter1.limits == iter2.limits)
+        # Aliasing only works one-way because we left-merge
+        alias = iter1.dim.is_Buffered and iter1.dim.parent == iter2.dim
+        return equal or alias
 
     def merge(self, iter1, iter2):
         """Creates a new merged :class:`Iteration` object from two

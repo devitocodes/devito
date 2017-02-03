@@ -42,7 +42,10 @@ def flatten(l):
 
 
 def filter_ordered(elements, key=None):
-    """Filter elements in a list while preserving order"""
+    """Filter elements in a list while preserving order.
+
+    :param key: Optional conversion key used during equality comparison.
+    """
     seen = set()
     if key is None:
         key = lambda x: x
