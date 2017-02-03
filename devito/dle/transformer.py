@@ -21,7 +21,7 @@ from devito.visitors import (FindNodeType, FindSections, FindSymbols,
                              IsPerfectIteration, Transformer)
 
 
-def transform(node, mode='basic'):
+def transform(node, mode='basic', compiler=None):
     """
     Transform Iteration/Expression trees to generate highly optimized C code.
 
@@ -37,6 +37,7 @@ def transform(node, mode='basic'):
                                   functions, apply loop blocking [S]
                     * 'blocking': Apply loop blocking [T]
                     * 'split': Identify and split elemental functions [T]
+                    * 'simd': Add pragmas to trigger compiler auto-vectorization [T]
 
                  If ``mode`` is a tuple, the last entry may be used to provide optional
                  arguments to the DLE transformations. Accepted key-value pairs are: ::
@@ -49,6 +50,8 @@ def transform(node, mode='basic'):
                                     force the blocking of this loop, the ``blockinner``
                                     flag should be set to True.
                     * 'openmp': True to emit OpenMP code, False otherwise.
+    :param compiler: Compiler class used to perform JIT compilation. Useful to
+                     introduce compiler-specific vectorization pragmas.
     """
 
     if isinstance(node, Sequence):
@@ -83,13 +86,11 @@ def transform(node, mode='basic'):
     mode = set(mode)
     if params.pop('openmp', False):
         mode |= {'openmp'}
-    if mode.isdisjoint({'noop', 'blocking', 'split', 'advanced', 'openmp'}):
+    if mode.isdisjoint({'noop', 'blocking', 'split', 'simd', 'advanced', 'openmp'}):
         dle_warning("Unknown transformer mode(s) %s" % str(mode))
         return State(node)
     else:
-        return Rewriter(node, params).run(mode)
-
-    return Rewriter(node).run(mode)
+        return Rewriter(node, params, compiler).run(mode)
 
 
 def dle_transformation(func):
@@ -169,6 +170,7 @@ class Rewriter(object):
         '_avoid_denormals': ('advanced',),
         '_create_elemental_functions': ('split', 'advanced',),
         '_loop_blocking': ('blocking', 'advanced'),
+        '_simdize': ('simd', 'advanced'),
         '_ompize': ('openmp',)
     }
 
@@ -179,9 +181,10 @@ class Rewriter(object):
         'collapse': 32
     }
 
-    def __init__(self, nodes, params):
+    def __init__(self, nodes, params, compiler):
         self.nodes = nodes
         self.params = params
+        self.compiler = compiler
 
         self.timings = OrderedDict()
 
@@ -193,6 +196,7 @@ class Rewriter(object):
         self._avoid_denormals(state, mode=mode)
         self._create_elemental_functions(state, mode=mode)
         self._loop_blocking(state, mode=mode)
+        self._simdize(state, mode=mode)
         self._ompize(state, mode=mode)
 
         self._summary(mode)
@@ -515,6 +519,33 @@ class Rewriter(object):
 
         return {'nodes': processed}
 
+    @dle_transformation
+    def _simdize(self, state, **kwargs):
+        """
+        Add compiler-specific or, if not available, OpenMP pragmas to the
+        Iteration/Expression tree to emit SIMD-friendly code.
+        """
+        if self.compiler:
+            key = self.compiler.__class__.__name__
+            complang = complang_ALL.get(key, {})
+        else:
+            complang = {}
+
+        pragmas = [complang.get('ignore-deps', omplang['simd-for'])]
+
+        def decorate(nodes):
+            processed = []
+            for node in nodes:
+                mapper = {}
+                for tree in retrieve_iteration_tree(node):
+                    mapper.update({i: List(pragmas, i) for i in tree
+                                   if 'vector-dim' in i.properties})
+                processed.append(Transformer(mapper).visit(node))
+            return processed
+
+        return {'nodes': decorate(state.nodes),
+                'elemental_functions': decorate(state.elemental_functions)}
+
     def _summary(self, mode):
         """
         Print a summary of the DLE transformations
@@ -534,5 +565,13 @@ A dictionary to quickly access standard OpenMP pragmas
 omplang = {
     'par-region': c.Pragma('omp parallel'),
     'par-for': c.Pragma('omp parallel for schedule(static)'),
-    'par-for-collapse2': c.Pragma('omp parallel for collapse(2) schedule(static)')
+    'par-for-collapse2': c.Pragma('omp parallel for collapse(2) schedule(static)'),
+    'simd-for': c.Pragma('omp simd')
+}
+
+"""
+Compiler-specific language
+"""
+complang_ALL = {
+    'IntelCompiler': {'ignore-deps': c.Pragma('ivdep')}
 }

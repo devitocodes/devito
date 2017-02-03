@@ -114,7 +114,8 @@ class StencilKernel(Function):
         nodes = SubstituteExpression(subs=subs).visit(nodes)
 
         # Apply the Devito Loop Engine for loop optimization and finalize instantiation
-        dle_state = transform(nodes, mode=set_dle_mode(dle, self.compiler))
+        dle_state = transform(nodes, mode=set_dle_mode(dle, self.compiler),
+                              compiler=self.compiler)
         body = dle_state.nodes
         parameters = FindSymbols().visit(nodes)
         parameters += [i.argument for i in dle_state.arguments]
