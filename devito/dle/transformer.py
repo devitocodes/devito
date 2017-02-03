@@ -268,7 +268,12 @@ class Rewriter(object):
                     is_OSIP = True
                     break
 
-            # Track parallelism in the Iteration/Expression tree
+            # Track the discovered properties in the Iteration/Expression tree
+            if is_OSIP:
+                args = tree[0].args
+                properties = as_tuple(args.pop('properties')) + ('sequential',)
+                mapper = {tree[0]: Iteration(properties=properties, **args)}
+                nodes = Transformer(mapper).visit(nodes)
             mapper = {i: ('parallel',) for i in tree[is_OSIP:-1]}
             mapper[tree[-1]] = ('vector-dim',)
             for i in tree[is_OSIP:]:
