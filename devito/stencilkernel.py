@@ -20,7 +20,7 @@ from devito.logger import error, info, warning
 from devito.nodes import Block, Expression, Function, Iteration, TimedList
 from devito.profiler import Profiler
 from devito.tools import as_tuple
-from devito.visitors import (EstimateCost, FindSections, FindSymbols,
+from devito.visitors import (EstimateCost, FindNodeType, FindSections, FindSymbols,
                              IsPerfectIteration, MergeOuterIterations,
                              ResolveIterationVariable, SubstituteExpression,
                              Transformer, printAST)
@@ -29,6 +29,11 @@ __all__ = ['StencilKernel']
 
 
 class StencilKernel(Function):
+
+    """
+    Cache of auto-tuned StencilKernels.
+    """
+    _AT_cache = {}
 
     """A special :class:`Function` to evaluate stencils through just-in-time
     compilation of C code.
@@ -136,6 +141,9 @@ class StencilKernel(Function):
         if len(args) <= 0:
             args = self.parameters
 
+        # Perform auto-tuning if the user requests it and loop blocking is in use
+        maybe_autotune = kwargs.get('autotune', False)
+
         # Map of required arguments and actual dimension sizes
         arguments = OrderedDict([(arg.name, arg) for arg in self.parameters])
         dim_sizes = {}
@@ -169,7 +177,7 @@ class StencilKernel(Function):
                         dim_sizes[dim] = data.shape[i]
                 else:
                     assert dim.size == data.shape[i]
-        # Add user-provided block sizes, if any
+        # Add user-provided loop blocking sizes (if any)
         dle_arguments = OrderedDict()
         for i in self._dle_state.arguments:
             dim_size = dim_sizes.get(i.original_dim, i.original_dim.size)
@@ -179,6 +187,8 @@ class StencilKernel(Function):
                     dle_arguments[i.argument] = i.value(dim_size)
                 except TypeError:
                     dle_arguments[i.argument] = i.value
+                    # User-provided block size available, do not autotune
+                    maybe_autotune = False
             else:
                 dle_arguments[i.argument] = dim_size
         dim_sizes.update(dle_arguments)
@@ -197,6 +207,10 @@ class StencilKernel(Function):
             dtype_size = dtype.itemsize
         except IndexError:
             dtype_size = 1
+
+        # Might have been asked to auto-tune the block size
+        if maybe_autotune:
+            self._autotune(arguments)
 
         # Add profiler structs
         if self.profiler:
@@ -221,6 +235,59 @@ class StencilKernel(Function):
             info("Section %s with OI=%.2f computed in %.2f s [Perf: %.2f GFlops/s]" %
                  (str(itspace), flops/traffic, elapsed, gflops/elapsed))
         info("="*79)
+
+    def _autotune(self, arguments):
+        """Use auto-tuning on this StencilKernel to determine empirically the
+        best block sizes (when loop blocking is in use). The block sizes tested
+        are those listed in ``options['at_blocksizes']``."""
+
+        at_arguments = arguments.copy()
+
+        # Output data must not be changed
+        output = [i.base.label.name for i in self._dse_state.output_fields]
+        for k, v in arguments.items():
+            if k in output:
+                at_arguments[k] = v.copy()
+
+        # Auto-tunable loop blocking dimensions
+        at_mapper = [(i.argument.name, i.original_dim.name)
+                     for i in self._dle_state.arguments]
+
+        # Squeeze dimensions to minimize auto-tuning time
+        iterations = FindNodeType(Iteration).visit(self.body)
+        squeezable = [i.dim.name for i in iterations if 'sequential' in i.properties]
+
+        # Note: there is only a single loop over 'at_blocksize' because only
+        # square blocks are tested
+        timings = OrderedDict()
+        for i in options['at_blocksize']:
+            illegal = False
+            for k, v in at_arguments.items():
+                if k in at_mapper:
+                    if i < at_arguments[at_mapper[k]]:
+                        at_arguments[k] = i
+                    else:
+                        # Block size cannot be larger than actual dimension
+                        illegal = True
+                        break
+                elif k in squeezable:
+                    at_arguments[k] = options['at_squeezer']
+
+            # Add profiler structs
+            if self.profiler:
+                cpointer = self.profiler.as_ctypes_pointer(Profiler.TIME)
+                at_arguments[self.profiler.s_name] = cpointer
+
+            self.cfunction(*list(at_arguments.values()))
+            timings[i] = sum(self.profiler.timings.values())
+
+        best = min(timings, key=timings.get)
+        for k, v in arguments.items():
+            if k in at_mapper:
+                arguments[k] = best
+
+        info('Auto-tuned loop blocking shape: [%s]'
+             % ','.join(str(best) for i in at_mapper))
 
     @property
     def _cparameters(self):
@@ -304,6 +371,14 @@ A dict of standard names to be used for code generation
 cnames = {
     'loc_timer': 'loc_timer',
     'glb_timer': 'glb_timer'
+}
+
+"""
+StencilKernel options
+"""
+options = {
+    'at_squeezer': 3,
+    'at_blocksize': [4, 8, 12, 16, 20, 24, 32]
 }
 
 """
