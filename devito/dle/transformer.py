@@ -257,7 +257,7 @@ class Rewriter(object):
 
             # Track parallelism in the Iteration/Expression tree
             mapper = {i: ('parallel',) for i in tree[is_OSIP:-1]}
-            mapper[tree[-1]] = ('parallel', 'vector-dim')
+            mapper[tree[-1]] = ('vector-dim',)
             for i in tree[is_OSIP:]:
                 args = i.args
                 properties = as_tuple(args.pop('properties')) + mapper[i]
