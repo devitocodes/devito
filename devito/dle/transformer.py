@@ -252,11 +252,13 @@ class Rewriter(object):
                     break
 
             # Track parallelism in the Iteration/Expression tree
+            mapper = {i: ('parallel',) for i in tree[is_OSIP:-1]}
+            mapper[tree[-1]] = ('parallel', 'vector-dim')
             for i in tree[is_OSIP:]:
                 args = i.args
-                properties = as_tuple(args.pop('properties')) + ('parallel',)
-                transformer = Transformer({i: Iteration(properties=properties, **args)})
-                nodes = transformer.visit(nodes)
+                properties = as_tuple(args.pop('properties')) + mapper[i]
+                propertized = Iteration(properties=properties, **args)
+                nodes = Transformer({i: propertized}).visit(nodes)
 
         state.update(nodes=nodes)
 
