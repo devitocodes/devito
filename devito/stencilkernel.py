@@ -16,7 +16,7 @@ from devito.dimension import Dimension
 from devito.dle import transform
 from devito.dse import indexify, rewrite
 from devito.interfaces import SymbolicData
-from devito.logger import error, info
+from devito.logger import error, info, warning
 from devito.nodes import Block, Expression, Function, Iteration, TimedList
 from devito.profiler import Profiler
 from devito.tools import as_tuple
@@ -187,6 +187,17 @@ class StencilKernel(Function):
         for d in d_args:
             arguments[d.name] = dim_sizes[d]
 
+        # Retrieve the data type of the arrays
+        try:
+            dtypes = [i.data.dtype for i in f_args]
+            dtype = dtypes[0]
+            if any(i != dtype for i in dtypes):
+                warning("Found non-matching data types amongst the provided"
+                        "symbolic arguments.")
+            dtype_size = dtype.itemsize
+        except IndexError:
+            dtype_size = 1
+
         # Add profiler structs
         if self.profiler:
             cpointer = self.profiler.as_ctypes_pointer(Profiler.TIME)
@@ -196,7 +207,7 @@ class StencilKernel(Function):
         self.cfunction(*list(arguments.values()))
 
         # Summary of performance achieved
-        info("="*71)
+        info("="*79)
         for itspace, profile in self.sections.items():
             # Time
             elapsed = self.profiler.timings[profile.timer]
@@ -204,12 +215,12 @@ class StencilKernel(Function):
             niters = reduce(operator.mul, [i.size or dim_sizes[i] for i in itspace])
             flops = float(profile.ops*niters)
             gflops = flops/10**9
-            # Memory (FIXME: need to tweak the calculation below once padding is in)
-            traffic = profile.memory*niters
+            # Compulsory traffic
+            traffic = profile.memory*niters*dtype_size
 
             info("Section %s with OI=%.2f computed in %.2f s [Perf: %.2f GFlops/s]" %
                  (str(itspace), flops/traffic, elapsed, gflops/elapsed))
-        info("="*71)
+        info("="*79)
 
     @property
     def _cparameters(self):
