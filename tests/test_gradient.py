@@ -11,9 +11,49 @@ class TestGradient(object):
     @pytest.fixture(params=[(70, 80)])
     def acoustic(self, request, time_order, space_order):
         dimensions = request.param
-        # dimensions are (x,z) and (x, y, z)
-        origin = tuple([0]*len(dimensions))
-        spacing = tuple([10]*len(dimensions))
+
+        if len(dimensions) == 2:
+            # Dimensions in 2D are (x, z)
+            origin = (0., 0.)
+            spacing = (10., 10.)
+
+            # True velocity
+            true_vp = np.ones(dimensions) + .5
+            true_vp[:, int(dimensions[1] / 2):] = 2
+
+            # Source location
+            location = np.zeros((1, 2))
+            location[0, 0] = origin[0] + dimensions[0] * spacing[0] * 0.5
+            location[0, 1] = origin[1] + 2 * spacing[1]
+
+            # Receiver coordinates
+            receiver_coords = np.zeros((101, 2))
+            receiver_coords[:, 0] = np.linspace(0, origin[0] +
+                                            dimensions[0] * spacing[0], num=101)
+            receiver_coords[:, 1] = location[0, 1]
+
+        elif len(dimensions) == 3:
+            # Dimensions in 3D are (x, y, z)
+            origin = (0., 0., 0.)
+            spacing = (15., 15., 15.)
+
+            # True velocity
+            true_vp = np.ones(dimensions) + .5
+            true_vp[:, :, int(dimensions[2] / 2):] = 2
+
+            # Source location
+            location = np.zeros((1, 3))
+            location[0, 0] = origin[0] + dimensions[0] * spacing[0] * 0.5
+            location[0, 1] = origin[1] + dimensions[1] * spacing[1] * 0.5
+            location[0, 2] = origin[1] + 2 * spacing[2]
+
+            # Receiver coordinates
+            receiver_coords = np.zeros((101, 3))
+            receiver_coords[:, 0] = np.linspace(0, origin[0] +
+                                            dimensions[0] * spacing[0], num=101)
+            receiver_coords[:, 1] = origin[1] + dimensions[1] * spacing[1] * 0.5
+            receiver_coords[:, 2] = location[0, 2]
+
 
         # velocity models
         def smooth10(vel):
@@ -26,12 +66,6 @@ class TestGradient(object):
                     out[:, :, a] = np.sum(vel[:, :, a - 5:a + 5], axis=2) / 10
             return out
 
-        # True velocity
-        true_vp = np.ones(dimensions) + .5
-        if len(dimensions) == 2:
-            true_vp[:, int(dimensions[1] / 2):] = 2
-        else:
-            true_vp[:, :, int(dimensions[2] / 2):] = 2
         # Smooth velocity
         initial_vp = smooth10(true_vp)
         dm = true_vp**-2 - initial_vp**-2
@@ -57,24 +91,10 @@ class TestGradient(object):
         # Source geometry
         time_series = np.zeros((nt, 1))
         time_series[:, 0] = source(np.linspace(t0, tn, nt), f0)
-
-        location = np.zeros((1, 3))
-        location[0, 0] = origin[0] + dimensions[0] * spacing[0] * 0.5
-        location[0, 1] = origin[1] + 2 * spacing[1]
-        if len(dimensions) == 3:
-            location[0, 1] = origin[1] + dimensions[1] * spacing[1] * 0.5
-            location[0, 2] = origin[1] + 2 * spacing[2]
         src.set_receiver_pos(location)
         src.set_shape(nt, 1)
         src.set_traces(time_series)
 
-        receiver_coords = np.zeros((101, 3))
-        receiver_coords[:, 0] = np.linspace(0, origin[0] +
-                                            dimensions[0] * spacing[0], num=101)
-        receiver_coords[:, 1] = location[0, 1]
-        if len(dimensions) == 3:
-            receiver_coords[:, 1] = origin[1] + dimensions[1] * spacing[1] * 0.5
-            receiver_coords[:, 2] = location[0, 2]
         data.set_receiver_pos(receiver_coords)
         data.set_shape(nt, 101)
         # Adjoint test

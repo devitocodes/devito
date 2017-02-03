@@ -2,6 +2,8 @@ import numpy as np
 import pytest
 from numpy import linalg
 
+from devito.logger import error
+
 from examples.acoustic.Acoustic_codegen import Acoustic_cg
 from examples.containers import IGrid, IShot
 
@@ -10,16 +12,54 @@ class TestAdjointA(object):
     @pytest.fixture(params=[(60, 70), (60, 70, 80)])
     def acoustic(self, request, time_order, space_order):
         dimensions = request.param
-        # dimensions are (x,z) and (x, y, z)
-        origin = tuple([0.0]*len(dimensions))
-        spacing = tuple([15.0]*len(dimensions))
 
-        # True velocity
-        true_vp = np.ones(dimensions) + .5
         if len(dimensions) == 2:
+            # Dimensions in 2D are (x, z)
+            origin = (0., 0.)
+            spacing = (15., 15.)
+
+            # True velocity
+            true_vp = np.ones(dimensions) + .5
             true_vp[:, int(dimensions[0] / 3):dimensions[0]] = 2.5
-        else:
+
+            # Source location
+            location = np.zeros((1, 2))
+            location[0, 0] = origin[0] + dimensions[0] * spacing[0] * 0.5
+            location[0, 1] = origin[1] + 2 * spacing[1]
+
+            # Receiver coordinates
+            receiver_coords = np.zeros((101, 2))
+            receiver_coords[:, 0] = np.linspace(0, origin[0] +
+                                                dimensions[0] * spacing[0], num=101)
+            receiver_coords[:, 1] = location[0, 1]
+
+        elif len(dimensions) == 3:
+            # Dimensions in 3D are (x, y, z)
+            origin = (0., 0., 0.)
+            spacing = (15., 15., 15.)
+
+            # True velocity
+            true_vp = np.ones(dimensions) + .5
             true_vp[:, :, int(dimensions[0] / 3):dimensions[0]] = 2.5
+
+            # Source location
+            location = np.zeros((1, 3))
+            location[0, 0] = origin[0] + dimensions[0] * spacing[0] * 0.5
+            location[0, 1] = origin[1] + dimensions[1] * spacing[1] * 0.5
+            location[0, 2] = origin[1] + 2 * spacing[2]
+
+
+            # Receiver coordinates
+            receiver_coords = np.zeros((101, 3))
+            receiver_coords[:, 0] = np.linspace(0, origin[0] +
+                                                dimensions[0] * spacing[0], num=101)
+            receiver_coords[:, 1] = origin[1] + dimensions[1] * spacing[1] * 0.5
+            receiver_coords[:, 2] = location[0, 2]
+
+        else:
+            error("Unknown dimension size. `dimensions` parameter"
+                  "must be a tuple of either size 2 or 3.")
+
         model = IGrid(origin, spacing, true_vp)
         # Define seismic data.
         data = IShot()
@@ -43,23 +83,10 @@ class TestAdjointA(object):
         time_series = np.zeros((nt, 1))
         time_series[:, 0] = source(np.linspace(t0, tn, nt), f0)
 
-        location = np.zeros((1, 3))
-        location[0, 0] = origin[0] + dimensions[0] * spacing[0] * 0.5
-        location[0, 1] = origin[1] + 2 * spacing[1]
-        if len(dimensions) == 3:
-            location[0, 1] = origin[1] + dimensions[1] * spacing[1] * 0.5
-            location[0, 2] = origin[1] + 2 * spacing[2]
         src.set_receiver_pos(location)
         src.set_shape(nt, 1)
         src.set_traces(time_series)
 
-        receiver_coords = np.zeros((101, 3))
-        receiver_coords[:, 0] = np.linspace(0, origin[0] +
-                                            dimensions[0] * spacing[0], num=101)
-        receiver_coords[:, 1] = location[0, 1]
-        if len(dimensions) == 3:
-            receiver_coords[:, 1] = origin[1] + dimensions[1] * spacing[1] * 0.5
-            receiver_coords[:, 2] = location[0, 2]
         data.set_receiver_pos(receiver_coords)
         data.set_shape(nt, 101)
 
