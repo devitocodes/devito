@@ -77,8 +77,13 @@ class Acoustic_cg(object):
                              save=save, cache_blocking=cache_blocking, dse=dse,
                              compiler=compiler, profile=True, u_ini=u_ini)
 
-        u, rec = fw.apply()
-        return rec.data, u, fw.propagator.gflopss, fw.propagator.oi, fw.propagator.timings
+        if isinstance(fw, StencilKernel):
+            fw.apply()
+            return None, None, None, None, None
+        else:
+            u, rec = fw.apply()
+            return (rec.data, u, fw.propagator.gflopss,
+                    fw.propagator.oi, fw.propagator.timings)
 
     def Adjoint(self, rec, cache_blocking=None):
         adj = AdjointOperator(self.model, self.damp, self.data, self.src, rec,

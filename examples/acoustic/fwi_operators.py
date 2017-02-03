@@ -1,14 +1,16 @@
 from sympy import Eq, symbols
 
-from devito.dimension import t
+from devito.dimension import Dimension, d, t, time
 from devito.interfaces import DenseData, TimeData
 from devito.operator import *
+from devito.stencilkernel import StencilKernel
 from examples.source_type import SourceLike
 
 
-class ForwardOperator(Operator):
+def ForwardOperator(model, source, damp, data, time_order=2, spc_order=6,
+                    save=False, u_ini=None, legacy=True, **kwargs):
     """
-    Class to setup the forward modelling operator in an acoustic media
+    Constructor method for the forward modelling operator in an acoustic media
 
     :param model: IGrid() object containing the physical parameters
     :param source: None or IShot() (not currently supported properly)
@@ -20,66 +22,80 @@ class ForwardOperator(Operator):
     :param: u_ini : wavefield at the three first time step for non-zero initial condition
      required for the time marching scheme
     """
-    def __init__(self, model, source, damp, data, time_order=2, spc_order=6,
-                 save=False, u_ini=None, **kwargs):
-        nt, nrec = data.shape
-        nt, nsrc = source.shape
-        s, h = symbols('s h')
-        u = TimeData(name="u", shape=model.get_shape_comp(), time_dim=nt,
-                     time_order=2, space_order=spc_order, save=save,
-                     dtype=damp.dtype)
-        if u_ini is not None:
-            u.data[0:3, :] = u_ini[:]
-        m = DenseData(name="m", shape=model.get_shape_comp(), dtype=damp.dtype)
-        m.data[:] = model.padm()
-        u.pad_time = save
-        # Derive stencil from symbolic equation
-        if time_order == 2:
-            laplacian = u.laplace
-            biharmonic = 0
-            # PDE for information
-            # eqn = m * u.dt2 - laplacian + damp * u.dt
-            dt = model.get_critical_dt()
-        else:
-            laplacian = u.laplace
-            biharmonic = u.laplace2(1/m)
-            # PDE for information
-            # eqn = m * u.dt2 - laplacian - s**2 / 12 * biharmonic + damp * u.dt
-            dt = 1.73 * model.get_critical_dt()
+    nt, nrec = data.shape
+    nt, nsrc = source.shape
+    s, h = symbols('s h')
+    u = TimeData(name="u", shape=model.get_shape_comp(), time_dim=nt,
+                 time_order=2, space_order=spc_order, save=save,
+                 dtype=damp.dtype)
+    if u_ini is not None:
+        u.data[0:3, :] = u_ini[:]
+    m = DenseData(name="m", shape=model.get_shape_comp(), dtype=damp.dtype)
+    m.data[:] = model.padm()
+    u.pad_time = save
+    # Derive stencil from symbolic equation
+    if time_order == 2:
+        laplacian = u.laplace
+        biharmonic = 0
+        # PDE for information
+        # eqn = m * u.dt2 - laplacian + damp * u.dt
+        dt = model.get_critical_dt()
+    else:
+        laplacian = u.laplace
+        biharmonic = u.laplace2(1/m)
+        # PDE for information
+        # eqn = m * u.dt2 - laplacian - s**2 / 12 * biharmonic + damp * u.dt
+        dt = 1.73 * model.get_critical_dt()
 
-        # Create the stencil by hand instead of calling numpy solve for speed purposes
-        # Simple linear solve of a u(t+dt) + b u(t) + c u(t-dt) = L for u(t+dt)
-        stencil = 1 / (2 * m + s * damp) * (
-            4 * m * u + (s * damp - 2 * m) * u.backward +
-            2 * s**2 * (laplacian + s**2 / 12 * biharmonic))
-        # Add substitutions for spacing (temporal and spatial)
-        subs = {s: dt, h: model.get_spacing()}
-        # Receiver initialization
-        rec = SourceLike(name="rec", npoint=nrec, nt=nt, dt=dt, h=model.get_spacing(),
-                         coordinates=data.receiver_coords, ndim=len(damp.shape),
-                         dtype=damp.dtype, nbpml=model.nbpml)
-        src = SourceLike(name="src", npoint=nsrc, nt=nt, dt=dt, h=model.get_spacing(),
-                         coordinates=source.receiver_coords, ndim=len(damp.shape),
-                         dtype=damp.dtype, nbpml=model.nbpml)
-        src.data[:] = source.traces[:]
+    # Create the stencil by hand instead of calling numpy solve for speed purposes
+    # Simple linear solve of a u(t+dt) + b u(t) + c u(t-dt) = L for u(t+dt)
+    stencil = 1 / (2 * m + s * damp) * (
+        4 * m * u + (s * damp - 2 * m) * u.backward +
+        2 * s**2 * (laplacian + s**2 / 12 * biharmonic))
+    # Add substitutions for spacing (temporal and spatial)
+    subs = {s: dt, h: model.get_spacing()}
 
-        super(ForwardOperator, self).__init__(nt, m.shape,
-                                              stencils=Eq(u.forward, stencil),
-                                              subs=subs,
-                                              spc_border=max(spc_order, 2),
-                                              time_order=2,
-                                              forward=True,
-                                              dtype=m.dtype,
-                                              **kwargs)
+    # Define dimensions and fix loop sizes
+    time.size = nt
+    d.size = len(damp.shape)
+    p_src = Dimension('p_src', size=nsrc)
+    p_rec = Dimension('p_rec', size=nrec)
+    for dim, s in zip(damp.indices, damp.shape):
+        dim.size = s
+
+    # Receiver initialization
+    rec = SourceLike(name="rec", dimensions=[time, p_rec], npoint=nrec, nt=nt,
+                     dt=dt, h=model.get_spacing(),
+                     coordinates=data.receiver_coords, ndim=len(damp.shape),
+                     dtype=damp.dtype, nbpml=model.nbpml)
+    src = SourceLike(name="src", dimensions=[time, p_src], npoint=nsrc, nt=nt,
+                     dt=dt, h=model.get_spacing(),
+                     coordinates=source.receiver_coords, ndim=len(damp.shape),
+                     dtype=damp.dtype, nbpml=model.nbpml)
+    src.data[:] = source.traces[:]
+
+    if legacy:
+        op = Operator(nt, m.shape, stencils=Eq(u.forward, stencil), subs=subs,
+                      spc_border=max(spc_order, 2), time_order=2, forward=True,
+                      dtype=m.dtype, **kwargs)
 
         # Insert source and receiver terms post-hoc
-        self.input_params += [src, src.coordinates, rec, rec.coordinates]
-        self.output_params += [rec]
-        self.propagator.time_loop_stencils_a = src.add(m, u) + rec.read(u)
-        self.propagator.add_devito_param(src)
-        self.propagator.add_devito_param(src.coordinates)
-        self.propagator.add_devito_param(rec)
-        self.propagator.add_devito_param(rec.coordinates)
+        op.input_params += [src, src.coordinates, rec, rec.coordinates]
+        op.output_params += [rec]
+        op.propagator.time_loop_stencils_a = src.add(m, u) + rec.read(u)
+        op.propagator.add_devito_param(src)
+        op.propagator.add_devito_param(src.coordinates)
+        op.propagator.add_devito_param(rec)
+        op.propagator.add_devito_param(rec.coordinates)
+
+    else:
+        eqn = Eq(u.forward, stencil)
+        src_add = src.point2grid(u, m, t)
+        rec_read = Eq(rec, rec.grid2point(u))
+        op = StencilKernel(stencils=[eqn] + src_add + [rec_read],
+                           subs=subs, dse=None, dle=None)
+
+    return op
 
 
 class AdjointOperator(Operator):
