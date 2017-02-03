@@ -188,11 +188,11 @@ def test_transformer_replace_function_body(block1, block2):
 {
   float (*a) = (float (*)) a_vec;
   float (*b) = (float (*)) b_vec;
-  for (int i = 0 + 0; i < 3 - 0; i += 1)
+  for (int i = 0; i < 3; i += 1)
   {
-    for (int j = 0 + 0; j < 5 - 0; j += 1)
+    for (int j = 0; j < 5; j += 1)
     {
-      for (int k = 0 + 0; k < 7 - 0; k += 1)
+      for (int k = 0; k < 7; k += 1)
       {
         a[i] = a[i] + b[i] + 5.0F;
       }
@@ -205,12 +205,12 @@ def test_transformer_replace_function_body(block1, block2):
 {
   float (*a) = (float (*)) a_vec;
   float (*b) = (float (*)) b_vec;
-  for (int i = 0 + 0; i < 3 - 0; i += 1)
+  for (int i = 0; i < 3; i += 1)
   {
     a[i] = a[i] + b[i] + 5.0F;
-    for (int j = 0 + 0; j < 5 - 0; j += 1)
+    for (int j = 0; j < 5; j += 1)
     {
-      for (int k = 0 + 0; k < 7 - 0; k += 1)
+      for (int k = 0; k < 7; k += 1)
       {
         a[i] = -a[i] + b[i];
       }

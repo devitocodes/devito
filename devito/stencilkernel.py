@@ -46,7 +46,7 @@ class StencilKernel(Function):
         * dse : Use the Devito Symbolic Engine to optimize the expressions -
                 defaults to "advanced".
         * dle : Use the Devito Loop Engine to optimize the loops -
-                defaults to "basic".
+                defaults to "advanced".
         * compiler: Compiler class used to perform JIT compilation.
                     If not provided, the compiler will be inferred from the
                     environment variable DEVITO_ARCH, or default to GNUCompiler.
@@ -57,7 +57,7 @@ class StencilKernel(Function):
         name = kwargs.get("name", "Kernel")
         subs = kwargs.get("subs", {})
         dse = kwargs.get("dse", "advanced")
-        dle = kwargs.get("dle", "basic")
+        dle = kwargs.get("dle", "advanced")
         compiler = kwargs.get("compiler", None)
 
         # Default attributes required for compilation
@@ -66,12 +66,13 @@ class StencilKernel(Function):
         self._lib = None
         self._cfunction = None
 
-        # Normalize stencils
+        # Convert stencil expressions into actual Nodes, going through the
+        # Devito Symbolic Engine for flop optimization.
         stencils = stencils if isinstance(stencils, list) else [stencils]
         stencils = [indexify(s) for s in stencils]
         stencils = [s.xreplace(subs) for s in stencils]
-        stencils = rewrite(stencils, mode=dse).exprs
-        nodes = [Expression(s) for s in stencils]
+        dse_state = rewrite(stencils, mode=dse)
+        nodes = [Expression(s) for s in dse_state.exprs]
 
         # Wrap expressions with Iterations according to dimensions
         # TODO: This should probably be done more safely in a visitor
@@ -115,13 +116,15 @@ class StencilKernel(Function):
         nodes = SubstituteExpression(subs=subs).visit(nodes)
 
         # Apply the Devito Loop Engine for loop optimization and finalize instantiation
-        handle = transform(nodes, mode=dle)
-        body = handle.nodes
+        dle_state = transform(nodes, mode=dle)
+        body = dle_state.nodes
         parameters = FindSymbols().visit(nodes)
+        parameters += [i.argument for i in dle_state.arguments]
         super(StencilKernel, self).__init__(name, body, 'int', parameters, ())
 
-        # Track the addition functions created by the DLE
-        self.elemental_functions = handle.elemental_functions
+        # Track the DSE and DLE output, as they may be useful later
+        self._dse_state = dse_state
+        self._dle_state = dle_state
 
     def __call__(self, *args, **kwargs):
         self.apply(*args, **kwargs)
@@ -164,6 +167,19 @@ class StencilKernel(Function):
                         dim_sizes[dim] = data.shape[i]
                 else:
                     assert dim.size == data.shape[i]
+        # Add user-provided block sizes, if any
+        dle_arguments = OrderedDict()
+        for i in self._dle_state.arguments:
+            dim_size = dim_sizes.get(i.original_dim, i.original_dim.size)
+            assert dim_size is not None, "Unable to match arguments and values"
+            if i.value:
+                try:
+                    dle_arguments[i.argument] = i.value(dim_size)
+                except TypeError:
+                    dle_arguments[i.argument] = i.value
+            else:
+                dle_arguments[i.argument] = dim_size
+        dim_sizes.update(dle_arguments)
         # Insert loop size arguments from dimension values
         d_args = [d for d in arguments.values() if isinstance(d, Dimension)]
         for d in d_args:
@@ -221,7 +237,7 @@ class StencilKernel(Function):
                                 c.Block(self._ccasts + denormal + body + ret))
 
         # Generate elemental functions produced by the DLE
-        elemental_functions = [e.ccode for e in self.elemental_functions]
+        elemental_functions = [e.ccode for e in self._dle_state.elemental_functions]
         elemental_functions += [blankline]
 
         # Generate file header with includes and definitions
@@ -240,7 +256,7 @@ class StencilKernel(Function):
         :returns: The basename path as a string
         """
         expr_string = printAST(self.body, verbose=True)
-        expr_string += printAST(self.elemental_functions, verbose=True)
+        expr_string += printAST(self._dle_state.elemental_functions, verbose=True)
         hash_key = sha1(expr_string.encode()).hexdigest()
 
         return path.join(get_tmp_dir(), hash_key)

@@ -32,6 +32,11 @@ class Dimension(Symbol):
         return name
 
     @property
+    def symbolic_size(self):
+        """The symbolic size of this dimension."""
+        return Symbol(self.ccode)
+
+    @property
     def ccode(self):
         """C-level variable name of this dimension"""
         return "%s_size" % self.name if self.size is None else "%d" % self.size

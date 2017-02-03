@@ -38,7 +38,9 @@ class Node(object):
     def __new__(cls, *args, **kwargs):
         obj = super(Node, cls).__new__(cls)
         argnames = inspect.getargspec(cls.__init__).args
-        obj._args = OrderedDict(list(zip(argnames[1:], args)) + list(kwargs.items()))
+        obj._args = {k: v for k, v in zip(argnames[1:], args)}
+        obj._args.update(kwargs.items())
+        obj._args.update({k: None for k in argnames[1:] if k not in obj._args})
         return obj
 
     def _rebuild(self, *args, **kwargs):
@@ -62,13 +64,12 @@ class Node(object):
     @property
     def args(self):
         """Arguments used to construct the Node."""
-        return self._args
+        return self._args.copy()
 
     @property
     def args_frozen(self):
         """Arguments used to construct the Node that cannot be traversed."""
-        return OrderedDict([(k, v) for k, v in self.args.items()
-                            if k not in self._traversable])
+        return {k: v for k, v in self.args.items() if k not in self._traversable}
 
 
 class Block(Node):
@@ -208,14 +209,19 @@ class Iteration(Node):
     :param dimension: :class:`Dimension` object over which to iterate.
     :param limits: Limits for the iteration space, either the loop size or a
                    tuple of the form (start, finish, stepping).
-    :param offsets: Optional map list of offsets to honour in the loop
+    :param index: Symbol to be used as iteration variable.
+    :param offsets: Optional map list of offsets to honour in the loop.
+    :param properties: A bag of strings indicating properties of this Iteration.
+                       For example, the string 'parallel' may be used to identify
+                       a parallelizable Iteration.
     """
 
     is_Iteration = True
 
     _traversable = ['nodes']
 
-    def __init__(self, nodes, dimension, limits, index=None, offsets=None):
+    def __init__(self, nodes, dimension, limits, index=None, offsets=None,
+                 properties=None):
         # Ensure we deal with a list of Expression objects internally
         nodes = as_tuple(nodes)
         self.nodes = as_tuple([n if isinstance(n, Node) else Expression(n)
@@ -244,8 +250,14 @@ class Iteration(Node):
             self.offsets[0] = min(self.offsets[0], int(off))
             self.offsets[1] = max(self.offsets[1], int(off))
 
+        # Track this Iteration's properties
+        self.properties = as_tuple(properties)
+
     def __repr__(self):
-        return "<Iteration %s; %s>" % (self.index, self.limits)
+        properties = ""
+        if self.properties:
+            properties = "WithProperties[%s]::" % ",".join(self.properties)
+        return "<%sIteration %s; %s>" % (properties, self.index, self.limits)
 
     @property
     def ccode(self):
@@ -254,11 +266,32 @@ class Iteration(Node):
         :returns: :class:`cgen.For` object representing the loop
         """
         loop_body = [s.ccode for s in self.nodes]
-        loop_init = c.InlineInitializer(
-            c.Value("int", self.index), "%d + %d" % (self.limits[0], -self.offsets[0]))
-        loop_cond = '%s %s %s' % (self.index, '<' if self.limits[2] >= 0 else '>',
-                                  "%s - %d" % (self.limits[1], self.offsets[1]))
+
+        # Start
+        if self.offsets[0] != 0:
+            val = "%s + %s" % (self.limits[0], -self.offsets[0])
+            try:
+                val = eval(val)
+            except (NameError, TypeError):
+                pass
+        else:
+            val = self.limits[0]
+        loop_init = c.InlineInitializer(c.Value("int", self.index), ccode(val))
+
+        # Bound
+        if self.offsets[1] != 0:
+            val = "%s - %s" % (self.limits[1], self.offsets[1])
+            try:
+                val = eval(val)
+            except (NameError, TypeError):
+                pass
+        else:
+            val = self.limits[1]
+        loop_cond = '%s < %s' % (self.index, ccode(val))
+
+        # Increment
         loop_inc = '%s += %s' % (self.index, self.limits[2])
+
         return c.For(loop_init, loop_cond, loop_inc, c.Block(loop_body))
 
     @property
@@ -384,17 +417,21 @@ class TimedList(List):
 
 class IterationBound(object):
     """Utility class to encapsulate variable loop bounds and link them
-    back to the respective Dimension object.
+    back to the respective :class:`Dimension` object.
 
-    :param name: Variable name for the open loop bound variable
+    :param name: Variable name for the open loop bound variable.
+    :param dim: The corresponding :class:`Dimension` object.
+    :param expr: An expression to calculate the loop limit, in case this does
+                 not coincide with the open loop bound variable itself.
     """
 
-    def __init__(self, name, dim):
+    def __init__(self, name, dim, expr=None):
         self.name = name
         self.dim = dim
+        self.expr = expr
 
     def __repr__(self):
-        return self.name
+        return repr(self.expr).replace(' ', '') if self.expr else self.name
 
     def __eq__(self, bound):
         return self.name == bound.name and self.dim == bound.dim

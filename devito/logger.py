@@ -110,7 +110,7 @@ def dse(msg, *args, **kwargs):
 
 
 def dse_warning(msg, *args, **kwargs):
-    log(msg, DSE_WARN, *args, **kwargs)
+    log("DSE: %s" % msg, DSE_WARN, *args, **kwargs)
 
 
 def dle(msg, *args, **kwargs):
@@ -118,4 +118,4 @@ def dle(msg, *args, **kwargs):
 
 
 def dle_warning(msg, *args, **kwargs):
-    log(msg, DLE_WARN, *args, **kwargs)
+    log("DLE: %s" % msg, DLE_WARN, *args, **kwargs)
