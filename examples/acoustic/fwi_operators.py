@@ -1,4 +1,4 @@
-from sympy import Eq, symbols
+from sympy import Eq, solve, symbols
 
 from devito.dimension import Dimension, d, t, time
 from devito.interfaces import DenseData, TimeData
@@ -89,11 +89,26 @@ def ForwardOperator(model, source, damp, data, time_order=2, spc_order=6,
         op.propagator.add_devito_param(rec.coordinates)
 
     else:
+        # Create stencil expressions for operator, source and receivers
         eqn = Eq(u.forward, stencil)
         src_add = src.point2grid(u, m, t)
         rec_read = Eq(rec, rec.grid2point(u))
-        op = StencilKernel(stencils=[eqn] + src_add + [rec_read],
-                           subs=subs, dse=None, dle=None)
+        stencils = [eqn] + src_add + [rec_read]
+
+        # TODO: The following time-index hackery is a legacy hangover
+        # from the Operator/Propagator structure and is used here for
+        # backward compatibiliy. We need re-examine this apporach carefully!
+
+        # Shift time indices so that LHS writes into t only,
+        # eg. u[t+2] = u[t+1] + u[t]  -> u[t] = u[t-1] + u[t-2]
+        stencils = [e.subs(t, t + solve(eqn.lhs.args[0], t)[0])
+                    if isinstance(e.lhs, TimeData) else e
+                    for e in stencils]
+        # Apply time substitutions as per legacy approach
+        time_subs = {t + 2: t + 1, t: t + 2, t - 2: t, t - 1: t + 1, t + 1: t}
+        subs.update(time_subs)
+
+        op = StencilKernel(stencils=stencils, subs=subs, dse=None, dle=None)
 
     return op
 
