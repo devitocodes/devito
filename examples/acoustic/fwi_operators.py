@@ -76,7 +76,7 @@ def ForwardOperator(model, source, damp, data, time_order=2, spc_order=6,
 
     if legacy:
         op = Operator(nt, m.shape, stencils=Eq(u.forward, stencil), subs=subs,
-                      spc_border=max(spc_order, 2), time_order=2, forward=True,
+                      spc_border=max(spc_order / 2, 2), time_order=2, forward=True,
                       dtype=m.dtype, **kwargs)
 
         # Insert source and receiver terms post-hoc
@@ -155,7 +155,7 @@ class AdjointOperator(Operator):
         super(AdjointOperator, self).__init__(nt, m.shape,
                                               stencils=Eq(v.backward, stencil),
                                               subs=subs,
-                                              spc_border=max(spc_order, 2),
+                                              spc_border=max(spc_order / 2, 2),
                                               time_order=2,
                                               forward=False,
                                               dtype=m.dtype,

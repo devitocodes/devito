@@ -8,7 +8,7 @@ from examples.acoustic.Acoustic_codegen import Acoustic_cg
 from examples.containers import IGrid, IShot
 
 
-@pytest.mark.parametrize('space_order', [4, 8, 10])
+@pytest.mark.parametrize('space_order', [4, 8, 12])
 @pytest.mark.parametrize('time_order', [2, 4])
 @pytest.mark.parametrize('dimensions', [(60, 70), (60, 70, 80)])
 def test_acoustic(dimensions, time_order, space_order):
