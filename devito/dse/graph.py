@@ -23,7 +23,7 @@ from collections import OrderedDict, namedtuple
 
 from sympy import (Eq, Indexed)
 
-from devito.dse.inspection import is_time_invariant, terminals
+from devito.dse.inspection import is_time_invariant, retrieve_indexed, terminals
 from devito.dimension import t
 
 __all__ = ['temporaries_graph']
@@ -101,12 +101,41 @@ class TemporariesGraph(OrderedDict):
     A temporaries graph built on top of an OrderedDict.
     """
 
+    @property
     def space_dimensions(self):
         for v in self.values():
             if v.is_terminal:
                 found = v.lhs.free_symbols - {t, v.lhs.base.label}
                 return tuple(sorted(found, key=lambda i: v.lhs.indices.index(i)))
         return ()
+
+    @property
+    def targets(self):
+        return tuple(i for i in self.values() if i.is_terminal)
+
+    def trace(self, root):
+        if root not in self:
+            return []
+        found = []
+        queue = [self[root]]
+        while queue:
+            temporary = queue.pop(0)
+            found.insert(0, temporary)
+            queue.extend([self[i] for i in temporary.reads])
+        return temporaries_graph(found)
+
+    def is_index(self, root):
+        if root not in self:
+            return False
+        queue = [self[root]]
+        while queue:
+            temporary = queue.pop(0)
+            if any(root in i.atoms() for i in retrieve_indexed(temporary)):
+                # /root/ appears amongst the indices of /temporary/
+                return True
+            else:
+                queue.extend([self[i] for i in temporary.readby])
+        return False
 
 
 class Trace(OrderedDict):
