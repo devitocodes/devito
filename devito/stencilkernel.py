@@ -91,27 +91,9 @@ class StencilKernel(Function):
         # Merge Iterations iff outermost iterations agree
         nodes = MergeOuterIterations().visit(nodes)
 
-        # Introduce profiling infrastructure
-        mapper = {}
+        # Introduce C-level profiling infrastructure
         self.sections = OrderedDict()
-        for i, expr in enumerate(nodes):
-            for itspace in FindSections().visit(expr).keys():
-                for j in itspace:
-                    if IsPerfectIteration().visit(j) and j not in mapper:
-                        # Insert `TimedList` block. This should come from
-                        # the profiler, but we do this manually for now.
-                        lname = 'loop_%s_%d' % (j.index, i)
-                        mapper[j] = TimedList(gname=self.profiler.t_name,
-                                              lname=lname, body=j)
-                        self.profiler.t_fields += [(lname, c_double)]
-
-                        # Estimate computational properties of the timed section
-                        # (operational intensity, memory accesses)
-                        k = tuple(k.dim for k in itspace)
-                        v = EstimateCost().visit(j)
-                        self.sections[k] = Profile(lname, v.ops, v.mem)
-                        break
-        nodes = [Transformer(mapper).visit(Block(body=nodes))]
+        nodes = self._profile_sections(nodes)
 
         # Now resolve and substitute dimensions for loop index variables
         subs = {}
@@ -235,6 +217,29 @@ class StencilKernel(Function):
             info("Section %s with OI=%.2f computed in %.2f s [Perf: %.2f GFlops/s]" %
                  (str(itspace), flops/traffic, elapsed, gflops/elapsed))
         info("="*79)
+
+    def _profile_sections(self, nodes):
+        """Introduce C-level profiling nodes within the Iteration/Expression tree."""
+        mapper = {}
+        for i, expr in enumerate(nodes):
+            for itspace in FindSections().visit(expr).keys():
+                for j in itspace:
+                    if IsPerfectIteration().visit(j) and j not in mapper:
+                        # Insert `TimedList` block. This should come from
+                        # the profiler, but we do this manually for now.
+                        lname = 'loop_%s_%d' % (j.index, i)
+                        mapper[j] = TimedList(gname=self.profiler.t_name,
+                                              lname=lname, body=j)
+                        self.profiler.t_fields += [(lname, c_double)]
+
+                        # Estimate computational properties of the timed section
+                        # (operational intensity, memory accesses)
+                        k = tuple(k.dim for k in itspace)
+                        v = EstimateCost().visit(j)
+                        self.sections[k] = Profile(lname, v.ops, v.mem)
+                        break
+        processed = [Transformer(mapper).visit(Block(body=nodes))]
+        return processed
 
     def _autotune(self, arguments):
         """Use auto-tuning on this StencilKernel to determine empirically the
