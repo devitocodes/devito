@@ -15,7 +15,7 @@ from devito.dle.manipulation import compose_nodes
 from devito.dse import terminals
 from devito.interfaces import ScalarData, SymbolicData
 from devito.logger import dle, dle_warning
-from devito.nodes import Denormals, Element, Function, Iteration, List
+from devito.nodes import Denormals, Element, Expression, Function, Iteration, List
 from devito.tools import as_tuple, flatten
 from devito.visitors import (FindNodeType, FindSections, FindSymbols,
                              IsPerfectIteration, Transformer)
@@ -330,13 +330,15 @@ class Rewriter(object):
                 name = "f_%d_%d" % (i, j)
 
                 candidate = rule(tree)
+                expressions = FindNodeType(Expression).visit(candidate)
                 leftover = tuple(k for k in tree if k not in candidate)
 
                 args = FindSymbols().visit(candidate)
                 args += [k.dim for k in leftover if k not in args and k.is_Closed]
 
-                known = [k.name for k in args]
-                known += [k.index for k in candidate]
+                known = set([k.name for k in args])
+                known |= {k.index for k in candidate}
+                known |= {k.output.name for k in expressions}
                 maybe_unknown = FindSymbols(mode='free-symbols').visit(candidate)
                 args += [k for k in maybe_unknown if k.name not in known]
 
