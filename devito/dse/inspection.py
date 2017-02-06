@@ -9,7 +9,7 @@ from devito.tools import flatten
 
 __all__ = ['estimate_cost', 'estimate_memory', 'indexify', 'retrieve_dimensions',
            'retrieve_dtype', 'retrieve_symbols', 'retrieve_shape', 'terminals',
-           'tolambda']
+           'tolambda', 'retrieve_and_check_dtype']
 
 
 def terminals(expr, discard_indexed=False):
@@ -222,6 +222,23 @@ def retrieve_dtype(expr):
     """
     dtypes = [e.dtype for e in preorder_traversal(expr) if hasattr(e, 'dtype')]
     return np.find_common_type(dtypes, [])
+
+
+def retrieve_and_check_dtype(exprs):
+    """
+    Retrieve the data type of a set of SymPy equations and check that all LHS
+    and RHS match up.
+    """
+    assert len(exprs) > 0 and all(i.is_Equality for i in exprs)
+
+    dtype = None
+    for i in exprs:
+        if isinstance(i.lhs, SymbolicData):
+            dtype = dtype or i.lhs.dtype
+        terms = terminals(i.rhs)
+        if any(j.dtype != dtype for j in terms if isinstance(j, SymbolicData)):
+            raise RuntimeError("Stencil types mismatch.")
+    return dtype
 
 
 def retrieve_shape(expr):
