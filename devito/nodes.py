@@ -118,7 +118,7 @@ class Element(Node):
     is_Element = True
 
     def __init__(self, element):
-        assert isinstance(element, (c.Comment, c.Statement))
+        assert isinstance(element, (c.Comment, c.Statement, c.Value))
         self.element = element
 
     def __repr__(self):
