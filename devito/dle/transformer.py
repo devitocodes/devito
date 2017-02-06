@@ -28,20 +28,30 @@ def transform(node, mode='basic', compiler=None):
     :param node: The Iteration/Expression tree to be transformed, or an iterable
                  of Iteration/Expression trees.
     :param mode: Drive the tree transformation. ``mode`` can be a string indicating
-                 a pre-established optimization sequence [S] or a tuple of individual
-                 transformations [T]; in the latter case, the individual transformations
-                 are composed. Available modes are: ::
+                 a pre-established optimization sequence or a tuple of individual
+                 transformations; in the latter case, the specified transformations
+                 are composed. We use the following convention: ::
 
-                    * 'noop': Do nothing [S]
-                    * 'advanced': Apply all of the available legal transformations
-                                  that are most likely to increase performance [S]
+                    * [S]: a pre-defined sequence of transformations.
+                    * [T]: a single transformation.
+                    * [sT]: a single "speculative" transformation; that is, a
+                            transformation that might increase, or even decrease,
+                            performance.
+
+                 The keywords usable in/as ``mode`` are: ::
+
+                    * 'noop': Do nothing -- [S]
+                    * 'basic': Apply all of the available legal transformations
+                               that are most likely to increase performance (ie, all
+                               [T] listed below), except for loop blocking -- [S]
+                    * 'advanced': Like 'basic', but also switches on loop blocking -- [S]
                     * 'speculative': Apply all of the 'advanced' transformations,
                                      plus other transformations that might increase
-                                     (or possibly decrease) performance [S]
-                    * 'blocking': Apply loop blocking [T]
-                    * 'split': Identify and split elemental functions [T]
-                    * 'simd': Add pragmas to trigger compiler auto-vectorization [T]
-                    * 'ntstores': Add pragmas to issue nontemporal stores [T]
+                                     (or possibly decrease) performance -- [S]
+                    * 'blocking': Apply loop blocking -- [T]
+                    * 'split': Identify and split elemental functions -- [T]
+                    * 'simd': Add pragmas to trigger compiler auto-vectorization -- [T]
+                    * 'ntstores': Add pragmas to issue nontemporal stores -- [sT]
 
                  If ``mode`` is a tuple, the last entry may be used to provide optional
                  arguments to the DLE transformations. Accepted key-value pairs are: ::
@@ -90,7 +100,8 @@ def transform(node, mode='basic', compiler=None):
     mode = set(mode)
     if params.pop('openmp', False):
         mode |= {'openmp'}
-    if mode.isdisjoint({'noop', 'blocking', 'split', 'simd', 'advanced', 'openmp'}):
+    if mode.isdisjoint({'noop', 'basic', 'advanced', 'speculative',
+                        'blocking', 'split', 'simd', 'openmp', 'ntstores'}):
         dle_warning("Unknown transformer mode(s) %s" % str(mode))
         return State(node)
     else:
@@ -178,10 +189,10 @@ class Rewriter(object):
     Track what options trigger a given transformation.
     """
     triggers = {
-        '_avoid_denormals': ('advanced', 'speculative'),
-        '_create_elemental_functions': ('split', 'advanced', 'speculative'),
+        '_avoid_denormals': ('basic', 'advanced', 'speculative'),
+        '_create_elemental_functions': ('split', 'basic', 'advanced', 'speculative'),
         '_loop_blocking': ('blocking', 'advanced', 'speculative'),
-        '_simdize': ('simd', 'advanced', 'speculative'),
+        '_simdize': ('simd', 'basic', 'advanced', 'speculative'),
         '_nontemporal_stores': ('ntstores', 'speculative'),
         '_ompize': ('openmp',)
     }
