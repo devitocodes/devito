@@ -1,7 +1,7 @@
 from __future__ import absolute_import
 
 import operator
-from collections import OrderedDict, namedtuple
+from collections import OrderedDict, defaultdict, namedtuple
 from ctypes import c_double, c_int
 from functools import reduce
 from hashlib import sha1
@@ -14,12 +14,13 @@ from devito.compiler import (get_compiler_from_env, get_tmp_dir,
                              jit_compile_and_load)
 from devito.dimension import Dimension
 from devito.dle import transform
-from devito.dse import indexify, rewrite
+from devito.dse import indexify, retrieve_and_check_dtype, rewrite
 from devito.interfaces import SymbolicData
 from devito.logger import error, info, warning
-from devito.nodes import Block, Expression, Function, Iteration, TimedList
+from devito.nodes import (Block, Expression, Function, Iteration,
+                          TimedList, TypedExpression)
 from devito.profiler import Profiler
-from devito.tools import as_tuple
+from devito.tools import as_tuple, filter_ordered
 from devito.visitors import (EstimateCost, FindNodeType, FindSections, FindSymbols,
                              IsPerfectIteration, MergeOuterIterations,
                              ResolveIterationVariable, SubstituteExpression,
@@ -72,24 +73,13 @@ class StencilKernel(Function):
         # Convert stencil expressions into actual Nodes, going through the
         # Devito Symbolic Engine for flop optimization.
         stencils = stencils if isinstance(stencils, list) else [stencils]
+        dtype = retrieve_and_check_dtype(stencils)
         stencils = [indexify(s) for s in stencils]
         stencils = [s.xreplace(subs) for s in stencils]
         dse_state = rewrite(stencils, mode=dse)
-        nodes = [Expression(s) for s in dse_state.exprs]
 
         # Wrap expressions with Iterations according to dimensions
-        # TODO: This should probably be done more safely in a visitor
-        # that tracks free and bound loop variables in the AST.
-        for i, expr in enumerate(nodes):
-            newexpr = expr
-            offsets = newexpr.index_offsets
-            for d in reversed(list(offsets.keys())):
-                newexpr = Iteration(newexpr, dimension=d,
-                                    limits=d.size, offsets=offsets[d])
-            nodes[i] = newexpr
-
-        # Merge Iterations iff outermost iterations agree
-        nodes = MergeOuterIterations().visit(nodes)
+        nodes = self._schedule_expressions(dse_state, dtype)
 
         # Introduce C-level profiling infrastructure
         self.sections = OrderedDict()
@@ -291,6 +281,45 @@ class StencilKernel(Function):
 
         info('Auto-tuned loop blocking shape: [%s]'
              % ','.join(str(best) for i in at_mapper))
+
+    def _schedule_expressions(self, dse_state, dtype):
+        """Wrap :class:`Expression` objects within suitable hierarchies of
+        :class:`Iteration` according to dimensions.
+        """
+        processed = []
+        for cluster in dse_state.clusters:
+            # Build declarations or assignments
+            body = []
+            for k, v in cluster.items():
+                if cluster.is_index(k):
+                    body.append(TypedExpression(v, np.int32))
+                elif v.is_terminal:
+                    body.append(Expression(v))
+                else:
+                    body.append(TypedExpression(v, dtype))
+            offsets = body[-1].index_offsets
+            # Filter out aliasing due to buffered dimensions
+            key = lambda d: d.parent if d.is_Buffered else d
+            dimensions = filter_ordered(list(offsets.keys()), key=key)
+            for d in reversed(dimensions):
+                body = Iteration(body, dimension=d, limits=d.size, offsets=offsets[d])
+            processed.append(body)
+
+        # Merge Iterations iff outermost iterations agree
+        processed = MergeOuterIterations().visit(processed)
+
+        # Remove temporaries became redundat after squashing Iterations
+        mapper = {}
+        for k, v in FindSections().visit(processed).items():
+            found = set()
+            newexprs = []
+            for n in v:
+                newexprs.extend([n] if n.stencil not in found else [])
+                found.add(n.stencil)
+            mapper[k[-1]] = Iteration(newexprs, **k[-1].args_frozen)
+        processed = Transformer(mapper).visit(processed)
+
+        return processed
 
     @property
     def _cparameters(self):
