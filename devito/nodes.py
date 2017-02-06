@@ -169,6 +169,18 @@ class Expression(Node):
         return c.Assign(ccode(self.stencil.lhs), ccode(self.stencil.rhs))
 
     @property
+    def output(self):
+        """
+        Return the symbol written by this Expression.
+        """
+        lhs = self.stencil.lhs
+        if lhs.is_Symbol:
+            return lhs
+        else:
+            # An Indexed
+            return lhs.base.label
+
+    @property
     def index_offsets(self):
         """Mapping of :class:`Dimension` symbols to each integer
         stencil offset used with it in this expression.
