@@ -212,6 +212,22 @@ class Expression(Node):
         return offsets
 
 
+class TypedExpression(Expression):
+
+    """Class encpasulating a single stencil expression with known data type,
+    represented as a NumPy data type."""
+
+    def __init__(self, stencil, dtype):
+        super(TypedExpression, self).__init__(stencil)
+        self.dtype = dtype
+
+    @property
+    def ccode(self):
+        ctype = c.dtype_to_ctype(self.dtype)
+        return c.Initializer(c.Value(ctype, ccode(self.stencil.lhs)),
+                             ccode(self.stencil.rhs))
+
+
 class Iteration(Node):
     """Iteration object that encapsualtes a single loop over nodes, possibly
     just SymPy expressions.
