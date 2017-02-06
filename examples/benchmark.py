@@ -34,9 +34,9 @@ if __name__ == "__main__":
     parser.add_argument(dest="execmode", nargs="?", default="run",
                         choices=["run", "test", "bench", "plot"],
                         help="Exec modes")
-    parser.add_argument("--bench-mode", "-bm", dest="benchmode", default="all",
-                        choices=["all", "blocking", "dse"],
-                        help="Choose what to benchmark (all, blocking, dse).")
+    parser.add_argument("--bench-mode", "-bm", dest="benchmode", default="maxperf",
+                        choices=["maxperf", "dse", "dle"],
+                        help="Choose what to benchmark (maxperf, dse, dle).")
     parser.add_argument(dest="compiler", nargs="?",
                         default=environ.get("DEVITO_ARCH", "gnu"),
                         choices=compiler_registry.keys(),
@@ -66,15 +66,18 @@ if __name__ == "__main__":
 
     devito = parser.add_argument_group("Devito")
     devito.add_argument("-dse", default="advanced", nargs="*",
-                        choices=["basic", "factorize", "approx-trigonometry",
+                        choices=["noop", "basic", "factorize", "approx-trigonometry",
                                  "glicm", "advanced"],
                         help="Devito symbolic engine (DSE) mode")
+    devito.add_argument("-dle", default="advanced", nargs="*",
+                        choices=["noop", "advanced", "speculative"],
+                        help="Devito loop engine (DSE) mode")
     devito.add_argument("-a", "--auto_tuning", action="store_true",
                         help=("Benchmark with auto tuning on and off. " +
                               "Enables auto tuning when execmode is run"))
     devito.add_argument("-cb", "--cache_blocking", nargs=2, type=int,
                         default=None, metavar=("blockDim1", "blockDim2"),
-                        help="Uses provided block sizes when AT is off")
+                        help="User provided block sizes when auto-tuning is off")
 
     benchmarking = parser.add_argument_group("Benchmarking")
     benchmarking.add_argument("-r", "--resultsdir", default="results",
@@ -124,18 +127,24 @@ if __name__ == "__main__":
             raise ImportError("Could not find opescibench utility package.\n"
                               "Please install from https://github.com/opesci/opescibench")
 
-        if args.benchmode == 'all':
-            parameters["auto_tuning"] = [True, False]
-            parameters["dse"] = ["basic", "advanced"]
-        elif args.benchmode == 'blocking':
-            parameters["auto_tuning"] = [True, False]
-            parameters["dse"] = ["basic"]
+        if args.benchmode == 'maxperf':
+            parameters["auto_tuning"] = [True]
+            parameters["dse"] = ["advanced"]
+            parameters["dle"] = ["advanced"]
         elif args.benchmode == 'dse':
             parameters["auto_tuning"] = [False]
             parameters["dse"] = ["basic",
                                  ('basic', 'factorize'),
                                  ('basic', 'glicm'),
                                  "advanced"]
+            parameters["dle"] = ["basic"]
+        else:
+            # must be == 'dle'
+            parameters["auto_tuning"] = [True]
+            parameters["dse"] = ["basic"]
+            parameters["dle"] = ["basic",
+                                 "advanced",
+                                 "speculative"]
 
     if args.execmode == "test":
         values_sweep = [v if isinstance(v, list) else [v] for v in parameters.values()]
