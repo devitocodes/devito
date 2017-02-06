@@ -201,32 +201,42 @@ if __name__ == "__main__":
                                                     parameters["time_order"],
                                                     args.arch)
         name = name.replace(' ', '')
-        title = "%s - grid: %s, time order: %s" % (args.problem.capitalize(),
-                                                   parameters["dimensions"],
-                                                   parameters["time_order"])
+        title = "%s[%s,TO=%s], with varying <DSE,DLE>, on %s" %\
+            (args.problem.capitalize(),
+             parameters["dimensions"],
+             parameters["time_order"],
+             args.arch)
 
-        at_runs = [True, False]
         dse_runs = ["basic", ("basic", "factorize"), ("basic", "glicm"), "advanced"]
-        runs = list(product(at_runs, dse_runs))
+        dle_runs = ["basic", "advanced", "speculative"]
+        runs = list(product(dse_runs, dle_runs))
         styles = {
-            # AT true
-            (True, 'advanced'): 'ob', (True, 'basic'): 'or',
-            (True, ('basic', 'factorize')): 'og', (True, ('basic', 'glicm')): 'oy',
-            # AT false
-            (False, 'advanced'): 'Db', (False, 'basic'): 'Dr',
-            (False, ('basic', 'factorize')): 'Dg', (False, ('basic', 'glicm')): 'Dy'
+            # DLE basic
+            ('basic', 'basic'): 'or',
+            (('basic', 'factorize'), 'basic'): 'og',
+            (('basic', 'glicm'), 'basic'): 'oy',
+            ('advanced', 'basic'): 'ob',
+            # DLE advanced
+            ('basic', 'advanced'): 'Dr',
+            (('basic', 'factorize'), 'advanced'): 'Dg',
+            (('basic', 'glicm'), 'advanced'): 'Dy',
+            ('advanced', 'advanced'): 'Db',
+            # DLE speculative
+            ('basic', 'speculative'): 'sr',
+            (('basic', 'factorize'), 'speculative'): 'sg',
+            (('basic', 'glicm'), 'speculative'): 'sy',
+            ('advanced', 'speculative'): 'sb',
         }
 
-        with RooflinePlotter(figname=name, plotdir=args.plotdir,
+        with RooflinePlotter(title=title, figname=name, plotdir=args.plotdir,
                              max_bw=args.max_bw, max_flops=args.max_flops,
-                             legend={'fontsize': 8}) as plot:
+                             legend={'fontsize': 7}) as plot:
             for key, gflopss in gflopss.items():
                 oi_value = oi[key]
                 time_value = time[key]
                 key = dict(key)
-                run = (key["auto_tuning"], key["dse"])
-                index = runs.index(run)
-                label = "AT=%r, DSE=%s" % run
+                run = (key["dse"], key["dle"])
+                label = "<%s,%s>" % run
                 oi_annotate = {'s': 'SO=%s' % key["space_order"],
                                'size': 6, 'xy': (oi_value, 0.09)} if run[0] else None
                 point_annotate = {'s': "%.1f s" % time_value,
