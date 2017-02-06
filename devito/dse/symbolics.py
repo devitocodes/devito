@@ -135,6 +135,34 @@ class State(object):
     def output_fields(self):
         return [i.lhs for i in self.exprs if isinstance(i.lhs, Indexed)]
 
+    @property
+    def clusters(self):
+        """
+        Clusterize the expressions in ``self.exprs``. A cluster is an ordered
+        collection of expressions that are necessary to compute a target expression
+        (ie, an expression that is never read).
+
+        Examples
+        ========
+        In the following list of expressions: ::
+
+            temp1 = a*b
+            temp2 = c
+            temp3 = temp1 + temp2
+            temp4 = temp2 + 5
+            temp5 = d*e
+            temp6 = f+g
+            temp7 = temp5 + temp6
+
+        There are three target expressions: temp3, temp4, temp7. There are therefore
+        three clusters: ((temp1, temp2, temp3), (temp2, temp4), (temp5, temp6, temp7)).
+        The first and second clusters share the expression temp2.
+        """
+        graph = temporaries_graph(self.exprs)
+        targets = graph.targets
+        clusters = [graph.trace(i.lhs) for i in targets]
+        return clusters
+
 
 class Rewriter(object):
 
@@ -322,7 +350,7 @@ class Rewriter(object):
 
         template = "ti%d"
         graph = temporaries_graph(state.exprs)
-        space_dimensions = graph.space_dimensions()
+        space_dimensions = graph.space_dimensions
         queue = graph.copy()
 
         # What expressions is it worth transforming (cm=cost model)?
