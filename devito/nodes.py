@@ -118,7 +118,8 @@ class Element(Node):
     is_Element = True
 
     def __init__(self, element):
-        assert isinstance(element, (c.Comment, c.Statement, c.Value))
+        assert isinstance(element, (c.Comment, c.Statement, c.Value,
+                                    c.Pragma, c.Line))
         self.element = element
 
     def __repr__(self):
@@ -331,6 +332,10 @@ class Iteration(Node):
         return not self.is_Open
 
     @property
+    def extent(self):
+        return (self.limits[1] - self.offsets[1]) - (self.limits[0] - self.offsets[0])
+
+    @property
     def children(self):
         """Return the traversable children."""
         return (self.nodes,)
@@ -443,7 +448,7 @@ class TimedList(List):
         return self._name
 
 
-class Denormals(Block):
+class Denormals(List):
 
     """Macros to make sure denormal numbers are flushed in hardware."""
 
