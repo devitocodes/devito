@@ -234,7 +234,8 @@ class StencilKernel(Function):
     def _autotune(self, arguments):
         """Use auto-tuning on this StencilKernel to determine empirically the
         best block sizes (when loop blocking is in use). The block sizes tested
-        are those listed in ``options['at_blocksizes']``."""
+        are those listed in ``options['at_blocksizes']``, plus the case that is
+        as if blocking were not applied (ie, unitary block size)."""
 
         at_arguments = arguments.copy()
 
@@ -244,27 +245,35 @@ class StencilKernel(Function):
             if k in output:
                 at_arguments[k] = v.copy()
 
-        # Auto-tunable loop blocking dimensions
-        at_mapper = [(i.argument.name, i.original_dim.name)
-                     for i in self._dle_state.arguments]
-
         # Squeeze dimensions to minimize auto-tuning time
         iterations = FindNodeType(Iteration).visit(self.body)
         squeezable = [i.dim.name for i in iterations if 'sequential' in i.properties]
 
-        # Note: there is only a single loop over 'at_blocksize' because only
+        # Attempted block sizes
+        mapper = OrderedDict([(i.argument.name, i) for i in self._dle_state.arguments])
+        blocksizes = [OrderedDict([(i, v) for i in mapper])
+                      for v in options['at_blocksize']]
+        blocksizes += [OrderedDict([(k, v.min_value) for k, v in mapper.items()])]
+
+        # Note: there is only a single loop over 'blocksize' because only
         # square blocks are tested
         timings = OrderedDict()
-        for i in options['at_blocksize']:
+        for blocksize in blocksizes:
+            illegal = False
             for k, v in at_arguments.items():
-                if k in at_mapper:
-                    if i < at_arguments[at_mapper[k]]:
-                        at_arguments[k] = i
+                if k in blocksize:
+                    val = blocksize[k]
+                    if val <= at_arguments.get(mapper[k].original_dim.name,
+                                               mapper[k].max_value):
+                        at_arguments[k] = val
                     else:
                         # Block size cannot be larger than actual dimension
+                        illegal = True
                         break
                 elif k in squeezable:
                     at_arguments[k] = options['at_squeezer']
+            if illegal:
+                continue
 
             # Add profiler structs
             if self.profiler:
@@ -272,15 +281,14 @@ class StencilKernel(Function):
                 at_arguments[self.profiler.s_name] = cpointer
 
             self.cfunction(*list(at_arguments.values()))
-            timings[i] = sum(self.profiler.timings.values())
+            timings[tuple(blocksize.items())] = sum(self.profiler.timings.values())
 
-        best = min(timings, key=timings.get)
+        best = dict(min(timings, key=timings.get))
         for k, v in arguments.items():
-            if k in at_mapper:
-                arguments[k] = best
+            if k in mapper:
+                arguments[k] = best[k]
 
-        info('Auto-tuned loop blocking shape: [%s]'
-             % ','.join(str(best) for i in at_mapper))
+        info('Auto-tuned block shape: %s' % best)
 
     def _schedule_expressions(self, dse_state, dtype):
         """Wrap :class:`Expression` objects within suitable hierarchies of
@@ -410,7 +418,7 @@ StencilKernel options
 """
 options = {
     'at_squeezer': 3,
-    'at_blocksize': [4, 8, 12, 16, 20, 24, 32]
+    'at_blocksize': [8, 16, 32]
 }
 
 """
