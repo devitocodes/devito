@@ -15,7 +15,7 @@ from devito.dle.manipulation import compose_nodes
 from devito.dse import NaturalMod, terminals, symbolify
 from devito.interfaces import ScalarData, SymbolicData
 from devito.logger import dle, dle_warning
-from devito.nodes import Denormals, Element, Expression, Function, Iteration, List
+from devito.nodes import Block, Denormals, Element, Expression, Function, Iteration, List
 from devito.tools import as_tuple, flatten
 from devito.visitors import (FindNodeType, FindSections, FindSymbols,
                              IsPerfectIteration, Transformer)
@@ -522,9 +522,9 @@ class Rewriter(object):
         processed = []
         for node in state.nodes:
 
-            # Handle denormals
+            # Reset denormals flag each time a parallel region is entered
             denormals = FindNodeType(Denormals).visit(state.nodes)
-            mapper = {i: Denormals(header=omplang['par-region']) for i in denormals}
+            mapper = {i: List(c.Comment('DLE: moved denormals flag')) for i in denormals}
 
             # Handle parallelizable loops
             for tree in retrieve_iteration_tree(node):
@@ -541,7 +541,8 @@ class Rewriter(object):
                 if psutil.cpu_count(logical=False) < self.thresholds['collapse'] or\
                         len(candidates) < 2:
                     n = candidates[0]
-                    mapper[n] = List(header=omplang['par-for'], body=n)
+                    mapper[n] = Block(header=omplang['par-region'],
+                                      body=denormals + [Element(omplang['for']), n])
                 else:
                     nodes = candidates[:2]
                     mapper.update({n: List(header=omplang['par-for-collapse2'], body=n)
@@ -631,6 +632,7 @@ class Rewriter(object):
 A dictionary to quickly access standard OpenMP pragmas
 """
 omplang = {
+    'for': c.Pragma('omp for schedule(static)'),
     'par-region': c.Pragma('omp parallel'),
     'par-for': c.Pragma('omp parallel for schedule(static)'),
     'par-for-collapse2': c.Pragma('omp parallel for collapse(2) schedule(static)'),
