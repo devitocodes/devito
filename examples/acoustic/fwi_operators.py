@@ -7,7 +7,7 @@ from devito.stencilkernel import StencilKernel
 from examples.source_type import SourceLike
 
 
-def ForwardOperator(model, src, rec, damp, data, time_order=2, spc_order=6,
+def ForwardOperator(model, u, src, rec, damp, data, time_order=2, spc_order=6,
                     save=False, u_ini=None, legacy=True, **kwargs):
     """
     Constructor method for the forward modelling operator in an acoustic media
@@ -24,14 +24,8 @@ def ForwardOperator(model, src, rec, damp, data, time_order=2, spc_order=6,
     """
     nt = data.shape[0]
     s, h = symbols('s h')
-    u = TimeData(name="u", shape=model.get_shape_comp(), time_dim=nt,
-                 time_order=2, space_order=spc_order, save=save,
-                 dtype=damp.dtype)
-    if u_ini is not None:
-        u.data[0:3, :] = u_ini[:]
     m = DenseData(name="m", shape=model.get_shape_comp(), dtype=damp.dtype)
     m.data[:] = model.padm()
-    u.pad_time = save
     # Derive stencil from symbolic equation
     if time_order == 2:
         laplacian = u.laplace

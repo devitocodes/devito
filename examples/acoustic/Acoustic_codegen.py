@@ -80,7 +80,11 @@ class Acoustic_cg(object):
                              dt=dt, h=h, ndim=ndim, nbpml=nbpml, dtype=dtype,
                              coordinates=self.data.receiver_coords)
 
-            fw = ForwardOperator(self.model, src, rec, self.damp, self.data,
+            # Create the forward wavefield
+            u = TimeData(name="u", shape=self.model.get_shape_comp(), time_dim=nt,
+                         time_order=2, space_order=self.s_order, save=False,
+                         dtype=self.damp.dtype)
+            fw = ForwardOperator(self.model, u, src, rec, self.damp, self.data,
                                  time_order=self.t_order, spc_order=self.s_order,
                                  profile=True, save=False, dse=dse, compiler=compiler)
             self.at = AutoTuner(fw)
@@ -113,16 +117,25 @@ class Acoustic_cg(object):
 
         if auto_tuning:
             cache_blocking = self.at.block_size
-        fw = ForwardOperator(self.model, src, rec, self.damp, self.data,
+
+        # Create the forward wavefield
+        u = TimeData(name="u", shape=self.model.get_shape_comp(), time_dim=nt,
+                     time_order=2, space_order=self.s_order, save=save,
+                     dtype=self.damp.dtype)
+        u.pad_time = save
+        if u_ini is not None:
+            u.data[0:3, :] = u_ini[:]
+
+        # Execute operator and return wavefield and receiver data
+        fw = ForwardOperator(self.model, u, src, rec, self.damp, self.data,
                              time_order=self.t_order, spc_order=self.s_order,
                              save=save, cache_blocking=cache_blocking, dse=dse,
                              compiler=compiler, profile=True, u_ini=u_ini)
 
+        fw.apply()
         if isinstance(fw, StencilKernel):
-            fw.apply()
-            return None, None, None, None, None
+            return rec.data, u, None, None, None
         else:
-            u, rec = fw.apply()
             return (rec.data, u, fw.propagator.gflopss,
                     fw.propagator.oi, fw.propagator.timings)
 
