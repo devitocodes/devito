@@ -21,8 +21,9 @@ Temporaries graph are used for symbolic as well as loop-level transformations.
 
 from collections import OrderedDict, namedtuple
 
-from sympy import (Eq, Indexed)
+from sympy import (Indexed)
 
+from devito.dse.extended_sympy import Eq
 from devito.dse.inspection import is_time_invariant, retrieve_indexed, terminals
 from devito.dimension import t
 
