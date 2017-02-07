@@ -7,6 +7,9 @@ from sympy import Expr, Float
 from sympy.core.basic import _aresame
 from sympy.functions.elementary.trigonometric import TrigonometricFunction
 
+__all__ = ['UnevaluatedExpr', 'Eq', 'Mul', 'Add', 'NaturalMod', 'taylor_sin',
+           'taylor_cos', 'bhaskara_sin', 'bhaskara_cos']
+
 
 class UnevaluatedExpr(Expr):
 
@@ -40,6 +43,10 @@ class Mul(sympy.Mul, UnevaluatedExpr):
 
 
 class Add(sympy.Add, UnevaluatedExpr):
+    pass
+
+
+class NaturalMod(sympy.Mod):
     pass
 
 
