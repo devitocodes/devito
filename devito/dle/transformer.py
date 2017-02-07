@@ -608,14 +608,18 @@ class Rewriter(object):
             for node in nodes:
                 mapper = {}
                 for tree in retrieve_iteration_tree(node):
-                    fenced = False
                     for i in tree:
-                        if not fenced and 'parallel' in i.properties:
+                        if 'parallel' in i.properties:
                             mapper[i] = List(body=i, footer=fence)
-                            fenced = True
+                            break
+                transformed = Transformer(mapper).visit(node)
+                mapper = {}
+                for tree in retrieve_iteration_tree(transformed):
+                    for i in tree:
                         if 'vector-dim' in i.properties:
                             mapper[i] = List(header=pragma, body=i)
-                processed.append(Transformer(mapper).visit(node))
+                transformed = Transformer(mapper).visit(transformed)
+                processed.append(transformed)
             return processed
 
         return {'nodes': decorate(state.nodes),
