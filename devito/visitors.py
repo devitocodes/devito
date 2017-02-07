@@ -454,6 +454,8 @@ class ResolveIterationVariable(Transformer):
                 init += [c.Initializer(c.Value('int', vname),
                                        "(%s) %% %d" % (value, modulo))]
                 subs[o.dim + off] = Symbol(vname)
+            # Always lower to symbol
+            subs[o.dim.parent] = Symbol(o.dim.parent.name)
             # Insert block with modulo initialisations
             newnodes = (Block(header=init, body=nodes[0]), )
             return o._rebuild(newnodes)
