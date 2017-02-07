@@ -9,7 +9,7 @@ from devito.tools import flatten
 
 __all__ = ['estimate_cost', 'estimate_memory', 'indexify', 'retrieve_dimensions',
            'retrieve_dtype', 'retrieve_symbols', 'retrieve_shape', 'terminals',
-           'tolambda', 'retrieve_and_check_dtype']
+           'tolambda', 'retrieve_and_check_dtype', 'symbolify']
 
 
 def terminals(expr, discard_indexed=False):
@@ -313,6 +313,18 @@ def retrieve_trigonometry(expr, mode='unique'):
     Shorthand for ``retrieve(expr, 'trigonometry', 'unique')``.
     """
     return retrieve(expr, 'trigonometry', mode)
+
+
+def symbolify(expr):
+    """
+    Extract the "main" symbol from a SymPy object.
+    """
+    if expr.is_Symbol:
+        return expr
+    elif isinstance(expr, Indexed):
+        return expr.base.label
+    else:
+        raise RuntimeError("Cannot extract symbol from type %s" % type(expr))
 
 
 def is_time_invariant(expr, graph=None):
