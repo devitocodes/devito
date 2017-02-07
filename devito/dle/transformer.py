@@ -12,7 +12,7 @@ import cgen as c
 from devito.dimension import Dimension
 from devito.dle.inspection import retrieve_iteration_tree
 from devito.dle.manipulation import compose_nodes
-from devito.dse import terminals
+from devito.dse import terminals, symbolify
 from devito.interfaces import ScalarData, SymbolicData
 from devito.logger import dle, dle_warning
 from devito.nodes import Denormals, Element, Expression, Function, Iteration, List
@@ -252,19 +252,18 @@ class Rewriter(object):
         for tree in candidates:
             exprs = [e.stencil for e in sections[tree]]
 
-            # "Prefetch" terminals to speed up the checks below
+            # "Prefetch" objects to speed up the analsys
             terms = {e: tuple(terminals(e.rhs)) for e in exprs}
+            writes = {e.lhs for e in exprs if not e.is_Symbol}
 
             # Does the Iteration index only appear in the outermost dimension ?
             has_parallel_dimension = True
-            sample = None
             for k, v in terms.items():
-                if v:
-                    handle = v[0]
-                    sample = sample or handle.indices[0]
-                    if any(sample in i.indices[1:] or sample != i.indices[0] for i in v):
-                        has_parallel_dimension = False
-                        break
+                for i in writes:
+                    maybe_dependencies = [j for j in v if symbolify(i) == symbolify(j)]
+                    for j in maybe_dependencies:
+                        handle = flatten(k.atoms() for k in j.indices[1:])
+                        has_parallel_dimension &= not (i.indices[0] in handle)
             if not has_parallel_dimension:
                 continue
 
