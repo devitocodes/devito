@@ -12,7 +12,7 @@ import cgen as c
 from devito.dimension import Dimension
 from devito.dle.inspection import retrieve_iteration_tree
 from devito.dle.manipulation import compose_nodes
-from devito.dse import terminals, symbolify
+from devito.dse import NaturalMod, terminals, symbolify
 from devito.interfaces import ScalarData, SymbolicData
 from devito.logger import dle, dle_warning
 from devito.nodes import Denormals, Element, Expression, Function, Iteration, List
@@ -166,21 +166,33 @@ class BlockingArg(Arg):
 
     from_Blocking = True
 
-    def __init__(self, blocked_dim, original_dim, value):
+    def __init__(self, blocked_dim, iteration, value):
         """
         Represent an argument introduced in the kernel by Rewriter._loop_blocking.
 
         :param blocked_dim: The blocked :class:`Dimension`.
-        :param original_dim: The original :class:`Dimension` corresponding
-                             to ``blocked_dim``.
+        :param iteration: The :class:`Iteration` object from which the ``blocked_dim``
+                          was derived.
         :param value: A suggested value determined by the DLE.
         """
         super(BlockingArg, self).__init__(blocked_dim, value)
-        self.original_dim = original_dim
+        self.iteration = iteration
 
     def __repr__(self):
-        bsize = self.value if self.value else '<unused>'
-        return "DLE-BlockingArg[%s,%s,%s]" % (self.argument, self.original_dim, bsize)
+        return "DLE-BlockingArg[%s,%s,suggested=%s,maxallowed=%d]" %\
+            (self.argument, self.original_dim, self.value, self.max_value)
+
+    @property
+    def original_dim(self):
+        return self.iteration.dim
+
+    @property
+    def max_value(self):
+        return self.iteration.extent
+
+    @property
+    def min_value(self):
+        return 1
 
 
 class Rewriter(object):
@@ -396,17 +408,13 @@ class Rewriter(object):
 
         Region = namedtuple('Region', 'main leftover')
 
-        is_InnerBlockable = self.params.get('blockinner',
-                                            len(state.elemental_functions) > 0)
-
-        dims = OrderedDict()
+        blocked = OrderedDict()
         processed = []
         for node in state.nodes:
             mapper = {}
             for tree in retrieve_iteration_tree(node):
                 # Is the Iteration tree blockable ?
                 iterations = [i for i in tree if 'parallel' in i.properties]
-                iterations = iterations if is_InnerBlockable else iterations[:-1]
                 if not iterations:
                     continue
                 root = iterations[0]
@@ -419,21 +427,16 @@ class Rewriter(object):
                 blocked_iterations = []
                 for i in iterations:
                     # Build Iteration over blocks
-                    dim = dims.setdefault((i.dim, 'inter-block'),
-                                          Dimension("%s_block" % i.dim.name))
-
+                    dim = blocked.setdefault(i, Dimension("%s_block" % i.dim.name))
                     block_size = dim.symbolic_size
                     iter_size = i.dim.symbolic_size
-
                     start = i.limits[0] - i.offsets[0]
-                    finish = iter_size - ((iter_size - i.offsets[1]) % block_size)
+                    finish = iter_size - NaturalMod(iter_size - i.offsets[1], block_size)
                     inter_block = Iteration([], dim, [start, finish, block_size],
                                             properties=('parallel', 'blocked'))
 
                     # Build Iteration within a block
-                    dim = dims.setdefault((i.dim, 'intra-block'),
-                                          Dimension("%s_intrab" % i.dim.name))
-
+                    dim = Dimension("%s_intrab" % i.dim.name)
                     start = inter_block.dim
                     finish = start + block_size
                     intra_block = Iteration([], dim, [start, finish, 1], i.index,
@@ -460,7 +463,7 @@ class Rewriter(object):
                     regions[i] = Region(main, leftover)
 
                 blocked_tree = list(flatten(zip(*blocked_iterations)))
-                blocked = compose_nodes(blocked_tree + [iterations[-1].nodes])
+                blocked_tree = compose_nodes(blocked_tree + [iterations[-1].nodes])
 
                 # Build remainder loops
                 remainder_tree = []
@@ -472,14 +475,13 @@ class Rewriter(object):
                         remainder_tree.append(compose_nodes(nodes))
 
                 # Will replace with blocked loop tree
-                mapper[root] = List(body=[blocked] + remainder_tree)
+                mapper[root] = List(body=[blocked_tree] + remainder_tree)
 
             rebuilt = Transformer(mapper).visit(node)
 
             processed.append(rebuilt)
 
         # All blocked dimensions
-        blocked = OrderedDict([(k, v) for k, v in dims.items() if k[1] == 'inter-block'])
         if not blocked:
             return {'nodes': processed}
 
@@ -507,7 +509,7 @@ class Rewriter(object):
                                if k not in blockshape})
 
         # Track any additional arguments required to execute /state.nodes/
-        arguments = [BlockingArg(v, k[0], blockshape[k]) for k, v in blocked.items()]
+        arguments = [BlockingArg(v, k, blockshape[k]) for k, v in blocked.items()]
 
         return {'nodes': processed, 'arguments': arguments}
 
