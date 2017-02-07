@@ -90,8 +90,8 @@ class Acoustic_cg(object):
             self.at = AutoTuner(fw)
             self.at.auto_tune_blocks(self.s_order + 1, self.s_order * 4 + 2)
 
-    def Forward(self, save=False, cache_blocking=None,
-                auto_tuning=False, dse='advanced', compiler=None, u_ini=None):
+    def Forward(self, save=False, cache_blocking=None, auto_tuning=False,
+                dse='advanced', compiler=None, u_ini=None, legacy=True):
         nt, nrec = self.data.shape
         nsrc = self.source.shape[1]
         ndim = len(self.damp.shape)
@@ -130,10 +130,12 @@ class Acoustic_cg(object):
         fw = ForwardOperator(self.model, u, src, rec, self.damp, self.data,
                              time_order=self.t_order, spc_order=self.s_order,
                              save=save, cache_blocking=cache_blocking, dse=dse,
-                             compiler=compiler, profile=True, u_ini=u_ini)
+                             compiler=compiler, profile=True, u_ini=u_ini,
+                             legacy=legacy)
 
         fw.apply()
         if isinstance(fw, StencilKernel):
+            # TODO: Hook up DSE/DLE profiling tools
             return rec.data, u, None, None, None
         else:
             return (rec.data, u, fw.propagator.gflopss,
