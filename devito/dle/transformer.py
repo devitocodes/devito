@@ -213,7 +213,8 @@ class Rewriter(object):
     Bag of thresholds, to be used to trigger or prevent certain transformations.
     """
     thresholds = {
-        'collapse': 32
+        'collapse': 32,  # Available physical cores
+        'elemental-functions': 50  # C statements
     }
 
     def __init__(self, nodes, params, compiler):
@@ -341,8 +342,14 @@ class Rewriter(object):
                 name = "f_%d_%d" % (i, j)
 
                 candidate = rule(tree)
-                expressions = FindNodeType(Expression).visit(candidate)
                 leftover = tuple(k for k in tree if k not in candidate)
+                expressions = FindNodeType(Expression).visit(candidate)
+
+                # Heuristic: only create elemental functions if there are more
+                # than self.thresholds['elemental_functions'] statements in
+                # the body of candidate
+                if len(expressions) < self.thresholds['elemental-functions']:
+                    continue
 
                 args = FindSymbols().visit(candidate)
                 args += [k.dim for k in leftover if k not in args and k.is_Closed]
