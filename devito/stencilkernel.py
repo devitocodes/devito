@@ -1,7 +1,7 @@
 from __future__ import absolute_import
 
 import operator
-from collections import OrderedDict, defaultdict, namedtuple
+from collections import OrderedDict, namedtuple
 from ctypes import c_double, c_int
 from functools import reduce
 from hashlib import sha1

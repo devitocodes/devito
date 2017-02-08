@@ -1,8 +1,8 @@
 """The Devito logger."""
 
-from contextlib import contextmanager
 import logging
 import sys
+from contextlib import contextmanager
 
 __all__ = ('set_log_level', 'set_log_noperf', 'log',
            'DEBUG', 'INFO', 'AUTOTUNER', 'DSE', 'DSE_WARN', 'DLE', 'DLE_WARN',

@@ -1,6 +1,6 @@
 import numpy as np
-from sympy import (Indexed, Function, Number, Symbol,
-                   count_ops, lambdify, preorder_traversal, sin, cos)
+from sympy import (Function, Indexed, Number, Symbol, cos, count_ops, lambdify,
+                   preorder_traversal, sin)
 
 from devito.dimension import t
 from devito.interfaces import SymbolicData

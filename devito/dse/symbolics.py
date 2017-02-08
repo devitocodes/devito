@@ -12,18 +12,16 @@ from __future__ import absolute_import
 from collections import OrderedDict, Sequence
 from time import time
 
-from sympy import (Eq, Indexed, IndexedBase, S,
-                   collect, collect_const, cos, cse, flatten,
-                   numbered_symbols, preorder_traversal, sin)
+from sympy import (Eq, Indexed, IndexedBase, S, collect, collect_const, cos,
+                   cse, flatten, numbered_symbols, preorder_traversal, sin)
 
 from devito.dimension import t, x, y, z
-from devito.logger import dse, dse_warning
-
-from devito.dse.extended_sympy import bhaskara_sin, bhaskara_cos
+from devito.dse.extended_sympy import bhaskara_cos, bhaskara_sin
 from devito.dse.graph import temporaries_graph
 from devito.dse.inspection import (collect_aliases, estimate_cost, estimate_memory,
                                    is_binary_op, is_time_invariant, terminals)
-from devito.dse.manipulation import flip_indices, rxreplace, unevaluate_arithmetic
+from devito.dse.manipulation import (flip_indices, rxreplace, unevaluate_arithmetic)
+from devito.logger import dse, dse_warning
 
 __all__ = ['rewrite']
 

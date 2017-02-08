@@ -4,18 +4,18 @@ from collections import OrderedDict, Sequence, namedtuple
 from itertools import combinations
 from time import time
 
+import cgen as c
 import numpy as np
 import psutil
-
-import cgen as c
 
 from devito.dimension import Dimension
 from devito.dle.inspection import retrieve_iteration_tree
 from devito.dle.manipulation import compose_nodes
-from devito.dse import terminals, symbolify
+from devito.dse import symbolify, terminals
 from devito.interfaces import ScalarData, SymbolicData
 from devito.logger import dle, dle_warning
-from devito.nodes import Block, Denormals, Element, Expression, Function, Iteration, List
+from devito.nodes import (Block, Denormals, Element, Expression,
+                          Function, Iteration, List)
 from devito.tools import as_tuple, flatten
 from devito.visitors import (FindNodeType, FindSections, FindSymbols,
                              IsPerfectIteration, Transformer)
