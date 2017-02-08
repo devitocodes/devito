@@ -1,5 +1,6 @@
 """The Devito logger."""
 
+from contextlib import contextmanager
 import logging
 import sys
 
@@ -119,3 +120,10 @@ def dle(msg, *args, **kwargs):
 
 def dle_warning(msg, *args, **kwargs):
     log("DLE: %s" % msg, DLE_WARN, *args, **kwargs)
+
+
+@contextmanager
+def bar():
+    log('='*89, INFO)
+    yield
+    log('='*89, INFO)
