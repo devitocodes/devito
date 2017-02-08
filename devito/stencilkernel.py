@@ -16,7 +16,7 @@ from devito.dimension import Dimension
 from devito.dle import transform
 from devito.dse import indexify, retrieve_and_check_dtype, rewrite
 from devito.interfaces import SymbolicData
-from devito.logger import error, info, warning
+from devito.logger import bar, error, info, warning
 from devito.nodes import (Block, Expression, Function, Iteration,
                           TimedList, TypedExpression)
 from devito.profiler import Profiler
@@ -192,25 +192,15 @@ class StencilKernel(Function):
         # Invoke kernel function with args
         self.cfunction(*list(arguments.values()))
 
-        # Summary of performance achieved
-        info("="*79)
-        for itspace, profile in self.sections.items():
-            # Time
-            elapsed = self.profiler.timings[profile.timer]
-            # Flops
-            itershape = [i.extent(finish=dim_sizes.get(i.dim)) for i in itspace]
-            iterspace = reduce(operator.mul, itershape)
-            flops = float(profile.ops*iterspace)
-            gflops = flops/10**9
-            # Compulsory traffic
-            datashape = [i.dim.size or dim_sizes[i.dim] for i in itspace]
-            dataspace = reduce(operator.mul, datashape)
-            traffic = profile.memory*dataspace*dtype_size
+        # Output summary of performance achieved
+        summary = self._profile_summary(dim_sizes, dtype_size)
+        with bar():
+            for k, v in summary.items():
+                name = '%s<%s>' % (k, ','.join('%d' % i for i in v.itershape))
+                info("Section %s with OI=%.2f computed in %.3f s [Perf: %.2f GFlops/s]" %
+                     (name, v.oi, v.time, v.gflopss))
 
-            name = '<%s>' % ','.join('%d' % i for i in itershape)
-            info("Section %s with OI=%.2f computed in %.3f s [Perf: %.2f GFlops/s]" %
-                 (name, flops/traffic, elapsed, gflops/elapsed))
-        info("="*79)
+        return summary
 
     def _profile_sections(self, nodes):
         """Introduce C-level profiling nodes within the Iteration/Expression tree."""
@@ -233,6 +223,38 @@ class StencilKernel(Function):
                         break
         processed = [Transformer(mapper).visit(Block(body=nodes))]
         return processed
+
+    def _profile_summary(self, dim_sizes, dtype_size):
+        """
+        Produce a summary of the performance achieved
+        """
+        summary = PerformanceSummary()
+        for itspace, profile in self.sections.items():
+            # Time
+            time = self.profiler.timings[profile.timer]
+
+            # Flops
+            itershape = [i.extent(finish=dim_sizes.get(i.dim)) for i in itspace]
+            iterspace = reduce(operator.mul, itershape)
+            flops = float(profile.ops*iterspace)
+            gflops = flops/10**9
+
+            # Compulsory traffic
+            datashape = [i.dim.size or dim_sizes[i.dim] for i in itspace]
+            dataspace = reduce(operator.mul, datashape)
+            traffic = profile.memory*dataspace*dtype_size
+
+            # Derived metrics
+            oi = flops/traffic
+            gflopss = gflops/time
+
+            # Keep track of performance achieved
+            summary.setsection(profile.timer, time, gflopss, oi, itershape, datashape)
+
+        # Rename the most time consuming section as 'main'
+        summary['main'] = summary.pop(max(summary, key=summary.get))
+
+        return summary
 
     def _autotune(self, arguments):
         """Use auto-tuning on this StencilKernel to determine empirically the
@@ -408,6 +430,38 @@ class StencilKernel(Function):
                 for v in self.parameters]
 
 
+# Helpers for performance tracking
+
+"""
+A helper to return structured performance data.
+"""
+PerfEntry = namedtuple('PerfEntry', 'time gflopss oi itershape datashape')
+
+
+class PerformanceSummary(OrderedDict):
+
+    """
+    A special dictionary to track and view performance data.
+    """
+
+    def setsection(self, key, time, gflopss, oi, itershape, datashape):
+        self[key] = PerfEntry(time, gflopss, oi, itershape, datashape)
+
+    @property
+    def gflopss(self):
+        return OrderedDict([(k, v.gflopss) for k, v in self.items()])
+
+    @property
+    def oi(self):
+        return OrderedDict([(k, v.oi) for k, v in self.items()])
+
+    @property
+    def timings(self):
+        return OrderedDict([(k, v.time) for k, v in self.items()])
+
+
+# StencilKernel options and name conventions
+
 """
 A dict of standard names to be used for code generation
 """
@@ -429,6 +483,8 @@ A helper to track profiled sections of code.
 """
 Profile = namedtuple('Profile', 'timer ops memory')
 
+
+# Helpers to use a StencilKernel
 
 def set_dle_mode(mode, compiler):
     """
