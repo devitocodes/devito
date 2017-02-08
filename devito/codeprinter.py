@@ -59,18 +59,6 @@ class CodePrinter(CCodePrinter):
         result = '%'.join(args)
         return result
 
-    def _print_NaturalMod(self, expr):
-        """Print mod using % operator in C++, ensuring the result is a natural
-        number (ie, greater than 0)
-
-        :param expr: The expression in which a C++ % operator is inserted
-        :returns: The resulting code as a string
-        """
-        mod = self._print_Mod(expr)
-
-        result = '((%s == 1) ? 1 : (%s))' % (expr.args[1], mod)
-        return result
-
     def _print_Float(self, expr):
         """Always printing floating point numbers in scientific notation
 

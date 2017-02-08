@@ -12,7 +12,7 @@ import cgen as c
 from devito.dimension import Dimension
 from devito.dle.inspection import retrieve_iteration_tree
 from devito.dle.manipulation import compose_nodes
-from devito.dse import NaturalMod, terminals, symbolify
+from devito.dse import terminals, symbolify
 from devito.interfaces import ScalarData, SymbolicData
 from devito.logger import dle, dle_warning
 from devito.nodes import Block, Denormals, Element, Expression, Function, Iteration, List
@@ -439,7 +439,7 @@ class Rewriter(object):
                     iter_size = i.dim.size or i.dim.symbolic_size
                     start = i.limits[0] - i.offsets[0]
                     finish = iter_size - i.offsets[1]
-                    finish = finish - NaturalMod(finish - i.offsets[1], block_size)
+                    finish = finish - ((finish - i.offsets[1]) % block_size)
                     inter_block = Iteration([], dim, [start, finish, block_size],
                                             properties=('parallel', 'blocked'))
 
