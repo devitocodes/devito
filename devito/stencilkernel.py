@@ -253,7 +253,7 @@ class StencilKernel(Function):
         mapper = OrderedDict([(i.argument.name, i) for i in self._dle_state.arguments])
         blocksizes = [OrderedDict([(i, v) for i in mapper])
                       for v in options['at_blocksize']]
-        blocksizes += [OrderedDict([(k, v.min_value) for k, v in mapper.items()])]
+        blocksizes += [OrderedDict([(k, 1) for k, v in mapper.items()])]
 
         # Note: there is only a single loop over 'blocksize' because only
         # square blocks are tested
@@ -263,8 +263,8 @@ class StencilKernel(Function):
             for k, v in at_arguments.items():
                 if k in blocksize:
                     val = blocksize[k]
-                    if val <= at_arguments.get(mapper[k].original_dim.name,
-                                               mapper[k].max_value):
+                    handle = at_arguments.get(mapper[k].original_dim.name)
+                    if val <= mapper[k].iteration.end(handle):
                         at_arguments[k] = val
                     else:
                         # Block size cannot be larger than actual dimension
