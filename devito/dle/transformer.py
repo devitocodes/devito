@@ -179,20 +179,12 @@ class BlockingArg(Arg):
         self.iteration = iteration
 
     def __repr__(self):
-        return "DLE-BlockingArg[%s,%s,suggested=%s,maxallowed=%d]" %\
-            (self.argument, self.original_dim, self.value, self.max_value)
+        return "DLE-BlockingArg[%s,%s,suggested=%s]" %\
+            (self.argument, self.original_dim, self.value)
 
     @property
     def original_dim(self):
         return self.iteration.dim
-
-    @property
-    def max_value(self):
-        return self.iteration.extent
-
-    @property
-    def min_value(self):
-        return 1
 
 
 class Rewriter(object):
