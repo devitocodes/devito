@@ -198,14 +198,18 @@ class StencilKernel(Function):
             # Time
             elapsed = self.profiler.timings[profile.timer]
             # Flops
-            niters = reduce(operator.mul, [i.size or dim_sizes[i] for i in itspace])
-            flops = float(profile.ops*niters)
+            itershape = [i.extent(finish=dim_sizes.get(i.dim)) for i in itspace]
+            iterspace = reduce(operator.mul, itershape)
+            flops = float(profile.ops*iterspace)
             gflops = flops/10**9
             # Compulsory traffic
-            traffic = profile.memory*niters*dtype_size
+            datashape = [i.dim.size or dim_sizes[i.dim] for i in itspace]
+            dataspace = reduce(operator.mul, datashape)
+            traffic = profile.memory*dataspace*dtype_size
 
-            info("Section %s with OI=%.2f computed in %.2f s [Perf: %.2f GFlops/s]" %
-                 (str(itspace), flops/traffic, elapsed, gflops/elapsed))
+            name = '<%s>' % ','.join('%d' % i for i in itershape)
+            info("Section %s with OI=%.2f computed in %.3f s [Perf: %.2f GFlops/s]" %
+                 (name, flops/traffic, elapsed, gflops/elapsed))
         info("="*79)
 
     def _profile_sections(self, nodes):
@@ -224,9 +228,8 @@ class StencilKernel(Function):
 
                         # Estimate computational properties of the timed section
                         # (operational intensity, memory accesses)
-                        k = tuple(k.dim for k in itspace)
                         v = EstimateCost().visit(j)
-                        self.sections[k] = Profile(lname, v.ops, v.mem)
+                        self.sections[itspace] = Profile(lname, v.ops, v.mem)
                         break
         processed = [Transformer(mapper).visit(Block(body=nodes))]
         return processed
