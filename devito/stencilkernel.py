@@ -261,14 +261,12 @@ class StencilKernel(Function):
         # square blocks are tested
         timings = OrderedDict()
         for i in options['at_blocksize']:
-            illegal = False
             for k, v in at_arguments.items():
                 if k in at_mapper:
                     if i < at_arguments[at_mapper[k]]:
                         at_arguments[k] = i
                     else:
                         # Block size cannot be larger than actual dimension
-                        illegal = True
                         break
                 elif k in squeezable:
                     at_arguments[k] = options['at_squeezer']
