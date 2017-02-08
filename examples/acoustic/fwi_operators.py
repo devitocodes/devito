@@ -71,7 +71,7 @@ def ForwardOperator(model, u, src, rec, damp, data, time_order=2, spc_order=6,
     else:
         # Create stencil expressions for operator, source and receivers
         eqn = Eq(u.forward, stencil)
-        src_add = src.point2grid(u, m, t)
+        src_add = src.point2grid(u, m, u_t=t, p_t=time)
         rec_read = Eq(rec, rec.grid2point(u))
         stencils = [eqn] + src_add + [rec_read]
 
@@ -237,7 +237,7 @@ class GradientOperator(Operator):
         # Insert receiver term post-hoc
         self.input_params += [grad, rec, rec.coordinates]
         self.output_params = [grad]
-        self.propagator.time_loop_stencils_b = rec.add(m, v, t + 1)
+        self.propagator.time_loop_stencils_b = rec.add(m, v, u_t=t + 1, p_t=t + 1)
         self.propagator.add_devito_param(rec)
         self.propagator.add_devito_param(rec.coordinates)
 
@@ -319,7 +319,7 @@ class BornOperator(Operator):
         # Insert source and receiver terms post-hoc
         self.input_params += [dm, source, source.coordinates, rec, rec.coordinates, U]
         self.output_params = [rec]
-        self.propagator.time_loop_stencils_b = source.add(m, u, t - 1)
+        self.propagator.time_loop_stencils_b = source.add(m, u, u_t=t - 1, p_t=t - 1)
         self.propagator.time_loop_stencils_a = rec.read(U)
         self.propagator.add_devito_param(dm)
         self.propagator.add_devito_param(source)
