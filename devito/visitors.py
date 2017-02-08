@@ -441,14 +441,17 @@ class ResolveIterationVariable(Transformer):
           int t1 = (t + 1) % 2;
     """
 
-    def visit_Iteration(self, o, subs={}, offsets=defaultdict(set)):
-        nodes = self.visit(o.children, subs=subs, offsets=offsets)
+    def visit_Iteration(self, o, subs={}, offsets=defaultdict(set),
+                        variable_map=defaultdict(int)):
+        nodes = self.visit(o.children, subs=subs, offsets=offsets,
+                           variable_map=variable_map)
         if o.dim.is_Buffered:
             # For buffered dimensions insert the explicit
             # definition of buffere variables, eg. t+1 => t1
             init = []
             for off in filter_ordered(offsets[o.dim]):
-                vname = o.dim.get_varname()
+                vname = "%s%d" % (o.dim.name, variable_map[o.dim])
+                variable_map[o.dim] += 1  # Increase variable count
                 value = o.dim.parent + off
                 modulo = o.dim.modulo
                 init += [c.Initializer(c.Value('int', vname),
@@ -460,11 +463,13 @@ class ResolveIterationVariable(Transformer):
             newnodes = (List(header=init, body=nodes[0]), )
             return o._rebuild(newnodes, index=o.dim.parent.name)
         else:
-            vname = o.dim.get_varname()
+            vname = "%s%d" % (o.dim.name, variable_map[o.dim])
+            variable_map[o.dim] += 1  # Increase variable count
             subs[o.dim] = Symbol(vname)
             return o._rebuild(*nodes, index=vname)
 
-    def visit_Expression(self, o, subs={}, offsets=defaultdict(set)):
+    def visit_Expression(self, o, subs={}, offsets=defaultdict(set),
+                         variable_map=defaultdict(int)):
         """Collect all offsets used with a dimension"""
         for dim, offs in o.index_offsets.items():
             offsets[dim].update(offs)
