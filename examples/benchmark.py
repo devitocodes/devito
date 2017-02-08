@@ -180,7 +180,7 @@ if __name__ == "__main__":
         bench = Benchmark(
             name=args.problem, resultsdir=args.resultsdir, parameters=parameters
         )
-        bench.execute(BenchExecutor(), warmups=0)
+        bench.execute(BenchExecutor(), warmups=0, repeats=1)
         bench.save()
 
     elif args.execmode == "plot":
@@ -192,9 +192,9 @@ if __name__ == "__main__":
             warning("Could not load any results, nothing to plot. Exiting...")
             sys.exit(0)
 
-        gflopss = bench.lookup(params=parameters, measure="gflopss", event="loop_body")
-        oi = bench.lookup(params=parameters, measure="oi", event="loop_body")
-        time = bench.lookup(params=parameters, measure="timings", event="loop_body")
+        gflopss = bench.lookup(params=parameters, measure="gflopss", event="main")
+        oi = bench.lookup(params=parameters, measure="oi", event="main")
+        time = bench.lookup(params=parameters, measure="timings", event="main")
 
         name = "%s_dim%s_so%s_to%s_arch[%s].pdf" % (args.problem,
                                                     parameters["dimensions"],
@@ -239,9 +239,9 @@ if __name__ == "__main__":
                 run = (key["dse"], key["dle"])
                 label = "<%s,%s>" % run
                 oi_annotate = {'s': 'SO=%s' % key["space_order"],
-                               'size': 6, 'xy': (oi_value, 0.09)} if run[0] else None
+                               'size': 5, 'xy': (oi_value, 0.06)} if run[0] else None
                 point_annotate = {'s': "%.1f s" % time_value,
-                                  'xytext': (-22, 18), 'size': 6,
+                                  'xytext': (-14, 11.5), 'size': 4.5,
                                   'weight': 'bold'} if args.point_runtime else None
                 plot.add_point(gflops=gflopss, oi=oi_value, style=styles[run],
                                oi_line=run[0], label=label, oi_annotate=oi_annotate,
