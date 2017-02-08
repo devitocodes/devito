@@ -147,6 +147,7 @@ if __name__ == "__main__":
                                  "speculative"]
 
     if args.execmode == "test":
+        parameters.pop('dle')  # FIXME : 'dle' still unsupported, but not for long
         values_sweep = [v if isinstance(v, list) else [v] for v in parameters.values()]
         params_sweep = [dict(zip(parameters.keys(), values))
                         for values in product(*values_sweep)]
