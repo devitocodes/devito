@@ -8,6 +8,7 @@ from sympy import Eq
 
 from devito.dimension import Dimension
 from devito.dle import transform
+from devito.dle.transformer import Rewriter
 from devito.interfaces import DenseData, TimeData
 from devito.nodes import Expression, Function, Iteration, List
 from devito.stencilkernel import StencilKernel
@@ -124,6 +125,8 @@ def _new_operator2(shape, time_order, **kwargs):
 
 
 def test_create_elemental_functions_simple(simple_function):
+    old = Rewriter.thresholds['elemental-functions']
+    Rewriter.thresholds['elemental-functions'] = 0
     handle = transform(simple_function, mode=('split',))
     block = List(body=handle.nodes + handle.elemental_functions)
     assert str(block.ccode) == \
@@ -154,9 +157,12 @@ void f_0_0(float *a_vec, float *b_vec, float *c_vec, float *d_vec,"""
     a[i0] = -a[i0]*c[i0][j0] + b[i0]*d[i0][j0][k0];
   }
 }""")
+    Rewriter.thresholds['elemental-functions'] = old
 
 
 def test_create_elemental_functions_complex(complex_function):
+    old = Rewriter.thresholds['elemental-functions']
+    Rewriter.thresholds['elemental-functions'] = 0
     handle = transform(complex_function, mode=('split',))
     block = List(body=handle.nodes + handle.elemental_functions)
     assert str(block.ccode) == \
@@ -207,6 +213,7 @@ void f_0_2(float *a_vec, float *b_vec, const int i1)
     a[i1] = 8.0F*a[i1] + 6.0F/b[i1];
   }
 }""")
+    Rewriter.thresholds['elemental-functions'] = old
 
 
 # Loop blocking tests
