@@ -331,9 +331,41 @@ class Iteration(Node):
     def is_Closed(self):
         return not self.is_Open
 
-    @property
-    def extent(self):
-        return (self.limits[1] - self.offsets[1]) - (self.limits[0] - self.offsets[0])
+    def _bounds(self, start=None, finish=None):
+        """Return the start and end points of the Iteration if the limits are
+        available (either statically known or provided through ``start``/
+        ``finish``). ``None`` is used as a placeholder in the returned 2-tuple
+        if a limit is unknown."""
+        try:
+            start = int(self.limits[0]) - self.offsets[0]
+        except (TypeError, ValueError):
+            if not start:
+                start = None
+        try:
+            finish = int(self.limits[1]) - self.offsets[1]
+        except (TypeError, ValueError):
+            if not finish:
+                finish = None
+        return (start, finish)
+
+    def extent(self, start=None, finish=None):
+        """Return the number of iterations executed if the limits are known,
+        ``None`` otherwise."""
+        start, finish = self._bounds(start, finish)
+        try:
+            return finish - start
+        except TypeError:
+            return None
+
+    def start(self, start=None):
+        """Return the start point of the Iteration if the lower limit is known,
+        ``None`` otherwise."""
+        return self._bounds(start)[0]
+
+    def end(self, finish=None):
+        """Return the end point of the Iteration if the upper limit is known,
+        ``None`` otherwise."""
+        return self._bounds(finish=finish)[1]
 
     @property
     def children(self):
