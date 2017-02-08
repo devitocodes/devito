@@ -94,8 +94,13 @@ class StencilKernel(Function):
         dle_state = transform(nodes, mode=set_dle_mode(dle, self.compiler),
                               compiler=self.compiler)
         body = dle_state.nodes
-        parameters = FindSymbols().visit(nodes)
+        parameters = FindSymbols('with-data').visit(nodes)
         parameters += [i.argument for i in dle_state.arguments]
+        # Add all dimensions used in expressions symbols to arguments.
+        # This is required to ensure that we can safely perform data casts.
+        dimensions = FindSymbols('dimensions').visit(nodes)
+        parameters += filter_ordered([d for d in dimensions if d.size is None],
+                                     key=operator.attrgetter('name'))
         super(StencilKernel, self).__init__(name, body, 'int', parameters, ())
 
         # DLE might have introduced additional headers
@@ -133,15 +138,7 @@ class StencilKernel(Function):
             for i, dim in enumerate(f.indices):
                 # Infer open loop limits
                 if dim.size is None:
-                    if isinstance(dim, BufferedDimension):
-                        # Check if provided as a keyword arg
-                        size = kwargs.get(dim.name, None)
-                        if size is None:
-                            error("Unknown dimension size, please provide "
-                                  "size via Kernel.apply(%s=<size>)" % dim.name)
-                            raise RuntimeError('Dimension of unspecified size')
-                        dim_sizes[dim] = size
-                    elif dim in dim_sizes:
+                    if dim in dim_sizes:
                         # Ensure size matches previously defined size
                         assert dim_sizes[dim] == data.shape[i]
                     else:

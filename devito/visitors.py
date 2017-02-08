@@ -14,7 +14,7 @@ import cgen as c
 from sympy import Symbol
 
 from devito.dse import estimate_cost, estimate_memory
-from devito.nodes import Iteration, IterationBound, List
+from devito.nodes import Iteration, List
 from devito.tools import as_tuple, filter_ordered, filter_sorted, flatten
 
 
@@ -275,7 +275,8 @@ class FindSymbols(Visitor):
 
     rules = {
         'with-data': lambda e: e.functions,
-        'free-symbols': lambda e: e.stencil.free_symbols
+        'free-symbols': lambda e: e.stencil.free_symbols,
+        'dimensions': lambda e: e.dimensions,
     }
 
     def __init__(self, mode='with-data'):
@@ -288,8 +289,6 @@ class FindSymbols(Visitor):
 
     def visit_Iteration(self, o):
         symbols = flatten([self.visit(i) for i in o.children])
-        if isinstance(o.limits[1], IterationBound):
-            symbols += [o.dim]
         return filter_sorted(symbols, key=attrgetter('name'))
 
     def visit_Expression(self, o):

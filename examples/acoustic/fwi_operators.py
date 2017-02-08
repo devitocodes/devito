@@ -1,6 +1,6 @@
 from sympy import Eq, solve, symbols
 
-from devito.dimension import d, t, time
+from devito.dimension import t, time
 from devito.interfaces import DenseData, TimeData
 from devito.operator import *
 from devito.stencilkernel import StencilKernel
@@ -47,12 +47,6 @@ def ForwardOperator(model, u, src, rec, damp, data, time_order=2, spc_order=6,
         2 * s**2 * (laplacian + s**2 / 12 * biharmonic))
     # Add substitutions for spacing (temporal and spatial)
     subs = {s: dt, h: model.get_spacing()}
-
-    # Define dimensions and fix loop sizes
-    time.size = nt
-    d.size = len(damp.shape)
-    for dim, s in zip(damp.indices, damp.shape):
-        dim.size = s
 
     if legacy:
         op = Operator(nt, m.shape, stencils=Eq(u.forward, stencil), subs=subs,
