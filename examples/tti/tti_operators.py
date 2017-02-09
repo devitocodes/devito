@@ -2,9 +2,8 @@ from sympy import *
 
 from devito.dimension import x, y, z
 from devito.finite_difference import centered, first_derivative, left
-from devito.interfaces import DenseData, TimeData
+from devito.interfaces import DenseData
 from devito.operator import Operator
-from examples.source_type import SourceLike
 
 
 class ForwardOperator(Operator):
@@ -19,29 +18,11 @@ class ForwardOperator(Operator):
     :param: spc_order: Space discretization order
     :param: u_ini : wavefield at the three first time step for non-zero initial condition
     """
-    def __init__(self, model, src, damp, data, time_order=2, spc_order=4,
+    def __init__(self, model, u, v, src, rec, damp, data, time_order=2, spc_order=4,
                  save=False, u_ini=None, **kwargs):
         nt, nrec = data.shape
         nt, nsrc = src.shape
         dt = model.get_critical_dt()
-        # uses space_order/2 for the first derivatives to
-        # have spc_order second derivatives for consistency
-        # with the acoustic kernel
-        u = TimeData(name="u", shape=model.get_shape_comp(),
-                     time_dim=nt, time_order=time_order,
-                     space_order=spc_order/2,
-                     save=save, dtype=damp.dtype)
-        v = TimeData(name="v", shape=model.get_shape_comp(),
-                     time_dim=nt, time_order=time_order,
-                     space_order=spc_order/2,
-                     save=save, dtype=damp.dtype)
-
-        u.pad_time = save
-        v.pad_time = save
-
-        if u_ini is not None:
-            u.data[0:3, :] = u_ini[:]
-            v.data[0:3, :] = u_ini[:]
 
         m = DenseData(name="m", shape=model.get_shape_comp(),
                       dtype=damp.dtype, space_order=spc_order)
@@ -80,19 +61,6 @@ class ForwardOperator(Operator):
             parm += [phi]
         else:
             phi = 0
-
-        rec = SourceLike(name="rec", npoint=nrec, nt=nt, dt=dt,
-                         h=model.get_spacing(),
-                         coordinates=data.receiver_coords,
-                         ndim=len(damp.shape),
-                         dtype=damp.dtype,
-                         nbpml=model.nbpml)
-        source = SourceLike(name="src", npoint=nsrc, nt=nt,
-                            dt=dt, h=model.get_spacing(),
-                            coordinates=src.receiver_coords,
-                            ndim=len(damp.shape),
-                            dtype=damp.dtype, nbpml=model.nbpml)
-        source.data[:] = .5*src.traces[:]
 
         s, h = symbols('s h')
 
@@ -195,11 +163,11 @@ class ForwardOperator(Operator):
                                               **kwargs)
 
         # Insert source and receiver terms post-hoc
-        self.input_params += [source, source.coordinates, rec, rec.coordinates]
+        self.input_params += [src, src.coordinates, rec, rec.coordinates]
         self.output_params += [v, rec]
-        self.propagator.time_loop_stencils_a = (source.add(m, u) + source.add(m, v) +
+        self.propagator.time_loop_stencils_a = (src.add(m, u) + src.add(m, v) +
                                                 rec.read2(u, v))
-        self.propagator.add_devito_param(source)
-        self.propagator.add_devito_param(source.coordinates)
+        self.propagator.add_devito_param(src)
+        self.propagator.add_devito_param(src.coordinates)
         self.propagator.add_devito_param(rec)
         self.propagator.add_devito_param(rec.coordinates)
