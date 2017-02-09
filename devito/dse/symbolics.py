@@ -131,6 +131,10 @@ class State(object):
     def memory(self):
         return self.memory_time_invariants + self.memory_time_varying
 
+    @property
+    def output_fields(self):
+        return [i.lhs for i in self.exprs if isinstance(i.lhs, Indexed)]
+
 
 class Rewriter(object):
 

@@ -28,16 +28,30 @@ def transform(node, mode='basic', compiler=None):
     :param node: The Iteration/Expression tree to be transformed, or an iterable
                  of Iteration/Expression trees.
     :param mode: Drive the tree transformation. ``mode`` can be a string indicating
-                 a pre-established optimization sequence [S] or a tuple of individual
-                 transformations [T]; in the latter case, the individual transformations
-                 are composed. Available modes are: ::
+                 a pre-established optimization sequence or a tuple of individual
+                 transformations; in the latter case, the specified transformations
+                 are composed. We use the following convention: ::
 
-                    * 'noop': Do nothing [S]
-                    * 'advanced': Add code to avoid denormal numbers, split elemental
-                                  functions, apply loop blocking [S]
-                    * 'blocking': Apply loop blocking [T]
-                    * 'split': Identify and split elemental functions [T]
-                    * 'simd': Add pragmas to trigger compiler auto-vectorization [T]
+                    * [S]: a pre-defined sequence of transformations.
+                    * [T]: a single transformation.
+                    * [sT]: a single "speculative" transformation; that is, a
+                            transformation that might increase, or even decrease,
+                            performance.
+
+                 The keywords usable in/as ``mode`` are: ::
+
+                    * 'noop': Do nothing -- [S]
+                    * 'basic': Apply all of the available legal transformations
+                               that are most likely to increase performance (ie, all
+                               [T] listed below), except for loop blocking -- [S]
+                    * 'advanced': Like 'basic', but also switches on loop blocking -- [S]
+                    * 'speculative': Apply all of the 'advanced' transformations,
+                                     plus other transformations that might increase
+                                     (or possibly decrease) performance -- [S]
+                    * 'blocking': Apply loop blocking -- [T]
+                    * 'split': Identify and split elemental functions -- [T]
+                    * 'simd': Add pragmas to trigger compiler auto-vectorization -- [T]
+                    * 'ntstores': Add pragmas to issue nontemporal stores -- [sT]
 
                  If ``mode`` is a tuple, the last entry may be used to provide optional
                  arguments to the DLE transformations. Accepted key-value pairs are: ::
@@ -86,7 +100,8 @@ def transform(node, mode='basic', compiler=None):
     mode = set(mode)
     if params.pop('openmp', False):
         mode |= {'openmp'}
-    if mode.isdisjoint({'noop', 'blocking', 'split', 'simd', 'advanced', 'openmp'}):
+    if mode.isdisjoint({'noop', 'basic', 'advanced', 'speculative',
+                        'blocking', 'split', 'simd', 'openmp', 'ntstores'}):
         dle_warning("Unknown transformer mode(s) %s" % str(mode))
         return State(node)
     else:
@@ -116,14 +131,21 @@ class State(object):
         self.elemental_functions = ()
         self.arguments = ()
         self.includes = ()
+        self.flags = ()
 
     def update(self, nodes=None, elemental_functions=None, arguments=None,
-               includes=None):
+               includes=None, flags=None):
         self.nodes = as_tuple(nodes) or self.nodes
         self.elemental_functions = as_tuple(elemental_functions) or\
             self.elemental_functions
         self.arguments += as_tuple(arguments)
         self.includes += as_tuple(includes)
+        self.flags += as_tuple(flags)
+
+    @property
+    def _has_ntstores(self):
+        """True if nontemporal stores will be generated, False otherwise."""
+        return 'ntstores' in self.flags
 
 
 class Arg(object):
@@ -167,10 +189,11 @@ class Rewriter(object):
     Track what options trigger a given transformation.
     """
     triggers = {
-        '_avoid_denormals': ('advanced',),
-        '_create_elemental_functions': ('split', 'advanced',),
-        '_loop_blocking': ('blocking', 'advanced'),
-        '_simdize': ('simd', 'advanced'),
+        '_avoid_denormals': ('basic', 'advanced', 'speculative'),
+        '_create_elemental_functions': ('split', 'basic', 'advanced', 'speculative'),
+        '_loop_blocking': ('blocking', 'advanced', 'speculative'),
+        '_simdize': ('simd', 'basic', 'advanced', 'speculative'),
+        '_nontemporal_stores': ('ntstores', 'speculative'),
         '_ompize': ('openmp',)
     }
 
@@ -197,6 +220,7 @@ class Rewriter(object):
         self._create_elemental_functions(state, mode=mode)
         self._loop_blocking(state, mode=mode)
         self._simdize(state, mode=mode)
+        self._nontemporal_stores(state, mode=mode)
         self._ompize(state, mode=mode)
 
         self._summary(mode)
@@ -255,7 +279,12 @@ class Rewriter(object):
                     is_OSIP = True
                     break
 
-            # Track parallelism in the Iteration/Expression tree
+            # Track the discovered properties in the Iteration/Expression tree
+            if is_OSIP:
+                args = tree[0].args
+                properties = as_tuple(args.pop('properties')) + ('sequential',)
+                mapper = {tree[0]: Iteration(properties=properties, **args)}
+                nodes = Transformer(mapper).visit(nodes)
             mapper = {i: ('parallel',) for i in tree[is_OSIP:-1]}
             mapper[tree[-1]] = ('vector-dim',)
             for i in tree[is_OSIP:]:
@@ -546,6 +575,42 @@ class Rewriter(object):
         return {'nodes': decorate(state.nodes),
                 'elemental_functions': decorate(state.elemental_functions)}
 
+    @dle_transformation
+    def _nontemporal_stores(self, state, **kwargs):
+        """
+        Add compiler-specific pragmas and instructions to generate nontemporal
+        stores (ie, non-cached stores).
+        """
+        if self.compiler:
+            key = self.compiler.__class__.__name__
+            complang = complang_ALL.get(key, {})
+        else:
+            complang = {}
+
+        pragma = complang.get('ntstores')
+        fence = complang.get('storefence')
+        if not pragma or not fence:
+            return {}
+
+        def decorate(nodes):
+            processed = []
+            for node in nodes:
+                mapper = {}
+                for tree in retrieve_iteration_tree(node):
+                    fenced = False
+                    for i in tree:
+                        if not fenced and 'parallel' in i.properties:
+                            mapper[i] = List(body=i, footer=fence)
+                            fenced = True
+                        if 'vector-dim' in i.properties:
+                            mapper[i] = List(header=pragma, body=i)
+                processed.append(Transformer(mapper).visit(node))
+            return processed
+
+        return {'nodes': decorate(state.nodes),
+                'elemental_functions': decorate(state.elemental_functions),
+                'flags': 'ntstores'}
+
     def _summary(self, mode):
         """
         Print a summary of the DLE transformations
@@ -573,5 +638,7 @@ omplang = {
 Compiler-specific language
 """
 complang_ALL = {
-    'IntelCompiler': {'ignore-deps': c.Pragma('ivdep')}
+    'IntelCompiler': {'ignore-deps': c.Pragma('ivdep'),
+                      'ntstores': c.Pragma('vector nontemporal'),
+                      'storefence': c.Statement('_mm_sfence()')}
 }
