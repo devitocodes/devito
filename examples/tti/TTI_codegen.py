@@ -48,11 +48,6 @@ class TTI_cg:
         # Initialize damp by calling the function that can precompute damping
         damp_boundary(self.damp.data, nbpml)
 
-        if len(self.damp.shape) == 2 and self.src.receiver_coords.shape[1] == 3:
-            self.src.receiver_coords = np.delete(self.src.receiver_coords, 1, 1)
-        if len(self.damp.shape) == 2 and self.data.receiver_coords.shape[1] == 3:
-            self.data.receiver_coords = np.delete(self.data.receiver_coords, 1, 1)
-
     def Forward(self, save=False, dse='advanced', auto_tuning=False,
                 cache_blocking=None, compiler=None, u_ini=None):
         fw = ForwardOperator(self.model, self.src, self.damp, self.data,
