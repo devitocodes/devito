@@ -629,7 +629,7 @@ class Rewriter(object):
         Print a summary of the DLE transformations
         """
 
-        if mode.intersection({'blocking', 'advanced'}):
+        if mode.intersection({'blocking', 'basic', 'advanced', 'speculative'}):
             steps = " --> ".join("(%s)" % i for i in self.timings.keys())
             elapsed = sum(self.timings.values())
             dle("%s [%.2f s]" % (steps, elapsed))
