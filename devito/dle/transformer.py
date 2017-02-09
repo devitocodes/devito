@@ -143,9 +143,14 @@ class State(object):
         self.flags += as_tuple(flags)
 
     @property
-    def _has_ntstores(self):
+    def _applied_nontemporal_stores(self):
         """True if nontemporal stores will be generated, False otherwise."""
         return 'ntstores' in self.flags
+
+    @property
+    def _applied_blocking(self):
+        """True if loop blocking was applied, False otherwise."""
+        return 'blocking' in self.flags
 
 
 class Arg(object):
@@ -511,7 +516,7 @@ class Rewriter(object):
         # Track any additional arguments required to execute /state.nodes/
         arguments = [BlockingArg(v, k, blockshape[k]) for k, v in blocked.items()]
 
-        return {'nodes': processed, 'arguments': arguments}
+        return {'nodes': processed, 'arguments': arguments, 'flags': 'blocking'}
 
     @dle_transformation
     def _ompize(self, state, **kwargs):

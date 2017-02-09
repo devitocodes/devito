@@ -264,6 +264,8 @@ class StencilKernel(Function):
         best block sizes (when loop blocking is in use). The block sizes tested
         are those listed in ``options['at_blocksizes']``, plus the case that is
         as if blocking were not applied (ie, unitary block size)."""
+        if not self._dle_state._applied_blocking:
+            return
 
         at_arguments = arguments.copy()
 
