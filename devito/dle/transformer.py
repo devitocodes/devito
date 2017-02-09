@@ -5,6 +5,7 @@ from itertools import combinations
 from time import time
 
 import numpy as np
+import psutil
 
 import cgen as c
 
@@ -14,12 +15,13 @@ from devito.dle.manipulation import compose_nodes
 from devito.dse import terminals
 from devito.interfaces import ScalarData, SymbolicData
 from devito.logger import dle, dle_warning
-from devito.nodes import Element, Function, Iteration, List
+from devito.nodes import Denormals, Element, Function, Iteration, List
 from devito.tools import as_tuple, flatten
-from devito.visitors import FindSections, FindSymbols, IsPerfectIteration, Transformer
+from devito.visitors import (FindNodeType, FindSections, FindSymbols,
+                             IsPerfectIteration, Transformer)
 
 
-def transform(node, mode='basic'):
+def transform(node, mode='basic', compiler=None):
     """
     Transform Iteration/Expression trees to generate highly optimized C code.
 
@@ -31,9 +33,11 @@ def transform(node, mode='basic'):
                  are composed. Available modes are: ::
 
                     * 'noop': Do nothing [S]
-                    * 'advanced': Split elemental functions and apply loop blocking [S]
+                    * 'advanced': Add code to avoid denormal numbers, split elemental
+                                  functions, apply loop blocking [S]
                     * 'blocking': Apply loop blocking [T]
                     * 'split': Identify and split elemental functions [T]
+                    * 'simd': Add pragmas to trigger compiler auto-vectorization [T]
 
                  If ``mode`` is a tuple, the last entry may be used to provide optional
                  arguments to the DLE transformations. Accepted key-value pairs are: ::
@@ -45,6 +49,9 @@ def transform(node, mode='basic'):
                                     to maximize the chances of SIMD vectorization. To
                                     force the blocking of this loop, the ``blockinner``
                                     flag should be set to True.
+                    * 'openmp': True to emit OpenMP code, False otherwise.
+    :param compiler: Compiler class used to perform JIT compilation. Useful to
+                     introduce compiler-specific vectorization pragmas.
     """
 
     if isinstance(node, Sequence):
@@ -72,18 +79,18 @@ def transform(node, mode='basic'):
     if isinstance(mode[-1], dict):
         params = mode.pop(-1)
     for k in params.keys():
-        if k not in ('blockshape', 'blockinner'):
+        if k not in ('blockshape', 'blockinner', 'openmp'):
             dle_warning("Illegal DLE parameter '%s'" % str(k))
             params.pop(k)
 
     mode = set(mode)
-    if mode.isdisjoint({'noop', 'blocking', 'split', 'advanced'}):
+    if params.pop('openmp', False):
+        mode |= {'openmp'}
+    if mode.isdisjoint({'noop', 'blocking', 'split', 'simd', 'advanced', 'openmp'}):
         dle_warning("Unknown transformer mode(s) %s" % str(mode))
         return State(node)
     else:
-        return Rewriter(node, params).run(mode)
-
-    return Rewriter(node).run(mode)
+        return Rewriter(node, params, compiler).run(mode)
 
 
 def dle_transformation(func):
@@ -94,8 +101,7 @@ def dle_transformation(func):
             state.update(**func(self, state))
             toc = time()
 
-            key = '%s%d' % (func.__name__, len(self.timings))
-            self.timings[key] = toc - tic
+            self.timings[func.__name__] = toc - tic
 
     return wrapper
 
@@ -109,12 +115,15 @@ class State(object):
 
         self.elemental_functions = ()
         self.arguments = ()
+        self.includes = ()
 
-    def update(self, nodes=None, elemental_functions=None, arguments=None):
+    def update(self, nodes=None, elemental_functions=None, arguments=None,
+               includes=None):
         self.nodes = as_tuple(nodes) or self.nodes
         self.elemental_functions = as_tuple(elemental_functions) or\
             self.elemental_functions
         self.arguments += as_tuple(arguments)
+        self.includes += as_tuple(includes)
 
 
 class Arg(object):
@@ -154,14 +163,28 @@ class BlockingArg(Arg):
 
 class Rewriter(object):
 
+    """
+    Track what options trigger a given transformation.
+    """
     triggers = {
+        '_avoid_denormals': ('advanced',),
         '_create_elemental_functions': ('split', 'advanced',),
-        '_loop_blocking': ('blocking', 'advanced')
+        '_loop_blocking': ('blocking', 'advanced'),
+        '_simdize': ('simd', 'advanced'),
+        '_ompize': ('openmp',)
     }
 
-    def __init__(self, nodes, params):
+    """
+    Bag of thresholds, to be used to trigger or prevent certain transformations.
+    """
+    thresholds = {
+        'collapse': 32
+    }
+
+    def __init__(self, nodes, params, compiler):
         self.nodes = nodes
         self.params = params
+        self.compiler = compiler
 
         self.timings = OrderedDict()
 
@@ -170,8 +193,11 @@ class Rewriter(object):
 
         self._analyze_and_decorate(state)
 
+        self._avoid_denormals(state, mode=mode)
         self._create_elemental_functions(state, mode=mode)
         self._loop_blocking(state, mode=mode)
+        self._simdize(state, mode=mode)
+        self._ompize(state, mode=mode)
 
         self._summary(mode)
 
@@ -230,13 +256,26 @@ class Rewriter(object):
                     break
 
             # Track parallelism in the Iteration/Expression tree
+            mapper = {i: ('parallel',) for i in tree[is_OSIP:-1]}
+            mapper[tree[-1]] = ('vector-dim',)
             for i in tree[is_OSIP:]:
                 args = i.args
-                properties = as_tuple(args.pop('properties')) + ('parallel',)
-                transformer = Transformer({i: Iteration(properties=properties, **args)})
-                nodes = transformer.visit(nodes)
+                properties = as_tuple(args.pop('properties')) + mapper[i]
+                propertized = Iteration(properties=properties, **args)
+                nodes = Transformer({i: propertized}).visit(nodes)
 
         state.update(nodes=nodes)
+
+    @dle_transformation
+    def _avoid_denormals(self, state, **kwargs):
+        """
+        Introduce nodes in the Iteration/Expression tree that will generate macros
+        to avoid computing with denormal numbers. These are normally flushed away
+        when using SSE-like instruction sets in a complete C program, but when
+        compiling shared objects specific instructions must instead be inserted.
+        """
+        return {'nodes': (Denormals(),) + state.nodes,
+                'includes': ('xmmintrin.h', 'pmmintrin.h')}
 
     @dle_transformation
     def _create_elemental_functions(self, state, **kwargs):
@@ -358,7 +397,8 @@ class Rewriter(object):
 
                     start = i.limits[0] - i.offsets[0]
                     finish = iter_size - ((iter_size - i.offsets[1]) % block_size)
-                    inter_block = Iteration([], dim, [start, finish, block_size])
+                    inter_block = Iteration([], dim, [start, finish, block_size],
+                                            properties=('parallel', 'blocked'))
 
                     # Build Iteration within a block
                     dim = dims.setdefault((i.dim, 'intra-block'),
@@ -366,7 +406,8 @@ class Rewriter(object):
 
                     start = inter_block.dim
                     finish = start + block_size
-                    intra_block = Iteration([], dim, [start, finish, 1], i.index)
+                    intra_block = Iteration([], dim, [start, finish, 1], i.index,
+                                            properties=('parallel',))
 
                     blocked_iterations.append((inter_block, intra_block))
 
@@ -375,14 +416,16 @@ class Rewriter(object):
                     # non-blocked ("remainder") iterations.
                     start = inter_block.limits[0]
                     finish = inter_block.limits[1]
-                    main = Iteration([], i.dim, [start, finish, 1], i.index)
+                    main = Iteration([], i.dim, [start, finish, 1], i.index,
+                                     properties=('parallel',))
 
                     # Build unitary-increment Iteration over the 'leftover' region:
                     # again as above, this may be necessary when the dimension size
                     # is not a multiple of the block size.
                     start = inter_block.limits[1]
                     finish = iter_size - i.offsets[1]
-                    leftover = Iteration([], i.dim, [start, finish, 1], i.index)
+                    leftover = Iteration([], i.dim, [start, finish, 1], i.index,
+                                         properties=('parallel',))
 
                     regions[i] = Region(main, leftover)
 
@@ -438,6 +481,71 @@ class Rewriter(object):
 
         return {'nodes': processed, 'arguments': arguments}
 
+    @dle_transformation
+    def _ompize(self, state, **kwargs):
+        """
+        Add OpenMP pragmas to the Iteration/Expression tree to emit parallel code
+        """
+
+        processed = []
+        for node in state.nodes:
+
+            # Handle denormals
+            denormals = FindNodeType(Denormals).visit(state.nodes)
+            mapper = {i: Denormals(header=omplang['par-region']) for i in denormals}
+
+            # Handle parallelizable loops
+            for tree in retrieve_iteration_tree(node):
+                # Note: a 'blocked' Iteration is guaranteed to be 'parallel' too
+                blocked = [i for i in tree if 'blocked' in i.properties]
+                parallelizable = [i for i in tree if 'parallel' in i.properties]
+                candidates = blocked or parallelizable
+                if not candidates:
+                    continue
+
+                # Heuristic: if at least two parallel loops are available and the
+                # physical core count is greater than self.thresholds['collapse'],
+                # then omp-collapse the loops
+                if psutil.cpu_count(logical=False) < self.thresholds['collapse'] or\
+                        len(candidates) < 2:
+                    n = candidates[0]
+                    mapper[n] = List(header=omplang['par-for'], body=n)
+                else:
+                    nodes = candidates[:2]
+                    mapper.update({n: List(header=omplang['par-for-collapse2'], body=n)
+                                   for n in nodes})
+
+            processed.append(Transformer(mapper).visit(node))
+
+        return {'nodes': processed}
+
+    @dle_transformation
+    def _simdize(self, state, **kwargs):
+        """
+        Add compiler-specific or, if not available, OpenMP pragmas to the
+        Iteration/Expression tree to emit SIMD-friendly code.
+        """
+        if self.compiler:
+            key = self.compiler.__class__.__name__
+            complang = complang_ALL.get(key, {})
+        else:
+            complang = {}
+
+        pragmas = [complang.get('ignore-deps', omplang['simd-for'])]
+
+        def decorate(nodes):
+            processed = []
+            for node in nodes:
+                mapper = {}
+                for tree in retrieve_iteration_tree(node):
+                    mapper.update({i: List(pragmas, i) for i in tree
+                                   if 'vector-dim' in i.properties})
+                processed.append(Transformer(mapper).visit(node))
+            return processed
+
+        return {'nodes': decorate(state.nodes),
+                'elemental_functions': decorate(state.elemental_functions)}
+
     def _summary(self, mode):
         """
         Print a summary of the DLE transformations
@@ -447,3 +555,23 @@ class Rewriter(object):
             steps = " --> ".join("(%s)" % i for i in self.timings.keys())
             elapsed = sum(self.timings.values())
             dle("%s [%.2f s]" % (steps, elapsed))
+
+
+# Utilities
+
+"""
+A dictionary to quickly access standard OpenMP pragmas
+"""
+omplang = {
+    'par-region': c.Pragma('omp parallel'),
+    'par-for': c.Pragma('omp parallel for schedule(static)'),
+    'par-for-collapse2': c.Pragma('omp parallel for collapse(2) schedule(static)'),
+    'simd-for': c.Pragma('omp simd')
+}
+
+"""
+Compiler-specific language
+"""
+complang_ALL = {
+    'IntelCompiler': {'ignore-deps': c.Pragma('ivdep')}
+}

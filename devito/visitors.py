@@ -197,8 +197,12 @@ class PrintAST(Visitor):
         self._depth += 1
         body = self.visit(o.children)
         self._depth -= 1
-        detail = '::%s::%s' % (o.index, o.limits) if self.verbose else ''
-        return self.indent + "<Iteration %s%s>\n%s" % (o.dim.name, detail, body)
+        if self.verbose:
+            detail = '::%s::%s' % (o.index, o.limits)
+            props = '[%s] ' % ','.join(o.properties) if o.properties else ''
+        else:
+            detail, props = '', ''
+        return self.indent + "<%sIteration %s%s>\n%s" % (props, o.dim.name, detail, body)
 
     def visit_Expression(self, o):
         if self.verbose:

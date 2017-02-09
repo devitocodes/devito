@@ -2,7 +2,6 @@ import ctypes
 from collections import Callable, Iterable, OrderedDict
 
 import numpy as np
-from sympy import symbols
 
 
 def as_tuple(item, type=None, length=None):
@@ -14,6 +13,8 @@ def as_tuple(item, type=None, length=None):
     # Empty list if we get passed None
     if item is None:
         t = ()
+    elif isinstance(item, str):
+        t = (item,)
     else:
         # Convert iterable to list...
         try:
@@ -65,34 +66,6 @@ def convert_dtype_to_ctype(dtype):
     return conversion_dict[dtype]
 
 
-def sympy_find(expr, term, repl):
-    """Change all terms from function notation to array notation.
-
-    Finds all terms of the form term(x1, x2, x3)
-    and changes them to repl[x1, x2, x3]. i.e. changes from
-    function notation to array notation. It also reorders the indices
-    x1, x2, x3 so that the time index comes first.
-
-    :param expr: The expression to be processed
-    :param term: The pattern to be replaced
-    :param repl: The replacing pattern
-    :returns: The changed expression
-    """
-
-    t = symbols("t")
-
-    if type(expr) == term:
-        args_wo_t = [x for x in expr.args if x != t and t not in x.args]
-        args_t = [x for x in expr.args if x == t or t in x.args]
-        expr = repl[tuple(args_t + args_wo_t)]
-
-    if hasattr(expr, "args"):
-        for a in expr.args:
-            expr = expr.subs(a, sympy_find(a, term, repl))
-
-    return expr
-
-
 def aligned(a, alignment=16):
     """Function to align the memmory
 
@@ -112,6 +85,14 @@ def aligned(a, alignment=16):
     assert (aa.ctypes.data % alignment) == 0
 
     return aa
+
+
+def pprint(node, verbose=True):
+    """
+    Shortcut to pretty print Iteration/Expression trees.
+    """
+    from devito.visitors import printAST
+    print(printAST(node, verbose))
 
 
 class DefaultOrderedDict(OrderedDict):
