@@ -74,31 +74,31 @@ def block3(exprs, iters):
 def test_printAST(block1, block2, block3):
     str1 = printAST(block1)
     assert str1 in """
-<Iteration i::i::[0, 3, 1]>
-  <Iteration j::j::[0, 5, 1]>
-    <Iteration k::k::[0, 7, 1]>
+<Iteration i::i::[0, 3, 1]::[0, 0]>
+  <Iteration j::j::[0, 5, 1]::[0, 0]>
+    <Iteration k::k::[0, 7, 1]::[0, 0]>
       <Expression a[i] = a[i] + b[i] + 5.0>
 """
 
     str2 = printAST(block2)
     assert str2 in """
-<Iteration i::i::[0, 3, 1]>
+<Iteration i::i::[0, 3, 1]::[0, 0]>
   <Expression a[i] = a[i] + b[i] + 5.0>
-  <Iteration j::j::[0, 5, 1]>
-    <Iteration k::k::[0, 7, 1]>
+  <Iteration j::j::[0, 5, 1]::[0, 0]>
+    <Iteration k::k::[0, 7, 1]::[0, 0]>
       <Expression a[i] = -a[i] + b[i]>
 """
 
     str3 = printAST(block3)
     assert str3 in """
-<Iteration i::i::[0, 3, 1]>
-  <Iteration s::s::[0, 4, 1]>
+<Iteration i::i::[0, 3, 1]::[0, 0]>
+  <Iteration s::s::[0, 4, 1]::[0, 0]>
     <Expression a[i] = a[i] + b[i] + 5.0>
-  <Iteration j::j::[0, 5, 1]>
-    <Iteration k::k::[0, 7, 1]>
+  <Iteration j::j::[0, 5, 1]::[0, 0]>
+    <Iteration k::k::[0, 7, 1]::[0, 0]>
       <Expression a[i] = -a[i] + b[i]>
       <Expression a[i] = 4*a[i]*b[i]>
-  <Iteration p::p::[0, 4, 1]>
+  <Iteration p::p::[0, 4, 1]::[0, 0]>
     <Expression a[i] = 8.0*a[i] + 6.0/b[i]>
 """
 
@@ -253,10 +253,10 @@ def test_merge_iterations_flat(exprs, iters):
              iters[0](iters[2](exprs[1]))]
     newblock = MergeOuterIterations().visit(block)
     newstr = printAST(newblock)
-    assert newstr == """<Iteration i::i::[0, 3, 1]>
-  <Iteration j::j::[0, 5, 1]>
+    assert newstr == """<Iteration i::i::[0, 3, 1]::[0, 0]>
+  <Iteration j::j::[0, 5, 1]::[0, 0]>
     <Expression a[i] = a[i] + b[i] + 5.0>
-  <Iteration k::k::[0, 7, 1]>
+  <Iteration k::k::[0, 7, 1]::[0, 0]>
     <Expression a[i] = -a[i] + b[i]>"""
 
 
@@ -276,10 +276,10 @@ def test_merge_iterations_deep(exprs, iters):
              iters[0]([iters[2](exprs[0]), iters[2](exprs[1])])]
     newblock = MergeOuterIterations().visit(block)
     newstr = printAST(newblock)
-    assert newstr == """<Iteration i::i::[0, 3, 1]>
-  <Iteration j::j::[0, 5, 1]>
+    assert newstr == """<Iteration i::i::[0, 3, 1]::[0, 0]>
+  <Iteration j::j::[0, 5, 1]::[0, 0]>
     <Expression a[i] = a[i] + b[i] + 5.0>
-  <Iteration k::k::[0, 7, 1]>
+  <Iteration k::k::[0, 7, 1]::[0, 0]>
     <Expression a[i] = a[i] + b[i] + 5.0>
     <Expression a[i] = -a[i] + b[i]>"""
 
@@ -301,9 +301,9 @@ def test_merge_iterations_nested(exprs, iters):
              iters[0]([iters[1](exprs[1]), iters[2](exprs[1])])]
     newblock = MergeOuterIterations().visit(block)
     newstr = printAST(newblock)
-    assert newstr == """<Iteration i::i::[0, 3, 1]>
-  <Iteration j::j::[0, 5, 1]>
+    assert newstr == """<Iteration i::i::[0, 3, 1]::[0, 0]>
+  <Iteration j::j::[0, 5, 1]::[0, 0]>
     <Expression a[i] = a[i] + b[i] + 5.0>
     <Expression a[i] = -a[i] + b[i]>
-  <Iteration k::k::[0, 7, 1]>
+  <Iteration k::k::[0, 7, 1]::[0, 0]>
     <Expression a[i] = -a[i] + b[i]>"""
