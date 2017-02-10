@@ -198,7 +198,7 @@ class PrintAST(Visitor):
         body = self.visit(o.children)
         self._depth -= 1
         if self.verbose:
-            detail = '::%s::%s' % (o.index, o.limits)
+            detail = '::%s::%s::%s' % (o.index, o.limits, offsets)
             props = '[%s] ' % ','.join(o.properties) if o.properties else ''
         else:
             detail, props = '', ''
@@ -501,7 +501,8 @@ class MergeOuterIterations(Transformer):
         """
         newexpr = iter1.nodes + iter2.nodes
         return Iteration(newexpr, dimension=iter1.dim,
-                         limits=iter1.limits)
+                         limits=iter1.limits,
+                         offsets=iter1.offsets)
 
     def visit_Iteration(self, o):
         rebuilt = self.visit(o.children)
