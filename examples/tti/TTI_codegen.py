@@ -136,9 +136,10 @@ class TTI_cg:
             at.auto_tune_blocks(self.s_order + 1, self.s_order * 4 + 2)
             fw.propagator.cache_blocking = at.block_size
 
-        fw.apply()
         if legacy:
+            fw.apply()
             return (rec.data, u.data, v.data,
                     fw.propagator.gflopss, fw.propagator.oi, fw.propagator.timings)
         else:
-            return (rec.data, u.data, v.data, None, None, None)
+            summary = fw.apply()
+            return rec.data, u.data, v.data, summary.gflopss, summary.oi, summary.timings

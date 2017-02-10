@@ -133,13 +133,13 @@ class Acoustic_cg(object):
                              compiler=compiler, profile=True, u_ini=u_ini,
                              legacy=legacy)
 
-        fw.apply()
-        if isinstance(fw, StencilKernel):
-            # TODO: Hook up DSE/DLE profiling tools
-            return rec.data, u, None, None, None
-        else:
+        if legacy:
+            fw.apply()
             return (rec.data, u, fw.propagator.gflopss,
                     fw.propagator.oi, fw.propagator.timings)
+        else:
+            summary = fw.apply()
+            return rec.data, u, summary.gflopss, summary.oi, summary.timings
 
     def Adjoint(self, rec, cache_blocking=None):
         adj = AdjointOperator(self.model, self.damp, self.data, self.source, rec,
