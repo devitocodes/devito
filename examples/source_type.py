@@ -1,6 +1,6 @@
 from sympy import Eq, Function, Matrix, symbols
 
-from devito.dimension import p, t
+from devito.dimension import t
 from devito.interfaces import PointData
 from devito.nodes import Iteration
 
@@ -63,7 +63,8 @@ class SourceLike(PointData):
     @property
     def sym_coordinates(self):
         """Symbol representing the coordinate values in each dimension"""
-        return tuple([self.coordinates.indexed[p, i]
+        p_dim = self.indices[1]
+        return tuple([self.coordinates.indexed[p_dim, i]
                       for i in range(self.ndim)])
 
     @property
@@ -79,37 +80,58 @@ class SourceLike(PointData):
                       for x, idx in zip(self.sym_coordinates,
                                         self.sym_coord_indices)])
 
-    def point2grid(self, u, m, t=t):
-        """Generates an expression for generic point-to-grid interpolation"""
+    @property
+    def index_matrix(self):
+        """Spatial indexing expressions for all grid points
+        contributing to spatial interpolation.
+        """
+        return [tuple([idx + ii + self.nbpml for ii, idx
+                       in zip(inc, self.sym_coord_indices)])
+                for inc in self.increments]
+
+    def point2grid(self, u, m, u_t=t, p_t=t):
+        """Generates an expression for point-to-grid interpolation
+
+        :param u: Wavefield to interpoalte into
+        :param m: Model parameter m
+        :param u_t: Time index for wavefield u
+        :param p_t: Time index for source term
+        """
         dt = self.dt
         subs = dict(zip(self.rs, self.sym_coord_bases))
-        index_matrix = [tuple([idx + ii + self.nbpml for ii, idx
-                               in zip(inc, self.sym_coord_indices)])
-                        for inc in self.increments]
-        eqns = [Eq(u.indexed[(t, ) + idx], u.indexed[(t, ) + idx]
-                   + self.indexed[t, p] * dt * dt / m.indexed[idx] * b.subs(subs))
-                for idx, b in zip(index_matrix, self.bs)]
+        p_idx = self.indexed[(p_t, ) + tuple(self.indices[1:])]
+        eqns = []
+        for idx, b in zip(self.index_matrix, self.bs):
+            u_idx = u.indexed[(u_t, ) + idx]
+            expr = p_idx * dt * dt / m.indexed[idx] * b.subs(subs)
+            eqns += [Eq(u_idx, u_idx + expr)]
         return eqns
 
     def grid2point(self, u, t=t):
         """Generates an expression for generic grid-to-point interpolation"""
         subs = dict(zip(self.rs, self.sym_coord_bases))
-        index_matrix = [tuple([idx + ii + self.nbpml for ii, idx
-                               in zip(inc, self.sym_coord_indices)])
-                        for inc in self.increments]
         return sum([b.subs(subs) * u.indexed[(t, ) + idx]
-                    for idx, b in zip(index_matrix, self.bs)])
+                    for idx, b in zip(self.index_matrix, self.bs)])
 
     def read(self, u):
         """Read the value of the wavefield u at point locations with grid2point."""
-        interp_expr = Eq(self.indexed[t, p], self.grid2point(u))
-        return [Iteration(interp_expr, dimension=p, limits=self.shape[1])]
+        sym_p = self.indices[1]
+        interp_expr = Eq(self.indexed[t, sym_p], self.grid2point(u))
+        return [Iteration(interp_expr, dimension=sym_p, limits=self.shape[1])]
 
     def read2(self, u, v):
         """Read the value of the wavefield (u+v) at point locations with grid2point."""
-        interp_expr = Eq(self.indexed[t, p], self.grid2point(u) + self.grid2point(v))
-        return [Iteration(interp_expr, dimension=p, limits=self.shape[1])]
+        sym_p = self.indices[1]
+        interp_expr = Eq(self.indexed[t, sym_p], self.grid2point(u) + self.grid2point(v))
+        return [Iteration(interp_expr, dimension=sym_p, limits=self.shape[1])]
 
-    def add(self, m, u, t=t):
-        """Add a point source term to the wavefield u at time t"""
-        return [Iteration(self.point2grid(u, m, t), dimension=p, limits=self.shape[1])]
+    def add(self, m, u, u_t=t, p_t=t):
+        """Add a point source term to the wavefield u at time t
+
+        :param m: Model parameter m
+        :param u: Wavefield to interpoalte into
+        :param u_t: Time index for wavefield u
+        :param p_t: Time index for source term
+        """
+        return [Iteration(self.point2grid(u, m, u_t=u_t, p_t=p_t),
+                          dimension=self.indices[1], limits=self.shape[1])]

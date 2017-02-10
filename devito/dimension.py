@@ -27,12 +27,6 @@ class Dimension(Symbol):
     def __str__(self):
         return self.name
 
-    def get_varname(self):
-        """Generates a new variables name based on an internal counter"""
-        name = "%s%d" % (self.name, self._count)
-        self._count += 1
-        return name
-
     @property
     def symbolic_size(self):
         """The symbolic size of this dimension."""

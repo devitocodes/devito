@@ -13,9 +13,8 @@ from operator import attrgetter
 import cgen as c
 from sympy import Symbol
 
-from devito.dimension import BufferedDimension
 from devito.dse import estimate_cost, estimate_memory
-from devito.nodes import Block, Iteration, IterationBound
+from devito.nodes import Iteration, List
 from devito.tools import as_tuple, filter_ordered, filter_sorted, flatten
 
 
@@ -276,7 +275,8 @@ class FindSymbols(Visitor):
 
     rules = {
         'with-data': lambda e: e.functions,
-        'free-symbols': lambda e: e.stencil.free_symbols
+        'free-symbols': lambda e: e.stencil.free_symbols,
+        'dimensions': lambda e: e.dimensions,
     }
 
     def __init__(self, mode='with-data'):
@@ -289,8 +289,6 @@ class FindSymbols(Visitor):
 
     def visit_Iteration(self, o):
         symbols = flatten([self.visit(i) for i in o.children])
-        if isinstance(o.limits[1], IterationBound):
-            symbols += [o.dim]
         return filter_sorted(symbols, key=attrgetter('name'))
 
     def visit_Expression(self, o):
@@ -442,15 +440,18 @@ class ResolveIterationVariable(Transformer):
           int t1 = (t + 1) % 2;
     """
 
-    def visit_Iteration(self, o, subs={}, offsets=defaultdict(set)):
-        nodes = self.visit(o.children, subs=subs, offsets=offsets)
-        if isinstance(o.dim, BufferedDimension):
+    def visit_Iteration(self, o, subs={}, offsets=defaultdict(set),
+                        variable_map=defaultdict(int)):
+        nodes = self.visit(o.children, subs=subs, offsets=offsets,
+                           variable_map=variable_map)
+        if o.dim.is_Buffered:
             # For buffered dimensions insert the explicit
             # definition of buffere variables, eg. t+1 => t1
             init = []
             for off in filter_ordered(offsets[o.dim]):
-                vname = o.dim.get_varname()
-                value = o.dim + off
+                vname = "%s%d" % (o.dim.name, variable_map[o.dim])
+                variable_map[o.dim] += 1  # Increase variable count
+                value = o.dim.parent + off
                 modulo = o.dim.modulo
                 init += [c.Initializer(c.Value('int', vname),
                                        "(%s) %% %d" % (value, modulo))]
@@ -458,14 +459,16 @@ class ResolveIterationVariable(Transformer):
             # Always lower to symbol
             subs[o.dim.parent] = Symbol(o.dim.parent.name)
             # Insert block with modulo initialisations
-            newnodes = (Block(header=init, body=nodes[0]), )
-            return o._rebuild(newnodes)
+            newnodes = (List(header=init, body=nodes[0]), )
+            return o._rebuild(newnodes, index=o.dim.parent.name)
         else:
-            vname = o.dim.get_varname()
+            vname = "%s%d" % (o.dim.name, variable_map[o.dim])
+            variable_map[o.dim] += 1  # Increase variable count
             subs[o.dim] = Symbol(vname)
             return o._rebuild(*nodes, index=vname)
 
-    def visit_Expression(self, o, subs={}, offsets=defaultdict(set)):
+    def visit_Expression(self, o, subs={}, offsets=defaultdict(set),
+                         variable_map=defaultdict(int)):
         """Collect all offsets used with a dimension"""
         for dim, offs in o.index_offsets.items():
             offsets[dim].update(offs)
