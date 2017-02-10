@@ -105,7 +105,8 @@ def test_tti(dimensions, space_order):
                       nbpml=nbpml)
 
     rec, u, _, _, _ = wave_acou.Forward(save=False, u_ini=u1.data)
-    rec_tti, u_tti, v_tti, _, _, _ = wave_tti.Forward(save=False, u_ini=u1.data)
+    rec_tti, u_tti, v_tti, _, _, _ = wave_tti.Forward(save=False, u_ini=u1.data,
+                                                      legacy=True)
 
     res = linalg.norm(u.data.reshape(-1) -
                       .5 * u_tti.reshape(-1) - .5 * v_tti.reshape(-1))

@@ -52,7 +52,7 @@ class TTI_cg:
         damp_boundary(self.damp.data, nbpml)
 
     def Forward(self, save=False, dse='advanced', auto_tuning=False,
-                cache_blocking=None, compiler=None, u_ini=None):
+                cache_blocking=None, compiler=None, u_ini=None, legacy=True):
         nt, nrec = self.data.shape
         nsrc = self.source.shape[1]
         ndim = len(self.damp.shape)
@@ -97,7 +97,7 @@ class TTI_cg:
         fw = ForwardOperator(self.model, u, v, src, rec, self.damp, self.data,
                              time_order=self.t_order, spc_order=self.s_order,
                              profile=True, save=save, cache_blocking=cache_blocking,
-                             dse=dse, compiler=compiler, u_ini=u_ini)
+                             dse=dse, compiler=compiler, u_ini=u_ini, legacy=legacy)
 
         if auto_tuning:
             # uses space_order/2 for the first derivatives to
@@ -137,5 +137,8 @@ class TTI_cg:
             fw.propagator.cache_blocking = at.block_size
 
         fw.apply()
-        return (rec.data, u.data, v.data,
-                fw.propagator.gflopss, fw.propagator.oi, fw.propagator.timings)
+        if legacy:
+            return (rec.data, u.data, v.data,
+                    fw.propagator.gflopss, fw.propagator.oi, fw.propagator.timings)
+        else:
+            return (rec.data, u.data, v.data, None, None, None)
