@@ -180,7 +180,7 @@ if __name__ == "__main__":
         bench = Benchmark(
             name=args.problem, resultsdir=args.resultsdir, parameters=parameters
         )
-        bench.execute(BenchExecutor(), warmups=0, repeats=1)
+        bench.execute(BenchExecutor(), warmups=0, repeats=3)
         bench.save()
 
     elif args.execmode == "plot":

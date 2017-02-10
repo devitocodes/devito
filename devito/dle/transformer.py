@@ -549,6 +549,8 @@ class Rewriter(object):
                     mapper[n] = Block(header=omplang['par-region'],
                                       body=denormals + [Element(omplang['for']), n])
                 else:
+                    # TODO: This should be generalised to the case in which there are
+                    # more than just 2 collapsable loops.
                     nodes = candidates[:2]
                     mapper.update({n: List(header=omplang['par-for-collapse2'], body=n)
                                    for n in nodes})

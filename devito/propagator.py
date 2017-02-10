@@ -907,5 +907,5 @@ class Section(object):
 
 TIME_INVARIANTS = Section('time_invariants')
 PRE_STENCILS = Section('pre_stencils')
-LOOP_BODY = Section('loop_body')
+LOOP_BODY = Section('main')
 POST_STENCILS = Section('post_stencils')
