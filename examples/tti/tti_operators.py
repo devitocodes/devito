@@ -156,7 +156,7 @@ def ForwardOperator(model, u, v, src, rec, damp, data, time_order=2,
 
     if legacy:
         op = Operator(nt, m.shape, stencils=stencils, subs=[subs, subs],
-                      spc_border=spc_order, time_order=time_order,
+                      spc_border=spc_order/2, time_order=time_order,
                       forward=True, dtype=m.dtype, input_params=parm,
                       **kwargs)
 
