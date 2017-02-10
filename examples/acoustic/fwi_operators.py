@@ -75,7 +75,7 @@ def ForwardOperator(model, u, src, rec, damp, data, time_order=2, spc_order=6,
 
         # Shift time indices so that LHS writes into t only,
         # eg. u[t+2] = u[t+1] + u[t]  -> u[t] = u[t-1] + u[t-2]
-        stencils = [e.subs(t, t + solve(eqn.lhs.args[0], t)[0])
+        stencils = [e.subs(t, t + solve(e.lhs.args[0], t)[0])
                     if isinstance(e.lhs, TimeData) else e
                     for e in stencils]
         # Apply time substitutions as per legacy approach
