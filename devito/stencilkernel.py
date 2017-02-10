@@ -12,14 +12,15 @@ import numpy as np
 
 from devito.compiler import (get_compiler_from_env, get_tmp_dir,
                              jit_compile_and_load)
-from devito.dimension import Dimension
+from devito.dimension import BufferedDimension, Dimension
 from devito.dle import transform
-from devito.dse import indexify, rewrite
+from devito.dse import indexify, retrieve_and_check_dtype, rewrite
 from devito.interfaces import SymbolicData
-from devito.logger import error, info, warning
-from devito.nodes import Block, Expression, Function, Iteration, TimedList
+from devito.logger import bar, error, info, warning
+from devito.nodes import (Block, Expression, Function, Iteration,
+                          TimedList, TypedExpression)
 from devito.profiler import Profiler
-from devito.tools import as_tuple
+from devito.tools import as_tuple, filter_ordered
 from devito.visitors import (EstimateCost, FindNodeType, FindSections, FindSymbols,
                              IsPerfectIteration, MergeOuterIterations,
                              ResolveIterationVariable, SubstituteExpression,
@@ -72,46 +73,17 @@ class StencilKernel(Function):
         # Convert stencil expressions into actual Nodes, going through the
         # Devito Symbolic Engine for flop optimization.
         stencils = stencils if isinstance(stencils, list) else [stencils]
+        dtype = retrieve_and_check_dtype(stencils)
         stencils = [indexify(s) for s in stencils]
         stencils = [s.xreplace(subs) for s in stencils]
         dse_state = rewrite(stencils, mode=dse)
-        nodes = [Expression(s) for s in dse_state.exprs]
 
         # Wrap expressions with Iterations according to dimensions
-        # TODO: This should probably be done more safely in a visitor
-        # that tracks free and bound loop variables in the AST.
-        for i, expr in enumerate(nodes):
-            newexpr = expr
-            offsets = newexpr.index_offsets
-            for d in reversed(list(offsets.keys())):
-                newexpr = Iteration(newexpr, dimension=d,
-                                    limits=d.size, offsets=offsets[d])
-            nodes[i] = newexpr
+        nodes = self._schedule_expressions(dse_state, dtype)
 
-        # Merge Iterations iff outermost iterations agree
-        nodes = MergeOuterIterations().visit(nodes)
-
-        # Introduce profiling infrastructure
-        mapper = {}
+        # Introduce C-level profiling infrastructure
         self.sections = OrderedDict()
-        for i, expr in enumerate(nodes):
-            for itspace in FindSections().visit(expr).keys():
-                for j in itspace:
-                    if IsPerfectIteration().visit(j) and j not in mapper:
-                        # Insert `TimedList` block. This should come from
-                        # the profiler, but we do this manually for now.
-                        lname = 'loop_%s_%d' % (j.index, i)
-                        mapper[j] = TimedList(gname=self.profiler.t_name,
-                                              lname=lname, body=j)
-                        self.profiler.t_fields += [(lname, c_double)]
-
-                        # Estimate computational properties of the timed section
-                        # (operational intensity, memory accesses)
-                        k = tuple(k.dim for k in itspace)
-                        v = EstimateCost().visit(j)
-                        self.sections[k] = Profile(lname, v.ops, v.mem)
-                        break
-        nodes = [Transformer(mapper).visit(Block(body=nodes))]
+        nodes = self._profile_sections(nodes)
 
         # Now resolve and substitute dimensions for loop index variables
         subs = {}
@@ -161,7 +133,7 @@ class StencilKernel(Function):
             for i, dim in enumerate(f.indices):
                 # Infer open loop limits
                 if dim.size is None:
-                    if dim.buffered:
+                    if isinstance(dim, BufferedDimension):
                         # Check if provided as a keyword arg
                         size = kwargs.get(dim.name, None)
                         if size is None:
@@ -176,8 +148,10 @@ class StencilKernel(Function):
                         # Derive size from grid data shape and store
                         dim_sizes[dim] = data.shape[i]
                 else:
-                    assert dim.size == data.shape[i]
-        # Add user-provided loop blocking sizes (if any)
+                    if not isinstance(dim, BufferedDimension):
+                        assert dim.size == data.shape[i]
+
+        # Add user-provided block sizes, if any
         dle_arguments = OrderedDict()
         for i in self._dle_state.arguments:
             dim_size = dim_sizes.get(i.original_dim, i.original_dim.size)
@@ -192,6 +166,7 @@ class StencilKernel(Function):
             else:
                 dle_arguments[i.argument] = dim_size
         dim_sizes.update(dle_arguments)
+
         # Insert loop size arguments from dimension values
         d_args = [d for d in arguments.values() if isinstance(d, Dimension)]
         for d in d_args:
@@ -220,26 +195,77 @@ class StencilKernel(Function):
         # Invoke kernel function with args
         self.cfunction(*list(arguments.values()))
 
-        # Summary of performance achieved
-        info("="*79)
+        # Output summary of performance achieved
+        summary = self._profile_summary(dim_sizes, dtype_size)
+        with bar():
+            for k, v in summary.items():
+                name = '%s<%s>' % (k, ','.join('%d' % i for i in v.itershape))
+                info("Section %s with OI=%.2f computed in %.3f s [Perf: %.2f GFlops/s]" %
+                     (name, v.oi, v.time, v.gflopss))
+
+        return summary
+
+    def _profile_sections(self, nodes):
+        """Introduce C-level profiling nodes within the Iteration/Expression tree."""
+        mapper = {}
+        for i, expr in enumerate(nodes):
+            for itspace in FindSections().visit(expr).keys():
+                for j in itspace:
+                    if IsPerfectIteration().visit(j) and j not in mapper:
+                        # Insert `TimedList` block. This should come from
+                        # the profiler, but we do this manually for now.
+                        lname = 'loop_%s_%d' % (j.index, i)
+                        mapper[j] = TimedList(gname=self.profiler.t_name,
+                                              lname=lname, body=j)
+                        self.profiler.t_fields += [(lname, c_double)]
+
+                        # Estimate computational properties of the timed section
+                        # (operational intensity, memory accesses)
+                        v = EstimateCost().visit(j)
+                        self.sections[itspace] = Profile(lname, v.ops, v.mem)
+                        break
+        processed = [Transformer(mapper).visit(Block(body=nodes))]
+        return processed
+
+    def _profile_summary(self, dim_sizes, dtype_size):
+        """
+        Produce a summary of the performance achieved
+        """
+        summary = PerformanceSummary()
         for itspace, profile in self.sections.items():
             # Time
-            elapsed = self.profiler.timings[profile.timer]
-            # Flops
-            niters = reduce(operator.mul, [i.size or dim_sizes[i] for i in itspace])
-            flops = float(profile.ops*niters)
-            gflops = flops/10**9
-            # Compulsory traffic
-            traffic = profile.memory*niters*dtype_size
+            time = self.profiler.timings[profile.timer]
 
-            info("Section %s with OI=%.2f computed in %.2f s [Perf: %.2f GFlops/s]" %
-                 (str(itspace), flops/traffic, elapsed, gflops/elapsed))
-        info("="*79)
+            # Flops
+            itershape = [i.extent(finish=dim_sizes.get(i.dim)) for i in itspace]
+            iterspace = reduce(operator.mul, itershape)
+            flops = float(profile.ops*iterspace)
+            gflops = flops/10**9
+
+            # Compulsory traffic
+            datashape = [i.dim.size or dim_sizes[i.dim] for i in itspace]
+            dataspace = reduce(operator.mul, datashape)
+            traffic = profile.memory*dataspace*dtype_size
+
+            # Derived metrics
+            oi = flops/traffic
+            gflopss = gflops/time
+
+            # Keep track of performance achieved
+            summary.setsection(profile.timer, time, gflopss, oi, itershape, datashape)
+
+        # Rename the most time consuming section as 'main'
+        summary['main'] = summary.pop(max(summary, key=summary.get))
+
+        return summary
 
     def _autotune(self, arguments):
         """Use auto-tuning on this StencilKernel to determine empirically the
         best block sizes (when loop blocking is in use). The block sizes tested
-        are those listed in ``options['at_blocksizes']``."""
+        are those listed in ``options['at_blocksizes']``, plus the case that is
+        as if blocking were not applied (ie, unitary block size)."""
+        if not self._dle_state._applied_blocking:
+            return
 
         at_arguments = arguments.copy()
 
@@ -249,27 +275,35 @@ class StencilKernel(Function):
             if k in output:
                 at_arguments[k] = v.copy()
 
-        # Auto-tunable loop blocking dimensions
-        at_mapper = [(i.argument.name, i.original_dim.name)
-                     for i in self._dle_state.arguments]
-
         # Squeeze dimensions to minimize auto-tuning time
         iterations = FindNodeType(Iteration).visit(self.body)
         squeezable = [i.dim.name for i in iterations if 'sequential' in i.properties]
 
-        # Note: there is only a single loop over 'at_blocksize' because only
+        # Attempted block sizes
+        mapper = OrderedDict([(i.argument.name, i) for i in self._dle_state.arguments])
+        blocksizes = [OrderedDict([(i, v) for i in mapper])
+                      for v in options['at_blocksize']]
+        blocksizes += [OrderedDict([(k, 1) for k, v in mapper.items()])]
+
+        # Note: there is only a single loop over 'blocksize' because only
         # square blocks are tested
         timings = OrderedDict()
-        for i in options['at_blocksize']:
+        for blocksize in blocksizes:
+            illegal = False
             for k, v in at_arguments.items():
-                if k in at_mapper:
-                    if i < at_arguments[at_mapper[k]]:
-                        at_arguments[k] = i
+                if k in blocksize:
+                    val = blocksize[k]
+                    handle = at_arguments.get(mapper[k].original_dim.name)
+                    if val <= mapper[k].iteration.end(handle):
+                        at_arguments[k] = val
                     else:
                         # Block size cannot be larger than actual dimension
+                        illegal = True
                         break
                 elif k in squeezable:
                     at_arguments[k] = options['at_squeezer']
+            if illegal:
+                continue
 
             # Add profiler structs
             if self.profiler:
@@ -277,15 +311,53 @@ class StencilKernel(Function):
                 at_arguments[self.profiler.s_name] = cpointer
 
             self.cfunction(*list(at_arguments.values()))
-            timings[i] = sum(self.profiler.timings.values())
+            timings[tuple(blocksize.items())] = sum(self.profiler.timings.values())
 
-        best = min(timings, key=timings.get)
+        best = dict(min(timings, key=timings.get))
         for k, v in arguments.items():
-            if k in at_mapper:
-                arguments[k] = best
+            if k in mapper:
+                arguments[k] = best[k]
 
-        info('Auto-tuned loop blocking shape: [%s]'
-             % ','.join(str(best) for i in at_mapper))
+        info('Auto-tuned block shape: %s' % best)
+
+    def _schedule_expressions(self, dse_state, dtype):
+        """Wrap :class:`Expression` objects within suitable hierarchies of
+        :class:`Iteration` according to dimensions.
+        """
+        processed = []
+        for cluster in dse_state.clusters:
+            # Build declarations or assignments
+            body = []
+            for k, v in cluster.items():
+                if cluster.is_index(k):
+                    body.append(TypedExpression(v, np.int32))
+                elif v.is_terminal:
+                    body.append(Expression(v))
+                else:
+                    body.append(TypedExpression(v, dtype))
+            offsets = body[-1].index_offsets
+            # Filter out aliasing due to buffered dimensions
+            key = lambda d: d.parent if d.is_Buffered else d
+            dimensions = filter_ordered(list(offsets.keys()), key=key)
+            for d in reversed(dimensions):
+                body = Iteration(body, dimension=d, limits=d.size, offsets=offsets[d])
+            processed.append(body)
+
+        # Merge Iterations iff outermost iterations agree
+        processed = MergeOuterIterations().visit(processed)
+
+        # Remove temporaries became redundat after squashing Iterations
+        mapper = {}
+        for k, v in FindSections().visit(processed).items():
+            found = set()
+            newexprs = []
+            for n in v:
+                newexprs.extend([n] if n.stencil not in found else [])
+                found.add(n.stencil)
+            mapper[k[-1]] = Iteration(newexprs, **k[-1].args_frozen)
+        processed = Transformer(mapper).visit(processed)
+
+        return processed
 
     @property
     def _cparameters(self):
@@ -363,6 +435,38 @@ class StencilKernel(Function):
                 for v in self.parameters]
 
 
+# Helpers for performance tracking
+
+"""
+A helper to return structured performance data.
+"""
+PerfEntry = namedtuple('PerfEntry', 'time gflopss oi itershape datashape')
+
+
+class PerformanceSummary(OrderedDict):
+
+    """
+    A special dictionary to track and view performance data.
+    """
+
+    def setsection(self, key, time, gflopss, oi, itershape, datashape):
+        self[key] = PerfEntry(time, gflopss, oi, itershape, datashape)
+
+    @property
+    def gflopss(self):
+        return OrderedDict([(k, v.gflopss) for k, v in self.items()])
+
+    @property
+    def oi(self):
+        return OrderedDict([(k, v.oi) for k, v in self.items()])
+
+    @property
+    def timings(self):
+        return OrderedDict([(k, v.time) for k, v in self.items()])
+
+
+# StencilKernel options and name conventions
+
 """
 A dict of standard names to be used for code generation
 """
@@ -376,7 +480,7 @@ StencilKernel options
 """
 options = {
     'at_squeezer': 3,
-    'at_blocksize': [4, 8, 12, 16, 20, 24, 32]
+    'at_blocksize': [8, 16, 32]
 }
 
 """
@@ -384,6 +488,8 @@ A helper to track profiled sections of code.
 """
 Profile = namedtuple('Profile', 'timer ops memory')
 
+
+# Helpers to use a StencilKernel
 
 def set_dle_mode(mode, compiler):
     """

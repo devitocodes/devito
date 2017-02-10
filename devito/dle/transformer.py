@@ -4,18 +4,18 @@ from collections import OrderedDict, Sequence, namedtuple
 from itertools import combinations
 from time import time
 
+import cgen as c
 import numpy as np
 import psutil
-
-import cgen as c
 
 from devito.dimension import Dimension
 from devito.dle.inspection import retrieve_iteration_tree
 from devito.dle.manipulation import compose_nodes
-from devito.dse import terminals
+from devito.dse import symbolify, terminals
 from devito.interfaces import ScalarData, SymbolicData
 from devito.logger import dle, dle_warning
-from devito.nodes import Denormals, Element, Function, Iteration, List
+from devito.nodes import (Block, Denormals, Element, Expression,
+                          Function, Iteration, List)
 from devito.tools import as_tuple, flatten
 from devito.visitors import (FindNodeType, FindSections, FindSymbols,
                              IsPerfectIteration, Transformer)
@@ -143,9 +143,14 @@ class State(object):
         self.flags += as_tuple(flags)
 
     @property
-    def _has_ntstores(self):
+    def _applied_nontemporal_stores(self):
         """True if nontemporal stores will be generated, False otherwise."""
         return 'ntstores' in self.flags
+
+    @property
+    def _applied_blocking(self):
+        """True if loop blocking was applied, False otherwise."""
+        return 'blocking' in self.flags
 
 
 class Arg(object):
@@ -166,21 +171,25 @@ class BlockingArg(Arg):
 
     from_Blocking = True
 
-    def __init__(self, blocked_dim, original_dim, value):
+    def __init__(self, blocked_dim, iteration, value):
         """
         Represent an argument introduced in the kernel by Rewriter._loop_blocking.
 
         :param blocked_dim: The blocked :class:`Dimension`.
-        :param original_dim: The original :class:`Dimension` corresponding
-                             to ``blocked_dim``.
+        :param iteration: The :class:`Iteration` object from which the ``blocked_dim``
+                          was derived.
         :param value: A suggested value determined by the DLE.
         """
         super(BlockingArg, self).__init__(blocked_dim, value)
-        self.original_dim = original_dim
+        self.iteration = iteration
 
     def __repr__(self):
-        bsize = self.value if self.value else '<unused>'
-        return "DLE-BlockingArg[%s,%s,%s]" % (self.argument, self.original_dim, bsize)
+        return "DLE-BlockingArg[%s,%s,suggested=%s]" %\
+            (self.argument, self.original_dim, self.value)
+
+    @property
+    def original_dim(self):
+        return self.iteration.dim
 
 
 class Rewriter(object):
@@ -201,7 +210,8 @@ class Rewriter(object):
     Bag of thresholds, to be used to trigger or prevent certain transformations.
     """
     thresholds = {
-        'collapse': 32
+        'collapse': 32,  # Available physical cores
+        'elemental-functions': 50  # C statements
     }
 
     def __init__(self, nodes, params, compiler):
@@ -252,19 +262,18 @@ class Rewriter(object):
         for tree in candidates:
             exprs = [e.stencil for e in sections[tree]]
 
-            # "Prefetch" terminals to speed up the checks below
+            # "Prefetch" objects to speed up the analsys
             terms = {e: tuple(terminals(e.rhs)) for e in exprs}
+            writes = {e.lhs for e in exprs if not e.is_Symbol}
 
             # Does the Iteration index only appear in the outermost dimension ?
             has_parallel_dimension = True
-            sample = None
             for k, v in terms.items():
-                if v:
-                    handle = v[0]
-                    sample = sample or handle.indices[0]
-                    if any(sample in i.indices[1:] or sample != i.indices[0] for i in v):
-                        has_parallel_dimension = False
-                        break
+                for i in writes:
+                    maybe_dependencies = [j for j in v if symbolify(i) == symbolify(j)]
+                    for j in maybe_dependencies:
+                        handle = flatten(k.atoms() for k in j.indices[1:])
+                        has_parallel_dimension &= not (i.indices[0] in handle)
             if not has_parallel_dimension:
                 continue
 
@@ -331,12 +340,20 @@ class Rewriter(object):
 
                 candidate = rule(tree)
                 leftover = tuple(k for k in tree if k not in candidate)
+                expressions = FindNodeType(Expression).visit(candidate)
+
+                # Heuristic: only create elemental functions if there are more
+                # than self.thresholds['elemental_functions'] statements in
+                # the body of candidate
+                if len(expressions) < self.thresholds['elemental-functions']:
+                    continue
 
                 args = FindSymbols().visit(candidate)
                 args += [k.dim for k in leftover if k not in args and k.is_Closed]
 
-                known = [k.name for k in args]
-                known += [k.index for k in candidate]
+                known = set([k.name for k in args])
+                known |= {k.index for k in candidate}
+                known |= {k.output.name for k in expressions}
                 maybe_unknown = FindSymbols(mode='free-symbols').visit(candidate)
                 args += [k for k in maybe_unknown if k.name not in known]
 
@@ -395,17 +412,13 @@ class Rewriter(object):
 
         Region = namedtuple('Region', 'main leftover')
 
-        is_InnerBlockable = self.params.get('blockinner',
-                                            len(state.elemental_functions) > 0)
-
-        dims = OrderedDict()
+        blocked = OrderedDict()
         processed = []
         for node in state.nodes:
             mapper = {}
             for tree in retrieve_iteration_tree(node):
                 # Is the Iteration tree blockable ?
                 iterations = [i for i in tree if 'parallel' in i.properties]
-                iterations = iterations if is_InnerBlockable else iterations[:-1]
                 if not iterations:
                     continue
                 root = iterations[0]
@@ -418,21 +431,17 @@ class Rewriter(object):
                 blocked_iterations = []
                 for i in iterations:
                     # Build Iteration over blocks
-                    dim = dims.setdefault((i.dim, 'inter-block'),
-                                          Dimension("%s_block" % i.dim.name))
-
+                    dim = blocked.setdefault(i, Dimension("%s_block" % i.dim.name))
                     block_size = dim.symbolic_size
-                    iter_size = i.dim.symbolic_size
-
+                    iter_size = i.dim.size or i.dim.symbolic_size
                     start = i.limits[0] - i.offsets[0]
-                    finish = iter_size - ((iter_size - i.offsets[1]) % block_size)
+                    finish = iter_size - i.offsets[1]
+                    finish = finish - ((finish - i.offsets[1]) % block_size)
                     inter_block = Iteration([], dim, [start, finish, block_size],
                                             properties=('parallel', 'blocked'))
 
                     # Build Iteration within a block
-                    dim = dims.setdefault((i.dim, 'intra-block'),
-                                          Dimension("%s_intrab" % i.dim.name))
-
+                    dim = Dimension("%s_intrab" % i.dim.name)
                     start = inter_block.dim
                     finish = start + block_size
                     intra_block = Iteration([], dim, [start, finish, 1], i.index,
@@ -459,7 +468,7 @@ class Rewriter(object):
                     regions[i] = Region(main, leftover)
 
                 blocked_tree = list(flatten(zip(*blocked_iterations)))
-                blocked = compose_nodes(blocked_tree + [iterations[-1].nodes])
+                blocked_tree = compose_nodes(blocked_tree + [iterations[-1].nodes])
 
                 # Build remainder loops
                 remainder_tree = []
@@ -471,14 +480,13 @@ class Rewriter(object):
                         remainder_tree.append(compose_nodes(nodes))
 
                 # Will replace with blocked loop tree
-                mapper[root] = List(body=[blocked] + remainder_tree)
+                mapper[root] = List(body=[blocked_tree] + remainder_tree)
 
             rebuilt = Transformer(mapper).visit(node)
 
             processed.append(rebuilt)
 
         # All blocked dimensions
-        blocked = OrderedDict([(k, v) for k, v in dims.items() if k[1] == 'inter-block'])
         if not blocked:
             return {'nodes': processed}
 
@@ -506,9 +514,9 @@ class Rewriter(object):
                                if k not in blockshape})
 
         # Track any additional arguments required to execute /state.nodes/
-        arguments = [BlockingArg(v, k[0], blockshape[k]) for k, v in blocked.items()]
+        arguments = [BlockingArg(v, k, blockshape[k]) for k, v in blocked.items()]
 
-        return {'nodes': processed, 'arguments': arguments}
+        return {'nodes': processed, 'arguments': arguments, 'flags': 'blocking'}
 
     @dle_transformation
     def _ompize(self, state, **kwargs):
@@ -519,9 +527,9 @@ class Rewriter(object):
         processed = []
         for node in state.nodes:
 
-            # Handle denormals
+            # Reset denormals flag each time a parallel region is entered
             denormals = FindNodeType(Denormals).visit(state.nodes)
-            mapper = {i: Denormals(header=omplang['par-region']) for i in denormals}
+            mapper = {i: List(c.Comment('DLE: moved denormals flag')) for i in denormals}
 
             # Handle parallelizable loops
             for tree in retrieve_iteration_tree(node):
@@ -538,8 +546,11 @@ class Rewriter(object):
                 if psutil.cpu_count(logical=False) < self.thresholds['collapse'] or\
                         len(candidates) < 2:
                     n = candidates[0]
-                    mapper[n] = List(header=omplang['par-for'], body=n)
+                    mapper[n] = Block(header=omplang['par-region'],
+                                      body=denormals + [Element(omplang['for']), n])
                 else:
+                    # TODO: This should be generalised to the case in which there are
+                    # more than just 2 collapsable loops.
                     nodes = candidates[:2]
                     mapper.update({n: List(header=omplang['par-for-collapse2'], body=n)
                                    for n in nodes})
@@ -597,14 +608,18 @@ class Rewriter(object):
             for node in nodes:
                 mapper = {}
                 for tree in retrieve_iteration_tree(node):
-                    fenced = False
                     for i in tree:
-                        if not fenced and 'parallel' in i.properties:
+                        if 'parallel' in i.properties:
                             mapper[i] = List(body=i, footer=fence)
-                            fenced = True
+                            break
+                transformed = Transformer(mapper).visit(node)
+                mapper = {}
+                for tree in retrieve_iteration_tree(transformed):
+                    for i in tree:
                         if 'vector-dim' in i.properties:
                             mapper[i] = List(header=pragma, body=i)
-                processed.append(Transformer(mapper).visit(node))
+                transformed = Transformer(mapper).visit(transformed)
+                processed.append(transformed)
             return processed
 
         return {'nodes': decorate(state.nodes),
@@ -616,7 +631,7 @@ class Rewriter(object):
         Print a summary of the DLE transformations
         """
 
-        if mode.intersection({'blocking', 'advanced'}):
+        if mode.intersection({'blocking', 'basic', 'advanced', 'speculative'}):
             steps = " --> ".join("(%s)" % i for i in self.timings.keys())
             elapsed = sum(self.timings.values())
             dle("%s [%.2f s]" % (steps, elapsed))
@@ -628,6 +643,7 @@ class Rewriter(object):
 A dictionary to quickly access standard OpenMP pragmas
 """
 omplang = {
+    'for': c.Pragma('omp for schedule(static)'),
     'par-region': c.Pragma('omp parallel'),
     'par-for': c.Pragma('omp parallel for schedule(static)'),
     'par-for-collapse2': c.Pragma('omp parallel for collapse(2) schedule(static)'),

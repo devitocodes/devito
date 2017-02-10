@@ -118,7 +118,8 @@ class Element(Node):
     is_Element = True
 
     def __init__(self, element):
-        assert isinstance(element, (c.Comment, c.Statement))
+        assert isinstance(element, (c.Comment, c.Statement, c.Value,
+                                    c.Pragma, c.Line))
         self.element = element
 
     def __repr__(self):
@@ -169,6 +170,18 @@ class Expression(Node):
         return c.Assign(ccode(self.stencil.lhs), ccode(self.stencil.rhs))
 
     @property
+    def output(self):
+        """
+        Return the symbol written by this Expression.
+        """
+        lhs = self.stencil.lhs
+        if lhs.is_Symbol:
+            return lhs
+        else:
+            # An Indexed
+            return lhs.base.label
+
+    @property
     def index_offsets(self):
         """Mapping of :class:`Dimension` symbols to each integer
         stencil offset used with it in this expression.
@@ -198,6 +211,22 @@ class Expression(Node):
                 if d is not None:
                     offsets[d].update(off)
         return offsets
+
+
+class TypedExpression(Expression):
+
+    """Class encpasulating a single stencil expression with known data type,
+    represented as a NumPy data type."""
+
+    def __init__(self, stencil, dtype):
+        super(TypedExpression, self).__init__(stencil)
+        self.dtype = dtype
+
+    @property
+    def ccode(self):
+        ctype = c.dtype_to_ctype(self.dtype)
+        return c.Initializer(c.Value(ctype, ccode(self.stencil.lhs)),
+                             ccode(self.stencil.rhs))
 
 
 class Iteration(Node):
@@ -301,6 +330,42 @@ class Iteration(Node):
     @property
     def is_Closed(self):
         return not self.is_Open
+
+    def _bounds(self, start=None, finish=None):
+        """Return the start and end points of the Iteration if the limits are
+        available (either statically known or provided through ``start``/
+        ``finish``). ``None`` is used as a placeholder in the returned 2-tuple
+        if a limit is unknown."""
+        try:
+            start = int(self.limits[0]) - self.offsets[0]
+        except (TypeError, ValueError):
+            if not start:
+                start = None
+        try:
+            finish = int(self.limits[1]) - self.offsets[1]
+        except (TypeError, ValueError):
+            if not finish:
+                finish = None
+        return (start, finish)
+
+    def extent(self, start=None, finish=None):
+        """Return the number of iterations executed if the limits are known,
+        ``None`` otherwise."""
+        start, finish = self._bounds(start, finish)
+        try:
+            return finish - start
+        except TypeError:
+            return None
+
+    def start(self, start=None):
+        """Return the start point of the Iteration if the lower limit is known,
+        ``None`` otherwise."""
+        return self._bounds(start)[0]
+
+    def end(self, finish=None):
+        """Return the end point of the Iteration if the upper limit is known,
+        ``None`` otherwise."""
+        return self._bounds(finish=finish)[1]
 
     @property
     def children(self):
@@ -415,7 +480,7 @@ class TimedList(List):
         return self._name
 
 
-class Denormals(Block):
+class Denormals(List):
 
     """Macros to make sure denormal numbers are flushed in hardware."""
 

@@ -180,7 +180,7 @@ if __name__ == "__main__":
         bench = Benchmark(
             name=args.problem, resultsdir=args.resultsdir, parameters=parameters
         )
-        bench.execute(BenchExecutor(), warmups=0)
+        bench.execute(BenchExecutor(), warmups=0, repeats=3)
         bench.save()
 
     elif args.execmode == "plot":
@@ -192,9 +192,9 @@ if __name__ == "__main__":
             warning("Could not load any results, nothing to plot. Exiting...")
             sys.exit(0)
 
-        gflopss = bench.lookup(params=parameters, measure="gflopss", event="loop_body")
-        oi = bench.lookup(params=parameters, measure="oi", event="loop_body")
-        time = bench.lookup(params=parameters, measure="timings", event="loop_body")
+        gflopss = bench.lookup(params=parameters, measure="gflopss", event="main")
+        oi = bench.lookup(params=parameters, measure="oi", event="main")
+        time = bench.lookup(params=parameters, measure="timings", event="main")
 
         name = "%s_dim%s_so%s_to%s_arch[%s].pdf" % (args.problem,
                                                     parameters["dimensions"],
@@ -229,6 +229,13 @@ if __name__ == "__main__":
             ('advanced', 'speculative'): 'sb',
         }
 
+        # Find min and max runtimes for instances having the same OI
+        min_max = {v: [0, sys.maxint] for v in oi.values()}
+        for k, v in time.items():
+            i = oi[k]
+            min_max[i][0] = v if min_max[i][0] == 0 else min(v, min_max[i][0])
+            min_max[i][1] = v if min_max[i][1] == sys.maxint else max(v, min_max[i][1])
+
         with RooflinePlotter(title=title, figname=name, plotdir=args.plotdir,
                              max_bw=args.max_bw, max_flops=args.max_flops,
                              legend={'fontsize': 7}) as plot:
@@ -238,11 +245,19 @@ if __name__ == "__main__":
                 key = dict(key)
                 run = (key["dse"], key["dle"])
                 label = "<%s,%s>" % run
+                oi_loc = 0.06 if len(str(key["space_order"])) == 1 else 0.07
                 oi_annotate = {'s': 'SO=%s' % key["space_order"],
-                               'size': 6, 'xy': (oi_value, 0.09)} if run[0] else None
-                point_annotate = {'s': "%.1f s" % time_value,
-                                  'xytext': (-22, 18), 'size': 6,
-                                  'weight': 'bold'} if args.point_runtime else None
+                               'size': 5, 'xy': (oi_value, oi_loc)} if run[0] else None
+                if time_value in min_max[oi_value]:
+                    # Only annotate min and max runtimes on each OI line, to avoid
+                    # polluting the plot too much
+                    point_annotate = {'s': "%.1f s" % time_value,
+                                      'xytext': (-16, 13), 'size': 4,
+                                      'weight': 'bold'} if args.point_runtime else None
+                else:
+                    point_annotate = None
+                oi_line = time_value == min_max[oi_value][0]
+                perf_annotate = time_value == min_max[oi_value][0]
                 plot.add_point(gflops=gflopss, oi=oi_value, style=styles[run],
-                               oi_line=run[0], label=label, oi_annotate=oi_annotate,
-                               annotate=point_annotate)
+                               oi_line=oi_line, label=label, perf_annotate=perf_annotate,
+                               oi_annotate=oi_annotate, annotate=point_annotate)

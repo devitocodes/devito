@@ -13,6 +13,7 @@ from operator import attrgetter
 import cgen as c
 from sympy import Symbol
 
+from devito.dimension import BufferedDimension
 from devito.dse import estimate_cost, estimate_memory
 from devito.nodes import Block, Iteration, IterationBound
 from devito.tools import as_tuple, filter_ordered, filter_sorted, flatten
@@ -443,17 +444,19 @@ class ResolveIterationVariable(Transformer):
 
     def visit_Iteration(self, o, subs={}, offsets=defaultdict(set)):
         nodes = self.visit(o.children, subs=subs, offsets=offsets)
-        if o.dim.buffered:
+        if isinstance(o.dim, BufferedDimension):
             # For buffered dimensions insert the explicit
             # definition of buffere variables, eg. t+1 => t1
             init = []
             for off in filter_ordered(offsets[o.dim]):
                 vname = o.dim.get_varname()
                 value = o.dim + off
-                modulo = o.dim.buffered
+                modulo = o.dim.modulo
                 init += [c.Initializer(c.Value('int', vname),
                                        "(%s) %% %d" % (value, modulo))]
                 subs[o.dim + off] = Symbol(vname)
+            # Always lower to symbol
+            subs[o.dim.parent] = Symbol(o.dim.parent.name)
             # Insert block with modulo initialisations
             newnodes = (Block(header=init, body=nodes[0]), )
             return o._rebuild(newnodes)
@@ -482,9 +485,12 @@ class MergeOuterIterations(Transformer):
         between the loops. A deeper analysis is required for this that
         will be added soon.
         """
-        return (iter1.dim == iter2.dim and
-                iter1.index == iter2.index and
-                iter1.limits == iter2.limits)
+        equal = (iter1.dim == iter2.dim and
+                 iter1.index == iter2.index and
+                 iter1.limits == iter2.limits)
+        # Aliasing only works one-way because we left-merge
+        alias = iter1.dim.is_Buffered and iter1.dim.parent == iter2.dim
+        return equal or alias
 
     def merge(self, iter1, iter2):
         """Creates a new merged :class:`Iteration` object from two

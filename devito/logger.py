@@ -2,6 +2,7 @@
 
 import logging
 import sys
+from contextlib import contextmanager
 
 __all__ = ('set_log_level', 'set_log_noperf', 'log',
            'DEBUG', 'INFO', 'AUTOTUNER', 'DSE', 'DSE_WARN', 'DLE', 'DLE_WARN',
@@ -119,3 +120,10 @@ def dle(msg, *args, **kwargs):
 
 def dle_warning(msg, *args, **kwargs):
     log("DLE: %s" % msg, DLE_WARN, *args, **kwargs)
+
+
+@contextmanager
+def bar():
+    log('='*89, INFO)
+    yield
+    log('='*89, INFO)
