@@ -198,7 +198,7 @@ class PrintAST(Visitor):
         body = self.visit(o.children)
         self._depth -= 1
         if self.verbose:
-            detail = '::%s::%s::%s' % (o.index, o.limits, offsets)
+            detail = '::%s::%s::%s' % (o.index, o.limits, o.offsets)
             props = '[%s] ' % ','.join(o.properties) if o.properties else ''
         else:
             detail, props = '', ''
