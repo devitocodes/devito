@@ -1,10 +1,13 @@
 import numpy as np
 import pytest
 
+from devito.dimension import Dimension, time
 from devito.dse.graph import temporaries_graph
 from devito.dse.symbolics import rewrite
+from devito.interfaces import TimeData
 from examples.acoustic.Acoustic_codegen import Acoustic_cg
 from examples.containers import IGrid, IShot
+from examples.source_type import SourceLike
 from examples.tti.tti_example import setup
 from examples.tti.tti_operators import ForwardOperator
 
@@ -73,7 +76,33 @@ def test_acoustic_rewrite_basic():
 def tti_operator(dse=False):
     problem = setup(dimensions=(50, 50, 50), time_order=2,
                     space_order=4, tn=250.0, nbpml=10)
-    handle = ForwardOperator(problem.model, problem.src, problem.damp,
+    nt, nrec = problem.data.shape
+    nsrc = problem.source.shape[1]
+    ndim = len(problem.damp.shape)
+    dt = problem.dt
+    h = problem.model.get_spacing()
+    dtype = problem.damp.dtype
+    nbpml = problem.model.nbpml
+
+    u = TimeData(name="u", shape=problem.model.get_shape_comp(),
+                 time_dim=nt, time_order=2, space_order=2, dtype=dtype)
+    v = TimeData(name="v", shape=problem.model.get_shape_comp(),
+                 time_dim=nt, time_order=2, space_order=2, dtype=dtype)
+
+    # Create source symbol
+    p_src = Dimension('p_src', size=nsrc)
+    src = SourceLike(name="src", dimensions=[time, p_src], npoint=nsrc, nt=nt,
+                     dt=dt, h=h, ndim=ndim, nbpml=nbpml, dtype=dtype,
+                     coordinates=problem.source.receiver_coords)
+    src.data[:] = .5 * problem.source.traces[:]
+
+    # Create receiver symbol
+    p_rec = Dimension('p_rec', size=nrec)
+    rec = SourceLike(name="rec", dimensions=[time, p_rec], npoint=nrec, nt=nt,
+                     dt=dt, h=h, ndim=ndim, nbpml=nbpml, dtype=dtype,
+                     coordinates=problem.data.receiver_coords)
+
+    handle = ForwardOperator(problem.model, u, v, src, rec, problem.damp,
                              problem.data, time_order=problem.t_order,
                              spc_order=problem.s_order, save=False,
                              cache_blocking=None, dse=dse)
