@@ -103,11 +103,19 @@ class TemporariesGraph(OrderedDict):
     """
 
     @property
-    def space_dimensions(self):
+    def space_indices(self):
         for v in self.values():
             if v.is_terminal:
                 found = v.lhs.free_symbols - {t, v.lhs.base.label}
                 return tuple(sorted(found, key=lambda i: v.lhs.indices.index(i)))
+        return ()
+
+    @property
+    def space_shape(self):
+        for v in self.values():
+            if v.is_terminal:
+                found = v.lhs.free_symbols - {t, v.lhs.base.label}
+                return tuple(i for i, j in zip(v.lhs.shape, v.lhs.indices) if j in found)
         return ()
 
     @property

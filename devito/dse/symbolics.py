@@ -346,10 +346,9 @@ class Rewriter(object):
             --> ((a*b[t] + c*d[t])*v[t], {})
         """
 
-        template = "ti%d"
         graph = temporaries_graph(state.exprs)
-        space_dimensions = graph.space_dimensions
-        queue = graph.copy()
+        space_indices = graph.space_indices
+        template = lambda i: IndexedBase("ti%d" % i, shape=graph.space_shape)
 
         # What expressions is it worth transforming (cm=cost model)?
         # Formula: ops(expr)*aliases(expr) > self.threshold <==> do it
@@ -360,10 +359,11 @@ class Rewriter(object):
         # Replace time invariants
         processed = []
         mapper = OrderedDict()
+        queue = graph.copy()
         while queue:
             k, v = queue.popitem(last=False)
 
-            make = lambda m: Indexed(template % (len(m)+len(mapper)), *space_dimensions)
+            make = lambda m: Indexed(template(len(m)+len(mapper)), *space_indices)
             invariant = lambda e: is_time_invariant(e, graph)
             handle, flag, mapped = replace_invariants(v, make, invariant, cm)
 
@@ -388,10 +388,10 @@ class Rewriter(object):
         reduced_mapper = OrderedDict()
         for i, cluster in enumerate(reducible.values()):
             for k in cluster:
-                v, flipped = flip_indices(mapper[k], space_dimensions)
+                v, flipped = flip_indices(mapper[k], space_indices)
                 assert len(flipped) == 1
-                reduced_mapper[Indexed(template % i, *space_dimensions)] = v
-                rule[k] = Indexed(template % i, *flipped.pop())
+                reduced_mapper[Indexed(template(i), *space_indices)] = v
+                rule[k] = Indexed(template(i), *flipped.pop())
         handle, processed = list(processed), []
         for e in handle:
             processed.append(e.xreplace(rule))
