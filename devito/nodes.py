@@ -298,12 +298,11 @@ class Iteration(Node):
         loop_body = [s.ccode for s in self.nodes]
 
         # Disregard offsets for buffered dimensions
-        if self.dim.is_Buffered:
-            self.offsets = [0, 0]
+        offsets = [0, 0] if self.dim.is_Buffered else self.offsets
 
         # Start
-        if self.offsets[0] != 0:
-            val = "%s + %s" % (self.limits[0], -self.offsets[0])
+        if offsets[0] != 0:
+            val = "%s + %s" % (self.limits[0], -offsets[0])
             try:
                 val = eval(val)
             except (NameError, TypeError):
@@ -313,8 +312,8 @@ class Iteration(Node):
         loop_init = c.InlineInitializer(c.Value("int", self.index), ccode(val))
 
         # Bound
-        if self.offsets[1] != 0:
-            val = "%s - %s" % (self.limits[1], self.offsets[1])
+        if offsets[1] != 0:
+            val = "%s - %s" % (self.limits[1], offsets[1])
             try:
                 val = eval(val)
             except (NameError, TypeError):
