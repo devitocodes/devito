@@ -543,17 +543,17 @@ class Rewriter(object):
                 # Heuristic: if at least two parallel loops are available and the
                 # physical core count is greater than self.thresholds['collapse'],
                 # then omp-collapse the loops
+                # TODO: This should be generalised to the case in which there are
+                # more than just 2 collapsable loops.
                 if psutil.cpu_count(logical=False) < self.thresholds['collapse'] or\
                         len(candidates) < 2:
-                    n = candidates[0]
-                    mapper[n] = Block(header=omplang['par-region'],
-                                      body=denormals + [Element(omplang['for']), n])
+                    parallelism = omplang['for']
                 else:
-                    # TODO: This should be generalised to the case in which there are
-                    # more than just 2 collapsable loops.
-                    nodes = candidates[:2]
-                    mapper.update({n: List(header=omplang['par-for-collapse2'], body=n)
-                                   for n in nodes})
+                    parallelism = omplang['collapse2']
+
+                root = candidates[0]
+                mapper[root] = Block(header=omplang['par-region'],
+                                     body=denormals + [Element(parallelism), root])
 
             processed.append(Transformer(mapper).visit(node))
 
@@ -644,9 +644,9 @@ A dictionary to quickly access standard OpenMP pragmas
 """
 omplang = {
     'for': c.Pragma('omp for schedule(static)'),
+    'collapse2': c.Pragma('omp for collapse(2) schedule(static)'),
     'par-region': c.Pragma('omp parallel'),
     'par-for': c.Pragma('omp parallel for schedule(static)'),
-    'par-for-collapse2': c.Pragma('omp parallel for collapse(2) schedule(static)'),
     'simd-for': c.Pragma('omp simd')
 }
 
