@@ -417,15 +417,18 @@ class Function(Node):
             elif v.is_ScalarData:
                 cparameters.append(c.Value('const int', v.name))
             else:
-                cparameters.append(c.Pointer(c.POD(v.dtype, '%s_vec' % v.name)))
+                cparameters.append(c.Value(c.dtype_to_ctype(v.dtype),
+                                           '*restrict %s_vec' % v.name))
         return cparameters
 
     @property
     def _ccasts(self):
         """Generate data casts."""
+        alignment = "__attribute__((aligned(64)))"
         handle = [f for f in self.parameters if isinstance(f, TensorData)]
         shapes = [(f, ''.join(["[%s]" % i.ccode for i in f.indices[1:]])) for f in handle]
-        casts = [c.Initializer(c.POD(v.dtype, '(*%s)%s' % (v.name, shape)),
+        casts = [c.Initializer(c.POD(v.dtype,
+                                     '(*restrict %s)%s %s' % (v.name, shape, alignment)),
                                '(%s (*)%s) %s' % (c.dtype_to_ctype(v.dtype),
                                                   shape, '%s_vec' % v.name))
                  for v, shape in shapes]
