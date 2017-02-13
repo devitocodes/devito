@@ -51,7 +51,7 @@ class TTI_cg:
         # Initialize damp by calling the function that can precompute damping
         damp_boundary(self.damp.data, nbpml)
 
-    def Forward(self, save=False, dse='advanced', auto_tuning=False,
+    def Forward(self, save=False, dse='advanced', dle='advanced', auto_tuning=False,
                 cache_blocking=None, compiler=None, u_ini=None, legacy=True):
         nt, nrec = self.data.shape
         nsrc = self.source.shape[1]
@@ -99,7 +99,7 @@ class TTI_cg:
                              profile=True, save=save, cache_blocking=cache_blocking,
                              dse=dse, compiler=compiler, u_ini=u_ini, legacy=legacy)
 
-        if auto_tuning:
+        if auto_tuning and legacy:
             # uses space_order/2 for the first derivatives to
             # have spc_order second derivatives for consistency
             # with the acoustic kernel
@@ -141,5 +141,5 @@ class TTI_cg:
             return (rec.data, u.data, v.data,
                     fw.propagator.gflopss, fw.propagator.oi, fw.propagator.timings)
         else:
-            summary = fw.apply()
+            summary = fw.apply(autotune=auto_tuning)
             return rec.data, u.data, v.data, summary.gflopss, summary.oi, summary.timings

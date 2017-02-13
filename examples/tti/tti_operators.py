@@ -155,6 +155,8 @@ def ForwardOperator(model, u, v, src, rec, damp, data, time_order=2,
     stencils = [first_stencil, second_stencil]
 
     if legacy:
+        kwargs.pop('dle', None)
+
         op = Operator(nt, m.shape, stencils=stencils, subs=[subs, subs],
                       spc_border=spc_order/2, time_order=time_order,
                       forward=True, dtype=m.dtype, input_params=parm,
@@ -171,6 +173,10 @@ def ForwardOperator(model, u, v, src, rec, damp, data, time_order=2,
         op.propagator.add_devito_param(rec.coordinates)
 
     else:
+        dse = kwargs.get('dse', 'advanced')
+        dle = kwargs.get('dle', 'advanced')
+        compiler = kwargs.get('compiler', None)
+
         stencils += src.point2grid(u, m, u_t=t, p_t=time)
         stencils += src.point2grid(v, m, u_t=t, p_t=time)
         stencils += [Eq(rec, rec.grid2point(u) + rec.grid2point(v))]
@@ -188,6 +194,7 @@ def ForwardOperator(model, u, v, src, rec, damp, data, time_order=2,
         time_subs = {t + 2: t + 1, t: t + 2, t - 2: t, t - 1: t + 1, t + 1: t}
         subs.update(time_subs)
 
-        op = StencilKernel(stencils=stencils, subs=subs, dse=None, dle=None)
+        op = StencilKernel(stencils=stencils, subs=subs, dse=dse, dle=dle,
+                           compiler=compiler)
 
     return op

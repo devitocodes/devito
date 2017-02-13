@@ -15,7 +15,8 @@ class Acoustic_cg(object):
     Note: s_order must always be greater than t_order
     """
     def __init__(self, model, data, source, nbpml=40, t_order=2, s_order=2,
-                 auto_tuning=False, dse=True, compiler=None):
+                 auto_tuning=False, dse=True, dle='advanced', compiler=None,
+                 legacy=True):
         self.model = model
         self.t_order = t_order
         self.s_order = s_order
@@ -56,7 +57,7 @@ class Acoustic_cg(object):
         # Initialize damp by calling the function that can precompute damping
         damp_boundary(self.damp.data, nbpml)
 
-        if auto_tuning:  # auto tuning with dummy forward operator
+        if auto_tuning and legacy:  # auto tuning with dummy forward operator
             nt, nrec = self.data.shape
             nsrc = self.source.shape[1]
             ndim = len(self.damp.shape)
@@ -91,7 +92,7 @@ class Acoustic_cg(object):
             self.at.auto_tune_blocks(self.s_order + 1, self.s_order * 4 + 2)
 
     def Forward(self, save=False, cache_blocking=None, auto_tuning=False,
-                dse='advanced', compiler=None, u_ini=None, legacy=True):
+                dse='advanced', dle='advanced', compiler=None, u_ini=None, legacy=True):
         nt, nrec = self.data.shape
         nsrc = self.source.shape[1]
         ndim = len(self.damp.shape)
@@ -115,7 +116,7 @@ class Acoustic_cg(object):
                          dt=dt, h=h, ndim=ndim, nbpml=nbpml, dtype=dtype,
                          coordinates=self.data.receiver_coords)
 
-        if auto_tuning:
+        if legacy and auto_tuning:
             cache_blocking = self.at.block_size
 
         # Create the forward wavefield
@@ -130,7 +131,7 @@ class Acoustic_cg(object):
         fw = ForwardOperator(self.model, u, src, rec, self.damp, self.data,
                              time_order=self.t_order, spc_order=self.s_order,
                              save=save, cache_blocking=cache_blocking, dse=dse,
-                             compiler=compiler, profile=True, u_ini=u_ini,
+                             dle=dle, compiler=compiler, profile=True, u_ini=u_ini,
                              legacy=legacy)
 
         if legacy:
@@ -138,7 +139,7 @@ class Acoustic_cg(object):
             return (rec.data, u, fw.propagator.gflopss,
                     fw.propagator.oi, fw.propagator.timings)
         else:
-            summary = fw.apply()
+            summary = fw.apply(autotune=auto_tuning)
             return rec.data, u, summary.gflopss, summary.oi, summary.timings
 
     def Adjoint(self, rec, cache_blocking=None):
