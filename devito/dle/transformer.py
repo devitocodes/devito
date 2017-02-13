@@ -11,7 +11,7 @@ import psutil
 from devito.dimension import Dimension
 from devito.dle.inspection import retrieve_iteration_tree
 from devito.dle.manipulation import compose_nodes
-from devito.dse import symbolify, terminals
+from devito.dse import as_symbol, terminals
 from devito.interfaces import ScalarData, SymbolicData
 from devito.logger import dle, dle_warning
 from devito.nodes import (Block, Denormals, Element, Expression,
@@ -270,7 +270,7 @@ class Rewriter(object):
             has_parallel_dimension = True
             for k, v in terms.items():
                 for i in writes:
-                    maybe_dependencies = [j for j in v if symbolify(i) == symbolify(j)
+                    maybe_dependencies = [j for j in v if as_symbol(i) == as_symbol(j)
                                           and not j.is_Symbol]
                     for j in maybe_dependencies:
                         handle = flatten(k.atoms() for k in j.indices[1:])
@@ -284,7 +284,7 @@ class Rewriter(object):
                 lhs = e.lhs
                 if lhs.is_Symbol:
                     continue
-                handle = [i for i in terms[e] if symbolify(i) == symbolify(lhs)]
+                handle = [i for i in terms[e] if as_symbol(i) == as_symbol(lhs)]
                 if any(lhs.indices[0] != i.indices[0] for i in handle):
                     is_OSIP = True
                     break

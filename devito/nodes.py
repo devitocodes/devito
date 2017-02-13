@@ -10,7 +10,7 @@ from sympy import Eq, IndexedBase, preorder_traversal
 
 from devito.codeprinter import ccode
 from devito.dimension import Dimension
-from devito.dse.inspection import retrieve_indexed
+from devito.dse.inspection import as_symbol, retrieve_indexed
 from devito.interfaces import IndexedData, SymbolicData, TensorData
 from devito.tools import DefaultOrderedDict, as_tuple, filter_ordered, flatten
 
@@ -174,12 +174,7 @@ class Expression(Node):
         """
         Return the symbol written by this Expression.
         """
-        lhs = self.stencil.lhs
-        if lhs.is_Symbol:
-            return lhs
-        else:
-            # An Indexed
-            return lhs.base.label
+        return as_symbol(self.stencil.lhs)
 
     @property
     def index_offsets(self):
