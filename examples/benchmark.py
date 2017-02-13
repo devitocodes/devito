@@ -198,11 +198,12 @@ if __name__ == "__main__":
         oi = bench.lookup(params=parameters, measure="oi", event="main")
         time = bench.lookup(params=parameters, measure="timings", event="main")
 
-        name = "%s_dim%s_so%s_to%s_arch[%s].pdf" % (args.problem,
-                                                    parameters["dimensions"],
-                                                    parameters["space_order"],
-                                                    parameters["time_order"],
-                                                    args.arch)
+        name = "%s_%s_dim%s_so%s_to%s_arch[%s].pdf" % (args.problem,
+                                                       args.benchmode,
+                                                       parameters["dimensions"],
+                                                       parameters["space_order"],
+                                                       parameters["time_order"],
+                                                       args.arch)
         name = name.replace(' ', '')
         title = "%s[%s,TO=%s], with varying <DSE,DLE>, on %s" %\
             (args.problem.capitalize(),
