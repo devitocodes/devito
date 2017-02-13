@@ -270,7 +270,8 @@ class Rewriter(object):
             has_parallel_dimension = True
             for k, v in terms.items():
                 for i in writes:
-                    maybe_dependencies = [j for j in v if symbolify(i) == symbolify(j)]
+                    maybe_dependencies = [j for j in v if symbolify(i) == symbolify(j)
+                                          and not j.is_Symbol]
                     for j in maybe_dependencies:
                         handle = flatten(k.atoms() for k in j.indices[1:])
                         has_parallel_dimension &= not (i.indices[0] in handle)
@@ -283,7 +284,7 @@ class Rewriter(object):
                 lhs = e.lhs
                 if lhs.is_Symbol:
                     continue
-                handle = [i for i in terms[e] if i.base.label == lhs.base.label]
+                handle = [i for i in terms[e] if symbolify(i) == symbolify(lhs)]
                 if any(lhs.indices[0] != i.indices[0] for i in handle):
                     is_OSIP = True
                     break
