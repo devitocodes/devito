@@ -243,17 +243,19 @@ class StencilKernel(Function):
         """
         summary = PerformanceSummary()
         for itspace, profile in self.sections.items():
+            dims = {i: i.dim.parent if i.dim.is_Buffered else i.dim for i in itspace}
+
             # Time
             time = self.profiler.timings[profile.timer]
 
             # Flops
-            itershape = [i.extent(finish=dim_sizes.get(i.dim)) for i in itspace]
+            itershape = [i.extent(finish=dim_sizes.get(dims[i])) for i in itspace]
             iterspace = reduce(operator.mul, itershape)
             flops = float(profile.ops*iterspace)
             gflops = flops/10**9
 
             # Compulsory traffic
-            datashape = [i.dim.size or dim_sizes[i.dim] for i in itspace]
+            datashape = [i.dim.size or dim_sizes[dims[i]] for i in itspace]
             dataspace = reduce(operator.mul, datashape)
             traffic = profile.memory*dataspace*dtype_size
 
