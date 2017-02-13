@@ -49,6 +49,8 @@ def ForwardOperator(model, u, src, rec, damp, data, time_order=2, spc_order=6,
     subs = {s: dt, h: model.get_spacing()}
 
     if legacy:
+        kwargs.pop('dle', None)
+
         op = Operator(nt, m.shape, stencils=Eq(u.forward, stencil), subs=subs,
                       spc_border=max(spc_order / 2, 2), time_order=2, forward=True,
                       dtype=m.dtype, **kwargs)
@@ -63,6 +65,10 @@ def ForwardOperator(model, u, src, rec, damp, data, time_order=2, spc_order=6,
         op.propagator.add_devito_param(rec.coordinates)
 
     else:
+        dse = kwargs.get('dse', 'advanced')
+        dle = kwargs.get('dle', 'advanced')
+        compiler = kwargs.get('compiler', None)
+
         # Create stencil expressions for operator, source and receivers
         eqn = Eq(u.forward, stencil)
         src_add = src.point2grid(u, m, u_t=t, p_t=time)
@@ -75,14 +81,15 @@ def ForwardOperator(model, u, src, rec, damp, data, time_order=2, spc_order=6,
 
         # Shift time indices so that LHS writes into t only,
         # eg. u[t+2] = u[t+1] + u[t]  -> u[t] = u[t-1] + u[t-2]
-        stencils = [e.subs(t, t + solve(eqn.lhs.args[0], t)[0])
+        stencils = [e.subs(t, t + solve(e.lhs.args[0], t)[0])
                     if isinstance(e.lhs, TimeData) else e
                     for e in stencils]
         # Apply time substitutions as per legacy approach
         time_subs = {t + 2: t + 1, t: t + 2, t - 2: t, t - 1: t + 1, t + 1: t}
         subs.update(time_subs)
 
-        op = StencilKernel(stencils=stencils, subs=subs, dse=None, dle=None)
+        op = StencilKernel(stencils=stencils, subs=subs, dse=dse, dle=dle,
+                           compiler=compiler)
 
     return op
 
