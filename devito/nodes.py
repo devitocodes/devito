@@ -186,6 +186,13 @@ class Expression(Node):
         return self.stencil.lhs.is_Symbol
 
     @property
+    def shape(self):
+        """
+        Return the shape of the written LHS.
+        """
+        return () if self.is_scalar else self.stencil.lhs.shape
+
+    @property
     def index_offsets(self):
         """Mapping of :class:`Dimension` symbols to each integer
         stencil offset used with it in this expression.
