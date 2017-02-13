@@ -136,9 +136,10 @@ class Expression(Node):
 
     is_Expression = True
 
-    def __init__(self, stencil):
+    def __init__(self, stencil, dtype=None):
         assert isinstance(stencil, Eq)
         self.stencil = stencil
+        self.dtype = dtype
 
         self.dimensions = []
         self.functions = []
@@ -155,7 +156,8 @@ class Expression(Node):
         self.functions = filter_ordered(self.functions)
 
     def __repr__(self):
-        return "<Expression::%s>" % filter_ordered([f.func for f in self.functions])
+        return "<%s::%s>" % (self.__class__.__name__,
+                             filter_ordered([f.func for f in self.functions]))
 
     def substitute(self, substitutions):
         """Apply substitutions to the expression stencil
@@ -175,6 +177,13 @@ class Expression(Node):
         Return the symbol written by this Expression.
         """
         return as_symbol(self.stencil.lhs)
+
+    @property
+    def is_scalar(self):
+        """
+        Return True if a scalar expression, False otherwise.
+        """
+        return self.stencil.lhs.is_Symbol
 
     @property
     def index_offsets(self):
@@ -206,22 +215,6 @@ class Expression(Node):
                 if d is not None:
                     offsets[d].update(off)
         return offsets
-
-
-class TypedExpression(Expression):
-
-    """Class encpasulating a single stencil expression with known data type,
-    represented as a NumPy data type."""
-
-    def __init__(self, stencil, dtype):
-        super(TypedExpression, self).__init__(stencil)
-        self.dtype = dtype
-
-    @property
-    def ccode(self):
-        ctype = c.dtype_to_ctype(self.dtype)
-        return c.Initializer(c.Value(ctype, ccode(self.stencil.lhs)),
-                             ccode(self.stencil.rhs))
 
 
 class Iteration(Node):
@@ -494,6 +487,22 @@ class Denormals(List):
 
     def __repr__(self):
         return "<DenormalsMacro>"
+
+
+class LocalExpression(Expression):
+
+    """Class encpasulating a single stencil expression with known data type
+    (represented as a NumPy data type)."""
+
+    def __init__(self, stencil, dtype):
+        super(LocalExpression, self).__init__(stencil)
+        self.dtype = dtype
+
+    @property
+    def ccode(self):
+        ctype = c.dtype_to_ctype(self.dtype)
+        return c.Initializer(c.Value(ctype, ccode(self.stencil.lhs)),
+                             ccode(self.stencil.rhs))
 
 
 class IterationBound(object):
