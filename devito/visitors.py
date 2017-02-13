@@ -14,7 +14,7 @@ import cgen as c
 from sympy import Symbol
 
 from devito.dse import estimate_cost, estimate_memory
-from devito.nodes import Iteration, List
+from devito.nodes import Element, Iteration, List, LocalExpression
 from devito.tools import as_tuple, filter_ordered, filter_sorted, flatten
 
 
@@ -525,6 +525,101 @@ class MergeOuterIterations(Transformer):
                 ret = self.visit([newit] + list(body[1:]))
                 return as_tuple(ret)
         return tuple([head] + list(body))
+
+
+class Declarator(Transformer):
+
+    Declaration = namedtuple('Declaration', 'declaration header footer')
+
+    @classmethod
+    def default_retval(cls):
+        return OrderedDict(), None
+
+    """
+    Traverse the Iteration/Expression tree and introduce declarations for all
+    arrays and variables employed.
+
+    If an expression ``e`` is used only within a single scope, replace ``e``
+    with a ``LocalExpression`` so that at code generation time, something like
+    the following code block will be emitted:
+
+        .. code-block::
+      ...
+      {
+        float e = ...;
+        ...
+      }
+
+    If, otherwhise, an array is used across multiple scopes, then construct and
+    return suitable statements to be inserted at the top and at the bottom of
+    the provided Iteration/Expression tree; for example:
+
+        .. code-block::
+      float *e = malloc(...);
+      {
+        foo(e)
+      }
+      ...
+      for i
+      {
+        bar(e)
+      }
+      free(e)
+
+    :param known: Collection of symbols that need no declaration.
+    """
+
+    def __init__(self, known=None):
+        super(Transformer, self).__init__()
+        self.known = known or {}
+
+    def _declare(self, o):
+        declaration = "(*%s)%s"
+        declaration = declaration % (o.output, "".join("[%d]" % j for j in o.shape[:-1]))
+        return c.Value(c.dtype_to_ctype(o.dtype), declaration)
+
+    def _alloc(self, o):
+        funcall = "posix_memalign((void**)&%s, 64, sizeof(%s%s))"
+        funcall = funcall % (o.output, c.dtype_to_ctype(o.dtype),
+                             "".join("[%d]" % j for j in o.shape))
+        return c.Statement(funcall)
+
+    def _free(self, o):
+        return c.Statement('free(%s)' % o.output)
+
+    def visit_tuple(self, o, scope=None, mapper=None):
+        rebuilt = []
+        for i in o:
+            mapper, handle = self.visit(i, scope=scope, mapper=mapper)
+            rebuilt.append(handle)
+        return mapper, tuple(rebuilt)
+
+    def visit_Node(self, o, scope=None, mapper=None):
+        mapper, rebuilt = self.visit(o.children, scope=scope, mapper=mapper)
+        return mapper, o._rebuild(*rebuilt, **o.args_frozen)
+
+    def visit_Iteration(self, o, scope=None, mapper=None):
+        if scope is None:
+            scope = [o]
+        else:
+            scope.append(o)
+        mapper, rebuilt = self.visit(o.children, scope=scope, mapper=mapper)
+        scope.remove(o)
+        return mapper, o._rebuild(*rebuilt, **o.args_frozen)
+
+    def visit_Expression(self, o, scope=None, mapper=None):
+        if mapper is None:
+            mapper, _ = self.default_retval()
+        if o.is_scalar:
+            return mapper, LocalExpression(**o.args)
+        elif o.output in self.known:
+            return mapper, o._rebuild(**o.args)
+        else:
+            if o not in mapper:
+                mapper[o] = self.Declaration(self._declare(o),
+                                             self._alloc(o),
+                                             self._free(o))
+            return mapper, o._rebuild(**o.args)
 
 
 def printAST(node, verbose=True):
