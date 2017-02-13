@@ -14,15 +14,15 @@ from devito.compiler import (get_compiler_from_env, get_tmp_dir,
                              jit_compile_and_load)
 from devito.dimension import BufferedDimension, Dimension
 from devito.dle import transform
-from devito.dse import indexify, retrieve_and_check_dtype, rewrite
+from devito.dse import as_symbol, indexify, retrieve_and_check_dtype, rewrite
 from devito.interfaces import SymbolicData
 from devito.logger import bar, error, info, warning
 from devito.nodes import (Block, Expression, Function, Iteration,
-                          TimedList, TypedExpression)
+                          LocalExpression, TimedList)
 from devito.profiler import Profiler
 from devito.tools import as_tuple, filter_ordered
-from devito.visitors import (EstimateCost, FindNodeType, FindSections, FindSymbols,
-                             IsPerfectIteration, MergeOuterIterations,
+from devito.visitors import (Declarator, EstimateCost, FindNodeType, FindSections,
+                             FindSymbols, IsPerfectIteration, MergeOuterIterations,
                              ResolveIterationVariable, SubstituteExpression,
                              Transformer, printAST)
 
@@ -85,19 +85,28 @@ class StencilKernel(Function):
         self.sections = OrderedDict()
         nodes = self._profile_sections(nodes)
 
-        # Apply the Devito Loop Engine for loop optimization and finalize instantiation
-        dle_state = transform(nodes, mode=set_dle_mode(dle, self.compiler),
-                              compiler=self.compiler)
-        body = dle_state.nodes
+        # Parameters of the StencilKernel
+        parameters = FindSymbols('with-data').visit(nodes)
 
-        # Now resolve and substitute dimensions for loop index variables
-        subs = {}
-        body = ResolveIterationVariable().visit(body, subs=subs)
-        body = SubstituteExpression(subs=subs).visit(body)
-
-        parameters = FindSymbols('with-data').visit(body)
+        # Apply the Devito Loop Engine for loop optimization
+        dle_state = transform(nodes, set_dle_mode(dle, self.compiler), self.compiler)
         parameters += [i.argument for i in dle_state.arguments]
+        self._includes.extend(list(dle_state.includes))
 
+        # Introduce all required C declarations
+        nodes, elemental_functions = self._insert_declarations(dle_state, parameters)
+        self.elemental_functions = elemental_functions
+
+        # Resolve and substitute dimensions for loop index variables
+        subs = {}
+        nodes = ResolveIterationVariable().visit(nodes, subs=subs)
+        nodes = SubstituteExpression(subs=subs).visit(nodes)
+
+        # Track the DSE and DLE output, as they may be useful later
+        self._dse_state = dse_state
+        self._dle_state = dle_state
+
+        # Finish instantiation
         # Add all dimensions used in expressions symbols to arguments.
         # This is required to ensure that we can safely perform data casts.
         dimensions = FindSymbols('dimensions').visit(body)
@@ -105,14 +114,7 @@ class StencilKernel(Function):
         dimensions += [d.parent for d in dimensions if d.is_Buffered]
         parameters += filter_ordered([d for d in dimensions if d.size is None],
                                      key=operator.attrgetter('name'))
-        super(StencilKernel, self).__init__(name, body, 'int', parameters, ())
-
-        # DLE might have introduced additional headers
-        self._includes.extend(list(dle_state.includes))
-
-        # Track the DSE and DLE output, as they may be useful later
-        self._dse_state = dse_state
-        self._dle_state = dle_state
+        super(StencilKernel, self).__init__(name, nodes, 'int', parameters, ())
 
     def __call__(self, *args, **kwargs):
         self.apply(*args, **kwargs)
@@ -341,12 +343,8 @@ class StencilKernel(Function):
             # Build declarations or assignments
             body = []
             for k, v in cluster.items():
-                if cluster.is_index(k):
-                    body.append(TypedExpression(v, np.int32))
-                elif v.is_terminal:
-                    body.append(Expression(v))
-                else:
-                    body.append(TypedExpression(v, dtype))
+                dtype = np.int32 if cluster.is_index(k) else dtype
+                body.append(Expression(v, dtype))
             offsets = body[-1].index_offsets
             # Filter out aliasing due to buffered dimensions
             key = lambda d: d.parent if d.is_Buffered else d
@@ -371,6 +369,30 @@ class StencilKernel(Function):
 
         return processed
 
+    def _insert_declarations(self, dle_state, parameters):
+        """Populate the StencilKernel's body with the requried array and
+        variable declarations, to generate a legal C file."""
+        known = [as_symbol(i) for i in parameters]
+
+        # Insert declarations into the body
+        mapper, nodes = Declarator(known).visit(dle_state.nodes)
+        if mapper:
+            declarations, header, footer = zip(*mapper.values())
+            nodes = List(header=declarations + header, body=nodes, footer=footer)
+
+        # Insert declarations into each of the elemental functions
+        elemental_functions = []
+        for node in dle_state.elemental_functions:
+            mapper, rebuilt = Declarator(known).visit(node)
+            if mapper:
+                declarations, header, footer = zip(*mapper.values())
+                body = List(header=declarations+header, body=rebuilt.body, footer=footer)
+                rebuilt = Transformer({rebuilt.body: body}).visit(rebuilt)
+            elemental_functions.append(rebuilt)
+
+        return nodes, elemental_functions
+
+
     @property
     def _cparameters(self):
         cparameters = super(StencilKernel, self)._cparameters
@@ -394,7 +416,7 @@ class StencilKernel(Function):
         kernel = c.FunctionBody(self._ctop, c.Block(self._ccasts + body + ret))
 
         # Generate elemental functions produced by the DLE
-        elemental_functions = [e.ccode for e in self._dle_state.elemental_functions]
+        elemental_functions = [e.ccode for e in self.elemental_functions]
         elemental_functions += [blankline]
 
         # Generate file header with includes and definitions
@@ -413,7 +435,7 @@ class StencilKernel(Function):
         :returns: The basename path as a string
         """
         expr_string = printAST(self.body, verbose=True)
-        expr_string += printAST(self._dle_state.elemental_functions, verbose=True)
+        expr_string += printAST(self.elemental_functions, verbose=True)
         hash_key = sha1(expr_string.encode()).hexdigest()
 
         return path.join(get_tmp_dir(), hash_key)
