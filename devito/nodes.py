@@ -11,7 +11,7 @@ from sympy import Eq, IndexedBase, preorder_traversal
 from devito.codeprinter import ccode
 from devito.dimension import Dimension
 from devito.dse.inspection import retrieve_indexed
-from devito.interfaces import SymbolicData, TensorData
+from devito.interfaces import IndexedData, SymbolicData, TensorData
 from devito.tools import DefaultOrderedDict, as_tuple, filter_ordered
 
 __all__ = ['Node', 'Block', 'Expression', 'Function', 'Iteration', 'List',
@@ -147,7 +147,7 @@ class Expression(Node):
             if isinstance(e, SymbolicData):
                 self.dimensions += list(e.indices)
                 self.functions += [e]
-            if isinstance(e, IndexedBase):
+            if isinstance(e, IndexedData):
                 self.dimensions += list(e.function.indices)
                 self.functions += [e.function]
         # Filter collected dimensions and functions
