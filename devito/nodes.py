@@ -186,6 +186,20 @@ class Expression(Node):
         return self.stencil.lhs.is_Symbol
 
     @property
+    def is_tensor(self):
+        """
+        Return True if a tensor expression, False otherwise.
+        """
+        return not self.is_scalar
+
+    @property
+    def is_temporary(self):
+        """
+        Return True if writing to a temporary object, False otherwise.
+        """
+        return not isinstance(self.stencil.lhs.base, IndexedData)
+
+    @property
     def shape(self):
         """
         Return the shape of the written LHS.
