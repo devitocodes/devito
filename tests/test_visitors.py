@@ -184,10 +184,10 @@ def test_transformer_replace_function_body(block1, block2):
     """Create a Function and replace its body with another."""
     args = FindSymbols().visit(block1)
     f = Function('foo', block1, 'void', args)
-    assert str(f.ccode) == """void foo(float *a_vec, float *b_vec)
+    assert str(f.ccode) == """void foo(float *restrict a_vec, float *restrict b_vec)
 {
-  float (*a) = (float (*)) a_vec;
-  float (*b) = (float (*)) b_vec;
+  float (*restrict a) __attribute__((aligned(64))) = (float (*)) a_vec;
+  float (*restrict b) __attribute__((aligned(64))) = (float (*)) b_vec;
   for (int i = 0; i < 3; i += 1)
   {
     for (int j = 0; j < 5; j += 1)
@@ -201,10 +201,11 @@ def test_transformer_replace_function_body(block1, block2):
 }"""
 
     f = Transformer({block1: block2}).visit(f)
-    assert str(f.ccode) == """void foo(float *a_vec, float *b_vec)
+    print f.ccode
+    assert str(f.ccode) == """void foo(float *restrict a_vec, float *restrict b_vec)
 {
-  float (*a) = (float (*)) a_vec;
-  float (*b) = (float (*)) b_vec;
+  float (*restrict a) __attribute__((aligned(64))) = (float (*)) a_vec;
+  float (*restrict b) __attribute__((aligned(64))) = (float (*)) b_vec;
   for (int i = 0; i < 3; i += 1)
   {
     a[i] = a[i] + b[i] + 5.0F;

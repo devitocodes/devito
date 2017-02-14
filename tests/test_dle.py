@@ -130,31 +130,32 @@ def test_create_elemental_functions_simple(simple_function):
     handle = transform(simple_function, mode=('split',))
     block = List(body=handle.nodes + handle.elemental_functions)
     assert str(block.ccode) == \
-        ("""void foo(float *a_vec, float *b_vec, float *c_vec, float *d_vec)
+        ("""void foo(float *restrict a_vec, float *restrict b_vec,"""
+         """ float *restrict c_vec, float *restrict d_vec)
 {
-  float (*a) = (float (*)) a_vec;
-  float (*b) = (float (*)) b_vec;
-  float (*c)[5] = (float (*)[5]) c_vec;
-  float (*d)[5][7] = (float (*)[5][7]) d_vec;
-  for (int i0 = 0; i0 < 3; i0 += 1)
+  float (*restrict a) __attribute__((aligned(64))) = (float (*)) a_vec;
+  float (*restrict b) __attribute__((aligned(64))) = (float (*)) b_vec;
+  float (*restrict c)[5] __attribute__((aligned(64))) = (float (*)[5]) c_vec;
+  float (*restrict d)[5][7] __attribute__((aligned(64))) = (float (*)[5][7]) d_vec;
+  for (int i = 0; i < 3; i += 1)
   {
-    for (int j0 = 0; j0 < 5; j0 += 1)
+    for (int j = 0; j < 5; j += 1)
     {
-      f_0_0(a_vec,b_vec,c_vec,d_vec,i0,j0);
+      f_0_0(a_vec,b_vec,c_vec,d_vec);
     }
   }
 }
-void f_0_0(float *a_vec, float *b_vec, float *c_vec, float *d_vec,"""
-         """ const int i0, const int j0)
+void f_0_0(float *restrict a_vec, float *restrict b_vec,"""
+         """ float *restrict c_vec, float *restrict d_vec)
 {
-  float (*a) = (float (*)) a_vec;
-  float (*b) = (float (*)) b_vec;
-  float (*c)[5] = (float (*)[5]) c_vec;
-  float (*d)[5][7] = (float (*)[5][7]) d_vec;
-  for (int k0 = 0; k0 < 7; k0 += 1)
+  float (*restrict a) __attribute__((aligned(64))) = (float (*)) a_vec;
+  float (*restrict b) __attribute__((aligned(64))) = (float (*)) b_vec;
+  float (*restrict c)[5] __attribute__((aligned(64))) = (float (*)[5]) c_vec;
+  float (*restrict d)[5][7] __attribute__((aligned(64))) = (float (*)[5][7]) d_vec;
+  for (int k = 0; k < 7; k += 1)
   {
-    a[i0] = a[i0] + b[i0] + 5.0F;
-    a[i0] = -a[i0]*c[i0][j0] + b[i0]*d[i0][j0][k0];
+    a[i] = a[i] + b[i] + 5.0F;
+    a[i] = -a[i]*c[i][j] + b[i]*d[i][j][k];
   }
 }""")
     Rewriter.thresholds['elemental-functions'] = old
@@ -166,51 +167,52 @@ def test_create_elemental_functions_complex(complex_function):
     handle = transform(complex_function, mode=('split',))
     block = List(body=handle.nodes + handle.elemental_functions)
     assert str(block.ccode) == \
-        ("""void foo(float *a_vec, float *b_vec, float *c_vec, float *d_vec)
+        ("""void foo(float *restrict a_vec, float *restrict b_vec,"""
+         """ float *restrict c_vec, float *restrict d_vec)
 {
-  float (*a) = (float (*)) a_vec;
-  float (*b) = (float (*)) b_vec;
-  float (*c)[5] = (float (*)[5]) c_vec;
-  float (*d)[5][7] = (float (*)[5][7]) d_vec;
-  for (int i1 = 0; i1 < 3; i1 += 1)
+  float (*restrict a) __attribute__((aligned(64))) = (float (*)) a_vec;
+  float (*restrict b) __attribute__((aligned(64))) = (float (*)) b_vec;
+  float (*restrict c)[5] __attribute__((aligned(64))) = (float (*)[5]) c_vec;
+  float (*restrict d)[5][7] __attribute__((aligned(64))) = (float (*)[5][7]) d_vec;
+  for (int i = 0; i < 3; i += 1)
   {
-    f_0_0(a_vec,b_vec,i1);
-    for (int j1 = 0; j1 < 5; j1 += 1)
+    f_0_0(a_vec,b_vec);
+    for (int j = 0; j < 5; j += 1)
     {
-      f_0_1(a_vec,b_vec,c_vec,d_vec,i1,j1);
+      f_0_1(a_vec,b_vec,c_vec,d_vec);
     }
-    f_0_2(a_vec,b_vec,i1);
+    f_0_2(a_vec,b_vec);
   }
 }
-void f_0_0(float *a_vec, float *b_vec, const int i1)
+void f_0_0(float *restrict a_vec, float *restrict b_vec)
 {
-  float (*a) = (float (*)) a_vec;
-  float (*b) = (float (*)) b_vec;
-  for (int s0 = 0; s0 < 4; s0 += 1)
+  float (*restrict a) __attribute__((aligned(64))) = (float (*)) a_vec;
+  float (*restrict b) __attribute__((aligned(64))) = (float (*)) b_vec;
+  for (int s = 0; s < 4; s += 1)
   {
-    a[i1] = a[i1] + pow(b[i1], 2) + 3;
+    a[i] = a[i] + pow(b[i], 2) + 3;
   }
 }
-void f_0_1(float *a_vec, float *b_vec, float *c_vec, float *d_vec,"""
-         """ const int i1, const int j1)
+void f_0_1(float *restrict a_vec, float *restrict b_vec,"""
+         """ float *restrict c_vec, float *restrict d_vec)
 {
-  float (*a) = (float (*)) a_vec;
-  float (*b) = (float (*)) b_vec;
-  float (*c)[5] = (float (*)[5]) c_vec;
-  float (*d)[5][7] = (float (*)[5][7]) d_vec;
-  for (int k1 = 0; k1 < 7; k1 += 1)
+  float (*restrict a) __attribute__((aligned(64))) = (float (*)) a_vec;
+  float (*restrict b) __attribute__((aligned(64))) = (float (*)) b_vec;
+  float (*restrict c)[5] __attribute__((aligned(64))) = (float (*)[5]) c_vec;
+  float (*restrict d)[5][7] __attribute__((aligned(64))) = (float (*)[5][7]) d_vec;
+  for (int k = 0; k < 7; k += 1)
   {
-    a[i1] = a[i1]*b[i1]*c[i1][j1]*d[i1][j1][k1];
-    a[i1] = 4*(a[i1] + c[i1][j1])*(b[i1] + d[i1][j1][k1]);
+    a[i] = a[i]*b[i]*c[i][j]*d[i][j][k];
+    a[i] = 4*(a[i] + c[i][j])*(b[i] + d[i][j][k]);
   }
 }
-void f_0_2(float *a_vec, float *b_vec, const int i1)
+void f_0_2(float *restrict a_vec, float *restrict b_vec)
 {
-  float (*a) = (float (*)) a_vec;
-  float (*b) = (float (*)) b_vec;
-  for (int p0 = 0; p0 < 4; p0 += 1)
+  float (*restrict a) __attribute__((aligned(64))) = (float (*)) a_vec;
+  float (*restrict b) __attribute__((aligned(64))) = (float (*)) b_vec;
+  for (int p = 0; p < 4; p += 1)
   {
-    a[i1] = 8.0F*a[i1] + 6.0F/b[i1];
+    a[i] = 8.0F*a[i] + 6.0F/b[i];
   }
 }""")
     Rewriter.thresholds['elemental-functions'] = old
