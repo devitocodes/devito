@@ -1,14 +1,15 @@
 import numpy as np
-from sympy import (Indexed, Function, Number, Symbol,
-                   count_ops, lambdify, preorder_traversal, sin, cos)
+from sympy import (Function, Indexed, Number, Symbol, cos, count_ops, lambdify,
+                   preorder_traversal, sin)
 
 from devito.dimension import t
 from devito.interfaces import SymbolicData
 from devito.logger import warning
 from devito.tools import flatten
 
-__all__ = ['indexify', 'retrieve_dimensions', 'retrieve_dtype', 'retrieve_symbols',
-           'retrieve_shape', 'terminals', 'tolambda']
+__all__ = ['estimate_cost', 'estimate_memory', 'indexify', 'retrieve_dimensions',
+           'retrieve_dtype', 'retrieve_symbols', 'retrieve_shape', 'terminals',
+           'tolambda', 'retrieve_and_check_dtype', 'symbolify']
 
 
 def terminals(expr, discard_indexed=False):
@@ -223,6 +224,23 @@ def retrieve_dtype(expr):
     return np.find_common_type(dtypes, [])
 
 
+def retrieve_and_check_dtype(exprs):
+    """
+    Retrieve the data type of a set of SymPy equations and check that all LHS
+    and RHS match up.
+    """
+    assert len(exprs) > 0 and all(i.is_Equality for i in exprs)
+
+    dtype = None
+    for i in exprs:
+        if isinstance(i.lhs, SymbolicData):
+            dtype = dtype or i.lhs.dtype
+        terms = terminals(i.rhs)
+        if any(j.dtype != dtype for j in terms if isinstance(j, SymbolicData)):
+            raise RuntimeError("Stencil types mismatch.")
+    return dtype
+
+
 def retrieve_shape(expr):
     indexed = set([e for e in preorder_traversal(expr) if isinstance(e, Indexed)])
     if not indexed:
@@ -295,6 +313,18 @@ def retrieve_trigonometry(expr, mode='unique'):
     Shorthand for ``retrieve(expr, 'trigonometry', 'unique')``.
     """
     return retrieve(expr, 'trigonometry', mode)
+
+
+def symbolify(expr):
+    """
+    Extract the "main" symbol from a SymPy object.
+    """
+    if expr.is_Symbol:
+        return expr
+    elif isinstance(expr, Indexed):
+        return expr.base.label
+    else:
+        raise RuntimeError("Cannot extract symbol from type %s" % type(expr))
 
 
 def is_time_invariant(expr, graph=None):

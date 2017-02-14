@@ -13,10 +13,10 @@ class Profiler(object):
     """
     TIME = 0
     t_name = "timings"
+    s_name = "profiler"
 
     def __init__(self, openmp=False, dtype=np.float32):
         self.openmp = openmp
-        self.float_size = np.dtype(dtype).itemsize
         self.profiled = []
         self.t_fields = []
 
@@ -86,13 +86,10 @@ class Profiler(object):
         assert choice in [Profiler.TIME]
 
         fields = []
-        s_name = None
-
-        s_name = "profiler"
         for name, _ in self.t_fields:
             fields.append(Value("double", name))
 
-        return Struct(s_name, fields)
+        return Struct(self.s_name, fields)
 
     def as_ctypes_pointer(self, choice):
         """Returns a pointer to the ctypes structure for the chosen

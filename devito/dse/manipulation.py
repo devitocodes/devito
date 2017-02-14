@@ -4,7 +4,7 @@ Routines to construct new SymPy expressions transforming the provided input.
 
 from sympy import Indexed, S
 
-from devito.dse.extended_sympy import Add, Mul
+from devito.dse.extended_sympy import Add, Eq, Mul
 
 
 def unevaluate_arithmetic(expr):
@@ -28,6 +28,9 @@ def unevaluate_arithmetic(expr):
     elif expr.is_Mul:
         rebuilt_args = [unevaluate_arithmetic(e) for e in expr.args]
         return Mul(*rebuilt_args, evaluate=False)
+    elif expr.is_Equality:
+        rebuilt_args = [unevaluate_arithmetic(e) for e in expr.args]
+        return Eq(*rebuilt_args, evaluate=False)
     else:
         return expr.func(*[unevaluate_arithmetic(e) for e in expr.args])
 

@@ -4,7 +4,7 @@ import numpy as np
 from sympy import Function, IndexedBase, as_finite_diff, symbols
 from sympy.abc import h, s
 
-from devito.dimension import p, t, x, y, z
+from devito.dimension import d, p, t, x, y, z
 from devito.finite_difference import (centered, cross_derivative,
                                       first_derivative, left, right,
                                       second_derivative)
@@ -94,6 +94,9 @@ class SymbolicData(Function, CachedSymbol):
     to (re-)create the dimension arguments of the symbolic function.
     """
 
+    is_SymbolicData = True
+    is_ScalarData = False
+    is_TensorData = False
     is_DenseData = False
     is_TimeData = False
     is_Coordinates = False
@@ -110,7 +113,8 @@ class SymbolicData(Function, CachedSymbol):
 
             # Create the new Function object and invoke __init__
             newcls = cls._symbol_type(name)
-            newobj = Function.__new__(newcls, *args)
+            options = kwargs.get('options', {})
+            newobj = Function.__new__(newcls, *args, **options)
             newobj.__init__(*args, **kwargs)
             # Store new instance in symbol cache
             newcls._cache_put(newobj)
@@ -128,7 +132,38 @@ class SymbolicData(Function, CachedSymbol):
                                   ' `SymbolicData` does not have default indices')
 
 
-class DenseData(SymbolicData):
+class ScalarData(SymbolicData):
+    """Data object representing a scalar.
+
+    :param name: Name of the resulting :class:`sympy.Function` symbol
+    :param dtype: Data type of the scalar
+    :param initializer: Function to initialize the data, optional
+    """
+
+    is_ScalarData = True
+
+    def __new__(cls, *args, **kwargs):
+        kwargs.update({'options': {'evaluate': False}})
+        return SymbolicData.__new__(cls, *args, **kwargs)
+
+    @classmethod
+    def _indices(cls, **kwargs):
+        return []
+
+    def __init__(self, *args, **kwargs):
+        if not self._cached():
+            self.name = kwargs.get('name')
+            self.dtype = kwargs.get('dtype', np.float32)
+            self._data = kwargs.get('_data', None)
+
+
+class TensorData(SymbolicData):
+    """Data object representing a tensor."""
+
+    is_TensorData = True
+
+
+class DenseData(TensorData):
     """Data object for spatially varying data that acts as a Function symbol
 
     :param name: Name of the resulting :class:`sympy.Function` symbol
@@ -416,7 +451,7 @@ class TimeData(DenseData):
                 time_dim += self.time_order
             else:
                 time_dim = self.time_order + 1
-                self.indices[0].buffered = time_dim
+                self.indices[0].modulo = time_dim
 
             self.shape = (time_dim,) + self.shape
 
@@ -506,7 +541,7 @@ class TimeData(DenseData):
         return as_finite_diff(self.diff(t, t), indt)
 
 
-class CoordinateData(SymbolicData):
+class CoordinateData(TensorData):
     """
     Data object for sparse coordinate data that acts as a Function symbol
     """
@@ -538,8 +573,8 @@ class CoordinateData(SymbolicData):
         :param shape: Shape of the spatial data
         :return: indices used for axis.
         """
-        _indices = [p, s]
-        return _indices
+        dimensions = kwargs.get('dimensions', None)
+        return dimensions or [p, d]
 
     @property
     def indexed(self):
@@ -573,6 +608,7 @@ class PointData(DenseData):
             super(PointData, self).__init__(self, *args, **kwargs)
             coordinates = kwargs.get('coordinates')
             self.coordinates = CoordinateData(name='%s_coords' % self.name,
+                                              dimensions=[self.indices[1], d],
                                               data=coordinates, ndim=ndim,
                                               nt=self.nt, npoint=self.npoint)
             self.coordinates.data[:] = kwargs.get('coordinates')[:]
@@ -591,13 +627,19 @@ class PointData(DenseData):
         :param shape: Shape of the spatial data
         :return: indices used for axis.
         """
-        _indices = [t, p]
-        return _indices
+        dimensions = kwargs.get('dimensions', None)
+        return dimensions or [t, p]
 
 
 class IndexedData(IndexedBase):
     """Wrapper class that inserts a pointer to the symbolic data object"""
-    def __new__(self, name, shape, function):
-        indexed = IndexedBase(name, shape=shape)
-        indexed.function = function
-        return indexed
+
+    def __new__(cls, label, shape=None, function=None, **kw_args):
+        obj = IndexedBase.__new__(cls, label, shape)
+        obj.function = function
+        return obj
+
+    def func(self, *args):
+        obj = super(IndexedData, self).func(*args)
+        obj.function = self.function
+        return obj

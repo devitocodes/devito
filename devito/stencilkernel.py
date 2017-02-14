@@ -1,7 +1,10 @@
-from collections import OrderedDict
-from ctypes import c_int
+from __future__ import absolute_import
+
+import operator
+from collections import OrderedDict, namedtuple
+from ctypes import c_double, c_int
+from functools import reduce
 from hashlib import sha1
-from itertools import chain
 from os import path
 
 import cgen as c
@@ -9,58 +12,106 @@ import numpy as np
 
 from devito.compiler import (get_compiler_from_env, get_tmp_dir,
                              jit_compile_and_load)
-from devito.dimension import Dimension
-from devito.expression import Expression
+from devito.dimension import BufferedDimension, Dimension
+from devito.dle import transform
+from devito.dse import indexify, retrieve_and_check_dtype, rewrite
 from devito.interfaces import SymbolicData
-from devito.iteration import Iteration
-from devito.logger import error
-from devito.tools import filter_ordered
+from devito.logger import bar, error, info, warning
+from devito.nodes import (Block, Expression, Function, Iteration,
+                          TimedList, TypedExpression)
+from devito.profiler import Profiler
+from devito.tools import as_tuple, filter_ordered
+from devito.visitors import (EstimateCost, FindNodeType, FindSections, FindSymbols,
+                             IsPerfectIteration, MergeOuterIterations,
+                             ResolveIterationVariable, SubstituteExpression,
+                             Transformer, printAST)
 
 __all__ = ['StencilKernel']
 
 
-class StencilKernel(object):
-    """Code generation class, alternative to Propagator
+class StencilKernel(Function):
+
+    """
+    Cache of auto-tuned StencilKernels.
+    """
+    _AT_cache = {}
+
+    """A special :class:`Function` to evaluate stencils through just-in-time
+    compilation of C code.
 
     :param stencils: SymPy equation or list of equations that define the
                      stencil used to create the kernel of this Operator.
-    :param name: Name of the kernel function - defaults to "Kernel"
-    :param subs: Dict or list of dicts containing the SymPy symbol
-                 substitutions for each stencil respectively.
-    :param compiler: Compiler class used to perform JIT compilation.
-                     If not provided, the compiler will be inferred from the
-                     environment variable DEVITO_ARCH, or default to GNUCompiler.
-    """
+    :param kwargs: Accept the following entries: ::
 
-    def __init__(self, stencils, name="Kernel", subs=None, compiler=None):
+        * name : Name of the kernel function - defaults to "Kernel".
+        * subs : Dict or list of dicts containing the SymPy symbol
+                 substitutions for each stencil respectively.
+        * dse : Use the Devito Symbolic Engine to optimize the expressions -
+                defaults to "advanced".
+        * dle : Use the Devito Loop Engine to optimize the loops -
+                defaults to "advanced".
+        * compiler: Compiler class used to perform JIT compilation.
+                    If not provided, the compiler will be inferred from the
+                    environment variable DEVITO_ARCH, or default to GNUCompiler.
+        * profiler: :class:`devito.Profiler` instance to collect profiling
+                    meta-data at runtime. Use profiler=None to disable profiling.
+    """
+    def __init__(self, stencils, **kwargs):
+        name = kwargs.get("name", "Kernel")
+        subs = kwargs.get("subs", {})
+        dse = kwargs.get("dse", "advanced")
+        dle = kwargs.get("dle", "advanced")
+        compiler = kwargs.get("compiler", None)
+
         # Default attributes required for compilation
-        self.name = name
         self.compiler = compiler or get_compiler_from_env()
+        self.profiler = kwargs.get("profiler", Profiler(self.compiler.openmp))
+        self._includes = ['stdlib.h', 'math.h', 'sys/time.h']
         self._lib = None
         self._cfunction = None
-        # Ensure we always deal with Expression lists
+
+        # Convert stencil expressions into actual Nodes, going through the
+        # Devito Symbolic Engine for flop optimization.
         stencils = stencils if isinstance(stencils, list) else [stencils]
-        self.expressions = [Expression(s) for s in stencils]
-
-        # Lower all expressions to "indexed" API
-        for e in self.expressions:
-            e.indexify()
-
-        # Apply supplied substitutions
-        if subs is not None:
-            for expr in self.expressions:
-                expr.substitute(subs)
+        dtype = retrieve_and_check_dtype(stencils)
+        stencils = [indexify(s) for s in stencils]
+        stencils = [s.xreplace(subs) for s in stencils]
+        dse_state = rewrite(stencils, mode=dse)
 
         # Wrap expressions with Iterations according to dimensions
-        for i, expr in enumerate(self.expressions):
-            newexpr = expr
-            offsets = newexpr.index_offsets
-            for d in reversed(expr.dimensions):
-                newexpr = Iteration(newexpr, dimension=d,
-                                    limits=d.size, offsets=offsets[d])
-            self.expressions[i] = newexpr
+        nodes = self._schedule_expressions(dse_state, dtype)
 
-        # TODO: Merge Iterations iff outermost variables agree
+        # Introduce C-level profiling infrastructure
+        self.sections = OrderedDict()
+        nodes = self._profile_sections(nodes)
+
+        # Now resolve and substitute dimensions for loop index variables
+        subs = {}
+        nodes = ResolveIterationVariable().visit(nodes, subs=subs)
+        nodes = SubstituteExpression(subs=subs).visit(nodes)
+
+        # Apply the Devito Loop Engine for loop optimization and finalize instantiation
+        dle_state = transform(nodes, mode=set_dle_mode(dle, self.compiler),
+                              compiler=self.compiler)
+        body = dle_state.nodes
+        parameters = FindSymbols('with-data').visit(nodes)
+        parameters += [i.argument for i in dle_state.arguments]
+
+        # Add all dimensions used in expressions symbols to arguments.
+        # This is required to ensure that we can safely perform data casts.
+        dimensions = FindSymbols('dimensions').visit(nodes)
+        # For buffered dimensions, ensure the parent is also present
+        dimensions += [d.parent for d in dimensions if d.is_Buffered]
+        parameters += filter_ordered([d for d in dimensions if d.size is None],
+                                     key=operator.attrgetter('name'))
+        super(StencilKernel, self).__init__(name, body, 'int', parameters, ())
+
+        # DLE might have introduced additional headers
+        self._includes.extend(list(dle_state.includes))
+
+        # Track the DSE and DLE output, as they may be useful later
+        self._dse_state = dse_state
+        self._dle_state = dle_state
 
     def __call__(self, *args, **kwargs):
         self.apply(*args, **kwargs)
@@ -68,10 +119,13 @@ class StencilKernel(object):
     def apply(self, *args, **kwargs):
         """Apply defined stencil kernel to a set of data objects"""
         if len(args) <= 0:
-            args = self.signature
+            args = self.parameters
+
+        # Perform auto-tuning if the user requests it and loop blocking is in use
+        maybe_autotune = kwargs.get('autotune', False)
 
         # Map of required arguments and actual dimension sizes
-        arguments = OrderedDict([(arg.name, arg) for arg in self.signature])
+        arguments = OrderedDict([(arg.name, arg) for arg in self.parameters])
         dim_sizes = {}
 
         # Traverse positional args and infer loop sizes for open dimensions
@@ -87,38 +141,239 @@ class StencilKernel(object):
             for i, dim in enumerate(f.indices):
                 # Infer open loop limits
                 if dim.size is None:
-                    if dim.buffered:
-                        # Check if provided as a keyword arg
-                        size = kwargs.get(dim.name, None)
-                        if size is None:
-                            error("Unknown dimension size, please provide "
-                                  "size via Kernel.apply(%s=<size>)" % dim.name)
-                            raise RuntimeError('Dimension of unspecified size')
-                        dim_sizes[dim] = size
-                    elif dim in dim_sizes:
+                    # First, try to find dim size in kwargs
+                    if dim.name in kwargs:
+                        dim_sizes[dim] = kwargs[dim.name]
+
+                    if dim in dim_sizes:
                         # Ensure size matches previously defined size
-                        assert dim_sizes[dim] == data.shape[i]
+                        if not dim.is_Buffered:
+                            assert dim_sizes[dim] == data.shape[i]
                     else:
                         # Derive size from grid data shape and store
                         dim_sizes[dim] = data.shape[i]
+
+                    # Ensure parent for buffered dims is defined
+                    if dim.is_Buffered and dim.parent not in dim_sizes:
+                        dim_sizes[dim.parent] = dim_sizes[dim]
                 else:
-                    assert dim.size == data.shape[i]
+                    if not isinstance(dim, BufferedDimension):
+                        assert dim.size == data.shape[i]
+
+        # Add user-provided block sizes, if any
+        dle_arguments = OrderedDict()
+        for i in self._dle_state.arguments:
+            dim_size = dim_sizes.get(i.original_dim, i.original_dim.size)
+            assert dim_size is not None, "Unable to match arguments and values"
+            if i.value:
+                try:
+                    dle_arguments[i.argument] = i.value(dim_size)
+                except TypeError:
+                    dle_arguments[i.argument] = i.value
+                    # User-provided block size available, do not autotune
+                    maybe_autotune = False
+            else:
+                dle_arguments[i.argument] = dim_size
+        dim_sizes.update(dle_arguments)
+
         # Insert loop size arguments from dimension values
         d_args = [d for d in arguments.values() if isinstance(d, Dimension)]
         for d in d_args:
             arguments[d.name] = dim_sizes[d]
 
+        # Retrieve the data type of the arrays
+        try:
+            dtypes = [i.data.dtype for i in f_args]
+            dtype = dtypes[0]
+            if any(i != dtype for i in dtypes):
+                warning("Found non-matching data types amongst the provided"
+                        "symbolic arguments.")
+            dtype_size = dtype.itemsize
+        except IndexError:
+            dtype_size = 1
+
+        # Might have been asked to auto-tune the block size
+        if maybe_autotune:
+            self._autotune(arguments)
+
+        # Add profiler structs
+        if self.profiler:
+            cpointer = self.profiler.as_ctypes_pointer(Profiler.TIME)
+            arguments[self.profiler.s_name] = cpointer
+
         # Invoke kernel function with args
         self.cfunction(*list(arguments.values()))
 
-    @property
-    def signature(self):
-        """List of data objects that define the kernel signature
+        # Output summary of performance achieved
+        summary = self._profile_summary(dim_sizes, dtype_size)
+        with bar():
+            for k, v in summary.items():
+                name = '%s<%s>' % (k, ','.join('%d' % i for i in v.itershape))
+                info("Section %s with OI=%.2f computed in %.3f s [Perf: %.2f GFlops/s]" %
+                     (name, v.oi, v.time, v.gflopss))
 
-        :returns: List of unique data objects required by the kernel
+        return summary
+
+    def _profile_sections(self, nodes):
+        """Introduce C-level profiling nodes within the Iteration/Expression tree."""
+        mapper = {}
+        for i, expr in enumerate(nodes):
+            for itspace in FindSections().visit(expr).keys():
+                for j in itspace:
+                    if IsPerfectIteration().visit(j) and j not in mapper:
+                        # Insert `TimedList` block. This should come from
+                        # the profiler, but we do this manually for now.
+                        lname = 'loop_%s_%d' % (j.index, i)
+                        mapper[j] = TimedList(gname=self.profiler.t_name,
+                                              lname=lname, body=j)
+                        self.profiler.t_fields += [(lname, c_double)]
+
+                        # Estimate computational properties of the timed section
+                        # (operational intensity, memory accesses)
+                        v = EstimateCost().visit(j)
+                        self.sections[itspace] = Profile(lname, v.ops, v.mem)
+                        break
+        processed = [Transformer(mapper).visit(Block(body=nodes))]
+        return processed
+
+    def _profile_summary(self, dim_sizes, dtype_size):
         """
-        signature = [e.signature for e in self.expressions]
-        return filter_ordered(chain(*signature))
+        Produce a summary of the performance achieved
+        """
+        summary = PerformanceSummary()
+        for itspace, profile in self.sections.items():
+            # Time
+            time = self.profiler.timings[profile.timer]
+
+            # Flops
+            itershape = [i.extent(finish=dim_sizes.get(i.dim)) for i in itspace]
+            iterspace = reduce(operator.mul, itershape)
+            flops = float(profile.ops*iterspace)
+            gflops = flops/10**9
+
+            # Compulsory traffic
+            datashape = [i.dim.size or dim_sizes[i.dim] for i in itspace]
+            dataspace = reduce(operator.mul, datashape)
+            traffic = profile.memory*dataspace*dtype_size
+
+            # Derived metrics
+            oi = flops/traffic
+            gflopss = gflops/time
+
+            # Keep track of performance achieved
+            summary.setsection(profile.timer, time, gflopss, oi, itershape, datashape)
+
+        # Rename the most time consuming section as 'main'
+        summary['main'] = summary.pop(max(summary, key=summary.get))
+
+        return summary
+
+    def _autotune(self, arguments):
+        """Use auto-tuning on this StencilKernel to determine empirically the
+        best block sizes (when loop blocking is in use). The block sizes tested
+        are those listed in ``options['at_blocksizes']``, plus the case that is
+        as if blocking were not applied (ie, unitary block size)."""
+        if not self._dle_state._applied_blocking:
+            return
+
+        at_arguments = arguments.copy()
+
+        # Output data must not be changed
+        output = [i.base.label.name for i in self._dse_state.output_fields]
+        for k, v in arguments.items():
+            if k in output:
+                at_arguments[k] = v.copy()
+
+        # Squeeze dimensions to minimize auto-tuning time
+        iterations = FindNodeType(Iteration).visit(self.body)
+        squeezable = [i.dim.name for i in iterations if 'sequential' in i.properties]
+
+        # Attempted block sizes
+        mapper = OrderedDict([(i.argument.name, i) for i in self._dle_state.arguments])
+        blocksizes = [OrderedDict([(i, v) for i in mapper])
+                      for v in options['at_blocksize']]
+        blocksizes += [OrderedDict([(k, 1) for k, v in mapper.items()])]
+
+        # Note: there is only a single loop over 'blocksize' because only
+        # square blocks are tested
+        timings = OrderedDict()
+        for blocksize in blocksizes:
+            illegal = False
+            for k, v in at_arguments.items():
+                if k in blocksize:
+                    val = blocksize[k]
+                    handle = at_arguments.get(mapper[k].original_dim.name)
+                    if val <= mapper[k].iteration.end(handle):
+                        at_arguments[k] = val
+                    else:
+                        # Block size cannot be larger than actual dimension
+                        illegal = True
+                        break
+                elif k in squeezable:
+                    at_arguments[k] = options['at_squeezer']
+            if illegal:
+                continue
+
+            # Add profiler structs
+            if self.profiler:
+                cpointer = self.profiler.as_ctypes_pointer(Profiler.TIME)
+                at_arguments[self.profiler.s_name] = cpointer
+
+            self.cfunction(*list(at_arguments.values()))
+            timings[tuple(blocksize.items())] = sum(self.profiler.timings.values())
+
+        best = dict(min(timings, key=timings.get))
+        for k, v in arguments.items():
+            if k in mapper:
+                arguments[k] = best[k]
+
+        info('Auto-tuned block shape: %s' % best)
+
+    def _schedule_expressions(self, dse_state, dtype):
+        """Wrap :class:`Expression` objects within suitable hierarchies of
+        :class:`Iteration` according to dimensions.
+        """
+        processed = []
+        for cluster in dse_state.clusters:
+            # Build declarations or assignments
+            body = []
+            for k, v in cluster.items():
+                if cluster.is_index(k):
+                    body.append(TypedExpression(v, np.int32))
+                elif v.is_terminal:
+                    body.append(Expression(v))
+                else:
+                    body.append(TypedExpression(v, dtype))
+            offsets = body[-1].index_offsets
+            # Filter out aliasing due to buffered dimensions
+            key = lambda d: d.parent if d.is_Buffered else d
+            dimensions = filter_ordered(list(offsets.keys()), key=key)
+            for d in reversed(dimensions):
+                body = Iteration(body, dimension=d, limits=d.size, offsets=offsets[d])
+            processed.append(body)
+
+        # Merge Iterations iff outermost iterations agree
+        processed = MergeOuterIterations().visit(processed)
+
+        # Remove temporaries became redundat after squashing Iterations
+        mapper = {}
+        for k, v in FindSections().visit(processed).items():
+            found = set()
+            newexprs = []
+            for n in v:
+                newexprs.extend([n] if n.stencil not in found else [])
+                found.add(n.stencil)
+            mapper[k[-1]] = Iteration(newexprs, **k[-1].args_frozen)
+        processed = Transformer(mapper).visit(processed)
+
+        return processed
+
+    @property
+    def _cparameters(self):
+        cparameters = super(StencilKernel, self)._cparameters
+        cparameters += [c.Pointer(c.Value('struct %s' % self.profiler.s_name,
+                                          self.profiler.t_name))]
+        return cparameters
 
     @property
     def ccode(self):
@@ -128,20 +383,22 @@ class StencilKernel(object):
         and Expression objects, and adds the necessary template code
         around it.
         """
-        header_vars = [v.decl if isinstance(v, Dimension) else
-                       c.Pointer(c.POD(v.dtype, '%s_vec' % v.name))
-                       for v in self.signature]
-        header = c.FunctionDeclaration(c.Value('int', self.name), header_vars)
-        functions = [f for f in self.signature if isinstance(f, SymbolicData)]
-        cast_shapes = [(f, ''.join(["[%s]" % i.ccode for i in f.indices[1:]]))
-                       for f in functions]
-        casts = [c.Initializer(c.POD(v.dtype, '(*%s)%s' % (v.name, shape)),
-                               '(%s (*)%s) %s' % (c.dtype_to_ctype(v.dtype),
-                                                  shape, '%s_vec' % v.name))
-                 for v, shape in cast_shapes]
-        body = [e.ccode for e in self.expressions]
+        blankline = c.Line("")
+
+        # Generate function body with all the trimmings
+        body = [e.ccode for e in self.body]
         ret = [c.Statement("return 0")]
-        return c.FunctionBody(header, c.Block(casts + body + ret))
+        kernel = c.FunctionBody(self._ctop, c.Block(self._ccasts + body + ret))
+
+        # Generate elemental functions produced by the DLE
+        elemental_functions = [e.ccode for e in self._dle_state.elemental_functions]
+        elemental_functions += [blankline]
+
+        # Generate file header with includes and definitions
+        includes = [c.Include(i, system=False) for i in self._includes]
+        includes += [blankline]
+        profiling = [self.profiler.as_cgen_struct(Profiler.TIME), blankline]
+        return c.Module(includes + profiling + elemental_functions + [kernel])
 
     @property
     def basename(self):
@@ -152,7 +409,8 @@ class StencilKernel(object):
 
         :returns: The basename path as a string
         """
-        expr_string = "\n".join([str(e) for e in self.expressions])
+        expr_string = printAST(self.body, verbose=True)
+        expr_string += printAST(self._dle_state.elemental_functions, verbose=True)
         hash_key = sha1(expr_string.encode()).hexdigest()
 
         return path.join(get_tmp_dir(), hash_key)
@@ -183,4 +441,76 @@ class StencilKernel(object):
         """
         return [c_int if isinstance(v, Dimension) else
                 np.ctypeslib.ndpointer(dtype=v.dtype, flags='C')
-                for v in self.signature]
+                for v in self.parameters]
+
+
+# Helpers for performance tracking
+
+"""
+A helper to return structured performance data.
+"""
+PerfEntry = namedtuple('PerfEntry', 'time gflopss oi itershape datashape')
+
+
+class PerformanceSummary(OrderedDict):
+
+    """
+    A special dictionary to track and view performance data.
+    """
+
+    def setsection(self, key, time, gflopss, oi, itershape, datashape):
+        self[key] = PerfEntry(time, gflopss, oi, itershape, datashape)
+
+    @property
+    def gflopss(self):
+        return OrderedDict([(k, v.gflopss) for k, v in self.items()])
+
+    @property
+    def oi(self):
+        return OrderedDict([(k, v.oi) for k, v in self.items()])
+
+    @property
+    def timings(self):
+        return OrderedDict([(k, v.time) for k, v in self.items()])
+
+
+# StencilKernel options and name conventions
+
+"""
+A dict of standard names to be used for code generation
+"""
+cnames = {
+    'loc_timer': 'loc_timer',
+    'glb_timer': 'glb_timer'
+}
+
+"""
+StencilKernel options
+"""
+options = {
+    'at_squeezer': 3,
+    'at_blocksize': [8, 16, 32]
+}
+
+"""
+A helper to track profiled sections of code.
+"""
+Profile = namedtuple('Profile', 'timer ops memory')
+
+
+# Helpers to use a StencilKernel
+
+def set_dle_mode(mode, compiler):
+    """
+    Transform :class:`StencilKernel` input in a format understandable by the DLE.
+    """
+    if not mode:
+        return 'noop'
+    mode = as_tuple(mode)
+    params = mode[-1]
+    if isinstance(params, dict):
+        params['openmp'] = compiler.openmp
+    else:
+        params = {'openmp': compiler.openmp}
+        mode += (params,)
+    return mode

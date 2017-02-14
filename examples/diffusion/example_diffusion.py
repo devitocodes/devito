@@ -169,7 +169,7 @@ recommend using --spacing 0.001 -t 1000.
     parser.add_argument(dest='execmode', nargs='?', default='run',
                         choices=['run', 'bench', 'plot'],
                         help="Script mode; either 'run', 'bench' or 'plot' ")
-    parser.add_argument('-m', '--mode', nargs='+', default='devito',
+    parser.add_argument('-m', '--mode', nargs='+', default=['devito'],
                         choices=['python', 'numpy', 'lambdify', 'devito'],
                         help="Example modes: python, numpy, lambdify, devito")
     parser.add_argument('-s', '--spacing', type=float, nargs='+', default=[0.01],

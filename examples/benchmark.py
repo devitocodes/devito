@@ -34,9 +34,9 @@ if __name__ == "__main__":
     parser.add_argument(dest="execmode", nargs="?", default="run",
                         choices=["run", "test", "bench", "plot"],
                         help="Exec modes")
-    parser.add_argument("--bench-mode", "-bm", dest="benchmode", default="all",
-                        choices=["all", "blocking", "dse"],
-                        help="Choose what to benchmark (all, blocking, dse).")
+    parser.add_argument("--bench-mode", "-bm", dest="benchmode", default="maxperf",
+                        choices=["maxperf", "dse", "dle"],
+                        help="Choose what to benchmark (maxperf, dse, dle).")
     parser.add_argument(dest="compiler", nargs="?",
                         default=environ.get("DEVITO_ARCH", "gnu"),
                         choices=compiler_registry.keys(),
@@ -65,16 +65,22 @@ if __name__ == "__main__":
                             type=int, help="End time of the simulation in ms")
 
     devito = parser.add_argument_group("Devito")
+    devito.add_argument("--no-legacy", dest="legacy", action="store_false",
+                        help="Pass False to run with the new StencilKernel "
+                             "infrastructure, rather than Operator/Propagator")
     devito.add_argument("-dse", default="advanced", nargs="*",
-                        choices=["basic", "factorize", "approx-trigonometry",
+                        choices=["noop", "basic", "factorize", "approx-trigonometry",
                                  "glicm", "advanced"],
                         help="Devito symbolic engine (DSE) mode")
+    devito.add_argument("-dle", default="advanced", nargs="*",
+                        choices=["noop", "advanced", "speculative"],
+                        help="Devito loop engine (DSE) mode")
     devito.add_argument("-a", "--auto_tuning", action="store_true",
                         help=("Benchmark with auto tuning on and off. " +
                               "Enables auto tuning when execmode is run"))
     devito.add_argument("-cb", "--cache_blocking", nargs=2, type=int,
                         default=None, metavar=("blockDim1", "blockDim2"),
-                        help="Uses provided block sizes when AT is off")
+                        help="User provided block sizes when auto-tuning is off")
 
     benchmarking = parser.add_argument_group("Benchmarking")
     benchmarking.add_argument("-r", "--resultsdir", default="results",
@@ -124,18 +130,24 @@ if __name__ == "__main__":
             raise ImportError("Could not find opescibench utility package.\n"
                               "Please install from https://github.com/opesci/opescibench")
 
-        if args.benchmode == 'all':
-            parameters["auto_tuning"] = [True, False]
-            parameters["dse"] = ["basic", "advanced"]
-        elif args.benchmode == 'blocking':
-            parameters["auto_tuning"] = [True, False]
-            parameters["dse"] = ["basic"]
+        if args.benchmode == 'maxperf':
+            parameters["auto_tuning"] = [True]
+            parameters["dse"] = ["advanced"]
+            parameters["dle"] = ["advanced"]
         elif args.benchmode == 'dse':
             parameters["auto_tuning"] = [False]
             parameters["dse"] = ["basic",
                                  ('basic', 'factorize'),
                                  ('basic', 'glicm'),
                                  "advanced"]
+            parameters["dle"] = ["basic"]
+        else:
+            # must be == 'dle'
+            parameters["auto_tuning"] = [True]
+            parameters["dse"] = ["basic"]
+            parameters["dle"] = ["basic",
+                                 "advanced",
+                                 "speculative"]
 
     if args.execmode == "test":
         values_sweep = [v if isinstance(v, list) else [v] for v in parameters.values()]
@@ -170,7 +182,7 @@ if __name__ == "__main__":
         bench = Benchmark(
             name=args.problem, resultsdir=args.resultsdir, parameters=parameters
         )
-        bench.execute(BenchExecutor(), warmups=0)
+        bench.execute(BenchExecutor(), warmups=0, repeats=3)
         bench.save()
 
     elif args.execmode == "plot":
@@ -182,9 +194,9 @@ if __name__ == "__main__":
             warning("Could not load any results, nothing to plot. Exiting...")
             sys.exit(0)
 
-        gflopss = bench.lookup(params=parameters, measure="gflopss", event="loop_body")
-        oi = bench.lookup(params=parameters, measure="oi", event="loop_body")
-        time = bench.lookup(params=parameters, measure="timings", event="loop_body")
+        gflopss = bench.lookup(params=parameters, measure="gflopss", event="main")
+        oi = bench.lookup(params=parameters, measure="oi", event="main")
+        time = bench.lookup(params=parameters, measure="timings", event="main")
 
         name = "%s_dim%s_so%s_to%s_arch[%s].pdf" % (args.problem,
                                                     parameters["dimensions"],
@@ -192,37 +204,62 @@ if __name__ == "__main__":
                                                     parameters["time_order"],
                                                     args.arch)
         name = name.replace(' ', '')
-        title = "%s - grid: %s, time order: %s" % (args.problem.capitalize(),
-                                                   parameters["dimensions"],
-                                                   parameters["time_order"])
+        title = "%s[%s,TO=%s], with varying <DSE,DLE>, on %s" %\
+            (args.problem.capitalize(),
+             parameters["dimensions"],
+             parameters["time_order"],
+             args.arch)
 
-        at_runs = [True, False]
         dse_runs = ["basic", ("basic", "factorize"), ("basic", "glicm"), "advanced"]
-        runs = list(product(at_runs, dse_runs))
+        dle_runs = ["basic", "advanced", "speculative"]
+        runs = list(product(dse_runs, dle_runs))
         styles = {
-            # AT true
-            (True, 'advanced'): 'ob', (True, 'basic'): 'or',
-            (True, ('basic', 'factorize')): 'og', (True, ('basic', 'glicm')): 'oy',
-            # AT false
-            (False, 'advanced'): 'Db', (False, 'basic'): 'Dr',
-            (False, ('basic', 'factorize')): 'Dg', (False, ('basic', 'glicm')): 'Dy'
+            # DLE basic
+            ('basic', 'basic'): 'or',
+            (('basic', 'factorize'), 'basic'): 'og',
+            (('basic', 'glicm'), 'basic'): 'oy',
+            ('advanced', 'basic'): 'ob',
+            # DLE advanced
+            ('basic', 'advanced'): 'Dr',
+            (('basic', 'factorize'), 'advanced'): 'Dg',
+            (('basic', 'glicm'), 'advanced'): 'Dy',
+            ('advanced', 'advanced'): 'Db',
+            # DLE speculative
+            ('basic', 'speculative'): 'sr',
+            (('basic', 'factorize'), 'speculative'): 'sg',
+            (('basic', 'glicm'), 'speculative'): 'sy',
+            ('advanced', 'speculative'): 'sb',
         }
 
-        with RooflinePlotter(figname=name, plotdir=args.plotdir,
+        # Find min and max runtimes for instances having the same OI
+        min_max = {v: [0, sys.maxint] for v in oi.values()}
+        for k, v in time.items():
+            i = oi[k]
+            min_max[i][0] = v if min_max[i][0] == 0 else min(v, min_max[i][0])
+            min_max[i][1] = v if min_max[i][1] == sys.maxint else max(v, min_max[i][1])
+
+        with RooflinePlotter(title=title, figname=name, plotdir=args.plotdir,
                              max_bw=args.max_bw, max_flops=args.max_flops,
-                             legend={'fontsize': 8}) as plot:
+                             legend={'fontsize': 7}) as plot:
             for key, gflopss in gflopss.items():
                 oi_value = oi[key]
                 time_value = time[key]
                 key = dict(key)
-                run = (key["auto_tuning"], key["dse"])
-                index = runs.index(run)
-                label = "AT=%r, DSE=%s" % run
+                run = (key["dse"], key["dle"])
+                label = "<%s,%s>" % run
+                oi_loc = 0.06 if len(str(key["space_order"])) == 1 else 0.07
                 oi_annotate = {'s': 'SO=%s' % key["space_order"],
-                               'size': 6, 'xy': (oi_value, 0.09)} if run[0] else None
-                point_annotate = {'s': "%.1f s" % time_value,
-                                  'xytext': (-22, 18), 'size': 6,
-                                  'weight': 'bold'} if args.point_runtime else None
+                               'size': 5, 'xy': (oi_value, oi_loc)} if run[0] else None
+                if time_value in min_max[oi_value]:
+                    # Only annotate min and max runtimes on each OI line, to avoid
+                    # polluting the plot too much
+                    point_annotate = {'s': "%.1f s" % time_value,
+                                      'xytext': (-16, 13), 'size': 4,
+                                      'weight': 'bold'} if args.point_runtime else None
+                else:
+                    point_annotate = None
+                oi_line = time_value == min_max[oi_value][0]
+                perf_annotate = time_value == min_max[oi_value][0]
                 plot.add_point(gflops=gflopss, oi=oi_value, style=styles[run],
-                               oi_line=run[0], label=label, oi_annotate=oi_annotate,
-                               annotate=point_annotate)
+                               oi_line=oi_line, label=label, perf_annotate=perf_annotate,
+                               oi_annotate=oi_annotate, annotate=point_annotate)
