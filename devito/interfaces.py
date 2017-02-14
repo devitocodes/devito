@@ -4,7 +4,7 @@ import numpy as np
 from sympy import Function, IndexedBase, Symbol, as_finite_diff, symbols
 from sympy.abc import h, s
 
-from devito.dimension import d, p, t, x, y, z, time
+from devito.dimension import t, x, y, z, time
 from devito.finite_difference import (centered, cross_derivative,
                                       first_derivative, left, right,
                                       second_derivative)
@@ -12,7 +12,7 @@ from devito.logger import debug, error
 from devito.memmap_manager import MemmapManager
 from devito.memory import CMemory, first_touch
 
-__all__ = ['DenseData', 'TimeData', 'PointData', 'Forward', 'Backward']
+__all__ = ['DenseData', 'TimeData', 'Forward', 'Backward']
 
 
 # This cache stores a reference to each created data object
@@ -590,53 +590,6 @@ class TimeData(DenseData):
         indt = [(_t + i * s) for i in range(-width_t, width_t + 1)]
 
         return as_finite_diff(self.diff(_t, _t), indt)
-
-
-class PointData(DenseData):
-    """
-    Data object for sparse point data that acts as a Function symbol
-
-    :param name: Name of the resulting :class:`sympy.Function` symbol
-    :param npoint: Number of points to sample
-    :param nt: Size of the time dimension for point data
-    :param ndim: Dimension of the coordinate data
-    :param coordinates: Optional coordinate data for the sparse points
-
-    :param dtype: Data type of the buffered data
-    """
-
-    is_PointData = True
-
-    def __init__(self, *args, **kwargs):
-        if not self._cached():
-            self.nt = kwargs.get('nt')
-            self.npoint = kwargs.get('npoint')
-            self.ndim = kwargs.get('ndim')
-            kwargs['shape'] = (self.nt, self.npoint)
-            super(PointData, self).__init__(self, *args, **kwargs)
-            self.coordinates = DenseData(name='%s_coords' % self.name,
-                                         dimensions=[self.indices[1], d],
-                                         shape=(self.npoint, self.ndim))
-            coordinates = kwargs.get('coordinates', None)
-            if coordinates is not None:
-                self.coordinates.data[:] = coordinates[:]
-
-    def __new__(cls, *args, **kwargs):
-        nt = kwargs.get('nt')
-        npoint = kwargs.get('npoint')
-        kwargs['shape'] = (nt, npoint)
-
-        return DenseData.__new__(cls, *args, **kwargs)
-
-    @classmethod
-    def _indices(cls, **kwargs):
-        """Return the default dimension indices for a given data shape
-
-        :param shape: Shape of the spatial data
-        :return: indices used for axis.
-        """
-        dimensions = kwargs.get('dimensions', None)
-        return dimensions or [t, p]
 
 
 class IndexedData(IndexedBase):
