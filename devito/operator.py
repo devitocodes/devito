@@ -1,8 +1,8 @@
 from functools import reduce
 
 import numpy as np
-from sympy.abc import s
 from sympy import Eq
+from sympy.abc import s
 
 from devito.compiler import get_compiler_from_env
 from devito.dimension import t, x, y, z
@@ -221,8 +221,8 @@ class Operator(object):
                     arr_lhs, ind_lhs = self.symbol_to_var(expr.lhs, ti, indices)
                     args = []
 
-                    for s in subs:
-                        arr, ind = self.symbol_to_var(s, ti, indices)
+                    for su in subs:
+                        arr, ind = self.symbol_to_var(su, ti, indices)
                         args.append(arr[ind])
 
                     arr_lhs[ind_lhs] = lamda(*args)

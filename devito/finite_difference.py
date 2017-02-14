@@ -34,7 +34,8 @@ h = symbols('h')
 
 class Transpose(object):
     """Class that defines if the derivative is itself or adjoint (transpose).
-    This only matter for odd order derivatives that requires a minus sign for the transpose."""
+    This only matter for odd order derivatives that requires
+    a minus sign for the transpose."""
     def __init__(self, transpose):
         self._transpose = transpose
 
@@ -43,6 +44,7 @@ class Transpose(object):
 
     def __repr__(self):
         return {1: 'direct', -1: 'transpose'}[self._transpose]
+
 
 direct = Transpose(1)
 transpose = Transpose(-1)
@@ -72,6 +74,7 @@ class Side(object):
                 return right
             else:
                 error("Unsupported sicde value")
+
 
 left = Side(-1)
 right = Side(1)

@@ -276,19 +276,19 @@ class DenseData(TensorData):
     def dx(self):
         """Symbol for the first derivative wrt the x dimension"""
         return self.taxis._side * first_derivative(self, order=self.space_order,
-                                             dim=x, side=centered)
+                                                   dim=x, side=centered)
 
     @property
     def dy(self):
         """Symbol for the first derivative wrt the y dimension"""
         return self.taxis._side * first_derivative(self, order=self.space_order,
-                                             dim=y, side=centered)
+                                                   dim=y, side=centered)
 
     @property
     def dz(self):
         """Symbol for the first derivative wrt the z dimension"""
         return self.taxis._side * first_derivative(self, order=self.space_order,
-                                             dim=z, side=centered)
+                                                   dim=z, side=centered)
 
     @property
     def dxy(self):
@@ -309,37 +309,37 @@ class DenseData(TensorData):
     def dxl(self):
         """Symbol for the derivative wrt to x with a left stencil"""
         return self.taxis._side * first_derivative(self, order=self.space_order,
-                                             dim=x, side=left)
+                                                   dim=x, side=left)
 
     @property
     def dxr(self):
         """Symbol for the derivative wrt to x with a right stencil"""
         return self.taxis._side * first_derivative(self, order=self.space_order,
-                                             dim=x, side=right)
+                                                   dim=x, side=right)
 
     @property
     def dyl(self):
         """Symbol for the derivative wrt to y with a left stencil"""
         return self.taxis._side * first_derivative(self, order=self.space_order,
-                                             dim=y, side=left)
+                                                   dim=y, side=left)
 
     @property
     def dyr(self):
         """Symbol for the derivative wrt to y with a right stencil"""
         return self.taxis._side * first_derivative(self, order=self.space_order,
-                                             dim=y, side=right)
+                                                   dim=y, side=right)
 
     @property
     def dzl(self):
         """Symbol for the derivative wrt to z with a left stencil"""
         return self.taxis._side * first_derivative(self, order=self.space_order,
-                                             dim=z, side=left)
+                                                   dim=z, side=left)
 
     @property
     def dzr(self):
         """Symbol for the derivative wrt to z with a right stencil"""
         return self.taxis._side * first_derivative(self, order=self.space_order,
-                                             dim=z, side=right)
+                                                   dim=z, side=right)
 
     @property
     def dx2(self):

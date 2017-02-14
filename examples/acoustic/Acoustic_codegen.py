@@ -6,7 +6,8 @@ import numpy as np
 from devito.at_controller import AutoTuner
 from devito.dimension import Dimension, time
 from examples.acoustic.fwi_operators import *
-from devito.interfaces import Forward, Backward
+from devito.interfaces import Forward
+
 
 class Acoustic_cg(object):
     """
