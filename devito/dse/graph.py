@@ -23,9 +23,10 @@ from collections import OrderedDict, namedtuple
 
 from sympy import Indexed
 
-from devito.dse.extended_sympy import Eq
-from devito.dse.inspection import is_time_invariant, retrieve_indexed, terminals
 from devito.dimension import t
+from devito.dse.extended_sympy import Eq
+from devito.dse.inspection import (is_time_invariant, retrieve_indexed,
+                                   terminals)
 
 __all__ = ['temporaries_graph']
 

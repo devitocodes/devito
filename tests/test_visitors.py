@@ -201,7 +201,6 @@ def test_transformer_replace_function_body(block1, block2):
 }"""
 
     f = Transformer({block1: block2}).visit(f)
-    print f.ccode
     assert str(f.ccode) == """void foo(float *restrict a_vec, float *restrict b_vec)
 {
   float (*restrict a) __attribute__((aligned(64))) = (float (*)) a_vec;

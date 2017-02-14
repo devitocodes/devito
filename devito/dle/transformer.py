@@ -12,11 +12,11 @@ from devito.dimension import Dimension
 from devito.dle.inspection import retrieve_iteration_tree
 from devito.dle.manipulation import compose_nodes
 from devito.dse import as_symbol, terminals
-from devito.interfaces import DenseData, ScalarData, SymbolicData
+from devito.interfaces import DenseData, ScalarData
 from devito.logger import dle, dle_warning
 from devito.nodes import (Block, Denormals, Element, Expression,
                           Function, Iteration, List)
-from devito.tools import as_tuple, filter_ordered, flatten
+from devito.tools import as_tuple, flatten
 from devito.visitors import (FindNodeType, FindSections, FindSymbols,
                              IsPerfectIteration, Transformer)
 

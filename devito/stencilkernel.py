@@ -17,8 +17,7 @@ from devito.dle import transform
 from devito.dse import as_symbol, indexify, retrieve_and_check_dtype, rewrite
 from devito.interfaces import SymbolicData
 from devito.logger import bar, error, info, warning
-from devito.nodes import (Block, Expression, Function, Iteration, List,
-                          LocalExpression, TimedList)
+from devito.nodes import Expression, Function, Iteration, List, TimedList
 from devito.profiler import Profiler
 from devito.tools import as_tuple, filter_ordered
 from devito.visitors import (Declarator, EstimateCost, FindNodeType, FindSections,
@@ -389,7 +388,6 @@ class StencilKernel(Function):
             elemental_functions.append(rebuilt)
 
         return nodes, elemental_functions
-
 
     @property
     def _cparameters(self):

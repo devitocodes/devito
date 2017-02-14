@@ -14,7 +14,7 @@ import cgen as c
 from sympy import Symbol
 
 from devito.dse import estimate_cost, estimate_memory
-from devito.nodes import Element, Iteration, List, LocalExpression
+from devito.nodes import Iteration, List, LocalExpression
 from devito.tools import as_tuple, filter_ordered, filter_sorted, flatten
 
 

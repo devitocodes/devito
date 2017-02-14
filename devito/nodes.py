@@ -6,7 +6,7 @@ import inspect
 from collections import Iterable, OrderedDict
 
 import cgen as c
-from sympy import Eq, IndexedBase, preorder_traversal
+from sympy import Eq, preorder_traversal
 
 from devito.codeprinter import ccode
 from devito.dimension import Dimension
