@@ -157,7 +157,8 @@ class State(object):
         The first and second clusters share the expression temp2.
         """
         graph = temporaries_graph(self.exprs)
-        targets = graph.targets
+        invariants = graph.time_invariants
+        targets = invariants + [i for i in graph.targets if i not in invariants]
         clusters = [graph.trace(i.lhs) for i in targets]
         return clusters
 

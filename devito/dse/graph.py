@@ -120,6 +120,14 @@ class TemporariesGraph(OrderedDict):
         return ()
 
     @property
+    def time_invariants(self):
+        found = []
+        for k, v in self.items():
+            if v.is_time_invariant and v.is_tensor and k.indices == self.space_indices:
+                found.append(v)
+        return found
+
+    @property
     def targets(self):
         return tuple(i for i in self.values() if i.is_terminal)
 
