@@ -12,11 +12,11 @@ from devito.dimension import Dimension
 from devito.dle.inspection import retrieve_iteration_tree
 from devito.dle.manipulation import compose_nodes
 from devito.dse import as_symbol, terminals
-from devito.interfaces import ScalarData, SymbolicData
+from devito.interfaces import DenseData, ScalarData, SymbolicData
 from devito.logger import dle, dle_warning
 from devito.nodes import (Block, Denormals, Element, Expression,
                           Function, Iteration, List)
-from devito.tools import as_tuple, flatten
+from devito.tools import as_tuple, filter_ordered, flatten
 from devito.visitors import (FindNodeType, FindSections, FindSymbols,
                              IsPerfectIteration, Transformer)
 
@@ -211,7 +211,7 @@ class Rewriter(object):
     """
     thresholds = {
         'collapse': 32,  # Available physical cores
-        'elemental-functions': 50  # C statements
+        'elemental-functions': 15  # C statements
     }
 
     def __init__(self, nodes, params, compiler):
@@ -340,8 +340,13 @@ class Rewriter(object):
                 name = "f_%d_%d" % (i, j)
 
                 candidate = rule(tree)
-                leftover = tuple(k for k in tree if k not in candidate)
                 expressions = FindNodeType(Expression).visit(candidate)
+                scalar_exprs = [e for e in expressions if e.is_scalar]
+                tensor_exprs = [e for e in expressions if e.is_tensor]
+
+                # Cannot handle expressions writing to temporary buffers
+                if any(k.is_temporary for k in tensor_exprs):
+                    continue
 
                 # Heuristic: only create elemental functions if there are more
                 # than self.thresholds['elemental_functions'] statements in
@@ -349,28 +354,43 @@ class Rewriter(object):
                 if len(expressions) < self.thresholds['elemental-functions']:
                     continue
 
-                args = FindSymbols().visit(candidate)
-                args += [k.dim for k in leftover if k not in args and k.is_Closed]
+                # Determine the elemental function's arguments ...
+                args = []
+                definitely_not = [k.dim for k in candidate]
+                maybe = FindSymbols(mode='free-symbols').visit(candidate)
+                maybe = [k for k in maybe if k not in definitely_not]
+                seen = {k.output for k in scalar_exprs}
 
-                known = set([k.name for k in args])
-                known |= {k.index for k in candidate}
-                known |= {k.output.name for k in expressions}
-                maybe_unknown = FindSymbols(mode='free-symbols').visit(candidate)
-                args += [k for k in maybe_unknown if k.name not in known]
+                # Add SymbolicData objects and Dimensions (sizes, indices)
+                for d in FindSymbols('with-data').visit(candidate):
+                    args.append(("%s_vec" % d.name, d))
+                    for k in d.indices:
+                        if k in seen or k.size is not None:
+                            continue
+                        args.append((k.ccode, k))
+                        # Is the Dimension index required too?
+                        if k in maybe:
+                            index_arg = (k.name, ScalarData(name=k.name, dtype=np.int32))
+                            args.append(index_arg)
+                    seen |= {as_symbol(d)} | set(d.indices)
 
-                call = []
-                parameters = []
-                for k in args:
-                    if isinstance(k, Dimension):
-                        call.append(k.ccode)
-                        parameters.append(k)
-                    elif isinstance(k, SymbolicData):
-                        call.append("%s_vec" % k.name)
-                        parameters.append(k)
-                    else:
-                        call.append(k.name)
-                        parameters.append(ScalarData(name=k.name, dtype=np.int32))
+                # Add non-temporary arrays to the elemental function's arguments
+                for e in expressions:
+                    dtype = e.dtype
+                    for k in terminals(e.stencil):
+                        obj = as_symbol(k)
+                        if obj not in seen:
+                            call = "(%s*) %s" % (c.dtype_to_ctype(dtype), obj.name)
+                            param = DenseData(name=obj.name, shape=k.shape, dtype=dtype)
+                            args.append((call, param))
+                            seen |= {obj}
 
+                # Add non-temporary scalars to the elemental function's arguments
+                required = [k for k in maybe if k not in seen]
+                args.extend([(k.name, ScalarData(name=k.name, dtype=np.int32))
+                             for k in required])
+
+                call, parameters = zip(*args)
                 root = candidate[0]
 
                 # Track info to transform the main tree
