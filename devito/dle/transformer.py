@@ -448,7 +448,7 @@ class Rewriter(object):
 
                 # Construct the blocked loop nest, as well as all necessary
                 # remainder loops
-                regions = {}
+                regions = OrderedDict()
                 blocked_iterations = []
                 for i in iterations:
                     # Build Iteration over blocks
