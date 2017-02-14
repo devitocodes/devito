@@ -141,6 +141,21 @@ class TensorData(SymbolicData):
 
     is_TensorData = True
 
+    def __new__(cls, *args, **kwargs):
+        kwargs.update({'options': {'evaluate': False}})
+        return SymbolicData.__new__(cls, *args, **kwargs)
+
+    @classmethod
+    def _indices(cls, **kwargs):
+        return []
+
+    def __init__(self, *args, **kwargs):
+        if not self._cached():
+            self.name = kwargs.get('name')
+            self.shape = kwargs.get('shape')
+            self.dtype = kwargs.get('dtype', np.float32)
+            self._data = kwargs.get('_data', None)
+
 
 class DenseData(TensorData):
     """Data object for spatially varying data that acts as a Function symbol
