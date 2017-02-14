@@ -592,59 +592,17 @@ class TimeData(DenseData):
         return as_finite_diff(self.diff(_t, _t), indt)
 
 
-class CoordinateData(SymbolicData):
-    """
-    Data object for sparse coordinate data that acts as a Function symbol
-    """
-
-    is_Coordinates = True
-
-    def __init__(self, *args, **kwargs):
-        if not self._cached():
-            self.name = kwargs.get('name')
-            self.ndim = kwargs.get('ndim')
-            self.npoint = kwargs.get('npoint')
-            self.shape = (self.npoint, self.ndim)
-            self.indices = self._indices(**kwargs)
-            self.dtype = kwargs.get('dtype', np.float32)
-            self.numa = kwargs.get('numa', False)
-            self._data_object = CMemory(self.shape, dtype=self.dtype)
-            self.data = self._data_object.ndpointer
-            if self.numa:
-                first_touch(self)
-            else:
-                self.data.fill(0)
-
-    def __new__(cls, *args, **kwargs):
-        ndim = kwargs.get('ndim')
-        npoint = kwargs.get('npoint')
-        kwargs['shape'] = (npoint, ndim)
-        return SymbolicData.__new__(cls, *args, **kwargs)
-
-    @classmethod
-    def _indices(cls, **kwargs):
-        """Return the default dimension indices for a given data shape
-
-        :param shape: Shape of the spatial data
-        :return: indices used for axis.
-        """
-        dimensions = kwargs.get('dimensions', None)
-        return dimensions or [p, d]
-
-
 class PointData(DenseData):
     """
     Data object for sparse point data that acts as a Function symbol
 
     :param name: Name of the resulting :class:`sympy.Function` symbol
     :param npoint: Number of points to sample
-    :param coordinates: Coordinates data for the sparse points
     :param nt: Size of the time dimension for point data
-    :param dtype: Data type of the buffered data
+    :param ndim: Dimension of the coordinate data
+    :param coordinates: Optional coordinate data for the sparse points
 
-    Note: This class is expected to eventually evolve into a
-    full-fledged sparse data container. For now, the naming and
-    symbolic behaviour follows the use in the current problem.
+    :param dtype: Data type of the buffered data
     """
 
     is_PointData = True
@@ -653,15 +611,15 @@ class PointData(DenseData):
         if not self._cached():
             self.nt = kwargs.get('nt')
             self.npoint = kwargs.get('npoint')
-            ndim = kwargs.get('ndim')
+            self.ndim = kwargs.get('ndim')
             kwargs['shape'] = (self.nt, self.npoint)
             super(PointData, self).__init__(self, *args, **kwargs)
-            coordinates = kwargs.get('coordinates')
-            self.coordinates = CoordinateData(name='%s_coords' % self.name,
-                                              dimensions=[self.indices[1], d],
-                                              data=coordinates, ndim=ndim,
-                                              nt=self.nt, npoint=self.npoint)
-            self.coordinates.data[:] = kwargs.get('coordinates')[:]
+            self.coordinates = DenseData(name='%s_coords' % self.name,
+                                         dimensions=[self.indices[1], d],
+                                         shape=(self.npoint, self.ndim))
+            coordinates = kwargs.get('coordinates', None)
+            if coordinates is not None:
+                self.coordinates.data[:] = coordinates[:]
 
     def __new__(cls, *args, **kwargs):
         nt = kwargs.get('nt')
