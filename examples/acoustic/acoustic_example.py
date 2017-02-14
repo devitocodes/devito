@@ -91,8 +91,8 @@ def run(dimensions=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=1000.0,
     if not full_run:
         return gflopss, oi, timings, [rec, u.data]
 
-    # info("Applying Adjoint")
-    # Acoustic.Adjoint(rec)
+    info("Applying Adjoint")
+    Acoustic.Adjoint(rec)
     info("Applying Gradient")
     Acoustic.Gradient(rec, u)
     info("Applying Born")
@@ -100,4 +100,4 @@ def run(dimensions=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=1000.0,
 
 
 if __name__ == "__main__":
-    run(full_run=True, auto_tuning=False, space_order=6, time_order=2)
+    run(full_run=True, auto_tuning=True, space_order=6, time_order=2, legacy=True)

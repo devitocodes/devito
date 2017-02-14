@@ -197,7 +197,7 @@ class GradientOperator(Operator):
             # PDE for information
             # eqn = m * v.dt2 - laplacian - damp * v.dt
             dt = model.get_critical_dt()
-            gradient_update = Eq(grad, grad - u.dt2 * v.forward)
+            gradient_update = Eq(grad, grad - u.dt2 * v.backward)
         else:
             laplacian = v.laplace
             biharmonic = v.laplace2(1/m)
@@ -207,14 +207,13 @@ class GradientOperator(Operator):
             dt = 1.73 * model.get_critical_dt()
             gradient_update = Eq(grad, grad -
                                  (u.dt2 -
-                                  s ** 2 / 12.0 * biharmonicu) * v.forward)
+                                  s ** 2 / 12.0 * biharmonicu) * v.backward)
 
         # Create the stencil by hand instead of calling numpy solve for speed purposes
         # Simple linear solve of a v(t+dt) + b u(t) + c v(t-dt) = L for v(t-dt)
         stencil = 1.0 / (2.0 * m + s * damp) * \
             (4.0 * m * v + (s * damp - 2.0 * m) *
              v.forward + 2.0 * s ** 2 * (laplacian + s**2 / 12.0 * biharmonic))
-
         # Add substitutions for spacing (temporal and spatial)
         subs = {s: dt, h: model.get_spacing()}
         # Add Gradient-specific updates. The dt2 is currently hacky
