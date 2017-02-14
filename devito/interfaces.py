@@ -275,71 +275,83 @@ class DenseData(TensorData):
     @property
     def dx(self):
         """Symbol for the first derivative wrt the x dimension"""
-        return self.taxis._side * first_derivative(self, order=self.space_order,
-                                                   dim=x, side=centered)
+        fd = self.taxis._side * first_derivative(self, order=self.space_order,
+                                                 dim=x, side=centered)
+        return fd.subs(t, self.tsub) if self.is_TimeData else fd
 
     @property
     def dy(self):
         """Symbol for the first derivative wrt the y dimension"""
-        return self.taxis._side * first_derivative(self, order=self.space_order,
-                                                   dim=y, side=centered)
+        fd = self.taxis._side * first_derivative(self, order=self.space_order,
+                                                 dim=y, side=centered)
+        return fd.subs(t, self.tsub) if self.is_TimeData else fd
 
     @property
     def dz(self):
         """Symbol for the first derivative wrt the z dimension"""
-        return self.taxis._side * first_derivative(self, order=self.space_order,
-                                                   dim=z, side=centered)
+        fd = self.taxis._side * first_derivative(self, order=self.space_order,
+                                                 dim=z, side=centered)
+        return fd.subs(t, self.tsub) if self.is_TimeData else fd
 
     @property
     def dxy(self):
         """Symbol for the cross derivative wrt the x and y dimension"""
-        return cross_derivative(self, order=self.space_order, dims=(x, y))
+        fd = cross_derivative(self, order=self.space_order, dims=(x, y))
+        return fd.subs(t, self.tsub) if self.is_TimeData else fd
 
     @property
     def dxz(self):
         """Symbol for the cross derivative wrt the x and z dimension"""
-        return cross_derivative(self, order=self.space_order, dims=(x, z))
+        fd = cross_derivative(self, order=self.space_order, dims=(x, z))
+        return fd.subs(t, self.tsub) if self.is_TimeData else fd
 
     @property
     def dyz(self):
         """Symbol for the cross derivative wrt the y and z dimension"""
-        return cross_derivative(self, order=self.space_order, dims=(y, z))
+        fd = cross_derivative(self, order=self.space_order, dims=(y, z))
+        return fd.subs(t, self.tsub) if self.is_TimeData else fd
 
     @property
     def dxl(self):
         """Symbol for the derivative wrt to x with a left stencil"""
-        return self.taxis._side * first_derivative(self, order=self.space_order,
-                                                   dim=x, side=left)
+        fd = self.taxis._side * first_derivative(self, order=self.space_order,
+                                                 dim=x, side=left)
+        return fd.subs(t, self.tsub) if self.is_TimeData else fd
 
     @property
     def dxr(self):
         """Symbol for the derivative wrt to x with a right stencil"""
-        return self.taxis._side * first_derivative(self, order=self.space_order,
-                                                   dim=x, side=right)
+        fd = self.taxis._side * first_derivative(self, order=self.space_order,
+                                                 dim=x, side=right)
+        return fd.subs(t, self.tsub) if self.is_TimeData else fd
 
     @property
     def dyl(self):
         """Symbol for the derivative wrt to y with a left stencil"""
-        return self.taxis._side * first_derivative(self, order=self.space_order,
-                                                   dim=y, side=left)
+        fd = self.taxis._side * first_derivative(self, order=self.space_order,
+                                                 dim=y, side=left)
+        return fd.subs(t, self.tsub) if self.is_TimeData else fd
 
     @property
     def dyr(self):
         """Symbol for the derivative wrt to y with a right stencil"""
-        return self.taxis._side * first_derivative(self, order=self.space_order,
-                                                   dim=y, side=right)
+        fd = self.taxis._side * first_derivative(self, order=self.space_order,
+                                                 dim=y, side=right)
+        return fd.subs(t, self.tsub) if self.is_TimeData else fd
 
     @property
     def dzl(self):
         """Symbol for the derivative wrt to z with a left stencil"""
-        return self.taxis._side * first_derivative(self, order=self.space_order,
-                                                   dim=z, side=left)
+        fd = self.taxis._side * first_derivative(self, order=self.space_order,
+                                                 dim=z, side=left)
+        return fd.subs(t, self.tsub) if self.is_TimeData else fd
 
     @property
     def dzr(self):
         """Symbol for the derivative wrt to z with a right stencil"""
-        return self.taxis._side * first_derivative(self, order=self.space_order,
-                                                   dim=z, side=right)
+        fd = self.taxis._side * first_derivative(self, order=self.space_order,
+                                                 dim=z, side=right)
+        return fd.subs(t, self.tsub) if self.is_TimeData else fd
 
     @property
     def dx2(self):
@@ -347,7 +359,8 @@ class DenseData(TensorData):
         width_h = int(self.space_order/2)
         indx = [(x + i * h) for i in range(-width_h, width_h + 1)]
 
-        return as_finite_diff(self.diff(x, x), indx)
+        fd = as_finite_diff(self.diff(x, x), indx)
+        return fd.subs(t, self.tsub) if self.is_TimeData else fd
 
     @property
     def dy2(self):
@@ -355,7 +368,8 @@ class DenseData(TensorData):
         width_h = int(self.space_order/2)
         indy = [(y + i * h) for i in range(-width_h, width_h + 1)]
 
-        return as_finite_diff(self.diff(y, y), indy)
+        fd = as_finite_diff(self.diff(y, y), indy)
+        return fd.subs(t, self.tsub) if self.is_TimeData else fd
 
     @property
     def dz2(self):
@@ -363,7 +377,8 @@ class DenseData(TensorData):
         width_h = int(self.space_order/2)
         indz = [(z + i * h) for i in range(-width_h, width_h + 1)]
 
-        return as_finite_diff(self.diff(z, z), indz)
+        fd = as_finite_diff(self.diff(z, z), indz)
+        return fd.subs(t, self.tsub) if self.is_TimeData else fd
 
     @property
     def dx2y2(self):
@@ -386,7 +401,8 @@ class DenseData(TensorData):
         width_h = max(int(self.space_order / 2), 2)
         indx = [(x + i * h) for i in range(-width_h, width_h + 1)]
 
-        return as_finite_diff(self.diff(x, x, x, x), indx)
+        fd = as_finite_diff(self.diff(x, x, x, x), indx)
+        return fd.subs(t, self.tsub) if self.is_TimeData else fd
 
     @property
     def dy4(self):
@@ -394,7 +410,8 @@ class DenseData(TensorData):
         width_h = max(int(self.space_order / 2), 2)
         indy = [(y + i * h) for i in range(-width_h, width_h + 1)]
 
-        return as_finite_diff(self.diff(y, y, y, y), indy)
+        fd = as_finite_diff(self.diff(y, y, y, y), indy)
+        return fd.subs(t, self.tsub) if self.is_TimeData else fd
 
     @property
     def dz4(self):
@@ -402,7 +419,8 @@ class DenseData(TensorData):
         width_h = max(int(self.space_order / 2), 2)
         indz = [(z + i * h) for i in range(-width_h, width_h + 1)]
 
-        return as_finite_diff(self.diff(z, z, z, z), indz)
+        fd = as_finite_diff(self.diff(z, z, z, z), indz)
+        return fd.subs(t, self.tsub) if self.is_TimeData else fd
 
     @property
     def laplace(self):
@@ -456,12 +474,16 @@ class TimeData(DenseData):
             self.save = kwargs.get('save', False)
             self.pad_time = kwargs.get('pad_time', False)
             self.taxis = kwargs.get('taxis', Forward)
+            if self.taxis == Forward:
+                self.tsub = t - int(self.time_order / 2) * s
+            else:
+                self.tsub = t + int(self.time_order / 2) * s
 
             if self.save:
                 time_dim += self.time_order
             else:
                 time_dim = self.time_order + 1
-                self.indices[0].args[1].modulo = time_dim
+                self.indices[0].modulo = time_dim
 
             self.shape = (time_dim,) + self.shape
 
@@ -482,13 +504,9 @@ class TimeData(DenseData):
         :return: Dimension indices used for each axis.
         """
         dimensions = kwargs.get('dimensions', None)
-        taxis = kwargs.get('taxis', Forward)
         if dimensions is None:
             # Infer dimensions from default and data shape
-            if taxis == Forward:
-                _indices = [t - s, x, y, z]
-            else:
-                _indices = [t + s, x, y, z]
+            _indices = [t, x, y, z]
             shape = kwargs.get('shape')
             dimensions = _indices[:len(shape) + 1]
         return dimensions
@@ -512,24 +530,24 @@ class TimeData(DenseData):
         """Symbol for the time-forward state of the function"""
         i = int(self.time_order / 2) if self.time_order >= 2 else 1
 
-        return self.subs(t, t + i * s)
+        return self.subs(t, t + i * s).subs(t, self.tsub)
 
     @property
     def backward(self):
         """Symbol for the time-backward state of the function"""
         i = int(self.time_order / 2) if self.time_order >= 2 else 1
 
-        return self.subs(t, t - i * s)
+        return self.subs(t, t - i * s).subs(t, self.tsub)
 
     @property
     def dt(self):
         """Symbol for the first derivative wrt the time dimension"""
-        return first_derivative(self, dim=t, diff=s, side=centered)
+        return first_derivative(self, dim=t, diff=s, side=centered, order=self.time_order).subs(t, self.tsub)
 
     @property
     def dt2(self):
         """Symbol for the second derivative wrt the t dimension"""
-        return second_derivative(self, dim=t, diff=s)
+        return second_derivative(self, dim=t, diff=s, order=self.time_order).subs(t, self.tsub)
 
 
 class CoordinateData(TensorData):

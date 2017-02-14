@@ -41,17 +41,15 @@ def ForwardOperator(model, u, src, rec, damp, data, time_order=2, spc_order=6,
         dt = 1.73 * model.get_critical_dt()
 
     # Create the stencil by hand instead of calling numpy solve for speed purposes
-    # Simple linear solve of a u(t+dt) + b u(t) + c u(t-dt) = L for u(t+dt)
-    stencil = 1 / (2 * m + s * damp) * (
-        4 * m * u + (s * damp - 2 * m) * u.backward +
-        2 * s**2 * (laplacian + s**2 / 12 * biharmonic))
+    eqn = m * u.dt2 - laplacian - s**2 / 12 * biharmonic + damp * u.dt
+    stencil = solve(eqn, u, rational=False)[0]
     # Add substitutions for spacing (temporal and spatial)
     subs = {s: dt, h: model.get_spacing()}
 
     if legacy:
         kwargs.pop('dle', None)
 
-        op = Operator(nt, m.shape, stencils=Eq(u.forward, stencil), subs=subs,
+        op = Operator(nt, m.shape, stencils=Eq(u, stencil), subs=subs,
                       spc_border=max(spc_order / 2, 2), time_order=2, forward=True,
                       dtype=m.dtype, **kwargs)
 
@@ -65,12 +63,11 @@ def ForwardOperator(model, u, src, rec, damp, data, time_order=2, spc_order=6,
         op.propagator.add_devito_param(rec.coordinates)
 
     else:
-        dse = kwargs.get('dse', 'advanced')
-        dle = kwargs.get('dle', 'advanced')
+        dse = kwargs.get('dse', None)
+        dle = kwargs.get('dle', None)
         compiler = kwargs.get('compiler', None)
-
         # Create stencil expressions for operator, source and receivers
-        eqn = Eq(u.forward, stencil)
+        eqn = Eq(u, stencil)
         src_add = src.point2grid(u, m, u_t=t, p_t=time)
         rec_read = Eq(rec, rec.grid2point(u))
         stencils = [eqn] + src_add + [rec_read]
@@ -118,10 +115,8 @@ class AdjointOperator(Operator):
             dt = 1.73 * model.get_critical_dt()
 
         # Create the stencil by hand instead of calling numpy solve for speed purposes
-        # Simple linear solve of a v(t+dt) + b u(t) + c v(t-dt) = L for v(t-dt)
-        stencil = 1 / (2 * m + s * damp) * \
-            (4 * m * v + (s * damp - 2 * m) *
-             v.forward + 2 * s**2 * (laplacian + s ** 2 / 12.0 * biharmonic))
+        eqn = m * v.dt2 - laplacian - s ** 2 / 12 * biharmonic - damp * v.dt
+        stencil = solve(eqn, v, rational=False)[0]
 
         # Add substitutions for spacing (temporal and spatial)
         subs = {s: dt, h: model.get_spacing()}
@@ -136,7 +131,7 @@ class AdjointOperator(Operator):
         rec.data[:] = recin[:]
 
         super(AdjointOperator, self).__init__(nt, m.shape,
-                                              stencils=Eq(v.backward, stencil),
+                                              stencils=Eq(v, stencil),
                                               subs=subs,
                                               spc_border=max(spc_order / 2, 2),
                                               time_order=2,
@@ -198,14 +193,13 @@ class GradientOperator(Operator):
 
         # Create the stencil by hand instead of calling numpy solve for speed purposes
         # Simple linear solve of a v(t+dt) + b u(t) + c v(t-dt) = L for v(t-dt)
-        stencil = 1.0 / (2.0 * m + s * damp) * \
-            (4.0 * m * v + (s * damp - 2.0 * m) *
-             v.forward + 2.0 * s ** 2 * (laplacian + s**2 / 12.0 * biharmonic))
+        eqn = m * v.dt2 - laplacian - s ** 2 / 12 * biharmonic - damp * v.dt
+        stencil = solve(eqn, v, rational=False)[0]
         # Add substitutions for spacing (temporal and spatial)
         subs = {s: dt, h: model.get_spacing()}
         # Add Gradient-specific updates. The dt2 is currently hacky
         #  as it has to match the cyclic indices
-        stencils = [Eq(v.backward, stencil), gradient_update]
+        stencils = [Eq(v, stencil), gradient_update]
 
         # Receiver initialization
         rec = SourceLike(name="rec", npoint=nrec, nt=nt, dt=dt, h=model.get_spacing(),
@@ -260,31 +254,24 @@ class BornOperator(Operator):
 
         # Derive stencils from symbolic equation
         if time_order == 2:
-            laplacianu = u.laplace
             biharmonicu = 0
-            laplacianU = u.laplace
             biharmonicU = 0
             dt = model.get_critical_dt()
         else:
-            laplacianu = u.laplace
-            biharmonicu = U.laplace2(1/m)
-            laplacianU = u.laplace
+            biharmonicu = u.laplace2(1/m)
             biharmonicU = U.laplace2(1/m)
             dt = 1.73 * model.get_critical_dt()
             # first_eqn = m * u.dt2 - u.laplace + damp * u.dt
             # second_eqn = m * U.dt2 - U.laplace - dm* u.dt2 + damp * U.dt
 
-        stencil1 = 1.0 / (2.0 * m + s * damp) * \
-            (4.0 * m * u + (s * damp - 2.0 * m) *
-             u.backward + 2.0 * s ** 2 * (laplacianu + s**2 / 12 * biharmonicu))
-        stencil2 = 1.0 / (2.0 * m + s * damp) * \
-            (4.0 * m * u + (s * damp - 2.0 * m) *
-             u.backward + 2.0 * s ** 2 * (laplacianU +
-                                          s**2 / 12 * biharmonicU - dm * u.dt2))
+        first_eqn = m * u.dt2 - u.laplace + damp * u.dt - s**2 / 12 * biharmonicu
+        second_eqn = m * U.dt2 - U.laplace - dm * u.dt2 + damp * U.dt - s**2 / 12 * biharmonicU
+        stencil1 = solve(first_eqn, u, rational=False)[0]
+        stencil2 = solve(second_eqn, U, rational=False)[0]
         # Add substitutions for spacing (temporal and spatial)
         subs = {s: dt, h: model.get_spacing()}
         # Add Born-specific updates and resets
-        stencils = [Eq(u.forward, stencil1), Eq(U.forward, stencil2)]
+        stencils = [Eq(u, stencil1), Eq(U, stencil2)]
 
         rec = SourceLike(name="rec", npoint=nrec, nt=nt, dt=dt, h=model.get_spacing(),
                          coordinates=data.receiver_coords, ndim=len(damp.shape),

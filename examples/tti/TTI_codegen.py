@@ -5,7 +5,7 @@ import numpy as np
 
 from devito.at_controller import AutoTuner
 from devito.dimension import Dimension, time
-from devito.interfaces import TimeData
+from devito.interfaces import Forward, TimeData
 from examples.tti.tti_operators import *
 from examples.source_type import SourceLike
 
@@ -67,11 +67,11 @@ class TTI_cg:
         u = TimeData(name="u", shape=self.model.get_shape_comp(),
                      time_dim=nt, time_order=self.t_order,
                      space_order=self.s_order/2,
-                     save=save, dtype=dtype)
+                     save=save, dtype=dtype, taxis=Forward)
         v = TimeData(name="v", shape=self.model.get_shape_comp(),
                      time_dim=nt, time_order=self.t_order,
                      space_order=self.s_order/2,
-                     save=save, dtype=dtype)
+                     save=save, dtype=dtype, taxis=Forward)
 
         u.pad_time = save
         v.pad_time = save
@@ -106,11 +106,11 @@ class TTI_cg:
             u = TimeData(name="u", shape=self.model.get_shape_comp(),
                          time_dim=nt, time_order=self.t_order,
                          space_order=self.s_order/2,
-                         save=save, dtype=dtype)
+                         save=save, dtype=dtype, taxis=Forward)
             v = TimeData(name="v", shape=self.model.get_shape_comp(),
                          time_dim=nt, time_order=self.t_order,
                          space_order=self.s_order/2,
-                         save=save, dtype=dtype)
+                         save=save, dtype=dtype, taxis=Forward)
 
             u.pad_time = save
             v.pad_time = save

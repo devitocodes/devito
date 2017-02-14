@@ -77,7 +77,7 @@ def first_touch(array):
     from devito.interfaces import TimeData, PointData
     from devito.nodes import Iteration
 
-    exp_init = [Eq(array.indexed[array.indices].subs({h: 1, s: 0}), 0)]
+    exp_init = [Eq(array.indexed[array.indices], 0)]
     it_init = []
     time_dim = t
     if isinstance(array, TimeData):

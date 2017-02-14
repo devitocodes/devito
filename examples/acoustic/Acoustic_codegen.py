@@ -134,7 +134,6 @@ class Acoustic_cg(object):
                              save=save, cache_blocking=cache_blocking, dse=dse,
                              dle=dle, compiler=compiler, profile=True, u_ini=u_ini,
                              legacy=legacy)
-
         if legacy:
             fw.apply()
             return (rec.data, u, fw.propagator.gflopss,

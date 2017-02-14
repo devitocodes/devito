@@ -64,7 +64,7 @@ def ForwardOperator(model, u, v, src, rec, damp, data, time_order=2,
         phi = 0
 
     s, h = symbols('s h')
-
+    P, R = symbols('P R')
     spc_brd = spc_order/2
 
     ang0 = cos(theta)
@@ -165,17 +165,14 @@ def ForwardOperator(model, u, v, src, rec, damp, data, time_order=2,
         Hp = -(.5 * Gxx1 + .5 * Gxx2)
         Hzr = -(.5 * Gzz1 + .5 * Gzz2)
 
-    stencilp = 1.0 / (2.0 * m + s * damp) * \
-        (4.0 * m * u + (s * damp - 2.0 * m) *
-         u.backward + 2.0 * s**2 * (epsilon * Hp + delta * Hzr))
-    stencilr = 1.0 / (2.0 * m + s * damp) * \
-        (4.0 * m * v + (s * damp - 2.0 * m) *
-         v.backward + 2.0 * s**2 * (delta * Hp + Hzr))
-
+    eqp = m * u.dt2 - epsilon * P - delta * R + damp * u.dt
+    eqr = m * v.dt2 - delta * P - R + damp * v.dt
+    stencilp = solve(eqp, u, rational=False)[0]
+    stencilr = solve(eqr, v, rational=False)[0]
     # Add substitutions for spacing (temporal and spatial)
     subs = {s: dt, h: model.get_spacing()}
-    first_stencil = Eq(u.forward, stencilp)
-    second_stencil = Eq(v.forward, stencilr)
+    first_stencil = Eq(u, stencilp.xreplace({P: Hp, R: Hzr}))
+    second_stencil = Eq(v, stencilr.xreplace({P: Hp, R: Hzr}))
     stencils = [first_stencil, second_stencil]
 
     if legacy:
@@ -204,19 +201,6 @@ def ForwardOperator(model, u, v, src, rec, damp, data, time_order=2,
         stencils += src.point2grid(u, m, u_t=t, p_t=time)
         stencils += src.point2grid(v, m, u_t=t, p_t=time)
         stencils += [Eq(rec, rec.grid2point(u) + rec.grid2point(v))]
-
-        # TODO: The following time-index hackery is a legacy hangover
-        # from the Operator/Propagator structure and is used here for
-        # backward compatibiliy. We need re-examine this apporach carefully!
-
-        # Shift time indices so that LHS writes into t only,
-        # eg. u[t+2] = u[t+1] + u[t]  -> u[t] = u[t-1] + u[t-2]
-        stencils = [e.subs(t, t + solve(e.lhs.args[0], t)[0])
-                    if isinstance(e.lhs, TimeData) else e
-                    for e in stencils]
-        # Apply time substitutions as per legacy approach
-        time_subs = {t + 2: t + 1, t: t + 2, t - 2: t, t - 1: t + 1, t + 1: t}
-        subs.update(time_subs)
 
         op = StencilKernel(stencils=stencils, subs=subs, dse=dse, dle=dle,
                            compiler=compiler)

@@ -451,7 +451,8 @@ class ResolveIterationVariable(Transformer):
             for off in filter_ordered(offsets[o.dim]):
                 vname = "%s%d" % (o.dim.name, variable_map[o.dim])
                 variable_map[o.dim] += 1  # Increase variable count
-                value = o.dim.parent + off
+                # Add modulo to value so that t-modulo is always positive
+                value = o.dim.parent + off + o.dim.modulo
                 modulo = o.dim.modulo
                 init += [c.Initializer(c.Value('int', vname),
                                        "(%s) %% %d" % (value, modulo))]
