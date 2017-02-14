@@ -92,6 +92,11 @@ class StencilKernel(Function):
         parameters += filter_ordered([d for d in dimensions if d.size is None],
                                      key=operator.attrgetter('name'))
 
+        # Resolve and substitute dimensions for loop index variables
+        subs = {}
+        nodes = ResolveIterationVariable().visit(nodes, subs=subs)
+        nodes = SubstituteExpression(subs=subs).visit(nodes)
+
         # Apply the Devito Loop Engine for loop optimization
         dle_state = transform(nodes, set_dle_mode(dle, self.compiler), self.compiler)
         parameters += [i.argument for i in dle_state.arguments]
@@ -100,11 +105,6 @@ class StencilKernel(Function):
         # Introduce all required C declarations
         nodes, elemental_functions = self._insert_declarations(dle_state, parameters)
         self.elemental_functions = elemental_functions
-
-        # Resolve and substitute dimensions for loop index variables
-        subs = {}
-        nodes = ResolveIterationVariable().visit(nodes, subs=subs)
-        nodes = SubstituteExpression(subs=subs).visit(nodes)
 
         # Track the DSE and DLE output, as they may be useful later
         self._dse_state = dse_state
