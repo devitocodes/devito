@@ -2,7 +2,7 @@ import numpy as np
 from sympy import (Function, Indexed, Number, Symbol, cos, count_ops, lambdify,
                    preorder_traversal, sin)
 
-from devito.dimension import t
+from devito.dimension import Dimension, t
 from devito.interfaces import SymbolicData
 from devito.logger import warning
 from devito.tools import flatten
@@ -319,7 +319,11 @@ def as_symbol(expr):
     """
     Extract the "main" symbol from a SymPy object.
     """
-    if expr.is_Symbol:
+    if isinstance(expr, str):
+        return Symbol(expr)
+    elif isinstance(expr, Dimension):
+        return Symbol(expr.name)
+    elif expr.is_Symbol:
         return expr
     elif isinstance(expr, Indexed):
         return expr.base.label
