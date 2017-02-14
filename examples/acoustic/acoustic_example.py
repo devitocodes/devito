@@ -27,7 +27,7 @@ def source(t, f0):
 def run(dimensions=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=1000.0,
         time_order=2, space_order=2, nbpml=40, dse='advanced', dle='advanced',
         auto_tuning=False, compiler=None, cache_blocking=None, full_run=False,
-        legacy=True):
+        legacy=False):
 
     origin = (0., 0., 0.)
 

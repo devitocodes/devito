@@ -6,7 +6,7 @@ import numpy as np
 from devito.at_controller import AutoTuner
 from devito.dimension import Dimension, time
 from examples.acoustic.fwi_operators import *
-
+from devito.interfaces import Forward
 
 class Acoustic_cg(object):
     """
@@ -122,7 +122,7 @@ class Acoustic_cg(object):
         # Create the forward wavefield
         u = TimeData(name="u", shape=self.model.get_shape_comp(), time_dim=nt,
                      time_order=2, space_order=self.s_order, save=save,
-                     dtype=self.damp.dtype)
+                     dtype=self.damp.dtype, taxis=Forward)
         u.pad_time = save
         if u_ini is not None:
             u.data[0:3, :] = u_ini[:]

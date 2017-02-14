@@ -24,13 +24,13 @@ class Taxis(object):
     the correlation of a forward and adjoint wavefield"""
 
     def __init__(self, taxis):
-        self._taxis = taxis
+        self._side = taxis
 
     def __eq__(self, other):
-        return self._taxis == other._taxis
+        return self._side == other._side
 
     def __repr__(self):
-        return {-1: 'Backward', 1: 'Forward'}[self._taxis]
+        return {-1: 'Backward', 1: 'Forward'}[self._side]
 
 
 Forward = Taxis(1)
@@ -194,6 +194,7 @@ class DenseData(TensorData):
                 assert(callable(initializer))
             self.initializer = initializer
             self._data = kwargs.get('_data', None)
+            self.taxis = kwargs.get('taxis', Forward)
             MemmapManager.setup(self, *args, **kwargs)
 
     @classmethod
@@ -274,17 +275,20 @@ class DenseData(TensorData):
     @property
     def dx(self):
         """Symbol for the first derivative wrt the x dimension"""
-        return first_derivative(self, order=self.space_order, dim=x, side=centered)
+        return self.taxis._side * first_derivative(self, order=self.space_order,
+                                             dim=x, side=centered)
 
     @property
     def dy(self):
         """Symbol for the first derivative wrt the y dimension"""
-        return first_derivative(self, order=self.space_order, dim=y, side=centered)
+        return self.taxis._side * first_derivative(self, order=self.space_order,
+                                             dim=y, side=centered)
 
     @property
     def dz(self):
         """Symbol for the first derivative wrt the z dimension"""
-        return first_derivative(self, order=self.space_order, dim=z, side=centered)
+        return self.taxis._side * first_derivative(self, order=self.space_order,
+                                             dim=z, side=centered)
 
     @property
     def dxy(self):
@@ -304,32 +308,38 @@ class DenseData(TensorData):
     @property
     def dxl(self):
         """Symbol for the derivative wrt to x with a left stencil"""
-        return first_derivative(self, order=self.space_order, dim=x, side=left)
+        return self.taxis._side * first_derivative(self, order=self.space_order,
+                                             dim=x, side=left)
 
     @property
     def dxr(self):
         """Symbol for the derivative wrt to x with a right stencil"""
-        return first_derivative(self, order=self.space_order, dim=x, side=right)
+        return self.taxis._side * first_derivative(self, order=self.space_order,
+                                             dim=x, side=right)
 
     @property
     def dyl(self):
         """Symbol for the derivative wrt to y with a left stencil"""
-        return first_derivative(self, order=self.space_order, dim=y, side=left)
+        return self.taxis._side * first_derivative(self, order=self.space_order,
+                                             dim=y, side=left)
 
     @property
     def dyr(self):
         """Symbol for the derivative wrt to y with a right stencil"""
-        return first_derivative(self, order=self.space_order, dim=y, side=right)
+        return self.taxis._side * first_derivative(self, order=self.space_order,
+                                             dim=y, side=right)
 
     @property
     def dzl(self):
         """Symbol for the derivative wrt to z with a left stencil"""
-        return first_derivative(self, order=self.space_order, dim=z, side=left)
+        return self.taxis._side * first_derivative(self, order=self.space_order,
+                                             dim=z, side=left)
 
     @property
     def dzr(self):
         """Symbol for the derivative wrt to z with a right stencil"""
-        return first_derivative(self, order=self.space_order, dim=z, side=right)
+        return self.taxis._side * first_derivative(self, order=self.space_order,
+                                             dim=z, side=right)
 
     @property
     def dx2(self):
@@ -472,9 +482,13 @@ class TimeData(DenseData):
         :return: Dimension indices used for each axis.
         """
         dimensions = kwargs.get('dimensions', None)
+        taxis = kwargs.get('taxis', Forward)
         if dimensions is None:
             # Infer dimensions from default and data shape
-            _indices = [t, x, y, z]
+            if taxis == Forward:
+                _indices = [t - s, x, y, z]
+            else:
+                _indices = [t + s, x, y, z]
             shape = kwargs.get('shape')
             dimensions = _indices[:len(shape) + 1]
         return dimensions
@@ -487,19 +501,6 @@ class TimeData(DenseData):
 
         if self.pad_time:
             self._data = self._data[self.time_order:, ...]
-
-    def indexify(self):
-        """Convert base symbol and dimensions to indexed data accesses
-
-        :return: Index corrosponding to the indices with the type of time axis
-        """
-        i = int(self.time_order / 2) if self.time_order >= 2 else 1
-        if self.taxis == Forward:
-            indices = [a.subs({h: 1, t: t - i * s, s: 1}) for a in self.args]
-            return self.indexed[indices]
-        else:
-            indices = [a.subs({h: 1, t: t + i * s, s: 1}) for a in self.args]
-            return self.indexed[indices]
 
     @property
     def dim(self):
