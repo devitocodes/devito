@@ -85,21 +85,22 @@ class StencilKernel(Function):
         self.sections = OrderedDict()
         nodes = self._profile_sections(nodes)
 
-        # Now resolve and substitute dimensions for loop index variables
-        subs = {}
-        nodes = ResolveIterationVariable().visit(nodes, subs=subs)
-        nodes = SubstituteExpression(subs=subs).visit(nodes)
-
         # Apply the Devito Loop Engine for loop optimization and finalize instantiation
         dle_state = transform(nodes, mode=set_dle_mode(dle, self.compiler),
                               compiler=self.compiler)
         body = dle_state.nodes
-        parameters = FindSymbols('with-data').visit(nodes)
+
+        # Now resolve and substitute dimensions for loop index variables
+        subs = {}
+        body = ResolveIterationVariable().visit(body, subs=subs)
+        body = SubstituteExpression(subs=subs).visit(body)
+
+        parameters = FindSymbols('with-data').visit(body)
         parameters += [i.argument for i in dle_state.arguments]
 
         # Add all dimensions used in expressions symbols to arguments.
         # This is required to ensure that we can safely perform data casts.
-        dimensions = FindSymbols('dimensions').visit(nodes)
+        dimensions = FindSymbols('dimensions').visit(body)
         # For buffered dimensions, ensure the parent is also present
         dimensions += [d.parent for d in dimensions if d.is_Buffered]
         parameters += filter_ordered([d for d in dimensions if d.size is None],
