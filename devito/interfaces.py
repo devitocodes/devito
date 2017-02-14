@@ -461,7 +461,7 @@ class TimeData(DenseData):
                 time_dim += self.time_order
             else:
                 time_dim = self.time_order + 1
-                self.indices[0].modulo = time_dim
+                self.indices[0].args[1].modulo = time_dim
 
             self.shape = (time_dim,) + self.shape
 
@@ -524,22 +524,12 @@ class TimeData(DenseData):
     @property
     def dt(self):
         """Symbol for the first derivative wrt the time dimension"""
-        if self.time_order == 1:
-            # This hack is needed for the first-order diffusion test
-            indices = [t, t + s]
-        else:
-            width = int(self.time_order / 2)
-            indices = [(t + i * s) for i in range(-width, width + 1)]
-
-        return as_finite_diff(self.diff(t), indices)
+        return first_derivative(self, dim=t, diff=s, side=centered)
 
     @property
     def dt2(self):
         """Symbol for the second derivative wrt the t dimension"""
-        width_t = int(self.time_order/2)
-        indt = [(t + i * s) for i in range(-width_t, width_t + 1)]
-
-        return as_finite_diff(self.diff(t, t), indt)
+        return second_derivative(self, dim=t, diff=s)
 
 
 class CoordinateData(TensorData):

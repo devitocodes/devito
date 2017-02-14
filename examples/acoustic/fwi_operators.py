@@ -1,7 +1,7 @@
 from sympy import Eq, solve, symbols
 
 from devito.dimension import t, time
-from devito.interfaces import DenseData, TimeData
+from devito.interfaces import Backward, DenseData, Forward, TimeData
 from devito.operator import *
 from devito.stencilkernel import StencilKernel
 from examples.source_type import SourceLike
@@ -112,7 +112,7 @@ class AdjointOperator(Operator):
         s, h = symbols('s h')
         v = TimeData(name="v", shape=model.get_shape_comp(), time_dim=nt,
                      time_order=2, space_order=spc_order,
-                     save=False, dtype=damp.dtype)
+                     save=False, dtype=damp.dtype, taxis=Backward)
         m = DenseData(name="m", shape=model.get_shape_comp(), dtype=damp.dtype)
         m.data[:] = model.padm()
         v.pad_time = False
@@ -184,7 +184,7 @@ class GradientOperator(Operator):
         s, h = symbols('s h')
         v = TimeData(name="v", shape=model.get_shape_comp(), time_dim=nt,
                      time_order=2, space_order=spc_order,
-                     save=False, dtype=damp.dtype)
+                     save=False, dtype=damp.dtype, taxis=Backward)
         m = DenseData(name="m", shape=model.get_shape_comp(), dtype=damp.dtype)
         m.data[:] = model.padm()
         v.pad_time = False
@@ -219,7 +219,7 @@ class GradientOperator(Operator):
         subs = {s: dt, h: model.get_spacing()}
         # Add Gradient-specific updates. The dt2 is currently hacky
         #  as it has to match the cyclic indices
-        stencils = [gradient_update, Eq(v.backward, stencil)]
+        stencils = [Eq(v.backward, stencil), gradient_update]
 
         # Receiver initialization
         rec = SourceLike(name="rec", npoint=nrec, nt=nt, dt=dt, h=model.get_spacing(),
@@ -233,10 +233,10 @@ class GradientOperator(Operator):
                                                time_order=2,
                                                forward=False,
                                                dtype=m.dtype,
-                                               input_params=[m, v, damp, u],
+                                               input_params=[m, v, damp, u, grad],
                                                **kwargs)
         # Insert receiver term post-hoc
-        self.input_params += [grad, rec, rec.coordinates]
+        self.input_params += [rec, rec.coordinates]
         self.output_params = [grad]
         self.propagator.time_loop_stencils_b = rec.add(m, v, u_t=t + 1, p_t=t + 1)
         self.propagator.add_devito_param(rec)
@@ -261,10 +261,10 @@ class BornOperator(Operator):
         nt, nsrc = src.shape
         u = TimeData(name="u", shape=model.get_shape_comp(), time_dim=nt,
                      time_order=2, space_order=spc_order,
-                     save=False, dtype=damp.dtype)
+                     save=False, dtype=damp.dtype, taxis=Forward)
         U = TimeData(name="U", shape=model.get_shape_comp(), time_dim=nt,
                      time_order=2, space_order=spc_order,
-                     save=False, dtype=damp.dtype)
+                     save=False, dtype=damp.dtype, taxis=Forward)
         m = DenseData(name="m", shape=model.get_shape_comp(), dtype=damp.dtype)
         m.data[:] = model.padm()
 

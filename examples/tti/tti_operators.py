@@ -80,7 +80,7 @@ def ForwardOperator(model, u, v, src, rec, damp, data, time_order=2,
                                 order=spc_brd, matvec=transpose) -
                first_derivative(Gyp * ang2,
                                 dim=y, side=right, order=spc_brd,
-                                matvec=tranpose))
+                                matvec=transpose))
         Gyp2 = (ang3 * u.dxr - ang2 * u.dy)
         Gyy2 = (first_derivative(Gyp2 * ang3,
                                  dim=x, side=right, order=spc_brd,

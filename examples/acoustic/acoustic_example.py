@@ -27,7 +27,7 @@ def source(t, f0):
 def run(dimensions=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=1000.0,
         time_order=2, space_order=2, nbpml=40, dse='advanced', dle='advanced',
         auto_tuning=False, compiler=None, cache_blocking=None, full_run=False,
-        legacy=False):
+        legacy=True):
 
     origin = (0., 0., 0.)
 
@@ -91,8 +91,8 @@ def run(dimensions=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=1000.0,
     if not full_run:
         return gflopss, oi, timings, [rec, u.data]
 
-    info("Applying Adjoint")
-    Acoustic.Adjoint(rec)
+    # info("Applying Adjoint")
+    # Acoustic.Adjoint(rec)
     info("Applying Gradient")
     Acoustic.Gradient(rec, u)
     info("Applying Born")

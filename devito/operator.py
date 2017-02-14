@@ -1,6 +1,7 @@
 from functools import reduce
 
 import numpy as np
+from sympy.abc import s
 from sympy import Eq
 
 from devito.compiler import get_compiler_from_env
@@ -81,16 +82,16 @@ class Operator(object):
             dimensions += [i for i in retrieve_dimensions(eqn.rhs) if i not in dimensions]
 
         # Time dimension is fixed for now
-        time_dim = t
-
+        time_dim = [t - s, t, t + s]
         # Derive space dimensions from expression
         self.space_dims = None
 
         if len(dimensions) > 0:
             self.space_dims = dimensions
 
-            if time_dim in self.space_dims:
-                self.space_dims.remove(time_dim)
+            for td in time_dim:
+                if td in self.space_dims:
+                    self.space_dims.remove(td)
         else:
             # Default space dimension symbols
             self.space_dims = ((x, z) if len(shape) == 2 else (x, y, z))[:len(shape)]
@@ -105,7 +106,6 @@ class Operator(object):
 
         # Apply user-defined subs to stencil
         self.stencils = [eqn.subs(subs[0]) for eqn in self.stencils]
-
         self.propagator = Propagator(self.getName(), nt, shape, self.stencils, dse=dse,
                                      dtype=dtype, spc_border=spc_border,
                                      time_order=time_order, forward=forward,
