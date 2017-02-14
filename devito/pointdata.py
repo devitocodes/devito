@@ -1,5 +1,9 @@
+from sympy import Matrix, symbols
+from sympy.abc import h
+
 from devito.dimension import d, p, t
 from devito.interfaces import DenseData
+from devito.logger import error
 
 __all__ = ['PointData']
 
@@ -11,9 +15,8 @@ class PointData(DenseData):
     :param name: Name of the resulting :class:`sympy.Function` symbol
     :param npoint: Number of points to sample
     :param nt: Size of the time dimension for point data
-    :param ndim: Dimension of the coordinate data
+    :param ndim: Dimension of the coordinate data, eg. 2D or 3D
     :param coordinates: Optional coordinate data for the sparse points
-
     :param dtype: Data type of the buffered data
     """
 
@@ -26,6 +29,8 @@ class PointData(DenseData):
             self.ndim = kwargs.get('ndim')
             kwargs['shape'] = (self.nt, self.npoint)
             super(PointData, self).__init__(self, *args, **kwargs)
+
+            # Allocate and copy coordinate data
             self.coordinates = DenseData(name='%s_coords' % self.name,
                                          dimensions=[self.indices[1], d],
                                          shape=(self.npoint, self.ndim))
@@ -49,3 +54,76 @@ class PointData(DenseData):
         """
         dimensions = kwargs.get('dimensions', None)
         return dimensions or [t, p]
+
+    @property
+    def coefficients(self):
+        """Symbolic expression for the coefficients for sparse point
+        interpolation according to:
+        https://en.wikipedia.org/wiki/Bilinear_interpolation.
+
+        :returns: List of coefficients, eg. [b_11, b_12, b_21, b_22]
+        """
+        # Grid indices corresponding to the corners of the cell
+        x1, y1, z1, x2, y2, z2 = symbols('x1, y1, z1, x2, y2, z2')
+        # Coordinate values of the sparse point
+        px, py, pz = symbols('px, py, pz')
+        if self.ndim == 2:
+            self._increments = ((0, 0), (0, 1), (1, 0), (1, 1))
+            A = Matrix([[1, x1, y1, x1*y1],
+                        [1, x1, y2, x1*y2],
+                        [1, x2, y1, x2*y1],
+                        [1, x2, y2, x2*y2]])
+
+            p = Matrix([[1],
+                        [px],
+                        [py],
+                        [px*py]])
+
+        elif self.ndim == 3:
+            self._increments = ((0, 0, 0), (0, 1, 0), (1, 0, 0), (0, 0, 1),
+                                (1, 1, 0), (0, 1, 1), (1, 0, 1), (1, 1, 1))
+            A = Matrix([[1, x1, y1, z1, x1*y1, x1*z1, y1*z1, x1*y1*z1],
+                        [1, x1, y2, z1, x1*y2, x1*z1, y2*z1, x1*y2*z1],
+                        [1, x2, y1, z1, x2*y1, x2*z1, y2*z1, x2*y1*z1],
+                        [1, x1, y1, z2, x1*y1, x1*z2, y1*z2, x1*y1*z2],
+                        [1, x2, y2, z1, x2*y2, x2*z1, y2*z1, x2*y2*z1],
+                        [1, x1, y2, z2, x1*y2, x1*z2, y2*z2, x1*y2*z2],
+                        [1, x2, y1, z2, x2*y1, x2*z2, y1*z2, x2*y1*z2],
+                        [1, x2, y2, z2, x2*y2, x2*z2, y2*z2, x2*y2*z2]])
+
+            p = Matrix([[1],
+                        [px],
+                        [py],
+                        [pz],
+                        [px*py],
+                        [px*pz],
+                        [py*pz],
+                        [px*py*pz]])
+        else:
+            error("Interpolation coefficients not implemented for "
+                  "%d dimensions." % self.ndim)
+
+        # Map to reference cell
+        reference_cell = {x1: 0, y1: 0, z1: 0, x2: h, y2: h, z2: h}
+        A = A.subs(reference_cell)
+        return A.inv().T.dot(p)
+
+    @property
+    def coordinates_symbols(self):
+        """Symbol representing the coordinate values in each dimension"""
+        p_dim = self.indices[1]
+        return tuple([self.coordinates.indexed[p_dim, i]
+                      for i in range(self.ndim)])
+
+    @property
+    def coordinate_indices(self):
+        """Symbol for each grid index according to the coordinates"""
+        return tuple([Function('INT')(Function('floor')(x / h))
+                      for x in self.coordinate_symbols])
+
+    @property
+    def coordinate_bases(self):
+        """Symbol for the base coordinates of the reference grid point"""
+        return tuple([Function('FLOAT')(x - idx * h)
+                      for x, idx in zip(self.coordinate_symbols,
+                                        self.coordinate_indices)])
