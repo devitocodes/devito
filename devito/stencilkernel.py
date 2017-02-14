@@ -85,8 +85,12 @@ class StencilKernel(Function):
         self.sections = OrderedDict()
         nodes = self._profile_sections(nodes)
 
-        # Parameters of the StencilKernel
+        # Parameters of the StencilKernel (Dimensions necessary for data casts)
         parameters = FindSymbols('with-data').visit(nodes)
+        dimensions = FindSymbols('dimensions').visit(nodes)
+        dimensions += [d.parent for d in dimensions if d.is_Buffered]
+        parameters += filter_ordered([d for d in dimensions if d.size is None],
+                                     key=operator.attrgetter('name'))
 
         # Apply the Devito Loop Engine for loop optimization
         dle_state = transform(nodes, set_dle_mode(dle, self.compiler), self.compiler)
@@ -107,13 +111,6 @@ class StencilKernel(Function):
         self._dle_state = dle_state
 
         # Finish instantiation
-        # Add all dimensions used in expressions symbols to arguments.
-        # This is required to ensure that we can safely perform data casts.
-        dimensions = FindSymbols('dimensions').visit(body)
-        # For buffered dimensions, ensure the parent is also present
-        dimensions += [d.parent for d in dimensions if d.is_Buffered]
-        parameters += filter_ordered([d for d in dimensions if d.size is None],
-                                     key=operator.attrgetter('name'))
         super(StencilKernel, self).__init__(name, nodes, 'int', parameters, ())
 
     def __call__(self, *args, **kwargs):
@@ -236,7 +233,7 @@ class StencilKernel(Function):
                         v = EstimateCost().visit(j)
                         self.sections[itspace] = Profile(lname, v.ops, v.mem)
                         break
-        processed = [Transformer(mapper).visit(List(body=nodes))]
+        processed = Transformer(mapper).visit(List(body=nodes))
         return processed
 
     def _profile_summary(self, dim_sizes, dtype_size):
