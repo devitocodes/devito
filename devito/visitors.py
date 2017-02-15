@@ -18,7 +18,7 @@ from devito.nodes import Iteration, List, LocalExpression
 from devito.tools import as_tuple, filter_ordered, filter_sorted, flatten
 
 
-__all__ = ['FindNodeType', 'FindSections', 'FindSymbols',
+__all__ = ['Declarator' 'FindNodeType', 'FindSections', 'FindSymbols',
            'IsPerfectIteration', 'SubstituteExpression',
            'ResolveIterationVariable', 'Transformer', 'printAST']
 
@@ -541,7 +541,7 @@ class Declarator(Transformer):
 
     def _declare(self, o):
         declaration = "(*%s)%s"
-        declaration = declaration % (o.output, "".join("[%d]" % j for j in o.shape[:-1]))
+        declaration = declaration % (o.output, "".join("[%d]" % j for j in o.shape[1:]))
         return c.Value(c.dtype_to_ctype(o.dtype), declaration)
 
     def _alloc(self, o):
