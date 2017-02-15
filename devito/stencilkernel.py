@@ -14,15 +14,16 @@ from devito.compiler import (get_compiler_from_env, get_tmp_dir,
                              jit_compile_and_load)
 from devito.dimension import BufferedDimension, Dimension
 from devito.dle import transform
-from devito.dse import as_symbol, indexify, retrieve_and_check_dtype, rewrite
+from devito.dse import (as_symbol, estimate_cost, estimate_memory, indexify,
+                        retrieve_and_check_dtype, rewrite)
 from devito.interfaces import SymbolicData
 from devito.logger import bar, error, info, warning
 from devito.nodes import Expression, Function, Iteration, List, TimedList
 from devito.profiler import Profiler
 from devito.tools import (SetOrderedDict, as_tuple, filter_ordered, filter_sorted,
                           flatten, partial_order)
-from devito.visitors import (Declarator, EstimateCost, FindNodeType, FindSections,
-                             FindSymbols, IsPerfectIteration, MergeOuterIterations,
+from devito.visitors import (Declarator, FindNodeType, FindSections, FindSymbols,
+                             IsPerfectIteration, MergeOuterIterations,
                              ResolveIterationVariable, SubstituteExpression,
                              Transformer, printAST)
 
@@ -230,8 +231,10 @@ class StencilKernel(Function):
 
                         # Estimate computational properties of the timed section
                         # (operational intensity, memory accesses)
-                        v = EstimateCost().visit(j)
-                        self.sections[itspace] = Profile(lname, v.ops, v.mem)
+                        expressions = FindNodeType(Expression).visit(j)
+                        ops = estimate_cost([e.stencil for e in expressions])
+                        memory = estimate_memory([e.stencil for e in expressions])
+                        self.sections[itspace] = Profile(lname, ops, memory)
                         break
         processed = Transformer(mapper).visit(List(body=nodes))
         return processed
