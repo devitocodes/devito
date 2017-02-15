@@ -2,7 +2,7 @@ from sympy import *
 
 from devito.dimension import x, y, z, t, time
 from devito.finite_difference import centered, first_derivative, right, transpose
-from devito.interfaces import DenseData, TimeData
+from devito.interfaces import DenseData
 from devito.operator import Operator
 from devito.stencilkernel import StencilKernel
 

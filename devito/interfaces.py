@@ -438,7 +438,7 @@ class DenseData(TensorData):
         second = sum([second_derivative(first * weight, dim=d,
                                         order=order)
                       for d in self.indices[1:]])
-        return second
+        return second.subs(t, self.tsub) if self.is_TimeData  else second
 
 
 class TimeData(DenseData):
@@ -542,12 +542,14 @@ class TimeData(DenseData):
     @property
     def dt(self):
         """Symbol for the first derivative wrt the time dimension"""
-        return first_derivative(self, dim=t, diff=s, side=centered, order=self.time_order).subs(t, self.tsub)
+        return first_derivative(self, dim=t, diff=s, side=centered,
+                                order=self.time_order).subs(t, self.tsub)
 
     @property
     def dt2(self):
         """Symbol for the second derivative wrt the t dimension"""
-        return second_derivative(self, dim=t, diff=s, order=self.time_order).subs(t, self.tsub)
+        return second_derivative(self, dim=t, diff=s,
+                                 order=self.time_order).subs(t, self.tsub)
 
 
 class CoordinateData(TensorData):

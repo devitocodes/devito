@@ -7,7 +7,6 @@ from operator import mul
 
 import numpy as np
 from sympy import Eq
-from sympy.abc import h, s
 
 from devito.dimension import t
 from devito.logger import error

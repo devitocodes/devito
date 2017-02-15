@@ -235,8 +235,8 @@ class Operator(object):
                 arr_lhs, ind_lhs = self.symbol_to_var(expr.lhs, ti)
                 args = []
 
-                for s in subs:
-                    arr, ind = self.symbol_to_var(s, ti)
+                for su in subs:
+                    arr, ind = self.symbol_to_var(su, ti)
                     args.append(arr[ind])
 
                 arr_lhs[ind_lhs] = lamda(*args)

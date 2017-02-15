@@ -23,7 +23,7 @@ def ForwardOperator(model, u, src, rec, damp, data, time_order=2, spc_order=6,
      required for the time marching scheme
     """
     nt = data.shape[0]
-    s, h = symbols('s h')
+    B, s, h = symbols('B s h')
     m = DenseData(name="m", shape=model.get_shape_comp(), dtype=damp.dtype)
     m.data[:] = model.padm()
     # Derive stencil from symbolic equation
@@ -116,7 +116,7 @@ class AdjointOperator(Operator):
 
         # Create the stencil by hand instead of calling numpy solve for speed purposes
         eqn = m * v.dt2 - laplacian - s ** 2 / 12 * biharmonic - damp * v.dt
-        stencil = solve(eqn, v, rational=False)[0]
+        stencil = solve(eqn, v, rational=False, check=False, simplify=False)[0]
 
         # Add substitutions for spacing (temporal and spatial)
         subs = {s: dt, h: model.get_spacing()}
@@ -194,7 +194,7 @@ class GradientOperator(Operator):
         # Create the stencil by hand instead of calling numpy solve for speed purposes
         # Simple linear solve of a v(t+dt) + b u(t) + c v(t-dt) = L for v(t-dt)
         eqn = m * v.dt2 - laplacian - s ** 2 / 12 * biharmonic - damp * v.dt
-        stencil = solve(eqn, v, rational=False)[0]
+        stencil = solve(eqn, v, rational=False, check=False, simplify=False)[0]
         # Add substitutions for spacing (temporal and spatial)
         subs = {s: dt, h: model.get_spacing()}
         # Add Gradient-specific updates. The dt2 is currently hacky
@@ -265,9 +265,10 @@ class BornOperator(Operator):
             # second_eqn = m * U.dt2 - U.laplace - dm* u.dt2 + damp * U.dt
 
         first_eqn = m * u.dt2 - u.laplace + damp * u.dt - s**2 / 12 * biharmonicu
-        second_eqn = m * U.dt2 - U.laplace - dm * u.dt2 + damp * U.dt - s**2 / 12 * biharmonicU
-        stencil1 = solve(first_eqn, u, rational=False)[0]
-        stencil2 = solve(second_eqn, U, rational=False)[0]
+        second_eqn = m * U.dt2 - U.laplace - dm * u.dt2 + damp * U.dt -\
+                     s**2 / 12 * biharmonicU
+        stencil1 = solve(first_eqn, u, rational=False, check=False, simplify=False)[0]
+        stencil2 = solve(second_eqn, U, rational=False, check=False, simplify=False)[0]
         # Add substitutions for spacing (temporal and spatial)
         subs = {s: dt, h: model.get_spacing()}
         # Add Born-specific updates and resets
