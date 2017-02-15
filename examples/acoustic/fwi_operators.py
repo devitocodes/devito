@@ -42,7 +42,7 @@ def ForwardOperator(model, u, src, rec, damp, data, time_order=2, spc_order=6,
 
     # Create the stencil by hand instead of calling numpy solve for speed purposes
     eqn = m * u.dt2 - laplacian - s**2 / 12 * biharmonic + damp * u.dt
-    stencil = solve(eqn, u, rational=False)[0]
+    stencil = solve(eqn, u, rational=False, simplify=False)[0]
     # Add substitutions for spacing (temporal and spatial)
     subs = {s: dt, h: model.get_spacing()}
 
