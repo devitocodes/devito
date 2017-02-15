@@ -438,7 +438,7 @@ class DenseData(TensorData):
         second = sum([second_derivative(first * weight, dim=d,
                                         order=order)
                       for d in self.indices[1:]])
-        return second.subs(t, self.tsub) if self.is_TimeData  else second
+        return second.subs(t, self.tsub) if self.is_TimeData else second
 
 
 class TimeData(DenseData):
