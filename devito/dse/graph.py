@@ -121,9 +121,10 @@ class TemporariesGraph(OrderedDict):
 
     @property
     def time_invariants(self):
+        space_indices = self.space_indices
         found = []
         for k, v in self.items():
-            if v.is_time_invariant and v.is_tensor and k.indices == self.space_indices:
+            if v.is_time_invariant and v.is_tensor and k.indices == space_indices:
                 found.append(v)
         return found
 

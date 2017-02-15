@@ -358,7 +358,7 @@ class Rewriter(object):
         cm = lambda e: estimate_cost(e, True)*len(aliases.get(e, [e])) > self.threshold
 
         # Replace time invariants
-        processed = []
+        processed = OrderedDict()
         mapper = OrderedDict()
         queue = graph.copy()
         while queue:
@@ -368,12 +368,15 @@ class Rewriter(object):
             invariant = lambda e: is_time_invariant(e, graph)
             handle, flag, mapped = replace_invariants(v, make, invariant, cm)
 
-            if flag:
+            # To be replacable, must be time invariant and all of the depending
+            # expressions must have been replaced too
+            if flag and all(i not in processed for i in v.reads):
                 mapper.update(mapped)
                 for i in v.readby:
                     graph[i] = graph[i].construct({k: handle.rhs})
             else:
-                processed.append(Eq(v.lhs, graph[v.lhs].rhs))
+                processed[v.lhs] = graph[v.lhs].rhs
+        processed = [Eq(k, v) for k, v in processed.items()]
 
         # Squash aliases and tweak the affected indices accordingly
         reducible = OrderedDict()
