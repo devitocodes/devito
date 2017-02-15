@@ -19,7 +19,8 @@ from devito.interfaces import SymbolicData
 from devito.logger import bar, error, info, warning
 from devito.nodes import Expression, Function, Iteration, List, TimedList
 from devito.profiler import Profiler
-from devito.tools import as_tuple, filter_ordered
+from devito.tools import (SetOrderedDict, as_tuple, filter_ordered, filter_sorted,
+                          flatten, partial_order)
 from devito.visitors import (Declarator, EstimateCost, FindNodeType, FindSections,
                              FindSymbols, IsPerfectIteration, MergeOuterIterations,
                              ResolveIterationVariable, SubstituteExpression,
@@ -354,10 +355,16 @@ class StencilKernel(Function):
             for k, v in cluster.items():
                 dtype = np.int32 if cluster.is_index(k) else dtype
                 body.append(Expression(v, dtype))
-            offsets = body[-1].index_offsets
+            offsets = SetOrderedDict.union(*[i.index_offsets for i in body])
+
             # Filter out aliasing due to buffered dimensions
             key = lambda d: d.parent if d.is_Buffered else d
             dimensions = filter_ordered(list(offsets.keys()), key=key)
+
+            # Determine a total ordering for the dimensions
+            functions = flatten(i.functions for i in body)
+            ordering = partial_order([i.indices for i in functions])
+            dimensions = filter_sorted(dimensions, key=lambda d: ordering.index(d))
             for d in reversed(dimensions):
                 body = Iteration(body, dimension=d, limits=d.size, offsets=offsets[d])
             processed.append(body)

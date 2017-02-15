@@ -12,7 +12,7 @@ from devito.codeprinter import ccode
 from devito.dimension import Dimension
 from devito.dse.inspection import as_symbol, retrieve_indexed
 from devito.interfaces import IndexedData, SymbolicData, TensorData
-from devito.tools import DefaultOrderedDict, as_tuple, filter_ordered, flatten
+from devito.tools import SetOrderedDict, as_tuple, filter_ordered, flatten
 
 __all__ = ['Node', 'Block', 'Expression', 'Function', 'Iteration', 'List',
            'TimedList']
@@ -217,7 +217,7 @@ class Expression(Node):
 
         Note: This assumes we have indexified the stencil expression.
         """
-        offsets = DefaultOrderedDict(set)
+        offsets = SetOrderedDict()
 
         indexed = list(retrieve_indexed(self.stencil.lhs))
         indexed += list(retrieve_indexed(self.stencil.rhs))
