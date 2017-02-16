@@ -136,31 +136,10 @@ class State(object):
     @property
     def clusters(self):
         """
-        Clusterize the expressions in ``self.exprs``. A cluster is an ordered
-        collection of expressions that are necessary to compute a target expression
-        (ie, an expression that is never read).
-
-        Examples
-        ========
-        In the following list of expressions: ::
-
-            temp1 = a*b
-            temp2 = c
-            temp3 = temp1 + temp2
-            temp4 = temp2 + 5
-            temp5 = d*e
-            temp6 = f+g
-            temp7 = temp5 + temp6
-
-        There are three target expressions: temp3, temp4, temp7. There are therefore
-        three clusters: ((temp1, temp2, temp3), (temp2, temp4), (temp5, temp6, temp7)).
-        The first and second clusters share the expression temp2.
+        Clusterize the expressions in ``self.exprs``. For more information
+        about clusters, refer to TemporariesGraph.clusters.
         """
-        graph = temporaries_graph(self.exprs)
-        invariants = graph.time_invariants
-        targets = invariants + [i for i in graph.targets if i not in invariants]
-        clusters = [graph.trace(i.lhs) for i in targets]
-        return clusters
+        return temporaries_graph(self.exprs).clusters
 
 
 class Rewriter(object):

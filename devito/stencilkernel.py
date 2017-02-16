@@ -341,20 +341,9 @@ class StencilKernel(Function):
         """Wrap :class:`Expression` objects within suitable hierarchies of
         :class:`Iteration` according to dimensions.
         """
-        clusters = dse_state.clusters
-
-        # Terminals in previous clusters do not need to be recomputed in
-        # subsequent clusters
-        seen = []
-        for cluster in clusters:
-            for k, v in cluster.items():
-                if v in seen:
-                    cluster.pop(k)
-                if v.is_terminal:
-                    seen.append(v)
 
         processed = []
-        for cluster in clusters:
+        for cluster in dse_state.clusters:
             # Build declarations or assignments
             body = []
             for k, v in cluster.items():

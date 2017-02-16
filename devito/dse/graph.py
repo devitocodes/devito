@@ -104,6 +104,39 @@ class TemporariesGraph(OrderedDict):
     """
 
     @property
+    def clusters(self):
+        """
+        Compute the clusters of the temporaries graph. A cluster is an ordered
+        collection of scalar expressions that are necessary to compute a tensor value,
+        plus the tensor value itself.
+
+        Examples
+        ========
+        In the following list of expressions: ::
+
+            temp1 = a*b
+            temp2 = c
+            temp3[k] = temp1 + temp2
+            temp4[k] = temp2 + 5
+            temp5 = d*e
+            temp6 = f+g
+            temp7[i] = temp5 + temp6 + temp4[k]
+
+        There are three target expressions: temp3, temp4, temp7. There are therefore
+        three clusters: ((temp1, temp2, temp3), (temp2, temp4), (temp5, temp6, temp7)).
+        The first and second clusters share the expression temp2. Note that temp4 does
+        not appear in the third cluster, as it is not a scalar.
+        """
+        targets = [v for v in self.values() if v.is_tensor]
+        clusters = [self.trace(i.lhs) for i in targets]
+        # Drop the non-scalar expressions in each cluster
+        for cluster in clusters:
+            for k, v in cluster.items():
+                if v.is_tensor and not v.is_terminal:
+                    cluster.pop(k)
+        return clusters
+
+    @property
     def space_indices(self):
         for v in self.values():
             if v.is_terminal:
@@ -118,19 +151,6 @@ class TemporariesGraph(OrderedDict):
                 found = v.lhs.free_symbols - {t, v.lhs.base.label}
                 return tuple(i for i, j in zip(v.lhs.shape, v.lhs.indices) if j in found)
         return ()
-
-    @property
-    def time_invariants(self):
-        space_indices = self.space_indices
-        found = []
-        for k, v in self.items():
-            if v.is_time_invariant and v.is_tensor and k.indices == space_indices:
-                found.append(v)
-        return found
-
-    @property
-    def targets(self):
-        return tuple(i for i in self.values() if i.is_terminal)
 
     def trace(self, root):
         if root not in self:
