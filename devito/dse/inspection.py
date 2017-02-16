@@ -7,9 +7,10 @@ from devito.interfaces import SymbolicData
 from devito.logger import warning
 from devito.tools import flatten
 
-__all__ = ['estimate_cost', 'estimate_memory', 'indexify', 'retrieve_dimensions',
-           'retrieve_dtype', 'retrieve_symbols', 'retrieve_shape', 'terminals',
-           'tolambda', 'retrieve_and_check_dtype', 'as_symbol']
+__all__ = ['estimate_cost', 'estimate_memory', 'indexify', 'is_binary_op', 'is_indirect',
+           'retrieve_dimensions', 'retrieve_dtype', 'retrieve_symbols', 'retrieve_shape',
+           'retrieve_indexed', 'retrieve_trigonometry', 'retrieve_and_check_dtype',
+           'as_symbol', 'terminals', 'tolambda']
 
 
 def terminals(expr, discard_indexed=False):
@@ -373,6 +374,23 @@ def is_binary_op(expr):
         return False
 
     return all(isinstance(a, (Number, Symbol, Indexed)) for a in expr.args)
+
+
+def is_indirect(indexed):
+    """
+    Return True if ``indexed`` has indirect accesses, False otherwise.
+
+    Examples
+    ========
+    a[i] --> False
+    a[b[i]] --> True
+    """
+    if not isinstance(indexed, Indexed):
+        return False
+    if any(retrieve_indexed(i) for i in indexed.indices):
+        return True
+    else:
+        return False
 
 
 def indexify(expr):
