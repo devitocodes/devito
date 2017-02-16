@@ -25,8 +25,8 @@ from sympy import Indexed
 
 from devito.dimension import t
 from devito.dse.extended_sympy import Eq
-from devito.dse.inspection import (is_time_invariant, retrieve_indexed,
-                                   terminals)
+from devito.dse.inspection import (is_indirect, is_time_invariant,
+                                   retrieve_indexed, terminals)
 
 __all__ = ['temporaries_graph']
 
@@ -75,8 +75,8 @@ class Temporary(Eq):
         return isinstance(self.lhs, Indexed) and self.lhs.rank > 0
 
     @property
-    def is_scalarizable(self):
-        return not self.is_terminal and self.is_tensor
+    def is_scalar(self):
+        return not self.is_tensor
 
     @property
     def scope(self):
@@ -139,7 +139,7 @@ class TemporariesGraph(OrderedDict):
     @property
     def space_indices(self):
         for v in self.values():
-            if v.is_terminal:
+            if v.is_terminal and not is_indirect(v.lhs):
                 found = v.lhs.free_symbols - {t, v.lhs.base.label}
                 return tuple(sorted(found, key=lambda i: v.lhs.indices.index(i)))
         return ()
@@ -147,7 +147,7 @@ class TemporariesGraph(OrderedDict):
     @property
     def space_shape(self):
         for v in self.values():
-            if v.is_terminal:
+            if v.is_terminal and not is_indirect(v.lhs):
                 found = v.lhs.free_symbols - {t, v.lhs.base.label}
                 return tuple(i for i, j in zip(v.lhs.shape, v.lhs.indices) if j in found)
         return ()
