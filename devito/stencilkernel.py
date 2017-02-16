@@ -333,6 +333,8 @@ class StencilKernel(Function):
             if k in mapper:
                 arguments[k] = best[k]
 
+        for k, v in timings.items():
+            info("%s : %s" % (str(k), str(v)))
         info('Auto-tuned block shape: %s' % best)
 
     def _schedule_expressions(self, dse_state, dtype):
@@ -532,7 +534,7 @@ StencilKernel options
 """
 options = {
     'at_squeezer': 3,
-    'at_blocksize': [8, 16, 32]
+    'at_blocksize': [8, 12, 16, 24, 32, 48, 64]
 }
 
 """
