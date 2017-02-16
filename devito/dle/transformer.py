@@ -11,8 +11,8 @@ import psutil
 from devito.dimension import Dimension
 from devito.dle.inspection import retrieve_iteration_tree
 from devito.dle.manipulation import compose_nodes
-from devito.dse import as_symbol, terminals
-from devito.interfaces import DenseData, ScalarData, SymbolicData
+from devito.dse import as_symbol, estimate_cost, terminals
+from devito.interfaces import DenseData, ScalarData
 from devito.logger import dle, dle_warning
 from devito.nodes import (Block, Denormals, Element, Expression,
                           Function, Iteration, List)
@@ -195,6 +195,10 @@ class BlockingArg(Arg):
 class Rewriter(object):
 
     """
+    Transform Iteration/Expression trees to generate high performance C.
+    """
+
+    """
     Track what options trigger a given transformation.
     """
     triggers = {
@@ -211,7 +215,7 @@ class Rewriter(object):
     """
     thresholds = {
         'collapse': 32,  # Available physical cores
-        'elemental-functions': 15  # C statements
+        'elemental-functions': 30  # Operations
     }
 
     def __init__(self, nodes, params, compiler):
@@ -348,10 +352,10 @@ class Rewriter(object):
                 if any(k.is_temporary for k in tensor_exprs):
                     continue
 
-                # Heuristic: only create elemental functions if there are more
-                # than self.thresholds['elemental_functions'] statements in
-                # the body of candidate
-                if len(expressions) < self.thresholds['elemental-functions']:
+                # Heuristic: create elemental functions only if more than
+                # self.thresholds['elemental_functions'] operations are present
+                ops = estimate_cost([e.stencil for e in expressions])
+                if ops < self.thresholds['elemental-functions']:
                     continue
 
                 # Determine the elemental function's arguments ...
@@ -679,3 +683,4 @@ complang_ALL = {
                       'ntstores': c.Pragma('vector nontemporal'),
                       'storefence': c.Statement('_mm_sfence()')}
 }
+complang_ALL['IntelKNLCompiler'] = complang_ALL['IntelCompiler']
