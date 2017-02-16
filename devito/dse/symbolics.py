@@ -148,16 +148,24 @@ class Rewriter(object):
     Transform expressions to reduce their operation count.
     """
 
+    """
+    Track what options trigger a given transformation.
+    """
     triggers = {
         '_cse': ('basic', 'advanced'),
         '_factorize': ('factorize', 'advanced'),
         '_optimize_trigonometry': ('approx-trigonometry', 'advanced'),
-        '_replace_time_invariants': ('glicm', 'advanced')
+        '_replace_time_invariants': ('glicm', 'advanced'),
+        '_promote_scalars': ('advanced',)
     }
 
-    # Aggressive transformation if the operation count is greather than this
-    # empirically determined threshold
-    threshold = 15
+    """
+    Bag of thresholds, to be used to trigger or prevent certain transformations.
+    """
+    thresholds = {
+        'expensive_expression': 15,
+        'scalar_expressions': 15,
+    }
 
     def __init__(self, exprs):
         self.exprs = exprs
@@ -172,6 +180,7 @@ class Rewriter(object):
         self._factorize(state, mode=mode)
         self._optimize_trigonometry(state, mode=mode)
         self._replace_time_invariants(state, mode=mode)
+        self._promote_scalars(state, mode=mode)
         self._factorize(state, mode=mode)
 
         self._finalize(state)
@@ -199,7 +208,8 @@ class Rewriter(object):
             handle = collect_nested(expr)
             cost_handle = estimate_cost(handle)
 
-            if cost_handle < cost_expr and cost_handle >= Rewriter.threshold:
+            if cost_handle < cost_expr and\
+                    cost_handle >= self.thresholds['expensive_expression']:
                 handle_prev = handle
                 cost_prev = cost_expr
                 while cost_handle < cost_prev:
@@ -334,7 +344,8 @@ class Rewriter(object):
         # Formula: ops(expr)*aliases(expr) > self.threshold <==> do it
         # For more information about "aliases", check out collect_aliases.__doc__
         aliases, clusters = collect_aliases([e.rhs for e in state.exprs])
-        cm = lambda e: estimate_cost(e, True)*len(aliases.get(e, [e])) > self.threshold
+        cm = lambda e: estimate_cost(e, True)*len(aliases.get(e, [e])) >\
+            self.thresholds['expensive_expression']
 
         # Replace time invariants
         processed = OrderedDict()
@@ -382,6 +393,37 @@ class Rewriter(object):
             reduced_mapper[k] = v.xreplace(rule)
 
         return {'exprs': processed, 'mapper': reduced_mapper}
+
+    @dse_transformation
+    def _promote_scalars(self, state, **kwargs):
+        """
+        Transform scalar expressions into tensor expressions if these involve
+        homogeneous tensors (ie, using the same set of indices). This pass is
+        applied if the total number of scalar expressions is greater than
+        ``self.thresholds['scalar_expressions']``.
+        """
+
+        processed = []
+        clusters = temporaries_graph(state.exprs).clusters
+        for cluster in clusters:
+            space_indices = cluster.space_indices
+            candidates = [v for v in cluster.values() if v.is_scalar]
+            if not space_indices or\
+                    len(candidates) < self.thresholds['scalar_expressions']:
+                for k, v in cluster.items():
+                    handle = Eq(k, v.rhs)
+                    if handle not in processed:
+                        processed.append(handle)
+                continue
+
+            dim = space_indices[-1]
+            for k, v in cluster.items():
+                handle = Eq(Indexed(k, dim), v.rhs) if v in candidates else\
+                    Eq(k, v.rhs)
+                if handle not in processed:
+                    processed.append(handle)
+
+        return {'exprs': processed}
 
     def _finalize(self, state):
         """
