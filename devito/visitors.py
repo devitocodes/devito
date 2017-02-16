@@ -13,12 +13,11 @@ from operator import attrgetter
 import cgen as c
 from sympy import Symbol
 
-from devito.dse import estimate_cost, estimate_memory
 from devito.nodes import Iteration, List, LocalExpression
 from devito.tools import as_tuple, filter_ordered, filter_sorted, flatten
 
 
-__all__ = ['Declarator' 'FindNodeType', 'FindSections', 'FindSymbols',
+__all__ = ['Declarator', 'FindNodeType', 'FindSections', 'FindSymbols',
            'IsPerfectIteration', 'SubstituteExpression',
            'ResolveIterationVariable', 'Transformer', 'printAST']
 

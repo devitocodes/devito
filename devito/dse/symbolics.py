@@ -376,7 +376,7 @@ class Rewriter(object):
                     graph[i] = graph[i].construct({k: handle.rhs})
             else:
                 processed[v.lhs] = graph[v.lhs].rhs
-        processed = [Eq(k, v) for k, v in processed.items()]
+        processed = [Eq(i, j) for i, j in processed.items()]
 
         # Squash aliases and tweak the affected indices accordingly
         reducible = OrderedDict()
