@@ -1,4 +1,5 @@
 import ctypes
+import itertools
 from collections import Callable, Iterable, OrderedDict
 
 import numpy as np
@@ -27,6 +28,12 @@ def as_tuple(item, type=None, length=None):
     if type and not all(isinstance(i, type) for i in t):
         raise TypeError("Items need to be of type %s" % type)
     return t
+
+
+def grouper(iterable, n):
+    """Split an interable into groups of size n, plus a reminder"""
+    args = [iter(iterable)] * n
+    return ([e for e in t if e != None] for t in itertools.izip_longest(*args))
 
 
 def flatten(l):

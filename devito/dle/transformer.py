@@ -9,14 +9,14 @@ import numpy as np
 import psutil
 
 from devito.dimension import Dimension
-from devito.dle.inspection import retrieve_iteration_tree
-from devito.dle.manipulation import compose_nodes
-from devito.dse import as_symbol, estimate_cost, terminals
+from devito.dle import compose_nodes, retrieve_iteration_tree
+from devito.dse import (as_symbol, estimate_cost, promote_scalar_expressions,
+                        terminals)
 from devito.interfaces import DenseData, ScalarData
 from devito.logger import dle, dle_warning
 from devito.nodes import (Block, Denormals, Element, Expression,
                           Function, Iteration, List)
-from devito.tools import as_tuple, filter_ordered, flatten
+from devito.tools import as_tuple, flatten, grouper
 from devito.visitors import (FindNodeType, FindSections, FindSymbols,
                              IsPerfectIteration, Transformer)
 
@@ -48,6 +48,7 @@ def transform(node, mode='basic', compiler=None):
                     * 'speculative': Apply all of the 'advanced' transformations,
                                      plus other transformations that might increase
                                      (or possibly decrease) performance -- [S]
+                    * 'fission': Apply loop fission -- [T]
                     * 'blocking': Apply loop blocking -- [T]
                     * 'split': Identify and split elemental functions -- [T]
                     * 'simd': Add pragmas to trigger compiler auto-vectorization -- [T]
@@ -203,6 +204,7 @@ class Rewriter(object):
     """
     triggers = {
         '_avoid_denormals': ('basic', 'advanced', 'speculative'),
+        '_loop_fission': ('fission', 'split', 'advanced', 'speculative'),
         '_create_elemental_functions': ('split', 'basic', 'advanced', 'speculative'),
         '_loop_blocking': ('blocking', 'advanced', 'speculative'),
         '_simdize': ('simd', 'basic', 'advanced', 'speculative'),
@@ -215,7 +217,9 @@ class Rewriter(object):
     """
     thresholds = {
         'collapse': 32,  # Available physical cores
-        'elemental-functions': 30  # Operations
+        'elemental-functions': 30,  # Operations
+        'max_fission': 15,  # Statements
+        'min_fission': 3  # Statements
     }
 
     def __init__(self, nodes, params, compiler):
@@ -231,6 +235,7 @@ class Rewriter(object):
         self._analyze_and_decorate(state)
 
         self._avoid_denormals(state, mode=mode)
+        self._loop_fission(state, mode=mode)
         self._create_elemental_functions(state, mode=mode)
         self._loop_blocking(state, mode=mode)
         self._simdize(state, mode=mode)
@@ -408,6 +413,66 @@ class Rewriter(object):
             processed.append(Transformer(mapper).visit(node))
 
         return {'nodes': processed, 'elemental_functions': functions}
+
+    @dle_transformation
+    def _loop_fission(self, state, **kwargs):
+        """
+        Apply loop fission to innermost :class:`Iteartion` objects. This pass
+        is not applied if the number of statements in an Iteration's body is
+        lower than ``self.thresholds['fission'].``
+        """
+
+        processed = []
+        for node in state.nodes:
+            mapper = {}
+            for tree in retrieve_iteration_tree(node):
+                if len(tree) <= 1:
+                    # Heuristically avoided
+                    continue
+
+                candidate = tree[-1]
+                expressions = [e for e in candidate.nodes if e.is_Expression]
+
+                if len(expressions) < self.thresholds['max_fission']:
+                    # Heuristically avoided
+                    continue
+                if len(expressions) != len(candidate.nodes):
+                    # Dangerous for correctness
+                    continue
+
+                functions = list(set.union(*[set(e.functions) for e in expressions]))
+                stencils = [e.stencil for e in expressions]
+
+                if not functions or not stencils:
+                    # Heuristically avoided
+                    continue
+
+                # Promote temporaries from scalar to tensors
+                handle = functions[0]
+                dim = handle.indices[-1]
+                size = handle.shape[-1]
+                if any(dim != i.indices[-1] or size != i.shape[-1] for i in functions):
+                    # Dangerous for correctness
+                    continue
+
+                stencils = promote_scalar_expressions(stencils, (size,), (dim,))
+
+                assert len(stencils) == len(expressions)
+                rebuilt = [Expression(s, e.dtype) for s, e in zip(stencils, expressions)]
+
+                # Group statements
+                # TODO: Need a heuristic here to maximize reuse
+                args_frozen = candidate.args_frozen
+                args_frozen['properties'] += ('elemental',)
+                n = self.thresholds['min_fission']
+                fissioned = [Iteration(g, **args_frozen) for g in grouper(rebuilt, n)]
+
+                mapper[candidate] = List(body=fissioned)
+
+            processed.append(Transformer(mapper).visit(node))
+
+        return {'nodes': processed}
+
 
     @dle_transformation
     def _loop_blocking(self, state, **kwargs):
