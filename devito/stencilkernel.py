@@ -383,22 +383,21 @@ class StencilKernel(Function):
         """Populate the StencilKernel's body with the requried array and
         variable declarations, to generate a legal C file."""
         known = [as_symbol(i) for i in parameters]
+        mapper = OrderedDict()
+
+        # Collect required declarations from each of the elemental functions
+        elemental_functions = []
+        for node in dle_state.elemental_functions:
+            handle, rebuilt = Declarator(known).visit(node)
+            elemental_functions.append(rebuilt)
+            mapper.update(handle)
 
         # Insert declarations into the body
-        mapper, nodes = Declarator(known).visit(dle_state.nodes)
+        handle, nodes = Declarator(known).visit(dle_state.nodes)
+        mapper.update(handle or {})
         if mapper:
             declarations, header, footer = zip(*mapper.values())
             nodes = List(header=declarations + header, body=nodes, footer=footer)
-
-        # Insert declarations into each of the elemental functions
-        elemental_functions = []
-        for node in dle_state.elemental_functions:
-            mapper, rebuilt = Declarator(known).visit(node)
-            if mapper:
-                declarations, header, footer = zip(*mapper.values())
-                body = List(header=declarations+header, body=rebuilt.body, footer=footer)
-                rebuilt = Transformer({rebuilt.body: body}).visit(rebuilt)
-            elemental_functions.append(rebuilt)
 
         return nodes, elemental_functions
 

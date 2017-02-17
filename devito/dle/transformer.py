@@ -349,18 +349,14 @@ class Rewriter(object):
                 name = "f_%d_%d" % (i, j)
 
                 candidate = rule(tree)
+                root = candidate[0]
                 expressions = FindNodeType(Expression).visit(candidate)
-                scalar_exprs = [e for e in expressions if e.is_scalar]
-                tensor_exprs = [e for e in expressions if e.is_tensor]
-
-                # Cannot handle expressions writing to temporary buffers
-                if any(k.is_temporary for k in tensor_exprs):
-                    continue
 
                 # Heuristic: create elemental functions only if more than
                 # self.thresholds['elemental_functions'] operations are present
                 ops = estimate_cost([e.stencil for e in expressions])
-                if ops < self.thresholds['elemental-functions']:
+                if ops < self.thresholds['elemental-functions'] and\
+                        not 'elemental' in root.properties:
                     continue
 
                 # Determine the elemental function's arguments ...
@@ -368,7 +364,7 @@ class Rewriter(object):
                 definitely_not = [k.dim for k in candidate]
                 maybe = FindSymbols(mode='free-symbols').visit(candidate)
                 maybe = [k for k in maybe if k not in definitely_not]
-                seen = {k.output for k in scalar_exprs}
+                seen = {e.output for e in expressions if e.is_scalar}
 
                 # Add SymbolicData objects and Dimensions (sizes, indices)
                 for d in FindSymbols('with-data').visit(candidate):
@@ -383,28 +379,15 @@ class Rewriter(object):
                             args.append(index_arg)
                     seen |= {as_symbol(d)} | set(d.indices)
 
-                # Add non-temporary arrays to the elemental function's arguments
-                for e in expressions:
-                    dtype = e.dtype
-                    for k in terminals(e.stencil):
-                        obj = as_symbol(k)
-                        if obj not in seen:
-                            call = "(%s*) %s" % (c.dtype_to_ctype(dtype), obj.name)
-                            param = DenseData(name=obj.name, shape=k.shape, dtype=dtype)
-                            args.append((call, param))
-                            seen |= {obj}
-
                 # Add non-temporary scalars to the elemental function's arguments
                 required = [k for k in maybe if k not in seen]
                 args.extend([(k.name, ScalarData(name=k.name, dtype=np.int32))
                              for k in required])
 
-                call, parameters = zip(*args)
-                root = candidate[0]
-
                 # Track info to transform the main tree
+                call, parameters = zip(*args)
                 call = '%s(%s)' % (name, ','.join(call))
-                mapper[root] = Element(c.Statement(call))
+                mapper[root] = List(header=noinline, body=Element(c.Statement(call)))
 
                 # Produce the new function
                 functions.append(Function(name, root, 'void', parameters, ('static',)))
