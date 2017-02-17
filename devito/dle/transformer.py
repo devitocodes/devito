@@ -330,7 +330,7 @@ class Rewriter(object):
         taking as input an iterable of :class:`Iteration` and returning an iterable
         of :class:`Iteration` (eg, a subset, the whole iteration tree).
         """
-
+        noinline = self._compiler_decoration('noinline', c.Comment('noinline?'))
         rule = kwargs.get('rule', lambda tree: tree[-1:])
 
         functions = []
@@ -617,14 +617,8 @@ class Rewriter(object):
         Add compiler-specific pragmas and instructions to generate nontemporal
         stores (ie, non-cached stores).
         """
-        if self.compiler:
-            key = self.compiler.__class__.__name__
-            complang = complang_ALL.get(key, {})
-        else:
-            complang = {}
-
-        pragma = complang.get('ntstores')
-        fence = complang.get('storefence')
+        pragma = self._compiler_decoration('ntstores')
+        fence = self._compiler_decoration('storefence')
         if not pragma or not fence:
             return {}
 
@@ -650,6 +644,14 @@ class Rewriter(object):
         return {'nodes': decorate(state.nodes),
                 'elemental_functions': decorate(state.elemental_functions),
                 'flags': 'ntstores'}
+
+    def _compiler_decoration(self, name, default=None):
+        if self.compiler:
+            key = self.compiler.__class__.__name__
+            complang = complang_ALL.get(key, {})
+        else:
+            complang = {}
+        return complang.get(name, default)
 
     def _summary(self, mode):
         """
@@ -681,6 +683,7 @@ Compiler-specific language
 complang_ALL = {
     'IntelCompiler': {'ignore-deps': c.Pragma('ivdep'),
                       'ntstores': c.Pragma('vector nontemporal'),
-                      'storefence': c.Statement('_mm_sfence()')}
+                      'storefence': c.Statement('_mm_sfence()'),
+                      'noinline': c.Pragma('noinline')}
 }
 complang_ALL['IntelKNLCompiler'] = complang_ALL['IntelCompiler']
