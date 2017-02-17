@@ -155,8 +155,7 @@ class Rewriter(object):
         '_cse': ('basic', 'advanced'),
         '_factorize': ('factorize', 'advanced'),
         '_optimize_trigonometry': ('approx-trigonometry', 'advanced'),
-        '_replace_time_invariants': ('glicm', 'advanced'),
-        '_promote_scalars': ('advanced',)
+        '_replace_time_invariants': ('glicm', 'advanced')
     }
 
     """
@@ -180,7 +179,6 @@ class Rewriter(object):
         self._factorize(state, mode=mode)
         self._optimize_trigonometry(state, mode=mode)
         self._replace_time_invariants(state, mode=mode)
-        self._promote_scalars(state, mode=mode)
         self._factorize(state, mode=mode)
 
         self._finalize(state)
@@ -393,37 +391,6 @@ class Rewriter(object):
             reduced_mapper[k] = v.xreplace(rule)
 
         return {'exprs': processed, 'mapper': reduced_mapper}
-
-    @dse_transformation
-    def _promote_scalars(self, state, **kwargs):
-        """
-        Transform scalar expressions into tensor expressions if these involve
-        homogeneous tensors (ie, using the same set of indices). This pass is
-        applied if the total number of scalar expressions is greater than
-        ``self.thresholds['scalar_expressions']``.
-        """
-
-        processed = []
-        clusters = temporaries_graph(state.exprs).clusters
-        for cluster in clusters:
-            space_indices = cluster.space_indices
-            candidates = [v for v in cluster.values() if v.is_scalar]
-            if not space_indices or\
-                    len(candidates) < self.thresholds['scalar_expressions']:
-                for k, v in cluster.items():
-                    handle = Eq(k, v.rhs)
-                    if handle not in processed:
-                        processed.append(handle)
-                continue
-
-            dim = space_indices[-1]
-            for k, v in cluster.items():
-                handle = Eq(Indexed(k, dim), v.rhs) if v in candidates else\
-                    Eq(k, v.rhs)
-                if handle not in processed:
-                    processed.append(handle)
-
-        return {'exprs': processed}
 
     def _finalize(self, state):
         """

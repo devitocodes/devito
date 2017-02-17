@@ -2,9 +2,14 @@
 Routines to construct new SymPy expressions transforming the provided input.
 """
 
-from sympy import Indexed, S
+from sympy import Indexed, IndexedBase, S
 
 from devito.dse.extended_sympy import Add, Eq, Mul
+from devito.dse.graph import temporaries_graph
+from devito.interfaces import DenseData
+
+__all__ = ['unevaluate_arithmetic', 'flip_indices', 'rxreplace',
+           'promote_scalar_expressions']
 
 
 def unevaluate_arithmetic(expr):
@@ -77,3 +82,28 @@ def rxreplace(exprs, mapper):
             old, new = new, new.xreplace(mapper)
         replaced.append(new)
     return replaced
+
+
+def promote_scalar_expressions(exprs, shape, indices):
+    """
+    Transform a collection of scalar expressions into tensor expressions.
+    """
+    processed = []
+
+    # Fist promote the LHS
+    graph = temporaries_graph(exprs)
+    mapper = {}
+    for k, v in graph.items():
+        if v.is_scalar:
+            # Create a new function symbol
+            data = DenseData(name=k.name, shape=shape, dimensions=indices)
+            indexed = Indexed(data.indexed, *indices)
+            mapper[k] = indexed
+            processed.append(Eq(indexed, v.rhs))
+        else:
+            processed.append(Eq(k, v.rhs))
+
+    # Propagate the transformed LHS through the expressions
+    processed = [Eq(n.lhs, n.rhs.xreplace(mapper)) for n in processed]
+
+    return processed
