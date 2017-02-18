@@ -128,7 +128,9 @@ def estimate_cost(handle, estimate_external_functions=False):
         # We don't count non floating point operations
         handle = [i.rhs if i.is_Equality else i for i in handle]
         total_ops = count_ops(handle)
-        non_flops = sum(count_ops(retrieve_indexed(i, mode='all')) for i in handle)
+        indexed = flatten(retrieve_indexed(i, mode='all') for i in handle)
+        offsets = flatten(i.indices for i in indexed)
+        non_flops = [True for i in offsets if i.is_Add].count(True)
         if estimate_external_functions:
             costly_ops = [retrieve_trigonometry(i) for i in handle]
             total_ops += sum([internal_ops['trigonometry']*len(i) for i in costly_ops])

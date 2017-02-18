@@ -85,8 +85,9 @@ def dse_transformation(func):
             toc = time()
 
             key = '%s%d' % (func.__name__, len(self.timings))
-            self.ops[key] = estimate_cost(state.exprs)
             self.timings[key] = toc - tic
+            if self.profile:
+                self.ops[key] = estimate_cost(state.exprs)
 
     return wrapper
 
@@ -167,13 +168,14 @@ class Rewriter(object):
     Bag of thresholds, to be used to trigger or prevent certain transformations.
     """
     thresholds = {
-        'expensive_expression': 15,
+        'expensive_expression': 100,
         'max_operands': 40,
     }
 
-    def __init__(self, exprs):
+    def __init__(self, exprs, profile=False):
         self.exprs = exprs
 
+        self.profile = profile
         self.ops = OrderedDict()
         self.timings = OrderedDict()
 
@@ -181,7 +183,6 @@ class Rewriter(object):
         state = State(self.exprs)
 
         self._cse(state, mode=mode)
-        self._factorize(state, mode=mode)
         self._optimize_trigonometry(state, mode=mode)
         self._replace_time_invariants(state, mode=mode)
         self._split_expressions(state, mode=mode)
@@ -207,15 +208,12 @@ class Rewriter(object):
 
         processed = []
         for expr in state.exprs:
-            cost_expr = estimate_cost(expr)
-
             handle = collect_nested(expr)
             cost_handle = estimate_cost(handle)
 
-            if cost_handle < cost_expr and\
-                    cost_handle >= self.thresholds['expensive_expression']:
+            if cost_handle >= self.thresholds['expensive_expression']:
                 handle_prev = handle
-                cost_prev = cost_expr
+                cost_prev = estimate_cost(expr)
                 while cost_handle < cost_prev:
                     handle_prev, handle = handle, collect_nested(handle)
                     cost_prev, cost_handle = cost_handle, estimate_cost(handle)
@@ -438,18 +436,16 @@ class Rewriter(object):
         """
 
         if mode.intersection({'basic', 'advanced'}):
+            summary = " --> ".join("(%s) %s" % (filter(lambda c: not c.isdigit(), k),
+                                                str(self.ops.get(k, "")))
+                                   for k, v in self.timings.items())
             try:
                 # The state after CSE should be used as baseline for fairness
                 baseline = self.ops['_cse0']
-            except KeyError:
-                baseline = estimate_cost(self.exprs)
-            steps = " --> ".join("(%s) %d" % (filter(lambda c: not c.isdigit(), k), v)
-                                 for k, v in self.ops.items())
-            try:
                 gain = float(baseline) / list(self.ops.values())[-1]
-                summary = " %s flops; gain: %.2f X" % (steps, gain)
-            except ZeroDivisionError:
-                summary = ""
+                summary = " %s flops; gain: %.2f X" % (summary, gain)
+            except KeyError, ZeroDivisionError:
+                pass
             elapsed = sum(self.timings.values())
             dse("%s [%.2f s]" % (summary, elapsed))
 
