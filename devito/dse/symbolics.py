@@ -45,6 +45,8 @@ def rewrite(expr, mode='advanced'):
                      * 'approx-trigonometry': replace expensive trigonometric
                          functions with suitable polynomial approximations.
                      * 'glicm': apply heuristic hoisting of time-invariant terms.
+                     * 'split': split long expressions into smaller sub-expressions
+                          exploiting associativity and commutativity.
                      * 'advanced': compose all known transformations.
     """
 
@@ -157,7 +159,8 @@ class Rewriter(object):
         '_cse': ('basic', 'advanced'),
         '_factorize': ('factorize', 'advanced'),
         '_optimize_trigonometry': ('approx-trigonometry', 'advanced'),
-        '_replace_time_invariants': ('glicm', 'advanced')
+        '_replace_time_invariants': ('glicm', 'advanced'),
+        '_split_expressions': ('split', 'advanced')
     }
 
     """
@@ -165,7 +168,7 @@ class Rewriter(object):
     """
     thresholds = {
         'expensive_expression': 15,
-        'scalar_expressions': 15,
+        'max_operands': 40,
     }
 
     def __init__(self, exprs):
@@ -181,6 +184,7 @@ class Rewriter(object):
         self._factorize(state, mode=mode)
         self._optimize_trigonometry(state, mode=mode)
         self._replace_time_invariants(state, mode=mode)
+        self._split_expressions(state, mode=mode)
         self._factorize(state, mode=mode)
 
         self._finalize(state)
@@ -394,6 +398,31 @@ class Rewriter(object):
             reduced_mapper[k] = v.xreplace(rule)
 
         return {'exprs': processed, 'mapper': reduced_mapper}
+
+    @dse_transformation
+    def _split_expressions(self, state, **kwargs):
+        """
+        Search for expressions whose size in number of operands is greater than
+        ``self.thresholds['max_operands']`` and split them into smaller
+        sub-expressions, exploiting associativity and commutativity of operators.
+        """
+
+        counter = 0
+        processed = []
+        for expr in state.exprs:
+            if len(terminals(expr)) < self.thresholds['max_operands'] or\
+                    not (expr.rhs.is_Add or expr.rhs.is_Mul):
+                processed.append(expr)
+                continue
+
+            chunks = expr.rhs.args
+            targets = [Symbol("ts%d" % (counter + i)) for i in range(len(chunks))]
+            chunks = [Eq(t, e) for t, e in zip(targets, chunks)]
+            counter += len(chunks)
+            chunks.append(Eq(expr.lhs, expr.rhs.func(expr.lhs, *targets)))
+            processed.extend(chunks)
+
+        return {'exprs': processed}
 
     def _finalize(self, state):
         """
