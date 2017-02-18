@@ -37,6 +37,9 @@ class StencilKernel(Function):
     """
     _AT_cache = {}
 
+    _default_headers = ['#define _POSIX_C_SOURCE 200809L']
+    _default_includes = ['stdlib.h', 'math.h', 'sys/time.h']
+
     """A special :class:`Function` to evaluate stencils through just-in-time
     compilation of C code.
 
@@ -67,7 +70,8 @@ class StencilKernel(Function):
         # Default attributes required for compilation
         self.compiler = compiler or get_compiler_from_env()
         self.profiler = kwargs.get("profiler", Profiler(self.compiler.openmp))
-        self._includes = ['stdlib.h', 'math.h', 'sys/time.h']
+        self._headers = self._default_headers
+        self._includes = self._default_includes
         self._lib = None
         self._cfunction = None
 
@@ -87,7 +91,7 @@ class StencilKernel(Function):
         nodes = self._profile_sections(nodes)
 
         # Parameters of the StencilKernel (Dimensions necessary for data casts)
-        parameters = FindSymbols('with-data').visit(nodes)
+        parameters = FindSymbols('kernel-data').visit(nodes)
         dimensions = FindSymbols('dimensions').visit(nodes)
         dimensions += [d.parent for d in dimensions if d.is_Buffered]
         parameters += filter_ordered([d for d in dimensions if d.size is None],
@@ -428,10 +432,11 @@ class StencilKernel(Function):
         elemental_functions += [blankline]
 
         # Generate file header with includes and definitions
+        header = [c.Line(i) for i in self._headers]
         includes = [c.Include(i, system=False) for i in self._includes]
         includes += [blankline]
         profiling = [self.profiler.as_cgen_struct(Profiler.TIME), blankline]
-        return c.Module(includes + profiling + elemental_functions + [kernel])
+        return c.Module(header + includes + profiling + elemental_functions + [kernel])
 
     @property
     def basename(self):
