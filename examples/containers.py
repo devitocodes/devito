@@ -78,21 +78,6 @@ class IGrid:
         """Return the grid size"""
         return self.spacing[0]
 
-    def set_origin(self, shift):
-        """Set a new origin shifted by -shift in every direction
-        :param shift : shift of the origin in number of grid points"""
-        norig = len(self.origin)
-        aux = []
-
-        for i in range(0, norig):
-            aux.append(self.origin[i] - shift * self.spacing[i])
-
-        self.origin = aux
-
-    def get_origin(self):
-        """Return the origin position"""
-        return self.origin
-
     def padm(self):
         """Padding function extending self.vp by `self.nbpml` in every direction
         for the absorbing boundary conditions"""
