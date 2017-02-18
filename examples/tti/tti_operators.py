@@ -25,14 +25,14 @@ def ForwardOperator(model, u, v, src, rec, damp, data, time_order=2,
     nt, nsrc = src.shape
     dt = model.get_critical_dt()
 
-    m = DenseData(name="m", shape=model.get_shape_comp(),
+    m = DenseData(name="m", shape=model.shape_pml,
                   dtype=damp.dtype, space_order=spc_order)
     m.data[:] = model.padm()
 
     parm = [m, damp, u, v]
 
     if model.epsilon is not None:
-        epsilon = DenseData(name="epsilon", shape=model.get_shape_comp(),
+        epsilon = DenseData(name="epsilon", shape=model.shape_pml,
                             dtype=damp.dtype, space_order=spc_order)
         epsilon.data[:] = model.pad(model.epsilon)
         parm += [epsilon]
@@ -40,7 +40,7 @@ def ForwardOperator(model, u, v, src, rec, damp, data, time_order=2,
         epsilon = 1
 
     if model.delta is not None:
-        delta = DenseData(name="delta", shape=model.get_shape_comp(),
+        delta = DenseData(name="delta", shape=model.shape_pml,
                           dtype=damp.dtype, space_order=spc_order)
         delta.data[:] = model.pad(model.delta)
         parm += [delta]
@@ -48,7 +48,7 @@ def ForwardOperator(model, u, v, src, rec, damp, data, time_order=2,
         delta = 1
 
     if model.theta is not None:
-        theta = DenseData(name="theta", shape=model.get_shape_comp(),
+        theta = DenseData(name="theta", shape=model.shape_pml,
                           dtype=damp.dtype, space_order=spc_order)
         theta.data[:] = model.pad(model.theta)
         parm += [theta]
@@ -56,7 +56,7 @@ def ForwardOperator(model, u, v, src, rec, damp, data, time_order=2,
         theta = 0
 
     if model.phi is not None:
-        phi = DenseData(name="phi", shape=model.get_shape_comp(),
+        phi = DenseData(name="phi", shape=model.shape_pml,
                         dtype=damp.dtype, space_order=spc_order)
         phi.data[:] = model.pad(model.phi)
         parm += [phi]

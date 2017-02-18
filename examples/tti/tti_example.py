@@ -21,8 +21,7 @@ def setup(dimensions=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=250.0,
     true_vp[:, :, int(dimensions[0] / 3):int(2*dimensions[0]/3)] = 3.0
     true_vp[:, :, int(2*dimensions[0] / 3):int(dimensions[0])] = 4.0
 
-    model = IGrid(origin, spacing,
-                  true_vp,
+    model = IGrid(origin, spacing, true_vp, nbpml=nbpml,
                   rho=None,
                   epsilon=.4*np.ones(dimensions),
                   delta=-.1*np.ones(dimensions),

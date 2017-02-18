@@ -43,7 +43,7 @@ def run(dimensions=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=1000.0,
 
     dm = 1. / (true_vp * true_vp) - 1. / (initial_vp * initial_vp)
 
-    model = IGrid(origin, spacing, true_vp)
+    model = IGrid(origin, spacing, true_vp, nbpml=nbpml)
 
     # Define seismic data.
     data = IShot()

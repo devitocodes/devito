@@ -68,8 +68,8 @@ def test_gradient(dimensions, time_order, space_order):
     # Smooth velocity
     initial_vp = smooth10(true_vp)
     dm = true_vp**-2 - initial_vp**-2
-    model = IGrid(origin, spacing, true_vp)
-    model0 = IGrid(origin, spacing, initial_vp)
+    model = IGrid(origin, spacing, true_vp, nbpml=nbpml)
+    model0 = IGrid(origin, spacing, initial_vp, nbpml=nbpml)
     # Define seismic data.
     data = IShot()
     src = IShot()

@@ -19,12 +19,13 @@ def run_acoustic_forward(dse=None):
     dimensions = (50, 50, 50)
     origin = (0., 0., 0.)
     spacing = (10., 10., 10.)
+    nbpml = 10
 
     # True velocity
     true_vp = np.ones(dimensions) + 2.0
     true_vp[:, :, int(dimensions[0] / 2):int(dimensions[0])] = 4.5
 
-    model = IGrid(origin, spacing, true_vp)
+    model = IGrid(origin, spacing, true_vp, nbpml=nbpml)
 
     # Define seismic data.
     data = IShot()
@@ -75,7 +76,7 @@ def test_acoustic_rewrite_basic():
 
 def tti_operator(dse=False):
     problem = setup(dimensions=(50, 50, 50), time_order=2,
-                    space_order=4, tn=250.0, nbpml=10)
+                    space_order=4, tn=250.0)
     nt, nrec = problem.data.shape
     nsrc = problem.source.shape[1]
     ndim = len(problem.damp.shape)
@@ -84,9 +85,9 @@ def tti_operator(dse=False):
     dtype = problem.damp.dtype
     nbpml = problem.model.nbpml
 
-    u = TimeData(name="u", shape=problem.model.get_shape_comp(),
+    u = TimeData(name="u", shape=problem.model.shape_pml,
                  time_dim=nt, time_order=2, space_order=2, dtype=dtype)
-    v = TimeData(name="v", shape=problem.model.get_shape_comp(),
+    v = TimeData(name="v", shape=problem.model.shape_pml,
                  time_dim=nt, time_order=2, space_order=2, dtype=dtype)
 
     # Create source symbol

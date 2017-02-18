@@ -46,7 +46,7 @@ class TTI_cg:
                     damp[:, :, i] += val
                     damp[:, :, -(i + 1)] += val
 
-        self.damp = DenseData(name="damp", shape=self.model.get_shape_comp(),
+        self.damp = DenseData(name="damp", shape=self.model.shape_pml,
                               dtype=self.dtype)
         # Initialize damp by calling the function that can precompute damping
         damp_boundary(self.damp.data, nbpml)
@@ -64,11 +64,11 @@ class TTI_cg:
         # uses space_order/2 for the first derivatives to
         # have spc_order second derivatives for consistency
         # with the acoustic kernel
-        u = TimeData(name="u", shape=self.model.get_shape_comp(),
+        u = TimeData(name="u", shape=self.model.shape_pml,
                      time_dim=nt, time_order=self.t_order,
                      space_order=self.s_order/2,
                      save=save, dtype=dtype)
-        v = TimeData(name="v", shape=self.model.get_shape_comp(),
+        v = TimeData(name="v", shape=self.model.shape_pml,
                      time_dim=nt, time_order=self.t_order,
                      space_order=self.s_order/2,
                      save=save, dtype=dtype)
@@ -103,11 +103,11 @@ class TTI_cg:
             # uses space_order/2 for the first derivatives to
             # have spc_order second derivatives for consistency
             # with the acoustic kernel
-            u = TimeData(name="u", shape=self.model.get_shape_comp(),
+            u = TimeData(name="u", shape=self.model.shape_pml,
                          time_dim=nt, time_order=self.t_order,
                          space_order=self.s_order/2,
                          save=save, dtype=dtype)
-            v = TimeData(name="v", shape=self.model.get_shape_comp(),
+            v = TimeData(name="v", shape=self.model.shape_pml,
                          time_dim=nt, time_order=self.t_order,
                          space_order=self.s_order/2,
                          save=save, dtype=dtype)

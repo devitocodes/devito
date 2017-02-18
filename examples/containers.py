@@ -15,13 +15,14 @@ class IGrid:
     :param: theta: Tilt angle in radian
     :param phi : Asymuth angle in radian
     """
-    def __init__(self, origin, spacing, vp, rho=None, epsilon=None,
-                 delta=None, theta=None, phi=None):
+    def __init__(self, origin, spacing, vp, nbpml=0, rho=None,
+                 epsilon=None, delta=None, theta=None, phi=None):
         self.vp = vp
         self.rho = rho
         self.origin = origin
         self.spacing = spacing
         self.dimensions = vp.shape
+        self.nbpml = nbpml
 
         if epsilon is not None:
             self.epsilon = 1 + 2 * epsilon
@@ -39,10 +40,15 @@ class IGrid:
         self.theta = theta
         self.phi = phi
 
-    def get_shape(self):
-        """Return the size of the model as a Tuple of (x, y) or (x, y, z)
-        """
+    @property
+    def shape(self):
+        """Original shape of the model without PML layers"""
         return self.vp.shape
+
+    @property
+    def shape_pml(self):
+        """Computational shape of the model with PML layers"""
+        return tuple(d + 2*self.nbpml for d in self.shape)
 
     def get_critical_dt(self):
         """ Return the computational time step value from the CFL condition"""
@@ -110,15 +116,6 @@ class IGrid:
         for dim_index in range(len(self.vp.shape)):
             pad_list.append((self.nbpml, self.nbpml))
         return np.pad(m, pad_list, 'edge')
-
-    def get_shape_comp(self):
-        """Return the computational size of the model"""
-        dim = self.dimensions
-        if len(dim) == 3:
-            return (dim[0] + 2 * self.nbpml, dim[1] + 2 * self.nbpml,
-                    dim[2] + 2 * self.nbpml)
-        else:
-            return (dim[0] + 2 * self.nbpml, dim[1] + 2 * self.nbpml)
 
 
 class ISource:

@@ -60,7 +60,7 @@ def test_acoustic(dimensions, time_order, space_order):
         error("Unknown dimension size. `dimensions` parameter"
               "must be a tuple of either size 2 or 3.")
 
-    model = IGrid(origin, spacing, true_vp)
+    model = IGrid(origin, spacing, true_vp, nbpml=nbpml)
     # Define seismic data.
     data = IShot()
     src = IShot()
