@@ -1,7 +1,8 @@
 import numpy as np
 
-from examples.containers import IGrid, IShot
+from examples.containers import IShot
 from examples.tti.TTI_codegen import TTI_cg
+from examples.seismic import Model
 
 dimensions = (150, 150)
 origin = (0., 0.)
@@ -13,7 +14,7 @@ true_vp = np.ones(dimensions) + 1.0
 true_vp[:, int(dimensions[1] / 3):int(2*dimensions[1]/3)] = 3.0
 true_vp[:, int(2*dimensions[1] / 3):int(dimensions[1])] = 4.0
 
-model = IGrid(origin, spacing, true_vp,
+model = Model(origin, spacing, true_vp,
               rho=None,
               epsilon=0.1*(true_vp - 2),
               delta=0.08 * (true_vp - 2),

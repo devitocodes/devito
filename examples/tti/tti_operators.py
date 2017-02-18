@@ -13,7 +13,7 @@ def ForwardOperator(model, u, v, src, rec, damp, data, time_order=2,
     """
     Constructor method for the forward modelling operator in an acoustic media
 
-    :param model: IGrid() object containing the physical parameters
+    :param model: :class:`Model` object containing the physical parameters
     :param src: None ot IShot() (not currently supported properly)
     :param damp: Dampening coeeficents for the ABCs
     :param data: IShot() object containing the acquisition geometry and field data

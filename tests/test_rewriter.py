@@ -6,7 +6,8 @@ from devito.dse.graph import temporaries_graph
 from devito.dse.symbolics import rewrite
 from devito.interfaces import TimeData
 from examples.acoustic.Acoustic_codegen import Acoustic_cg
-from examples.containers import IGrid, IShot
+from examples.containers import IShot
+from examples.seismic import Model
 from examples.source_type import SourceLike
 from examples.tti.tti_example import setup
 from examples.tti.tti_operators import ForwardOperator
@@ -25,7 +26,7 @@ def run_acoustic_forward(dse=None):
     true_vp = np.ones(dimensions) + 2.0
     true_vp[:, :, int(dimensions[0] / 2):int(dimensions[0])] = 4.5
 
-    model = IGrid(origin, spacing, true_vp, nbpml=nbpml)
+    model = Model(origin, spacing, true_vp, nbpml=nbpml)
 
     # Define seismic data.
     data = IShot()

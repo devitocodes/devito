@@ -6,7 +6,8 @@ from devito.logger import error
 from devito import clear_cache
 
 from examples.acoustic.Acoustic_codegen import Acoustic_cg
-from examples.containers import IGrid, IShot
+from examples.containers import IShot
+from examples.seismic import Model
 
 
 @pytest.mark.parametrize('space_order', [4, 8, 12])
@@ -60,8 +61,8 @@ def test_acousticJ(dimensions, space_order):
         error("Unknown dimension size. `dimensions` parameter"
               "must be a tuple of either size 2 or 3.")
 
-    model = IGrid(origin, spacing, true_vp, nbpml=nbpml)
-    model0 = IGrid(origin, spacing, v0, nbpml=nbpml)
+    model = Model(origin, spacing, true_vp, nbpml=nbpml)
+    model0 = Model(origin, spacing, v0, nbpml=nbpml)
     # Define seismic data.
     data = IShot()
     src = IShot()
