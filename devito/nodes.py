@@ -11,7 +11,7 @@ from sympy import Eq, preorder_traversal
 from devito.codeprinter import ccode
 from devito.dimension import Dimension
 from devito.dse.inspection import as_symbol, retrieve_indexed
-from devito.interfaces import IndexedData, SymbolicData, TensorData
+from devito.interfaces import IndexedData, SymbolicData, TensorFunction
 from devito.tools import SetOrderedDict, as_tuple, filter_ordered, flatten
 
 __all__ = ['Node', 'Block', 'Expression', 'Function', 'Iteration', 'List',
@@ -423,7 +423,7 @@ class Function(Node):
         for v in self.parameters:
             if isinstance(v, Dimension):
                 cparameters.append(v.decl)
-            elif v.is_ScalarData:
+            elif v.is_ScalarFunction:
                 cparameters.append(c.Value('const int', v.name))
             else:
                 cparameters.append(c.Value(c.dtype_to_ctype(v.dtype),
@@ -434,7 +434,8 @@ class Function(Node):
     def _ccasts(self):
         """Generate data casts."""
         alignment = "__attribute__((aligned(64)))"
-        handle = [f for f in self.parameters if isinstance(f, TensorData)]
+        handle = [f for f in self.parameters
+                  if isinstance(f, (SymbolicData, TensorFunction))]
         shapes = [(f, ''.join(["[%s]" % i.ccode for i in f.indices[1:]])) for f in handle]
         casts = [c.Initializer(c.POD(v.dtype,
                                      '(*restrict %s)%s %s' % (v.name, shape, alignment)),

@@ -6,7 +6,7 @@ from sympy import Indexed, IndexedBase, S
 
 from devito.dse.extended_sympy import Add, Eq, Mul
 from devito.dse.graph import temporaries_graph
-from devito.interfaces import DenseData
+from devito.interfaces import TensorFunction
 
 __all__ = ['unevaluate_arithmetic', 'flip_indices', 'rxreplace',
            'promote_scalar_expressions']
@@ -96,7 +96,7 @@ def promote_scalar_expressions(exprs, shape, indices):
     for k, v in graph.items():
         if v.is_scalar:
             # Create a new function symbol
-            data = DenseData(name=k.name, shape=shape, dimensions=indices)
+            data = TensorFunction(name=k.name, shape=shape, dimensions=indices)
             indexed = Indexed(data.indexed, *indices)
             mapper[k] = indexed
             processed.append(Eq(indexed, v.rhs))

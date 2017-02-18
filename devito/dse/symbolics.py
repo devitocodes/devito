@@ -22,7 +22,7 @@ from devito.dse.graph import temporaries_graph
 from devito.dse.inspection import (collect_aliases, estimate_cost, estimate_memory,
                                    is_binary_op, is_time_invariant, terminals)
 from devito.dse.manipulation import (flip_indices, rxreplace, unevaluate_arithmetic)
-from devito.interfaces import DenseData
+from devito.interfaces import TensorFunction
 from devito.logger import dse, dse_warning
 
 __all__ = ['rewrite']
@@ -338,8 +338,8 @@ class Rewriter(object):
 
         graph = temporaries_graph(state.exprs)
         space_indices = graph.space_indices
-        template = lambda i: DenseData(name="ti%d" % i, shape=graph.space_shape,
-                                       dimensions=space_indices).indexed
+        template = lambda i: TensorFunction(name="ti%d" % i, shape=graph.space_shape,
+                                            dimensions=space_indices).indexed
 
         # What expressions is it worth transforming (cm=cost model)?
         # Formula: ops(expr)*aliases(expr) > self.threshold <==> do it

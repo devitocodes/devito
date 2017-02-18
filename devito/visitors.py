@@ -273,7 +273,8 @@ class FindSymbols(Visitor):
     """
 
     rules = {
-        'with-data': lambda e: e.functions,
+        'symbolics': lambda e: e.functions,
+        'kernel-data': lambda e: [i for i in e.functions if i.is_SymbolicData],
         'free-symbols': lambda e: e.stencil.free_symbols,
         'dimensions': lambda e: e.dimensions,
     }

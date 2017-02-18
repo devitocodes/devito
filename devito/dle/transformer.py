@@ -12,7 +12,7 @@ from devito.dimension import Dimension
 from devito.dle import compose_nodes, retrieve_iteration_tree
 from devito.dse import (as_symbol, estimate_cost, promote_scalar_expressions,
                         terminals)
-from devito.interfaces import ScalarData
+from devito.interfaces import ScalarFunction
 from devito.logger import dle, dle_warning
 from devito.nodes import (Block, Denormals, Element, Expression,
                           Function, Iteration, List)
@@ -366,22 +366,24 @@ class Rewriter(object):
                 maybe = [k for k in maybe if k not in definitely_not]
                 seen = {e.output for e in expressions if e.is_scalar}
 
-                # Add SymbolicData objects and Dimensions (sizes, indices)
-                for d in FindSymbols('with-data').visit(candidate):
-                    args.append(("%s_vec" % d.name, d))
+                # Add symbolic objects and Dimensions (sizes, indices)
+                for d in FindSymbols('symbolics').visit(candidate):
+                    handle = "(float*) %s" if d.is_SymbolicFunction else "%s_vec"
+                    args.append((handle % d.name, d))
                     for k in d.indices:
                         if k in seen or k.size is not None:
                             continue
                         args.append((k.ccode, k))
                         # Is the Dimension index required too?
                         if k in maybe:
-                            index_arg = (k.name, ScalarData(name=k.name, dtype=np.int32))
+                            index_arg = (k.name, ScalarFunction(name=k.name,
+                                                                dtype=np.int32))
                             args.append(index_arg)
                     seen |= {as_symbol(d)} | set(d.indices)
 
                 # Add non-temporary scalars to the elemental function's arguments
                 required = [k for k in maybe if k not in seen]
-                args.extend([(k.name, ScalarData(name=k.name, dtype=np.int32))
+                args.extend([(k.name, ScalarFunction(name=k.name, dtype=np.int32))
                              for k in required])
 
                 # Track info to transform the main tree
