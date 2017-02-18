@@ -3,7 +3,8 @@ import pytest
 from numpy import linalg
 
 from examples.acoustic.Acoustic_codegen import Acoustic_cg
-from examples.containers import IGrid, IShot
+from examples.containers import IShot
+from examples.seismic import Model
 
 
 @pytest.mark.parametrize('space_order', [4])
@@ -68,8 +69,8 @@ def test_gradient(dimensions, time_order, space_order):
     # Smooth velocity
     initial_vp = smooth10(true_vp)
     dm = true_vp**-2 - initial_vp**-2
-    model = IGrid(origin, spacing, true_vp, nbpml=nbpml)
-    model0 = IGrid(origin, spacing, initial_vp, nbpml=nbpml)
+    model = Model(origin, spacing, true_vp, nbpml=nbpml)
+    model0 = Model(origin, spacing, initial_vp, nbpml=nbpml)
     # Define seismic data.
     data = IShot()
     src = IShot()

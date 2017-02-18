@@ -12,7 +12,7 @@ def ForwardOperator(model, u, src, rec, damp, data, time_order=2, spc_order=6,
     """
     Constructor method for the forward modelling operator in an acoustic media
 
-    :param model: IGrid() object containing the physical parameters
+    :param model: :class:`Model` object containing the physical parameters
     :param source: None or IShot() (not currently supported properly)
     :param damp: Dampening coeeficents for the ABCs
     :param data: IShot() object containing the acquisition geometry and field data
@@ -98,8 +98,8 @@ class AdjointOperator(Operator):
     """
     Class to setup the adjoint modelling operator in an acoustic media
 
-    :param model: IGrid() object containing the physical parameters
-    :param src: None ot IShot() (not currently supported properly)
+    :param model: :class:`Model` object containing the physical parameters
+    :param src: None or IShot() (not currently supported properly)
     :param damp: Dampening coeeficents for the ABCs
     :param data: IShot() object containing the acquisition geometry and field data
     :param: recin : receiver data for the adjoint source
@@ -171,7 +171,7 @@ class GradientOperator(Operator):
     """
     Class to setup the gradient operator in an acoustic media
 
-    :param model: IGrid() object containing the physical parameters
+    :param model: :class:`Model` object containing the physical parameters
     :param src: None ot IShot() (not currently supported properly)
     :param damp: Dampening coeeficents for the ABCs
     :param data: IShot() object containing the acquisition geometry and field data
@@ -247,7 +247,7 @@ class BornOperator(Operator):
     """
     Class to setup the linearized modelling operator in an acoustic media
 
-    :param model: IGrid() object containing the physical parameters
+    :param model: :class:`Model` object containing the physical parameters
     :param src: None ot IShot() (not currently supported properly)
     :param damp: Dampening coeeficents for the ABCs
     :param data: IShot() object containing the acquisition geometry and field data
