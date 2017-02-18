@@ -289,14 +289,15 @@ class Rewriter(object):
 
             # Is the Iteration tree fully-parallel or OSIP?
             is_OSIP = False
-            for e in exprs:
-                lhs = e.lhs
+            for e1 in exprs:
+                lhs = e1.lhs
                 if lhs.is_Symbol:
                     continue
-                handle = [i for i in terms[e] if as_symbol(i) == as_symbol(lhs)]
-                if any(lhs.indices[0] != i.indices[0] for i in handle):
-                    is_OSIP = True
-                    break
+                for e2 in exprs:
+                    handle = [i for i in terms[e2] if as_symbol(i) == as_symbol(lhs)]
+                    if any(lhs.indices[0] != i.indices[0] for i in handle):
+                        is_OSIP = True
+                        break
 
             # Track the discovered properties in the Iteration/Expression tree
             if is_OSIP:
