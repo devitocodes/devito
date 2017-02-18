@@ -12,7 +12,7 @@ from devito.dimension import Dimension
 from devito.dle import compose_nodes, retrieve_iteration_tree
 from devito.dse import (as_symbol, estimate_cost, promote_scalar_expressions,
                         terminals)
-from devito.interfaces import DenseData, ScalarData
+from devito.interfaces import ScalarData
 from devito.logger import dle, dle_warning
 from devito.nodes import (Block, Denormals, Element, Expression,
                           Function, Iteration, List)
