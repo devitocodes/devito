@@ -66,10 +66,9 @@ def test_acoustic(dimensions, time_order, space_order):
     src = IShot()
 
     f0 = .010
+    dt = model.critical_dt
     if time_order == 4:
-        dt = 1.73 * model.get_critical_dt()
-    else:
-        dt = model.get_critical_dt()
+        dt *= 1.73
     t0 = 0.0
     tn = 500.0
     nt = int(1+(tn-t0)/dt)

@@ -23,7 +23,7 @@ def ForwardOperator(model, u, v, src, rec, damp, data, time_order=2,
     """
     nt, nrec = data.shape
     nt, nsrc = src.shape
-    dt = model.get_critical_dt()
+    dt = model.critical_dt
 
     m = DenseData(name="m", shape=model.shape_pml,
                   dtype=damp.dtype, space_order=spc_order)

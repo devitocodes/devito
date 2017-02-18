@@ -21,7 +21,7 @@ class TTI_cg:
         self.data = data
         self.source = source
         self.dtype = np.float32
-        self.dt = model.get_critical_dt()
+        self.dt = model.critical_dt
         self.model.nbpml = nbpml
 
         # Fill the dampening field with nbp points in the absorbing layer
@@ -55,7 +55,6 @@ class TTI_cg:
         nt, nrec = self.data.shape
         nsrc = self.source.shape[1]
         ndim = len(self.damp.shape)
-        dt = self.dt
         h = self.model.get_spacing()
         dtype = self.damp.dtype
         nbpml = self.model.nbpml
@@ -82,14 +81,14 @@ class TTI_cg:
         # Create source symbol
         p_src = Dimension('p_src', size=nsrc)
         src = SourceLike(name="src", dimensions=[time, p_src], npoint=nsrc, nt=nt,
-                         dt=dt, h=h, ndim=ndim, nbpml=nbpml, dtype=dtype,
+                         dt=self.dt, h=h, ndim=ndim, nbpml=nbpml, dtype=dtype,
                          coordinates=self.source.receiver_coords)
         src.data[:] = .5 * self.source.traces[:]
 
         # Create receiver symbol
         p_rec = Dimension('p_rec', size=nrec)
         rec = SourceLike(name="rec", dimensions=[time, p_rec], npoint=nrec, nt=nt,
-                         dt=dt, h=h, ndim=ndim, nbpml=nbpml, dtype=dtype,
+                         dt=self.dt, h=h, ndim=ndim, nbpml=nbpml, dtype=dtype,
                          coordinates=self.data.receiver_coords)
 
         # Create forward operator
@@ -116,13 +115,13 @@ class TTI_cg:
 
             # Create source symbol
             src_new = SourceLike(name="src", dimensions=[time, p_src], npoint=nsrc, nt=nt,
-                                 dt=dt, h=h, ndim=ndim, nbpml=nbpml, dtype=dtype,
+                                 dt=self.dt, h=h, ndim=ndim, nbpml=nbpml, dtype=dtype,
                                  coordinates=self.source.receiver_coords)
             src_new.data[:] = .5 * self.source.traces[:]
 
             # Create receiver symbol
             rec_new = SourceLike(name="rec", dimensions=[time, p_rec], npoint=nrec, nt=nt,
-                                 dt=dt, h=h, ndim=ndim, nbpml=nbpml, dtype=dtype,
+                                 dt=self.dt, h=h, ndim=ndim, nbpml=nbpml, dtype=dtype,
                                  coordinates=self.data.receiver_coords)
 
             # Ceate tuning operator

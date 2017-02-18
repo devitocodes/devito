@@ -33,7 +33,7 @@ def setup(dimensions=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=250.0,
     src = IShot()
 
     f0 = .010
-    dt = model.get_critical_dt()
+    dt = model.critical_dt
     t0 = 0.0
     nt = int(1+(tn-t0)/dt)
     # Set up the source as Ricker wavelet for f0
