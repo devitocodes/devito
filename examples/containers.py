@@ -49,29 +49,14 @@ class IGrid:
         """Computational shape of the model with PML layers"""
         return tuple(d + 2*self.nbpml for d in self.shape)
 
-    def get_critical_dt(self):
-        """ Return the computational time step value from the CFL condition"""
-        # limit for infinite stencil of √(a1/a2) where a1 is the
-        #  sum of absolute values of the time discretisation
-        # and a2 is the sum of the absolute values of the space discretisation
-        #
-        # example, 2nd order in time and space in 2D
-        # a1 = 1 + 2 + 1 = 4
-        # a2 = 2*(1+2+1)  = 8
-        # coeff = √(1/2) = 0.7
-        # example, 2nd order in time and space in 3D
-        # a1 = 1 + 2 + 1 = 4
-        # a2 = 3*(1+2+1)  = 12
-        # coeff = √(1/3) = 0.57
-
+    @property
+    def critical_dt(self):
+        """Critical computational time step value from the CFL condition."""
         # For a fixed time order this number goes down as the space order increases.
         #
         # The CFL condtion is then given by
         # dt <= coeff * h / (max(velocity))
-        if len(self.vp.shape) == 3:
-            coeff = 0.38
-        else:
-            coeff = 0.42
+        coeff = 0.38 if len(self.shape) == 3 else 0.42
         return coeff * self.spacing[0] / (self.scale*np.max(self.vp))
 
     def get_spacing(self):

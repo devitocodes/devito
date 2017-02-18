@@ -62,7 +62,7 @@ def test_tti(dimensions, space_order):
     src = IShot()
 
     f0 = .010
-    dt = model.get_critical_dt()
+    dt = model.critical_dt
     t0 = 0.0
     tn = 350.0
     nt = int(1+(tn-t0)/dt)

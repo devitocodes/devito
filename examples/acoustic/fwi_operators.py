@@ -32,13 +32,13 @@ def ForwardOperator(model, u, src, rec, damp, data, time_order=2, spc_order=6,
         biharmonic = 0
         # PDE for information
         # eqn = m * u.dt2 - laplacian + damp * u.dt
-        dt = model.get_critical_dt()
+        dt = model.critical_dt
     else:
         laplacian = u.laplace
         biharmonic = u.laplace2(1/m)
         # PDE for information
         # eqn = m * u.dt2 - laplacian - s**2 / 12 * biharmonic + damp * u.dt
-        dt = 1.73 * model.get_critical_dt()
+        dt = 1.73 * model.critical_dt
 
     # Create the stencil by hand instead of calling numpy solve for speed purposes
     # Simple linear solve of a u(t+dt) + b u(t) + c u(t-dt) = L for u(t+dt)
@@ -121,13 +121,13 @@ class AdjointOperator(Operator):
             biharmonic = 0
             # PDE for information
             # eqn = m * v.dt2 - laplacian - damp * v.dt
-            dt = model.get_critical_dt()
+            dt = model.critical_dt
         else:
             laplacian = v.laplace
             biharmonic = v.laplace2(1/m)
             # PDE for information
             # eqn = m * v.dt2 - laplacian - s**2 / 12 * biharmonic + damp * v.dt
-            dt = 1.73 * model.get_critical_dt()
+            dt = 1.73 * model.critical_dt
 
         # Create the stencil by hand instead of calling numpy solve for speed purposes
         # Simple linear solve of a v(t+dt) + b u(t) + c v(t-dt) = L for v(t-dt)
@@ -195,7 +195,7 @@ class GradientOperator(Operator):
             biharmonic = 0
             # PDE for information
             # eqn = m * v.dt2 - laplacian - damp * v.dt
-            dt = model.get_critical_dt()
+            dt = model.critical_dt
             gradient_update = Eq(grad, grad - u.dt2 * v.forward)
         else:
             laplacian = v.laplace
@@ -203,7 +203,7 @@ class GradientOperator(Operator):
             biharmonicu = - u.laplace2(1/(m**2))
             # PDE for information
             # eqn = m * v.dt2 - laplacian - s**2 / 12 * biharmonic + damp * v.dt
-            dt = 1.73 * model.get_critical_dt()
+            dt = 1.73 * model.critical_dt
             gradient_update = Eq(grad, grad -
                                  (u.dt2 -
                                   s ** 2 / 12.0 * biharmonicu) * v.forward)
@@ -277,13 +277,13 @@ class BornOperator(Operator):
             biharmonicu = 0
             laplacianU = U.laplace
             biharmonicU = 0
-            dt = model.get_critical_dt()
+            dt = model.critical_dt
         else:
             laplacianu = u.laplace
             biharmonicu = u.laplace2(1/m)
             laplacianU = U.laplace
             biharmonicU = U.laplace2(1/m)
-            dt = 1.73 * model.get_critical_dt()
+            dt = 1.73 * model.critical_dt
             # first_eqn = m * u.dt2 - u.laplace + damp * u.dt
             # second_eqn = m * U.dt2 - U.laplace - dm* u.dt2 + damp * U.dt
 

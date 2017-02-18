@@ -24,10 +24,9 @@ class Acoustic_cg(object):
         self.source = source
         self.dtype = np.float32
         # Time step can be \sqrt{3}=1.73 bigger with 4th order
-        if t_order == 4:
-            self.dt = 1.73 * model.get_critical_dt()
-        else:
-            self.dt = model.get_critical_dt()
+        self.dt = self.model.critical_dt
+        if self.t_order == 4:
+            self.dt *= 1.73
 
         # Fill the dampening field with nbp points in the absorbing layer
         def damp_boundary(damp, nbp):
@@ -62,21 +61,18 @@ class Acoustic_cg(object):
             h = self.model.get_spacing()
             dtype = self.damp.dtype
             nbpml = self.model.nbpml
-            dt = self.model.get_critical_dt()
-            if self.t_order == 4:
-                dt *= 1.73
 
             # Create source symbol
             p_src = Dimension('p_src', size=nsrc)
             src = SourceLike(name="src", dimensions=[time, p_src], npoint=nsrc, nt=nt,
-                             dt=dt, h=h, ndim=ndim, nbpml=nbpml, dtype=dtype,
+                             dt=self.dt, h=h, ndim=ndim, nbpml=nbpml, dtype=dtype,
                              coordinates=self.source.receiver_coords)
             src.data[:] = self.source.traces[:]
 
             # Create receiver symbol
             p_rec = Dimension('p_rec', size=nrec)
             rec = SourceLike(name="rec", dimensions=[time, p_rec], npoint=nrec, nt=nt,
-                             dt=dt, h=h, ndim=ndim, nbpml=nbpml, dtype=dtype,
+                             dt=self.dt, h=h, ndim=ndim, nbpml=nbpml, dtype=dtype,
                              coordinates=self.data.receiver_coords)
 
             # Create the forward wavefield
@@ -97,21 +93,18 @@ class Acoustic_cg(object):
         h = self.model.get_spacing()
         dtype = self.damp.dtype
         nbpml = self.model.nbpml
-        dt = self.model.get_critical_dt()
-        if self.t_order == 4:
-            dt *= 1.73
 
         # Create source symbol
         p_src = Dimension('p_src', size=nsrc)
         src = SourceLike(name="src", dimensions=[time, p_src], npoint=nsrc, nt=nt,
-                         dt=dt, h=h, ndim=ndim, nbpml=nbpml, dtype=dtype,
+                         dt=self.dt, h=h, ndim=ndim, nbpml=nbpml, dtype=dtype,
                          coordinates=self.source.receiver_coords)
         src.data[:] = self.source.traces[:]
 
         # Create receiver symbol
         p_rec = Dimension('p_rec', size=nrec)
         rec = SourceLike(name="rec", dimensions=[time, p_rec], npoint=nrec, nt=nt,
-                         dt=dt, h=h, ndim=ndim, nbpml=nbpml, dtype=dtype,
+                         dt=self.dt, h=h, ndim=ndim, nbpml=nbpml, dtype=dtype,
                          coordinates=self.data.receiver_coords)
 
         if legacy and auto_tuning:
