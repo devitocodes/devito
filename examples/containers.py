@@ -21,7 +21,6 @@ class IGrid:
         self.rho = rho
         self.origin = origin
         self.spacing = spacing
-        self.dimensions = vp.shape
         self.nbpml = nbpml
 
         if epsilon is not None:
@@ -78,15 +77,6 @@ class IGrid:
     def get_spacing(self):
         """Return the grid size"""
         return self.spacing[0]
-
-    def set_vp(self, vp):
-        """Set a new velocity model
-        :param vp : new velocity in km/s"""
-        if vp.shape == self.dimensions:
-            self.vp = vp
-        else:
-            self.vp = vp
-            self.dimensions = vp.shape
 
     def set_origin(self, shift):
         """Set a new origin shifted by -shift in every direction
