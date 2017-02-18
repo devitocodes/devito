@@ -1,8 +1,39 @@
 import numpy as np
 
+from devito import DenseData
+
+
+__all__ = ['Model']
+
+
+def damp_boundary(damp, nbpml, spacing):
+    """Initialise damping field with an absorbing PML layer.
+
+    :param damp: Array data defining the damping field
+    :param nbpml: Number of points in the damping layer
+    :param spacing: Grid spacing coefficent
+    """
+    dampcoeff = 1.5 * np.log(1.0 / 0.001) / (40 * spacing)
+    ndim = len(damp.shape)
+    for i in range(nbpml):
+        pos = np.abs((nbpml - i + 1) / float(nbpml))
+        val = dampcoeff * (pos - np.sin(2*np.pi*pos)/(2*np.pi))
+        if ndim == 2:
+            damp[i, :] += val
+            damp[-(i + 1), :] += val
+            damp[:, i] += val
+            damp[:, -(i + 1)] += val
+        else:
+            damp[i, :, :] += val
+            damp[-(i + 1), :, :] += val
+            damp[:, i, :] += val
+            damp[:, -(i + 1), :] += val
+            damp[:, :, i] += val
+            damp[:, :, -(i + 1)] += val
+
 
 class Model(object):
-    """The physical model as used in seismic inversion processes.
+    """The physical model used in seismic inversion processes.
 
     :param origin: Origin of the model in m as a tuple
     :param spacing: Grid size in m as a Tuple
@@ -19,14 +50,21 @@ class Model(object):
     :param m: The square slowness of the wave
     :param damp: The damping field for absorbing boundarycondition
     """
-    def __init__(self, origin, spacing, vp, nbpml=0, rho=None,
-                 epsilon=None, delta=None, theta=None, phi=None):
+    def __init__(self, origin, spacing, vp, nbpml=0, dtype=np.float32,
+                 rho=None, epsilon=None, delta=None, theta=None, phi=None):
         self.vp = vp
-        self.rho = rho
         self.origin = origin
         self.spacing = spacing
         self.nbpml = nbpml
+        self.dtype = dtype
 
+        # Create damping field as symbol `damp`
+        self.damp = DenseData(name="damp", shape=self.shape_pml,
+                              dtype=self.dtype)
+        damp_boundary(self.damp.data, nbpml, spacing=self.get_spacing())
+
+        # Additional parameter fields for TTI operators
+        self.rho = rho
         if epsilon is not None:
             self.epsilon = 1 + 2 * epsilon
             # Maximum velocity is scale*max(vp) is epsilon>0
