@@ -23,7 +23,6 @@ class TTI_cg:
         self.dtype = np.float32
         self.dt = model.get_critical_dt()
         self.model.nbpml = nbpml
-        self.model.set_origin(nbpml)
 
         # Fill the dampening field with nbp points in the absorbing layer
         def damp_boundary(damp, nbp):
