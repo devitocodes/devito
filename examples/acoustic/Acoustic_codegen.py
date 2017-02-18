@@ -28,7 +28,6 @@ class Acoustic_cg(object):
             self.dt = 1.73 * model.get_critical_dt()
         else:
             self.dt = model.get_critical_dt()
-        self.model.nbpml = nbpml
         self.model.set_origin(nbpml)
 
         # Fill the dampening field with nbp points in the absorbing layer
@@ -52,7 +51,7 @@ class Acoustic_cg(object):
                     damp[:, :, i] += val
                     damp[:, :, -(i + 1)] += val
 
-        self.damp = DenseData(name="damp", shape=self.model.get_shape_comp(),
+        self.damp = DenseData(name="damp", shape=self.model.shape_pml,
                               dtype=self.dtype)
         # Initialize damp by calling the function that can precompute damping
         damp_boundary(self.damp.data, nbpml)
@@ -82,7 +81,7 @@ class Acoustic_cg(object):
                              coordinates=self.data.receiver_coords)
 
             # Create the forward wavefield
-            u = TimeData(name="u", shape=self.model.get_shape_comp(), time_dim=nt,
+            u = TimeData(name="u", shape=self.model.shape_pml, time_dim=nt,
                          time_order=2, space_order=self.s_order, save=False,
                          dtype=self.damp.dtype)
             fw = ForwardOperator(self.model, u, src, rec, self.damp, self.data,
@@ -120,7 +119,7 @@ class Acoustic_cg(object):
             cache_blocking = self.at.block_size
 
         # Create the forward wavefield
-        u = TimeData(name="u", shape=self.model.get_shape_comp(), time_dim=nt,
+        u = TimeData(name="u", shape=self.model.shape_pml, time_dim=nt,
                      time_order=2, space_order=self.s_order, save=save,
                      dtype=self.damp.dtype)
         u.pad_time = save

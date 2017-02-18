@@ -51,7 +51,7 @@ def test_tti(dimensions, space_order):
     true_vp = np.ones(dimensions) + .5
 
     model = IGrid(origin, spacing,
-                  true_vp,
+                  true_vp, nbpml=nbpml,
                   rho=0.0 * true_vp,
                   epsilon=0.0 * true_vp,
                   delta=0.0 * true_vp,

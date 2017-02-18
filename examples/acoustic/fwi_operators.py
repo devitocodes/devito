@@ -24,7 +24,7 @@ def ForwardOperator(model, u, src, rec, damp, data, time_order=2, spc_order=6,
     """
     nt = data.shape[0]
     s, h = symbols('s h')
-    m = DenseData(name="m", shape=model.get_shape_comp(), dtype=damp.dtype)
+    m = DenseData(name="m", shape=model.shape_pml, dtype=damp.dtype)
     m.data[:] = model.padm()
     # Derive stencil from symbolic equation
     if time_order == 2:
@@ -110,10 +110,10 @@ class AdjointOperator(Operator):
                  time_order=2, spc_order=6, **kwargs):
         nt, nrec = data.shape
         s, h = symbols('s h')
-        v = TimeData(name="v", shape=model.get_shape_comp(), time_dim=nt,
+        v = TimeData(name="v", shape=model.shape_pml, time_dim=nt,
                      time_order=2, space_order=spc_order,
                      save=False, dtype=damp.dtype)
-        m = DenseData(name="m", shape=model.get_shape_comp(), dtype=damp.dtype)
+        m = DenseData(name="m", shape=model.shape_pml, dtype=damp.dtype)
         m.data[:] = model.padm()
         v.pad_time = False
         # Derive stencil from symbolic equation
@@ -182,10 +182,10 @@ class GradientOperator(Operator):
     def __init__(self, model, damp, data, recin, u, time_order=2, spc_order=6, **kwargs):
         nt, nrec = data.shape
         s, h = symbols('s h')
-        v = TimeData(name="v", shape=model.get_shape_comp(), time_dim=nt,
+        v = TimeData(name="v", shape=model.shape_pml, time_dim=nt,
                      time_order=2, space_order=spc_order,
                      save=False, dtype=damp.dtype)
-        m = DenseData(name="m", shape=model.get_shape_comp(), dtype=damp.dtype)
+        m = DenseData(name="m", shape=model.shape_pml, dtype=damp.dtype)
         m.data[:] = model.padm()
         v.pad_time = False
         grad = DenseData(name="grad", shape=m.shape, dtype=m.dtype)
@@ -259,16 +259,16 @@ class BornOperator(Operator):
     def __init__(self, model, src, damp, data, dmin, time_order=2, spc_order=6, **kwargs):
         nt, nrec = data.shape
         nt, nsrc = src.shape
-        u = TimeData(name="u", shape=model.get_shape_comp(), time_dim=nt,
+        u = TimeData(name="u", shape=model.shape_pml, time_dim=nt,
                      time_order=2, space_order=spc_order,
                      save=False, dtype=damp.dtype)
-        U = TimeData(name="U", shape=model.get_shape_comp(), time_dim=nt,
+        U = TimeData(name="U", shape=model.shape_pml, time_dim=nt,
                      time_order=2, space_order=spc_order,
                      save=False, dtype=damp.dtype)
-        m = DenseData(name="m", shape=model.get_shape_comp(), dtype=damp.dtype)
+        m = DenseData(name="m", shape=model.shape_pml, dtype=damp.dtype)
         m.data[:] = model.padm()
 
-        dm = DenseData(name="dm", shape=model.get_shape_comp(), dtype=damp.dtype)
+        dm = DenseData(name="dm", shape=model.shape_pml, dtype=damp.dtype)
         dm.data[:] = model.pad(dmin)
         s, h = symbols('s h')
 
