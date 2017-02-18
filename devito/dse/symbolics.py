@@ -12,8 +12,9 @@ from __future__ import absolute_import
 from collections import OrderedDict, Sequence
 from time import time
 
-from sympy import (Eq, Indexed, IndexedBase, S, collect, collect_const, cos,
-                   cse, flatten, numbered_symbols, preorder_traversal, sin)
+from sympy import (Eq, Indexed, IndexedBase, S, Symbol, collect, collect_const,
+                   cos, cse, flatten, numbered_symbols, preorder_traversal, sin)
+from sympy.simplify.cse_main import tree_cse
 
 from devito.dimension import t, x, y, z
 from devito.dse.extended_sympy import bhaskara_cos, bhaskara_sin
@@ -226,7 +227,7 @@ class Rewriter(object):
         Perform common subexpression elimination.
         """
 
-        temporaries, leaves = cse(state.exprs, numbered_symbols(_temp_prefix))
+        temporaries, leaves = tree_cse(state.exprs, numbered_symbols(_temp_prefix))
         for i in range(len(state.exprs)):
             leaves[i] = Eq(state.exprs[i].lhs, leaves[i].rhs)
 
