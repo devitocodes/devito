@@ -345,8 +345,6 @@ def is_time_invariant(expr, graph=None):
 
     if t in expr.free_symbols:
         return False
-    elif expr in graph:
-        return graph[expr].is_time_invariant
 
     if expr.is_Equality:
         to_visit = [expr.rhs]

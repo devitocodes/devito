@@ -25,8 +25,7 @@ from sympy import Indexed
 
 from devito.dimension import t
 from devito.dse.extended_sympy import Eq
-from devito.dse.inspection import (is_indirect, is_time_invariant,
-                                   retrieve_indexed, terminals)
+from devito.dse.inspection import (is_indirect, retrieve_indexed, terminals)
 
 __all__ = ['temporaries_graph']
 
@@ -45,12 +44,10 @@ class Temporary(Eq):
     def __new__(cls, lhs, rhs, **kwargs):
         reads = kwargs.pop('reads', [])
         readby = kwargs.pop('readby', [])
-        time_invariant = kwargs.pop('time_invariant', False)
         scope = kwargs.pop('scope', 0)
         obj = super(Temporary, cls).__new__(cls, lhs, rhs, **kwargs)
         obj._reads = set(reads)
         obj._readby = set(readby)
-        obj._is_time_invariant = time_invariant
         obj._scope = scope
         return obj
 
@@ -61,10 +58,6 @@ class Temporary(Eq):
     @property
     def readby(self):
         return self._readby
-
-    @property
-    def is_time_invariant(self):
-        return self._is_time_invariant
 
     @property
     def is_terminal(self):
@@ -90,7 +83,7 @@ class Temporary(Eq):
         reads = set(self.reads) - set(rule.keys()) | set(rule.values())
         rhs = self.rhs.xreplace(rule)
         return Temporary(self.lhs, rhs, reads=reads, readby=self.readby,
-                         time_invariant=self.is_time_invariant, scope=self.scope)
+                         scope=self.scope)
 
     def __repr__(self):
         return "DSE(%s, reads=%s, readby=%s)" % (super(Temporary, self).__repr__(),
@@ -218,17 +211,16 @@ def temporaries_graph(temporaries, scope=0):
     """
 
     mapper = OrderedDict()
-    Node = namedtuple('Node', ['rhs', 'reads', 'readby', 'time_invariant'])
+    Node = namedtuple('Node', ['rhs', 'reads', 'readby'])
 
     for lhs, rhs in [i.args for i in temporaries]:
         reads = {i for i in terminals(rhs) if i in mapper}
-        mapper[lhs] = Node(rhs, reads, set(), is_time_invariant(rhs, mapper))
+        mapper[lhs] = Node(rhs, reads, set())
         for i in mapper[lhs].reads:
             assert i in mapper, "Illegal Flow"
             mapper[i].readby.add(lhs)
 
-    nodes = [Temporary(k, v.rhs, reads=v.reads, readby=v.readby,
-                       time_invariant=v.time_invariant, scope=scope)
+    nodes = [Temporary(k, v.rhs, reads=v.reads, readby=v.readby, scope=scope)
              for k, v in mapper.items()]
 
     return TemporariesGraph([(i.lhs, i) for i in nodes])

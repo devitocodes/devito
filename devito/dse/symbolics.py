@@ -170,7 +170,7 @@ class Rewriter(object):
     def __init__(self, exprs):
         self.exprs = exprs
 
-        self.ops = OrderedDict([('baseline', estimate_cost(exprs))])
+        self.ops = OrderedDict()
         self.timings = OrderedDict()
 
     def run(self, mode):
@@ -412,8 +412,7 @@ class Rewriter(object):
                 # The state after CSE should be used as baseline for fairness
                 baseline = self.ops['_cse0']
             except KeyError:
-                baseline = self.ops['baseline']
-            self.ops.pop('baseline')
+                baseline = estimate_cost(self.exprs)
             steps = " --> ".join("(%s) %d" % (filter(lambda c: not c.isdigit(), k), v)
                                  for k, v in self.ops.items())
             try:
