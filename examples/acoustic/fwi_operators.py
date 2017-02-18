@@ -7,14 +7,13 @@ from devito.stencilkernel import StencilKernel
 from examples.source_type import SourceLike
 
 
-def ForwardOperator(model, u, src, rec, damp, data, time_order=2, spc_order=6,
+def ForwardOperator(model, u, src, rec, data, time_order=2, spc_order=6,
                     save=False, u_ini=None, legacy=True, **kwargs):
     """
     Constructor method for the forward modelling operator in an acoustic media
 
     :param model: :class:`Model` object containing the physical parameters
     :param source: None or IShot() (not currently supported properly)
-    :param damp: Dampening coeeficents for the ABCs
     :param data: IShot() object containing the acquisition geometry and field data
     :param: time_order: Time discretization order
     :param: spc_order: Space discretization order
@@ -24,7 +23,7 @@ def ForwardOperator(model, u, src, rec, damp, data, time_order=2, spc_order=6,
     """
     nt = data.shape[0]
     s, h = symbols('s h')
-    m = DenseData(name="m", shape=model.shape_pml, dtype=damp.dtype)
+    m = DenseData(name="m", shape=model.shape_pml, dtype=model.dtype)
     m.data[:] = model.padm()
     # Derive stencil from symbolic equation
     if time_order == 2:
@@ -42,8 +41,8 @@ def ForwardOperator(model, u, src, rec, damp, data, time_order=2, spc_order=6,
 
     # Create the stencil by hand instead of calling numpy solve for speed purposes
     # Simple linear solve of a u(t+dt) + b u(t) + c u(t-dt) = L for u(t+dt)
-    stencil = 1 / (2 * m + s * damp) * (
-        4 * m * u + (s * damp - 2 * m) * u.backward +
+    stencil = 1 / (2 * m + s * model.damp) * (
+        4 * m * u + (s * model.damp - 2 * m) * u.backward +
         2 * s**2 * (laplacian + s**2 / 12 * biharmonic))
     # Add substitutions for spacing (temporal and spatial)
     subs = {s: dt, h: model.get_spacing()}
@@ -100,20 +99,18 @@ class AdjointOperator(Operator):
 
     :param model: :class:`Model` object containing the physical parameters
     :param src: None or IShot() (not currently supported properly)
-    :param damp: Dampening coeeficents for the ABCs
     :param data: IShot() object containing the acquisition geometry and field data
     :param: recin : receiver data for the adjoint source
     :param: time_order: Time discretization order
     :param: spc_order: Space discretization order
     """
-    def __init__(self, model, damp, data, src, recin,
-                 time_order=2, spc_order=6, **kwargs):
+    def __init__(self, model, data, src, recin, time_order=2, spc_order=6, **kwargs):
         nt, nrec = data.shape
         s, h = symbols('s h')
         v = TimeData(name="v", shape=model.shape_pml, time_dim=nt,
                      time_order=2, space_order=spc_order,
-                     save=False, dtype=damp.dtype)
-        m = DenseData(name="m", shape=model.shape_pml, dtype=damp.dtype)
+                     save=False, dtype=model.dtype)
+        m = DenseData(name="m", shape=model.shape_pml, dtype=model.dtype)
         m.data[:] = model.padm()
         v.pad_time = False
         # Derive stencil from symbolic equation
@@ -132,8 +129,8 @@ class AdjointOperator(Operator):
 
         # Create the stencil by hand instead of calling numpy solve for speed purposes
         # Simple linear solve of a v(t+dt) + b u(t) + c v(t-dt) = L for v(t-dt)
-        stencil = 1 / (2 * m + s * damp) * \
-            (4 * m * v + (s * damp - 2 * m) *
+        stencil = 1 / (2 * m + s * model.damp) * \
+            (4 * m * v + (s * model.damp - 2 * m) *
              v.forward + 2 * s**2 * (laplacian + s ** 2 / 12.0 * biharmonic))
 
         # Add substitutions for spacing (temporal and spatial)
@@ -142,10 +139,11 @@ class AdjointOperator(Operator):
         srca = SourceLike(name="srca", npoint=src.traces.shape[1],
                           nt=nt, dt=dt, h=model.get_spacing(),
                           coordinates=src.receiver_coords,
-                          ndim=len(damp.shape), dtype=damp.dtype, nbpml=model.nbpml)
+                          ndim=len(model.shape), dtype=model.dtype,
+                          nbpml=model.nbpml)
         rec = SourceLike(name="rec", npoint=nrec, nt=nt, dt=dt, h=model.get_spacing(),
-                         coordinates=data.receiver_coords, ndim=len(damp.shape),
-                         dtype=damp.dtype, nbpml=model.nbpml)
+                         coordinates=data.receiver_coords, ndim=len(model.shape),
+                         dtype=model.dtype, nbpml=model.nbpml)
         rec.data[:] = recin[:]
 
         super(AdjointOperator, self).__init__(nt, m.shape,
@@ -173,19 +171,18 @@ class GradientOperator(Operator):
 
     :param model: :class:`Model` object containing the physical parameters
     :param src: None ot IShot() (not currently supported properly)
-    :param damp: Dampening coeeficents for the ABCs
     :param data: IShot() object containing the acquisition geometry and field data
     :param: recin : receiver data for the adjoint source
     :param: time_order: Time discretization order
     :param: spc_order: Space discretization order
     """
-    def __init__(self, model, damp, data, recin, u, time_order=2, spc_order=6, **kwargs):
+    def __init__(self, model, data, recin, u, time_order=2, spc_order=6, **kwargs):
         nt, nrec = data.shape
         s, h = symbols('s h')
         v = TimeData(name="v", shape=model.shape_pml, time_dim=nt,
                      time_order=2, space_order=spc_order,
-                     save=False, dtype=damp.dtype)
-        m = DenseData(name="m", shape=model.shape_pml, dtype=damp.dtype)
+                     save=False, dtype=model.dtype)
+        m = DenseData(name="m", shape=model.shape_pml, dtype=model.dtype)
         m.data[:] = model.padm()
         v.pad_time = False
         grad = DenseData(name="grad", shape=m.shape, dtype=m.dtype)
@@ -211,8 +208,8 @@ class GradientOperator(Operator):
 
         # Create the stencil by hand instead of calling numpy solve for speed purposes
         # Simple linear solve of a v(t+dt) + b u(t) + c v(t-dt) = L for v(t-dt)
-        stencil = 1.0 / (2.0 * m + s * damp) * \
-            (4.0 * m * v + (s * damp - 2.0 * m) *
+        stencil = 1.0 / (2.0 * m + s * model.damp) * \
+            (4.0 * m * v + (s * model.damp - 2.0 * m) *
              v.forward + 2.0 * s ** 2 * (laplacian + s**2 / 12.0 * biharmonic))
 
         # Add substitutions for spacing (temporal and spatial)
@@ -223,8 +220,8 @@ class GradientOperator(Operator):
 
         # Receiver initialization
         rec = SourceLike(name="rec", npoint=nrec, nt=nt, dt=dt, h=model.get_spacing(),
-                         coordinates=data.receiver_coords, ndim=len(damp.shape),
-                         dtype=damp.dtype, nbpml=model.nbpml)
+                         coordinates=data.receiver_coords, ndim=len(model.shape),
+                         dtype=model.dtype, nbpml=model.nbpml)
         rec.data[:] = recin
         super(GradientOperator, self).__init__(rec.nt - 1, m.shape,
                                                stencils=stencils,
@@ -233,7 +230,7 @@ class GradientOperator(Operator):
                                                time_order=2,
                                                forward=False,
                                                dtype=m.dtype,
-                                               input_params=[m, v, damp, u, grad],
+                                               input_params=[m, v, model.damp, u, grad],
                                                **kwargs)
         # Insert receiver term post-hoc
         self.input_params += [rec, rec.coordinates]
@@ -249,26 +246,25 @@ class BornOperator(Operator):
 
     :param model: :class:`Model` object containing the physical parameters
     :param src: None ot IShot() (not currently supported properly)
-    :param damp: Dampening coeeficents for the ABCs
     :param data: IShot() object containing the acquisition geometry and field data
     :param: dmin : square slowness perturbation
     :param: recin : receiver data for the adjoint source
     :param: time_order: Time discretization order
     :param: spc_order: Space discretization order
     """
-    def __init__(self, model, src, damp, data, dmin, time_order=2, spc_order=6, **kwargs):
+    def __init__(self, model, src, data, dmin, time_order=2, spc_order=6, **kwargs):
         nt, nrec = data.shape
         nt, nsrc = src.shape
         u = TimeData(name="u", shape=model.shape_pml, time_dim=nt,
                      time_order=2, space_order=spc_order,
-                     save=False, dtype=damp.dtype)
+                     save=False, dtype=model.dtype)
         U = TimeData(name="U", shape=model.shape_pml, time_dim=nt,
                      time_order=2, space_order=spc_order,
-                     save=False, dtype=damp.dtype)
-        m = DenseData(name="m", shape=model.shape_pml, dtype=damp.dtype)
+                     save=False, dtype=model.dtype)
+        m = DenseData(name="m", shape=model.shape_pml, dtype=model.dtype)
         m.data[:] = model.padm()
 
-        dm = DenseData(name="dm", shape=model.shape_pml, dtype=damp.dtype)
+        dm = DenseData(name="dm", shape=model.shape_pml, dtype=model.dtype)
         dm.data[:] = model.pad(dmin)
         s, h = symbols('s h')
 
@@ -288,11 +284,11 @@ class BornOperator(Operator):
             # first_eqn = m * u.dt2 - u.laplace + damp * u.dt
             # second_eqn = m * U.dt2 - U.laplace - dm* u.dt2 + damp * U.dt
 
-        stencil1 = 1.0 / (2.0 * m + s * damp) * \
-            (4.0 * m * u + (s * damp - 2.0 * m) *
+        stencil1 = 1.0 / (2.0 * m + s * model.damp) * \
+            (4.0 * m * u + (s * model.damp - 2.0 * m) *
              u.backward + 2.0 * s ** 2 * (laplacianu + s**2 / 12 * biharmonicu))
-        stencil2 = 1.0 / (2.0 * m + s * damp) * \
-            (4.0 * m * U + (s * damp - 2.0 * m) *
+        stencil2 = 1.0 / (2.0 * m + s * model.damp) * \
+            (4.0 * m * U + (s * model.damp - 2.0 * m) *
              U.backward + 2.0 * s ** 2 * (laplacianU +
                                           s**2 / 12 * biharmonicU - dm * u.dt2))
         # Add substitutions for spacing (temporal and spatial)
@@ -301,11 +297,11 @@ class BornOperator(Operator):
         stencils = [Eq(u.forward, stencil1), Eq(U.forward, stencil2)]
 
         rec = SourceLike(name="rec", npoint=nrec, nt=nt, dt=dt, h=model.get_spacing(),
-                         coordinates=data.receiver_coords, ndim=len(damp.shape),
-                         dtype=damp.dtype, nbpml=model.nbpml)
+                         coordinates=data.receiver_coords, ndim=len(model.shape),
+                         dtype=model.dtype, nbpml=model.nbpml)
         source = SourceLike(name="src", npoint=nsrc, nt=nt, dt=dt, h=model.get_spacing(),
-                            coordinates=src.receiver_coords, ndim=len(damp.shape),
-                            dtype=damp.dtype, nbpml=model.nbpml)
+                            coordinates=src.receiver_coords, ndim=len(model.shape),
+                            dtype=model.dtype, nbpml=model.nbpml)
         source.data[:] = src.traces[:]
 
         super(BornOperator, self).__init__(nt, m.shape,

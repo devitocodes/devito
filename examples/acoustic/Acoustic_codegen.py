@@ -28,38 +28,12 @@ class Acoustic_cg(object):
         if self.t_order == 4:
             self.dt *= 1.73
 
-        # Fill the dampening field with nbp points in the absorbing layer
-        def damp_boundary(damp, nbp):
-            h = self.model.get_spacing()
-            dampcoeff = 1.5 * np.log(1.0 / 0.001) / (40 * h)
-            num_dim = len(damp.shape)
-            for i in range(nbp):
-                pos = np.abs((nbp-i+1)/float(nbp))
-                val = dampcoeff * (pos - np.sin(2*np.pi*pos)/(2*np.pi))
-                if num_dim == 2:
-                    damp[i, :] += val
-                    damp[-(i + 1), :] += val
-                    damp[:, i] += val
-                    damp[:, -(i + 1)] += val
-                else:
-                    damp[i, :, :] += val
-                    damp[-(i + 1), :, :] += val
-                    damp[:, i, :] += val
-                    damp[:, -(i + 1), :] += val
-                    damp[:, :, i] += val
-                    damp[:, :, -(i + 1)] += val
-
-        self.damp = DenseData(name="damp", shape=self.model.shape_pml,
-                              dtype=self.dtype)
-        # Initialize damp by calling the function that can precompute damping
-        damp_boundary(self.damp.data, nbpml)
-
         if auto_tuning and legacy:  # auto tuning with dummy forward operator
             nt, nrec = self.data.shape
             nsrc = self.source.shape[1]
-            ndim = len(self.damp.shape)
+            ndim = len(self.model.shape)
             h = self.model.get_spacing()
-            dtype = self.damp.dtype
+            dtype = self.model.dtype
             nbpml = self.model.nbpml
 
             # Create source symbol
@@ -78,8 +52,8 @@ class Acoustic_cg(object):
             # Create the forward wavefield
             u = TimeData(name="u", shape=self.model.shape_pml, time_dim=nt,
                          time_order=2, space_order=self.s_order, save=False,
-                         dtype=self.damp.dtype)
-            fw = ForwardOperator(self.model, u, src, rec, self.damp, self.data,
+                         dtype=dtype)
+            fw = ForwardOperator(self.model, u, src, rec, self.data,
                                  time_order=self.t_order, spc_order=self.s_order,
                                  profile=True, save=False, dse=dse, compiler=compiler)
             self.at = AutoTuner(fw)
@@ -89,9 +63,9 @@ class Acoustic_cg(object):
                 dse='advanced', dle='advanced', compiler=None, u_ini=None, legacy=True):
         nt, nrec = self.data.shape
         nsrc = self.source.shape[1]
-        ndim = len(self.damp.shape)
+        ndim = len(self.model.shape)
         h = self.model.get_spacing()
-        dtype = self.damp.dtype
+        dtype = self.model.dtype
         nbpml = self.model.nbpml
 
         # Create source symbol
@@ -113,13 +87,13 @@ class Acoustic_cg(object):
         # Create the forward wavefield
         u = TimeData(name="u", shape=self.model.shape_pml, time_dim=nt,
                      time_order=2, space_order=self.s_order, save=save,
-                     dtype=self.damp.dtype)
+                     dtype=self.model.dtype)
         u.pad_time = save
         if u_ini is not None:
             u.data[0:3, :] = u_ini[:]
 
         # Execute operator and return wavefield and receiver data
-        fw = ForwardOperator(self.model, u, src, rec, self.damp, self.data,
+        fw = ForwardOperator(self.model, u, src, rec, self.data,
                              time_order=self.t_order, spc_order=self.s_order,
                              save=save, cache_blocking=cache_blocking, dse=dse,
                              dle=dle, compiler=compiler, profile=True, u_ini=u_ini,
@@ -134,22 +108,22 @@ class Acoustic_cg(object):
             return rec.data, u, summary.gflopss, summary.oi, summary.timings
 
     def Adjoint(self, rec, cache_blocking=None):
-        adj = AdjointOperator(self.model, self.damp, self.data, self.source, rec,
+        adj = AdjointOperator(self.model, self.data, self.source, rec,
                               time_order=self.t_order, spc_order=self.s_order,
                               cache_blocking=cache_blocking)
         v = adj.apply()[0]
         return v.data
 
     def Gradient(self, rec, u, cache_blocking=None):
-        grad_op = GradientOperator(self.model, self.damp, self.data, rec, u,
+        grad_op = GradientOperator(self.model, self.data, rec, u,
                                    time_order=self.t_order, spc_order=self.s_order,
                                    cache_blocking=cache_blocking)
         grad = grad_op.apply()[0]
         return grad.data
 
     def Born(self, dm, cache_blocking=None):
-        born_op = BornOperator(self.model, self.source, self.damp, self.data, dm,
-                               time_order=self.t_order, spc_order=self.s_order,
+        born_op = BornOperator(self.model, self.source, self.data,
+                               dm, time_order=self.t_order, spc_order=self.s_order,
                                cache_blocking=cache_blocking)
         rec = born_op.apply()[0]
         return rec.data

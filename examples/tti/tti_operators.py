@@ -7,7 +7,7 @@ from devito.operator import Operator
 from devito.stencilkernel import StencilKernel
 
 
-def ForwardOperator(model, u, v, src, rec, damp, data, time_order=2,
+def ForwardOperator(model, u, v, src, rec, data, time_order=2,
                     spc_order=4, save=False, u_ini=None, legacy=True,
                     **kwargs):
     """
@@ -15,7 +15,6 @@ def ForwardOperator(model, u, v, src, rec, damp, data, time_order=2,
 
     :param model: :class:`Model` object containing the physical parameters
     :param src: None ot IShot() (not currently supported properly)
-    :param damp: Dampening coeeficents for the ABCs
     :param data: IShot() object containing the acquisition geometry and field data
     :param: time_order: Time discretization order
     :param: spc_order: Space discretization order
@@ -26,14 +25,14 @@ def ForwardOperator(model, u, v, src, rec, damp, data, time_order=2,
     dt = model.critical_dt
 
     m = DenseData(name="m", shape=model.shape_pml,
-                  dtype=damp.dtype, space_order=spc_order)
+                  dtype=model.dtype, space_order=spc_order)
     m.data[:] = model.padm()
 
-    parm = [m, damp, u, v]
+    parm = [m, model.damp, u, v]
 
     if model.epsilon is not None:
         epsilon = DenseData(name="epsilon", shape=model.shape_pml,
-                            dtype=damp.dtype, space_order=spc_order)
+                            dtype=model.dtype, space_order=spc_order)
         epsilon.data[:] = model.pad(model.epsilon)
         parm += [epsilon]
     else:
@@ -41,7 +40,7 @@ def ForwardOperator(model, u, v, src, rec, damp, data, time_order=2,
 
     if model.delta is not None:
         delta = DenseData(name="delta", shape=model.shape_pml,
-                          dtype=damp.dtype, space_order=spc_order)
+                          dtype=model.dtype, space_order=spc_order)
         delta.data[:] = model.pad(model.delta)
         parm += [delta]
     else:
@@ -49,7 +48,7 @@ def ForwardOperator(model, u, v, src, rec, damp, data, time_order=2,
 
     if model.theta is not None:
         theta = DenseData(name="theta", shape=model.shape_pml,
-                          dtype=damp.dtype, space_order=spc_order)
+                          dtype=model.dtype, space_order=spc_order)
         theta.data[:] = model.pad(model.theta)
         parm += [theta]
     else:
@@ -57,7 +56,7 @@ def ForwardOperator(model, u, v, src, rec, damp, data, time_order=2,
 
     if model.phi is not None:
         phi = DenseData(name="phi", shape=model.shape_pml,
-                        dtype=damp.dtype, space_order=spc_order)
+                        dtype=model.dtype, space_order=spc_order)
         phi.data[:] = model.pad(model.phi)
         parm += [phi]
     else:
@@ -141,11 +140,11 @@ def ForwardOperator(model, u, v, src, rec, damp, data, time_order=2,
         Hp = (.5 * Gxx1 + .5 * Gxx2)
         Hzr = (.5 * Gzz1 + .5 * Gzz2)
 
-    stencilp = 1.0 / (2.0 * m + s * damp) * \
-        (4.0 * m * u + (s * damp - 2.0 * m) *
+    stencilp = 1.0 / (2.0 * m + s * model.damp) * \
+        (4.0 * m * u + (s * model.damp - 2.0 * m) *
          u.backward + 2.0 * s**2 * (epsilon * Hp + delta * Hzr))
-    stencilr = 1.0 / (2.0 * m + s * damp) * \
-        (4.0 * m * v + (s * damp - 2.0 * m) *
+    stencilr = 1.0 / (2.0 * m + s * model.damp) * \
+        (4.0 * m * v + (s * model.damp - 2.0 * m) *
          v.backward + 2.0 * s**2 * (delta * Hp + Hzr))
 
     # Add substitutions for spacing (temporal and spatial)

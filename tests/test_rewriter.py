@@ -80,10 +80,10 @@ def tti_operator(dse=False):
                     space_order=4, tn=250.0)
     nt, nrec = problem.data.shape
     nsrc = problem.source.shape[1]
-    ndim = len(problem.damp.shape)
+    ndim = len(problem.model.shape)
     dt = problem.dt
     h = problem.model.get_spacing()
-    dtype = problem.damp.dtype
+    dtype = problem.model.dtype
     nbpml = problem.model.nbpml
 
     u = TimeData(name="u", shape=problem.model.shape_pml,
@@ -104,7 +104,7 @@ def tti_operator(dse=False):
                      dt=dt, h=h, ndim=ndim, nbpml=nbpml, dtype=dtype,
                      coordinates=problem.data.receiver_coords)
 
-    handle = ForwardOperator(problem.model, u, v, src, rec, problem.damp,
+    handle = ForwardOperator(problem.model, u, v, src, rec,
                              problem.data, time_order=problem.t_order,
                              spc_order=problem.s_order, save=False,
                              cache_blocking=None, dse=dse)
