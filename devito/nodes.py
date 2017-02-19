@@ -179,6 +179,16 @@ class Expression(Node):
         return as_symbol(self.stencil.lhs)
 
     @property
+    def output_function(self):
+        """
+        Return the function written by this Expression, if any.
+        """
+        if self.is_scalar:
+            return None
+        handle = self.stencil.lhs.base
+        return handle.function if isinstance(handle, IndexedData) else None
+
+    @property
     def is_scalar(self):
         """
         Return True if a scalar expression, False otherwise.
@@ -191,13 +201,6 @@ class Expression(Node):
         Return True if a tensor expression, False otherwise.
         """
         return not self.is_scalar
-
-    @property
-    def is_temporary(self):
-        """
-        Return True if writing to a temporary object, False otherwise.
-        """
-        return not isinstance(self.stencil.lhs.base, IndexedData)
 
     @property
     def shape(self):
