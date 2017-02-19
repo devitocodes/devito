@@ -23,8 +23,7 @@ def ForwardOperator(model, u, src, rec, data, time_order=2, spc_order=6,
     """
     nt = data.shape[0]
     s, h = symbols('s h')
-    m = DenseData(name="m", shape=model.shape_pml, dtype=model.dtype)
-    m.data[:] = model.padm()
+    m, damp = model.m, model.damp
     # Derive stencil from symbolic equation
     if time_order == 2:
         laplacian = u.laplace
@@ -41,8 +40,8 @@ def ForwardOperator(model, u, src, rec, data, time_order=2, spc_order=6,
 
     # Create the stencil by hand instead of calling numpy solve for speed purposes
     # Simple linear solve of a u(t+dt) + b u(t) + c u(t-dt) = L for u(t+dt)
-    stencil = 1 / (2 * m + s * model.damp) * (
-        4 * m * u + (s * model.damp - 2 * m) * u.backward +
+    stencil = 1 / (2 * m + s * damp) * (
+        4 * m * u + (s * damp - 2 * m) * u.backward +
         2 * s**2 * (laplacian + s**2 / 12 * biharmonic))
     # Add substitutions for spacing (temporal and spatial)
     subs = {s: dt, h: model.get_spacing()}
@@ -50,9 +49,9 @@ def ForwardOperator(model, u, src, rec, data, time_order=2, spc_order=6,
     if legacy:
         kwargs.pop('dle', None)
 
-        op = Operator(nt, m.shape, stencils=Eq(u.forward, stencil), subs=subs,
+        op = Operator(nt, model.shape_pml, stencils=Eq(u.forward, stencil), subs=subs,
                       spc_border=max(spc_order / 2, 2), time_order=2, forward=True,
-                      dtype=m.dtype, **kwargs)
+                      dtype=model.dtype, **kwargs)
 
         # Insert source and receiver terms post-hoc
         op.input_params += [src, src.coordinates, rec, rec.coordinates]
@@ -107,11 +106,10 @@ class AdjointOperator(Operator):
     def __init__(self, model, data, src, recin, time_order=2, spc_order=6, **kwargs):
         nt, nrec = data.shape
         s, h = symbols('s h')
+        m, damp = model.m, model.damp
         v = TimeData(name="v", shape=model.shape_pml, time_dim=nt,
                      time_order=2, space_order=spc_order,
                      save=False, dtype=model.dtype)
-        m = DenseData(name="m", shape=model.shape_pml, dtype=model.dtype)
-        m.data[:] = model.padm()
         v.pad_time = False
         # Derive stencil from symbolic equation
         if time_order == 2:
@@ -129,8 +127,8 @@ class AdjointOperator(Operator):
 
         # Create the stencil by hand instead of calling numpy solve for speed purposes
         # Simple linear solve of a v(t+dt) + b u(t) + c v(t-dt) = L for v(t-dt)
-        stencil = 1 / (2 * m + s * model.damp) * \
-            (4 * m * v + (s * model.damp - 2 * m) *
+        stencil = 1 / (2 * m + s * damp) * \
+            (4 * m * v + (s * damp - 2 * m) *
              v.forward + 2 * s**2 * (laplacian + s ** 2 / 12.0 * biharmonic))
 
         # Add substitutions for spacing (temporal and spatial)
@@ -146,13 +144,13 @@ class AdjointOperator(Operator):
                          dtype=model.dtype, nbpml=model.nbpml)
         rec.data[:] = recin[:]
 
-        super(AdjointOperator, self).__init__(nt, m.shape,
+        super(AdjointOperator, self).__init__(nt, model.shape_pml,
                                               stencils=Eq(v.backward, stencil),
                                               subs=subs,
                                               spc_border=max(spc_order / 2, 2),
                                               time_order=2,
                                               forward=False,
-                                              dtype=m.dtype,
+                                              dtype=model.dtype,
                                               **kwargs)
 
         # Insert source and receiver terms post-hoc
@@ -179,13 +177,12 @@ class GradientOperator(Operator):
     def __init__(self, model, data, recin, u, time_order=2, spc_order=6, **kwargs):
         nt, nrec = data.shape
         s, h = symbols('s h')
+        m, damp = model.m, model.damp
         v = TimeData(name="v", shape=model.shape_pml, time_dim=nt,
                      time_order=2, space_order=spc_order,
                      save=False, dtype=model.dtype)
-        m = DenseData(name="m", shape=model.shape_pml, dtype=model.dtype)
-        m.data[:] = model.padm()
         v.pad_time = False
-        grad = DenseData(name="grad", shape=m.shape, dtype=m.dtype)
+        grad = DenseData(name="grad", shape=model.shape_pml, dtype=model.dtype)
 
         # Derive stencil from symbolic equation
         if time_order == 2:
@@ -208,8 +205,8 @@ class GradientOperator(Operator):
 
         # Create the stencil by hand instead of calling numpy solve for speed purposes
         # Simple linear solve of a v(t+dt) + b u(t) + c v(t-dt) = L for v(t-dt)
-        stencil = 1.0 / (2.0 * m + s * model.damp) * \
-            (4.0 * m * v + (s * model.damp - 2.0 * m) *
+        stencil = 1.0 / (2.0 * m + s * damp) * \
+            (4.0 * m * v + (s * damp - 2.0 * m) *
              v.forward + 2.0 * s ** 2 * (laplacian + s**2 / 12.0 * biharmonic))
 
         # Add substitutions for spacing (temporal and spatial)
@@ -223,14 +220,14 @@ class GradientOperator(Operator):
                          coordinates=data.receiver_coords, ndim=len(model.shape),
                          dtype=model.dtype, nbpml=model.nbpml)
         rec.data[:] = recin
-        super(GradientOperator, self).__init__(rec.nt - 1, m.shape,
+        super(GradientOperator, self).__init__(rec.nt - 1, model.shape_pml,
                                                stencils=stencils,
                                                subs=[subs, subs, {}],
                                                spc_border=max(spc_order, 2),
                                                time_order=2,
                                                forward=False,
-                                               dtype=m.dtype,
-                                               input_params=[m, v, model.damp, u, grad],
+                                               dtype=model.dtype,
+                                               input_params=[m, v, damp, u, grad],
                                                **kwargs)
         # Insert receiver term post-hoc
         self.input_params += [rec, rec.coordinates]
@@ -255,14 +252,13 @@ class BornOperator(Operator):
     def __init__(self, model, src, data, dmin, time_order=2, spc_order=6, **kwargs):
         nt, nrec = data.shape
         nt, nsrc = src.shape
+        m, damp = model.m, model.damp
         u = TimeData(name="u", shape=model.shape_pml, time_dim=nt,
                      time_order=2, space_order=spc_order,
                      save=False, dtype=model.dtype)
         U = TimeData(name="U", shape=model.shape_pml, time_dim=nt,
                      time_order=2, space_order=spc_order,
                      save=False, dtype=model.dtype)
-        m = DenseData(name="m", shape=model.shape_pml, dtype=model.dtype)
-        m.data[:] = model.padm()
 
         dm = DenseData(name="dm", shape=model.shape_pml, dtype=model.dtype)
         dm.data[:] = model.pad(dmin)
@@ -284,11 +280,11 @@ class BornOperator(Operator):
             # first_eqn = m * u.dt2 - u.laplace + damp * u.dt
             # second_eqn = m * U.dt2 - U.laplace - dm* u.dt2 + damp * U.dt
 
-        stencil1 = 1.0 / (2.0 * m + s * model.damp) * \
-            (4.0 * m * u + (s * model.damp - 2.0 * m) *
+        stencil1 = 1.0 / (2.0 * m + s * damp) * \
+            (4.0 * m * u + (s * damp - 2.0 * m) *
              u.backward + 2.0 * s ** 2 * (laplacianu + s**2 / 12 * biharmonicu))
-        stencil2 = 1.0 / (2.0 * m + s * model.damp) * \
-            (4.0 * m * U + (s * model.damp - 2.0 * m) *
+        stencil2 = 1.0 / (2.0 * m + s * damp) * \
+            (4.0 * m * U + (s * damp - 2.0 * m) *
              U.backward + 2.0 * s ** 2 * (laplacianU +
                                           s**2 / 12 * biharmonicU - dm * u.dt2))
         # Add substitutions for spacing (temporal and spatial)
@@ -304,13 +300,13 @@ class BornOperator(Operator):
                             dtype=model.dtype, nbpml=model.nbpml)
         source.data[:] = src.traces[:]
 
-        super(BornOperator, self).__init__(nt, m.shape,
+        super(BornOperator, self).__init__(nt, model.shape_pml,
                                            stencils=stencils,
                                            subs=[subs, subs],
                                            spc_border=max(spc_order, 2),
                                            time_order=2,
                                            forward=True,
-                                           dtype=m.dtype,
+                                           dtype=model.dtype,
                                            **kwargs)
 
         # Insert source and receiver terms post-hoc

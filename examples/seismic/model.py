@@ -58,7 +58,11 @@ class Model(object):
         self.nbpml = nbpml
         self.dtype = dtype
 
-        # Create damping field as symbol `damp`
+        # Create square slowness of the wave as symbol `m`
+        self.m = DenseData(name="m", shape=self.shape_pml, dtype=self.dtype)
+        self.m.data[:] = self.pad(1 / (self.vp * self.vp))
+
+        # Create dampening field as symbol `damp`
         self.damp = DenseData(name="damp", shape=self.shape_pml,
                               dtype=self.dtype)
         damp_boundary(self.damp.data, nbpml, spacing=self.get_spacing())
@@ -104,11 +108,6 @@ class Model(object):
     def get_spacing(self):
         """Return the grid size"""
         return self.spacing[0]
-
-    def padm(self):
-        """Padding function extending self.vp by `self.nbpml` in every direction
-        for the absorbing boundary conditions"""
-        return self.pad(1 / (self.vp * self.vp))
 
     def pad(self, m):
         """Padding function extending m by `self.nbpml` in every direction
