@@ -161,6 +161,10 @@ class TensorFunction(SymbolicFunction):
             self.indices = kwargs.get('dimensions')
             self.dtype = kwargs.get('dtype', np.float32)
 
+    @classmethod
+    def _indices(cls, **kwargs):
+        return kwargs.get('dimensions')
+
 
 class SymbolicData(AbstractSymbol):
     """A symbolic object associated with data."""
@@ -169,7 +173,7 @@ class SymbolicData(AbstractSymbol):
 
 
 class DenseData(SymbolicData):
-    """Data object for spatially varying data acting as a :class:`SymbolicFunction`.
+    """Data object for spatially varying data acting as a :class:`SymbolicData`.
 
     :param name: Name of the symbol
     :param dtype: Data type of the scalar
@@ -206,7 +210,6 @@ class DenseData(SymbolicData):
     @classmethod
     def _indices(cls, **kwargs):
         """Return the default dimension indices for a given data shape
-
 
         :param dimensions: Optional, list of :class:`Dimension`
                            objects that defines data layout.
