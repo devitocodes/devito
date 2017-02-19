@@ -349,10 +349,8 @@ class StencilKernel(Function):
         processed = []
         for cluster in dse_state.clusters:
             # Build declarations or assignments
-            body = []
-            for k, v in cluster.items():
-                dtype = np.int32 if cluster.is_index(k) else dtype
-                body.append(Expression(v, dtype))
+            body = [Expression(v, np.int32 if cluster.is_index(k) else dtype)
+                    for k, v in cluster.items()]
             offsets = SetOrderedDict.union(*[i.index_offsets for i in body])
 
             # Filter out aliasing due to buffered dimensions
