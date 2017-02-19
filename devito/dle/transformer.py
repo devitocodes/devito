@@ -437,7 +437,7 @@ class Rewriter(object):
                 handle = functions[0]
                 dim = handle.indices[-1]
                 size = handle.shape[-1]
-                if any(dim != i.indices[-1] or size != i.shape[-1] for i in functions):
+                if any(dim != i.indices[-1] for i in functions):
                     # Dangerous for correctness
                     continue
 
