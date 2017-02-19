@@ -23,12 +23,8 @@ def ForwardOperator(model, u, v, src, rec, data, time_order=2,
     nt, nrec = data.shape
     nt, nsrc = src.shape
     dt = model.critical_dt
-
-    m = DenseData(name="m", shape=model.shape_pml,
-                  dtype=model.dtype, space_order=spc_order)
-    m.data[:] = model.padm()
-
-    parm = [m, model.damp, u, v]
+    m, damp = model.m, model.damp
+    parm = [m, damp, u, v]
 
     if model.epsilon is not None:
         epsilon = DenseData(name="epsilon", shape=model.shape_pml,
@@ -68,7 +64,7 @@ def ForwardOperator(model, u, v, src, rec, data, time_order=2,
 
     ang0 = cos(theta)
     ang1 = sin(theta)
-    if len(m.shape) == 3:
+    if len(model.shape) == 3:
         ang2 = cos(phi)
         ang3 = sin(phi)
 
@@ -140,11 +136,11 @@ def ForwardOperator(model, u, v, src, rec, data, time_order=2,
         Hp = (.5 * Gxx1 + .5 * Gxx2)
         Hzr = (.5 * Gzz1 + .5 * Gzz2)
 
-    stencilp = 1.0 / (2.0 * m + s * model.damp) * \
-        (4.0 * m * u + (s * model.damp - 2.0 * m) *
+    stencilp = 1.0 / (2.0 * m + s * damp) * \
+        (4.0 * m * u + (s * damp - 2.0 * m) *
          u.backward + 2.0 * s**2 * (epsilon * Hp + delta * Hzr))
-    stencilr = 1.0 / (2.0 * m + s * model.damp) * \
-        (4.0 * m * v + (s * model.damp - 2.0 * m) *
+    stencilr = 1.0 / (2.0 * m + s * damp) * \
+        (4.0 * m * v + (s * damp - 2.0 * m) *
          v.backward + 2.0 * s**2 * (delta * Hp + Hzr))
 
     # Add substitutions for spacing (temporal and spatial)
@@ -156,7 +152,7 @@ def ForwardOperator(model, u, v, src, rec, data, time_order=2,
     if legacy:
         kwargs.pop('dle', None)
 
-        op = Operator(nt, m.shape, stencils=stencils, subs=[subs, subs],
+        op = Operator(nt, model.shape_pml, stencils=stencils, subs=[subs, subs],
                       spc_border=spc_order, time_order=time_order,
                       forward=True, dtype=m.dtype, input_params=parm,
                       **kwargs)
