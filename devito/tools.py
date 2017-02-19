@@ -36,6 +36,11 @@ def grouper(iterable, n):
     return ([e for e in t if e != None] for t in itertools.izip_longest(*args))
 
 
+def roundm(x, y):
+    """Return x rounded up to the closest multiple of y."""
+    return x if x % y == 0 else x + y - x % y
+
+
 def flatten(l):
     """Flatten a hierarchy of nested lists into a plain list."""
     newlist = []
