@@ -5,20 +5,21 @@ from itertools import combinations
 from time import time
 
 import cgen as c
+import cpuinfo
 import numpy as np
 import psutil
 
 from devito.dimension import Dimension
-from devito.dle import compose_nodes, retrieve_iteration_tree
+from devito.dle import compose_nodes, copy_arrays, retrieve_iteration_tree
 from devito.dse import (as_symbol, estimate_cost, promote_scalar_expressions,
-                        terminals)
-from devito.interfaces import ScalarFunction
+                        retrieve_and_check_dtype, terminals)
+from devito.interfaces import ScalarFunction, TensorFunction
 from devito.logger import dle, dle_warning
 from devito.nodes import (Block, Denormals, Element, Expression,
                           Function, Iteration, List)
-from devito.tools import as_tuple, flatten, grouper
+from devito.tools import as_tuple, flatten, grouper, roundm
 from devito.visitors import (FindNodeType, FindSections, FindSymbols,
-                             IsPerfectIteration, Transformer)
+                             IsPerfectIteration, SubstituteExpression, Transformer)
 
 
 def transform(node, mode='basic', compiler=None):
@@ -51,6 +52,9 @@ def transform(node, mode='basic', compiler=None):
                     * 'fission': Apply loop fission -- [T]
                     * 'blocking': Apply loop blocking -- [T]
                     * 'split': Identify and split elemental functions -- [T]
+                    * 'padding': Introduce "shadow" arrays, padded to the nearest
+                                 multiple of the vector length, to maximize data
+                                 alignment -- [T]
                     * 'simd': Add pragmas to trigger compiler auto-vectorization -- [T]
                     * 'ntstores': Add pragmas to issue nontemporal stores -- [sT]
 
@@ -101,8 +105,8 @@ def transform(node, mode='basic', compiler=None):
     mode = set(mode)
     if params.pop('openmp', False):
         mode |= {'openmp'}
-    if mode.isdisjoint({'noop', 'basic', 'advanced', 'speculative',
-                        'blocking', 'split', 'simd', 'openmp', 'ntstores'}):
+    if mode.isdisjoint({'noop', 'basic', 'advanced', 'speculative', 'fission',
+                        'padding', 'blocking', 'split', 'simd', 'openmp', 'ntstores'}):
         dle_warning("Unknown transformer mode(s) %s" % str(mode))
         return State(node)
     else:
@@ -207,6 +211,7 @@ class Rewriter(object):
         '_loop_fission': ('fission', 'split', 'advanced', 'speculative'),
         '_create_elemental_functions': ('split', 'basic', 'advanced', 'speculative'),
         '_loop_blocking': ('blocking', 'advanced', 'speculative'),
+        '_padding': ('padding', 'advanced', 'speculative'),
         '_simdize': ('simd', 'basic', 'advanced', 'speculative'),
         '_nontemporal_stores': ('ntstores', 'speculative'),
         '_ompize': ('openmp',)
@@ -236,6 +241,7 @@ class Rewriter(object):
 
         self._avoid_denormals(state, mode=mode)
         self._loop_fission(state, mode=mode)
+        self._padding(state, mode=mode)
         self._create_elemental_functions(state, mode=mode)
         self._loop_blocking(state, mode=mode)
         self._simdize(state, mode=mode)
@@ -325,6 +331,63 @@ class Rewriter(object):
         """
         return {'nodes': (Denormals(),) + state.nodes,
                 'includes': ('xmmintrin.h', 'pmmintrin.h')}
+
+    @dle_transformation
+    def _padding(self, state, **kwargs):
+        """
+        Introduce temporary buffers padded to the nearest multiple of the vector
+        length, to maximize data alignment. At the bottom of the kernel, the
+        values in the padded temporaries will be copied back into the input arrays.
+        """
+
+        mapper = OrderedDict()
+        for node in state.nodes:
+            # Assess feasibility of the transformation
+            handle = FindSymbols('symbolics-writes').visit(node)
+            if not handle:
+                continue
+
+            shape = max([i.shape for i in handle], key=len)
+            if not shape:
+                continue
+
+            candidates = [i for i in handle if i.shape[-1] == shape[-1]]
+            if not candidates:
+                continue
+
+            # Retrieve the maximum number of items in a SIMD register when processing
+            # the expressions in /node/
+            exprs = FindNodeType(Expression).visit(node)
+            exprs = [e for e in exprs if e.output_function in candidates]
+            assert len(exprs) > 0
+            dtype = exprs[0].dtype
+            assert all(e.dtype == dtype for e in exprs)
+            try:
+                simd_items = get_simd_items(dtype)
+            except KeyError:
+                # Fallback to 16 (maximum expectable padding, for AVX512 registers)
+                simd_items = simdinfo['avx512'] / np.dtype(dtype).itemsize
+
+            shapes = {k: k.shape[:-1] + (roundm(k.shape[-1], 8),) for k in candidates}
+            mapper.update(OrderedDict([(k.indexed,
+                                        TensorFunction(name='p%s' % k.name,
+                                                       shape=shapes[k],
+                                                       dimensions=k.indices).indexed)
+                          for k in candidates]))
+
+        # Substitute original arrays with padded buffers
+        processed = [SubstituteExpression(mapper).visit(n) for n in state.nodes]
+
+        # Build Iteration trees for initialization and copy-back of padded arrays
+        mapper = OrderedDict([(k, v) for k, v in mapper.items()
+                              if k.function.is_SymbolicData])
+        init = copy_arrays(OrderedDict([(v, k) for k, v in mapper.items()]))
+        copyback = copy_arrays(mapper)
+
+        processed = init + as_tuple(processed) + copyback
+
+        return {'nodes': processed}
+
 
     @dle_transformation
     def _create_elemental_functions(self, state, **kwargs):
@@ -641,21 +704,28 @@ class Rewriter(object):
         Add compiler-specific or, if not available, OpenMP pragmas to the
         Iteration/Expression tree to emit SIMD-friendly code.
         """
-        if self.compiler:
-            key = self.compiler.__class__.__name__
-            complang = complang_ALL.get(key, {})
-        else:
-            complang = {}
-
-        pragmas = [complang.get('ignore-deps', omplang['simd-for'])]
+        ignore_deps = as_tuple(self._compiler_decoration('ignore-deps'))
 
         def decorate(nodes):
             processed = []
             for node in nodes:
                 mapper = {}
                 for tree in retrieve_iteration_tree(node):
-                    mapper.update({i: List(pragmas, i) for i in tree
-                                   if 'vector-dim' in i.properties})
+                    vector_iterations = [i for i in tree if 'vector-dim' in i.properties]
+                    for i in vector_iterations:
+                        handle = FindSymbols('symbolics').visit(i)
+                        try:
+                            aligned = [j for j in handle
+                                       if j.shape[-1] % get_simd_items(j.dtype) == 0]
+                        except KeyError:
+                            aligned = []
+                        if aligned:
+                            simd = omplang['simd-for-aligned']
+                            simd = simd(','.join([j.name for j in aligned]),
+                                        simdinfo[get_simd_flag()])
+                        else:
+                            simd = omplang['simd-for']
+                        mapper[i] = List(ignore_deps + as_tuple(simd), i)
                 processed.append(Transformer(mapper).visit(node))
             return processed
 
@@ -725,7 +795,8 @@ omplang = {
     'collapse2': c.Pragma('omp for collapse(2) schedule(static)'),
     'par-region': c.Pragma('omp parallel'),
     'par-for': c.Pragma('omp parallel for schedule(static)'),
-    'simd-for': c.Pragma('omp simd')
+    'simd-for': c.Pragma('omp simd'),
+    'simd-for-aligned': lambda i, j: c.Pragma('omp simd aligned(%s:%d)' % (i, j))
 }
 
 """
@@ -738,3 +809,32 @@ complang_ALL = {
                       'noinline': c.Pragma('noinline')}
 }
 complang_ALL['IntelKNLCompiler'] = complang_ALL['IntelCompiler']
+
+"""
+SIMD generic info
+"""
+simdinfo = {
+    # Sizes in bytes of a vector register
+    'sse': 16, 'see4_2': 16,
+    'avx': 32, 'avx2': 32,
+    'avx512': 64
+}
+
+
+def get_simd_flag():
+    """Retrieve the best SIMD flag on the current architecture."""
+    ordered_known = ('sse', 'sse4_2', 'avx', 'avx2', 'avx512')
+    flags = cpuinfo.get_cpu_info().get('flags')
+    if not flags:
+        return None
+    for i in reversed(ordered_known):
+        if i in flags:
+            return i
+
+
+def get_simd_items(dtype):
+    """Determine the number of items of type ``dtype`` that can fit in a SIMD
+    register on the current architecture."""
+
+    simd_size = simdinfo[get_simd_flag()]
+    return simd_size / np.dtype(dtype).itemsize
