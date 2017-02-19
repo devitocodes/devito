@@ -264,22 +264,24 @@ class FindSymbols(Visitor):
 
     """Find symbols in an Iteration/Expression tree.
 
-    :param mode: Drive the search for symbols. Accepted values are: ::
+    :param mode: Drive the search. Accepted values are: ::
 
-        * 'with-data' (default): all :class:`SymbolicData` and :class:`IndexedData`
-          instances are collected.
-        * 'free-symbols': all free symbols appearing in :class:`Expression` are
-          collected.
+        * 'kernel-data' (default): Collect :class:`SymbolicData` objects.
+        * 'kernel-output': Like 'kernel-data', but filter out read-only symbols.
+        * 'symbolics': Collect :class:`AbstractSymbol` objects.
+        * 'free-symbols': Collect all free symbols.
+        * 'dimensions': Collect :class:`Dimension` objects only.
     """
 
     rules = {
-        'symbolics': lambda e: e.functions,
         'kernel-data': lambda e: [i for i in e.functions if i.is_SymbolicData],
+        'kernel-output': lambda e: as_tuple(e.output_function),
+        'symbolics': lambda e: e.functions,
         'free-symbols': lambda e: e.stencil.free_symbols,
         'dimensions': lambda e: e.dimensions,
     }
 
-    def __init__(self, mode='with-data'):
+    def __init__(self, mode='kernel-data'):
         super(FindSymbols, self).__init__()
         self.rule = self.rules[mode]
 
