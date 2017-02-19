@@ -267,16 +267,16 @@ class FindSymbols(Visitor):
     :param mode: Drive the search. Accepted values are: ::
 
         * 'kernel-data' (default): Collect :class:`SymbolicData` objects.
-        * 'kernel-output': Like 'kernel-data', but filter out read-only symbols.
         * 'symbolics': Collect :class:`AbstractSymbol` objects.
+        * 'symbolics-writes': Collect written :class:`AbstractSymbol` objects.
         * 'free-symbols': Collect all free symbols.
         * 'dimensions': Collect :class:`Dimension` objects only.
     """
 
     rules = {
         'kernel-data': lambda e: [i for i in e.functions if i.is_SymbolicData],
-        'kernel-output': lambda e: as_tuple(e.output_function),
         'symbolics': lambda e: e.functions,
+        'symbolics-writes': lambda e: as_tuple(e.output_function),
         'free-symbols': lambda e: e.stencil.free_symbols,
         'dimensions': lambda e: e.dimensions,
     }
@@ -583,10 +583,10 @@ class Declarator(Transformer):
         elif o.output in self.known:
             return mapper, o._rebuild(**o.args)
         else:
-            if o not in mapper:
-                mapper[o] = self.Declaration(self._declare(o),
-                                             self._alloc(o),
-                                             self._free(o))
+            if o.output not in mapper:
+                mapper[o.output] = self.Declaration(self._declare(o),
+                                                    self._alloc(o),
+                                                    self._free(o))
             return mapper, o._rebuild(**o.args)
 
 
