@@ -254,6 +254,7 @@ class FindSections(Visitor):
         return ret
 
     visit_Element = visit_Expression
+    visit_FunCall = visit_Expression
 
 
 class FindSymbols(Visitor):
@@ -305,9 +306,10 @@ class FindNodeType(Visitor):
 
     """Find all :class:`Node` instances of a given type."""
 
-    def __init__(self, match):
+    def __init__(self, match, exact=False):
         super(FindNodeType, self).__init__()
         self.match = match
+        self.exact = exact
 
     def visit_object(self, o, ret=None):
         return ret
@@ -320,7 +322,9 @@ class FindNodeType(Visitor):
     def visit_Node(self, o, ret=None):
         if ret is None:
             ret = self.default_retval()
-        if isinstance(o, self.match):
+        if not self.exact and isinstance(o, self.match):
+            ret.append(o)
+        elif type(o) == self.match:
             ret.append(o)
         for i in o.children:
             ret = self.visit(i, ret=ret)
