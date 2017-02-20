@@ -25,6 +25,7 @@ class Node(object):
     is_Iteration = False
     is_Expression = False
     is_Function = False
+    is_FunCall = False
     is_List = False
     is_Element = False
 
@@ -128,6 +129,24 @@ class Element(Node):
     @property
     def ccode(self):
         return self.element
+
+
+class FunCall(Node):
+
+    """A node representing a function call."""
+
+    is_FunCall = True
+
+    def __init__(self, name, params):
+        self.name = name
+        self.params = params
+
+    def __repr__(self):
+        return "FunCall::\n\t%s(...)" % self.name
+
+    @property
+    def ccode(self):
+        return c.Statement('%s(%s)' % (self.name, ','.join(self.params)))
 
 
 class Expression(Node):

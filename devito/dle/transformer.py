@@ -15,7 +15,7 @@ from devito.dse import (as_symbol, estimate_cost, promote_scalar_expressions,
                         retrieve_and_check_dtype, terminals)
 from devito.interfaces import ScalarFunction, TensorFunction
 from devito.logger import dle, dle_warning
-from devito.nodes import (Block, Denormals, Element, Expression,
+from devito.nodes import (Block, Denormals, Element, Expression, FunCall,
                           Function, Iteration, List)
 from devito.tools import as_tuple, flatten, grouper, roundm
 from devito.visitors import (FindNodeType, FindSections, FindSymbols,
@@ -452,8 +452,7 @@ class Rewriter(object):
 
                 # Track info to transform the main tree
                 call, parameters = zip(*args)
-                call = '%s(%s)' % (name, ','.join(call))
-                mapper[root] = List(header=noinline, body=Element(c.Statement(call)))
+                mapper[root] = List(header=noinline, body=FunCall(name, call))
 
                 # Produce the new function
                 functions.append(Function(name, root, 'void', parameters, ('static',)))
