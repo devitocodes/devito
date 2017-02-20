@@ -119,7 +119,7 @@ class Element(Node):
 
     def __init__(self, element):
         assert isinstance(element, (c.Comment, c.Statement, c.Value,
-                                    c.Pragma, c.Line))
+                                    c.Pragma, c.Line, c.Assign))
         self.element = element
 
     def __repr__(self):
