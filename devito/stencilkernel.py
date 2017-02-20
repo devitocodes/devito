@@ -408,6 +408,8 @@ class StencilKernel(Function):
         mapper = {}
         blocks = FindNodeType(Block).visit(nodes)
         for i in omp_scoped:
+            if not i.is_FunCall:
+                continue
             allocs = as_tuple(lmapper.get(i.name))
             for b in blocks:
                 if i in b.body:
