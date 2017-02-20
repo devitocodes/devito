@@ -223,8 +223,8 @@ class Rewriter(object):
     thresholds = {
         'collapse': 32,  # Available physical cores
         'elemental-functions': 30,  # Operations
-        'max_fission': 15,  # Statements
-        'min_fission': 3  # Statements
+        'max_fission': 80,  # Statements
+        'min_fission': 1  # Statements
     }
 
     def __init__(self, nodes, params, compiler):
