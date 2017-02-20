@@ -366,9 +366,10 @@ class Rewriter(object):
                 simd_items = get_simd_items(dtype)
             except KeyError:
                 # Fallback to 16 (maximum expectable padding, for AVX512 registers)
-                simd_items = simdinfo['avx512'] / np.dtype(dtype).itemsize
+                simd_items = simdinfo['avx512f'] / np.dtype(dtype).itemsize
 
-            shapes = {k: k.shape[:-1] + (roundm(k.shape[-1], 8),) for k in candidates}
+            shapes = {k: k.shape[:-1] + (roundm(k.shape[-1], simd_items),)
+                      for k in candidates}
             mapper.update(OrderedDict([(k.indexed,
                                         TensorFunction(name='p%s' % k.name,
                                                        shape=shapes[k],
@@ -816,14 +817,14 @@ simdinfo = {
     # Sizes in bytes of a vector register
     'sse': 16, 'see4_2': 16,
     'avx': 32, 'avx2': 32,
-    'avx512': 64
+    'avx512f': 64
 }
 
 
 def get_simd_flag():
     """Retrieve the best SIMD flag on the current architecture."""
     if get_simd_flag.flag is None:
-        ordered_known = ('sse', 'sse4_2', 'avx', 'avx2', 'avx512')
+        ordered_known = ('sse', 'sse4_2', 'avx', 'avx2', 'avx512f')
         flags = cpuinfo.get_cpu_info().get('flags')
         if not flags:
             return None
