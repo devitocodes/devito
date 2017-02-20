@@ -501,11 +501,11 @@ class MergeOuterIterations(Transformer):
 
 class Declarator(Transformer):
 
-    Declaration = namedtuple('Declaration', 'declaration header footer')
+    Declaration = namedtuple('Declaration', 'declaration alloc dealloc in_omp_region')
 
     @classmethod
     def default_retval(cls):
-        return OrderedDict(), None
+        return OrderedDict(), [], None
 
     """
     Traverse the Iteration/Expression tree and introduce declarations for all
@@ -541,57 +541,92 @@ class Declarator(Transformer):
     :param known: Collection of symbols that need no declaration.
     """
 
+    # TODO: this visitor should be decoupled into two visitors:
+    # - One visitor to get the OpenMP scopes
+    # - The actual Declarator visitor
+
     def __init__(self, known=None):
         super(Transformer, self).__init__()
         self.known = known or {}
+        from devito.dle.transformer import omplang
+        self.omplang = omplang
 
-    def _declare(self, o):
-        declaration = "(*%s)%s"
-        declaration = declaration % (o.output, "".join("[%d]" % j for j in o.shape[1:]))
-        return c.Value(c.dtype_to_ctype(o.dtype), declaration)
+    def _declare(self, o, in_omp_region):
+        if in_omp_region:
+            # Declaration will be inplace with allocation (just for code readability)
+            return None
+        else:
+            declaration = "(*%s)%s"
+            declaration = declaration % (o.output, "".join("[%d]" % j for j in o.shape[1:]))
+            return c.Value(c.dtype_to_ctype(o.dtype), declaration)
 
-    def _alloc(self, o):
-        funcall = "posix_memalign((void**)&%s, 64, sizeof(%s%s))"
-        funcall = funcall % (o.output, c.dtype_to_ctype(o.dtype),
-                             "".join("[%d]" % j for j in o.shape))
-        return c.Statement(funcall)
+    def _alloc(self, o, in_omp_region):
+        shape = "".join("[%d]" % j for j in o.shape)
+        if in_omp_region:
+            align = "__attribute__((aligned(64)))"
+            return c.POD(c.dtype_to_ctype(o.dtype), "%s%s %s" % (o.output, shape, align))
+        else:
+            funcall = "posix_memalign((void**)&%s, 64, sizeof(%s%s))"
+            funcall = funcall % (o.output, c.dtype_to_ctype(o.dtype), shape)
+            return c.Statement(funcall)
 
-    def _free(self, o):
-        return c.Statement('free(%s)' % o.output)
+    def _free(self, o, in_omp_region):
+        return in_omp_region or c.Statement('free(%s)' % o.output)  # None => global scope
 
-    def visit_tuple(self, o, scope=None, mapper=None):
+    def _scope(self, o, in_omp_region):
+        return in_omp_region  # None => global scope
+
+    def visit_tuple(self, o, in_omp_region=False, mapper=None, omp_scoped=None):
         rebuilt = []
         for i in o:
-            mapper, handle = self.visit(i, scope=scope, mapper=mapper)
+            mapper, omp_scoped, handle = self.visit(i, in_omp_region=in_omp_region,
+                                                    mapper=mapper, omp_scoped=omp_scoped)
             rebuilt.append(handle)
-        return mapper, tuple(rebuilt)
+        return mapper, omp_scoped, tuple(rebuilt)
 
-    def visit_Node(self, o, scope=None, mapper=None):
-        mapper, rebuilt = self.visit(o.children, scope=scope, mapper=mapper)
-        return mapper, o._rebuild(*rebuilt, **o.args_frozen)
+    def visit_Node(self, o, in_omp_region=False, mapper=None, omp_scoped=None):
+        mapper, omp_scoped, rebuilt = self.visit(o.children, in_omp_region=in_omp_region,
+                                                 mapper=mapper, omp_scoped=omp_scoped)
+        return mapper, omp_scoped, o._rebuild(*rebuilt, **o.args_frozen)
 
-    def visit_Iteration(self, o, scope=None, mapper=None):
-        if scope is None:
-            scope = [o]
-        else:
-            scope.append(o)
-        mapper, rebuilt = self.visit(o.children, scope=scope, mapper=mapper)
-        scope.remove(o)
-        return mapper, o._rebuild(*rebuilt, **o.args_frozen)
+    def visit_Function(self, o, in_omp_region=False, mapper=None, omp_scoped=None):
+        omp_scoped = omp_scoped or []
+        in_omp_region = any(i for i in omp_scoped if i.is_FunCall and i.name == o.name)
+        mapper, omp_scoped, rebuilt = self.visit(o.children, in_omp_region=in_omp_region,
+                                                 mapper=mapper, omp_scoped=omp_scoped)
+        return mapper, omp_scoped, o._rebuild(*rebuilt, **o.args_frozen)
 
-    def visit_Expression(self, o, scope=None, mapper=None):
+    def visit_Block(self, o, in_omp_region=False, mapper=None, omp_scoped=None):
+        if self.omplang['par-region'] in o.header:
+            in_omp_region = True
+        mapper, omp_scoped, rebuilt = self.visit(o.children, in_omp_region=in_omp_region,
+                                                 mapper=mapper, omp_scoped=omp_scoped)
+        return mapper, omp_scoped, o._rebuild(*rebuilt, **o.args_frozen)
+
+    def visit_FunCall(self, o, in_omp_region=False, mapper=None, omp_scoped=None):
+        rebuilt = o._rebuild(**o.args)
+        if in_omp_region:
+            omp_scoped = (omp_scoped or []) + [rebuilt]
+        return mapper, omp_scoped, rebuilt
+
+    def visit_Expression(self, o, in_omp_region=False, mapper=None, omp_scoped=None):
         if mapper is None:
-            mapper, _ = self.default_retval()
+            mapper, _, _ = self.default_retval()
+
         if o.is_scalar:
-            return mapper, LocalExpression(**o.args)
+            return mapper, omp_scoped, LocalExpression(**o.args)
         elif o.output in self.known:
-            return mapper, o._rebuild(**o.args)
+            return mapper, omp_scoped, o._rebuild(**o.args)
         else:
+            rebuilt = o._rebuild(**o.args)
+            if in_omp_region:
+                omp_scoped = (omp_scoped or []) + [rebuilt]
             if o.output not in mapper:
-                mapper[o.output] = self.Declaration(self._declare(o),
-                                                    self._alloc(o),
-                                                    self._free(o))
-            return mapper, o._rebuild(**o.args)
+                mapper[o.output] = self.Declaration(self._declare(o, in_omp_region),
+                                                    self._alloc(o, in_omp_region),
+                                                    self._free(o, in_omp_region),
+                                                    self._scope(o, in_omp_region))
+            return mapper, omp_scoped, rebuilt
 
 
 def printAST(node, verbose=True):

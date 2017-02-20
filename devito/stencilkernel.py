@@ -18,7 +18,7 @@ from devito.dse import (as_symbol, estimate_cost, estimate_memory, indexify,
                         retrieve_and_check_dtype, rewrite)
 from devito.interfaces import SymbolicData
 from devito.logger import bar, error, info, warning
-from devito.nodes import Expression, Function, Iteration, List, TimedList
+from devito.nodes import Block, Expression, Function, Iteration, List, TimedList
 from devito.profiler import Profiler
 from devito.tools import (SetOrderedDict, as_tuple, filter_ordered, filter_sorted,
                           flatten, partial_order)
@@ -385,21 +385,40 @@ class StencilKernel(Function):
         """Populate the StencilKernel's body with the requried array and
         variable declarations, to generate a legal C file."""
         known = [as_symbol(i) for i in parameters]
-        mapper = OrderedDict()
+
+        # Collect required declarations from the Kernel body
+        gmapper, omp_scoped, nodes = Declarator(known).visit(dle_state.nodes)
+        known += [i for i in gmapper if i not in known]
 
         # Collect required declarations from each of the elemental functions
+        lmapper = OrderedDict()
+        gmapper = gmapper or OrderedDict()
         elemental_functions = []
         for node in dle_state.elemental_functions:
-            handle, rebuilt = Declarator(known).visit(node)
+            mapper, _, rebuilt = Declarator(known).visit(node, omp_scoped=omp_scoped)
             elemental_functions.append(rebuilt)
-            mapper.update(handle)
 
-        # Insert declarations into the body
-        handle, nodes = Declarator(known).visit(dle_state.nodes)
-        mapper.update(handle or {})
-        if mapper:
-            declarations, header, footer = zip(*mapper.values())
-            nodes = List(header=declarations + header, body=nodes, footer=footer)
+            for k, v in mapper.items():
+                if v.in_omp_region:
+                    lmapper.setdefault(node.name, []).append(v.alloc)
+                else:
+                    gmapper[k] = v
+
+        # Insert locally-scoped declarations
+        mapper = {}
+        blocks = FindNodeType(Block).visit(nodes)
+        for i in omp_scoped:
+            allocs = as_tuple(lmapper.get(i.name))
+            for b in blocks:
+                if i in b.body:
+                    mapper[b] = type(b)(allocs + b.header, b.body, b.footer)
+                    break
+        nodes = Transformer(mapper).visit(nodes)
+
+        # Insert globally-scoped declarations into the body
+        if gmapper:
+            decls, allocs, deallocs, _ = zip(*gmapper.values())
+            nodes = List(header=decls + allocs, body=nodes, footer=deallocs)
 
         return nodes, elemental_functions
 
