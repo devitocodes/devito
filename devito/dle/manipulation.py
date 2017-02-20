@@ -1,7 +1,7 @@
-import cgen as c
+from sympy import Eq
 
 from devito.codeprinter import ccode
-from devito.nodes import Element, Iteration
+from devito.nodes import Expression, Iteration
 from devito.visitors import MergeOuterIterations
 
 __all__ = ['compose_nodes', 'copy_arrays']
@@ -30,7 +30,7 @@ def copy_arrays(mapper):
         indices = k.function.indices
         for i, j in zip(k.shape, indices):
             handle.append(Iteration([], dimension=j, limits=j.symbolic_size))
-        handle.append(Element(c.Assign(ccode(k[indices]), ccode(v[indices]))))
+        handle.append(Expression(Eq(k[indices], v[indices]), dtype=k.function.dtype))
         iterations.append(compose_nodes(handle))
 
     # Maybe some Iterations are mergeable
