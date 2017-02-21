@@ -120,7 +120,7 @@ class Element(Node):
 
     def __init__(self, element):
         assert isinstance(element, (c.Comment, c.Statement, c.Value,
-                                    c.Pragma, c.Line, c.Assign))
+                                    c.Pragma, c.Line, c.Assign, c.POD))
         self.element = element
 
     def __repr__(self):
@@ -303,7 +303,7 @@ class Iteration(Node):
             # FIXME: Add dimension size as variable bound.
             # Needs further generalisation to support loop blocking.
             dim = self.dim.parent if self.dim.is_Buffered else self.dim
-            self.limits[1] = IterationBound("%s_size" % dim.name, self.dim)
+            self.limits[1] = dim.size or dim.symbolic_size
 
         # Record offsets to later adjust loop limits accordingly
         self.offsets = [0, 0]
@@ -366,7 +366,24 @@ class Iteration(Node):
     def is_Closed(self):
         return not self.is_Open
 
-    def _bounds(self, start=None, finish=None):
+    @property
+    def bounds_symbolic(self):
+        """Return a 2-tuple representing the symbolic bounds of the object."""
+        start = self.limits[0]
+        end = self.limits[1]
+        try:
+            start = as_symbol(start)
+        except TypeError:
+            # Already a symbolic expression
+            pass
+        try:
+            end = as_symbol(end)
+        except TypeError:
+            # Already a symbolic expression
+            pass
+        return (start - as_symbol(self.offsets[0]), end - as_symbol(self.offsets[1]))
+
+    def bounds(self, start=None, finish=None):
         """Return the start and end points of the Iteration if the limits are
         available (either statically known or provided through ``start``/
         ``finish``). ``None`` is used as a placeholder in the returned 2-tuple
@@ -386,7 +403,7 @@ class Iteration(Node):
     def extent(self, start=None, finish=None):
         """Return the number of iterations executed if the limits are known,
         ``None`` otherwise."""
-        start, finish = self._bounds(start, finish)
+        start, finish = self.bounds(start, finish)
         try:
             return finish - start
         except TypeError:
@@ -395,12 +412,12 @@ class Iteration(Node):
     def start(self, start=None):
         """Return the start point of the Iteration if the lower limit is known,
         ``None`` otherwise."""
-        return self._bounds(start)[0]
+        return self.bounds(start)[0]
 
     def end(self, finish=None):
         """Return the end point of the Iteration if the upper limit is known,
         ``None`` otherwise."""
-        return self._bounds(finish=finish)[1]
+        return self.bounds(finish=finish)[1]
 
     @property
     def children(self):
@@ -547,30 +564,3 @@ class LocalExpression(Expression):
         ctype = c.dtype_to_ctype(self.dtype)
         return c.Initializer(c.Value(ctype, ccode(self.stencil.lhs)),
                              ccode(self.stencil.rhs))
-
-
-class IterationBound(object):
-    """Utility class to encapsulate variable loop bounds and link them
-    back to the respective :class:`Dimension` object.
-
-    :param name: Variable name for the open loop bound variable.
-    :param dim: The corresponding :class:`Dimension` object.
-    :param expr: An expression to calculate the loop limit, in case this does
-                 not coincide with the open loop bound variable itself.
-    """
-
-    def __init__(self, name, dim, expr=None):
-        self.name = name
-        self.dim = dim
-        self.expr = expr
-
-    def __repr__(self):
-        return repr(self.expr).replace(' ', '') if self.expr else self.name
-
-    def __eq__(self, bound):
-        return self.name == bound.name and self.dim == bound.dim
-
-    @property
-    def ccode(self):
-        """C code for the variable declaration within a kernel signature"""
-        return c.Value('const int', self.name)
