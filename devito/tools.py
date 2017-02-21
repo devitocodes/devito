@@ -41,6 +41,15 @@ def roundm(x, y):
     return x if x % y == 0 else x + y - x % y
 
 
+def invert(mapper):
+    """Invert a dict of lists preserving the order."""
+    inverse = OrderedDict()
+    for k, v in mapper.items():
+        for i in v:
+            inverse[i] = k
+    return inverse
+
+
 def flatten(l):
     """Flatten a hierarchy of nested lists into a plain list."""
     newlist = []
