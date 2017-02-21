@@ -18,7 +18,7 @@ from devito.logger import dle, dle_warning
 from devito.nodes import (Block, Denormals, Element, Expression, FunCall,
                           Function, Iteration, List)
 from devito.tools import as_tuple, flatten, grouper, roundm
-from devito.visitors import (FindNodeType, FindSections, FindSymbols,
+from devito.visitors import (FindNodes, FindSections, FindSymbols,
                              IsPerfectIteration, SubstituteExpression, Transformer)
 
 
@@ -357,7 +357,7 @@ class Rewriter(object):
 
             # Retrieve the maximum number of items in a SIMD register when processing
             # the expressions in /node/
-            exprs = FindNodeType(Expression).visit(node)
+            exprs = FindNodes(Expression).visit(node)
             exprs = [e for e in exprs if e.output_function in candidates]
             assert len(exprs) > 0
             dtype = exprs[0].dtype
@@ -415,7 +415,7 @@ class Rewriter(object):
 
                 candidate = rule(tree)
                 root = candidate[0]
-                expressions = FindNodeType(Expression).visit(candidate)
+                expressions = FindNodes(Expression).visit(candidate)
 
                 # Heuristic: create elemental functions only if more than
                 # self.thresholds['elemental_functions'] operations are present
@@ -667,7 +667,7 @@ class Rewriter(object):
         for node in state.nodes:
 
             # Reset denormals flag each time a parallel region is entered
-            denormals = FindNodeType(Denormals).visit(state.nodes)
+            denormals = FindNodes(Denormals).visit(state.nodes)
             mapper = {i: List(c.Comment('DLE: moved denormals flag')) for i in denormals}
 
             # Handle parallelizable loops

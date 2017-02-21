@@ -21,8 +21,8 @@ from devito.logger import bar, error, info, warning
 from devito.nodes import Block, Expression, Function, Iteration, List, TimedList
 from devito.profiler import Profiler
 from devito.tools import (SetOrderedDict, as_tuple, filter_ordered, filter_sorted,
-                          flatten, partial_order)
-from devito.visitors import (Declarator, FindNodeType, FindSections, FindSymbols,
+                          flatten, invert, partial_order)
+from devito.visitors import (Declarator, FindNodes, FindSections, FindSymbols,
                              IsPerfectIteration, MergeOuterIterations,
                              ResolveIterationVariable, SubstituteExpression,
                              Transformer, printAST)
@@ -235,7 +235,7 @@ class StencilKernel(Function):
 
                         # Estimate computational properties of the timed section
                         # (operational intensity, memory accesses)
-                        expressions = FindNodeType(Expression).visit(j)
+                        expressions = FindNodes(Expression).visit(j)
                         ops = estimate_cost([e.stencil for e in expressions])
                         memory = estimate_memory([e.stencil for e in expressions])
                         self.sections[itspace] = Profile(lname, ops, memory)
@@ -294,7 +294,7 @@ class StencilKernel(Function):
                 at_arguments[k] = v.copy()
 
         # Squeeze dimensions to minimize auto-tuning time
-        iterations = FindNodeType(Iteration).visit(self.body)
+        iterations = FindNodes(Iteration).visit(self.body)
         squeezable = [i.dim.parent.name for i in iterations
                       if 'sequential' in i.properties and i.dim.is_Buffered]
 

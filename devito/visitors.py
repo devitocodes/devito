@@ -17,7 +17,7 @@ from devito.nodes import Iteration, List, LocalExpression
 from devito.tools import as_tuple, filter_ordered, filter_sorted, flatten
 
 
-__all__ = ['Declarator', 'FindNodeType', 'FindSections', 'FindSymbols',
+__all__ = ['Declarator' 'FindNodes', 'FindSections', 'FindSymbols',
            'IsPerfectIteration', 'SubstituteExpression',
            'ResolveIterationVariable', 'Transformer', 'printAST']
 
@@ -298,18 +298,31 @@ class FindSymbols(Visitor):
         return filter_sorted([f for f in self.rule(o)], key=attrgetter('name'))
 
 
-class FindNodeType(Visitor):
+class FindNodes(Visitor):
 
     @classmethod
     def default_retval(cls):
         return []
 
-    """Find all :class:`Node` instances of a given type."""
+    """
+    Find :class:`Node` instances.
 
-    def __init__(self, match, exact=False):
-        super(FindNodeType, self).__init__()
+    :param match: Pattern to look for.
+    :param mode: Drive the search. Accepted values are: ::
+
+        * 'type' (default): Collect all instances of type ``match``.
+        * 'scope': Return the scope in which the object ``match`` appears.
+    """
+
+    rules = {
+        'type': lambda match, o: isinstance(o, match),
+        'scope': lambda match, o: match in flatten(o.children)
+    }
+
+    def __init__(self, match, mode='type'):
+        super(FindNodes, self).__init__()
         self.match = match
-        self.exact = exact
+        self.rule = self.rules[mode]
 
     def visit_object(self, o, ret=None):
         return ret
@@ -322,9 +335,7 @@ class FindNodeType(Visitor):
     def visit_Node(self, o, ret=None):
         if ret is None:
             ret = self.default_retval()
-        if not self.exact and isinstance(o, self.match):
-            ret.append(o)
-        elif type(o) == self.match:
+        if self.rule(self.match, o):
             ret.append(o)
         for i in o.children:
             ret = self.visit(i, ret=ret)
