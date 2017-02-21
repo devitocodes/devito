@@ -681,22 +681,19 @@ class Rewriter(object):
             # Handle parallelizable loops
             for tree in retrieve_iteration_tree(node):
                 # Note: a 'blocked' Iteration is guaranteed to be 'parallel' too
-                blocked = [i for i in tree if 'blocked' in i.properties]
-                parallelizable = [i for i in tree if 'parallel' in i.properties]
-                candidates = blocked or parallelizable
+                candidates = [i for i in tree if 'parallel' in i.properties]
                 if not candidates:
                     continue
 
                 # Heuristic: if at least two parallel loops are available and the
                 # physical core count is greater than self.thresholds['collapse'],
                 # then omp-collapse the loops
-                # TODO: This should be generalised to the case in which there are
-                # more than just 2 collapsable loops.
+                nparallel = len(candidates)
                 if psutil.cpu_count(logical=False) < self.thresholds['collapse'] or\
-                        len(candidates) < 2:
+                        nparallel < 2:
                     parallelism = omplang['for']
                 else:
-                    parallelism = omplang['collapse2']
+                    parallelism = omplang['collapse'](nparallel)
 
                 root = candidates[0]
                 mapper[root] = Block(header=omplang['par-region'],
@@ -800,7 +797,7 @@ A dictionary to quickly access standard OpenMP pragmas
 """
 omplang = {
     'for': c.Pragma('omp for schedule(static)'),
-    'collapse2': c.Pragma('omp for collapse(2) schedule(static)'),
+    'collapse': lambda i: c.Pragma('omp for collapse(%d) schedule(static)' % i),
     'par-region': c.Pragma('omp parallel'),
     'par-for': c.Pragma('omp parallel for schedule(static)'),
     'simd-for': c.Pragma('omp simd'),
