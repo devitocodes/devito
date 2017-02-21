@@ -425,31 +425,39 @@ class Rewriter(object):
                     continue
 
                 # Determine the elemental function's arguments ...
-                args = []
-                definitely_not = [k.dim for k in candidate]
-                maybe = FindSymbols(mode='free-symbols').visit(candidate)
-                maybe = [k for k in maybe if k not in definitely_not]
-                seen = {e.output for e in expressions if e.is_scalar}
+                already_in_scope = [k.dim for k in candidate]
+                required = [k for k in FindSymbols(mode='free-symbols').visit(candidate)
+                            if k not in already_in_scope]
+                required += [as_symbol(k) for k in
+                             set(flatten(k.free_symbols for k in root.bounds_symbolic))]
+                required = set(required)
 
-                # Add symbolic objects and Dimensions (sizes, indices)
+                args = []
+                seen = {e.output for e in expressions if e.is_scalar}
                 for d in FindSymbols('symbolics').visit(candidate):
+                    # Add a necessary Symbolic object
                     handle = "(float*) %s" if d.is_SymbolicFunction else "%s_vec"
                     args.append((handle % d.name, d))
+                    seen |= {as_symbol(d)}
+                    # Add necessary information related to Dimensions
                     for k in d.indices:
-                        if k in seen or k.size is not None:
+                        if k.size is not None:
                             continue
-                        args.append((k.ccode, k))
-                        # Is the Dimension index required too?
-                        if k in maybe:
+                        # Dimension size
+                        size = k.symbolic_size
+                        if size not in seen:
+                            args.append((k.ccode, k))
+                            seen |= {size}
+                        # Dimension index may be required too
+                        if k in required - seen:
                             index_arg = (k.name, ScalarFunction(name=k.name,
                                                                 dtype=np.int32))
                             args.append(index_arg)
-                    seen |= {as_symbol(d)} | set(d.indices)
+                            seen |= {k}
 
                 # Add non-temporary scalars to the elemental function's arguments
-                required = [k for k in maybe if k not in seen]
                 args.extend([(k.name, ScalarFunction(name=k.name, dtype=np.int32))
-                             for k in required])
+                             for k in required - seen])
 
                 # Track info to transform the main tree
                 call, parameters = zip(*args)
