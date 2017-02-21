@@ -73,7 +73,7 @@ if __name__ == "__main__":
                                  "glicm", "advanced"],
                         help="Devito symbolic engine (DSE) mode")
     devito.add_argument("-dle", default="advanced", nargs="*",
-                        choices=["noop", "advanced", "speculative"],
+                        choices=["noop", "advanced", "3D-advanced", "speculative"],
                         help="Devito loop engine (DSE) mode")
     devito.add_argument("-a", "--auto_tuning", action="store_true",
                         help=("Benchmark with auto tuning on and off. " +

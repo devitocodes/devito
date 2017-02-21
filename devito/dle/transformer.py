@@ -46,6 +46,9 @@ def transform(node, mode='basic', compiler=None):
                                that are most likely to increase performance (ie, all
                                [T] listed below), except for loop blocking -- [S]
                     * 'advanced': Like 'basic', but also switches on loop blocking -- [S]
+                    * '3D-advanced': Like 'advanced', but apply 3D loop blocking
+                                     if there are at least the perfectly nested
+                                     parallel iteration spaces -- [S]
                     * 'speculative': Apply all of the 'advanced' transformations,
                                      plus other transformations that might increase
                                      (or possibly decrease) performance -- [S]
@@ -103,10 +106,15 @@ def transform(node, mode='basic', compiler=None):
             params.pop(k)
 
     mode = set(mode)
+    if '3D-advanced' in mode:
+        params['blockinner'] = True
+        mode.remove('3D-advanced')
+        mode.add('advanced')
     if params.pop('openmp', False):
         mode |= {'openmp'}
-    if mode.isdisjoint({'noop', 'basic', 'advanced', 'speculative', 'fission',
-                        'padding', 'blocking', 'split', 'simd', 'openmp', 'ntstores'}):
+    if mode.isdisjoint({'noop', 'basic', 'advanced', '3D-advanced', 'speculative',
+                        'fission', 'padding', 'blocking', 'split', 'simd',
+                        'openmp', 'ntstores'}):
         dle_warning("Unknown transformer mode(s) %s" % str(mode))
         return State(node)
     else:
@@ -311,8 +319,8 @@ class Rewriter(object):
                 properties = as_tuple(args.pop('properties')) + ('sequential',)
                 mapper = {tree[0]: Iteration(properties=properties, **args)}
                 nodes = Transformer(mapper).visit(nodes)
-            mapper = {i: ('parallel',) for i in tree[is_OSIP:-1]}
-            mapper[tree[-1]] = ('vector-dim',)
+            mapper = {i: ('parallel',) for i in tree[is_OSIP:]}
+            mapper[tree[-1]] += ('vector-dim',)
             for i in tree[is_OSIP:]:
                 args = i.args
                 properties = as_tuple(args.pop('properties')) + mapper[i]
@@ -556,6 +564,7 @@ class Rewriter(object):
         two outer loops would be blocked, and the resulting 2-dimensional block
         would be of size 4x7.
         """
+        rule = lambda tree: (tree if 'blockinner' in self.params else tree[:-1])
 
         Region = namedtuple('Region', 'main leftover')
 
@@ -568,6 +577,7 @@ class Rewriter(object):
                 iterations = [i for i in tree if 'parallel' in i.properties]
                 if not iterations:
                     continue
+                iterations = rule(iterations)
                 root = iterations[0]
                 if not IsPerfectIteration().visit(root):
                     continue
@@ -585,14 +595,13 @@ class Rewriter(object):
                     finish = iter_size - i.offsets[1]
                     finish = finish - ((finish - i.offsets[1]) % block_size)
                     inter_block = Iteration([], dim, [start, finish, block_size],
-                                            properties=('parallel', 'blocked'))
+                                            properties=('parallel',))
 
                     # Build Iteration within a block
-                    dim = Dimension("%s_intrab" % i.dim.name)
                     start = inter_block.dim
                     finish = start + block_size
-                    intra_block = Iteration([], dim, [start, finish, 1], i.index,
-                                            properties=('parallel',))
+                    intra_block = Iteration([], i.dim, [start, finish, 1], i.index,
+                                            properties=('block',))
 
                     blocked_iterations.append((inter_block, intra_block))
 
@@ -602,7 +611,7 @@ class Rewriter(object):
                     start = inter_block.limits[0]
                     finish = inter_block.limits[1]
                     main = Iteration([], i.dim, [start, finish, 1], i.index,
-                                     properties=('parallel',))
+                                     properties=i.properties)
 
                     # Build unitary-increment Iteration over the 'leftover' region:
                     # again as above, this may be necessary when the dimension size
@@ -610,7 +619,7 @@ class Rewriter(object):
                     start = inter_block.limits[1]
                     finish = iter_size - i.offsets[1]
                     leftover = Iteration([], i.dim, [start, finish, 1], i.index,
-                                         properties=('parallel',))
+                                         properties=i.properties)
 
                     regions[i] = Region(main, leftover)
 
