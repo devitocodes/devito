@@ -322,6 +322,10 @@ def as_symbol(expr):
     """
     Extract the "main" symbol from a SymPy object.
     """
+    try:
+        return Number(expr)
+    except (TypeError, ValueError):
+        pass
     if isinstance(expr, str):
         return Symbol(expr)
     elif isinstance(expr, Dimension):
@@ -333,7 +337,7 @@ def as_symbol(expr):
     elif isinstance(expr, Function):
         return Symbol(expr.name)
     else:
-        raise RuntimeError("Cannot extract symbol from type %s" % type(expr))
+        raise TypeError("Cannot extract symbol from type %s" % type(expr))
 
 
 def is_time_invariant(expr, graph=None):
