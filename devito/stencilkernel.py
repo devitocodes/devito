@@ -5,6 +5,7 @@ from collections import OrderedDict, namedtuple
 from ctypes import c_double, c_int
 from functools import reduce
 from hashlib import sha1
+from itertools import combinations
 from os import path
 
 import cgen as c
@@ -302,7 +303,19 @@ class StencilKernel(Function):
         mapper = OrderedDict([(i.argument.name, i) for i in self._dle_state.arguments])
         blocksizes = [OrderedDict([(i, v) for i in mapper])
                       for v in options['at_blocksize']]
-        blocksizes += [OrderedDict([(k, 1) for k, v in mapper.items()])]
+        elaborated = []
+        for blocksize in list(blocksizes)[:3]:
+            for i in list(blocksizes):
+                handle = i.items()[-1]
+                elaborated.append(OrderedDict(blocksize.items()[:-1] + [handle]))
+        for blocksize in list(blocksizes):
+            ncombs = len(blocksize)
+            for i in range(ncombs):
+                for j in combinations(blocksize, i+1):
+                    handle = [(k, blocksize[k]*2 if k in j else v)
+                              for k, v in blocksize.items()]
+                    elaborated.append(OrderedDict(handle))
+        blocksizes.extend(elaborated)
 
         # Note: there is only a single loop over 'blocksize' because only
         # square blocks are tested
@@ -330,15 +343,15 @@ class StencilKernel(Function):
                 at_arguments[self.profiler.s_name] = cpointer
 
             self.cfunction(*list(at_arguments.values()))
-            timings[tuple(blocksize.items())] = sum(self.profiler.timings.values())
+            elapsed = sum(self.profiler.timings.values())
+            timings[tuple(blocksize.items())] = elapsed
+            info("<%s>: %f" % (','.join('%d' % i for i in blocksize.values()), elapsed))
 
         best = dict(min(timings, key=timings.get))
         for k, v in arguments.items():
             if k in mapper:
                 arguments[k] = best[k]
 
-        for k, v in timings.items():
-            info("%s : %s" % (str(k), str(v)))
         info('Auto-tuned block shape: %s' % best)
 
     def _schedule_expressions(self, dse_state, dtype):
@@ -546,7 +559,7 @@ StencilKernel options
 """
 options = {
     'at_squeezer': 3,
-    'at_blocksize': [8, 12, 16, 24, 32, 48, 64]
+    'at_blocksize': [8, 16, 24, 32, 40, 64, 128]
 }
 
 """
