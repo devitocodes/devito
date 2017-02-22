@@ -688,8 +688,13 @@ class Rewriter(object):
 
             # Handle parallelizable loops
             for tree in retrieve_iteration_tree(node):
-                # Note: a 'blocked' Iteration is guaranteed to be 'parallel' too
-                candidates = [i for i in tree if i.is_Parallel]
+                # Determine the number of consecutive parallelizable Iterations
+                candidates = []
+                for i in tree:
+                    if i.is_Parallel and not i.is_Vectorizable:
+                        candidates.append(i)
+                    elif candidates:
+                        break
                 if not candidates:
                     continue
 
