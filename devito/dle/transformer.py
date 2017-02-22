@@ -230,7 +230,7 @@ class Rewriter(object):
     """
     thresholds = {
         'collapse': 32,  # Available physical cores
-        'elemental-functions': 30,  # Operations
+        'elemental': 30,  # Operations
         'max_fission': 80,  # Statements
         'min_fission': 1  # Statements
     }
@@ -428,8 +428,7 @@ class Rewriter(object):
                 # Heuristic: create elemental functions only if more than
                 # self.thresholds['elemental_functions'] operations are present
                 ops = estimate_cost([e.stencil for e in expressions])
-                if ops < self.thresholds['elemental-functions'] and\
-                        not 'elemental' in root.properties:
+                if ops < self.thresholds['elemental'] and not root.is_Elementizable:
                     continue
 
                 # Determine the elemental function's arguments ...
@@ -564,8 +563,6 @@ class Rewriter(object):
         two outer loops would be blocked, and the resulting 2-dimensional block
         would be of size 4x7.
         """
-        rule = lambda tree: (tree if 'blockinner' in self.params else tree[:-1])
-
         Region = namedtuple('Region', 'main leftover')
 
         blocked = OrderedDict()
@@ -574,10 +571,11 @@ class Rewriter(object):
             mapper = {}
             for tree in retrieve_iteration_tree(node):
                 # Is the Iteration tree blockable ?
-                iterations = [i for i in tree if 'parallel' in i.properties]
+                iterations = [i for i in tree if i.is_Parallel]
+                if 'blockinner' not in self.params:
+                    iterations = [i for i in iterations if not i.is_Vectorizable]
                 if not iterations:
                     continue
-                iterations = rule(iterations)
                 root = iterations[0]
                 if not IsPerfectIteration().visit(root):
                     continue
@@ -595,13 +593,14 @@ class Rewriter(object):
                     finish = iter_size - i.offsets[1]
                     finish = finish - ((finish - i.offsets[1]) % block_size)
                     inter_block = Iteration([], dim, [start, finish, block_size],
-                                            properties=('parallel',))
+                                            properties=as_tuple('parallel'))
 
                     # Build Iteration within a block
                     start = inter_block.dim
                     finish = start + block_size
+                    properties = 'vector-dim' if i.is_Vectorizable else None
                     intra_block = Iteration([], i.dim, [start, finish, 1], i.index,
-                                            properties=('block',))
+                                            properties=as_tuple(properties))
 
                     blocked_iterations.append((inter_block, intra_block))
 
@@ -690,7 +689,7 @@ class Rewriter(object):
             # Handle parallelizable loops
             for tree in retrieve_iteration_tree(node):
                 # Note: a 'blocked' Iteration is guaranteed to be 'parallel' too
-                candidates = [i for i in tree if 'parallel' in i.properties]
+                candidates = [i for i in tree if i.is_Parallel]
                 if not candidates:
                     continue
 
@@ -725,7 +724,7 @@ class Rewriter(object):
             for node in nodes:
                 mapper = {}
                 for tree in retrieve_iteration_tree(node):
-                    vector_iterations = [i for i in tree if 'vector-dim' in i.properties]
+                    vector_iterations = [i for i in tree if i.is_Vectorizable]
                     for i in vector_iterations:
                         handle = FindSymbols('symbolics').visit(i)
                         try:
@@ -763,14 +762,14 @@ class Rewriter(object):
                 mapper = {}
                 for tree in retrieve_iteration_tree(node):
                     for i in tree:
-                        if 'parallel' in i.properties:
+                        if i.is_Parallel:
                             mapper[i] = List(body=i, footer=fence)
                             break
                 transformed = Transformer(mapper).visit(node)
                 mapper = {}
                 for tree in retrieve_iteration_tree(transformed):
                     for i in tree:
-                        if 'vector-dim' in i.properties:
+                        if i.is_Vectorizable:
                             mapper[i] = List(header=pragma, body=i)
                 transformed = Transformer(mapper).visit(transformed)
                 processed.append(transformed)

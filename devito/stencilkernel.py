@@ -298,7 +298,7 @@ class StencilKernel(Function):
         # Squeeze dimensions to minimize auto-tuning time
         iterations = FindNodes(Iteration).visit(self.body)
         squeezable = [i.dim.parent.name for i in iterations
-                      if 'sequential' in i.properties and i.dim.is_Buffered]
+                      if i.is_Sequential and i.dim.is_Buffered]
 
         # Attempted block sizes
         mapper = OrderedDict([(i.argument.name, i) for i in self._dle_state.arguments])

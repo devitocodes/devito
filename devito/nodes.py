@@ -280,6 +280,17 @@ class Iteration(Node):
 
     _traversable = ['nodes']
 
+    """
+    List of known properties, usable to decorate an Iteration: ::
+
+        * sequential: An inherently sequential iteration space.
+        * parallel: An iteration space whose iterations can safely be
+                    executed in parallel.
+        * vector-dim: A (SIMD) vectorizable iteration space.
+        * elemental: Hoistable to an elemental function.
+    """
+    _known_properties = ['sequential', 'parallel', 'vector-dim', 'elemental']
+
     def __init__(self, nodes, dimension, limits, index=None, offsets=None,
                  properties=None):
         # Ensure we deal with a list of Expression objects internally
@@ -313,6 +324,7 @@ class Iteration(Node):
 
         # Track this Iteration's properties
         self.properties = as_tuple(properties)
+        assert (i in Iteration._known_properties for i in self.properties)
 
     def __repr__(self):
         properties = ""
@@ -365,6 +377,22 @@ class Iteration(Node):
     @property
     def is_Closed(self):
         return not self.is_Open
+
+    @property
+    def is_Sequential(self):
+        return 'sequential' in self.properties
+
+    @property
+    def is_Parallel(self):
+        return 'parallel' in self.properties
+
+    @property
+    def is_Vectorizable(self):
+        return 'vector-dim' in self.properties
+
+    @property
+    def is_Elementizable(self):
+        return 'elemental' in self.properties
 
     @property
     def bounds_symbolic(self):
