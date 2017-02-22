@@ -137,17 +137,15 @@ if __name__ == "__main__":
         elif args.benchmode == 'dse':
             parameters["auto_tuning"] = [False]
             parameters["dse"] = ["basic",
-                                 ('basic', 'factorize'),
                                  ('basic', 'glicm'),
                                  "advanced"]
             parameters["dle"] = ["basic"]
         else:
             # must be == 'dle'
             parameters["auto_tuning"] = [True]
-            parameters["dse"] = ["basic"]
+            parameters["dse"] = ["advanced"]
             parameters["dle"] = ["basic",
-                                 "advanced",
-                                 "speculative"]
+                                 "advanced"]
 
     if args.execmode == "test":
         values_sweep = [v if isinstance(v, list) else [v] for v in parameters.values()]
