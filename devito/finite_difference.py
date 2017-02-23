@@ -167,7 +167,7 @@ def first_derivative(*args, **kwargs):
     elif side == left:
         ind = [(dim - i * diff) for i in range(-int(order / 2) + 1 - (order % 2),
                                                int((order + 1) / 2) + 2 - (order % 2))]
-        sign = -1
+        sign = 1
     else:
         ind = [(dim + i * diff) for i in range(-int(order / 2),
                                                int((order + 1) / 2) + 1)]
