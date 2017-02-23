@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
-from sympy import diff, Eq, symbols
 from sympy.abc import h
+from sympy import diff, Eq, symbols
 
 from devito.interfaces import DenseData
 from devito import clear_cache, StencilKernel
