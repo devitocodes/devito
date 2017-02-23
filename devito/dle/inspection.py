@@ -1,6 +1,6 @@
 from devito.visitors import FindSections
 
-__all__ = ['retrieve_iteration_tree']
+__all__ = ['filter_iterations', 'retrieve_iteration_tree']
 
 
 def retrieve_iteration_tree(node):
@@ -22,3 +22,28 @@ def retrieve_iteration_tree(node):
     """
 
     return [i for i in FindSections().visit(node).keys() if i]
+
+
+def filter_iterations(tree, key=lambda i: i, stop=lambda i: False):
+    """
+    Given an iterable of :class:`Iteration` objects, return a new list
+    containing all items such that ``key(o)`` is True.
+
+    This function accepts an optional argument ``stop``. This may be either a
+    lambda function, specifying a stop criterium, or the special keyword
+    'consecutive', which makes the function return as soon as ``key(o)``
+    gives False and at least one item has been collected.
+    """
+
+    filtered = []
+
+    if stop == 'consecutive':
+        stop = lambda : len(filtered) > 0
+
+    for i in tree:
+        if key(i):
+            filtered.append(i)
+        elif stop():
+            break
+
+    return filtered

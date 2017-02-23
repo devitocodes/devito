@@ -10,7 +10,8 @@ import numpy as np
 import psutil
 
 from devito.dimension import Dimension
-from devito.dle import compose_nodes, copy_arrays, retrieve_iteration_tree
+from devito.dle import (compose_nodes, copy_arrays,
+                        filter_iterations, retrieve_iteration_tree)
 from devito.dse import (as_symbol, estimate_cost, promote_scalar_expressions,
                         retrieve_and_check_dtype, terminals)
 from devito.interfaces import ScalarFunction, TensorFunction
@@ -689,12 +690,8 @@ class Rewriter(object):
             # Handle parallelizable loops
             for tree in retrieve_iteration_tree(node):
                 # Determine the number of consecutive parallelizable Iterations
-                candidates = []
-                for i in tree:
-                    if i.is_Parallel and not i.is_Vectorizable:
-                        candidates.append(i)
-                    elif candidates:
-                        break
+                key = lambda i: i.is_Parallel and not i.is_Vectorizable
+                candidates = filter_iterations(tree, key=key, stop='consecutive')
                 if not candidates:
                     continue
 
