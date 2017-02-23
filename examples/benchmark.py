@@ -11,13 +11,6 @@ from devito.logger import warning
 from examples.acoustic.acoustic_example import run as acoustic_run
 from examples.tti.tti_example import run as tti_run
 
-try:
-    from opescibench import Benchmark, Executor, RooflinePlotter
-except:
-    Benchmark = None
-    Executor = None
-    RooflinePlotter = None
-
 
 if __name__ == "__main__":
     description = ("Benchmarking script for TTI example.\n\n" +
@@ -126,10 +119,6 @@ if __name__ == "__main__":
         parameters["time_order"] = parameters["time_order"][0]
         run(**parameters)
     else:
-        if Benchmark is None and args.execmode != "test":
-            raise ImportError("Could not find opescibench utility package.\n"
-                              "Please install from https://github.com/opesci/opescibench")
-
         if args.benchmode == 'maxperf':
             parameters["auto_tuning"] = [True]
             parameters["dse"] = ["advanced"]
@@ -164,6 +153,12 @@ if __name__ == "__main__":
                     np.isclose(res[i], last_res[i])
 
     elif args.execmode == "bench":
+        try:
+            from opescibench import Benchmark, Executor
+        except:
+            raise ImportError("Could not import opescibench utility package.\n"
+                              "Please install https://github.com/opesci/opescibench")
+
         class BenchExecutor(Executor):
             """Executor class that defines how to run the benchmark"""
 
@@ -184,6 +179,13 @@ if __name__ == "__main__":
         bench.save()
 
     elif args.execmode == "plot":
+        try:
+            from opescibench import Benchmark, RooflinePlotter
+        except:
+            raise ImportError("Could not import opescibench utility package.\n"
+                              "Please install https://github.com/opesci/opescibench "
+                              "and Matplotlib to plot performance results")
+
         bench = Benchmark(
             name=args.problem, resultsdir=args.resultsdir, parameters=parameters
         )
