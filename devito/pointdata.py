@@ -1,7 +1,9 @@
-from sympy import Matrix, symbols
+from sympy import Function, Matrix, symbols
 from sympy.abc import h
 
+from collections import OrderedDict
 from devito.dimension import d, p, t
+from devito.dse.inspection import indexify, retrieve_indexed
 from devito.interfaces import DenseData
 from devito.logger import error
 
@@ -25,6 +27,7 @@ class PointData(DenseData):
     def __init__(self, *args, **kwargs):
         if not self._cached():
             self.nt = kwargs.get('nt')
+            self.h = kwargs.get('h')
             self.npoint = kwargs.get('npoint')
             self.ndim = kwargs.get('ndim')
             kwargs['shape'] = (self.nt, self.npoint)
@@ -66,9 +69,8 @@ class PointData(DenseData):
         # Grid indices corresponding to the corners of the cell
         x1, y1, z1, x2, y2, z2 = symbols('x1, y1, z1, x2, y2, z2')
         # Coordinate values of the sparse point
-        px, py, pz = symbols('px, py, pz')
+        px, py, pz = self.point_symbols
         if self.ndim == 2:
-            self._increments = ((0, 0), (0, 1), (1, 0), (1, 1))
             A = Matrix([[1, x1, y1, x1*y1],
                         [1, x1, y2, x1*y2],
                         [1, x2, y1, x2*y1],
@@ -80,8 +82,6 @@ class PointData(DenseData):
                         [px*py]])
 
         elif self.ndim == 3:
-            self._increments = ((0, 0, 0), (0, 1, 0), (1, 0, 0), (0, 0, 1),
-                                (1, 1, 0), (0, 1, 1), (1, 0, 1), (1, 1, 1))
             A = Matrix([[1, x1, y1, z1, x1*y1, x1*z1, y1*z1, x1*y1*z1],
                         [1, x1, y2, z1, x1*y2, x1*z1, y2*z1, x1*y2*z1],
                         [1, x2, y1, z1, x2*y1, x2*z1, y2*z1, x2*y1*z1],
@@ -104,12 +104,26 @@ class PointData(DenseData):
                   "%d dimensions." % self.ndim)
 
         # Map to reference cell
-        reference_cell = {x1: 0, y1: 0, z1: 0, x2: h, y2: h, z2: h}
+        reference_cell = {x1: 0, y1: 0, z1: 0, x2: self.h, y2: self.h, z2: self.h}
         A = A.subs(reference_cell)
         return A.inv().T.dot(p)
 
     @property
-    def coordinates_symbols(self):
+    def point_symbols(self):
+        """Symbol for coordinate value in each dimension of the point"""
+        return symbols('px, py, pz')
+
+    @property
+    def point_increments(self):
+        """Index increments in each dimension for each point symbol"""
+        if self.ndim == 2:
+            return ((0, 0), (0, 1), (1, 0), (1, 1))
+        elif self.ndim == 3:
+            return ((0, 0, 0), (0, 1, 0), (1, 0, 0), (0, 0, 1),
+                    (1, 1, 0), (0, 1, 1), (1, 0, 1), (1, 1, 1))
+
+    @property
+    def coordinate_symbols(self):
         """Symbol representing the coordinate values in each dimension"""
         p_dim = self.indices[1]
         return tuple([self.coordinates.indexed[p_dim, i]
@@ -118,12 +132,36 @@ class PointData(DenseData):
     @property
     def coordinate_indices(self):
         """Symbol for each grid index according to the coordinates"""
-        return tuple([Function('INT')(Function('floor')(x / h))
+        return tuple([Function('INT')(Function('floor')(x / self.h))
                       for x in self.coordinate_symbols])
 
     @property
     def coordinate_bases(self):
         """Symbol for the base coordinates of the reference grid point"""
-        return tuple([Function('FLOAT')(x - idx * h)
+        return tuple([Function('FLOAT')(x - idx * self.h)
                       for x, idx in zip(self.coordinate_symbols,
                                         self.coordinate_indices)])
+
+    def interpolate(self, expr, offset=0):
+        """Symbol for interpolation of an expression onto a sparse point
+
+        :param expr: The expression to interpolate
+        :param offset: Additional offset from the boundary for
+        absorbing boundary conditions
+        """
+        expr = indexify(expr)
+        variables = list(retrieve_indexed(expr))
+        # List of indirection indices for all adjacent grid points
+        index_matrix = [tuple(idx + ii + offset for ii, idx
+                              in zip(inc, self.coordinate_indices))
+                        for inc in self.point_increments]
+        # Generate index substituions for all grid variables
+        idx_subs = []
+        for i, idx in enumerate(index_matrix):
+            v_subs = [(v, v.base[v.indices[:-self.ndim] + idx])
+                      for v in variables]
+            idx_subs += [OrderedDict(v_subs)]
+        # Substitute coordinate base symbols into the coefficients
+        subs = OrderedDict(zip(self.point_symbols, self.coordinate_bases))
+        return sum([expr.subs(vsub) * b.subs(subs)
+                    for b, vsub in zip(self.coefficients, idx_subs)])
