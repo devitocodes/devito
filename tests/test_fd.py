@@ -1,10 +1,9 @@
 import numpy as np
 import pytest
-from sympy.abc import h
-from sympy import diff, Eq, symbols
+from sympy import Eq, diff, symbols
 
+from devito import StencilKernel, clear_cache
 from devito.interfaces import DenseData
-from devito import clear_cache, StencilKernel
 
 
 @pytest.mark.parametrize('space_order', [2, 4, 6, 8, 10, 12, 14, 16, 18, 20])
@@ -21,6 +20,7 @@ def test_fd_space(derivative, space_order):
     du = DenseData(name="du", shape=(nx,), space_order=space_order, dtype=np.float32)
     # Define polynomial with exact fd
     y = symbols('y')
+    h = symbols('h')
     coeffs = np.random.randint(10, high=20, size=(space_order,)).astype(np.float32)
     polynome = sum([coeffs[i]*y**i for i in range(0, space_order)])
     polyvalues = np.array([polynome.subs(y, xi) for xi in xx], np.float32)

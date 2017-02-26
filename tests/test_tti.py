@@ -67,7 +67,8 @@ def test_tti(dimensions, space_order):
     tn = 350.0
     nt = int(1+(tn-t0)/dt)
     last = (nt - 1) % 3
-    indlast = [(last + 1)%3, (last+2) % 3, last % 3]
+    indlast = [(last + 1) % 3, (last+2) % 3, last % 3]
+
     # Set up the source as Ricker wavelet for f0
     def source(t, f0):
         r = (np.pi * f0 * (t - 1./f0))
@@ -104,7 +105,8 @@ def test_tti(dimensions, space_order):
                       nbpml=nbpml)
 
     rec, u, _, _, _ = wave_acou.Forward(save=False, u_ini=u1.data[indlast, :])
-    rec_tti, u_tti, v_tti, _, _, _ = wave_tti.Forward(save=False, u_ini=u1.data[indlast, :],
+    rec_tti, u_tti, v_tti, _, _, _ = wave_tti.Forward(save=False,
+                                                      u_ini=u1.data[indlast, :],
                                                       legacy=True)
 
     res = linalg.norm(u.data.reshape(-1) -
