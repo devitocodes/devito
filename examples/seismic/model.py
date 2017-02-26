@@ -105,6 +105,14 @@ class Model(object):
         coeff = 0.38 if len(self.shape) == 3 else 0.42
         return coeff * self.spacing[0] / (self.scale*np.max(self.vp))
 
+    def set_vp(self, vp):
+        """Set a new velocity model and update square slowness
+
+        :param vp : new velocity in km/s
+        """
+        self.vp = vp
+        self.m.data[:] = self.pad(1 / (self.vp * self.vp))
+
     def get_spacing(self):
         """Return the grid size"""
         return self.spacing[0]

@@ -113,7 +113,7 @@ def test_gradient(dimensions, time_order, space_order):
     error1 = np.zeros(7)
     error2 = np.zeros(7)
     for i in range(0, 7):
-        wave_0.model.vp = np.sqrt((initial_vp**-2 + H[i] * dm)**(-1))
+        wave_0.model.set_vp(np.sqrt((initial_vp**-2 + H[i] * dm)**(-1)))
         d = wave_0.Forward()[0]
         error1[i] = np.absolute(.5*linalg.norm(d - rec)**2 - F0)
         error2[i] = np.absolute(.5*linalg.norm(d - rec)**2 - F0 - H[i] * G)
