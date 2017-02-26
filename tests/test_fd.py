@@ -21,7 +21,7 @@ def test_fd_space(derivative, space_order):
     # Define polynomial with exact fd
     y = symbols('y')
     h = symbols('h')
-    coeffs = np.random.randint(10, high=20, size=(space_order,)).astype(np.float32)
+    coeffs = np.ones((space_order,), dtype=np.float32)
     polynome = sum([coeffs[i]*y**i for i in range(0, space_order)])
     polyvalues = np.array([polynome.subs(y, xi) for xi in xx], np.float32)
     # Fill original data with the polynomial values
@@ -40,8 +40,8 @@ def test_fd_space(derivative, space_order):
     space_border = space_order
     error = abs(du.data[space_border:-space_border] -
                 Dpolyvalues[space_border:-space_border])
-    assert np.isclose(np.mean(error), 0., atol=1e-2)
+    assert np.isclose(np.mean(error), 0., atol=1e-3)
 
 
 if __name__ == "__main__":
-    test_fd_space(derivative='dx2', space_order=4)
+    test_fd_space(derivative='dx2', space_order=12)
