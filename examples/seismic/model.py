@@ -117,11 +117,10 @@ class Model(object):
         """Return the grid size"""
         return self.spacing[0]
 
-    def pad(self, m):
-        """Padding function extending m by `self.nbpml` in every direction
-        for the absorbing boundary conditions
-        :param m : physical parameter to be extended"""
-        pad_list = []
-        for dim_index in range(len(self.vp.shape)):
-            pad_list.append((self.nbpml, self.nbpml))
-        return np.pad(m, pad_list, 'edge')
+    def pad(self, data):
+        """Padding function PNL layers in every direction for for the
+        absorbing boundary conditions.
+
+        :param data : Data array to be padded"""
+        pad_list = [(self.nbpml, self.nbpml) for _ in self.vp.shape]
+        return np.pad(data, pad_list, 'edge')
