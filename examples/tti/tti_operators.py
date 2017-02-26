@@ -81,7 +81,7 @@ def ForwardOperator(model, u, v, src, rec, damp, data, time_order=2,
                                 dim=y, side=left, order=spc_brd))
         Gyp2 = (ang3 * u.dxr - ang2 * u.dy)
         Gyy2 = (first_derivative(Gyp2 * ang3,
-                                 dim=x, side=left, order=spc_brd) +
+                                 dim=x, side=left, order=spc_brd) -
                 first_derivative(Gyp2 * ang2,
                                  dim=y, side=centered, order=spc_brd))
 
@@ -113,7 +113,7 @@ def ForwardOperator(model, u, v, src, rec, damp, data, time_order=2,
                                  dim=y, side=centered, order=spc_brd) +
                 first_derivative(Gzr2 * ang0,
                                  dim=z, side=centered, order=spc_brd))
-        Hp = (.5*Gxx + .5*Gxx2 + .5*Gyy + .5*Gyy2)
+        Hp = (.5*Gxx + .5*Gxx2 + .5 * Gyy + .5*Gyy2)
         Hzr = (.5*Gzz + .5 * Gzz2)
 
     else:
@@ -130,11 +130,11 @@ def ForwardOperator(model, u, v, src, rec, damp, data, time_order=2,
         Gx2p = (ang0 * u.dx - ang1 * u.dyr)
         Gz2r = (ang1 * v.dx + ang0 * v.dyr)
         Gxx2 = (first_derivative(Gx2p * ang0, dim=x,
-                                  side=centered, order=spc_brd) -
+                                 side=centered, order=spc_brd) -
                 first_derivative(Gx2p * ang1, dim=y,
                                  side=left, order=spc_brd))
         Gzz2 = (first_derivative(Gz2r * ang1, dim=x,
-                                  side=centered, order=spc_brd) +
+                                 side=centered, order=spc_brd) +
                 first_derivative(Gz2r * ang0, dim=y,
                                  side=left, order=spc_brd))
 

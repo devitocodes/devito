@@ -16,7 +16,7 @@ def test_tti(dimensions, space_order):
     if len(dimensions) == 2:
         # Dimensions in 2D are (x, z)
         origin = (0., 0.)
-        spacing = (15., 15.)
+        spacing = (10., 10.)
 
         # Source location
         location = np.zeros((1, 2))
@@ -32,7 +32,7 @@ def test_tti(dimensions, space_order):
     elif len(dimensions) == 3:
         # Dimensions in 3D are (x, y, z)
         origin = (0., 0., 0.)
-        spacing = (15., 15., 15.)
+        spacing = (10., 10., 10.)
 
         # Source location
         location = np.zeros((1, 3))
@@ -64,15 +64,14 @@ def test_tti(dimensions, space_order):
     f0 = .010
     dt = model.get_critical_dt()
     t0 = 0.0
-    tn = 700.0
+    tn = 350.0
     nt = int(1+(tn-t0)/dt)
-
+    last = (nt - 1) % 3
+    indlast = [(last + 1)%3, (last+2) % 3, last % 3]
     # Set up the source as Ricker wavelet for f0
     def source(t, f0):
-        agauss = 0.5 * f0
-        tcut = 2 / agauss
-        s = (t - tcut) * agauss
-        return np.exp(-2 * s**2) * np.cos(2 * np.pi * s)
+        r = (np.pi * f0 * (t - 1./f0))
+        return (1-2.*r**2)*np.exp(-r**2)
 
     # Source geometry
     time_series = np.zeros((nt, 1))
@@ -93,7 +92,7 @@ def test_tti(dimensions, space_order):
     nt = int(1 + (tn - t0) / dt)
     # Source geometry
     time_series = np.zeros((nt, 1))
-    time_series[:, 0] = source(np.linspace(t0, tn, nt), f0)
+    time_series[:, 0] = 0*source(np.linspace(t0, tn, nt), f0)
     src.set_shape(nt, 1)
     src.set_traces(time_series)
     data.set_shape(nt, 101)
@@ -104,8 +103,8 @@ def test_tti(dimensions, space_order):
     wave_tti = TTI_cg(model, data, src, t_order=2, s_order=space_order,
                       nbpml=nbpml)
 
-    rec, u, _, _, _ = wave_acou.Forward(save=False, u_ini=u1.data)
-    rec_tti, u_tti, v_tti, _, _, _ = wave_tti.Forward(save=False, u_ini=u1.data,
+    rec, u, _, _, _ = wave_acou.Forward(save=False, u_ini=u1.data[indlast, :])
+    rec_tti, u_tti, v_tti, _, _, _ = wave_tti.Forward(save=False, u_ini=u1.data[indlast, :],
                                                       legacy=True)
 
     res = linalg.norm(u.data.reshape(-1) -
@@ -116,4 +115,4 @@ def test_tti(dimensions, space_order):
 
 
 if __name__ == "__main__":
-    test_tti((120, 140), 4)
+    test_tti((120, 140, 130), 4)
