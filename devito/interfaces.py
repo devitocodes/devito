@@ -172,6 +172,7 @@ class DenseData(TensorData):
             if initializer is not None:
                 assert(callable(initializer))
             self.initializer = initializer
+            self.numa = kwargs.get('numa', False)
             self._data = kwargs.get('_data', None)
             MemmapManager.setup(self, *args, **kwargs)
 
@@ -231,7 +232,10 @@ class DenseData(TensorData):
             debug("Allocating memory for %s (%s)" % (self.name, str(self.shape)))
             self._data_object = CMemory(self.shape, dtype=self.dtype)
             self._data = self._data_object.ndpointer
-            first_touch(self)
+            if self.numa:
+                first_touch(self)
+            else:
+                self.data.fill(0)
 
     @property
     def data(self):
@@ -521,9 +525,13 @@ class CoordinateData(TensorData):
             self.shape = (self.npoint, self.ndim)
             self.indices = self._indices(**kwargs)
             self.dtype = kwargs.get('dtype', np.float32)
+            self.numa = kwargs.get('numa', False)
             self._data_object = CMemory(self.shape, dtype=self.dtype)
             self.data = self._data_object.ndpointer
-            first_touch(self)
+            if self.numa:
+                first_touch(self)
+            else:
+                self.data.fill(0)
 
     def __new__(cls, *args, **kwargs):
         ndim = kwargs.get('ndim')
