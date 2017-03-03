@@ -10,6 +10,13 @@ from devito.interfaces import DenseData
 # Only test x and t as y and z are the same as x
 @pytest.mark.parametrize('derivative', ['dx', 'dxl', 'dxr', 'dx2'])
 def test_fd_space(derivative, space_order):
+    """
+    This test compare the discrete finite-difference scheme against polynomials
+    For a given order p, the fiunite difference scheme should
+    be exact for polynomials of order p
+    :param derivative: name of the derivative to be tested
+    :param space_order: space order of the finite difference stencil
+    """
     clear_cache()
     # dummy axis dimension
     nx = 100
@@ -19,8 +26,7 @@ def test_fd_space(derivative, space_order):
     u = DenseData(name="u", shape=(nx,), space_order=space_order, dtype=np.float32)
     du = DenseData(name="du", shape=(nx,), space_order=space_order, dtype=np.float32)
     # Define polynomial with exact fd
-    y = symbols('y')
-    h = symbols('h')
+    h, y = symbols('h y')
     coeffs = np.ones((space_order,), dtype=np.float32)
     polynome = sum([coeffs[i]*y**i for i in range(0, space_order)])
     polyvalues = np.array([polynome.subs(y, xi) for xi in xx], np.float32)
