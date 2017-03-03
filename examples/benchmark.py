@@ -66,7 +66,7 @@ if __name__ == "__main__":
 
     devito = parser.add_argument_group("Devito")
     devito.add_argument("--no-legacy", dest="legacy", action="store_false",
-                        help="Pass False to run with the new StencilKernel "
+                        help="Use this option to run with the new StencilKernel "
                              "infrastructure, rather than Operator/Propagator")
     devito.add_argument("-dse", default="advanced", nargs="*",
                         choices=["noop", "basic", "factorize", "approx-trigonometry",
@@ -198,11 +198,12 @@ if __name__ == "__main__":
         oi = bench.lookup(params=parameters, measure="oi", event="main")
         time = bench.lookup(params=parameters, measure="timings", event="main")
 
-        name = "%s_dim%s_so%s_to%s_arch[%s].pdf" % (args.problem,
-                                                    parameters["dimensions"],
-                                                    parameters["space_order"],
-                                                    parameters["time_order"],
-                                                    args.arch)
+        name = "%s_%s_dim%s_so%s_to%s_arch[%s].pdf" % (args.problem,
+                                                       args.benchmode,
+                                                       parameters["dimensions"],
+                                                       parameters["space_order"],
+                                                       parameters["time_order"],
+                                                       args.arch)
         name = name.replace(' ', '')
         title = "%s[%s,TO=%s], with varying <DSE,DLE>, on %s" %\
             (args.problem.capitalize(),

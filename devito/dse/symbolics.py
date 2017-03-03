@@ -157,7 +157,8 @@ class State(object):
         The first and second clusters share the expression temp2.
         """
         graph = temporaries_graph(self.exprs)
-        targets = graph.targets
+        invariants = graph.time_invariants
+        targets = invariants + [i for i in graph.targets if i not in invariants]
         clusters = [graph.trace(i.lhs) for i in targets]
         return clusters
 
@@ -346,10 +347,9 @@ class Rewriter(object):
             --> ((a*b[t] + c*d[t])*v[t], {})
         """
 
-        template = "ti%d"
         graph = temporaries_graph(state.exprs)
-        space_dimensions = graph.space_dimensions
-        queue = graph.copy()
+        space_indices = graph.space_indices
+        template = lambda i: IndexedBase("ti%d" % i, shape=graph.space_shape)
 
         # What expressions is it worth transforming (cm=cost model)?
         # Formula: ops(expr)*aliases(expr) > self.threshold <==> do it
@@ -358,21 +358,25 @@ class Rewriter(object):
         cm = lambda e: estimate_cost(e, True)*len(aliases.get(e, [e])) > self.threshold
 
         # Replace time invariants
-        processed = []
+        processed = OrderedDict()
         mapper = OrderedDict()
+        queue = graph.copy()
         while queue:
             k, v = queue.popitem(last=False)
 
-            make = lambda m: Indexed(template % (len(m)+len(mapper)), *space_dimensions)
+            make = lambda m: Indexed(template(len(m)+len(mapper)), *space_indices)
             invariant = lambda e: is_time_invariant(e, graph)
             handle, flag, mapped = replace_invariants(v, make, invariant, cm)
 
-            if flag:
+            # To be replacable, must be time invariant and all of the depending
+            # expressions must have been replaced too
+            if flag and all(i not in processed for i in v.reads):
                 mapper.update(mapped)
                 for i in v.readby:
                     graph[i] = graph[i].construct({k: handle.rhs})
             else:
-                processed.append(Eq(v.lhs, graph[v.lhs].rhs))
+                processed[v.lhs] = graph[v.lhs].rhs
+        processed = [Eq(i, j) for i, j in processed.items()]
 
         # Squash aliases and tweak the affected indices accordingly
         reducible = OrderedDict()
@@ -388,10 +392,10 @@ class Rewriter(object):
         reduced_mapper = OrderedDict()
         for i, cluster in enumerate(reducible.values()):
             for k in cluster:
-                v, flipped = flip_indices(mapper[k], space_dimensions)
+                v, flipped = flip_indices(mapper[k], space_indices)
                 assert len(flipped) == 1
-                reduced_mapper[Indexed(template % i, *space_dimensions)] = v
-                rule[k] = Indexed(template % i, *flipped.pop())
+                reduced_mapper[Indexed(template(i), *space_indices)] = v
+                rule[k] = Indexed(template(i), *flipped.pop())
         handle, processed = list(processed), []
         for e in handle:
             processed.append(e.xreplace(rule))

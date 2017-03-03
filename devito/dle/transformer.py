@@ -11,8 +11,8 @@ import psutil
 from devito.dimension import Dimension
 from devito.dle.inspection import retrieve_iteration_tree
 from devito.dle.manipulation import compose_nodes
-from devito.dse import symbolify, terminals
-from devito.interfaces import ScalarData, SymbolicData
+from devito.dse import as_symbol, terminals
+from devito.interfaces import DenseData, ScalarData
 from devito.logger import dle, dle_warning
 from devito.nodes import (Block, Denormals, Element, Expression,
                           Function, Iteration, List)
@@ -211,7 +211,7 @@ class Rewriter(object):
     """
     thresholds = {
         'collapse': 32,  # Available physical cores
-        'elemental-functions': 50  # C statements
+        'elemental-functions': 15  # C statements
     }
 
     def __init__(self, nodes, params, compiler):
@@ -270,7 +270,8 @@ class Rewriter(object):
             has_parallel_dimension = True
             for k, v in terms.items():
                 for i in writes:
-                    maybe_dependencies = [j for j in v if symbolify(i) == symbolify(j)]
+                    maybe_dependencies = [j for j in v if as_symbol(i) == as_symbol(j)
+                                          and not j.is_Symbol]
                     for j in maybe_dependencies:
                         handle = flatten(k.atoms() for k in j.indices[1:])
                         has_parallel_dimension &= not (i.indices[0] in handle)
@@ -283,7 +284,7 @@ class Rewriter(object):
                 lhs = e.lhs
                 if lhs.is_Symbol:
                     continue
-                handle = [i for i in terms[e] if i.base.label == lhs.base.label]
+                handle = [i for i in terms[e] if as_symbol(i) == as_symbol(lhs)]
                 if any(lhs.indices[0] != i.indices[0] for i in handle):
                     is_OSIP = True
                     break
@@ -339,8 +340,13 @@ class Rewriter(object):
                 name = "f_%d_%d" % (i, j)
 
                 candidate = rule(tree)
-                leftover = tuple(k for k in tree if k not in candidate)
                 expressions = FindNodeType(Expression).visit(candidate)
+                scalar_exprs = [e for e in expressions if e.is_scalar]
+                tensor_exprs = [e for e in expressions if e.is_tensor]
+
+                # Cannot handle expressions writing to temporary buffers
+                if any(k.is_temporary for k in tensor_exprs):
+                    continue
 
                 # Heuristic: only create elemental functions if there are more
                 # than self.thresholds['elemental_functions'] statements in
@@ -348,28 +354,43 @@ class Rewriter(object):
                 if len(expressions) < self.thresholds['elemental-functions']:
                     continue
 
-                args = FindSymbols().visit(candidate)
-                args += [k.dim for k in leftover if k not in args and k.is_Closed]
+                # Determine the elemental function's arguments ...
+                args = []
+                definitely_not = [k.dim for k in candidate]
+                maybe = FindSymbols(mode='free-symbols').visit(candidate)
+                maybe = [k for k in maybe if k not in definitely_not]
+                seen = {k.output for k in scalar_exprs}
 
-                known = set([k.name for k in args])
-                known |= {k.index for k in candidate}
-                known |= {k.output.name for k in expressions}
-                maybe_unknown = FindSymbols(mode='free-symbols').visit(candidate)
-                args += [k for k in maybe_unknown if k.name not in known]
+                # Add SymbolicData objects and Dimensions (sizes, indices)
+                for d in FindSymbols('with-data').visit(candidate):
+                    args.append(("%s_vec" % d.name, d))
+                    for k in d.indices:
+                        if k in seen or k.size is not None:
+                            continue
+                        args.append((k.ccode, k))
+                        # Is the Dimension index required too?
+                        if k in maybe:
+                            index_arg = (k.name, ScalarData(name=k.name, dtype=np.int32))
+                            args.append(index_arg)
+                    seen |= {as_symbol(d)} | set(d.indices)
 
-                call = []
-                parameters = []
-                for k in args:
-                    if isinstance(k, Dimension):
-                        call.append(k.ccode)
-                        parameters.append(k)
-                    elif isinstance(k, SymbolicData):
-                        call.append("%s_vec" % k.name)
-                        parameters.append(k)
-                    else:
-                        call.append(k.name)
-                        parameters.append(ScalarData(name=k.name, dtype=np.int32))
+                # Add non-temporary arrays to the elemental function's arguments
+                for e in expressions:
+                    dtype = e.dtype
+                    for k in terminals(e.stencil):
+                        obj = as_symbol(k)
+                        if obj not in seen:
+                            call = "(%s*) %s" % (c.dtype_to_ctype(dtype), obj.name)
+                            param = DenseData(name=obj.name, shape=k.shape, dtype=dtype)
+                            args.append((call, param))
+                            seen |= {obj}
 
+                # Add non-temporary scalars to the elemental function's arguments
+                required = [k for k in maybe if k not in seen]
+                args.extend([(k.name, ScalarData(name=k.name, dtype=np.int32))
+                             for k in required])
+
+                call, parameters = zip(*args)
                 root = candidate[0]
 
                 # Track info to transform the main tree
@@ -427,7 +448,7 @@ class Rewriter(object):
 
                 # Construct the blocked loop nest, as well as all necessary
                 # remainder loops
-                regions = {}
+                regions = OrderedDict()
                 blocked_iterations = []
                 for i in iterations:
                     # Build Iteration over blocks
@@ -543,17 +564,17 @@ class Rewriter(object):
                 # Heuristic: if at least two parallel loops are available and the
                 # physical core count is greater than self.thresholds['collapse'],
                 # then omp-collapse the loops
+                # TODO: This should be generalised to the case in which there are
+                # more than just 2 collapsable loops.
                 if psutil.cpu_count(logical=False) < self.thresholds['collapse'] or\
                         len(candidates) < 2:
-                    n = candidates[0]
-                    mapper[n] = Block(header=omplang['par-region'],
-                                      body=denormals + [Element(omplang['for']), n])
+                    parallelism = omplang['for']
                 else:
-                    # TODO: This should be generalised to the case in which there are
-                    # more than just 2 collapsable loops.
-                    nodes = candidates[:2]
-                    mapper.update({n: List(header=omplang['par-for-collapse2'], body=n)
-                                   for n in nodes})
+                    parallelism = omplang['collapse2']
+
+                root = candidates[0]
+                mapper[root] = Block(header=omplang['par-region'],
+                                     body=denormals + [Element(parallelism), root])
 
             processed.append(Transformer(mapper).visit(node))
 
@@ -644,9 +665,9 @@ A dictionary to quickly access standard OpenMP pragmas
 """
 omplang = {
     'for': c.Pragma('omp for schedule(static)'),
+    'collapse2': c.Pragma('omp for collapse(2) schedule(static)'),
     'par-region': c.Pragma('omp parallel'),
     'par-for': c.Pragma('omp parallel for schedule(static)'),
-    'par-for-collapse2': c.Pragma('omp parallel for collapse(2) schedule(static)'),
     'simd-for': c.Pragma('omp simd')
 }
 

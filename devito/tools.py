@@ -57,6 +57,48 @@ def filter_sorted(elements, key=None):
     return sorted(filter_ordered(elements, key=key), key=key)
 
 
+def partial_order(elements):
+    """Compute a partial order for the items in ``elements``. If a partial order
+    cannot be established, return the empty list. If multiple partial orderings are
+    possible, determinism in ensured."""
+    elements = [i for i in elements if i]
+
+    # Compute items dependencies
+    mapper = OrderedDict()
+    for i in elements:
+        shifted = list(i)
+        last = shifted.pop()
+        for j, k in zip(shifted, i[1:]):
+            handle = mapper.setdefault(j, [])
+            if k not in handle:
+                handle.append(k)
+        mapper.setdefault(last, [])
+
+    # In a partially ordered set, there can be no cyclic dependencies amongst
+    # items, so there must always be at least one root.
+    roots = OrderedDict([(k, v) for k, v in mapper.items()
+                         if k not in flatten(mapper.values())])
+
+    # Compute the partial orders
+    ordering = []
+    for k, v in roots.items():
+        pos = 0
+        ordering.append(k)
+        queue = [(i, k) for i in v]
+        while queue:
+            item, prev = queue.pop(0)
+            pos = ordering.index(prev) + 1
+            ordering.insert(pos, item)
+            for i in mapper[item]:
+                if i in ordering:
+                    if any(i == j for j in ordering[:pos]):
+                        return []
+                else:
+                    queue.append((i, item))
+
+    return ordering
+
+
 def convert_dtype_to_ctype(dtype):
     """Maps numpy types to C types.
 
@@ -131,3 +173,20 @@ class DefaultOrderedDict(OrderedDict):
 
     def __copy__(self):
         return type(self)(self.default_factory, self)
+
+
+class SetOrderedDict(DefaultOrderedDict):
+
+    def __init__(self, *args, **kwargs):
+        super(SetOrderedDict, self).__init__(set, *args, **kwargs)
+
+    @classmethod
+    def union(self, *dicts):
+        """
+        Compute the union of an iterable of :class:`SetOrderedDict`.
+        """
+        output = SetOrderedDict()
+        for i in dicts:
+            for k, v in i.items():
+                output[k] |= v
+        return output

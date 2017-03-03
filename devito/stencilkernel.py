@@ -14,14 +14,15 @@ from devito.compiler import (get_compiler_from_env, get_tmp_dir,
                              jit_compile_and_load)
 from devito.dimension import BufferedDimension, Dimension
 from devito.dle import transform
-from devito.dse import indexify, retrieve_and_check_dtype, rewrite
+from devito.dse import (as_symbol, estimate_cost, estimate_memory, indexify,
+                        retrieve_and_check_dtype, rewrite)
 from devito.interfaces import SymbolicData
 from devito.logger import bar, error, info, warning
-from devito.nodes import (Block, Expression, Function, Iteration,
-                          TimedList, TypedExpression)
+from devito.nodes import Expression, Function, Iteration, List, TimedList
 from devito.profiler import Profiler
-from devito.tools import as_tuple, filter_ordered
-from devito.visitors import (EstimateCost, FindNodeType, FindSections, FindSymbols,
+from devito.tools import (SetOrderedDict, as_tuple, filter_ordered, filter_sorted,
+                          flatten, partial_order)
+from devito.visitors import (Declarator, FindNodeType, FindSections, FindSymbols,
                              IsPerfectIteration, MergeOuterIterations,
                              ResolveIterationVariable, SubstituteExpression,
                              Transformer, printAST)
@@ -85,33 +86,33 @@ class StencilKernel(Function):
         self.sections = OrderedDict()
         nodes = self._profile_sections(nodes)
 
-        # Now resolve and substitute dimensions for loop index variables
+        # Parameters of the StencilKernel (Dimensions necessary for data casts)
+        parameters = FindSymbols('with-data').visit(nodes)
+        dimensions = FindSymbols('dimensions').visit(nodes)
+        dimensions += [d.parent for d in dimensions if d.is_Buffered]
+        parameters += filter_ordered([d for d in dimensions if d.size is None],
+                                     key=operator.attrgetter('name'))
+
+        # Resolve and substitute dimensions for loop index variables
         subs = {}
         nodes = ResolveIterationVariable().visit(nodes, subs=subs)
         nodes = SubstituteExpression(subs=subs).visit(nodes)
 
-        # Apply the Devito Loop Engine for loop optimization and finalize instantiation
-        dle_state = transform(nodes, mode=set_dle_mode(dle, self.compiler),
-                              compiler=self.compiler)
-        body = dle_state.nodes
-        parameters = FindSymbols('with-data').visit(nodes)
+        # Apply the Devito Loop Engine for loop optimization
+        dle_state = transform(nodes, set_dle_mode(dle, self.compiler), self.compiler)
         parameters += [i.argument for i in dle_state.arguments]
-
-        # Add all dimensions used in expressions symbols to arguments.
-        # This is required to ensure that we can safely perform data casts.
-        dimensions = FindSymbols('dimensions').visit(nodes)
-        # For buffered dimensions, ensure the parent is also present
-        dimensions += [d.parent for d in dimensions if d.is_Buffered]
-        parameters += filter_ordered([d for d in dimensions if d.size is None],
-                                     key=operator.attrgetter('name'))
-        super(StencilKernel, self).__init__(name, body, 'int', parameters, ())
-
-        # DLE might have introduced additional headers
         self._includes.extend(list(dle_state.includes))
+
+        # Introduce all required C declarations
+        nodes, elemental_functions = self._insert_declarations(dle_state, parameters)
+        self.elemental_functions = elemental_functions
 
         # Track the DSE and DLE output, as they may be useful later
         self._dse_state = dse_state
         self._dle_state = dle_state
+
+        # Finish instantiation
+        super(StencilKernel, self).__init__(name, nodes, 'int', parameters, ())
 
     def __call__(self, *args, **kwargs):
         self.apply(*args, **kwargs)
@@ -230,10 +231,12 @@ class StencilKernel(Function):
 
                         # Estimate computational properties of the timed section
                         # (operational intensity, memory accesses)
-                        v = EstimateCost().visit(j)
-                        self.sections[itspace] = Profile(lname, v.ops, v.mem)
+                        expressions = FindNodeType(Expression).visit(j)
+                        ops = estimate_cost([e.stencil for e in expressions])
+                        memory = estimate_memory([e.stencil for e in expressions])
+                        self.sections[itspace] = Profile(lname, ops, memory)
                         break
-        processed = [Transformer(mapper).visit(Block(body=nodes))]
+        processed = Transformer(mapper).visit(List(body=nodes))
         return processed
 
     def _profile_summary(self, dim_sizes, dtype_size):
@@ -242,17 +245,19 @@ class StencilKernel(Function):
         """
         summary = PerformanceSummary()
         for itspace, profile in self.sections.items():
+            dims = {i: i.dim.parent if i.dim.is_Buffered else i.dim for i in itspace}
+
             # Time
             time = self.profiler.timings[profile.timer]
 
             # Flops
-            itershape = [i.extent(finish=dim_sizes.get(i.dim)) for i in itspace]
+            itershape = [i.extent(finish=dim_sizes.get(dims[i])) for i in itspace]
             iterspace = reduce(operator.mul, itershape)
             flops = float(profile.ops*iterspace)
             gflops = flops/10**9
 
             # Compulsory traffic
-            datashape = [i.dim.size or dim_sizes[i.dim] for i in itspace]
+            datashape = [i.dim.size or dim_sizes[dims[i]] for i in itspace]
             dataspace = reduce(operator.mul, datashape)
             traffic = profile.memory*dataspace*dtype_size
 
@@ -286,7 +291,8 @@ class StencilKernel(Function):
 
         # Squeeze dimensions to minimize auto-tuning time
         iterations = FindNodeType(Iteration).visit(self.body)
-        squeezable = [i.dim.name for i in iterations if 'sequential' in i.properties]
+        squeezable = [i.dim.parent.name for i in iterations
+                      if 'sequential' in i.properties and i.dim.is_Buffered]
 
         # Attempted block sizes
         mapper = OrderedDict([(i.argument.name, i) for i in self._dle_state.arguments])
@@ -333,21 +339,35 @@ class StencilKernel(Function):
         """Wrap :class:`Expression` objects within suitable hierarchies of
         :class:`Iteration` according to dimensions.
         """
+        clusters = dse_state.clusters
+
+        # Terminals in previous clusters do not need to be recomputed in
+        # subsequent clusters
+        seen = []
+        for cluster in clusters:
+            for k, v in cluster.items():
+                if v in seen:
+                    cluster.pop(k)
+                if v.is_terminal:
+                    seen.append(v)
+
         processed = []
-        for cluster in dse_state.clusters:
+        for cluster in clusters:
             # Build declarations or assignments
             body = []
             for k, v in cluster.items():
-                if cluster.is_index(k):
-                    body.append(TypedExpression(v, np.int32))
-                elif v.is_terminal:
-                    body.append(Expression(v))
-                else:
-                    body.append(TypedExpression(v, dtype))
-            offsets = body[-1].index_offsets
+                dtype = np.int32 if cluster.is_index(k) else dtype
+                body.append(Expression(v, dtype))
+            offsets = SetOrderedDict.union(*[i.index_offsets for i in body])
+
             # Filter out aliasing due to buffered dimensions
             key = lambda d: d.parent if d.is_Buffered else d
             dimensions = filter_ordered(list(offsets.keys()), key=key)
+
+            # Determine a total ordering for the dimensions
+            functions = flatten(i.functions for i in body)
+            ordering = partial_order([i.indices for i in functions])
+            dimensions = filter_sorted(dimensions, key=lambda d: ordering.index(d))
             for d in reversed(dimensions):
                 body = Iteration(body, dimension=d, limits=d.size, offsets=offsets[d])
             processed.append(body)
@@ -367,6 +387,29 @@ class StencilKernel(Function):
         processed = Transformer(mapper).visit(processed)
 
         return processed
+
+    def _insert_declarations(self, dle_state, parameters):
+        """Populate the StencilKernel's body with the requried array and
+        variable declarations, to generate a legal C file."""
+        known = [as_symbol(i) for i in parameters]
+
+        # Insert declarations into the body
+        mapper, nodes = Declarator(known).visit(dle_state.nodes)
+        if mapper:
+            declarations, header, footer = zip(*mapper.values())
+            nodes = List(header=declarations + header, body=nodes, footer=footer)
+
+        # Insert declarations into each of the elemental functions
+        elemental_functions = []
+        for node in dle_state.elemental_functions:
+            mapper, rebuilt = Declarator(known).visit(node)
+            if mapper:
+                declarations, header, footer = zip(*mapper.values())
+                body = List(header=declarations+header, body=rebuilt.body, footer=footer)
+                rebuilt = Transformer({rebuilt.body: body}).visit(rebuilt)
+            elemental_functions.append(rebuilt)
+
+        return nodes, elemental_functions
 
     @property
     def _cparameters(self):
@@ -391,7 +434,7 @@ class StencilKernel(Function):
         kernel = c.FunctionBody(self._ctop, c.Block(self._ccasts + body + ret))
 
         # Generate elemental functions produced by the DLE
-        elemental_functions = [e.ccode for e in self._dle_state.elemental_functions]
+        elemental_functions = [e.ccode for e in self.elemental_functions]
         elemental_functions += [blankline]
 
         # Generate file header with includes and definitions
@@ -410,7 +453,7 @@ class StencilKernel(Function):
         :returns: The basename path as a string
         """
         expr_string = printAST(self.body, verbose=True)
-        expr_string += printAST(self._dle_state.elemental_functions, verbose=True)
+        expr_string += printAST(self.elemental_functions, verbose=True)
         hash_key = sha1(expr_string.encode()).hexdigest()
 
         return path.join(get_tmp_dir(), hash_key)

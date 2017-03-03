@@ -23,9 +23,10 @@ from collections import OrderedDict, namedtuple
 
 from sympy import Indexed
 
-from devito.dse.extended_sympy import Eq
-from devito.dse.inspection import is_time_invariant, retrieve_indexed, terminals
 from devito.dimension import t
+from devito.dse.extended_sympy import Eq
+from devito.dse.inspection import (is_time_invariant, retrieve_indexed,
+                                   terminals)
 
 __all__ = ['temporaries_graph']
 
@@ -103,12 +104,29 @@ class TemporariesGraph(OrderedDict):
     """
 
     @property
-    def space_dimensions(self):
+    def space_indices(self):
         for v in self.values():
             if v.is_terminal:
                 found = v.lhs.free_symbols - {t, v.lhs.base.label}
                 return tuple(sorted(found, key=lambda i: v.lhs.indices.index(i)))
         return ()
+
+    @property
+    def space_shape(self):
+        for v in self.values():
+            if v.is_terminal:
+                found = v.lhs.free_symbols - {t, v.lhs.base.label}
+                return tuple(i for i, j in zip(v.lhs.shape, v.lhs.indices) if j in found)
+        return ()
+
+    @property
+    def time_invariants(self):
+        space_indices = self.space_indices
+        found = []
+        for k, v in self.items():
+            if v.is_time_invariant and v.is_tensor and k.indices == space_indices:
+                found.append(v)
+        return found
 
     @property
     def targets(self):
