@@ -25,7 +25,8 @@ class IGrid:
 
         if epsilon is not None:
             self.epsilon = 1 + 2 * epsilon
-            self.scale = np.sqrt(1 + 2 * np.max(self.epsilon))
+            # Maximum velocity is scale*max(vp) is epsilon>0
+            self.scale = np.sqrt(np.max(self.epsilon)) if np.max(self.epsilon) > 0 else 1
         else:
             self.scale = 1
             self.epsilon = None
