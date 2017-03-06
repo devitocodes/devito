@@ -8,7 +8,7 @@ from collections import Iterable, OrderedDict
 import cgen as c
 from sympy import Eq, preorder_traversal
 
-from devito.codeprinter import ccode
+from devito.cgen_utils import ccode
 from devito.dimension import Dimension
 from devito.dse.inspection import as_symbol, retrieve_indexed
 from devito.interfaces import IndexedData, SymbolicData, TensorFunction
