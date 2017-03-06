@@ -18,8 +18,8 @@ logger.addHandler(_ch)
 
 # Add extra levels between INFO (value=20) and WARNING (value=30)
 DEBUG = logging.DEBUG
+AUTOTUNER = 19
 INFO = logging.INFO
-AUTOTUNER = 27
 DSE = 28
 DLE = DSE
 DSE_WARN = 29

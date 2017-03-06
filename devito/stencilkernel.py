@@ -18,7 +18,7 @@ from devito.dimension import BufferedDimension, Dimension
 from devito.dle import filter_iterations, transform
 from devito.dse import (as_symbol, estimate_cost, estimate_memory, indexify, rewrite)
 from devito.interfaces import SymbolicData
-from devito.logger import bar, error, info, warning
+from devito.logger import bar, error, info, info_at, warning
 from devito.nodes import (Block, Element, Expression, Function, FunCall,
                           Iteration, List, LocalExpression, TimedList)
 from devito.profiler import Profiler
@@ -337,7 +337,8 @@ class StencilKernel(Function):
             self.cfunction(*list(at_arguments.values()))
             elapsed = sum(self.profiler.timings.values())
             timings[tuple(blocksize.items())] = elapsed
-            info("<%s>: %f" % (','.join('%d' % i for i in blocksize.values()), elapsed))
+            info_at("<%s>: %f" %
+                    (','.join('%d' % i for i in blocksize.values()), elapsed))
 
         best = dict(min(timings, key=timings.get))
         for k, v in arguments.items():
