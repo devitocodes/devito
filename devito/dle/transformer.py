@@ -12,8 +12,7 @@ import psutil
 from devito.dimension import Dimension
 from devito.dle import (compose_nodes, copy_arrays,
                         filter_iterations, retrieve_iteration_tree)
-from devito.dse import (as_symbol, estimate_cost, promote_scalar_expressions,
-                        retrieve_and_check_dtype, terminals)
+from devito.dse import (as_symbol, estimate_cost, promote_scalar_expressions, terminals)
 from devito.interfaces import ScalarFunction, TensorFunction
 from devito.logger import dle, dle_warning
 from devito.nodes import (Block, Denormals, Element, Expression, FunCall,

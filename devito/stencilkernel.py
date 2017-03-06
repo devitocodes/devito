@@ -15,8 +15,7 @@ from devito.compiler import (get_compiler_from_env, get_tmp_dir,
                              jit_compile_and_load)
 from devito.dimension import BufferedDimension, Dimension
 from devito.dle import filter_iterations, transform
-from devito.dse import (as_symbol, estimate_cost, estimate_memory, indexify,
-                        retrieve_and_check_dtype, rewrite)
+from devito.dse import (as_symbol, estimate_cost, estimate_memory, indexify, rewrite)
 from devito.interfaces import SymbolicData
 from devito.logger import bar, error, info, warning
 from devito.nodes import (Block, Element, Expression, Function, FunCall,
@@ -77,16 +76,18 @@ class StencilKernel(Function):
         self._lib = None
         self._cfunction = None
 
-        # Convert stencil expressions into actual Nodes, going through the
-        # Devito Symbolic Engine for flop optimization.
-        stencils = stencils if isinstance(stencils, list) else [stencils]
-        dtype = retrieve_and_check_dtype(stencils)
-        stencils = [indexify(s) for s in stencils]
+        # Normalize the collection of stencils
+        stencils = [indexify(s) for s in as_tuple(stencils)]
         stencils = [s.xreplace(subs) for s in stencils]
+
+        # Retrieve the data type of the StencilKernel
+        self.dtype = self._retrieve_dtype(stencils)
+
+        # Apply the Devito Symbolic Engine for symbolic optimization
         dse_state = rewrite(stencils, mode=dse)
 
         # Wrap expressions with Iterations according to dimensions
-        nodes = self._schedule_expressions(dse_state, dtype)
+        nodes = self._schedule_expressions(dse_state)
 
         # Introduce C-level profiling infrastructure
         self.sections = OrderedDict()
@@ -188,17 +189,6 @@ class StencilKernel(Function):
         for d in d_args:
             arguments[d.name] = dim_sizes[d]
 
-        # Retrieve the data type of the arrays
-        try:
-            dtypes = [i.data.dtype for i in f_args]
-            dtype = dtypes[0]
-            if any(i != dtype for i in dtypes):
-                warning("Found non-matching data types amongst the provided"
-                        "symbolic arguments.")
-            dtype_size = dtype.itemsize
-        except IndexError:
-            dtype_size = 1
-
         # Might have been asked to auto-tune the block size
         if maybe_autotune:
             self._autotune(arguments)
@@ -212,7 +202,7 @@ class StencilKernel(Function):
         self.cfunction(*list(arguments.values()))
 
         # Output summary of performance achieved
-        summary = self._profile_summary(dim_sizes, dtype_size)
+        summary = self._profile_summary(dim_sizes)
         with bar():
             for k, v in summary.items():
                 name = '%s<%s>' % (k, ','.join('%d' % i for i in v.itershape))
@@ -245,7 +235,7 @@ class StencilKernel(Function):
         processed = Transformer(mapper).visit(List(body=nodes))
         return processed
 
-    def _profile_summary(self, dim_sizes, dtype_size):
+    def _profile_summary(self, dim_sizes):
         """
         Produce a summary of the performance achieved
         """
@@ -265,7 +255,7 @@ class StencilKernel(Function):
             # Compulsory traffic
             datashape = [i.dim.size or dim_sizes[dims[i]] for i in itspace]
             dataspace = reduce(operator.mul, datashape)
-            traffic = profile.memory*dataspace*dtype_size
+            traffic = profile.memory*dataspace*self.dtype().itemsize
 
             # Derived metrics
             oi = flops/traffic
@@ -355,7 +345,7 @@ class StencilKernel(Function):
 
         info('Auto-tuned block shape: %s' % best)
 
-    def _schedule_expressions(self, dse_state, dtype):
+    def _schedule_expressions(self, dse_state):
         """Wrap :class:`Expression` objects within suitable hierarchies of
         :class:`Iteration` according to dimensions.
         """
@@ -363,7 +353,7 @@ class StencilKernel(Function):
         processed = []
         for cluster in dse_state.clusters:
             # Build declarations or assignments
-            body = [Expression(v, np.int32 if cluster.is_index(k) else dtype)
+            body = [Expression(v, np.int32 if cluster.is_index(k) else self.dtype)
                     for k, v in cluster.items()]
             offsets = SetOrderedDict.union(*[i.index_offsets for i in body])
 
@@ -440,6 +430,17 @@ class StencilKernel(Function):
             nodes = List(header=decls + allocs, body=nodes, footer=deallocs)
 
         return nodes, elemental_functions
+
+    def _retrieve_dtype(self, stencils):
+        """
+        Retrieve the data type of a set of stencils. Raise an error if there
+        is no common data type (ie, if at least one stencil differs in the
+        data type).
+        """
+        lhss = set([s.lhs.base.function.dtype for s in stencils])
+        if len(lhss) != 1:
+            raise RuntimeError("Stencil types mismatch.")
+        return lhss.pop()
 
     @property
     def _cparameters(self):
