@@ -138,8 +138,9 @@ class State(object):
 
     """Represent the output of the DLE."""
 
-    def __init__(self, nodes):
+    def __init__(self, nodes, mode='noop'):
         self.nodes = as_tuple(nodes)
+        self.mode = mode
 
         self.elemental_functions = ()
         self.arguments = ()
@@ -169,6 +170,10 @@ class State(object):
     def func_table(self):
         """Return a mapper from elemental function names to :class:`Function`."""
         return OrderedDict([(i.name, i) for i in self.elemental_functions])
+
+    @property
+    def needs_aggressive_autotuning(self):
+        return self.mode in ['aggressive']
 
 
 class Arg(object):
@@ -248,7 +253,7 @@ class Rewriter(object):
         self.timings = OrderedDict()
 
     def run(self, mode):
-        state = State(self.nodes)
+        state = State(self.nodes, mode)
 
         self._analyze_and_decorate(state)
 

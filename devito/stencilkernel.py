@@ -295,19 +295,20 @@ class StencilKernel(Function):
         mapper = OrderedDict([(i.argument.name, i) for i in self._dle_state.arguments])
         blocksizes = [OrderedDict([(i, v) for i in mapper])
                       for v in options['at_blocksize']]
-        elaborated = []
-        for blocksize in list(blocksizes)[:3]:
-            for i in list(blocksizes):
-                handle = i.items()[-1]
-                elaborated.append(OrderedDict(blocksize.items()[:-1] + [handle]))
-        for blocksize in list(blocksizes):
-            ncombs = len(blocksize)
-            for i in range(ncombs):
-                for j in combinations(blocksize, i+1):
-                    handle = [(k, blocksize[k]*2 if k in j else v)
-                              for k, v in blocksize.items()]
-                    elaborated.append(OrderedDict(handle))
-        blocksizes.extend(elaborated)
+        if self._dle_state.needs_aggressive_autotuning:
+            elaborated = []
+            for blocksize in list(blocksizes)[:3]:
+                for i in list(blocksizes):
+                    handle = i.items()[-1]
+                    elaborated.append(OrderedDict(blocksize.items()[:-1] + [handle]))
+            for blocksize in list(blocksizes):
+                ncombs = len(blocksize)
+                for i in range(ncombs):
+                    for j in combinations(blocksize, i+1):
+                        handle = [(k, blocksize[k]*2 if k in j else v)
+                                  for k, v in blocksize.items()]
+                        elaborated.append(OrderedDict(handle))
+            blocksizes.extend(elaborated)
 
         # Note: there is only a single loop over 'blocksize' because only
         # square blocks are tested
