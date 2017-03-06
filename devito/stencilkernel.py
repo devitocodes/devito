@@ -11,6 +11,7 @@ from os import path
 import cgen as c
 import numpy as np
 
+from devito.cgen_utils import Allocator
 from devito.compiler import (get_compiler_from_env, get_tmp_dir,
                              jit_compile_and_load)
 from devito.dimension import BufferedDimension, Dimension
@@ -19,11 +20,11 @@ from devito.dse import (as_symbol, estimate_cost, estimate_memory, indexify, rew
 from devito.interfaces import SymbolicData
 from devito.logger import bar, error, info, warning
 from devito.nodes import (Block, Element, Expression, Function, FunCall,
-                          Iteration, List, TimedList)
+                          Iteration, List, LocalExpression, TimedList)
 from devito.profiler import Profiler
 from devito.tools import (SetOrderedDict, as_tuple, filter_ordered, filter_sorted,
                           flatten, invert, partial_order)
-from devito.visitors import (Declarator, FindNodes, FindSections, FindSymbols,
+from devito.visitors import (FindNodes, FindSections, FindSymbols, FindScopes,
                              IsPerfectIteration, MergeOuterIterations,
                              ResolveIterationVariable, SubstituteExpression,
                              Transformer, printAST)
@@ -274,7 +275,7 @@ class StencilKernel(Function):
         best block sizes (when loop blocking is in use). The block sizes tested
         are those listed in ``options['at_blocksizes']``, plus the case that is
         as if blocking were not applied (ie, unitary block size)."""
-        if not self._dle_state._applied_blocking:
+        if not self._dle_state.has_applied_blocking:
             return
 
         at_arguments = arguments.copy()
@@ -389,45 +390,49 @@ class StencilKernel(Function):
         """Populate the StencilKernel's body with the required array and
         variable declarations, to generate a legal C file."""
 
-        # Idea: everything goes global in the Kernel function, apart from those
-        # variables that need to be inserted *within* an OpenMP region (ie, those
-        # that are private to threads)
-
-        # Collect all required declarations from the Kernel body
+        nodes = dle_state.nodes
         known = [as_symbol(i) for i in parameters]
-        mapper, nodes = Declarator(known).visit(dle_state.nodes)
-        funcs = OrderedDict([(k, v) for k, v in mapper.items() if k.is_FunCall])
-        global_mapper = OrderedDict([(k, v) for k, v in mapper.items()
-                                     if k not in funcs and not v.in_omp_region])
 
-        # Collect all required declarations from each of the elemental functions
-        known += [i.output for i in global_mapper]
-        scopes = invert(FindSections().visit(nodes))
-        mapper = OrderedDict()
-        elemental_functions = []
-        for n in dle_state.elemental_functions:
-            n_funcs = OrderedDict([(k, v) for k, v in funcs.items() if k.name == n.name])
-            in_omp_region = any(v.in_omp_region for v in n_funcs.values())
-            handle, rebuilt = Declarator(known).visit(n, in_omp_region=in_omp_region)
-            elemental_functions.append(rebuilt)
-            if in_omp_region:
-                for f in n_funcs:
-                    scope = filter_iterations(scopes[f],
-                                              key=lambda i: i.is_Parallel,
-                                              stop='consecutive')
-                    allocs = mapper.setdefault(scope[-1], [])
-                    allocs.extend([Element(v.alloc) for v in handle.values()])
+        # Resolve function calls first
+        scopes = []
+        for k, v in FindScopes().visit(nodes).items():
+            if k.is_FunCall:
+                function = dle_state.func_table[k.name]
+                scopes.extend(FindScopes().visit(function, queue=list(v)).items())
             else:
-                global_mapper.update(handle)
-        mapper = OrderedDict([(k, Iteration(as_tuple(v) + k.nodes, **k.args_frozen))
-                              for k, v in mapper.items()])
-        nodes = Transformer(mapper).visit(nodes)
+                scopes.append((k, v))
 
-        # Insert globally-scoped declarations into the body, if any
-        if global_mapper:
-            decls, allocs, deallocs, _ = zip(*global_mapper.values())
-            assert all(i is not None for i in decls)
-            nodes = List(header=decls + allocs, body=nodes, footer=deallocs)
+        # Determine all required declarations
+        allocator = Allocator()
+        mapper = OrderedDict()
+        for k, v in scopes:
+            if k.output in known:
+                # Nothing to do, variable passed as kernel argument
+                continue
+            elif k.is_scalar:
+                # Inline declaration
+                mapper[k] = LocalExpression(**k.args)
+            else:
+                key = lambda i: i.dim not in k.output_function.indices
+                site = filter_iterations(v, key=key, stop='consecutive')
+                if len(k.shape) < len(site):
+                    # On the stack, as inner to some loops
+                    allocator.push_stack(site[-1], k.output_function)
+                else:
+                    # On the heap, as must be visible to the whole StencilKernel
+                    allocator.push_heap(k.output_function)
+
+        # Introduce declarations on the stack
+        for k, v in allocator.onstack:
+            allocs = as_tuple([Element(i) for i in v])
+            mapper[k] = Iteration(allocs + k.nodes, **k.args_frozen)
+        nodes = Transformer(mapper).visit(nodes)
+        elemental_functions = Transformer(mapper).visit(dle_state.elemental_functions)
+
+        # Introduce declarations on the heap (if any)
+        if allocator.onheap:
+            decls, allocs, frees = zip(*allocator.onheap)
+            nodes = List(header=decls + allocs, body=nodes, footer=frees)
 
         return nodes, elemental_functions
 

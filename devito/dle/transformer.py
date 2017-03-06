@@ -156,14 +156,19 @@ class State(object):
         self.flags += as_tuple(flags)
 
     @property
-    def _applied_nontemporal_stores(self):
+    def has_applied_nontemporal_stores(self):
         """True if nontemporal stores will be generated, False otherwise."""
         return 'ntstores' in self.flags
 
     @property
-    def _applied_blocking(self):
+    def has_applied_blocking(self):
         """True if loop blocking was applied, False otherwise."""
         return 'blocking' in self.flags
+
+    @property
+    def func_table(self):
+        """Return a mapper from elemental function names to :class:`Function`."""
+        return OrderedDict([(i.name, i) for i in self.elemental_functions])
 
 
 class Arg(object):

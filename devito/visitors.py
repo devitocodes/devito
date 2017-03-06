@@ -17,7 +17,7 @@ from devito.nodes import Iteration, List, LocalExpression
 from devito.tools import as_tuple, filter_ordered, filter_sorted, flatten
 
 
-__all__ = ['Declarator' 'FindNodes', 'FindSections', 'FindSymbols',
+__all__ = ['FindNodes', 'FindSections', 'FindSymbols', 'FindScopes',
            'IsPerfectIteration', 'SubstituteExpression',
            'ResolveIterationVariable', 'Transformer', 'printAST']
 
@@ -223,9 +223,6 @@ class FindSections(Visitor):
     iteration space).
     """
 
-    def visit_object(self, o, **kwargs):
-        return self.default_retval()
-
     def visit_tuple(self, o, ret=None, queue=None):
         for i in o:
             ret = self.visit(i, ret=ret, queue=queue)
@@ -255,6 +252,27 @@ class FindSections(Visitor):
 
     visit_Element = visit_Expression
     visit_FunCall = visit_Expression
+
+
+class FindScopes(FindSections):
+
+    @classmethod
+    def default_retval(cls):
+        return OrderedDict()
+
+    """
+    Map each written variable or :class:`FunCall` object in the Iteration/Expression
+    tree to its section.
+    """
+
+    def visit_FunCall(self, o, ret=None, queue=None, in_omp_region=False):
+        if ret is None:
+            ret = self.default_retval()
+        ret[o] = as_tuple(queue)
+        return ret
+
+    visit_Expression = visit_FunCall
+    visit_Element = FindSections.visit_Node
 
 
 class FindSymbols(Visitor):
@@ -494,143 +512,10 @@ class MergeOuterIterations(Transformer):
             if self.is_mergable(head, body[0]):
                 newit = self.merge(head, body[0])
                 ret = self.visit([newit] + list(body[1:]))
-                return ret
-        return tuple([head] + list(body))
-
-    def visit_tuple(self, o):
-        head = self.visit(o[0])
-        if len(o) < 2:
-            return tuple([head])
-        body = self.visit(o[1:])
-        if head.is_Iteration and body[0].is_Iteration:
-            if self.is_mergable(head, body[0]):
-                newit = self.merge(head, body[0])
-                ret = self.visit([newit] + list(body[1:]))
                 return as_tuple(ret)
         return tuple([head] + list(body))
 
-
-class Declarator(Transformer):
-
-    Data = namedtuple('Data', 'declaration alloc dealloc in_omp_region')
-
-    @classmethod
-    def default_retval(cls):
-        return OrderedDict(), None
-
-    """
-    Traverse the Iteration/Expression tree and introduce declarations for all
-    arrays and variables employed.
-
-    If an expression ``e`` is used only within a single scope, replace ``e``
-    with a ``LocalExpression`` so that at code generation time, something like
-    the following code block will be emitted:
-
-        .. code-block::
-      ...
-      {
-        float e = ...;
-        ...
-      }
-
-    If, otherwhise, an array is used across multiple scopes, then construct and
-    return suitable statements to be inserted at the top and at the bottom of
-    the provided Iteration/Expression tree; for example:
-
-        .. code-block::
-      float *e = malloc(...);
-      {
-        foo(e)
-      }
-      ...
-      for i
-      {
-        bar(e)
-      }
-      free(e)
-
-    :param known: Collection of symbols that need no declaration.
-    """
-
-    # TODO: this visitor should be decoupled into two visitors:
-    # - One visitor to get the OpenMP scopes
-    # - The actual Declarator visitor
-
-    def __init__(self, known=None):
-        super(Transformer, self).__init__()
-        self.known = known or {}
-        from devito.dle.transformer import omplang
-        self.omplang = omplang
-
-    def _declare(self, o, in_omp_region):
-        if in_omp_region:
-            # Declaration will be inplace with allocation (just for code readability)
-            return None
-        else:
-            declaration = "(*%s)%s"
-            declaration = declaration % (o.output, "".join("[%d]" % j for j in o.shape[1:]))
-            return c.Value(c.dtype_to_ctype(o.dtype), declaration)
-
-    def _alloc(self, o, in_omp_region):
-        shape = "".join("[%d]" % j for j in o.shape)
-        if in_omp_region:
-            align = "__attribute__((aligned(64)))"
-            return c.POD(c.dtype_to_ctype(o.dtype), "%s%s %s" % (o.output, shape, align))
-        else:
-            funcall = "posix_memalign((void**)&%s, 64, sizeof(%s%s))"
-            funcall = funcall % (o.output, c.dtype_to_ctype(o.dtype), shape)
-            return c.Statement(funcall)
-
-    def _dealloc(self, o, in_omp_region):
-        return None if in_omp_region else c.Statement('free(%s)' % o.output)
-
-    def visit_tuple(self, o, in_omp_region=False, mapper=None):
-        rebuilt = []
-        for i in o:
-            mapper, handle = self.visit(i, in_omp_region=in_omp_region, mapper=mapper)
-            rebuilt.append(handle)
-        return mapper, tuple(rebuilt)
-
-    def visit_Node(self, o, in_omp_region=False, mapper=None):
-        mapper, rebuilt = self.visit(o.children, in_omp_region=in_omp_region,
-                                     mapper=mapper)
-        return mapper, o._rebuild(*rebuilt, **o.args_frozen)
-
-    def visit_Function(self, o, in_omp_region=False, mapper=None):
-        mapper, rebuilt = self.visit(o.children, in_omp_region=in_omp_region,
-                                     mapper=mapper)
-        return mapper, o._rebuild(*rebuilt, **o.args_frozen)
-
-    def visit_Block(self, o, in_omp_region=False, mapper=None):
-        if self.omplang['par-region'] in o.header:
-            in_omp_region = True
-        mapper, rebuilt = self.visit(o.children, in_omp_region=in_omp_region,
-                                     mapper=mapper)
-        return mapper, o._rebuild(*rebuilt, **o.args_frozen)
-
-    def visit_FunCall(self, o, in_omp_region=False, mapper=None):
-        if mapper is None:
-            mapper, _ = self.default_retval()
-
-        rebuilt = o._rebuild(**o.args)
-        mapper[rebuilt] = self.Data(None, None, None, in_omp_region)
-        return mapper, rebuilt
-
-    def visit_Expression(self, o, in_omp_region=False, mapper=None):
-        if mapper is None:
-            mapper, _ = self.default_retval()
-
-        if o.is_scalar:
-            return mapper, LocalExpression(**o.args)
-        elif o.output in self.known:
-            return mapper, o._rebuild(**o.args)
-        else:
-            rebuilt = o._rebuild(**o.args)
-            mapper[rebuilt] = self.Data(self._declare(o, in_omp_region),
-                                        self._alloc(o, in_omp_region),
-                                        self._dealloc(o, in_omp_region),
-                                        in_omp_region)
-            return mapper, rebuilt
+    visit_tuple = visit_list
 
 
 def printAST(node, verbose=True):
