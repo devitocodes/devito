@@ -97,7 +97,7 @@ class TTI_cg:
         fw = ForwardOperator(self.model, u, v, src, rec, self.damp, self.data,
                              time_order=self.t_order, spc_order=self.s_order,
                              profile=True, save=save, cache_blocking=cache_blocking,
-                             dse=dse, compiler=compiler, u_ini=u_ini, legacy=legacy)
+                             dse=dse, dle=dle, compiler=compiler, legacy=legacy)
 
         if auto_tuning and legacy:
             # uses space_order/2 for the first derivatives to

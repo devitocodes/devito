@@ -13,12 +13,11 @@ from operator import attrgetter
 import cgen as c
 from sympy import Symbol
 
-from devito.dse import estimate_cost, estimate_memory
-from devito.nodes import Iteration, List
+from devito.nodes import Iteration, List, LocalExpression
 from devito.tools import as_tuple, filter_ordered, filter_sorted, flatten
 
 
-__all__ = ['EstimateCost', 'FindNodeType', 'FindSections', 'FindSymbols',
+__all__ = ['Declarator', 'FindNodeType', 'FindSections', 'FindSymbols',
            'IsPerfectIteration', 'SubstituteExpression',
            'ResolveIterationVariable', 'Transformer', 'printAST']
 
@@ -347,40 +346,6 @@ class IsPerfectIteration(Visitor):
         return all(self.visit(i, found=True, multi=multi) for i in o.children)
 
 
-class EstimateCost(Visitor):
-
-    Cost = namedtuple('Cost', 'ops mem')
-
-    @classmethod
-    def default_retval(cls):
-        return cls.Cost(0, 0)
-
-    """
-    Estimate the number of floating point operations and memory accesses per
-    loop iteration in an Iteration/Expression tree.
-    """
-
-    def visit_object(self, o):
-        return self.default_retval()
-
-    def visit_tuple(self, o):
-        cost = self.default_retval()
-        for i in o:
-            ret = self.visit(i)
-            cost = self.Cost(cost.ops + ret.ops, cost.mem + ret.mem)
-        return cost
-
-    def visit_Node(self, o):
-        cost = self.default_retval()
-        for i in o.children:
-            ret = self.visit(i)
-            cost = self.Cost(cost.ops + ret.ops, cost.mem + ret.mem)
-        return cost
-
-    def visit_Expression(self, o):
-        return self.Cost(estimate_cost(o.stencil), estimate_memory(o.stencil))
-
-
 class Transformer(Visitor):
 
     """Given an Iteration/Expression tree T and a mapper from nodes in T to
@@ -440,17 +405,14 @@ class ResolveIterationVariable(Transformer):
           int t1 = (t + 1) % 2;
     """
 
-    def visit_Iteration(self, o, subs={}, offsets=defaultdict(set),
-                        variable_map=defaultdict(int)):
-        nodes = self.visit(o.children, subs=subs, offsets=offsets,
-                           variable_map=variable_map)
+    def visit_Iteration(self, o, subs={}, offsets=defaultdict(set)):
+        nodes = self.visit(o.children, subs=subs, offsets=offsets)
         if o.dim.is_Buffered:
             # For buffered dimensions insert the explicit
-            # definition of buffere variables, eg. t+1 => t1
+            # definition of buffered variables, eg. t+1 => t1
             init = []
-            for off in filter_ordered(offsets[o.dim]):
-                vname = "%s%d" % (o.dim.name, variable_map[o.dim])
-                variable_map[o.dim] += 1  # Increase variable count
+            for i, off in enumerate(filter_ordered(offsets[o.dim])):
+                vname = "%s%d" % (o.dim.name, i)
                 # Add modulo to value so that t-modulo is always positive
                 value = o.dim.parent + off + o.dim.modulo
                 modulo = o.dim.modulo
@@ -463,13 +425,9 @@ class ResolveIterationVariable(Transformer):
             newnodes = (List(header=init, body=nodes[0]), )
             return o._rebuild(newnodes, index=o.dim.parent.name)
         else:
-            vname = "%s%d" % (o.dim.name, variable_map[o.dim])
-            variable_map[o.dim] += 1  # Increase variable count
-            subs[o.dim] = Symbol(vname)
-            return o._rebuild(*nodes, index=vname)
+            return o._rebuild(*nodes)
 
-    def visit_Expression(self, o, subs={}, offsets=defaultdict(set),
-                         variable_map=defaultdict(int)):
+    def visit_Expression(self, o, subs={}, offsets=defaultdict(set)):
         """Collect all offsets used with a dimension"""
         for dim, offs in o.index_offsets.items():
             offsets[dim].update(offs)
@@ -533,6 +491,101 @@ class MergeOuterIterations(Transformer):
                 ret = self.visit([newit] + list(body[1:]))
                 return as_tuple(ret)
         return tuple([head] + list(body))
+
+
+class Declarator(Transformer):
+
+    Declaration = namedtuple('Declaration', 'declaration header footer')
+
+    @classmethod
+    def default_retval(cls):
+        return OrderedDict(), None
+
+    """
+    Traverse the Iteration/Expression tree and introduce declarations for all
+    arrays and variables employed.
+
+    If an expression ``e`` is used only within a single scope, replace ``e``
+    with a ``LocalExpression`` so that at code generation time, something like
+    the following code block will be emitted:
+
+        .. code-block::
+      ...
+      {
+        float e = ...;
+        ...
+      }
+
+    If, otherwhise, an array is used across multiple scopes, then construct and
+    return suitable statements to be inserted at the top and at the bottom of
+    the provided Iteration/Expression tree; for example:
+
+        .. code-block::
+      float *e = malloc(...);
+      {
+        foo(e)
+      }
+      ...
+      for i
+      {
+        bar(e)
+      }
+      free(e)
+
+    :param known: Collection of symbols that need no declaration.
+    """
+
+    def __init__(self, known=None):
+        super(Transformer, self).__init__()
+        self.known = known or {}
+
+    def _declare(self, o):
+        declaration = "(*%s)%s"
+        declaration = declaration % (o.output, "".join("[%d]" % j for j in o.shape[1:]))
+        return c.Value(c.dtype_to_ctype(o.dtype), declaration)
+
+    def _alloc(self, o):
+        funcall = "posix_memalign((void**)&%s, 64, sizeof(%s%s))"
+        funcall = funcall % (o.output, c.dtype_to_ctype(o.dtype),
+                             "".join("[%d]" % j for j in o.shape))
+        return c.Statement(funcall)
+
+    def _free(self, o):
+        return c.Statement('free(%s)' % o.output)
+
+    def visit_tuple(self, o, scope=None, mapper=None):
+        rebuilt = []
+        for i in o:
+            mapper, handle = self.visit(i, scope=scope, mapper=mapper)
+            rebuilt.append(handle)
+        return mapper, tuple(rebuilt)
+
+    def visit_Node(self, o, scope=None, mapper=None):
+        mapper, rebuilt = self.visit(o.children, scope=scope, mapper=mapper)
+        return mapper, o._rebuild(*rebuilt, **o.args_frozen)
+
+    def visit_Iteration(self, o, scope=None, mapper=None):
+        if scope is None:
+            scope = [o]
+        else:
+            scope.append(o)
+        mapper, rebuilt = self.visit(o.children, scope=scope, mapper=mapper)
+        scope.remove(o)
+        return mapper, o._rebuild(*rebuilt, **o.args_frozen)
+
+    def visit_Expression(self, o, scope=None, mapper=None):
+        if mapper is None:
+            mapper, _ = self.default_retval()
+        if o.is_scalar:
+            return mapper, LocalExpression(**o.args)
+        elif o.output in self.known:
+            return mapper, o._rebuild(**o.args)
+        else:
+            if o not in mapper:
+                mapper[o] = self.Declaration(self._declare(o),
+                                             self._alloc(o),
+                                             self._free(o))
+            return mapper, o._rebuild(**o.args)
 
 
 def printAST(node, verbose=True):

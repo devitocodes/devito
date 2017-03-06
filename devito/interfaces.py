@@ -162,6 +162,21 @@ class TensorData(SymbolicData):
 
     is_TensorData = True
 
+    def __new__(cls, *args, **kwargs):
+        kwargs.update({'options': {'evaluate': False}})
+        return SymbolicData.__new__(cls, *args, **kwargs)
+
+    @classmethod
+    def _indices(cls, **kwargs):
+        return []
+
+    def __init__(self, *args, **kwargs):
+        if not self._cached():
+            self.name = kwargs.get('name')
+            self.shape = kwargs.get('shape')
+            self.dtype = kwargs.get('dtype', np.float32)
+            self._data = kwargs.get('_data', None)
+
 
 class DenseData(TensorData):
     """Data object for spatially varying data that acts as a Function symbol
@@ -193,6 +208,7 @@ class DenseData(TensorData):
             if initializer is not None:
                 assert(callable(initializer))
             self.initializer = initializer
+            self.numa = kwargs.get('numa', False)
             self._data = kwargs.get('_data', None)
             self.taxis = kwargs.get('taxis', Forward)
             MemmapManager.setup(self, *args, **kwargs)
@@ -253,7 +269,10 @@ class DenseData(TensorData):
             debug("Allocating memory for %s (%s)" % (self.name, str(self.shape)))
             self._data_object = CMemory(self.shape, dtype=self.dtype)
             self._data = self._data_object.ndpointer
-            first_touch(self)
+            if self.numa:
+                first_touch(self)
+            else:
+                self.data.fill(0)
 
     @property
     def data(self):
@@ -567,9 +586,13 @@ class CoordinateData(TensorData):
             self.shape = (self.npoint, self.ndim)
             self.indices = self._indices(**kwargs)
             self.dtype = kwargs.get('dtype', np.float32)
+            self.numa = kwargs.get('numa', False)
             self._data_object = CMemory(self.shape, dtype=self.dtype)
             self.data = self._data_object.ndpointer
-            first_touch(self)
+            if self.numa:
+                first_touch(self)
+            else:
+                self.data.fill(0)
 
     def __new__(cls, *args, **kwargs):
         ndim = kwargs.get('ndim')

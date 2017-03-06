@@ -2,14 +2,14 @@ import numpy as np
 from sympy import (Function, Indexed, Number, Symbol, cos, count_ops, lambdify,
                    preorder_traversal, sin)
 
-from devito.dimension import t
+from devito.dimension import Dimension, t
 from devito.interfaces import SymbolicData
 from devito.logger import warning
 from devito.tools import flatten
 
 __all__ = ['estimate_cost', 'estimate_memory', 'indexify', 'retrieve_dimensions',
            'retrieve_dtype', 'retrieve_symbols', 'retrieve_shape', 'terminals',
-           'tolambda', 'retrieve_and_check_dtype', 'symbolify']
+           'tolambda', 'retrieve_and_check_dtype', 'as_symbol']
 
 
 def terminals(expr, discard_indexed=False):
@@ -315,14 +315,20 @@ def retrieve_trigonometry(expr, mode='unique'):
     return retrieve(expr, 'trigonometry', mode)
 
 
-def symbolify(expr):
+def as_symbol(expr):
     """
     Extract the "main" symbol from a SymPy object.
     """
-    if expr.is_Symbol:
+    if isinstance(expr, str):
+        return Symbol(expr)
+    elif isinstance(expr, Dimension):
+        return Symbol(expr.name)
+    elif expr.is_Symbol:
         return expr
     elif isinstance(expr, Indexed):
         return expr.base.label
+    elif isinstance(expr, Function):
+        return Symbol(expr.name)
     else:
         raise RuntimeError("Cannot extract symbol from type %s" % type(expr))
 

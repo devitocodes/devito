@@ -6,13 +6,13 @@ import inspect
 from collections import Iterable, OrderedDict
 
 import cgen as c
-from sympy import Eq, IndexedBase, preorder_traversal
+from sympy import Eq, preorder_traversal
 
 from devito.codeprinter import ccode
 from devito.dimension import Dimension
-from devito.dse.inspection import retrieve_indexed
-from devito.interfaces import SymbolicData, TensorData
-from devito.tools import DefaultOrderedDict, as_tuple, filter_ordered
+from devito.dse.inspection import as_symbol, retrieve_indexed
+from devito.interfaces import IndexedData, SymbolicData, TensorData
+from devito.tools import SetOrderedDict, as_tuple, filter_ordered, flatten
 
 __all__ = ['Node', 'Block', 'Expression', 'Function', 'Iteration', 'List',
            'TimedList']
@@ -136,9 +136,10 @@ class Expression(Node):
 
     is_Expression = True
 
-    def __init__(self, stencil):
+    def __init__(self, stencil, dtype=None):
         assert isinstance(stencil, Eq)
         self.stencil = stencil
+        self.dtype = dtype
 
         self.dimensions = []
         self.functions = []
@@ -147,7 +148,7 @@ class Expression(Node):
             if isinstance(e, SymbolicData):
                 self.dimensions += list(e.indices)
                 self.functions += [e]
-            if isinstance(e, IndexedBase):
+            if isinstance(e, IndexedData):
                 self.dimensions += list(e.function.indices)
                 self.functions += [e.function]
         # Filter collected dimensions and functions
@@ -155,7 +156,8 @@ class Expression(Node):
         self.functions = filter_ordered(self.functions)
 
     def __repr__(self):
-        return "<Expression::%s>" % filter_ordered([f.func for f in self.functions])
+        return "<%s::%s>" % (self.__class__.__name__,
+                             filter_ordered([f.func for f in self.functions]))
 
     def substitute(self, substitutions):
         """Apply substitutions to the expression stencil
@@ -174,12 +176,35 @@ class Expression(Node):
         """
         Return the symbol written by this Expression.
         """
-        lhs = self.stencil.lhs
-        if lhs.is_Symbol:
-            return lhs
-        else:
-            # An Indexed
-            return lhs.base.label
+        return as_symbol(self.stencil.lhs)
+
+    @property
+    def is_scalar(self):
+        """
+        Return True if a scalar expression, False otherwise.
+        """
+        return self.stencil.lhs.is_Symbol
+
+    @property
+    def is_tensor(self):
+        """
+        Return True if a tensor expression, False otherwise.
+        """
+        return not self.is_scalar
+
+    @property
+    def is_temporary(self):
+        """
+        Return True if writing to a temporary object, False otherwise.
+        """
+        return not isinstance(self.stencil.lhs.base, IndexedData)
+
+    @property
+    def shape(self):
+        """
+        Return the shape of the written LHS.
+        """
+        return () if self.is_scalar else self.stencil.lhs.shape
 
     @property
     def index_offsets(self):
@@ -192,11 +217,11 @@ class Expression(Node):
 
         Note: This assumes we have indexified the stencil expression.
         """
-        offsets = DefaultOrderedDict(set)
+        offsets = SetOrderedDict()
 
-        # Enforce left-first traversal order
         indexed = list(retrieve_indexed(self.stencil.lhs))
         indexed += list(retrieve_indexed(self.stencil.rhs))
+        indexed += flatten([retrieve_indexed(i) for i in e.indices] for e in indexed)
         for e in indexed:
             for a in e.indices:
                 if isinstance(a, Dimension):
@@ -211,22 +236,6 @@ class Expression(Node):
                 if d is not None:
                     offsets[d].update(off)
         return offsets
-
-
-class TypedExpression(Expression):
-
-    """Class encpasulating a single stencil expression with known data type,
-    represented as a NumPy data type."""
-
-    def __init__(self, stencil, dtype):
-        super(TypedExpression, self).__init__(stencil)
-        self.dtype = dtype
-
-    @property
-    def ccode(self):
-        ctype = c.dtype_to_ctype(self.dtype)
-        return c.Initializer(c.Value(ctype, ccode(self.stencil.lhs)),
-                             ccode(self.stencil.rhs))
 
 
 class Iteration(Node):
@@ -417,15 +426,18 @@ class Function(Node):
             elif v.is_ScalarData:
                 cparameters.append(c.Value('const int', v.name))
             else:
-                cparameters.append(c.Pointer(c.POD(v.dtype, '%s_vec' % v.name)))
+                cparameters.append(c.Value(c.dtype_to_ctype(v.dtype),
+                                           '*restrict %s_vec' % v.name))
         return cparameters
 
     @property
     def _ccasts(self):
         """Generate data casts."""
+        alignment = "__attribute__((aligned(64)))"
         handle = [f for f in self.parameters if isinstance(f, TensorData)]
         shapes = [(f, ''.join(["[%s]" % i.ccode for i in f.indices[1:]])) for f in handle]
-        casts = [c.Initializer(c.POD(v.dtype, '(*%s)%s' % (v.name, shape)),
+        casts = [c.Initializer(c.POD(v.dtype,
+                                     '(*restrict %s)%s %s' % (v.name, shape, alignment)),
                                '(%s (*)%s) %s' % (c.dtype_to_ctype(v.dtype),
                                                   shape, '%s_vec' % v.name))
                  for v, shape in shapes]
@@ -496,6 +508,22 @@ class Denormals(List):
 
     def __repr__(self):
         return "<DenormalsMacro>"
+
+
+class LocalExpression(Expression):
+
+    """Class encpasulating a single stencil expression with known data type
+    (represented as a NumPy data type)."""
+
+    def __init__(self, stencil, dtype):
+        super(LocalExpression, self).__init__(stencil)
+        self.dtype = dtype
+
+    @property
+    def ccode(self):
+        ctype = c.dtype_to_ctype(self.dtype)
+        return c.Initializer(c.Value(ctype, ccode(self.stencil.lhs)),
+                             ccode(self.stencil.rhs))
 
 
 class IterationBound(object):
