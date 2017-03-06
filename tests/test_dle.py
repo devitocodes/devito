@@ -125,11 +125,15 @@ def _new_operator2(shape, time_order, **kwargs):
 
 
 def test_create_elemental_functions_simple(simple_function):
-    old = Rewriter.thresholds['elemental-functions']
-    Rewriter.thresholds['elemental-functions'] = 0
+    old = Rewriter.thresholds['elemental']
+    Rewriter.thresholds['elemental'] = 0
     handle = transform(simple_function, mode=('split',))
     block = List(body=handle.nodes + handle.elemental_functions)
-    assert str(block.ccode) == \
+    output = str(block.ccode)
+    # Make output compiler independent
+    output = [i for i in output.split('\n')
+              if all([j not in i for j in ('#pragma', '/*')])]
+    assert '\n'.join(output) == \
         ("""void foo(float *restrict a_vec, float *restrict b_vec,"""
          """ float *restrict c_vec, float *restrict d_vec)
 {
@@ -141,12 +145,12 @@ def test_create_elemental_functions_simple(simple_function):
   {
     for (int j = 0; j < 5; j += 1)
     {
-      f_0_0(a_vec,b_vec,c_vec,d_vec);
+      f_0_0(a_vec,b_vec,c_vec,d_vec,j,i);
     }
   }
 }
 void f_0_0(float *restrict a_vec, float *restrict b_vec,"""
-         """ float *restrict c_vec, float *restrict d_vec)
+         """ float *restrict c_vec, float *restrict d_vec, const int j, const int i)
 {
   float (*restrict a) __attribute__((aligned(64))) = (float (*)) a_vec;
   float (*restrict b) __attribute__((aligned(64))) = (float (*)) b_vec;
@@ -158,15 +162,19 @@ void f_0_0(float *restrict a_vec, float *restrict b_vec,"""
     a[i] = -a[i]*c[i][j] + b[i]*d[i][j][k];
   }
 }""")
-    Rewriter.thresholds['elemental-functions'] = old
+    Rewriter.thresholds['elemental'] = old
 
 
 def test_create_elemental_functions_complex(complex_function):
-    old = Rewriter.thresholds['elemental-functions']
-    Rewriter.thresholds['elemental-functions'] = 0
+    old = Rewriter.thresholds['elemental']
+    Rewriter.thresholds['elemental'] = 0
     handle = transform(complex_function, mode=('split',))
     block = List(body=handle.nodes + handle.elemental_functions)
-    assert str(block.ccode) == \
+    output = str(block.ccode)
+    # Make output compiler independent
+    output = [i for i in output.split('\n')
+              if all([j not in i for j in ('#pragma', '/*')])]
+    assert '\n'.join(output) == \
         ("""void foo(float *restrict a_vec, float *restrict b_vec,"""
          """ float *restrict c_vec, float *restrict d_vec)
 {
@@ -176,15 +184,15 @@ def test_create_elemental_functions_complex(complex_function):
   float (*restrict d)[5][7] __attribute__((aligned(64))) = (float (*)[5][7]) d_vec;
   for (int i = 0; i < 3; i += 1)
   {
-    f_0_0(a_vec,b_vec);
+    f_0_0(a_vec,b_vec,i);
     for (int j = 0; j < 5; j += 1)
     {
-      f_0_1(a_vec,b_vec,c_vec,d_vec);
+      f_0_1(a_vec,b_vec,c_vec,d_vec,j,i);
     }
-    f_0_2(a_vec,b_vec);
+    f_0_2(a_vec,b_vec,i);
   }
 }
-void f_0_0(float *restrict a_vec, float *restrict b_vec)
+void f_0_0(float *restrict a_vec, float *restrict b_vec, const int i)
 {
   float (*restrict a) __attribute__((aligned(64))) = (float (*)) a_vec;
   float (*restrict b) __attribute__((aligned(64))) = (float (*)) b_vec;
@@ -194,7 +202,7 @@ void f_0_0(float *restrict a_vec, float *restrict b_vec)
   }
 }
 void f_0_1(float *restrict a_vec, float *restrict b_vec,"""
-         """ float *restrict c_vec, float *restrict d_vec)
+         """ float *restrict c_vec, float *restrict d_vec, const int j, const int i)
 {
   float (*restrict a) __attribute__((aligned(64))) = (float (*)) a_vec;
   float (*restrict b) __attribute__((aligned(64))) = (float (*)) b_vec;
@@ -206,7 +214,7 @@ void f_0_1(float *restrict a_vec, float *restrict b_vec,"""
     a[i] = 4*(a[i] + c[i][j])*(b[i] + d[i][j][k]);
   }
 }
-void f_0_2(float *restrict a_vec, float *restrict b_vec)
+void f_0_2(float *restrict a_vec, float *restrict b_vec, const int i)
 {
   float (*restrict a) __attribute__((aligned(64))) = (float (*)) a_vec;
   float (*restrict b) __attribute__((aligned(64))) = (float (*)) b_vec;
@@ -215,7 +223,7 @@ void f_0_2(float *restrict a_vec, float *restrict b_vec)
     a[i] = 8.0F*a[i] + 6.0F/b[i];
   }
 }""")
-    Rewriter.thresholds['elemental-functions'] = old
+    Rewriter.thresholds['elemental'] = old
 
 
 # Loop blocking tests
