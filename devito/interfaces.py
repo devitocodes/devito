@@ -1,7 +1,7 @@
 import weakref
 
 import numpy as np
-from sympy import Function, IndexedBase, as_finite_diff, symbols
+from sympy import Function, IndexedBase, Symbol, as_finite_diff, symbols
 from sympy.abc import h, s
 
 from devito.dimension import d, p, t, x, y, z
@@ -103,13 +103,26 @@ class AbstractSymbol(Function, CachedSymbol):
 
     @classmethod
     def _indices(cls, **kwargs):
-        """Abstract class method to determine the default dimension indices."""
-        raise NotImplementedError('`AbstractSymbol` does not have default indices')
+        """Return the default dimension indices."""
+        return []
+
+    @property
+    def dim(self):
+        """Return the rank of the object."""
+        return len(self.shape)
 
     @property
     def indexed(self):
         """:return: Base symbol as devito.IndexedData"""
         return IndexedData(self.name, shape=self.shape, function=self)
+
+    def indexify(self):
+        """Create a :class:`sympy.Indexed` object from the current object."""
+        indices = [a.subs({h: 1, s: 1}) for a in self.args]
+        if indices:
+            return self.indexed[indices]
+        else:
+            return EmptyIndexed(self.indexed)
 
 
 class SymbolicFunction(AbstractSymbol):
@@ -120,10 +133,6 @@ class SymbolicFunction(AbstractSymbol):
     def __new__(cls, *args, **kwargs):
         kwargs.update({'options': {'evaluate': False}})
         return AbstractSymbol.__new__(cls, *args, **kwargs)
-
-    @classmethod
-    def _indices(cls, **kwargs):
-        return []
 
 
 class ScalarFunction(SymbolicFunction):
@@ -231,19 +240,6 @@ class DenseData(SymbolicData):
             else:
                 dimensions = [symbols("x%d" % i) for i in range(1, len(shape) + 1)]
         return dimensions
-
-    @property
-    def dim(self):
-        """Returns the spatial dimension of the data object"""
-        return len(self.shape)
-
-    def indexify(self):
-        """Convert base symbol and dimensions to indexed data accesses
-
-        :return: Index corrosponding to the indices
-        """
-        indices = [a.subs({h: 1, s: 1}) for a in self.args]
-        return self.indexed[indices]
 
     def _allocate_memory(self):
         """Function to allocate memmory in terms of numpy ndarrays.
@@ -627,7 +623,7 @@ class PointData(DenseData):
 class IndexedData(IndexedBase):
     """Wrapper class that inserts a pointer to the symbolic data object"""
 
-    def __new__(cls, label, shape=None, function=None, **kw_args):
+    def __new__(cls, label, shape=None, function=None):
         obj = IndexedBase.__new__(cls, label, shape)
         obj.function = function
         return obj
@@ -636,3 +632,18 @@ class IndexedData(IndexedBase):
         obj = super(IndexedData, self).func(*args)
         obj.function = self.function
         return obj
+
+
+class EmptyIndexed(Symbol):
+
+    """A :class:`sympy.Symbol` capable of mimicking an :class:`sympy.Indexed`"""
+
+    def __new__(cls, base):
+        obj = Symbol.__new__(cls, base.label.name)
+        obj.base = base
+        obj.indices = ()
+        obj.function = base.function
+        return obj
+
+    def func(self, *args):
+        return super(EmptyIndexed, self).func(self.base.func(*self.base.args))
