@@ -2,7 +2,7 @@
 Routines to construct new SymPy expressions transforming the provided input.
 """
 
-from sympy import Indexed, IndexedBase, S
+from sympy import Indexed, S
 
 from devito.dse.extended_sympy import Add, Eq, Mul
 from devito.dse.graph import temporaries_graph

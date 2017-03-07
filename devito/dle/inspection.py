@@ -38,7 +38,7 @@ def filter_iterations(tree, key=lambda i: i, stop=lambda i: False):
     filtered = []
 
     if stop == 'consecutive':
-        stop = lambda : len(filtered) > 0
+        stop = lambda: len(filtered) > 0
 
     for i in tree:
         if key(i):

@@ -407,7 +407,6 @@ class Rewriter(object):
 
         return {'nodes': processed}
 
-
     @dle_transformation
     def _create_elemental_functions(self, state, **kwargs):
         """
@@ -546,7 +545,6 @@ class Rewriter(object):
             processed.append(Transformer(mapper).visit(node))
 
         return {'nodes': processed}
-
 
     @dle_transformation
     def _loop_blocking(self, state, **kwargs):

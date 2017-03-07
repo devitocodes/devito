@@ -16,14 +16,14 @@ from devito.compiler import (get_compiler_from_env, get_tmp_dir,
                              jit_compile_and_load)
 from devito.dimension import BufferedDimension, Dimension
 from devito.dle import filter_iterations, transform
-from devito.dse import (as_symbol, estimate_cost, estimate_memory, indexify, rewrite)
+from devito.dse import (estimate_cost, estimate_memory, indexify, rewrite)
 from devito.interfaces import SymbolicData
-from devito.logger import bar, error, info, info_at, warning
-from devito.nodes import (Block, Element, Expression, Function, FunCall,
-                          Iteration, List, LocalExpression, TimedList)
+from devito.logger import bar, error, info, info_at
+from devito.nodes import (Element, Expression, Function, Iteration, List,
+                          LocalExpression, TimedList)
 from devito.profiler import Profiler
 from devito.tools import (SetOrderedDict, as_tuple, filter_ordered, filter_sorted,
-                          flatten, invert, partial_order)
+                          flatten, partial_order)
 from devito.visitors import (FindNodes, FindSections, FindSymbols, FindScopes,
                              IsPerfectIteration, MergeOuterIterations,
                              ResolveIterationVariable, SubstituteExpression,
@@ -393,7 +393,6 @@ class StencilKernel(Function):
         variable declarations, to generate a legal C file."""
 
         nodes = dle_state.nodes
-        known = [as_symbol(i) for i in parameters]
 
         # Resolve function calls first
         scopes = []

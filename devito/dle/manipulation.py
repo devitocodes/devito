@@ -1,6 +1,5 @@
 from sympy import Eq
 
-from devito.cgen_utils import ccode
 from devito.nodes import Expression, Iteration
 from devito.visitors import MergeOuterIterations
 

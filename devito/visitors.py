@@ -7,13 +7,13 @@ The main Visitor class is extracted from https://github.com/coneoproject/COFFEE.
 from __future__ import absolute_import
 
 import inspect
-from collections import OrderedDict, defaultdict, namedtuple
+from collections import OrderedDict, defaultdict
 from operator import attrgetter
 
 import cgen as c
 from sympy import Symbol
 
-from devito.nodes import Iteration, List, LocalExpression
+from devito.nodes import Iteration, List
 from devito.tools import as_tuple, filter_ordered, filter_sorted, flatten
 
 

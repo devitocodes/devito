@@ -13,7 +13,7 @@ from collections import OrderedDict, Sequence
 from time import time
 
 from sympy import (Eq, Indexed, IndexedBase, S, Symbol, collect, collect_const,
-                   cos, cse, flatten, numbered_symbols, preorder_traversal, sin)
+                   cos, flatten, numbered_symbols, preorder_traversal, sin)
 from sympy.simplify.cse_main import tree_cse
 
 from devito.dimension import t, x, y, z
@@ -444,7 +444,7 @@ class Rewriter(object):
                 baseline = self.ops['_cse0']
                 gain = float(baseline) / list(self.ops.values())[-1]
                 summary = " %s flops; gain: %.2f X" % (summary, gain)
-            except KeyError, ZeroDivisionError:
+            except (KeyError, ZeroDivisionError):
                 pass
             elapsed = sum(self.timings.values())
             dse("%s [%.2f s]" % (summary, elapsed))
