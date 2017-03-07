@@ -858,7 +858,7 @@ def get_simd_flag():
     else:
         # "Cached" because calls to cpuingo are expensive
         return get_simd_flag.flag
-get_simd_flag.flag = None
+get_simd_flag.flag = None  # noqa
 
 
 def get_simd_items(dtype):

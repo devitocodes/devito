@@ -11,7 +11,7 @@ import numpy as np
 from sympy import Indexed, IndexedBase, symbols
 from sympy.utilities.iterables import postorder_traversal
 
-import devito.cgen_wrapper as cgen
+import cgen
 from devito.cgen_utils import ccode
 from devito.compiler import (IntelMICCompiler, get_compiler_from_env,
                              get_tmp_dir, jit_compile_and_load)
