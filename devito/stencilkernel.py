@@ -378,12 +378,19 @@ class StencilKernel(Function):
         # Remove temporaries became redundat after squashing Iterations
         mapper = {}
         for k, v in FindSections().visit(processed).items():
+            candidate = k[-1]
+            if not IsPerfectIteration().visit(candidate):
+                continue
             found = set()
-            newexprs = []
+            trimmed = []
             for n in v:
-                newexprs.extend([n] if n.stencil not in found else [])
-                found.add(n.stencil)
-            mapper[k[-1]] = Iteration(newexprs, **k[-1].args_frozen)
+                if n.is_Expression:
+                    if n.stencil not in found:
+                        trimmed.append(n)
+                        found.add(n.stencil)
+                else:
+                    trimmed.append(n)
+            mapper[candidate] = Iteration(trimmed, **candidate.args_frozen)
         processed = Transformer(mapper).visit(processed)
 
         return processed
