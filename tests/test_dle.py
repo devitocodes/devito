@@ -324,6 +324,32 @@ def test_loop_fission(simple_fissionable_function):
     Rewriter.thresholds['max_fission'] = old
 
 
+def test_padding(simple_function):
+    handle = transform(simple_function, mode=('padding',))
+    assert str(handle.nodes[0].ccode) == """\
+for (int i = 0; i < 3; i += 1)
+{
+  pa[i] = a[i];
+}"""
+    assert """\
+  for (int i = 0; i < 3; i += 1)
+  {
+    for (int j = 0; j < 5; j += 1)
+    {
+      for (int k = 0; k < 7; k += 1)
+      {
+        pa[i] = b[i] + pa[i] + 5.0F;
+        pa[i] = b[i]*d[i][j][k] - pa[i]*c[i][j];
+      }
+    }
+  }""" in str(handle.nodes[1].ccode)
+    assert str(handle.nodes[2].ccode) == """\
+for (int i = 0; i < 3; i += 1)
+{
+  a[i] = pa[i];
+}"""
+
+
 @pytest.mark.parametrize("shape", [(41,), (20, 33), (45, 31, 45)])
 def test_composite_transformation(shape):
     wo_blocking = _new_operator1(shape, dle='noop')
