@@ -372,7 +372,7 @@ class Iteration(Node):
 
     @property
     def is_Open(self):
-        return self.dim.size is not None
+        return self.dim.size is None
 
     @property
     def is_Closed(self):
