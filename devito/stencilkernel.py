@@ -72,8 +72,8 @@ class StencilKernel(Function):
         # Default attributes required for compilation
         self.compiler = compiler or get_compiler_from_env()
         self.profiler = kwargs.get("profiler", Profiler(self.compiler.openmp))
-        self._headers = self._default_headers
-        self._includes = self._default_includes
+        self._headers = list(self._default_headers)
+        self._includes = list(self._default_includes)
         self._lib = None
         self._cfunction = None
 
