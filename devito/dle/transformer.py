@@ -391,7 +391,8 @@ class Rewriter(object):
             mapper.update(OrderedDict([(k.indexed,
                                         TensorFunction(name='p%s' % k.name,
                                                        shape=shapes[k],
-                                                       dimensions=k.indices).indexed)
+                                                       dimensions=k.indices,
+                                                       onstack=k._mem_stack).indexed)
                           for k in candidates]))
 
         # Substitute original arrays with padded buffers
@@ -528,7 +529,7 @@ class Rewriter(object):
                     # Dangerous for correctness
                     continue
 
-                stencils = promote_scalar_expressions(stencils, (size,), (dim,))
+                stencils = promote_scalar_expressions(stencils, (size,), (dim,), True)
 
                 assert len(stencils) == len(expressions)
                 rebuilt = [Expression(s, e.dtype) for s, e in zip(stencils, expressions)]

@@ -84,7 +84,7 @@ def rxreplace(exprs, mapper):
     return replaced
 
 
-def promote_scalar_expressions(exprs, shape, indices):
+def promote_scalar_expressions(exprs, shape, indices, onstack):
     """
     Transform a collection of scalar expressions into tensor expressions.
     """
@@ -96,7 +96,8 @@ def promote_scalar_expressions(exprs, shape, indices):
     for k, v in graph.items():
         if v.is_scalar:
             # Create a new function symbol
-            data = TensorFunction(name=k.name, shape=shape, dimensions=indices)
+            data = TensorFunction(name=k.name, shape=shape,
+                                  dimensions=indices, onstack=onstack)
             indexed = Indexed(data.indexed, *indices)
             mapper[k] = indexed
             processed.append(Eq(indexed, v.rhs))

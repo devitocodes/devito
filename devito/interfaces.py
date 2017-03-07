@@ -113,8 +113,26 @@ class AbstractSymbol(Function, CachedSymbol):
 
     @property
     def indexed(self):
-        """:return: Base symbol as devito.IndexedData"""
+        """Extract a :class:`IndexedData` object from the current object."""
         return IndexedData(self.name, shape=self.shape, function=self)
+
+    @property
+    def _mem_external(self):
+        """Return True if the associated data was/is/will be allocated directly
+        from Python (e.g., via NumPy arrays), False otherwise."""
+        return False
+
+    @property
+    def _mem_stack(self):
+        """Return True if the associated data was/is/will be allocated on the stack
+        in a C module, False otherwise."""
+        return False
+
+    @property
+    def _mem_heap(self):
+        """Return True if the associated data was/is/will be allocated on the heap
+        in a C module, False otherwise."""
+        return False
 
     def indexify(self):
         """Create a :class:`sympy.Indexed` object from the current object."""
@@ -151,6 +169,12 @@ class ScalarFunction(SymbolicFunction):
             self.indices = ()
             self.dtype = kwargs.get('dtype', np.float32)
 
+    @property
+    def _mem_stack(self):
+        """Return True if the associated data should be allocated on the stack
+        in a C module, False otherwise."""
+        return True
+
 
 class TensorFunction(SymbolicFunction):
     """Symbolic object representing a tensor.
@@ -159,6 +183,7 @@ class TensorFunction(SymbolicFunction):
     :param dtype: Data type of the scalar
     :param shape: The shape of the tensor
     :param dimensions: The symbolic dimensions of the tensor.
+    :param onstack: Pass True to enforce allocation on stack
     """
 
     is_TensorFunction = True
@@ -169,16 +194,29 @@ class TensorFunction(SymbolicFunction):
             self.shape = kwargs.get('shape')
             self.indices = kwargs.get('dimensions')
             self.dtype = kwargs.get('dtype', np.float32)
+            self.onstack = kwargs.get('onstack', False)
 
     @classmethod
     def _indices(cls, **kwargs):
         return kwargs.get('dimensions')
+
+    @property
+    def _mem_stack(self):
+        return self.onstack
+
+    @property
+    def _mem_heap(self):
+        return not self.onstack
 
 
 class SymbolicData(AbstractSymbol):
     """A symbolic object associated with data."""
 
     is_SymbolicData = True
+
+    @property
+    def _mem_external(self):
+        return True
 
 
 class DenseData(SymbolicData):

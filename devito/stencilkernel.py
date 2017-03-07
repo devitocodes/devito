@@ -414,21 +414,20 @@ class StencilKernel(Function):
         allocator = Allocator()
         mapper = OrderedDict()
         for k, v in scopes:
-            if k.output in known:
-                # Nothing to do, variable passed as kernel argument
-                continue
-            elif k.is_scalar:
+            if k.is_scalar:
                 # Inline declaration
                 mapper[k] = LocalExpression(**k.args)
-            else:
+            elif k.output_function._mem_external:
+                # Nothing to do, variable passed as kernel argument
+                continue
+            elif k.output_function._mem_stack:
+                # On the stack, as established by the DLE
                 key = lambda i: i.dim not in k.output_function.indices
                 site = filter_iterations(v, key=key, stop='consecutive')
-                if len(k.shape) < len(site):
-                    # On the stack, as inner to some loops
-                    allocator.push_stack(site[-1], k.output_function)
-                else:
-                    # On the heap, as must be visible to the whole StencilKernel
-                    allocator.push_heap(k.output_function)
+                allocator.push_stack(site[-1], k.output_function)
+            else:
+                # On the heap, as a tensor that must be globally accessible
+                allocator.push_heap(k.output_function)
 
         # Introduce declarations on the stack
         for k, v in allocator.onstack:
