@@ -6,7 +6,6 @@ import numpy as np
 import pytest
 from sympy import Eq
 
-from devito.dimension import Dimension
 from devito.dle import transform
 from devito.dle.transformer import Rewriter
 from devito.interfaces import DenseData, TimeData
@@ -17,15 +16,6 @@ from devito.visitors import ResolveIterationVariable, SubstituteExpression
 
 def _symbol(name, dimensions):
     return DenseData(name=name, dimensions=dimensions)
-
-
-@pytest.fixture(scope="session")
-def dims():
-    return {'i': Dimension(name='i', size=3),
-            'j': Dimension(name='j', size=5),
-            'k': Dimension(name='k', size=7),
-            's': Dimension(name='s', size=4),
-            'p': Dimension(name='p', size=4)}
 
 
 @pytest.fixture(scope="session")
@@ -42,7 +32,7 @@ def exprs(symbols):
     a, b, c, d = [i.indexify() for i in symbols]
     return [Expression(Eq(a, a + b + 5.)),
             Expression(Eq(a, b*d - a*c)),
-            Expression(Eq(a, a + b*b + 3)),
+            Expression(Eq(b, a + b*b + 3)),
             Expression(Eq(a, a*b*d*c)),
             Expression(Eq(a, 4 * ((b + d) * (a + c)))),
             Expression(Eq(a, (6. / b) + (8. * a)))]
@@ -66,6 +56,22 @@ def simple_function(symbols, exprs, iters):
     #         expr0
     #         expr1
     body = iters[0](iters[1](iters[2]([exprs[0], exprs[1]])))
+    f = Function('foo', body, 'void', symbols, ())
+    subs = {}
+    f = ResolveIterationVariable().visit(f, subs=subs)
+    f = SubstituteExpression(subs=subs).visit(f)
+    return f
+
+
+@pytest.fixture(scope="session")
+def simple_fissionable_function(symbols, exprs, iters):
+    # void foo(a, b)
+    #   for i
+    #     for j
+    #       for k
+    #         expr0
+    #         expr2
+    body = iters[0](iters[1](iters[2]([exprs[0], exprs[2]])))
     f = Function('foo', body, 'void', symbols, ())
     subs = {}
     f = ResolveIterationVariable().visit(f, subs=subs)
@@ -198,7 +204,7 @@ void f_0_0(float *restrict a_vec, float *restrict b_vec, const int i)
   float (*restrict b) __attribute__((aligned(64))) = (float (*)) b_vec;
   for (int s = 0; s < 4; s += 1)
   {
-    a[i] = a[i] + pow(b[i], 2) + 3;
+    b[i] = a[i] + pow(b[i], 2) + 3;
   }
 }
 void f_0_1(float *restrict a_vec, float *restrict b_vec,"""
@@ -275,6 +281,47 @@ def test_cache_blocking_edge_cases(shape, blockshape):
                                                   'blockinner': True}))
 
     assert np.equal(wo_blocking.data, w_blocking.data).all()
+
+
+def test_loop_nofission(simple_function):
+    old = Rewriter.thresholds['max_fission']
+    Rewriter.thresholds['max_fission'] = 0
+    handle = transform(simple_function, mode=('fission',))
+    assert """\
+  for (int i = 0; i < 3; i += 1)
+  {
+    for (int j = 0; j < 5; j += 1)
+    {
+      for (int k = 0; k < 7; k += 1)
+      {
+        a[i] = a[i] + b[i] + 5.0F;
+        a[i] = -a[i]*c[i][j] + b[i]*d[i][j][k];
+      }
+    }
+  }""" in str(handle.nodes[0].ccode)
+    Rewriter.thresholds['max_fission'] = old
+
+
+def test_loop_fission(simple_fissionable_function):
+    old = Rewriter.thresholds['max_fission']
+    Rewriter.thresholds['max_fission'] = 0
+    handle = transform(simple_fissionable_function, mode=('fission',))
+    assert """\
+ for (int i = 0; i < 3; i += 1)
+  {
+    for (int j = 0; j < 5; j += 1)
+    {
+      for (int k = 0; k < 7; k += 1)
+      {
+        a[i] = a[i] + b[i] + 5.0F;
+      }
+      for (int k = 0; k < 7; k += 1)
+      {
+        b[i] = a[i] + pow(b[i], 2) + 3;
+      }
+    }
+  }""" in str(handle.nodes[0].ccode)
+    Rewriter.thresholds['max_fission'] = old
 
 
 @pytest.mark.parametrize("shape", [(41,), (20, 33), (45, 31, 45)])
