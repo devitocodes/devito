@@ -159,7 +159,6 @@ def first_derivative(*args, **kwargs):
     order = int(kwargs.get('order', 1))
     side = kwargs.get('side', centered)
     deriv = 0
-    sign = 1
     # Stencil positions for non-symmetric cross-derivatives with symmetric averaging
     if side == right:
         ind = [(dim + i * diff) for i in range(-int(order / 2) + 1 - (order % 2),
@@ -167,11 +166,9 @@ def first_derivative(*args, **kwargs):
     elif side == left:
         ind = [(dim - i * diff) for i in range(-int(order / 2) + 1 - (order % 2),
                                                int((order + 1) / 2) + 2 - (order % 2))]
-        sign = -1
     else:
         ind = [(dim + i * diff) for i in range(-int(order / 2),
                                                int((order + 1) / 2) + 1)]
-        sign = 1
     # Finite difference weights from Taylor approximation with this positions
     c = finite_diff_weights(1, ind, dim)
     c = c[-1][-1]
@@ -180,4 +177,4 @@ def first_derivative(*args, **kwargs):
     for i in range(0, len(ind)):
             var = [a.subs({dim: ind[i]}) for a in args]
             deriv += c[i] * reduce(mul, var, 1)
-    return sign*deriv
+    return deriv

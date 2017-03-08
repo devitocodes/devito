@@ -65,7 +65,7 @@ class taylor_cos(TrigonometricFunction):
 
     @classmethod
     def eval(cls, arg):
-        return 1.0 if arg == 0.0 else eval_taylor_cos(arg + 1.5708)
+        return 1.0 if arg == 0.0 else eval_taylor_cos(arg)
 
 
 class bhaskara_sin(TrigonometricFunction):
