@@ -401,7 +401,7 @@ class Rewriter(object):
         # Build Iteration trees for initialization and copy-back of padded arrays
         mapper = OrderedDict([(k, v) for k, v in mapper.items()
                               if k.function.is_SymbolicData])
-        init = copy_arrays(OrderedDict([(v, k) for k, v in mapper.items()]))
+        init = copy_arrays(mapper, reverse=True)
         copyback = copy_arrays(mapper)
 
         processed = init + as_tuple(processed) + copyback
