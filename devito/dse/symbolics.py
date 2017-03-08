@@ -161,7 +161,7 @@ class Rewriter(object):
         '_factorize': ('factorize', 'advanced'),
         '_optimize_trigonometry': ('approx-trigonometry', 'advanced'),
         '_replace_time_invariants': ('glicm', 'advanced'),
-        '_split_expressions': ('split', 'advanced')
+        '_split_expressions': ('split', 'devito3.0')  # TODO: -> 'advanced' upon release
     }
 
     """
