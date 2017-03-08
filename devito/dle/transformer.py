@@ -2,6 +2,7 @@ from __future__ import absolute_import
 
 from collections import OrderedDict, Sequence, namedtuple
 from itertools import combinations
+from operator import attrgetter
 from time import time
 
 import cgen as c
@@ -17,7 +18,7 @@ from devito.interfaces import ScalarFunction, TensorFunction
 from devito.logger import dle, dle_warning
 from devito.nodes import (Block, Denormals, Element, Expression, FunCall,
                           Function, Iteration, List)
-from devito.tools import as_tuple, flatten, grouper, roundm
+from devito.tools import as_tuple, filter_sorted, flatten, grouper, roundm
 from devito.visitors import (FindNodes, FindSections, FindSymbols,
                              IsPerfectIteration, SubstituteExpression, Transformer)
 
@@ -473,8 +474,9 @@ class Rewriter(object):
                             seen |= {k}
 
                 # Add non-temporary scalars to the elemental function's arguments
+                handle = filter_sorted(required - seen, key=attrgetter('name'))
                 args.extend([(k.name, ScalarFunction(name=k.name, dtype=np.int32))
-                             for k in required - seen])
+                             for k in handle])
 
                 # Track info to transform the main tree
                 call, parameters = zip(*args)
@@ -537,7 +539,8 @@ class Rewriter(object):
                 # Group statements
                 # TODO: Need a heuristic here to maximize reuse
                 args_frozen = candidate.args_frozen
-                args_frozen['properties'] += ('elemental',)
+                properties = as_tuple(args_frozen['properties']) + ('elemental',)
+                args_frozen['properties'] = properties
                 n = self.thresholds['min_fission']
                 fissioned = [Iteration(g, **args_frozen) for g in grouper(rebuilt, n)]
 

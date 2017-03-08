@@ -151,12 +151,12 @@ def test_create_elemental_functions_simple(simple_function):
   {
     for (int j = 0; j < 5; j += 1)
     {
-      f_0_0(a_vec,b_vec,c_vec,d_vec,j,i);
+      f_0_0(a_vec,b_vec,c_vec,d_vec,i,j);
     }
   }
 }
 void f_0_0(float *restrict a_vec, float *restrict b_vec,"""
-         """ float *restrict c_vec, float *restrict d_vec, const int j, const int i)
+         """ float *restrict c_vec, float *restrict d_vec, const int i, const int j)
 {
   float (*restrict a) __attribute__((aligned(64))) = (float (*)) a_vec;
   float (*restrict b) __attribute__((aligned(64))) = (float (*)) b_vec;
@@ -193,7 +193,7 @@ def test_create_elemental_functions_complex(complex_function):
     f_0_0(a_vec,b_vec,i);
     for (int j = 0; j < 5; j += 1)
     {
-      f_0_1(a_vec,b_vec,c_vec,d_vec,j,i);
+      f_0_1(a_vec,b_vec,c_vec,d_vec,i,j);
     }
     f_0_2(a_vec,b_vec,i);
   }
@@ -208,7 +208,7 @@ void f_0_0(float *restrict a_vec, float *restrict b_vec, const int i)
   }
 }
 void f_0_1(float *restrict a_vec, float *restrict b_vec,"""
-         """ float *restrict c_vec, float *restrict d_vec, const int j, const int i)
+         """ float *restrict c_vec, float *restrict d_vec, const int i, const int j)
 {
   float (*restrict a) __attribute__((aligned(64))) = (float (*)) a_vec;
   float (*restrict b) __attribute__((aligned(64))) = (float (*)) b_vec;

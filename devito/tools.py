@@ -1,6 +1,10 @@
 import ctypes
-import itertools
 from collections import Callable, Iterable, OrderedDict
+try:
+    from itertools import izip_longest as zip_longest
+except ImportError:
+    # Python3.5 compatibility
+    from itertools import zip_longest
 
 import numpy as np
 
@@ -33,7 +37,7 @@ def as_tuple(item, type=None, length=None):
 def grouper(iterable, n):
     """Split an interable into groups of size n, plus a reminder"""
     args = [iter(iterable)] * n
-    return ([e for e in t if e is not None] for t in itertools.izip_longest(*args))
+    return ([e for e in t if e is not None] for t in zip_longest(*args))
 
 
 def roundm(x, y):

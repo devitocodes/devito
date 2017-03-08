@@ -124,7 +124,7 @@ class TemporariesGraph(OrderedDict):
         clusters = [self.trace(i.lhs) for i in targets]
         # Drop the non-scalar expressions in each cluster
         for cluster in clusters:
-            for k, v in cluster.items():
+            for k, v in list(cluster.items()):
                 if v.is_tensor and not v.is_terminal:
                     cluster.pop(k)
         return clusters
