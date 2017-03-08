@@ -110,7 +110,7 @@ def transform(node, mode='basic', compiler=None):
         params['blockinner'] = True
         mode.remove('3D-advanced')
         mode.add('advanced')
-    if params.pop('openmp', False):
+    if 'noop' not in mode and params.pop('openmp', False):
         mode |= {'openmp'}
     if mode.isdisjoint({'noop', 'basic', 'advanced', '3D-advanced', 'speculative',
                         'fission', 'padding', 'blocking', 'split', 'simd',
