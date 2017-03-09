@@ -26,6 +26,7 @@ from sympy import Indexed
 from devito.dimension import t
 from devito.dse.extended_sympy import Eq
 from devito.dse.inspection import (is_indirect, retrieve_indexed, terminals)
+from devito.tools import flatten
 
 __all__ = ['temporaries_graph']
 
@@ -50,6 +51,10 @@ class Temporary(Eq):
         obj._readby = set(readby)
         obj._scope = scope
         return obj
+
+    @property
+    def identifier(self):
+        return self.lhs.base.label.name if self.is_tensor else self.lhs.name
 
     @property
     def reads(self):
@@ -148,12 +153,15 @@ class TemporariesGraph(OrderedDict):
     def trace(self, root):
         if root not in self:
             return []
-        found = []
-        queue = [self[root]]
+        found = OrderedDict()
+        queue = [(self[root], 0)]
         while queue:
-            temporary = queue.pop(0)
-            found.insert(0, temporary)
-            queue.extend([self[i] for i in temporary.reads])
+            temporary, index = queue.pop(0)
+            found.setdefault(index, []).append(temporary)
+            queue.extend([(self[i], index + 1) for i in temporary.reads])
+        # Sort output for determinism
+        found = reversed(found.values())
+        found = flatten(sorted(v, key=lambda i: i.identifier) for v in found)
         return temporaries_graph(found)
 
     def is_index(self, root):
