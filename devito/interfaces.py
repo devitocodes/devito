@@ -295,21 +295,21 @@ class DenseData(TensorData):
     def dx(self):
         """Symbol for the first derivative wrt the x dimension"""
         fd = self.taxis._taxis * first_derivative(self, order=self.space_order,
-                                                 dim=x, side=centered)
+                                                  dim=x, side=centered)
         return fd
 
     @property
     def dy(self):
         """Symbol for the first derivative wrt the y dimension"""
         fd = self.taxis._taxis * first_derivative(self, order=self.space_order,
-                                                 dim=y, side=centered)
+                                                  dim=y, side=centered)
         return fd
 
     @property
     def dz(self):
         """Symbol for the first derivative wrt the z dimension"""
         fd = self.taxis._taxis * first_derivative(self, order=self.space_order,
-                                                 dim=z, side=centered)
+                                                  dim=z, side=centered)
         return fd
 
     @property
@@ -546,6 +546,7 @@ class TimeData(DenseData):
         i = int(self.time_order / 2) if self.time_order >= 2 else 1
 
         return self.subs(t, t + i * s)
+
     @property
     def backward(self):
         """Symbol for the time-backward state of the function"""
