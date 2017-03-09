@@ -3,6 +3,7 @@ import pytest
 from numpy import linalg
 
 from devito.logger import error
+from devito import clear_cache
 
 from examples.acoustic.Acoustic_codegen import Acoustic_cg
 from examples.containers import IGrid, IShot
@@ -11,8 +12,8 @@ from examples.containers import IGrid, IShot
 @pytest.mark.parametrize('space_order', [4, 8, 12])
 @pytest.mark.parametrize('dimensions', [(60, 70), (40, 50, 30)])
 def test_acousticJ(dimensions, space_order):
-    nbpml = 40
-
+    nbpml = 30
+    clear_cache()
     if len(dimensions) == 2:
         # Dimensions in 2D are (x, z)
         origin = (0., 0.)
@@ -20,7 +21,7 @@ def test_acousticJ(dimensions, space_order):
 
         # True velocity
         true_vp = np.ones(dimensions) + .5
-        true_vp[:, int(dimensions[0] / 2):dimensions[0]] = 2.5
+        true_vp[:, int(dimensions[0] / 3):dimensions[0]] = 2.5
         v0 = np.ones(dimensions) + .5
         # Source location
         location = np.zeros((1, 2))
@@ -40,7 +41,7 @@ def test_acousticJ(dimensions, space_order):
 
         # True velocity
         true_vp = np.ones(dimensions) + .5
-        true_vp[:, :, int(dimensions[0] / 2):dimensions[0]] = 2.5
+        true_vp[:, :, int(dimensions[0] / 3):dimensions[0]] = 2.5
         v0 = np.ones(dimensions) + .5
         # Source location
         location = np.zeros((1, 3))
@@ -68,7 +69,7 @@ def test_acousticJ(dimensions, space_order):
     f0 = .010
     dt = model.get_critical_dt()
     t0 = 0.0
-    tn = 500.0
+    tn = 400.0
     nt = int(1+(tn-t0)/dt)
 
     # Set up the source as Ricker wavelet for f0
@@ -96,11 +97,12 @@ def test_acousticJ(dimensions, space_order):
     im = acoustic0.Gradient(du, u0)
 
     # Actual adjoint test
-    term1 = np.dot(im.reshape(-1), model0.pad(1 / model.vp ** 2 - 1 / model0.vp ** 2).reshape(-1))
+    term1 = np.dot(im.reshape(-1),
+                   model0.pad(1 / model.vp ** 2 - 1 / model0.vp ** 2).reshape(-1))
     term2 = linalg.norm(du)**2
     print(term1, term2, term1 - term2, term1 / term2)
     assert np.isclose(term1 / term2, 1.0, atol=0.001)
 
 
 if __name__ == "__main__":
-    test_acousticJ(dimensions=(60, 70), time_order=2, space_order=4)
+    test_acousticJ(dimensions=(60, 70), space_order=4)
