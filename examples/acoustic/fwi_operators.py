@@ -232,10 +232,10 @@ class GradientOperator(Operator):
                                                time_order=2,
                                                forward=False,
                                                dtype=m.dtype,
-                                               input_params=[m, v, damp, u],
+                                               input_params=[m, v, damp, u, grad],
                                                **kwargs)
         # Insert receiver term post-hoc
-        self.input_params += [grad, rec, rec.coordinates]
+        self.input_params += [rec, rec.coordinates]
         self.output_params = [grad]
         self.propagator.time_loop_stencils_b = rec.add(m, v, u_t=t + 1, p_t=t + 1)
         self.propagator.add_devito_param(rec)
