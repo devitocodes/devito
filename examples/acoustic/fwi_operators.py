@@ -42,7 +42,7 @@ def ForwardOperator(model, u, src, rec, damp, data, time_order=2, spc_order=6,
 
     # Create the stencil by hand instead of calling numpy solve for speed purposes
     eqn = m * u.dt2 + damp * u.dt + B
-    stencil = solve(eqn, u, rational=False, simplify=False, check=False)[0]
+    stencil = solve(eqn, u.forward, rational=False, simplify=False, check=False)[0]
     stencil = stencil.xreplace({B: - laplacian - s**2 / 12 * biharmonic})
     # Add substitutions for spacing (temporal and spatial)
     subs = {s: dt, h: model.get_spacing()}
@@ -50,7 +50,7 @@ def ForwardOperator(model, u, src, rec, damp, data, time_order=2, spc_order=6,
     if legacy:
         kwargs.pop('dle', None)
 
-        op = Operator(nt, m.shape, stencils=Eq(u, stencil), subs=subs,
+        op = Operator(nt, m.shape, stencils=Eq(u.forward, stencil), subs=subs,
                       spc_border=max(spc_order / 2, 2), time_order=2, forward=True,
                       dtype=m.dtype, **kwargs)
 
@@ -68,9 +68,9 @@ def ForwardOperator(model, u, src, rec, damp, data, time_order=2, spc_order=6,
         dle = kwargs.get('dle', None)
         compiler = kwargs.get('compiler', None)
         # Create stencil expressions for operator, source and receivers
-        eqn = Eq(u, stencil)
-        src_add = src.point2grid(u, m, u_t=t, p_t=time)
-        rec_read = Eq(rec, rec.grid2point(u))
+        eqn = Eq(u.forward, stencil)
+        src_add = src.point2grid(u, m, u_t=t + 1, p_t=time)
+        rec_read = rec.grid2point(u, u_t=t + 1, p_t=time)
         stencils = [eqn] + src_add + [rec_read]
 
         op = StencilKernel(stencils=stencils, subs=subs, dse=dse, dle=dle,
@@ -117,7 +117,7 @@ class AdjointOperator(Operator):
 
         # Create the stencil by hand instead of calling numpy solve for speed purposes
         eqn = m * v.dt2 - damp * v.dt + B
-        stencil = solve(eqn, v, rational=False, simplify=False, check=False)[0]
+        stencil = solve(eqn, v.backward, rational=False, simplify=False, check=False)[0]
         stencil = stencil.xreplace({B: - laplacian - s ** 2 / 12 * biharmonic})
 
         # Add substitutions for spacing (temporal and spatial)
@@ -133,7 +133,7 @@ class AdjointOperator(Operator):
         rec.data[:] = recin[:]
 
         super(AdjointOperator, self).__init__(nt, m.shape,
-                                              stencils=Eq(v, stencil),
+                                              stencils=Eq(v.backward, stencil),
                                               subs=subs,
                                               spc_border=max(spc_order / 2, 2),
                                               time_order=2,

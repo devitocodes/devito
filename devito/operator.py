@@ -1,11 +1,12 @@
 from functools import reduce
 
 import numpy as np
-from sympy import Eq
+from sympy import Eq, solve
 from sympy.abc import s
 
 from devito.compiler import get_compiler_from_env
 from devito.dimension import t, x, y, z
+from devito.interfaces import TimeData
 from devito.dse.inspection import (indexify, retrieve_dimensions,
                                    retrieve_symbols, tolambda)
 from devito.propagator import Propagator
@@ -100,6 +101,12 @@ class Operator(object):
         for d in dimensions:
             sym_undef.remove(d)
 
+        # TODO: We should check that all undfined symbols have known subs
+        # Shift time indices so that LHS writes into t only,
+        # eg. u[t+2] = u[t+1] + u[t]  -> u[t] = u[t-1] + u[t-2]
+        self.stencils = [eqn.subs(t, t + solve(eqn.lhs.args[0], t)[0])
+                         if isinstance(eqn.lhs, TimeData) else eqn
+                         for eqn in self.stencils]
         # Convert incoming stencil equations to "indexed access" format
         self.stencils = [Eq(indexify(eqn.lhs), indexify(eqn.rhs))
                          for eqn in self.stencils]

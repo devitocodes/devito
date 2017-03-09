@@ -103,4 +103,4 @@ def test_acoustic(dimensions, time_order, space_order):
 
 
 if __name__ == "__main__":
-    test_acoustic(dimensions=(60, 70), time_order=4, space_order=4)
+    test_acoustic(dimensions=(60, 70), time_order=2, space_order=4)
