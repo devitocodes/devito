@@ -493,10 +493,6 @@ class TimeData(DenseData):
             self.save = kwargs.get('save', False)
             self.pad_time = kwargs.get('pad_time', False)
             self.taxis = kwargs.get('taxis', Forward)
-            if self.taxis == Forward:
-                self.tsub = t - int(self.time_order / 2) * s
-            else:
-                self.tsub = t + int(self.time_order / 2) * s
 
             if self.save:
                 time_dim += self.time_order
@@ -549,26 +545,25 @@ class TimeData(DenseData):
         """Symbol for the time-forward state of the function"""
         i = int(self.time_order / 2) if self.time_order >= 2 else 1
 
-        return self.subs(t, t + i * s).subs(t, self.tsub)
-
+        return self.subs(t, t + i * s)
     @property
     def backward(self):
         """Symbol for the time-backward state of the function"""
         i = int(self.time_order / 2) if self.time_order >= 2 else 1
 
-        return self.subs(t, t - i * s).subs(t, self.tsub)
+        return self.subs(t, t - i * s)
 
     @property
     def dt(self):
         """Symbol for the first derivative wrt the time dimension"""
         return first_derivative(self, dim=t, diff=s, side=centered,
-                                order=self.time_order).subs(t, self.tsub)
+                                order=self.time_order)
 
     @property
     def dt2(self):
         """Symbol for the second derivative wrt the t dimension"""
         return second_derivative(self, dim=t, diff=s,
-                                 order=self.time_order).subs(t, self.tsub)
+                                 order=self.time_order)
 
 
 class CoordinateData(TensorData):
