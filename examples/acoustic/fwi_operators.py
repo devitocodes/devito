@@ -181,7 +181,7 @@ class GradientOperator(Operator):
             # PDE for information
             # eqn = m * v.dt2 - laplacian - damp * v.dt
             dt = model.get_critical_dt()
-            gradient_update = Eq(grad, grad - u.dt2 * v.backward)
+            gradient_update = Eq(grad, grad - u.dt2 * v.forward)
         else:
             laplacian = v.laplace
             biharmonic = v.laplace2(1/m)
@@ -191,18 +191,18 @@ class GradientOperator(Operator):
             dt = 1.73 * model.get_critical_dt()
             gradient_update = Eq(grad, grad -
                                  (u.dt2 -
-                                  s ** 2 / 12.0 * biharmonicu) * v.backward)
+                                  s ** 2 / 12.0 * biharmonicu) * v.forward)
 
         # Create the stencil by hand instead of calling numpy solve for speed purposes
         # Simple linear solve of a v(t+dt) + b u(t) + c v(t-dt) = L for v(t-dt)
         eqn = m * v.dt2 - damp * v.dt + B
-        stencil = solve(eqn, v, rational=False, simplify=False, check=False)[0]
+        stencil = solve(eqn, v.backward, rational=False, simplify=False, check=False)[0]
         stencil = stencil.xreplace({B: - laplacian - s ** 2 / 12 * biharmonic})
         # Add substitutions for spacing (temporal and spatial)
         subs = {s: dt, h: model.get_spacing()}
         # Add Gradient-specific updates. The dt2 is currently hacky
         #  as it has to match the cyclic indices
-        stencils = [Eq(v, stencil), gradient_update]
+        stencils = [Eq(v.backward, stencil), gradient_update]
 
         # Receiver initialization
         rec = SourceLike(name="rec", npoint=nrec, nt=nt, dt=dt, h=model.get_spacing(),
@@ -269,15 +269,15 @@ class BornOperator(Operator):
 
         first_eqn = m * u.dt2 + damp * u.dt + B
         second_eqn = m * U.dt2 + damp * U.dt + C
-        stencil1 = solve(first_eqn, u, rational=False, simplify=False, check=False)[0]
-        stencil2 = solve(second_eqn, U, rational=False, simplify=False, check=False)[0]
+        stencil1 = solve(first_eqn, u.forward, rational=False, simplify=False, check=False)[0]
+        stencil2 = solve(second_eqn, U.forward, rational=False, simplify=False, check=False)[0]
         stencil1 = stencil1.xreplace({B: - u.laplace - s**2 / 12 * biharmonicu})
         stencil2 = stencil2.xreplace({C: - U.laplace - dm * u.dt2 -
                                      s**2 / 12 * biharmonicU})
         # Add substitutions for spacing (temporal and spatial)
         subs = {s: dt, h: model.get_spacing()}
         # Add Born-specific updates and resets
-        stencils = [Eq(u, stencil1), Eq(U, stencil2)]
+        stencils = [Eq(u.forward, stencil1), Eq(U.forward, stencil2)]
 
         rec = SourceLike(name="rec", npoint=nrec, nt=nt, dt=dt, h=model.get_spacing(),
                          coordinates=data.receiver_coords, ndim=len(damp.shape),
