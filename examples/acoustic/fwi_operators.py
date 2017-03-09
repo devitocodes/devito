@@ -276,13 +276,13 @@ class BornOperator(Operator):
         if time_order == 2:
             laplacianu = u.laplace
             biharmonicu = 0
-            laplacianU = u.laplace
+            laplacianU = U.laplace
             biharmonicU = 0
             dt = model.get_critical_dt()
         else:
             laplacianu = u.laplace
-            biharmonicu = U.laplace2(1/m)
-            laplacianU = u.laplace
+            biharmonicu = u.laplace2(1/m)
+            laplacianU = U.laplace
             biharmonicU = U.laplace2(1/m)
             dt = 1.73 * model.get_critical_dt()
             # first_eqn = m * u.dt2 - u.laplace + damp * u.dt
@@ -292,8 +292,8 @@ class BornOperator(Operator):
             (4.0 * m * u + (s * damp - 2.0 * m) *
              u.backward + 2.0 * s ** 2 * (laplacianu + s**2 / 12 * biharmonicu))
         stencil2 = 1.0 / (2.0 * m + s * damp) * \
-            (4.0 * m * u + (s * damp - 2.0 * m) *
-             u.backward + 2.0 * s ** 2 * (laplacianU +
+            (4.0 * m * U + (s * damp - 2.0 * m) *
+             U.backward + 2.0 * s ** 2 * (laplacianU +
                                           s**2 / 12 * biharmonicU - dm * u.dt2))
         # Add substitutions for spacing (temporal and spatial)
         subs = {s: dt, h: model.get_spacing()}
