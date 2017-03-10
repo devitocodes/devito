@@ -413,8 +413,7 @@ class ResolveIterationVariable(Transformer):
             init = []
             for i, off in enumerate(filter_ordered(offsets[o.dim])):
                 vname = "%s%d" % (o.dim.name, i)
-                # Add modulo to value so that t-modulo is always positive
-                value = o.dim.parent + off + o.dim.modulo
+                value = o.dim.parent + off
                 modulo = o.dim.modulo
                 init += [c.Initializer(c.Value('int', vname),
                                        "(%s) %% %d" % (value, modulo))]
