@@ -198,9 +198,13 @@ def ForwardOperator(model, u, v, src, rec, damp, data, time_order=2,
         dle = kwargs.get('dle', 'advanced')
         compiler = kwargs.get('compiler', None)
 
-        stencils += src.point2grid(u, m, u_t=t, p_t=time)
-        stencils += src.point2grid(v, m, u_t=t, p_t=time)
-        stencils += rec.grid2point(u) + rec.grid2point(v)
+        stencils += src.point2grid(u, m, u_t=t + 1, p_t=time)
+        stencils += src.point2grid(v, m, u_t=t + 1, p_t=time)
+        # TODO: write proper grid2point(expr, ...)
+        # read receiver data
+        stencils += [Eq(rec.grid2point(u, u_t=t + 1, p_t=time).lhs,
+                        rec.grid2point(u, u_t=t + 1, p_t=time).rhs +
+                        rec.grid2point(v, u_t=t + 1, p_t=time).rhs)]
 
         op = StencilKernel(stencils=stencils, subs=subs, dse=dse, dle=dle,
                            compiler=compiler)
