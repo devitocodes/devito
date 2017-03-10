@@ -26,8 +26,7 @@ from devito.tools import (SetOrderedDict, as_tuple, filter_ordered, filter_sorte
                           flatten, partial_order)
 from devito.visitors import (FindNodes, FindSections, FindSymbols, FindScopes,
                              IsPerfectIteration, MergeOuterIterations,
-                             ResolveIterationVariable, SubstituteExpression,
-                             Transformer, printAST)
+                             ResolveIterationVariable, SubstituteExpression, Transformer)
 
 __all__ = ['StencilKernel']
 
@@ -488,21 +487,6 @@ class StencilKernel(Function):
         return c.Module(header + includes + profiling + elemental_functions + [kernel])
 
     @property
-    def basename(self):
-        """Generate the file basename path for auto-generated files
-
-        The basename is generated from the hash string of the kernel,
-        which is base on the final expressions and iteration symbols.
-
-        :returns: The basename path as a string
-        """
-        expr_string = printAST(self.body, verbose=True)
-        expr_string += printAST(self.elemental_functions, verbose=True)
-        hash_key = sha1(expr_string.encode()).hexdigest()
-
-        return path.join(get_tmp_dir(), hash_key)
-
-    @property
     def cfunction(self):
         """Returns the JIT-compiled C function as a ctypes.FuncPtr object
 
@@ -512,8 +496,10 @@ class StencilKernel(Function):
         :returns: The generated C function
         """
         if self._lib is None:
-            self._lib = jit_compile_and_load(self.ccode, self.basename,
-                                             self.compiler)
+            ccode = self.ccode
+            hash_key = sha1(str(ccode).encode()).hexdigest()
+            basename = path.join(get_tmp_dir(), hash_key)
+            self._lib = jit_compile_and_load(ccode, basename, self.compiler)
         if self._cfunction is None:
             self._cfunction = getattr(self._lib, self.name)
             self._cfunction.argtypes = self.argtypes
