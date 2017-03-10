@@ -120,10 +120,12 @@ class SourceLike(PointData):
         interp_expr = self.grid2point(u, u_t=u_t, p_t=p_t)
         return [Iteration(interp_expr, dimension=sym_p, limits=self.shape[1])]
 
-    def read2(self, u, v):
+    def read2(self, u, v, u_t=t, p_t=t):
         """Read the value of the wavefield (u+v) at point locations with grid2point."""
         sym_p = self.indices[1]
-        interp_expr = Eq(self.indexed[t, sym_p], self.grid2point(u) + self.grid2point(v))
+        interp_expr = (self.grid2point(u, u_t=u_t, p_t=p_t),
+                       self.grid2point(v, u_t=u_t, p_t=p_t))
+        interp_expr = Eq(interp_expr[0].lhs, interp_expr[0].rhs + interp_expr[1].rhs)
         return [Iteration(interp_expr, dimension=sym_p, limits=self.shape[1])]
 
     def add(self, m, u, u_t=t, p_t=t):

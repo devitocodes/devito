@@ -42,7 +42,7 @@ def ForwardOperator(model, u, src, rec, damp, data, time_order=2, spc_order=6,
 
     # Create the stencil by hand instead of calling numpy solve for speed purposes
     eqn = m * u.dt2 + damp * u.dt + B
-    stencil = solve(eqn, u.forward, rational=False, simplify=False, check=False)[0]
+    stencil = solve(eqn, u.forward)[0]
     stencil = stencil.xreplace({B: - laplacian - s**2 / 12 * biharmonic})
     # Add substitutions for spacing (temporal and spatial)
     subs = {s: dt, h: model.get_spacing()}
@@ -117,7 +117,7 @@ class AdjointOperator(Operator):
 
         # Create the stencil by hand instead of calling numpy solve for speed purposes
         eqn = m * v.dt2 - damp * v.dt + B
-        stencil = solve(eqn, v.backward, rational=False, simplify=False, check=False)[0]
+        stencil = solve(eqn, v.backward)[0]
         stencil = stencil.xreplace({B: - laplacian - s ** 2 / 12 * biharmonic})
 
         # Add substitutions for spacing (temporal and spatial)
@@ -196,7 +196,7 @@ class GradientOperator(Operator):
         # Create the stencil by hand instead of calling numpy solve for speed purposes
         # Simple linear solve of a v(t+dt) + b u(t) + c v(t-dt) = L for v(t-dt)
         eqn = m * v.dt2 - damp * v.dt + B
-        stencil = solve(eqn, v.backward, rational=False, simplify=False, check=False)[0]
+        stencil = solve(eqn, v.backward)[0]
         stencil = stencil.xreplace({B: - laplacian - s ** 2 / 12 * biharmonic})
         # Add substitutions for spacing (temporal and spatial)
         subs = {s: dt, h: model.get_spacing()}
@@ -269,8 +269,8 @@ class BornOperator(Operator):
 
         first_eqn = m * u.dt2 + damp * u.dt + B
         second_eqn = m * U.dt2 + damp * U.dt + C
-        stencil1 = solve(first_eqn, u.forward, rational=False, simplify=False, check=False)[0]
-        stencil2 = solve(second_eqn, U.forward, rational=False, simplify=False, check=False)[0]
+        stencil1 = solve(first_eqn, u.forward)[0]
+        stencil2 = solve(second_eqn, U.forward)[0]
         stencil1 = stencil1.xreplace({B: - u.laplace - s**2 / 12 * biharmonicu})
         stencil2 = stencil2.xreplace({C: - U.laplace - dm * u.dt2 -
                                      s**2 / 12 * biharmonicU})

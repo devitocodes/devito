@@ -167,12 +167,12 @@ def ForwardOperator(model, u, v, src, rec, damp, data, time_order=2,
 
     eqp = m * u.dt2 - epsilon * P - delta * R + damp * u.dt
     eqr = m * v.dt2 - delta * P - R + damp * v.dt
-    stencilp = solve(eqp, u, rational=False)[0]
-    stencilr = solve(eqr, v, rational=False)[0]
+    stencilp = solve(eqp, u.forward)[0]
+    stencilr = solve(eqr, v.forward)[0]
     # Add substitutions for spacing (temporal and spatial)
     subs = {s: dt, h: model.get_spacing()}
-    first_stencil = Eq(u, stencilp.xreplace({P: Hp, R: Hzr}))
-    second_stencil = Eq(v, stencilr.xreplace({P: Hp, R: Hzr}))
+    first_stencil = Eq(u.forward, stencilp.xreplace({P: Hp, R: Hzr}))
+    second_stencil = Eq(v.forward, stencilr.xreplace({P: Hp, R: Hzr}))
     stencils = [first_stencil, second_stencil]
 
     if legacy:
@@ -200,7 +200,7 @@ def ForwardOperator(model, u, v, src, rec, damp, data, time_order=2,
 
         stencils += src.point2grid(u, m, u_t=t, p_t=time)
         stencils += src.point2grid(v, m, u_t=t, p_t=time)
-        stencils += [Eq(rec, rec.grid2point(u) + rec.grid2point(v))]
+        stencils += rec.grid2point(u) + rec.grid2point(v)
 
         op = StencilKernel(stencils=stencils, subs=subs, dse=dse, dle=dle,
                            compiler=compiler)
