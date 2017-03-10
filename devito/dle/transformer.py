@@ -230,7 +230,7 @@ class Rewriter(object):
         '_loop_fission': ('fission', 'split', 'advanced', 'speculative'),
         '_create_elemental_functions': ('split', 'basic', 'advanced', 'speculative'),
         '_loop_blocking': ('blocking', 'advanced', 'speculative'),
-        '_padding': ('padding', 'advanced', 'speculative'),
+        '_padding': ('padding', 'speculative'),
         '_simdize': ('simd', 'basic', 'advanced', 'speculative'),
         '_nontemporal_stores': ('ntstores', 'speculative'),
         '_ompize': ('openmp',)
