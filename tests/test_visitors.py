@@ -2,38 +2,20 @@ import cgen as c
 import pytest
 from sympy import Eq
 
-from devito.dimension import Dimension
-from devito.interfaces import DenseData
-from devito.nodes import Block, Expression, Function, Iteration
+from devito.nodes import Block, Expression, Function
 from devito.visitors import (FindSections, FindSymbols, IsPerfectIteration,
                              MergeOuterIterations, Transformer, printAST)
 
 
-def _symbol(name, dimensions):
-    return DenseData(name=name, dimensions=dimensions).indexify()
-
-
-@pytest.fixture(scope="session")
-def exprs():
-    i = Dimension(name='i', size=3)
-    a = _symbol(name='a', dimensions=(i,))
-    b = _symbol(name='b', dimensions=(i,))
+@pytest.fixture(scope="module")
+def exprs(a, b):
     return [Expression(Eq(a, a + b + 5.)),
             Expression(Eq(a, b - a)),
             Expression(Eq(a, 4 * (b * a))),
             Expression(Eq(a, (6. / b) + (8. * a)))]
 
 
-@pytest.fixture(scope="session")
-def iters():
-    return [lambda ex: Iteration(ex, Dimension('i', size=3), (0, 3, 1)),
-            lambda ex: Iteration(ex, Dimension('j', size=5), (0, 5, 1)),
-            lambda ex: Iteration(ex, Dimension('k', size=7), (0, 7, 1)),
-            lambda ex: Iteration(ex, Dimension('s', size=4), (0, 4, 1)),
-            lambda ex: Iteration(ex, Dimension('p', size=4), (0, 4, 1))]
-
-
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="module")
 def block1(exprs, iters):
     # Perfect loop nest:
     # for i
@@ -43,7 +25,7 @@ def block1(exprs, iters):
     return iters[0](iters[1](iters[2](exprs[0])))
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="module")
 def block2(exprs, iters):
     # Non-perfect simple loop nest:
     # for i
@@ -54,7 +36,7 @@ def block2(exprs, iters):
     return iters[0]([exprs[0], iters[1](iters[2](exprs[1]))])
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="module")
 def block3(exprs, iters):
     # Non-perfect non-trivial loop nest:
     # for i
@@ -184,10 +166,8 @@ def test_transformer_replace_function_body(block1, block2):
     """Create a Function and replace its body with another."""
     args = FindSymbols().visit(block1)
     f = Function('foo', block1, 'void', args)
-    assert str(f.ccode) == """void foo(float *restrict a_vec, float *restrict b_vec)
+    assert str(f.ccode) == """void foo()
 {
-  float (*restrict a) __attribute__((aligned(64))) = (float (*)) a_vec;
-  float (*restrict b) __attribute__((aligned(64))) = (float (*)) b_vec;
   for (int i = 0; i < 3; i += 1)
   {
     for (int j = 0; j < 5; j += 1)
@@ -201,10 +181,8 @@ def test_transformer_replace_function_body(block1, block2):
 }"""
 
     f = Transformer({block1: block2}).visit(f)
-    assert str(f.ccode) == """void foo(float *restrict a_vec, float *restrict b_vec)
+    assert str(f.ccode) == """void foo()
 {
-  float (*restrict a) __attribute__((aligned(64))) = (float (*)) a_vec;
-  float (*restrict b) __attribute__((aligned(64))) = (float (*)) b_vec;
   for (int i = 0; i < 3; i += 1)
   {
     a[i] = a[i] + b[i] + 5.0F;

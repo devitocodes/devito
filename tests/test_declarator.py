@@ -1,20 +1,8 @@
 from __future__ import absolute_import
 
-import pytest
 from sympy import Eq
 
 from devito.stencilkernel import StencilKernel
-
-
-@pytest.fixture(scope="session")
-def exprs(symbols):
-    a, b, c, d = [i.indexify() for i in symbols]
-    return [Eq(a, a + b + 5.),
-            Eq(a, b*d - a*c),
-            Eq(a, a + b*b + 3),
-            Eq(a, a*b*d*c),
-            Eq(a, 4 * ((b + d) * (a + c))),
-            Eq(a, (6. / b) + (8. * a))]
 
 
 def test_heap_1D_stencil(a, b):
