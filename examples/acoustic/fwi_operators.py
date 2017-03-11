@@ -69,8 +69,8 @@ def ForwardOperator(model, u, src, rec, damp, data, time_order=2, spc_order=6,
         compiler = kwargs.get('compiler', None)
         # Create stencil expressions for operator, source and receivers
         eqn = Eq(u.forward, stencil)
-        src_add = src.point2grid(u, m, u_t=t + 1, p_t=time)
-        rec_read = rec.grid2point(u, u_t=t + 1, p_t=time)
+        src_add = src.point2grid(u, m, u_t=t + 1, p_t=time - 1)
+        rec_read = rec.grid2point(u, u_t=t + 1, p_t=time - 1)
         stencils = [eqn] + src_add + [rec_read]
 
         op = StencilKernel(stencils=stencils, subs=subs, dse=dse, dle=dle,
