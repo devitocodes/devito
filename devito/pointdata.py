@@ -27,7 +27,6 @@ class PointData(DenseData):
     def __init__(self, *args, **kwargs):
         if not self._cached():
             self.nt = kwargs.get('nt')
-            self.h = kwargs.get('h')
             self.npoint = kwargs.get('npoint')
             self.ndim = kwargs.get('ndim')
             kwargs['shape'] = (self.nt, self.npoint)
@@ -104,7 +103,7 @@ class PointData(DenseData):
                   "%d dimensions." % self.ndim)
 
         # Map to reference cell
-        reference_cell = {x1: 0, y1: 0, z1: 0, x2: self.h, y2: self.h, z2: self.h}
+        reference_cell = {x1: 0, y1: 0, z1: 0, x2: h, y2: h, z2: h}
         A = A.subs(reference_cell)
         return A.inv().T.dot(p)
 
@@ -132,13 +131,13 @@ class PointData(DenseData):
     @property
     def coordinate_indices(self):
         """Symbol for each grid index according to the coordinates"""
-        return tuple([Function('INT')(Function('floor')(x / self.h))
+        return tuple([Function('INT')(Function('floor')(x / h))
                       for x in self.coordinate_symbols])
 
     @property
     def coordinate_bases(self):
         """Symbol for the base coordinates of the reference grid point"""
-        return tuple([Function('FLOAT')(x - idx * self.h)
+        return tuple([Function('FLOAT')(x - idx * h)
                       for x, idx in zip(self.coordinate_symbols,
                                         self.coordinate_indices)])
 

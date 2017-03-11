@@ -3,8 +3,7 @@ import pytest
 from sympy import Eq
 from sympy.abc import h
 
-from devito import Operator, DenseData, PointData, TimeData, t
-from examples.source_type import SourceLike
+from devito import Operator, DenseData, PointData
 
 
 @pytest.fixture
@@ -21,8 +20,8 @@ def points(npoints=20):
     x = np.linspace(.05, .9, npoints)
     y = np.linspace(.01, .8, npoints)
     coords = np.concatenate((x, y)).reshape(npoints, 2)
-    return SourceLike(name='points', nt=1, npoint=npoints,
-                      ndim=2, coordinates=coords, h=0.1, nbpml=0)
+    return PointData(name='points', nt=1, npoint=npoints,
+                     ndim=2, coordinates=coords)
 
 
 @pytest.fixture
@@ -30,8 +29,8 @@ def points_horizontal(npoints=19, ycoord=0.45):
     coords = np.empty((npoints, 2), dtype=np.float32)
     coords[:, 0] = np.linspace(.05, .95, npoints)
     coords[:, 1] = ycoord
-    return SourceLike(name='points', nt=1, npoint=npoints,
-                      ndim=2, coordinates=coords, h=0.1, nbpml=0)
+    return PointData(name='points', nt=1, npoint=npoints,
+                     ndim=2, coordinates=coords)
 
 
 def test_interpolate_2d(a, points):
