@@ -80,7 +80,7 @@ def test_printAST(block1, block2, block3):
     <Iteration k::k::[0, 7, 1]::[0, 0]>
       <Expression a[i] = -a[i] + b[i]>
       <Expression a[i] = 4*a[i]*b[i]>
-  <Iteration p::p::[0, 4, 1]::[0, 0]>
+  <Iteration q::q::[0, 4, 1]::[0, 0]>
     <Expression a[i] = 8.0*a[i] + 6.0/b[i]>
 """
 

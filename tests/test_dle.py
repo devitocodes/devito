@@ -221,7 +221,7 @@ void f_0_2(float *restrict a_vec, float *restrict b_vec, const int i)
 {
   float (*restrict a) __attribute__((aligned(64))) = (float (*)) a_vec;
   float (*restrict b) __attribute__((aligned(64))) = (float (*)) b_vec;
-  for (int p = 0; p < 4; p += 1)
+  for (int q = 0; q < 4; q += 1)
   {
     a[i] = 8.0F*a[i] + 6.0F/b[i];
   }
