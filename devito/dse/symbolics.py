@@ -77,7 +77,7 @@ def rewrite(expr, mode='advanced'):
         return Rewriter(expr).run(mode)
 
 
-def dse_transformation(func):
+def dse_pass(func):
 
     def wrapper(self, state, **kwargs):
         if kwargs['mode'].intersection(set(self.triggers[func.__name__])):
@@ -195,7 +195,7 @@ class Rewriter(object):
 
         return state
 
-    @dse_transformation
+    @dse_pass
     def _factorize(self, state, **kwargs):
         """
         Collect terms in each expr in exprs based on the following heuristic:
@@ -224,7 +224,7 @@ class Rewriter(object):
 
         return {'exprs': processed}
 
-    @dse_transformation
+    @dse_pass
     def _cse(self, state, **kwargs):
         """
         Perform common subexpression elimination.
@@ -307,7 +307,7 @@ class Rewriter(object):
 
         return {'exprs': list(ordered.values())}
 
-    @dse_transformation
+    @dse_pass
     def _optimize_trigonometry(self, state, **kwargs):
         """
         Rebuild ``exprs`` replacing trigonometric functions with Bhaskara
@@ -322,7 +322,7 @@ class Rewriter(object):
 
         return {'exprs': processed}
 
-    @dse_transformation
+    @dse_pass
     def _replace_time_invariants(self, state, **kwargs):
         """
         Create a new expr' given expr where the longest time-invariant
@@ -398,7 +398,7 @@ class Rewriter(object):
 
         return {'exprs': processed, 'mapper': reduced_mapper}
 
-    @dse_transformation
+    @dse_pass
     def _split_expressions(self, state, **kwargs):
         """
         Search for expressions whose size in number of operands is greater than
