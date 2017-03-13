@@ -163,6 +163,7 @@ class Rewriter(object):
         '_optimize_trigonometry': ('approx-trigonometry', 'advanced'),
         '_replace_time_invariants': ('glicm', 'advanced'),
         '_split_expressions': ('split', 'devito3.0')  # TODO: -> 'advanced' upon release
+        '_capture_aliases': ('aliases', 'advanced')
     }
 
     """
@@ -188,6 +189,7 @@ class Rewriter(object):
         self._replace_time_invariants(state, mode=mode)
         self._factorize(state, mode=mode)
         self._split_expressions(state, mode=mode)
+        self._capture_aliases(state, mode=mode)
 
         self._finalize(state)
 
@@ -422,6 +424,13 @@ class Rewriter(object):
             processed.extend(chunks)
 
         return {'exprs': processed}
+
+    @dse_pass
+    def _capture_aliases(self, state, **kwargs):
+        """
+        Capture all time-varying aliasing expressions (see collect_aliases.__doc__).
+        """
+        from IPython import embed; embed()
 
     def _finalize(self, state):
         """
