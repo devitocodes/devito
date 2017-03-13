@@ -2,12 +2,13 @@ from functools import reduce
 
 import numpy as np
 from sympy import Eq, solve
+from sympy.abc import s
 
 from devito.compiler import get_compiler_from_env
 from devito.dimension import t, x, y, z
+from devito.interfaces import TimeData
 from devito.dse.inspection import (indexify, retrieve_dimensions,
                                    retrieve_symbols, tolambda)
-from devito.interfaces import TimeData
 from devito.propagator import Propagator
 
 __all__ = ['Operator']
@@ -82,16 +83,16 @@ class Operator(object):
             dimensions += [i for i in retrieve_dimensions(eqn.rhs) if i not in dimensions]
 
         # Time dimension is fixed for now
-        time_dim = t
-
+        time_dim = [t - s, t, t + s]
         # Derive space dimensions from expression
         self.space_dims = None
 
         if len(dimensions) > 0:
             self.space_dims = dimensions
 
-            if time_dim in self.space_dims:
-                self.space_dims.remove(time_dim)
+            for td in time_dim:
+                if td in self.space_dims:
+                    self.space_dims.remove(td)
         else:
             # Default space dimension symbols
             self.space_dims = ((x, z) if len(shape) == 2 else (x, y, z))[:len(shape)]
@@ -106,14 +107,12 @@ class Operator(object):
         self.stencils = [eqn.subs(t, t + solve(eqn.lhs.args[0], t)[0])
                          if isinstance(eqn.lhs, TimeData) else eqn
                          for eqn in self.stencils]
-
         # Convert incoming stencil equations to "indexed access" format
         self.stencils = [Eq(indexify(eqn.lhs), indexify(eqn.rhs))
                          for eqn in self.stencils]
 
         # Apply user-defined subs to stencil
         self.stencils = [eqn.subs(subs[0]) for eqn in self.stencils]
-
         self.propagator = Propagator(self.getName(), nt, shape, self.stencils, dse=dse,
                                      dtype=dtype, spc_border=spc_border,
                                      time_order=time_order, forward=forward,
@@ -229,8 +228,8 @@ class Operator(object):
                     arr_lhs, ind_lhs = self.symbol_to_var(expr.lhs, ti, indices)
                     args = []
 
-                    for s in subs:
-                        arr, ind = self.symbol_to_var(s, ti, indices)
+                    for su in subs:
+                        arr, ind = self.symbol_to_var(su, ti, indices)
                         args.append(arr[ind])
 
                     arr_lhs[ind_lhs] = lamda(*args)
@@ -243,8 +242,8 @@ class Operator(object):
                 arr_lhs, ind_lhs = self.symbol_to_var(expr.lhs, ti)
                 args = []
 
-                for s in subs:
-                    arr, ind = self.symbol_to_var(s, ti)
+                for su in subs:
+                    arr, ind = self.symbol_to_var(su, ti)
                     args.append(arr[ind])
 
                 arr_lhs[ind_lhs] = lamda(*args)

@@ -100,4 +100,4 @@ def run(dimensions=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=1000.0,
 
 
 if __name__ == "__main__":
-    run(full_run=True, auto_tuning=False, space_order=6, time_order=2)
+    run(full_run=False, auto_tuning=False, space_order=12, time_order=4, legacy=False)

@@ -107,22 +107,25 @@ class SourceLike(PointData):
             eqns += [Eq(u_idx, u_idx + expr)]
         return eqns
 
-    def grid2point(self, u, t=t):
+    def grid2point(self, u, u_t=t, p_t=t):
         """Generates an expression for generic grid-to-point interpolation"""
         subs = dict(zip(self.rs, self.sym_coord_bases))
-        return sum([b.subs(subs) * u.indexed[(t, ) + idx]
-                    for idx, b in zip(self.index_matrix, self.bs)])
+        return Eq(self.indexed[(p_t, ) + tuple(self.indices[1:])],
+                  sum([b.subs(subs) * u.indexed[(u_t, ) + idx]
+                      for idx, b in zip(self.index_matrix, self.bs)]))
 
-    def read(self, u):
+    def read(self, u, u_t=t, p_t=t):
         """Read the value of the wavefield u at point locations with grid2point."""
         sym_p = self.indices[1]
-        interp_expr = Eq(self.indexed[t, sym_p], self.grid2point(u))
+        interp_expr = self.grid2point(u, u_t=u_t, p_t=p_t)
         return [Iteration(interp_expr, dimension=sym_p, limits=self.shape[1])]
 
-    def read2(self, u, v):
+    def read2(self, u, v, u_t=t, p_t=t):
         """Read the value of the wavefield (u+v) at point locations with grid2point."""
         sym_p = self.indices[1]
-        interp_expr = Eq(self.indexed[t, sym_p], self.grid2point(u) + self.grid2point(v))
+        interp_expr = (self.grid2point(u, u_t=u_t, p_t=p_t),
+                       self.grid2point(v, u_t=u_t, p_t=p_t))
+        interp_expr = Eq(interp_expr[0].lhs, interp_expr[0].rhs + interp_expr[1].rhs)
         return [Iteration(interp_expr, dimension=sym_p, limits=self.shape[1])]
 
     def add(self, m, u, u_t=t, p_t=t):

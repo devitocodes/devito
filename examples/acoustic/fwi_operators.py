@@ -1,7 +1,7 @@
 from sympy import Eq, solve, symbols
 
 from devito.dimension import t, time
-from devito.interfaces import DenseData, TimeData
+from devito.interfaces import Backward, DenseData, Forward, TimeData
 from devito.operator import *
 from devito.stencilkernel import StencilKernel
 from examples.source_type import SourceLike
@@ -23,7 +23,7 @@ def ForwardOperator(model, u, src, rec, damp, data, time_order=2, spc_order=6,
      required for the time marching scheme
     """
     nt = data.shape[0]
-    s, h = symbols('s h')
+    B, s, h = symbols('B s h')
     m = DenseData(name="m", shape=model.get_shape_comp(), dtype=damp.dtype)
     m.data[:] = model.padm()
     # Derive stencil from symbolic equation
@@ -41,10 +41,9 @@ def ForwardOperator(model, u, src, rec, damp, data, time_order=2, spc_order=6,
         dt = 1.73 * model.get_critical_dt()
 
     # Create the stencil by hand instead of calling numpy solve for speed purposes
-    # Simple linear solve of a u(t+dt) + b u(t) + c u(t-dt) = L for u(t+dt)
-    stencil = 1 / (2 * m + s * damp) * (
-        4 * m * u + (s * damp - 2 * m) * u.backward +
-        2 * s**2 * (laplacian + s**2 / 12 * biharmonic))
+    eqn = m * u.dt2 + damp * u.dt + B
+    stencil = solve(eqn, u.forward)[0]
+    stencil = stencil.xreplace({B: - laplacian - s**2 / 12 * biharmonic})
     # Add substitutions for spacing (temporal and spatial)
     subs = {s: dt, h: model.get_spacing()}
 
@@ -65,28 +64,14 @@ def ForwardOperator(model, u, src, rec, damp, data, time_order=2, spc_order=6,
         op.propagator.add_devito_param(rec.coordinates)
 
     else:
-        dse = kwargs.get('dse', 'advanced')
-        dle = kwargs.get('dle', 'advanced')
+        dse = kwargs.get('dse', None)
+        dle = kwargs.get('dle', None)
         compiler = kwargs.get('compiler', None)
-
         # Create stencil expressions for operator, source and receivers
         eqn = Eq(u.forward, stencil)
-        src_add = src.point2grid(u, m, u_t=t, p_t=time)
-        rec_read = Eq(rec, rec.grid2point(u))
+        src_add = src.point2grid(u, m, u_t=t + 1, p_t=time - 1)
+        rec_read = rec.grid2point(u, u_t=t + 1, p_t=time - 1)
         stencils = [eqn] + src_add + [rec_read]
-
-        # TODO: The following time-index hackery is a legacy hangover
-        # from the Operator/Propagator structure and is used here for
-        # backward compatibiliy. We need re-examine this apporach carefully!
-
-        # Shift time indices so that LHS writes into t only,
-        # eg. u[t+2] = u[t+1] + u[t]  -> u[t] = u[t-1] + u[t-2]
-        stencils = [e.subs(t, t + solve(e.lhs.args[0], t)[0])
-                    if isinstance(e.lhs, TimeData) else e
-                    for e in stencils]
-        # Apply time substitutions as per legacy approach
-        time_subs = {t + 2: t + 1, t: t + 2, t - 2: t, t - 1: t + 1, t + 1: t}
-        subs.update(time_subs)
 
         op = StencilKernel(stencils=stencils, subs=subs, dse=dse, dle=dle,
                            compiler=compiler)
@@ -109,10 +94,10 @@ class AdjointOperator(Operator):
     def __init__(self, model, damp, data, src, recin,
                  time_order=2, spc_order=6, **kwargs):
         nt, nrec = data.shape
-        s, h = symbols('s h')
+        s, h, B = symbols('s h B')
         v = TimeData(name="v", shape=model.get_shape_comp(), time_dim=nt,
                      time_order=2, space_order=spc_order,
-                     save=False, dtype=damp.dtype)
+                     save=False, dtype=damp.dtype, taxis=Backward)
         m = DenseData(name="m", shape=model.get_shape_comp(), dtype=damp.dtype)
         m.data[:] = model.padm()
         v.pad_time = False
@@ -131,10 +116,9 @@ class AdjointOperator(Operator):
             dt = 1.73 * model.get_critical_dt()
 
         # Create the stencil by hand instead of calling numpy solve for speed purposes
-        # Simple linear solve of a v(t+dt) + b u(t) + c v(t-dt) = L for v(t-dt)
-        stencil = 1 / (2 * m + s * damp) * \
-            (4 * m * v + (s * damp - 2 * m) *
-             v.forward + 2 * s**2 * (laplacian + s ** 2 / 12.0 * biharmonic))
+        eqn = m * v.dt2 - damp * v.dt + B
+        stencil = solve(eqn, v.backward)[0]
+        stencil = stencil.xreplace({B: - laplacian - s ** 2 / 12 * biharmonic})
 
         # Add substitutions for spacing (temporal and spatial)
         subs = {s: dt, h: model.get_spacing()}
@@ -181,10 +165,10 @@ class GradientOperator(Operator):
     """
     def __init__(self, model, damp, data, recin, u, time_order=2, spc_order=6, **kwargs):
         nt, nrec = data.shape
-        s, h = symbols('s h')
+        s, h, B = symbols('s h B')
         v = TimeData(name="v", shape=model.get_shape_comp(), time_dim=nt,
                      time_order=2, space_order=spc_order,
-                     save=False, dtype=damp.dtype)
+                     save=False, dtype=damp.dtype, taxis=Backward)
         m = DenseData(name="m", shape=model.get_shape_comp(), dtype=damp.dtype)
         m.data[:] = model.padm()
         v.pad_time = False
@@ -211,15 +195,14 @@ class GradientOperator(Operator):
 
         # Create the stencil by hand instead of calling numpy solve for speed purposes
         # Simple linear solve of a v(t+dt) + b u(t) + c v(t-dt) = L for v(t-dt)
-        stencil = 1.0 / (2.0 * m + s * damp) * \
-            (4.0 * m * v + (s * damp - 2.0 * m) *
-             v.forward + 2.0 * s ** 2 * (laplacian + s**2 / 12.0 * biharmonic))
-
+        eqn = m * v.dt2 - damp * v.dt + B
+        stencil = solve(eqn, v.backward)[0]
+        stencil = stencil.xreplace({B: - laplacian - s ** 2 / 12 * biharmonic})
         # Add substitutions for spacing (temporal and spatial)
         subs = {s: dt, h: model.get_spacing()}
         # Add Gradient-specific updates. The dt2 is currently hacky
         #  as it has to match the cyclic indices
-        stencils = [gradient_update, Eq(v.backward, stencil)]
+        stencils = [Eq(v.backward, stencil), gradient_update]
 
         # Receiver initialization
         rec = SourceLike(name="rec", npoint=nrec, nt=nt, dt=dt, h=model.get_spacing(),
@@ -261,40 +244,36 @@ class BornOperator(Operator):
         nt, nsrc = src.shape
         u = TimeData(name="u", shape=model.get_shape_comp(), time_dim=nt,
                      time_order=2, space_order=spc_order,
-                     save=False, dtype=damp.dtype)
+                     save=False, dtype=damp.dtype, taxis=Forward)
         U = TimeData(name="U", shape=model.get_shape_comp(), time_dim=nt,
                      time_order=2, space_order=spc_order,
-                     save=False, dtype=damp.dtype)
+                     save=False, dtype=damp.dtype, taxis=Forward)
         m = DenseData(name="m", shape=model.get_shape_comp(), dtype=damp.dtype)
         m.data[:] = model.padm()
 
         dm = DenseData(name="dm", shape=model.get_shape_comp(), dtype=damp.dtype)
         dm.data[:] = model.pad(dmin)
-        s, h = symbols('s h')
+        s, h, B, C = symbols('s h B C')
 
         # Derive stencils from symbolic equation
         if time_order == 2:
-            laplacianu = u.laplace
             biharmonicu = 0
-            laplacianU = U.laplace
             biharmonicU = 0
             dt = model.get_critical_dt()
         else:
-            laplacianu = u.laplace
             biharmonicu = u.laplace2(1/m)
-            laplacianU = U.laplace
             biharmonicU = U.laplace2(1/m)
             dt = 1.73 * model.get_critical_dt()
             # first_eqn = m * u.dt2 - u.laplace + damp * u.dt
             # second_eqn = m * U.dt2 - U.laplace - dm* u.dt2 + damp * U.dt
 
-        stencil1 = 1.0 / (2.0 * m + s * damp) * \
-            (4.0 * m * u + (s * damp - 2.0 * m) *
-             u.backward + 2.0 * s ** 2 * (laplacianu + s**2 / 12 * biharmonicu))
-        stencil2 = 1.0 / (2.0 * m + s * damp) * \
-            (4.0 * m * U + (s * damp - 2.0 * m) *
-             U.backward + 2.0 * s ** 2 * (laplacianU +
-                                          s**2 / 12 * biharmonicU - dm * u.dt2))
+        first_eqn = m * u.dt2 + damp * u.dt + B
+        second_eqn = m * U.dt2 + damp * U.dt + C
+        stencil1 = solve(first_eqn, u.forward)[0]
+        stencil2 = solve(second_eqn, U.forward)[0]
+        stencil1 = stencil1.xreplace({B: - u.laplace - s**2 / 12 * biharmonicu})
+        stencil2 = stencil2.xreplace({C: - U.laplace - dm * u.dt2 -
+                                     s**2 / 12 * biharmonicU})
         # Add substitutions for spacing (temporal and spatial)
         subs = {s: dt, h: model.get_spacing()}
         # Add Born-specific updates and resets

@@ -6,6 +6,7 @@ import numpy as np
 from devito.at_controller import AutoTuner
 from devito.dimension import Dimension, time
 from examples.acoustic.fwi_operators import *
+from devito.interfaces import Forward
 
 
 class Acoustic_cg(object):
@@ -84,7 +85,7 @@ class Acoustic_cg(object):
             # Create the forward wavefield
             u = TimeData(name="u", shape=self.model.get_shape_comp(), time_dim=nt,
                          time_order=2, space_order=self.s_order, save=False,
-                         dtype=self.damp.dtype)
+                         dtype=self.damp.dtype, taxis=Forward)
             fw = ForwardOperator(self.model, u, src, rec, self.damp, self.data,
                                  time_order=self.t_order, spc_order=self.s_order,
                                  profile=True, save=False, dse=dse, compiler=compiler)
@@ -122,7 +123,7 @@ class Acoustic_cg(object):
         # Create the forward wavefield
         u = TimeData(name="u", shape=self.model.get_shape_comp(), time_dim=nt,
                      time_order=2, space_order=self.s_order, save=save,
-                     dtype=self.damp.dtype)
+                     dtype=self.damp.dtype, taxis=Forward)
         u.pad_time = save
         if u_ini is not None:
             u.data[0:3, :] = u_ini[:]
@@ -133,7 +134,6 @@ class Acoustic_cg(object):
                              save=save, cache_blocking=cache_blocking, dse=dse,
                              dle=dle, compiler=compiler, profile=True, u_ini=u_ini,
                              legacy=legacy)
-
         if legacy:
             fw.apply()
             return (rec.data, u, fw.propagator.gflopss,
@@ -142,24 +142,24 @@ class Acoustic_cg(object):
             summary = fw.apply(autotune=auto_tuning)
             return rec.data, u, summary.gflopss, summary.oi, summary.timings
 
-    def Adjoint(self, rec, cache_blocking=None):
+    def Adjoint(self, rec, cache_blocking=None, dse='advanced'):
         adj = AdjointOperator(self.model, self.damp, self.data, self.source, rec,
                               time_order=self.t_order, spc_order=self.s_order,
-                              cache_blocking=cache_blocking)
+                              cache_blocking=cache_blocking, dse=dse)
         v = adj.apply()[0]
         return v.data
 
-    def Gradient(self, rec, u, cache_blocking=None):
+    def Gradient(self, rec, u, cache_blocking=None, dse='advanced'):
         grad_op = GradientOperator(self.model, self.damp, self.data, rec, u,
                                    time_order=self.t_order, spc_order=self.s_order,
-                                   cache_blocking=cache_blocking)
+                                   cache_blocking=cache_blocking, dse=dse)
         grad = grad_op.apply()[0]
         return grad.data
 
-    def Born(self, dm, cache_blocking=None):
+    def Born(self, dm, cache_blocking=None, dse='advanced'):
         born_op = BornOperator(self.model, self.source, self.damp, self.data, dm,
                                time_order=self.t_order, spc_order=self.s_order,
-                               cache_blocking=cache_blocking)
+                               cache_blocking=cache_blocking, dse=dse)
         rec = born_op.apply()[0]
         return rec.data
 
