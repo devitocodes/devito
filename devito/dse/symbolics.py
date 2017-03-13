@@ -12,8 +12,8 @@ from __future__ import absolute_import
 from collections import OrderedDict, Sequence
 from time import time
 
-from sympy import (Eq, Indexed, IndexedBase, S, Symbol, collect, collect_const,
-                   cos, flatten, numbered_symbols, preorder_traversal, sin)
+from sympy import (Eq, Indexed, IndexedBase, S, Symbol, cos,
+                   numbered_symbols, preorder_traversal, sin)
 from sympy.simplify.cse_main import tree_cse
 
 from devito.dimension import t, x, y, z
@@ -21,7 +21,8 @@ from devito.dse.extended_sympy import bhaskara_cos, bhaskara_sin
 from devito.dse.graph import temporaries_graph
 from devito.dse.inspection import (collect_aliases, estimate_cost, estimate_memory,
                                    is_binary_op, is_time_invariant, terminals)
-from devito.dse.manipulation import (flip_indices, rxreplace, unevaluate_arithmetic)
+from devito.dse.manipulation import (collect_nested, flip_indices, replace_invariants,
+                                     rxreplace, unevaluate_arithmetic)
 from devito.interfaces import TensorFunction
 from devito.logger import dse, dse_warning
 
@@ -448,105 +449,3 @@ class Rewriter(object):
                 pass
             elapsed = sum(self.timings.values())
             dse("%s [%.2f s]" % (summary, elapsed))
-
-
-def collect_nested(expr):
-    """
-    Collect terms appearing in expr, checking all levels of the expression tree.
-
-    :param expr: the expression to be factorized.
-    """
-
-    def run(expr):
-        # Return semantic (rebuilt expression, factorization candidates)
-
-        if expr.is_Float:
-            return expr.func(*expr.atoms()), [expr]
-        elif isinstance(expr, Indexed):
-            return expr.func(*expr.args), []
-        elif expr.is_Symbol:
-            return expr.func(expr.name), [expr]
-        elif expr in [S.Zero, S.One, S.NegativeOne, S.Half]:
-            return expr.func(), [expr]
-        elif expr.is_Atom:
-            return expr.func(*expr.atoms()), []
-        elif expr.is_Add:
-            rebuilt, candidates = zip(*[run(arg) for arg in expr.args])
-
-            w_numbers = [i for i in rebuilt if any(j.is_Number for j in i.args)]
-            wo_numbers = [i for i in rebuilt if i not in w_numbers]
-
-            w_numbers = collect_const(expr.func(*w_numbers))
-            wo_numbers = expr.func(*wo_numbers)
-
-            if wo_numbers:
-                for i in flatten(candidates):
-                    wo_numbers = collect(wo_numbers, i)
-
-            rebuilt = expr.func(w_numbers, wo_numbers)
-            return rebuilt, []
-        elif expr.is_Mul:
-            rebuilt, candidates = zip(*[run(arg) for arg in expr.args])
-            rebuilt = collect_const(expr.func(*rebuilt))
-            return rebuilt, flatten(candidates)
-        else:
-            rebuilt, candidates = zip(*[run(arg) for arg in expr.args])
-            return expr.func(*rebuilt), flatten(candidates)
-
-    return run(expr)[0]
-
-
-def replace_invariants(expr, make, invariant=lambda e: e, cm=lambda e: True):
-    """
-    Replace all sub-expressions of ``expr`` such that ``invariant(expr) == True``
-    with a temporary created through ``make(expr)``. A sub-expression ``e``
-    within ``expr`` is not visited if ``cm(e) == False``.
-    """
-
-    def run(expr, root, mapper):
-        # Return semantic: (rebuilt expr, True <==> invariant)
-
-        if expr.is_Float:
-            return expr.func(*expr.atoms()), True
-        elif expr in [S.Zero, S.One, S.NegativeOne, S.Half]:
-            return expr.func(), True
-        elif expr.is_Symbol:
-            return expr.func(expr.name), invariant(expr)
-        elif expr.is_Atom:
-            return expr.func(*expr.atoms()), True
-        elif isinstance(expr, Indexed):
-            return expr.func(*expr.args), invariant(expr)
-        elif expr.is_Equality:
-            handle, flag = run(expr.rhs, expr.rhs, mapper)
-            return expr.func(expr.lhs, handle, evaluate=False), flag
-        else:
-            children = [run(a, root, mapper) for a in expr.args]
-            invs = [a for a, flag in children if flag]
-            varying = [a for a, _ in children if a not in invs]
-            if not invs:
-                # Nothing is time-invariant
-                return (expr.func(*varying, evaluate=False), False)
-            elif len(invs) == len(children):
-                # Everything is time-invariant
-                if expr == root:
-                    if cm(expr):
-                        temporary = make(mapper)
-                        mapper[temporary] = expr.func(*invs, evaluate=False)
-                        return temporary, True
-                    else:
-                        return expr.func(*invs, evaluate=False), False
-                else:
-                    # Go look for longer expressions first
-                    return expr.func(*invs, evaluate=False), True
-            else:
-                # Some children are time-invariant, but expr is time-dependent
-                if cm(expr) and len(invs) > 1:
-                    temporary = make(mapper)
-                    mapper[temporary] = expr.func(*invs, evaluate=False)
-                    return expr.func(*(varying + [temporary]), evaluate=False), False
-                else:
-                    return expr.func(*(varying + invs), evaluate=False), False
-
-    mapper = OrderedDict()
-    handle, flag = run(expr, expr, mapper)
-    return handle, flag, mapper
