@@ -2,7 +2,7 @@ from ctypes import Structure, byref, c_double
 
 import numpy as np
 
-from devito.cgen_wrapper import Block, Statement, Struct, Value
+from cgen import Block, Statement, Struct, Value
 
 
 class Profiler(object):

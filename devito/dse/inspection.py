@@ -7,9 +7,10 @@ from devito.interfaces import SymbolicData
 from devito.logger import warning
 from devito.tools import flatten
 
-__all__ = ['estimate_cost', 'estimate_memory', 'indexify', 'retrieve_dimensions',
-           'retrieve_dtype', 'retrieve_symbols', 'retrieve_shape', 'terminals',
-           'tolambda', 'retrieve_and_check_dtype', 'as_symbol']
+__all__ = ['estimate_cost', 'estimate_memory', 'indexify', 'is_binary_op',
+           'is_indirect', 'retrieve_dimensions', 'retrieve_dtype', 'retrieve_symbols',
+           'retrieve_shape', 'retrieve_indexed', 'retrieve_trigonometry', 'as_symbol',
+           'terminals', 'tolambda']
 
 
 def terminals(expr, discard_indexed=False):
@@ -127,7 +128,9 @@ def estimate_cost(handle, estimate_external_functions=False):
         # We don't count non floating point operations
         handle = [i.rhs if i.is_Equality else i for i in handle]
         total_ops = count_ops(handle)
-        non_flops = sum(count_ops(retrieve_indexed(i, mode='all')) for i in handle)
+        indexed = flatten(retrieve_indexed(i, mode='all') for i in handle)
+        offsets = flatten(i.indices for i in indexed)
+        non_flops = [True for i in offsets if i.is_Add].count(True)
         if estimate_external_functions:
             costly_ops = [retrieve_trigonometry(i) for i in handle]
             total_ops += sum([internal_ops['trigonometry']*len(i) for i in costly_ops])
@@ -224,23 +227,6 @@ def retrieve_dtype(expr):
     return np.find_common_type(dtypes, [])
 
 
-def retrieve_and_check_dtype(exprs):
-    """
-    Retrieve the data type of a set of SymPy equations and check that all LHS
-    and RHS match up.
-    """
-    assert len(exprs) > 0 and all(i.is_Equality for i in exprs)
-
-    dtype = None
-    for i in exprs:
-        if isinstance(i.lhs, SymbolicData):
-            dtype = dtype or i.lhs.dtype
-        terms = terminals(i.rhs)
-        if any(j.dtype != dtype for j in terms if isinstance(j, SymbolicData)):
-            raise RuntimeError("Stencil types mismatch.")
-    return dtype
-
-
 def retrieve_shape(expr):
     indexed = set([e for e in preorder_traversal(expr) if isinstance(e, Indexed)])
     if not indexed:
@@ -319,6 +305,10 @@ def as_symbol(expr):
     """
     Extract the "main" symbol from a SymPy object.
     """
+    try:
+        return Number(expr)
+    except (TypeError, ValueError):
+        pass
     if isinstance(expr, str):
         return Symbol(expr)
     elif isinstance(expr, Dimension):
@@ -330,7 +320,7 @@ def as_symbol(expr):
     elif isinstance(expr, Function):
         return Symbol(expr.name)
     else:
-        raise RuntimeError("Cannot extract symbol from type %s" % type(expr))
+        raise TypeError("Cannot extract symbol from type %s" % type(expr))
 
 
 def is_time_invariant(expr, graph=None):
@@ -344,8 +334,6 @@ def is_time_invariant(expr, graph=None):
 
     if t in expr.free_symbols:
         return False
-    elif expr in graph:
-        return graph[expr].is_time_invariant
 
     if expr.is_Equality:
         to_visit = [expr.rhs]
@@ -373,6 +361,23 @@ def is_binary_op(expr):
         return False
 
     return all(isinstance(a, (Number, Symbol, Indexed)) for a in expr.args)
+
+
+def is_indirect(indexed):
+    """
+    Return True if ``indexed`` has indirect accesses, False otherwise.
+
+    Examples
+    ========
+    a[i] --> False
+    a[b[i]] --> True
+    """
+    if not isinstance(indexed, Indexed):
+        return False
+    if any(retrieve_indexed(i) for i in indexed.indices):
+        return True
+    else:
+        return False
 
 
 def indexify(expr):

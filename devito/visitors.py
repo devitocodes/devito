@@ -7,17 +7,17 @@ The main Visitor class is extracted from https://github.com/coneoproject/COFFEE.
 from __future__ import absolute_import
 
 import inspect
-from collections import OrderedDict, defaultdict, namedtuple
+from collections import OrderedDict, defaultdict
 from operator import attrgetter
 
 import cgen as c
 from sympy import Symbol
 
-from devito.nodes import Iteration, List, LocalExpression
+from devito.nodes import Iteration, List
 from devito.tools import as_tuple, filter_ordered, filter_sorted, flatten
 
 
-__all__ = ['Declarator', 'FindNodeType', 'FindSections', 'FindSymbols',
+__all__ = ['FindNodes', 'FindSections', 'FindSymbols', 'FindScopes',
            'IsPerfectIteration', 'SubstituteExpression',
            'ResolveIterationVariable', 'Transformer', 'printAST']
 
@@ -223,9 +223,6 @@ class FindSections(Visitor):
     iteration space).
     """
 
-    def visit_object(self, o, **kwargs):
-        return self.default_retval()
-
     def visit_tuple(self, o, ret=None, queue=None):
         for i in o:
             ret = self.visit(i, ret=ret, queue=queue)
@@ -254,6 +251,28 @@ class FindSections(Visitor):
         return ret
 
     visit_Element = visit_Expression
+    visit_FunCall = visit_Expression
+
+
+class FindScopes(FindSections):
+
+    @classmethod
+    def default_retval(cls):
+        return OrderedDict()
+
+    """
+    Map each written variable or :class:`FunCall` object in the Iteration/Expression
+    tree to its section.
+    """
+
+    def visit_FunCall(self, o, ret=None, queue=None, in_omp_region=False):
+        if ret is None:
+            ret = self.default_retval()
+        ret[o] = as_tuple(queue)
+        return ret
+
+    visit_Expression = visit_FunCall
+    visit_Element = FindSections.visit_Node
 
 
 class FindSymbols(Visitor):
@@ -264,21 +283,24 @@ class FindSymbols(Visitor):
 
     """Find symbols in an Iteration/Expression tree.
 
-    :param mode: Drive the search for symbols. Accepted values are: ::
+    :param mode: Drive the search. Accepted values are: ::
 
-        * 'with-data' (default): all :class:`SymbolicData` and :class:`IndexedData`
-          instances are collected.
-        * 'free-symbols': all free symbols appearing in :class:`Expression` are
-          collected.
+        * 'kernel-data' (default): Collect :class:`SymbolicData` objects.
+        * 'symbolics': Collect :class:`AbstractSymbol` objects.
+        * 'symbolics-writes': Collect written :class:`AbstractSymbol` objects.
+        * 'free-symbols': Collect all free symbols.
+        * 'dimensions': Collect :class:`Dimension` objects only.
     """
 
     rules = {
-        'with-data': lambda e: e.functions,
+        'kernel-data': lambda e: [i for i in e.functions if i.is_SymbolicData],
+        'symbolics': lambda e: e.functions,
+        'symbolics-writes': lambda e: as_tuple(e.output_function),
         'free-symbols': lambda e: e.stencil.free_symbols,
         'dimensions': lambda e: e.dimensions,
     }
 
-    def __init__(self, mode='with-data'):
+    def __init__(self, mode='kernel-data'):
         super(FindSymbols, self).__init__()
         self.rule = self.rules[mode]
 
@@ -294,17 +316,31 @@ class FindSymbols(Visitor):
         return filter_sorted([f for f in self.rule(o)], key=attrgetter('name'))
 
 
-class FindNodeType(Visitor):
+class FindNodes(Visitor):
 
     @classmethod
     def default_retval(cls):
         return []
 
-    """Find all :class:`Node` instances of a given type."""
+    """
+    Find :class:`Node` instances.
 
-    def __init__(self, match):
-        super(FindNodeType, self).__init__()
+    :param match: Pattern to look for.
+    :param mode: Drive the search. Accepted values are: ::
+
+        * 'type' (default): Collect all instances of type ``match``.
+        * 'scope': Return the scope in which the object ``match`` appears.
+    """
+
+    rules = {
+        'type': lambda match, o: isinstance(o, match),
+        'scope': lambda match, o: match in flatten(o.children)
+    }
+
+    def __init__(self, match, mode='type'):
+        super(FindNodes, self).__init__()
         self.match = match
+        self.rule = self.rules[mode]
 
     def visit_object(self, o, ret=None):
         return ret
@@ -317,7 +353,7 @@ class FindNodeType(Visitor):
     def visit_Node(self, o, ret=None):
         if ret is None:
             ret = self.default_retval()
-        if isinstance(o, self.match):
+        if self.rule(self.match, o):
             ret.append(o)
         for i in o.children:
             ret = self.visit(i, ret=ret)
@@ -476,115 +512,10 @@ class MergeOuterIterations(Transformer):
             if self.is_mergable(head, body[0]):
                 newit = self.merge(head, body[0])
                 ret = self.visit([newit] + list(body[1:]))
-                return ret
-        return tuple([head] + list(body))
-
-    def visit_tuple(self, o):
-        head = self.visit(o[0])
-        if len(o) < 2:
-            return tuple([head])
-        body = self.visit(o[1:])
-        if head.is_Iteration and body[0].is_Iteration:
-            if self.is_mergable(head, body[0]):
-                newit = self.merge(head, body[0])
-                ret = self.visit([newit] + list(body[1:]))
                 return as_tuple(ret)
         return tuple([head] + list(body))
 
-
-class Declarator(Transformer):
-
-    Declaration = namedtuple('Declaration', 'declaration header footer')
-
-    @classmethod
-    def default_retval(cls):
-        return OrderedDict(), None
-
-    """
-    Traverse the Iteration/Expression tree and introduce declarations for all
-    arrays and variables employed.
-
-    If an expression ``e`` is used only within a single scope, replace ``e``
-    with a ``LocalExpression`` so that at code generation time, something like
-    the following code block will be emitted:
-
-        .. code-block::
-      ...
-      {
-        float e = ...;
-        ...
-      }
-
-    If, otherwhise, an array is used across multiple scopes, then construct and
-    return suitable statements to be inserted at the top and at the bottom of
-    the provided Iteration/Expression tree; for example:
-
-        .. code-block::
-      float *e = malloc(...);
-      {
-        foo(e)
-      }
-      ...
-      for i
-      {
-        bar(e)
-      }
-      free(e)
-
-    :param known: Collection of symbols that need no declaration.
-    """
-
-    def __init__(self, known=None):
-        super(Transformer, self).__init__()
-        self.known = known or {}
-
-    def _declare(self, o):
-        declaration = "(*%s)%s"
-        declaration = declaration % (o.output, "".join("[%d]" % j for j in o.shape[1:]))
-        return c.Value(c.dtype_to_ctype(o.dtype), declaration)
-
-    def _alloc(self, o):
-        funcall = "posix_memalign((void**)&%s, 64, sizeof(%s%s))"
-        funcall = funcall % (o.output, c.dtype_to_ctype(o.dtype),
-                             "".join("[%d]" % j for j in o.shape))
-        return c.Statement(funcall)
-
-    def _free(self, o):
-        return c.Statement('free(%s)' % o.output)
-
-    def visit_tuple(self, o, scope=None, mapper=None):
-        rebuilt = []
-        for i in o:
-            mapper, handle = self.visit(i, scope=scope, mapper=mapper)
-            rebuilt.append(handle)
-        return mapper, tuple(rebuilt)
-
-    def visit_Node(self, o, scope=None, mapper=None):
-        mapper, rebuilt = self.visit(o.children, scope=scope, mapper=mapper)
-        return mapper, o._rebuild(*rebuilt, **o.args_frozen)
-
-    def visit_Iteration(self, o, scope=None, mapper=None):
-        if scope is None:
-            scope = [o]
-        else:
-            scope.append(o)
-        mapper, rebuilt = self.visit(o.children, scope=scope, mapper=mapper)
-        scope.remove(o)
-        return mapper, o._rebuild(*rebuilt, **o.args_frozen)
-
-    def visit_Expression(self, o, scope=None, mapper=None):
-        if mapper is None:
-            mapper, _ = self.default_retval()
-        if o.is_scalar:
-            return mapper, LocalExpression(**o.args)
-        elif o.output in self.known:
-            return mapper, o._rebuild(**o.args)
-        else:
-            if o not in mapper:
-                mapper[o] = self.Declaration(self._declare(o),
-                                             self._alloc(o),
-                                             self._free(o))
-            return mapper, o._rebuild(**o.args)
+    visit_tuple = visit_list
 
 
 def printAST(node, verbose=True):

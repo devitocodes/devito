@@ -1,5 +1,10 @@
 import ctypes
 from collections import Callable, Iterable, OrderedDict
+try:
+    from itertools import izip_longest as zip_longest
+except ImportError:
+    # Python3.5 compatibility
+    from itertools import zip_longest
 
 import numpy as np
 
@@ -27,6 +32,26 @@ def as_tuple(item, type=None, length=None):
     if type and not all(isinstance(i, type) for i in t):
         raise TypeError("Items need to be of type %s" % type)
     return t
+
+
+def grouper(iterable, n):
+    """Split an interable into groups of size n, plus a reminder"""
+    args = [iter(iterable)] * n
+    return ([e for e in t if e is not None] for t in zip_longest(*args))
+
+
+def roundm(x, y):
+    """Return x rounded up to the closest multiple of y."""
+    return x if x % y == 0 else x + y - x % y
+
+
+def invert(mapper):
+    """Invert a dict of lists preserving the order."""
+    inverse = OrderedDict()
+    for k, v in mapper.items():
+        for i in v:
+            inverse[i] = k
+    return inverse
 
 
 def flatten(l):

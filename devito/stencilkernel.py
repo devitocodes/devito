@@ -5,27 +5,28 @@ from collections import OrderedDict, namedtuple
 from ctypes import c_double, c_int
 from functools import reduce
 from hashlib import sha1
+from itertools import combinations
 from os import path
 
 import cgen as c
 import numpy as np
 
+from devito.cgen_utils import Allocator
 from devito.compiler import (get_compiler_from_env, get_tmp_dir,
                              jit_compile_and_load)
 from devito.dimension import BufferedDimension, Dimension
-from devito.dle import transform
-from devito.dse import (as_symbol, estimate_cost, estimate_memory, indexify,
-                        retrieve_and_check_dtype, rewrite)
+from devito.dle import filter_iterations, transform
+from devito.dse import (estimate_cost, estimate_memory, indexify, rewrite)
 from devito.interfaces import SymbolicData
-from devito.logger import bar, error, info, warning
-from devito.nodes import Expression, Function, Iteration, List, TimedList
+from devito.logger import bar, error, info, info_at
+from devito.nodes import (Element, Expression, Function, Iteration, List,
+                          LocalExpression, TimedList)
 from devito.profiler import Profiler
 from devito.tools import (SetOrderedDict, as_tuple, filter_ordered, filter_sorted,
                           flatten, partial_order)
-from devito.visitors import (Declarator, FindNodeType, FindSections, FindSymbols,
+from devito.visitors import (FindNodes, FindSections, FindSymbols, FindScopes,
                              IsPerfectIteration, MergeOuterIterations,
-                             ResolveIterationVariable, SubstituteExpression,
-                             Transformer, printAST)
+                             ResolveIterationVariable, SubstituteExpression, Transformer)
 
 __all__ = ['StencilKernel']
 
@@ -36,6 +37,9 @@ class StencilKernel(Function):
     Cache of auto-tuned StencilKernels.
     """
     _AT_cache = {}
+
+    _default_headers = ['#define _POSIX_C_SOURCE 200809L']
+    _default_includes = ['stdlib.h', 'math.h', 'sys/time.h']
 
     """A special :class:`Function` to evaluate stencils through just-in-time
     compilation of C code.
@@ -67,27 +71,30 @@ class StencilKernel(Function):
         # Default attributes required for compilation
         self.compiler = compiler or get_compiler_from_env()
         self.profiler = kwargs.get("profiler", Profiler(self.compiler.openmp))
-        self._includes = ['stdlib.h', 'math.h', 'sys/time.h']
+        self._headers = list(self._default_headers)
+        self._includes = list(self._default_includes)
         self._lib = None
         self._cfunction = None
 
-        # Convert stencil expressions into actual Nodes, going through the
-        # Devito Symbolic Engine for flop optimization.
-        stencils = stencils if isinstance(stencils, list) else [stencils]
-        dtype = retrieve_and_check_dtype(stencils)
-        stencils = [indexify(s) for s in stencils]
+        # Normalize the collection of stencils
+        stencils = [indexify(s) for s in as_tuple(stencils)]
         stencils = [s.xreplace(subs) for s in stencils]
+
+        # Retrieve the data type of the StencilKernel
+        self.dtype = self._retrieve_dtype(stencils)
+
+        # Apply the Devito Symbolic Engine for symbolic optimization
         dse_state = rewrite(stencils, mode=dse)
 
         # Wrap expressions with Iterations according to dimensions
-        nodes = self._schedule_expressions(dse_state, dtype)
+        nodes = self._schedule_expressions(dse_state)
 
         # Introduce C-level profiling infrastructure
         self.sections = OrderedDict()
         nodes = self._profile_sections(nodes)
 
         # Parameters of the StencilKernel (Dimensions necessary for data casts)
-        parameters = FindSymbols('with-data').visit(nodes)
+        parameters = FindSymbols('kernel-data').visit(nodes)
         dimensions = FindSymbols('dimensions').visit(nodes)
         dimensions += [d.parent for d in dimensions if d.is_Buffered]
         parameters += filter_ordered([d for d in dimensions if d.size is None],
@@ -182,17 +189,6 @@ class StencilKernel(Function):
         for d in d_args:
             arguments[d.name] = dim_sizes[d]
 
-        # Retrieve the data type of the arrays
-        try:
-            dtypes = [i.data.dtype for i in f_args]
-            dtype = dtypes[0]
-            if any(i != dtype for i in dtypes):
-                warning("Found non-matching data types amongst the provided"
-                        "symbolic arguments.")
-            dtype_size = dtype.itemsize
-        except IndexError:
-            dtype_size = 1
-
         # Might have been asked to auto-tune the block size
         if maybe_autotune:
             self._autotune(arguments)
@@ -206,7 +202,7 @@ class StencilKernel(Function):
         self.cfunction(*list(arguments.values()))
 
         # Output summary of performance achieved
-        summary = self._profile_summary(dim_sizes, dtype_size)
+        summary = self._profile_summary(dim_sizes)
         with bar():
             for k, v in summary.items():
                 name = '%s<%s>' % (k, ','.join('%d' % i for i in v.itershape))
@@ -231,7 +227,7 @@ class StencilKernel(Function):
 
                         # Estimate computational properties of the timed section
                         # (operational intensity, memory accesses)
-                        expressions = FindNodeType(Expression).visit(j)
+                        expressions = FindNodes(Expression).visit(j)
                         ops = estimate_cost([e.stencil for e in expressions])
                         memory = estimate_memory([e.stencil for e in expressions])
                         self.sections[itspace] = Profile(lname, ops, memory)
@@ -239,7 +235,7 @@ class StencilKernel(Function):
         processed = Transformer(mapper).visit(List(body=nodes))
         return processed
 
-    def _profile_summary(self, dim_sizes, dtype_size):
+    def _profile_summary(self, dim_sizes):
         """
         Produce a summary of the performance achieved
         """
@@ -259,7 +255,7 @@ class StencilKernel(Function):
             # Compulsory traffic
             datashape = [i.dim.size or dim_sizes[dims[i]] for i in itspace]
             dataspace = reduce(operator.mul, datashape)
-            traffic = profile.memory*dataspace*dtype_size
+            traffic = profile.memory*dataspace*self.dtype().itemsize
 
             # Derived metrics
             oi = flops/traffic
@@ -278,7 +274,7 @@ class StencilKernel(Function):
         best block sizes (when loop blocking is in use). The block sizes tested
         are those listed in ``options['at_blocksizes']``, plus the case that is
         as if blocking were not applied (ie, unitary block size)."""
-        if not self._dle_state._applied_blocking:
+        if not self._dle_state.has_applied_blocking:
             return
 
         at_arguments = arguments.copy()
@@ -290,15 +286,28 @@ class StencilKernel(Function):
                 at_arguments[k] = v.copy()
 
         # Squeeze dimensions to minimize auto-tuning time
-        iterations = FindNodeType(Iteration).visit(self.body)
+        iterations = FindNodes(Iteration).visit(self.body)
         squeezable = [i.dim.parent.name for i in iterations
-                      if 'sequential' in i.properties and i.dim.is_Buffered]
+                      if i.is_Sequential and i.dim.is_Buffered]
 
         # Attempted block sizes
         mapper = OrderedDict([(i.argument.name, i) for i in self._dle_state.arguments])
         blocksizes = [OrderedDict([(i, v) for i in mapper])
                       for v in options['at_blocksize']]
-        blocksizes += [OrderedDict([(k, 1) for k, v in mapper.items()])]
+        if self._dle_state.needs_aggressive_autotuning:
+            elaborated = []
+            for blocksize in list(blocksizes)[:3]:
+                for i in list(blocksizes):
+                    handle = i.items()[-1]
+                    elaborated.append(OrderedDict(blocksize.items()[:-1] + [handle]))
+            for blocksize in list(blocksizes):
+                ncombs = len(blocksize)
+                for i in range(ncombs):
+                    for j in combinations(blocksize, i+1):
+                        handle = [(k, blocksize[k]*2 if k in j else v)
+                                  for k, v in blocksize.items()]
+                        elaborated.append(OrderedDict(handle))
+            blocksizes.extend(elaborated)
 
         # Note: there is only a single loop over 'blocksize' because only
         # square blocks are tested
@@ -326,7 +335,10 @@ class StencilKernel(Function):
                 at_arguments[self.profiler.s_name] = cpointer
 
             self.cfunction(*list(at_arguments.values()))
-            timings[tuple(blocksize.items())] = sum(self.profiler.timings.values())
+            elapsed = sum(self.profiler.timings.values())
+            timings[tuple(blocksize.items())] = elapsed
+            info_at("<%s>: %f" %
+                    (','.join('%d' % i for i in blocksize.values()), elapsed))
 
         best = dict(min(timings, key=timings.get))
         for k, v in arguments.items():
@@ -335,29 +347,16 @@ class StencilKernel(Function):
 
         info('Auto-tuned block shape: %s' % best)
 
-    def _schedule_expressions(self, dse_state, dtype):
+    def _schedule_expressions(self, dse_state):
         """Wrap :class:`Expression` objects within suitable hierarchies of
         :class:`Iteration` according to dimensions.
         """
-        clusters = dse_state.clusters
-
-        # Terminals in previous clusters do not need to be recomputed in
-        # subsequent clusters
-        seen = []
-        for cluster in clusters:
-            for k, v in cluster.items():
-                if v in seen:
-                    cluster.pop(k)
-                if v.is_terminal:
-                    seen.append(v)
 
         processed = []
-        for cluster in clusters:
+        for cluster in dse_state.clusters:
             # Build declarations or assignments
-            body = []
-            for k, v in cluster.items():
-                dtype = np.int32 if cluster.is_index(k) else dtype
-                body.append(Expression(v, dtype))
+            body = [Expression(v, np.int32 if cluster.is_index(k) else self.dtype)
+                    for k, v in cluster.items()]
             offsets = SetOrderedDict.union(*[i.index_offsets for i in body])
 
             # Filter out aliasing due to buffered dimensions
@@ -378,38 +377,81 @@ class StencilKernel(Function):
         # Remove temporaries became redundat after squashing Iterations
         mapper = {}
         for k, v in FindSections().visit(processed).items():
+            candidate = k[-1]
+            if not IsPerfectIteration().visit(candidate):
+                continue
             found = set()
-            newexprs = []
+            trimmed = []
             for n in v:
-                newexprs.extend([n] if n.stencil not in found else [])
-                found.add(n.stencil)
-            mapper[k[-1]] = Iteration(newexprs, **k[-1].args_frozen)
+                if n.is_Expression:
+                    if n.stencil not in found:
+                        trimmed.append(n)
+                        found.add(n.stencil)
+                else:
+                    trimmed.append(n)
+            mapper[candidate] = Iteration(trimmed, **candidate.args_frozen)
         processed = Transformer(mapper).visit(processed)
 
         return processed
 
     def _insert_declarations(self, dle_state, parameters):
-        """Populate the StencilKernel's body with the requried array and
+        """Populate the StencilKernel's body with the required array and
         variable declarations, to generate a legal C file."""
-        known = [as_symbol(i) for i in parameters]
 
-        # Insert declarations into the body
-        mapper, nodes = Declarator(known).visit(dle_state.nodes)
-        if mapper:
-            declarations, header, footer = zip(*mapper.values())
-            nodes = List(header=declarations + header, body=nodes, footer=footer)
+        nodes = dle_state.nodes
 
-        # Insert declarations into each of the elemental functions
-        elemental_functions = []
-        for node in dle_state.elemental_functions:
-            mapper, rebuilt = Declarator(known).visit(node)
-            if mapper:
-                declarations, header, footer = zip(*mapper.values())
-                body = List(header=declarations+header, body=rebuilt.body, footer=footer)
-                rebuilt = Transformer({rebuilt.body: body}).visit(rebuilt)
-            elemental_functions.append(rebuilt)
+        # Resolve function calls first
+        scopes = []
+        for k, v in FindScopes().visit(nodes).items():
+            if k.is_FunCall:
+                function = dle_state.func_table[k.name]
+                scopes.extend(FindScopes().visit(function, queue=list(v)).items())
+            else:
+                scopes.append((k, v))
+
+        # Determine all required declarations
+        allocator = Allocator()
+        mapper = OrderedDict()
+        for k, v in scopes:
+            if k.is_scalar:
+                # Inline declaration
+                mapper[k] = LocalExpression(**k.args)
+            elif k.output_function._mem_external:
+                # Nothing to do, variable passed as kernel argument
+                continue
+            elif k.output_function._mem_stack:
+                # On the stack, as established by the DLE
+                key = lambda i: i.dim not in k.output_function.indices
+                site = filter_iterations(v, key=key, stop='consecutive')
+                allocator.push_stack(site[-1], k.output_function)
+            else:
+                # On the heap, as a tensor that must be globally accessible
+                allocator.push_heap(k.output_function)
+
+        # Introduce declarations on the stack
+        for k, v in allocator.onstack:
+            allocs = as_tuple([Element(i) for i in v])
+            mapper[k] = Iteration(allocs + k.nodes, **k.args_frozen)
+        nodes = Transformer(mapper).visit(nodes)
+        elemental_functions = Transformer(mapper).visit(dle_state.elemental_functions)
+
+        # Introduce declarations on the heap (if any)
+        if allocator.onheap:
+            decls, allocs, frees = zip(*allocator.onheap)
+            nodes = List(header=decls + allocs, body=nodes, footer=frees)
 
         return nodes, elemental_functions
+
+    def _retrieve_dtype(self, stencils):
+        """
+        Retrieve the data type of a set of stencils. Raise an error if there
+        is no common data type (ie, if at least one stencil differs in the
+        data type).
+        """
+        lhss = set([s.lhs.base.function.dtype for s in stencils])
+        if len(lhss) != 1:
+            raise RuntimeError("Stencil types mismatch.")
+        return lhss.pop()
 
     @property
     def _cparameters(self):
@@ -438,25 +480,11 @@ class StencilKernel(Function):
         elemental_functions += [blankline]
 
         # Generate file header with includes and definitions
+        header = [c.Line(i) for i in self._headers]
         includes = [c.Include(i, system=False) for i in self._includes]
         includes += [blankline]
         profiling = [self.profiler.as_cgen_struct(Profiler.TIME), blankline]
-        return c.Module(includes + profiling + elemental_functions + [kernel])
-
-    @property
-    def basename(self):
-        """Generate the file basename path for auto-generated files
-
-        The basename is generated from the hash string of the kernel,
-        which is base on the final expressions and iteration symbols.
-
-        :returns: The basename path as a string
-        """
-        expr_string = printAST(self.body, verbose=True)
-        expr_string += printAST(self.elemental_functions, verbose=True)
-        hash_key = sha1(expr_string.encode()).hexdigest()
-
-        return path.join(get_tmp_dir(), hash_key)
+        return c.Module(header + includes + profiling + elemental_functions + [kernel])
 
     @property
     def cfunction(self):
@@ -468,8 +496,10 @@ class StencilKernel(Function):
         :returns: The generated C function
         """
         if self._lib is None:
-            self._lib = jit_compile_and_load(self.ccode, self.basename,
-                                             self.compiler)
+            ccode = self.ccode
+            hash_key = sha1(str(ccode).encode()).hexdigest()
+            basename = path.join(get_tmp_dir(), hash_key)
+            self._lib = jit_compile_and_load(ccode, basename, self.compiler)
         if self._cfunction is None:
             self._cfunction = getattr(self._lib, self.name)
             self._cfunction.argtypes = self.argtypes
@@ -532,7 +562,7 @@ StencilKernel options
 """
 options = {
     'at_squeezer': 3,
-    'at_blocksize': [8, 16, 32]
+    'at_blocksize': [8, 16, 24, 32, 40, 64, 128]
 }
 
 """

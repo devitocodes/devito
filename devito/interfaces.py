@@ -1,7 +1,7 @@
 import weakref
 
 import numpy as np
-from sympy import Function, IndexedBase, as_finite_diff, symbols
+from sympy import Function, IndexedBase, Symbol, as_finite_diff, symbols
 from sympy.abc import h, s
 
 from devito.dimension import d, p, t, x, y, z
@@ -48,20 +48,20 @@ class CachedSymbol(object):
         self.__dict__ = original().__dict__
 
 
-class SymbolicData(Function, CachedSymbol):
+class AbstractSymbol(Function, CachedSymbol):
     """Base class for data classes that provides symbolic behaviour.
 
     :param name: Symbolic name to give to the resulting function. Must
                  be given as keyword argument.
-    :param shape: Shape of the underlying spatial data. Must be given
-                  as keyword argument.
+    :param shape: Shape of the underlying object. Must be given as
+                  keyword argument.
 
-    This class implements the symbolic behaviour of Devito's data
+    This class implements the behaviour of Devito's symbolic
     objects by inheriting from and mimicking the behaviour of :class
     sympy.Function:. In order to maintain meta information across the
     numerous re-instantiation SymPy performs during symbolic
     manipulation, we inject the symbol name as the class name and
-    cache all created objects on that name. This entails that data
+    cache all created objects on that name. This entails that a symbolic
     object should implement `__init__` in the following format:
 
     def __init__(self, \*args, \*\*kwargs):
@@ -73,9 +73,11 @@ class SymbolicData(Function, CachedSymbol):
     to (re-)create the dimension arguments of the symbolic function.
     """
 
-    is_SymbolicData = True
-    is_ScalarData = False
-    is_TensorData = False
+    is_AbstractSymbol = True
+    is_SymbolicFunction = False
+    is_SymbolicData = False
+    is_ScalarFunction = False
+    is_TensorFunction = False
     is_DenseData = False
     is_TimeData = False
     is_Coordinates = False
@@ -101,68 +103,129 @@ class SymbolicData(Function, CachedSymbol):
 
     @classmethod
     def _indices(cls, **kwargs):
-        """Abstract class method to determine the default dimension indices.
+        """Return the default dimension indices."""
+        return []
 
-        :param shape: Given shape of the data.
-        :raises NotImplementedError: 'Abstract class `SymbolicData` does not have
-        default indices'.
-        """
-        raise NotImplementedError('Abstract class'
-                                  ' `SymbolicData` does not have default indices')
+    @property
+    def dim(self):
+        """Return the rank of the object."""
+        return len(self.shape)
+
+    @property
+    def indexed(self):
+        """Extract a :class:`IndexedData` object from the current object."""
+        return IndexedData(self.name, shape=self.shape, function=self)
+
+    @property
+    def _mem_external(self):
+        """Return True if the associated data was/is/will be allocated directly
+        from Python (e.g., via NumPy arrays), False otherwise."""
+        return False
+
+    @property
+    def _mem_stack(self):
+        """Return True if the associated data was/is/will be allocated on the stack
+        in a C module, False otherwise."""
+        return False
+
+    @property
+    def _mem_heap(self):
+        """Return True if the associated data was/is/will be allocated on the heap
+        in a C module, False otherwise."""
+        return False
+
+    def indexify(self):
+        """Create a :class:`sympy.Indexed` object from the current object."""
+        indices = [a.subs({h: 1, s: 1}) for a in self.args]
+        if indices:
+            return self.indexed[indices]
+        else:
+            return EmptyIndexed(self.indexed)
 
 
-class ScalarData(SymbolicData):
-    """Data object representing a scalar.
+class SymbolicFunction(AbstractSymbol):
+    """A symbolic function object."""
 
-    :param name: Name of the resulting :class:`sympy.Function` symbol
-    :param dtype: Data type of the scalar
-    :param initializer: Function to initialize the data, optional
-    """
-
-    is_ScalarData = True
+    is_SymbolicFunction = True
 
     def __new__(cls, *args, **kwargs):
         kwargs.update({'options': {'evaluate': False}})
-        return SymbolicData.__new__(cls, *args, **kwargs)
+        return AbstractSymbol.__new__(cls, *args, **kwargs)
 
-    @classmethod
-    def _indices(cls, **kwargs):
-        return []
+
+class ScalarFunction(SymbolicFunction):
+    """Symbolic object representing a scalar.
+
+    :param name: Name of the symbol
+    :param dtype: Data type of the scalar
+    """
+
+    is_ScalarFunction = True
 
     def __init__(self, *args, **kwargs):
         if not self._cached():
             self.name = kwargs.get('name')
+            self.shape = ()
+            self.indices = ()
             self.dtype = kwargs.get('dtype', np.float32)
-            self._data = kwargs.get('_data', None)
+
+    @property
+    def _mem_stack(self):
+        """Return True if the associated data should be allocated on the stack
+        in a C module, False otherwise."""
+        return True
 
 
-class TensorData(SymbolicData):
-    """Data object representing a tensor."""
+class TensorFunction(SymbolicFunction):
+    """Symbolic object representing a tensor.
 
-    is_TensorData = True
+    :param name: Name of the symbol
+    :param dtype: Data type of the scalar
+    :param shape: The shape of the tensor
+    :param dimensions: The symbolic dimensions of the tensor.
+    :param onstack: Pass True to enforce allocation on stack
+    """
 
-    def __new__(cls, *args, **kwargs):
-        kwargs.update({'options': {'evaluate': False}})
-        return SymbolicData.__new__(cls, *args, **kwargs)
-
-    @classmethod
-    def _indices(cls, **kwargs):
-        return []
+    is_TensorFunction = True
 
     def __init__(self, *args, **kwargs):
         if not self._cached():
             self.name = kwargs.get('name')
             self.shape = kwargs.get('shape')
+            self.indices = kwargs.get('dimensions')
             self.dtype = kwargs.get('dtype', np.float32)
-            self._data = kwargs.get('_data', None)
+            self.onstack = kwargs.get('onstack', False)
+
+    @classmethod
+    def _indices(cls, **kwargs):
+        return kwargs.get('dimensions')
+
+    @property
+    def _mem_stack(self):
+        return self.onstack
+
+    @property
+    def _mem_heap(self):
+        return not self.onstack
 
 
-class DenseData(TensorData):
-    """Data object for spatially varying data that acts as a Function symbol
+class SymbolicData(AbstractSymbol):
+    """A symbolic object associated with data."""
 
-    :param name: Name of the resulting :class:`sympy.Function` symbol
-    :param shape: Shape of the spatial data grid
-    :param dtype: Data type of the buffered data
+    is_SymbolicData = True
+
+    @property
+    def _mem_external(self):
+        return True
+
+
+class DenseData(SymbolicData):
+    """Data object for spatially varying data acting as a :class:`SymbolicData`.
+
+    :param name: Name of the symbol
+    :param dtype: Data type of the scalar
+    :param shape: The shape of the tensor
+    :param dimensions: The symbolic dimensions of the tensor.
     :param space_order: Discretisation order for space derivatives
     :param initializer: Function to initialize the data, optional
 
@@ -195,7 +258,6 @@ class DenseData(TensorData):
     def _indices(cls, **kwargs):
         """Return the default dimension indices for a given data shape
 
-
         :param dimensions: Optional, list of :class:`Dimension`
                            objects that defines data layout.
         :param shape: Optional, shape of the spatial data to
@@ -216,24 +278,6 @@ class DenseData(TensorData):
             else:
                 dimensions = [symbols("x%d" % i) for i in range(1, len(shape) + 1)]
         return dimensions
-
-    @property
-    def dim(self):
-        """Returns the spatial dimension of the data object"""
-        return len(self.shape)
-
-    @property
-    def indexed(self):
-        """:return: Base symbol as devito.IndexedData"""
-        return IndexedData(self.name, shape=self.shape, function=self)
-
-    def indexify(self):
-        """Convert base symbol and dimensions to indexed data accesses
-
-        :return: Index corrosponding to the indices
-        """
-        indices = [a.subs({h: 1, s: 1}) for a in self.args]
-        return self.indexed[indices]
 
     def _allocate_memory(self):
         """Function to allocate memmory in terms of numpy ndarrays.
@@ -525,7 +569,7 @@ class TimeData(DenseData):
         return as_finite_diff(self.diff(t, t), indt)
 
 
-class CoordinateData(TensorData):
+class CoordinateData(SymbolicData):
     """
     Data object for sparse coordinate data that acts as a Function symbol
     """
@@ -563,11 +607,6 @@ class CoordinateData(TensorData):
         """
         dimensions = kwargs.get('dimensions', None)
         return dimensions or [p, d]
-
-    @property
-    def indexed(self):
-        """:return: Base symbol as devito.IndexedData"""
-        return IndexedData(self.name, shape=self.shape, function=self)
 
 
 class PointData(DenseData):
@@ -622,7 +661,7 @@ class PointData(DenseData):
 class IndexedData(IndexedBase):
     """Wrapper class that inserts a pointer to the symbolic data object"""
 
-    def __new__(cls, label, shape=None, function=None, **kw_args):
+    def __new__(cls, label, shape=None, function=None):
         obj = IndexedBase.__new__(cls, label, shape)
         obj.function = function
         return obj
@@ -631,3 +670,18 @@ class IndexedData(IndexedBase):
         obj = super(IndexedData, self).func(*args)
         obj.function = self.function
         return obj
+
+
+class EmptyIndexed(Symbol):
+
+    """A :class:`sympy.Symbol` capable of mimicking an :class:`sympy.Indexed`"""
+
+    def __new__(cls, base):
+        obj = Symbol.__new__(cls, base.label.name)
+        obj.base = base
+        obj.indices = ()
+        obj.function = base.function
+        return obj
+
+    def func(self, *args):
+        return super(EmptyIndexed, self).func(self.base.func(*self.base.args))
