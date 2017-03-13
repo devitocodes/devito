@@ -323,35 +323,6 @@ def as_symbol(expr):
         raise TypeError("Cannot extract symbol from type %s" % type(expr))
 
 
-def is_time_invariant(expr, graph=None):
-    """
-    Check if expr is time invariant. A temporaries graph may be provided
-    to determine whether any of the symbols involved in the evaluation
-    of expr are time-dependent. If a symbol in expr does not appear in the
-    graph, then time invariance is inferred from its shape.
-    """
-    graph = graph or {}
-
-    if t in expr.free_symbols:
-        return False
-
-    if expr.is_Equality:
-        to_visit = [expr.rhs]
-    else:
-        to_visit = [expr]
-
-    while to_visit:
-        handle = to_visit.pop()
-        for i in retrieve_indexed(handle):
-            if t in i.free_symbols:
-                return False
-        temporaries = [i for i in handle.free_symbols if i in graph]
-        for i in temporaries:
-            to_visit.append(graph[i].rhs)
-
-    return True
-
-
 def is_binary_op(expr):
     """
     Return True if ``expr`` is a binary operation, False otherwise.

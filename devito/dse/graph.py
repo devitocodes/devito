@@ -164,6 +164,32 @@ class TemporariesGraph(OrderedDict):
         found = flatten(sorted(v, key=lambda i: i.identifier) for v in found)
         return temporaries_graph(found)
 
+
+    def time_invariant(self, expr):
+        """
+        Check if ``expr`` is time invariant. ``expr`` may be an expression ``e``
+        explicitly tracked by the TemporaryGraph or even a generic subexpression
+        of ``e``.
+        """
+        if t in expr.free_symbols:
+            return False
+
+        if expr.is_Equality:
+            to_visit = [expr.rhs]
+        else:
+            to_visit = [expr]
+
+        while to_visit:
+            handle = to_visit.pop()
+            for i in retrieve_indexed(handle):
+                if t in i.free_symbols:
+                    return False
+            temporaries = [i for i in handle.free_symbols if i in self]
+            for i in temporaries:
+                to_visit.append(self[i].rhs)
+
+        return True
+
     def is_index(self, root):
         if root not in self:
             return False

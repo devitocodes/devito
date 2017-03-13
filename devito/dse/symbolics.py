@@ -20,7 +20,7 @@ from devito.dimension import t, x, y, z
 from devito.dse.extended_sympy import bhaskara_cos, bhaskara_sin
 from devito.dse.graph import temporaries_graph
 from devito.dse.inspection import (collect_aliases, estimate_cost, estimate_memory,
-                                   is_binary_op, is_time_invariant, terminals)
+                                   is_binary_op, terminals)
 from devito.dse.manipulation import (collect_nested, flip_indices, replace_invariants,
                                      rxreplace, unevaluate_arithmetic)
 from devito.interfaces import TensorFunction
@@ -361,8 +361,7 @@ class Rewriter(object):
             k, v = queue.popitem(last=False)
 
             make = lambda m: Indexed(template(len(m)+len(mapper)), *space_indices)
-            invariant = lambda e: is_time_invariant(e, graph)
-            handle, flag, mapped = replace_invariants(v, make, invariant, cm)
+            handle, flag, mapped = replace_invariants(v, make, graph.time_invariant, cm)
 
             # To be replacable, must be time invariant and all of the depending
             # expressions must have been replaced too
