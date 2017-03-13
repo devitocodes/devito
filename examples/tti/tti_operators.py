@@ -24,39 +24,9 @@ def ForwardOperator(model, u, v, src, rec, data, time_order=2,
     nt, nsrc = src.shape
     dt = model.critical_dt
     m, damp = model.m, model.damp
+    epsilon, delta, theta, phi = model.epsilon, model.delta, model.theta, model.phi
     parm = [m, damp, u, v]
-
-    if model.epsilon is not None:
-        epsilon = DenseData(name="epsilon", shape=model.shape_pml,
-                            dtype=model.dtype, space_order=spc_order)
-        epsilon.data[:] = model.pad(model.epsilon)
-        parm += [epsilon]
-    else:
-        epsilon = 1
-
-    if model.delta is not None:
-        delta = DenseData(name="delta", shape=model.shape_pml,
-                          dtype=model.dtype, space_order=spc_order)
-        delta.data[:] = model.pad(model.delta)
-        parm += [delta]
-    else:
-        delta = 1
-
-    if model.theta is not None:
-        theta = DenseData(name="theta", shape=model.shape_pml,
-                          dtype=model.dtype, space_order=spc_order)
-        theta.data[:] = model.pad(model.theta)
-        parm += [theta]
-    else:
-        theta = 0
-
-    if model.phi is not None:
-        phi = DenseData(name="phi", shape=model.shape_pml,
-                        dtype=model.dtype, space_order=spc_order)
-        phi.data[:] = model.pad(model.phi)
-        parm += [phi]
-    else:
-        phi = 0
+    parm += [p for p in [epsilon, delta, theta, phi] if isinstance(p, DenseData)]
 
     s, h = symbols('s h')
 

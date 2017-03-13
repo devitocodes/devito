@@ -63,27 +63,43 @@ class Model(object):
         self.m.data[:] = self.pad(1 / (self.vp * self.vp))
 
         # Create dampening field as symbol `damp`
-        self.damp = DenseData(name="damp", shape=self.shape_pml,
-                              dtype=self.dtype)
+        self.damp = DenseData(name="damp", shape=self.shape_pml, dtype=self.dtype)
         damp_boundary(self.damp.data, nbpml, spacing=self.get_spacing())
 
         # Additional parameter fields for TTI operators
         self.rho = rho
+        self.scale = 1.
+
         if epsilon is not None:
-            self.epsilon = 1 + 2 * epsilon
-            # Maximum velocity is scale*max(vp) is epsilon>0
-            self.scale = np.sqrt(np.max(self.epsilon)) if np.max(self.epsilon) > 0 else 1
+            self.epsilon = DenseData(name="epsilon", shape=self.shape_pml,
+                                     dtype=self.dtype)
+            self.epsilon.data[:] = self.pad(1 + 2 * epsilon)
+            # Maximum velocity is scale*max(vp) if epsilon > 0
+            if np.max(self.epsilon.data) > 0:
+                self.scale = np.sqrt(np.max(self.epsilon.data))
         else:
-            self.scale = 1
-            self.epsilon = None
+            self.epsilon = 1.
 
         if delta is not None:
-            self.delta = np.sqrt(1 + 2 * delta)
+            self.delta = DenseData(name="delta", shape=self.shape_pml,
+                                   dtype=self.dtype)
+            self.delta.data[:] = self.pad(np.sqrt(1 + 2 * delta))
         else:
             self.delta = None
 
-        self.theta = theta
-        self.phi = phi
+        if theta is not None:
+            self.theta = DenseData(name="theta", shape=self.shape_pml,
+                                   dtype=self.dtype)
+            self.theta.data[:] = self.pad(theta)
+        else:
+            self.theta = None
+
+        if phi is not None:
+            self.phi = DenseData(name="phi", shape=self.shape_pml,
+                                 dtype=self.dtype)
+            self.phi.data[:] = self.pad(phi)
+        else:
+            self.phi = None
 
     @property
     def shape(self):
