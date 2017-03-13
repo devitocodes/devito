@@ -18,12 +18,12 @@ from sympy.simplify.cse_main import tree_cse
 
 from devito.dimension import t, x, y, z
 from devito.dse.extended_sympy import bhaskara_cos, bhaskara_sin
-from devito.dse.graph import temporaries_graph
+from devito.dse.graph import Temporary, temporaries_graph
 from devito.dse.inspection import (collect_aliases, estimate_cost, estimate_memory,
                                    is_binary_op, terminals)
 from devito.dse.manipulation import (collect_nested, flip_indices, xreplace_constrained,
                                      xreplace_recursive, unevaluate_arithmetic)
-from devito.interfaces import TensorFunction
+from devito.interfaces import ScalarFunction, TensorFunction
 from devito.logger import dse, dse_warning
 
 __all__ = ['rewrite']
@@ -189,7 +189,7 @@ class Rewriter(object):
         self._replace_time_invariants(state, mode=mode)
         self._factorize(state, mode=mode)
         self._split_expressions(state, mode=mode)
-        self._capture_aliases(state, mode=mode)
+        #self._capture_aliases(state, mode=mode)
 
         self._finalize(state)
 
@@ -403,25 +403,44 @@ class Rewriter(object):
     @dse_pass
     def _split_expressions(self, state, **kwargs):
         """
-        Search for expressions whose size in number of operands is greater than
-        ``self.thresholds['max_operands']`` and split them into smaller
-        sub-expressions, exploiting associativity and commutativity of operators.
+        Split expressions as sum of "canonical" products. Each canonical product
+        is assigned to a different temporary. A canonical product has the form: ::
+
+            temp = (sum_i w_i (sum_j u_i[f(t, x, y, z, j)])) g(x, y, z)
+
+        Where ``w_i`` is a real number, ``u_i`` is an indexed time-varying object
+        (note that ``t`` appears amongst its indices), ``g`` is a time-independent
+        object (only the space dimensions ``x, y, z`` may appear in an indexed
+        object within ``g``).
+
+        The output is the input expression itself if found to be non-reducible
+        to a sum of canonical products (e.g., if ``u_i`` appeared in denominators).
         """
 
-        counter = 0
+        graph = temporaries_graph(state.exprs)
+        rule = lambda i: i.is_Number or not graph.time_invariant(i)
+        cm = lambda e: estimate_cost(e, True) > 0
+
+        c = 0
         processed = []
         for expr in state.exprs:
-            if len(terminals(expr)) < self.thresholds['max_operands'] or\
-                    not (expr.rhs.is_Add or expr.rhs.is_Mul):
+            if not (expr.rhs.is_Add or expr.rhs.is_Mul):
                 processed.append(expr)
                 continue
 
-            chunks = expr.rhs.args
-            targets = [Symbol("ts%d" % (counter + i)) for i in range(len(chunks))]
-            chunks = [Eq(t, e) for t, e in zip(targets, chunks)]
-            counter += len(chunks)
-            chunks.append(Eq(expr.lhs, expr.rhs.func(expr.lhs, *targets)))
-            processed.extend(chunks)
+            flag = False
+            processing = expr
+            while not flag:
+                make = lambda i: ScalarFunction(name="td%d" % (c + len(i))).indexify()
+                handle, flag, mapped = xreplace_constrained(processing, make, rule, cm)
+                if not flag:
+                    for k, v in mapped.items():
+                        processed.append(Eq(k, v))
+                        #graph[k] = Temporary(k, v, readby=[handle.lhs])
+                        c += 1
+                        processing = handle
+                from IPython import embed; embed()
+            processed.append(processing)
 
         return {'exprs': processed}
 
@@ -430,7 +449,7 @@ class Rewriter(object):
         """
         Capture all time-varying aliasing expressions (see collect_aliases.__doc__).
         """
-        from IPython import embed; embed()
+        pass
 
     def _finalize(self, state):
         """
