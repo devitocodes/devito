@@ -21,8 +21,8 @@ from devito.dse.extended_sympy import bhaskara_cos, bhaskara_sin
 from devito.dse.graph import temporaries_graph
 from devito.dse.inspection import (collect_aliases, estimate_cost, estimate_memory,
                                    is_binary_op, terminals)
-from devito.dse.manipulation import (collect_nested, flip_indices, replace_invariants,
-                                     rxreplace, unevaluate_arithmetic)
+from devito.dse.manipulation import (collect_nested, flip_indices, xreplace_constrained,
+                                     xreplace_recursive, unevaluate_arithmetic)
 from devito.interfaces import TensorFunction
 from devito.logger import dse, dse_warning
 
@@ -281,8 +281,8 @@ class Rewriter(object):
                         mapper[i] = Indexed(i.base, *new_indices)
                 if i in revert:
                     mapper[i] = revert[i]
-        leaves = rxreplace(leaves, mapper)
-        kept = rxreplace([Eq(k, v) for k, v in keep.items()], mapper)
+        leaves = xreplace_recursive(leaves, mapper)
+        kept = xreplace_recursive([Eq(k, v) for k, v in keep.items()], mapper)
 
         # If the RHS of a temporary variable is the LHS of a leaf,
         # update the value of the temporary variable after the leaf
@@ -342,6 +342,7 @@ class Rewriter(object):
         """
 
         graph = temporaries_graph(state.exprs)
+        rule = graph.time_invariant
         space_indices = graph.space_indices
         template = lambda i: TensorFunction(name="ti%d" % i, shape=graph.space_shape,
                                             dimensions=space_indices).indexed
@@ -361,7 +362,7 @@ class Rewriter(object):
             k, v = queue.popitem(last=False)
 
             make = lambda m: Indexed(template(len(m)+len(mapper)), *space_indices)
-            handle, flag, mapped = replace_invariants(v, make, graph.time_invariant, cm)
+            handle, flag, mapped = xreplace_constrained(v, make, rule, cm)
 
             # To be replacable, must be time invariant and all of the depending
             # expressions must have been replaced too

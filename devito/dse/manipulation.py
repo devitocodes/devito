@@ -9,9 +9,10 @@ from sympy import Indexed, S, collect, collect_const, flatten
 from devito.dse.extended_sympy import Add, Eq, Mul
 from devito.dse.graph import temporaries_graph
 from devito.interfaces import TensorFunction
+from devito.tools import as_tuple
 
 __all__ = ['collect_nested', 'unevaluate_arithmetic', 'flip_indices',
-           'replace_invariants', 'rxreplace', 'promote_scalar_expressions']
+           'xreplace_constrained', 'promote_scalar_expressions']
 
 
 def unevaluate_arithmetic(expr):
@@ -70,20 +71,6 @@ def flip_indices(expr, rule):
     flipped = set()
     handle = run(expr, flipped)
     return handle, flipped
-
-
-def rxreplace(exprs, mapper):
-    """
-    Apply Sympy's xreplace recursively.
-    """
-
-    replaced = []
-    for i in exprs:
-        old, new = i, i.xreplace(mapper)
-        while new != old:
-            old, new = new, new.xreplace(mapper)
-        replaced.append(new)
-    return replaced
 
 
 def promote_scalar_expressions(exprs, shape, indices, onstack):
@@ -158,57 +145,85 @@ def collect_nested(expr):
     return run(expr)[0]
 
 
-def replace_invariants(expr, make, invariant=lambda e: e, cm=lambda e: True):
+def xreplace_constrained(exprs, make, rule, cm=lambda e: True, repeat=False):
     """
-    Replace all sub-expressions of ``expr`` such that ``invariant(expr) == True``
-    with a temporary created through ``make(expr)``. A sub-expression ``e``
-    within ``expr`` is not visited if ``cm(e) == False``.
+    As opposed to ``xreplace``, which replaces all objects specified in a mapper,
+    this function replaces all objects satisfying two criteria: ::
+
+        * The "matching rule" -- a function returning True if a node within ``expr``
+            satisfies a given property, and as such should be replaced;
+        * A "cost model" -- a function triggering replacement only if a certain
+            cost (e.g., operation count) is exceeded. This function is optional.
+
+    Note that there is not necessarily a relationship between the set of nodes
+    for which the matching rule returns True and those nodes passing the cost
+    model check. It might happen for example that, given the expression ``a + b``,
+    all of ``a``, ``b``, and ``a + b`` satisfy the matching rule, but only
+    ``a + b`` satisfies the cost model.
+
+    :param exprs: The target SymPy expression, or a collection of SymPy expressions.
+    :param make: A function to construct symbols used for replacement.
+                 The function takes as input an integer ID; ID is computed internally
+                 and used as a unique identifier for the newly constructed symbol.
+    :param rule: The matching rule (a lambda function).
+    :param cm: The cost model (a lambda function, optional).
+    :param repeat: Repeatedly apply ``xreplace`` until no more replacements are
+                   possible (optional, defaults to False).
     """
 
-    def run(expr, root, mapper):
-        # Return semantic: (rebuilt expr, True <==> invariant)
+    processed = []
 
-        if expr.is_Float:
-            return expr.func(*expr.atoms()), True
-        elif expr in [S.Zero, S.One, S.NegativeOne, S.Half]:
-            return expr.func(), True
-        elif expr.is_Symbol:
-            return expr.func(expr.name), invariant(expr)
-        elif expr.is_Atom:
-            return expr.func(*expr.atoms()), True
-        elif isinstance(expr, Indexed):
-            return expr.func(*expr.args), invariant(expr)
-        elif expr.is_Equality:
-            handle, flag = run(expr.rhs, expr.rhs, mapper)
-            return expr.func(expr.lhs, handle, evaluate=False), flag
+    def replace(expr):
+        if cm(expr):
+            temporary = make(replace.c)
+            processed.append(Eq(temporary, expr))
+            replace.c += 1
+            return temporary
         else:
-            children = [run(a, root, mapper) for a in expr.args]
-            invs = [a for a, flag in children if flag]
-            varying = [a for a, _ in children if a not in invs]
-            if not invs:
-                # Nothing is time-invariant
-                return (expr.func(*varying, evaluate=False), False)
-            elif len(invs) == len(children):
-                # Everything is time-invariant
-                if expr == root:
-                    if cm(expr):
-                        temporary = make(mapper)
-                        mapper[temporary] = expr.func(*invs, evaluate=False)
-                        return temporary, True
-                    else:
-                        return expr.func(*invs, evaluate=False), False
-                else:
-                    # Go look for longer expressions first
-                    return expr.func(*invs, evaluate=False), True
-            else:
-                # Some children are time-invariant, but expr is time-dependent
-                if cm(expr) and len(invs) > 1:
-                    temporary = make(mapper)
-                    mapper[temporary] = expr.func(*invs, evaluate=False)
-                    return expr.func(*(varying + [temporary]), evaluate=False), False
-                else:
-                    return expr.func(*(varying + invs), evaluate=False), False
+            return expr
+    replace.c = 0  # Unique identifier for new temporaries
 
-    mapper = OrderedDict()
-    handle, flag = run(expr, expr, mapper)
-    return handle, flag, mapper
+    def run(expr):
+        if expr.is_Float:
+            return expr.func(*expr.atoms()), rule(expr)
+        elif expr in [S.Zero, S.One, S.NegativeOne, S.Half]:
+            return expr.func(), rule(expr)
+        elif expr.is_Symbol:
+            return expr.func(expr.name), rule(expr)
+        elif expr.is_Atom:
+            return expr.func(*expr.atoms()), rule(expr)
+        elif isinstance(expr, Indexed):
+            return expr.func(*expr.args), rule(expr)
+        elif expr.is_Pow:
+            base, flag = run(expr.base)
+            return expr.func(base, expr.exp), flag
+        else:
+            children = [run(a) for a in expr.args]
+            matching = [a for a, flag in children if flag]
+            other = [a for a, _ in children if a not in matching]
+            if matching:
+                matched = expr.func(*matching)
+                if len(matching) == len(children) and rule(expr):
+                    # Go look for longer expressions first
+                    return matched, True
+                elif rule(matched):
+                    # Replace what I can replace, then give up
+                    return expr.func(*(other + [replace(matched)])), False
+                else:
+                    # Replace flagged children, then give up
+                    return expr.func(*(other + [replace(e) for e in matching])), False
+            return expr.func(*other), False
+
+    for expr in as_tuple(exprs):
+        root = expr.rhs if expr.is_Equality else expr
+
+        while True:
+            handle, _ = run(root)
+            if repeat and handle != root:
+                root = handle
+            else:
+                rebuilt = expr.func(expr.lhs, handle) if expr.is_Equality else handle
+                processed.append(rebuilt)
+                break
+
+    return processed
