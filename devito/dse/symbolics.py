@@ -12,8 +12,9 @@ from __future__ import absolute_import
 from collections import OrderedDict, Sequence
 from time import time
 
-from sympy import (Eq, Indexed, IndexedBase, S, collect, collect_const, cos,
-                   cse, flatten, numbered_symbols, preorder_traversal, sin)
+from sympy import (Eq, Indexed, IndexedBase, S, Symbol, collect, collect_const,
+                   cos, flatten, numbered_symbols, preorder_traversal, sin)
+from sympy.simplify.cse_main import tree_cse
 
 from devito.dimension import t, x, y, z
 from devito.dse.extended_sympy import bhaskara_cos, bhaskara_sin
@@ -21,6 +22,7 @@ from devito.dse.graph import temporaries_graph
 from devito.dse.inspection import (collect_aliases, estimate_cost, estimate_memory,
                                    is_binary_op, is_time_invariant, terminals)
 from devito.dse.manipulation import (flip_indices, rxreplace, unevaluate_arithmetic)
+from devito.interfaces import TensorFunction
 from devito.logger import dse, dse_warning
 
 __all__ = ['rewrite']
@@ -43,6 +45,8 @@ def rewrite(expr, mode='advanced'):
                      * 'approx-trigonometry': replace expensive trigonometric
                          functions with suitable polynomial approximations.
                      * 'glicm': apply heuristic hoisting of time-invariant terms.
+                     * 'split': split long expressions into smaller sub-expressions
+                          exploiting associativity and commutativity.
                      * 'advanced': compose all known transformations.
     """
 
@@ -81,8 +85,9 @@ def dse_transformation(func):
             toc = time()
 
             key = '%s%d' % (func.__name__, len(self.timings))
-            self.ops[key] = estimate_cost(state.exprs)
             self.timings[key] = toc - tic
+            if self.profile:
+                self.ops[key] = estimate_cost(state.exprs)
 
     return wrapper
 
@@ -136,31 +141,10 @@ class State(object):
     @property
     def clusters(self):
         """
-        Clusterize the expressions in ``self.exprs``. A cluster is an ordered
-        collection of expressions that are necessary to compute a target expression
-        (ie, an expression that is never read).
-
-        Examples
-        ========
-        In the following list of expressions: ::
-
-            temp1 = a*b
-            temp2 = c
-            temp3 = temp1 + temp2
-            temp4 = temp2 + 5
-            temp5 = d*e
-            temp6 = f+g
-            temp7 = temp5 + temp6
-
-        There are three target expressions: temp3, temp4, temp7. There are therefore
-        three clusters: ((temp1, temp2, temp3), (temp2, temp4), (temp5, temp6, temp7)).
-        The first and second clusters share the expression temp2.
+        Clusterize the expressions in ``self.exprs``. For more information
+        about clusters, refer to TemporariesGraph.clusters.
         """
-        graph = temporaries_graph(self.exprs)
-        invariants = graph.time_invariants
-        targets = invariants + [i for i in graph.targets if i not in invariants]
-        clusters = [graph.trace(i.lhs) for i in targets]
-        return clusters
+        return temporaries_graph(self.exprs).clusters
 
 
 class Rewriter(object):
@@ -169,30 +153,39 @@ class Rewriter(object):
     Transform expressions to reduce their operation count.
     """
 
+    """
+    Track what options trigger a given transformation.
+    """
     triggers = {
         '_cse': ('basic', 'advanced'),
         '_factorize': ('factorize', 'advanced'),
         '_optimize_trigonometry': ('approx-trigonometry', 'advanced'),
-        '_replace_time_invariants': ('glicm', 'advanced')
+        '_replace_time_invariants': ('glicm', 'advanced'),
+        '_split_expressions': ('split', 'devito3.0')  # TODO: -> 'advanced' upon release
     }
 
-    # Aggressive transformation if the operation count is greather than this
-    # empirically determined threshold
-    threshold = 15
+    """
+    Bag of thresholds, to be used to trigger or prevent certain transformations.
+    """
+    thresholds = {
+        'expensive_expression': 100,
+        'max_operands': 40,
+    }
 
-    def __init__(self, exprs):
+    def __init__(self, exprs, profile=False):
         self.exprs = exprs
 
-        self.ops = OrderedDict([('baseline', estimate_cost(exprs))])
+        self.profile = profile
+        self.ops = OrderedDict()
         self.timings = OrderedDict()
 
     def run(self, mode):
         state = State(self.exprs)
 
         self._cse(state, mode=mode)
-        self._factorize(state, mode=mode)
         self._optimize_trigonometry(state, mode=mode)
         self._replace_time_invariants(state, mode=mode)
+        self._split_expressions(state, mode=mode)
         self._factorize(state, mode=mode)
 
         self._finalize(state)
@@ -215,14 +208,12 @@ class Rewriter(object):
 
         processed = []
         for expr in state.exprs:
-            cost_expr = estimate_cost(expr)
-
             handle = collect_nested(expr)
             cost_handle = estimate_cost(handle)
 
-            if cost_handle < cost_expr and cost_handle >= Rewriter.threshold:
+            if cost_handle >= self.thresholds['expensive_expression']:
                 handle_prev = handle
-                cost_prev = cost_expr
+                cost_prev = estimate_cost(expr)
                 while cost_handle < cost_prev:
                     handle_prev, handle = handle, collect_nested(handle)
                     cost_prev, cost_handle = cost_handle, estimate_cost(handle)
@@ -238,7 +229,7 @@ class Rewriter(object):
         Perform common subexpression elimination.
         """
 
-        temporaries, leaves = cse(state.exprs, numbered_symbols(_temp_prefix))
+        temporaries, leaves = tree_cse(state.exprs, numbered_symbols(_temp_prefix))
         for i in range(len(state.exprs)):
             leaves[i] = Eq(state.exprs[i].lhs, leaves[i].rhs)
 
@@ -349,13 +340,15 @@ class Rewriter(object):
 
         graph = temporaries_graph(state.exprs)
         space_indices = graph.space_indices
-        template = lambda i: IndexedBase("ti%d" % i, shape=graph.space_shape)
+        template = lambda i: TensorFunction(name="ti%d" % i, shape=graph.space_shape,
+                                            dimensions=space_indices).indexed
 
         # What expressions is it worth transforming (cm=cost model)?
         # Formula: ops(expr)*aliases(expr) > self.threshold <==> do it
         # For more information about "aliases", check out collect_aliases.__doc__
         aliases, clusters = collect_aliases([e.rhs for e in state.exprs])
-        cm = lambda e: estimate_cost(e, True)*len(aliases.get(e, [e])) > self.threshold
+        cm = lambda e: estimate_cost(e, True)*len(aliases.get(e, [e])) >\
+            self.thresholds['expensive_expression']
 
         # Replace time invariants
         processed = OrderedDict()
@@ -404,6 +397,31 @@ class Rewriter(object):
 
         return {'exprs': processed, 'mapper': reduced_mapper}
 
+    @dse_transformation
+    def _split_expressions(self, state, **kwargs):
+        """
+        Search for expressions whose size in number of operands is greater than
+        ``self.thresholds['max_operands']`` and split them into smaller
+        sub-expressions, exploiting associativity and commutativity of operators.
+        """
+
+        counter = 0
+        processed = []
+        for expr in state.exprs:
+            if len(terminals(expr)) < self.thresholds['max_operands'] or\
+                    not (expr.rhs.is_Add or expr.rhs.is_Mul):
+                processed.append(expr)
+                continue
+
+            chunks = expr.rhs.args
+            targets = [Symbol("ts%d" % (counter + i)) for i in range(len(chunks))]
+            chunks = [Eq(t, e) for t, e in zip(targets, chunks)]
+            counter += len(chunks)
+            chunks.append(Eq(expr.lhs, expr.rhs.func(expr.lhs, *targets)))
+            processed.extend(chunks)
+
+        return {'exprs': processed}
+
     def _finalize(self, state):
         """
         Make sure that any subsequent sympy operation applied to the expressions
@@ -418,19 +436,16 @@ class Rewriter(object):
         """
 
         if mode.intersection({'basic', 'advanced'}):
+            summary = " --> ".join("(%s) %s" % (filter(lambda c: not c.isdigit(), k),
+                                                str(self.ops.get(k, "")))
+                                   for k, v in self.timings.items())
             try:
                 # The state after CSE should be used as baseline for fairness
                 baseline = self.ops['_cse0']
-            except KeyError:
-                baseline = self.ops['baseline']
-            self.ops.pop('baseline')
-            steps = " --> ".join("(%s) %d" % (filter(lambda c: not c.isdigit(), k), v)
-                                 for k, v in self.ops.items())
-            try:
                 gain = float(baseline) / list(self.ops.values())[-1]
-                summary = " %s flops; gain: %.2f X" % (steps, gain)
-            except ZeroDivisionError:
-                summary = ""
+                summary = " %s flops; gain: %.2f X" % (summary, gain)
+            except (KeyError, ZeroDivisionError):
+                pass
             elapsed = sum(self.timings.values())
             dse("%s [%.2f s]" % (summary, elapsed))
 

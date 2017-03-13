@@ -8,10 +8,10 @@ from collections import Iterable, OrderedDict
 import cgen as c
 from sympy import Eq, preorder_traversal
 
-from devito.codeprinter import ccode
+from devito.cgen_utils import ccode
 from devito.dimension import Dimension
 from devito.dse.inspection import as_symbol, retrieve_indexed
-from devito.interfaces import IndexedData, SymbolicData, TensorData
+from devito.interfaces import IndexedData, SymbolicData, TensorFunction
 from devito.tools import SetOrderedDict, as_tuple, filter_ordered, flatten
 
 __all__ = ['Node', 'Block', 'Expression', 'Function', 'Iteration', 'List',
@@ -25,6 +25,7 @@ class Node(object):
     is_Iteration = False
     is_Expression = False
     is_Function = False
+    is_FunCall = False
     is_List = False
     is_Element = False
 
@@ -119,7 +120,7 @@ class Element(Node):
 
     def __init__(self, element):
         assert isinstance(element, (c.Comment, c.Statement, c.Value,
-                                    c.Pragma, c.Line))
+                                    c.Pragma, c.Line, c.Assign, c.POD))
         self.element = element
 
     def __repr__(self):
@@ -128,6 +129,24 @@ class Element(Node):
     @property
     def ccode(self):
         return self.element
+
+
+class FunCall(Node):
+
+    """A node representing a function call."""
+
+    is_FunCall = True
+
+    def __init__(self, name, params):
+        self.name = name
+        self.params = params
+
+    def __repr__(self):
+        return "FunCall::\n\t%s(...)" % self.name
+
+    @property
+    def ccode(self):
+        return c.Statement('%s(%s)' % (self.name, ','.join(self.params)))
 
 
 class Expression(Node):
@@ -179,6 +198,16 @@ class Expression(Node):
         return as_symbol(self.stencil.lhs)
 
     @property
+    def output_function(self):
+        """
+        Return the function written by this Expression, if any.
+        """
+        if self.is_scalar:
+            return None
+        handle = self.stencil.lhs.base
+        return handle.function if isinstance(handle, IndexedData) else None
+
+    @property
     def is_scalar(self):
         """
         Return True if a scalar expression, False otherwise.
@@ -191,13 +220,6 @@ class Expression(Node):
         Return True if a tensor expression, False otherwise.
         """
         return not self.is_scalar
-
-    @property
-    def is_temporary(self):
-        """
-        Return True if writing to a temporary object, False otherwise.
-        """
-        return not isinstance(self.stencil.lhs.base, IndexedData)
 
     @property
     def shape(self):
@@ -258,6 +280,17 @@ class Iteration(Node):
 
     _traversable = ['nodes']
 
+    """
+    List of known properties, usable to decorate an Iteration: ::
+
+        * sequential: An inherently sequential iteration space.
+        * parallel: An iteration space whose iterations can safely be
+                    executed in parallel.
+        * vector-dim: A (SIMD) vectorizable iteration space.
+        * elemental: Hoistable to an elemental function.
+    """
+    _known_properties = ['sequential', 'parallel', 'vector-dim', 'elemental']
+
     def __init__(self, nodes, dimension, limits, index=None, offsets=None,
                  properties=None):
         # Ensure we deal with a list of Expression objects internally
@@ -281,7 +314,7 @@ class Iteration(Node):
             # FIXME: Add dimension size as variable bound.
             # Needs further generalisation to support loop blocking.
             dim = self.dim.parent if self.dim.is_Buffered else self.dim
-            self.limits[1] = IterationBound("%s_size" % dim.name, self.dim)
+            self.limits[1] = dim.size or dim.symbolic_size
 
         # Record offsets to later adjust loop limits accordingly
         self.offsets = [0, 0]
@@ -291,6 +324,7 @@ class Iteration(Node):
 
         # Track this Iteration's properties
         self.properties = as_tuple(properties)
+        assert (i in Iteration._known_properties for i in self.properties)
 
     def __repr__(self):
         properties = ""
@@ -338,13 +372,46 @@ class Iteration(Node):
 
     @property
     def is_Open(self):
-        return self.dim.size is not None
+        return self.dim.size is None
 
     @property
     def is_Closed(self):
         return not self.is_Open
 
-    def _bounds(self, start=None, finish=None):
+    @property
+    def is_Sequential(self):
+        return 'sequential' in self.properties
+
+    @property
+    def is_Parallel(self):
+        return 'parallel' in self.properties
+
+    @property
+    def is_Vectorizable(self):
+        return 'vector-dim' in self.properties
+
+    @property
+    def is_Elementizable(self):
+        return 'elemental' in self.properties
+
+    @property
+    def bounds_symbolic(self):
+        """Return a 2-tuple representing the symbolic bounds of the object."""
+        start = self.limits[0]
+        end = self.limits[1]
+        try:
+            start = as_symbol(start)
+        except TypeError:
+            # Already a symbolic expression
+            pass
+        try:
+            end = as_symbol(end)
+        except TypeError:
+            # Already a symbolic expression
+            pass
+        return (start - as_symbol(self.offsets[0]), end - as_symbol(self.offsets[1]))
+
+    def bounds(self, start=None, finish=None):
         """Return the start and end points of the Iteration if the limits are
         available (either statically known or provided through ``start``/
         ``finish``). ``None`` is used as a placeholder in the returned 2-tuple
@@ -364,7 +431,7 @@ class Iteration(Node):
     def extent(self, start=None, finish=None):
         """Return the number of iterations executed if the limits are known,
         ``None`` otherwise."""
-        start, finish = self._bounds(start, finish)
+        start, finish = self.bounds(start, finish)
         try:
             return finish - start
         except TypeError:
@@ -373,12 +440,12 @@ class Iteration(Node):
     def start(self, start=None):
         """Return the start point of the Iteration if the lower limit is known,
         ``None`` otherwise."""
-        return self._bounds(start)[0]
+        return self.bounds(start)[0]
 
     def end(self, finish=None):
         """Return the end point of the Iteration if the upper limit is known,
         ``None`` otherwise."""
-        return self._bounds(finish=finish)[1]
+        return self.bounds(finish=finish)[1]
 
     @property
     def children(self):
@@ -423,7 +490,7 @@ class Function(Node):
         for v in self.parameters:
             if isinstance(v, Dimension):
                 cparameters.append(v.decl)
-            elif v.is_ScalarData:
+            elif v.is_ScalarFunction:
                 cparameters.append(c.Value('const int', v.name))
             else:
                 cparameters.append(c.Value(c.dtype_to_ctype(v.dtype),
@@ -434,7 +501,8 @@ class Function(Node):
     def _ccasts(self):
         """Generate data casts."""
         alignment = "__attribute__((aligned(64)))"
-        handle = [f for f in self.parameters if isinstance(f, TensorData)]
+        handle = [f for f in self.parameters
+                  if isinstance(f, (SymbolicData, TensorFunction))]
         shapes = [(f, ''.join(["[%s]" % i.ccode for i in f.indices[1:]])) for f in handle]
         casts = [c.Initializer(c.POD(v.dtype,
                                      '(*restrict %s)%s %s' % (v.name, shape, alignment)),
@@ -524,30 +592,3 @@ class LocalExpression(Expression):
         ctype = c.dtype_to_ctype(self.dtype)
         return c.Initializer(c.Value(ctype, ccode(self.stencil.lhs)),
                              ccode(self.stencil.rhs))
-
-
-class IterationBound(object):
-    """Utility class to encapsulate variable loop bounds and link them
-    back to the respective :class:`Dimension` object.
-
-    :param name: Variable name for the open loop bound variable.
-    :param dim: The corresponding :class:`Dimension` object.
-    :param expr: An expression to calculate the loop limit, in case this does
-                 not coincide with the open loop bound variable itself.
-    """
-
-    def __init__(self, name, dim, expr=None):
-        self.name = name
-        self.dim = dim
-        self.expr = expr
-
-    def __repr__(self):
-        return repr(self.expr).replace(' ', '') if self.expr else self.name
-
-    def __eq__(self, bound):
-        return self.name == bound.name and self.dim == bound.dim
-
-    @property
-    def ccode(self):
-        """C code for the variable declaration within a kernel signature"""
-        return c.Value('const int', self.name)

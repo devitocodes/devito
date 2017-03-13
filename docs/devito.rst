@@ -9,18 +9,10 @@ devito package
 Submodules
 ----------
 
-devito.cgen_wrapper module
+devito.cgen_utils module
 --------------------------
 
-.. automodule:: devito.cgen_wrapper
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
-devito.codeprinter module
--------------------------
-
-.. automodule:: devito.codeprinter
+.. automodule:: devito.cgen_utils
     :members:
     :undoc-members:
     :show-inheritance:

@@ -76,7 +76,8 @@ class GNUCompiler(Compiler):
         self.version = kwargs.get('version', None)
         self.cc = 'gcc' if self.version is None else 'gcc-%s' % self.version
         self.ld = 'gcc' if self.version is None else 'gcc-%s' % self.version
-        self.cflags = ['-O3', '-g', '-march=native', '-fPIC', '-Wall', '-std=c99']
+        self.cflags = ['-O3', '-g', '-march=native', '-fPIC', '-Wall', '-std=c99',
+                       '-Wno-unused-result', '-Wno-unused-variable']
         self.ldflags = ['-shared']
 
         if self.openmp:

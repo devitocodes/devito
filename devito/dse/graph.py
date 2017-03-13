@@ -25,8 +25,8 @@ from sympy import Indexed
 
 from devito.dimension import t
 from devito.dse.extended_sympy import Eq
-from devito.dse.inspection import (is_time_invariant, retrieve_indexed,
-                                   terminals)
+from devito.dse.inspection import (is_indirect, retrieve_indexed, terminals)
+from devito.tools import flatten
 
 __all__ = ['temporaries_graph']
 
@@ -45,14 +45,16 @@ class Temporary(Eq):
     def __new__(cls, lhs, rhs, **kwargs):
         reads = kwargs.pop('reads', [])
         readby = kwargs.pop('readby', [])
-        time_invariant = kwargs.pop('time_invariant', False)
         scope = kwargs.pop('scope', 0)
         obj = super(Temporary, cls).__new__(cls, lhs, rhs, **kwargs)
         obj._reads = set(reads)
         obj._readby = set(readby)
-        obj._is_time_invariant = time_invariant
         obj._scope = scope
         return obj
+
+    @property
+    def identifier(self):
+        return self.lhs.base.label.name if self.is_tensor else self.lhs.name
 
     @property
     def reads(self):
@@ -63,10 +65,6 @@ class Temporary(Eq):
         return self._readby
 
     @property
-    def is_time_invariant(self):
-        return self._is_time_invariant
-
-    @property
     def is_terminal(self):
         return len(self.readby) == 0
 
@@ -75,8 +73,8 @@ class Temporary(Eq):
         return isinstance(self.lhs, Indexed) and self.lhs.rank > 0
 
     @property
-    def is_scalarizable(self):
-        return not self.is_terminal and self.is_tensor
+    def is_scalar(self):
+        return not self.is_tensor
 
     @property
     def scope(self):
@@ -90,7 +88,7 @@ class Temporary(Eq):
         reads = set(self.reads) - set(rule.keys()) | set(rule.values())
         rhs = self.rhs.xreplace(rule)
         return Temporary(self.lhs, rhs, reads=reads, readby=self.readby,
-                         time_invariant=self.is_time_invariant, scope=self.scope)
+                         scope=self.scope)
 
     def __repr__(self):
         return "DSE(%s, reads=%s, readby=%s)" % (super(Temporary, self).__repr__(),
@@ -104,9 +102,42 @@ class TemporariesGraph(OrderedDict):
     """
 
     @property
+    def clusters(self):
+        """
+        Compute the clusters of the temporaries graph. A cluster is an ordered
+        collection of scalar expressions that are necessary to compute a tensor value,
+        plus the tensor value itself.
+
+        Examples
+        ========
+        In the following list of expressions: ::
+
+            temp1 = a*b
+            temp2 = c
+            temp3[k] = temp1 + temp2
+            temp4[k] = temp2 + 5
+            temp5 = d*e
+            temp6 = f+g
+            temp7[i] = temp5 + temp6 + temp4[k]
+
+        There are three target expressions: temp3, temp4, temp7. There are therefore
+        three clusters: ((temp1, temp2, temp3), (temp2, temp4), (temp5, temp6, temp7)).
+        The first and second clusters share the expression temp2. Note that temp4 does
+        not appear in the third cluster, as it is not a scalar.
+        """
+        targets = [v for v in self.values() if v.is_tensor]
+        clusters = [self.trace(i.lhs) for i in targets]
+        # Drop the non-scalar expressions in each cluster
+        for cluster in clusters:
+            for k, v in list(cluster.items()):
+                if v.is_tensor and not v.is_terminal:
+                    cluster.pop(k)
+        return clusters
+
+    @property
     def space_indices(self):
         for v in self.values():
-            if v.is_terminal:
+            if v.is_terminal and not is_indirect(v.lhs):
                 found = v.lhs.free_symbols - {t, v.lhs.base.label}
                 return tuple(sorted(found, key=lambda i: v.lhs.indices.index(i)))
         return ()
@@ -114,33 +145,23 @@ class TemporariesGraph(OrderedDict):
     @property
     def space_shape(self):
         for v in self.values():
-            if v.is_terminal:
+            if v.is_terminal and not is_indirect(v.lhs):
                 found = v.lhs.free_symbols - {t, v.lhs.base.label}
                 return tuple(i for i, j in zip(v.lhs.shape, v.lhs.indices) if j in found)
         return ()
 
-    @property
-    def time_invariants(self):
-        space_indices = self.space_indices
-        found = []
-        for k, v in self.items():
-            if v.is_time_invariant and v.is_tensor and k.indices == space_indices:
-                found.append(v)
-        return found
-
-    @property
-    def targets(self):
-        return tuple(i for i in self.values() if i.is_terminal)
-
     def trace(self, root):
         if root not in self:
             return []
-        found = []
-        queue = [self[root]]
+        found = OrderedDict()
+        queue = [(self[root], 0)]
         while queue:
-            temporary = queue.pop(0)
-            found.insert(0, temporary)
-            queue.extend([self[i] for i in temporary.reads])
+            temporary, index = queue.pop(0)
+            found.setdefault(index, []).append(temporary)
+            queue.extend([(self[i], index + 1) for i in temporary.reads])
+        # Sort output for determinism
+        found = reversed(found.values())
+        found = flatten(sorted(v, key=lambda i: i.identifier) for v in found)
         return temporaries_graph(found)
 
     def is_index(self, root):
@@ -198,17 +219,16 @@ def temporaries_graph(temporaries, scope=0):
     """
 
     mapper = OrderedDict()
-    Node = namedtuple('Node', ['rhs', 'reads', 'readby', 'time_invariant'])
+    Node = namedtuple('Node', ['rhs', 'reads', 'readby'])
 
     for lhs, rhs in [i.args for i in temporaries]:
         reads = {i for i in terminals(rhs) if i in mapper}
-        mapper[lhs] = Node(rhs, reads, set(), is_time_invariant(rhs, mapper))
+        mapper[lhs] = Node(rhs, reads, set())
         for i in mapper[lhs].reads:
             assert i in mapper, "Illegal Flow"
             mapper[i].readby.add(lhs)
 
-    nodes = [Temporary(k, v.rhs, reads=v.reads, readby=v.readby,
-                       time_invariant=v.time_invariant, scope=scope)
+    nodes = [Temporary(k, v.rhs, reads=v.reads, readby=v.readby, scope=scope)
              for k, v in mapper.items()]
 
     return TemporariesGraph([(i.lhs, i) for i in nodes])
