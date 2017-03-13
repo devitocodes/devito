@@ -127,6 +127,7 @@ def estimate_cost(handle, estimate_external_functions=False):
         # At this point it must be a list of SymPy objects
         # We don't count non floating point operations
         handle = [i.rhs if i.is_Equality else i for i in handle]
+        handle = [i for i in handle if not i.is_Number]
         total_ops = count_ops(handle)
         indexed = flatten(retrieve_indexed(i, mode='all') for i in handle)
         offsets = flatten(i.indices for i in indexed)
