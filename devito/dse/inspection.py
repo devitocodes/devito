@@ -335,6 +335,24 @@ def is_binary_op(expr):
     return all(isinstance(a, (Number, Symbol, Indexed)) for a in expr.args)
 
 
+def is_terminal_op(expr):
+    """
+    Return True if ``expr`` is a terminal operation; that is, no Add or
+    Mul is present amongst its args.
+    """
+    if not (expr.is_Add or expr.is_Mul):
+        return False
+
+    for a in expr.args:
+        try:
+            as_symbol(a)
+        except TypeError:
+            if a.is_Add or a.is_Mul:
+                return False
+
+    return True
+
+
 def is_indirect(indexed):
     """
     Return True if ``indexed`` has indirect accesses, False otherwise.
