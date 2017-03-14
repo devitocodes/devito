@@ -23,7 +23,7 @@ from collections import OrderedDict, namedtuple
 
 from sympy import Indexed
 
-from devito.dimension import t
+from devito.dimension import x, y, z, t  # TODO: Generalize to arbitrary dimensions
 from devito.dse.extended_sympy import Eq
 from devito.dse.inspection import (is_indirect, retrieve_indexed, terminals)
 from devito.tools import flatten
@@ -136,18 +136,21 @@ class TemporariesGraph(OrderedDict):
 
     @property
     def space_indices(self):
-        for v in self.values():
-            if v.is_terminal and not is_indirect(v.lhs):
-                found = v.lhs.free_symbols - {t, v.lhs.base.label}
-                return tuple(sorted(found, key=lambda i: v.lhs.indices.index(i)))
-        return ()
+        seen = set()
+        candidates = [x, y, z]
+        terms = [k for k, v in self.items() if v.is_tensor and not is_indirect(k)]
+        for term in terms:
+            seen |= {i for i in term.base.function.indices if i in candidates}
+        return tuple(sorted(seen, key=lambda i: candidates.index(i)))
 
     @property
     def space_shape(self):
-        for v in self.values():
-            if v.is_terminal and not is_indirect(v.lhs):
-                found = v.lhs.free_symbols - {t, v.lhs.base.label}
-                return tuple(i for i, j in zip(v.lhs.shape, v.lhs.indices) if j in found)
+        candidates = self.space_indices
+        terms = [k for k, v in self.items() if v.is_tensor and not is_indirect(k)]
+        for term in terms:
+            indices = term.base.function.indices
+            if set(candidates).issubset(set(indices)):
+                return tuple(i for i, j in zip(term.shape, indices) if j in candidates)
         return ()
 
     def trace(self, root):
@@ -163,7 +166,6 @@ class TemporariesGraph(OrderedDict):
         found = reversed(found.values())
         found = flatten(sorted(v, key=lambda i: i.identifier) for v in found)
         return temporaries_graph(found)
-
 
     def time_invariant(self, expr):
         """
