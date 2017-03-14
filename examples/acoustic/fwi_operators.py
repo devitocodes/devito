@@ -73,20 +73,8 @@ def ForwardOperator(model, u, src, rec, data, time_order=2, spc_order=6,
         rec_read = Eq(rec, rec.grid2point(u))
         stencils = [eqn] + src_add + [rec_read]
 
-        # TODO: The following time-index hackery is a legacy hangover
-        # from the Operator/Propagator structure and is used here for
-        # backward compatibiliy. We need re-examine this apporach carefully!
-
-        # Shift time indices so that LHS writes into t only,
-        # eg. u[t+2] = u[t+1] + u[t]  -> u[t] = u[t-1] + u[t-2]
-        stencils = [e.subs(t, t + solve(e.lhs.args[0], t)[0])
-                    if isinstance(e.lhs, TimeData) else e
-                    for e in stencils]
-        # Apply time substitutions as per legacy approach
-        time_subs = {t + 2: t + 1, t: t + 2, t - 2: t, t - 1: t + 1, t + 1: t}
-        subs.update(time_subs)
-
-        op = StencilKernel(stencils, subs=subs, dse=dse, dle=dle, compiler=compiler)
+        op = StencilKernel(stencils=stencils, subs=subs, dse=dse, dle=dle,
+                           compiler=compiler)
 
     return op
 
