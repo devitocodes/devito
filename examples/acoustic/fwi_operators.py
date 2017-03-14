@@ -7,14 +7,13 @@ from devito.stencilkernel import StencilKernel
 from examples.source_type import SourceLike
 
 
-def ForwardOperator(model, u, src, rec, damp, data, time_order=2, spc_order=6,
+def ForwardOperator(model, u, src, rec, data, time_order=2, spc_order=6,
                     save=False, u_ini=None, legacy=True, **kwargs):
     """
     Constructor method for the forward modelling operator in an acoustic media
 
-    :param model: IGrid() object containing the physical parameters
+    :param model: :class:`Model` object containing the physical parameters
     :param source: None or IShot() (not currently supported properly)
-    :param damp: Dampening coeeficents for the ABCs
     :param data: IShot() object containing the acquisition geometry and field data
     :param: time_order: Time discretization order
     :param: spc_order: Space discretization order
@@ -24,21 +23,20 @@ def ForwardOperator(model, u, src, rec, damp, data, time_order=2, spc_order=6,
     """
     nt = data.shape[0]
     s, h = symbols('s h')
-    m = DenseData(name="m", shape=model.get_shape_comp(), dtype=damp.dtype)
-    m.data[:] = model.padm()
+    m, damp = model.m, model.damp
     # Derive stencil from symbolic equation
     if time_order == 2:
         laplacian = u.laplace
         biharmonic = 0
         # PDE for information
         # eqn = m * u.dt2 - laplacian + damp * u.dt
-        dt = model.get_critical_dt()
+        dt = model.critical_dt
     else:
         laplacian = u.laplace
         biharmonic = u.laplace2(1/m)
         # PDE for information
         # eqn = m * u.dt2 - laplacian - s**2 / 12 * biharmonic + damp * u.dt
-        dt = 1.73 * model.get_critical_dt()
+        dt = 1.73 * model.critical_dt
 
     # Create the stencil by hand instead of calling numpy solve for speed purposes
     # Simple linear solve of a u(t+dt) + b u(t) + c u(t-dt) = L for u(t+dt)
@@ -51,9 +49,9 @@ def ForwardOperator(model, u, src, rec, damp, data, time_order=2, spc_order=6,
     if legacy:
         kwargs.pop('dle', None)
 
-        op = Operator(nt, m.shape, stencils=Eq(u.forward, stencil), subs=subs,
+        op = Operator(nt, model.shape_domain, stencils=Eq(u.forward, stencil), subs=subs,
                       spc_border=max(spc_order / 2, 2), time_order=2, forward=True,
-                      dtype=m.dtype, **kwargs)
+                      dtype=model.dtype, **kwargs)
 
         # Insert source and receiver terms post-hoc
         op.input_params += [src, src.coordinates, rec, rec.coordinates]
@@ -98,23 +96,20 @@ class AdjointOperator(Operator):
     """
     Class to setup the adjoint modelling operator in an acoustic media
 
-    :param model: IGrid() object containing the physical parameters
-    :param src: None ot IShot() (not currently supported properly)
-    :param damp: Dampening coeeficents for the ABCs
+    :param model: :class:`Model` object containing the physical parameters
+    :param src: None or IShot() (not currently supported properly)
     :param data: IShot() object containing the acquisition geometry and field data
     :param: recin : receiver data for the adjoint source
     :param: time_order: Time discretization order
     :param: spc_order: Space discretization order
     """
-    def __init__(self, model, damp, data, src, recin,
-                 time_order=2, spc_order=6, **kwargs):
+    def __init__(self, model, data, src, recin, time_order=2, spc_order=6, **kwargs):
         nt, nrec = data.shape
         s, h = symbols('s h')
-        v = TimeData(name="v", shape=model.get_shape_comp(), time_dim=nt,
+        m, damp = model.m, model.damp
+        v = TimeData(name="v", shape=model.shape_domain, time_dim=nt,
                      time_order=2, space_order=spc_order,
-                     save=False, dtype=damp.dtype)
-        m = DenseData(name="m", shape=model.get_shape_comp(), dtype=damp.dtype)
-        m.data[:] = model.padm()
+                     save=False, dtype=model.dtype)
         v.pad_time = False
         # Derive stencil from symbolic equation
         if time_order == 2:
@@ -122,13 +117,13 @@ class AdjointOperator(Operator):
             biharmonic = 0
             # PDE for information
             # eqn = m * v.dt2 - laplacian - damp * v.dt
-            dt = model.get_critical_dt()
+            dt = model.critical_dt
         else:
             laplacian = v.laplace
             biharmonic = v.laplace2(1/m)
             # PDE for information
             # eqn = m * v.dt2 - laplacian - s**2 / 12 * biharmonic + damp * v.dt
-            dt = 1.73 * model.get_critical_dt()
+            dt = 1.73 * model.critical_dt
 
         # Create the stencil by hand instead of calling numpy solve for speed purposes
         # Simple linear solve of a v(t+dt) + b u(t) + c v(t-dt) = L for v(t-dt)
@@ -142,19 +137,20 @@ class AdjointOperator(Operator):
         srca = SourceLike(name="srca", npoint=src.traces.shape[1],
                           nt=nt, dt=dt, h=model.get_spacing(),
                           coordinates=src.receiver_coords,
-                          ndim=len(damp.shape), dtype=damp.dtype, nbpml=model.nbpml)
+                          ndim=len(model.shape), dtype=model.dtype,
+                          nbpml=model.nbpml)
         rec = SourceLike(name="rec", npoint=nrec, nt=nt, dt=dt, h=model.get_spacing(),
-                         coordinates=data.receiver_coords, ndim=len(damp.shape),
-                         dtype=damp.dtype, nbpml=model.nbpml)
+                         coordinates=data.receiver_coords, ndim=len(model.shape),
+                         dtype=model.dtype, nbpml=model.nbpml)
         rec.data[:] = recin[:]
 
-        super(AdjointOperator, self).__init__(nt, m.shape,
+        super(AdjointOperator, self).__init__(nt, model.shape_domain,
                                               stencils=Eq(v.backward, stencil),
                                               subs=subs,
                                               spc_border=max(spc_order / 2, 2),
                                               time_order=2,
                                               forward=False,
-                                              dtype=m.dtype,
+                                              dtype=model.dtype,
                                               **kwargs)
 
         # Insert source and receiver terms post-hoc
@@ -171,24 +167,22 @@ class GradientOperator(Operator):
     """
     Class to setup the gradient operator in an acoustic media
 
-    :param model: IGrid() object containing the physical parameters
+    :param model: :class:`Model` object containing the physical parameters
     :param src: None ot IShot() (not currently supported properly)
-    :param damp: Dampening coeeficents for the ABCs
     :param data: IShot() object containing the acquisition geometry and field data
     :param: recin : receiver data for the adjoint source
     :param: time_order: Time discretization order
     :param: spc_order: Space discretization order
     """
-    def __init__(self, model, damp, data, recin, u, time_order=2, spc_order=6, **kwargs):
+    def __init__(self, model, data, recin, u, time_order=2, spc_order=6, **kwargs):
         nt, nrec = data.shape
         s, h = symbols('s h')
-        v = TimeData(name="v", shape=model.get_shape_comp(), time_dim=nt,
+        m, damp = model.m, model.damp
+        v = TimeData(name="v", shape=model.shape_domain, time_dim=nt,
                      time_order=2, space_order=spc_order,
-                     save=False, dtype=damp.dtype)
-        m = DenseData(name="m", shape=model.get_shape_comp(), dtype=damp.dtype)
-        m.data[:] = model.padm()
+                     save=False, dtype=model.dtype)
         v.pad_time = False
-        grad = DenseData(name="grad", shape=m.shape, dtype=m.dtype)
+        grad = DenseData(name="grad", shape=model.shape_domain, dtype=model.dtype)
 
         # Derive stencil from symbolic equation
         if time_order == 2:
@@ -196,7 +190,7 @@ class GradientOperator(Operator):
             biharmonic = 0
             # PDE for information
             # eqn = m * v.dt2 - laplacian - damp * v.dt
-            dt = model.get_critical_dt()
+            dt = model.critical_dt
             gradient_update = Eq(grad, grad - u.dt2 * v.forward)
         else:
             laplacian = v.laplace
@@ -204,7 +198,7 @@ class GradientOperator(Operator):
             biharmonicu = - u.laplace2(1/(m**2))
             # PDE for information
             # eqn = m * v.dt2 - laplacian - s**2 / 12 * biharmonic + damp * v.dt
-            dt = 1.73 * model.get_critical_dt()
+            dt = 1.73 * model.critical_dt
             gradient_update = Eq(grad, grad -
                                  (u.dt2 -
                                   s ** 2 / 12.0 * biharmonicu) * v.forward)
@@ -223,16 +217,16 @@ class GradientOperator(Operator):
 
         # Receiver initialization
         rec = SourceLike(name="rec", npoint=nrec, nt=nt, dt=dt, h=model.get_spacing(),
-                         coordinates=data.receiver_coords, ndim=len(damp.shape),
-                         dtype=damp.dtype, nbpml=model.nbpml)
+                         coordinates=data.receiver_coords, ndim=len(model.shape),
+                         dtype=model.dtype, nbpml=model.nbpml)
         rec.data[:] = recin
-        super(GradientOperator, self).__init__(rec.nt - 1, m.shape,
+        super(GradientOperator, self).__init__(rec.nt - 1, model.shape_domain,
                                                stencils=stencils,
                                                subs=[subs, subs, {}],
                                                spc_border=max(spc_order, 2),
                                                time_order=2,
                                                forward=False,
-                                               dtype=m.dtype,
+                                               dtype=model.dtype,
                                                input_params=[m, v, damp, u, grad],
                                                **kwargs)
         # Insert receiver term post-hoc
@@ -247,28 +241,26 @@ class BornOperator(Operator):
     """
     Class to setup the linearized modelling operator in an acoustic media
 
-    :param model: IGrid() object containing the physical parameters
+    :param model: :class:`Model` object containing the physical parameters
     :param src: None ot IShot() (not currently supported properly)
-    :param damp: Dampening coeeficents for the ABCs
     :param data: IShot() object containing the acquisition geometry and field data
     :param: dmin : square slowness perturbation
     :param: recin : receiver data for the adjoint source
     :param: time_order: Time discretization order
     :param: spc_order: Space discretization order
     """
-    def __init__(self, model, src, damp, data, dmin, time_order=2, spc_order=6, **kwargs):
+    def __init__(self, model, src, data, dmin, time_order=2, spc_order=6, **kwargs):
         nt, nrec = data.shape
         nt, nsrc = src.shape
-        u = TimeData(name="u", shape=model.get_shape_comp(), time_dim=nt,
+        m, damp = model.m, model.damp
+        u = TimeData(name="u", shape=model.shape_domain, time_dim=nt,
                      time_order=2, space_order=spc_order,
-                     save=False, dtype=damp.dtype)
-        U = TimeData(name="U", shape=model.get_shape_comp(), time_dim=nt,
+                     save=False, dtype=model.dtype)
+        U = TimeData(name="U", shape=model.shape_domain, time_dim=nt,
                      time_order=2, space_order=spc_order,
-                     save=False, dtype=damp.dtype)
-        m = DenseData(name="m", shape=model.get_shape_comp(), dtype=damp.dtype)
-        m.data[:] = model.padm()
+                     save=False, dtype=model.dtype)
 
-        dm = DenseData(name="dm", shape=model.get_shape_comp(), dtype=damp.dtype)
+        dm = DenseData(name="dm", shape=model.shape_domain, dtype=model.dtype)
         dm.data[:] = model.pad(dmin)
         s, h = symbols('s h')
 
@@ -278,13 +270,13 @@ class BornOperator(Operator):
             biharmonicu = 0
             laplacianU = U.laplace
             biharmonicU = 0
-            dt = model.get_critical_dt()
+            dt = model.critical_dt
         else:
             laplacianu = u.laplace
             biharmonicu = u.laplace2(1/m)
             laplacianU = U.laplace
             biharmonicU = U.laplace2(1/m)
-            dt = 1.73 * model.get_critical_dt()
+            dt = 1.73 * model.critical_dt
             # first_eqn = m * u.dt2 - u.laplace + damp * u.dt
             # second_eqn = m * U.dt2 - U.laplace - dm* u.dt2 + damp * U.dt
 
@@ -301,20 +293,20 @@ class BornOperator(Operator):
         stencils = [Eq(u.forward, stencil1), Eq(U.forward, stencil2)]
 
         rec = SourceLike(name="rec", npoint=nrec, nt=nt, dt=dt, h=model.get_spacing(),
-                         coordinates=data.receiver_coords, ndim=len(damp.shape),
-                         dtype=damp.dtype, nbpml=model.nbpml)
+                         coordinates=data.receiver_coords, ndim=len(model.shape),
+                         dtype=model.dtype, nbpml=model.nbpml)
         source = SourceLike(name="src", npoint=nsrc, nt=nt, dt=dt, h=model.get_spacing(),
-                            coordinates=src.receiver_coords, ndim=len(damp.shape),
-                            dtype=damp.dtype, nbpml=model.nbpml)
+                            coordinates=src.receiver_coords, ndim=len(model.shape),
+                            dtype=model.dtype, nbpml=model.nbpml)
         source.data[:] = src.traces[:]
 
-        super(BornOperator, self).__init__(nt, m.shape,
+        super(BornOperator, self).__init__(nt, model.shape_domain,
                                            stencils=stencils,
                                            subs=[subs, subs],
                                            spc_border=max(spc_order, 2),
                                            time_order=2,
                                            forward=True,
-                                           dtype=m.dtype,
+                                           dtype=model.dtype,
                                            **kwargs)
 
         # Insert source and receiver terms post-hoc

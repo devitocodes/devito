@@ -6,7 +6,8 @@ from devito.dse.graph import temporaries_graph
 from devito.dse.symbolics import rewrite
 from devito.interfaces import TimeData
 from examples.acoustic.Acoustic_codegen import Acoustic_cg
-from examples.containers import IGrid, IShot
+from examples.containers import IShot
+from examples.seismic import Model
 from examples.source_type import SourceLike
 from examples.tti.tti_example import setup
 from examples.tti.tti_operators import ForwardOperator
@@ -19,18 +20,19 @@ def run_acoustic_forward(dse=None):
     dimensions = (50, 50, 50)
     origin = (0., 0., 0.)
     spacing = (10., 10., 10.)
+    nbpml = 10
 
     # True velocity
     true_vp = np.ones(dimensions) + 2.0
     true_vp[:, :, int(dimensions[0] / 2):int(dimensions[0])] = 4.5
 
-    model = IGrid(origin, spacing, true_vp)
+    model = Model(origin, spacing, true_vp, nbpml=nbpml)
 
     # Define seismic data.
     data = IShot()
     src = IShot()
     f0 = .010
-    dt = model.get_critical_dt()
+    dt = model.critical_dt
     t0 = 0.0
     tn = 250.0
     nt = int(1+(tn-t0)/dt)
@@ -75,18 +77,18 @@ def test_acoustic_rewrite_basic():
 
 def tti_operator(dse=False):
     problem = setup(dimensions=(50, 50, 50), time_order=2,
-                    space_order=4, tn=250.0, nbpml=10)
+                    space_order=4, tn=250.0)
     nt, nrec = problem.data.shape
     nsrc = problem.source.shape[1]
-    ndim = len(problem.damp.shape)
+    ndim = len(problem.model.shape)
     dt = problem.dt
     h = problem.model.get_spacing()
-    dtype = problem.damp.dtype
+    dtype = problem.model.dtype
     nbpml = problem.model.nbpml
 
-    u = TimeData(name="u", shape=problem.model.get_shape_comp(),
+    u = TimeData(name="u", shape=problem.model.shape_domain,
                  time_dim=nt, time_order=2, space_order=2, dtype=dtype)
-    v = TimeData(name="v", shape=problem.model.get_shape_comp(),
+    v = TimeData(name="v", shape=problem.model.shape_domain,
                  time_dim=nt, time_order=2, space_order=2, dtype=dtype)
 
     # Create source symbol
@@ -102,7 +104,7 @@ def tti_operator(dse=False):
                      dt=dt, h=h, ndim=ndim, nbpml=nbpml, dtype=dtype,
                      coordinates=problem.data.receiver_coords)
 
-    handle = ForwardOperator(problem.model, u, v, src, rec, problem.damp,
+    handle = ForwardOperator(problem.model, u, v, src, rec,
                              problem.data, time_order=problem.t_order,
                              spc_order=problem.s_order, save=False,
                              cache_blocking=None, dse=dse)

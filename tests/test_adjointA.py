@@ -5,7 +5,8 @@ from numpy import linalg
 from devito.logger import error
 
 from examples.acoustic.Acoustic_codegen import Acoustic_cg
-from examples.containers import IGrid, IShot
+from examples.containers import IShot
+from examples.seismic import Model
 
 
 @pytest.mark.parametrize('space_order', [4, 8, 12])
@@ -60,16 +61,15 @@ def test_acoustic(dimensions, time_order, space_order):
         error("Unknown dimension size. `dimensions` parameter"
               "must be a tuple of either size 2 or 3.")
 
-    model = IGrid(origin, spacing, true_vp)
-    # Define seismic data.
+    # Define seismic data
+    model = Model(origin, spacing, true_vp, nbpml=nbpml)
     data = IShot()
     src = IShot()
 
     f0 = .010
+    dt = model.critical_dt
     if time_order == 4:
-        dt = 1.73 * model.get_critical_dt()
-    else:
-        dt = model.get_critical_dt()
+        dt *= 1.73
     t0 = 0.0
     tn = 500.0
     nt = int(1+(tn-t0)/dt)

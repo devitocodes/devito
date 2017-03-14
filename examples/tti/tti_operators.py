@@ -7,15 +7,14 @@ from devito.operator import Operator
 from devito.stencilkernel import StencilKernel
 
 
-def ForwardOperator(model, u, v, src, rec, damp, data, time_order=2,
+def ForwardOperator(model, u, v, src, rec, data, time_order=2,
                     spc_order=4, save=False, u_ini=None, legacy=True,
                     **kwargs):
     """
     Constructor method for the forward modelling operator in an acoustic media
 
-    :param model: IGrid() object containing the physical parameters
+    :param model: :class:`Model` object containing the physical parameters
     :param src: None ot IShot() (not currently supported properly)
-    :param damp: Dampening coeeficents for the ABCs
     :param data: IShot() object containing the acquisition geometry and field data
     :param: time_order: Time discretization order
     :param: spc_order: Space discretization order
@@ -23,45 +22,11 @@ def ForwardOperator(model, u, v, src, rec, damp, data, time_order=2,
     """
     nt, nrec = data.shape
     nt, nsrc = src.shape
-    dt = model.get_critical_dt()
-
-    m = DenseData(name="m", shape=model.get_shape_comp(),
-                  dtype=damp.dtype, space_order=spc_order)
-    m.data[:] = model.padm()
-
+    dt = model.critical_dt
+    m, damp = model.m, model.damp
+    epsilon, delta, theta, phi = model.epsilon, model.delta, model.theta, model.phi
     parm = [m, damp, u, v]
-
-    if model.epsilon is not None:
-        epsilon = DenseData(name="epsilon", shape=model.get_shape_comp(),
-                            dtype=damp.dtype, space_order=spc_order)
-        epsilon.data[:] = model.pad(model.epsilon)
-        parm += [epsilon]
-    else:
-        epsilon = 1
-
-    if model.delta is not None:
-        delta = DenseData(name="delta", shape=model.get_shape_comp(),
-                          dtype=damp.dtype, space_order=spc_order)
-        delta.data[:] = model.pad(model.delta)
-        parm += [delta]
-    else:
-        delta = 1
-
-    if model.theta is not None:
-        theta = DenseData(name="theta", shape=model.get_shape_comp(),
-                          dtype=damp.dtype, space_order=spc_order)
-        theta.data[:] = model.pad(model.theta)
-        parm += [theta]
-    else:
-        theta = 0
-
-    if model.phi is not None:
-        phi = DenseData(name="phi", shape=model.get_shape_comp(),
-                        dtype=damp.dtype, space_order=spc_order)
-        phi.data[:] = model.pad(model.phi)
-        parm += [phi]
-    else:
-        phi = 0
+    parm += [p for p in [epsilon, delta, theta, phi] if isinstance(p, DenseData)]
 
     s, h = symbols('s h')
 
@@ -69,7 +34,7 @@ def ForwardOperator(model, u, v, src, rec, damp, data, time_order=2,
 
     ang0 = cos(theta)
     ang1 = sin(theta)
-    if len(m.shape) == 3:
+    if len(model.shape) == 3:
         ang2 = cos(phi)
         ang3 = sin(phi)
 
@@ -157,7 +122,7 @@ def ForwardOperator(model, u, v, src, rec, damp, data, time_order=2,
     if legacy:
         kwargs.pop('dle', None)
 
-        op = Operator(nt, m.shape, stencils=stencils, subs=[subs, subs],
+        op = Operator(nt, model.shape_domain, stencils=stencils, subs=[subs, subs],
                       spc_border=spc_order, time_order=time_order,
                       forward=True, dtype=m.dtype, input_params=parm,
                       **kwargs)

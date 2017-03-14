@@ -4,7 +4,8 @@ from numpy import linalg
 
 from devito.logger import log
 from examples.acoustic.Acoustic_codegen import Acoustic_cg
-from examples.containers import IGrid, IShot
+from examples.containers import IShot
+from examples.seismic import Model
 from examples.tti.TTI_codegen import TTI_cg
 
 
@@ -50,8 +51,8 @@ def test_tti(dimensions, space_order):
     # True velocity
     true_vp = np.ones(dimensions) + .5
 
-    model = IGrid(origin, spacing,
-                  true_vp,
+    model = Model(origin, spacing,
+                  true_vp, nbpml=nbpml,
                   rho=0.0 * true_vp,
                   epsilon=0.0 * true_vp,
                   delta=0.0 * true_vp,
@@ -62,7 +63,7 @@ def test_tti(dimensions, space_order):
     src = IShot()
 
     f0 = .010
-    dt = model.get_critical_dt()
+    dt = model.critical_dt
     t0 = 0.0
     tn = 350.0
     nt = int(1+(tn-t0)/dt)

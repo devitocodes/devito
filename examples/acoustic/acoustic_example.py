@@ -2,7 +2,8 @@ import numpy as np
 
 from devito.logger import info
 from examples.acoustic.Acoustic_codegen import Acoustic_cg
-from examples.containers import IGrid, IShot
+from examples.containers import IShot
+from examples.seismic import Model
 
 
 # Velocity models
@@ -43,16 +44,15 @@ def run(dimensions=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=1000.0,
 
     dm = 1. / (true_vp * true_vp) - 1. / (initial_vp * initial_vp)
 
-    model = IGrid(origin, spacing, true_vp)
+    model = Model(origin, spacing, true_vp, nbpml=nbpml)
 
     # Define seismic data.
     data = IShot()
     src = IShot()
     f0 = .010
+    dt = model.critical_dt
     if time_order == 4:
-        dt = 1.73 * model.get_critical_dt()
-    else:
-        dt = model.get_critical_dt()
+        dt *= 1.73
     t0 = 0.0
     nt = int(1+(tn-t0)/dt)
 
