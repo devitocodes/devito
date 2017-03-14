@@ -1,4 +1,4 @@
-from sympy import Function, Matrix, symbols
+from sympy import Eq, Function, Matrix, symbols
 from sympy.abc import h
 
 from collections import OrderedDict
@@ -164,3 +164,33 @@ class PointData(DenseData):
         subs = OrderedDict(zip(self.point_symbols, self.coordinate_bases))
         return sum([expr.subs(vsub) * b.subs(subs)
                     for b, vsub in zip(self.coefficients, idx_subs)])
+
+    def inject(self, field, expr, offset=0):
+        """Symbol for injection of an expression onto a grid
+
+        :param expr: The grid field into which to inject
+        :param expr: The expression to inject
+        :param offset: Additional offset from the boundary for
+        absorbing boundary conditions
+        """
+        expr = indexify(expr)
+        field = indexify(field)
+        variables = list(retrieve_indexed(expr)) + [field]
+
+        # List of indirection indices for all adjacent grid points
+        index_matrix = [tuple(idx + ii + offset for ii, idx
+                              in zip(inc, self.coordinate_indices))
+                        for inc in self.point_increments]
+
+        # Generate index substituions for all grid variables
+        idx_subs = []
+        for i, idx in enumerate(index_matrix):
+            v_subs = [(v, v.base[v.indices[:-self.ndim] + idx])
+                      for v in variables]
+            idx_subs += [OrderedDict(v_subs)]
+
+        # Substitute coordinate base symbols into the coefficients
+        subs = OrderedDict(zip(self.point_symbols, self.coordinate_bases))
+        return [Eq(field.subs(vsub),
+                   field.subs(vsub) + expr.subs(subs) * b.subs(subs))
+                for b, vsub in zip(self.coefficients, idx_subs)]

@@ -1,6 +1,6 @@
 import numpy as np
 import pytest
-from sympy import Eq
+from sympy import Eq, Function
 from sympy.abc import h
 
 from devito import Operator, DenseData, PointData
@@ -52,6 +52,6 @@ def test_inject_2d(a, points_horizontal):
     points = points_horizontal
     spacing = a.data[1, 1]
     a.data[:] = 0.
-    expr = Eq(points, points.inject(1.))
+    expr = points.inject(a, Function('FLOAT')(1.))
     Operator(expr, dse=None, dle=None, subs={h: spacing})(t=1)
     assert np.allclose(a.data[1:-1, 4:6], 1., rtol=1.e-6)
