@@ -20,7 +20,7 @@ from devito.dimension import t, x, y, z
 from devito.dse.extended_sympy import bhaskara_cos, bhaskara_sin
 from devito.dse.graph import Temporary, temporaries_graph
 from devito.dse.inspection import (collect_aliases, estimate_cost, estimate_memory,
-                                   is_binary_op, terminals)
+                                   is_binary_op, is_terminal_op, terminals)
 from devito.dse.manipulation import (collect_nested, flip_indices, xreplace_constrained,
                                      xreplace_recursive, unevaluate_arithmetic)
 from devito.interfaces import ScalarFunction, TensorFunction
@@ -155,6 +155,16 @@ class Rewriter(object):
     """
 
     """
+    Name conventions for new temporaries
+    """
+    conventions = {
+        'cse': 't',
+        'time-invariant': 'ti',
+        'time-dependent': 'td',
+        'split': 'ts'
+    }
+
+    """
     Track what options trigger a given transformation.
     """
     triggers = {
@@ -232,7 +242,8 @@ class Rewriter(object):
         Perform common subexpression elimination.
         """
 
-        temporaries, leaves = tree_cse(state.exprs, numbered_symbols(_temp_prefix))
+        template = self.conventions['cse']
+        temporaries, leaves = tree_cse(state.exprs, numbered_symbols(template))
         for i in range(len(state.exprs)):
             leaves[i] = Eq(state.exprs[i].lhs, leaves[i].rhs)
 
@@ -344,7 +355,7 @@ class Rewriter(object):
         graph = temporaries_graph(state.exprs)
         rule = graph.time_invariant
         space_indices = graph.space_indices
-        template = lambda i: TensorFunction(name="ti%d" % i, shape=graph.space_shape,
+        template = lambda i: TensorFunction(name="TI%d" % i, shape=graph.space_shape,
                                             dimensions=space_indices).indexed
 
         # What expressions is it worth transforming (cm=cost model)?
@@ -417,30 +428,66 @@ class Rewriter(object):
         to a sum of canonical products (e.g., if ``u_i`` appeared in denominators).
         """
 
+        # Split the time-dependent sub-expressions
         graph = temporaries_graph(state.exprs)
         rule = lambda i: i.is_Number or not graph.time_invariant(i)
-        cm = lambda e: estimate_cost(e, True) > 0
-
         c = 0
+
+        def cm(e):
+            if e.is_Mul and is_terminal_op(e):
+                # Do not split individual products
+                return False
+            return estimate_cost(e) > 0
+
         processed = []
         for expr in state.exprs:
-            if not (expr.rhs.is_Add or expr.rhs.is_Mul):
-                processed.append(expr)
-                continue
-
-            flag = False
             processing = expr
-            while not flag:
-                make = lambda i: ScalarFunction(name="td%d" % (c + len(i))).indexify()
+            while True:
+                if not (processing.rhs.is_Add or processing.rhs.is_Mul):
+                    break
+                template = self.conventions['time-dependent'] + "%d"
+                make = lambda i: ScalarFunction(name=template % (c + len(i))).indexify()
                 handle, flag, mapped = xreplace_constrained(processing, make, rule, cm)
-                if not flag:
+                if flag or not mapped:
+                    break
+                else:
+                    processing = handle
                     for k, v in mapped.items():
                         processed.append(Eq(k, v))
-                        #graph[k] = Temporary(k, v, readby=[handle.lhs])
+                        graph[k] = Temporary(k, v)
                         c += 1
-                        processing = handle
-                from IPython import embed; embed()
             processed.append(processing)
+
+        # Split the time-invariant sub-expressions
+        rule = lambda i: not i.is_Number and graph.time_invariant(i)
+        cm = lambda e: estimate_cost(e) > 0
+        c = 0
+        processed, exprs = [], list(processed)
+        for expr in exprs:
+            template = self.conventions['time-invariant'] + "%d"
+            make = lambda i: ScalarFunction(name=template % (c + len(i))).indexify()
+            handle, flag, mapped = xreplace_constrained(expr, make, rule, cm)
+            if flag:
+                processed.append(expr)
+            else:
+                processed.extend([Eq(k, v) for k, v in mapped.items()] + [handle])
+                c += len(mapped)
+
+        # Split excessively long expressions (improves compilation speed)
+        c = 0
+        processed, exprs = [], list(processed)
+        for expr in exprs:
+            if len(terminals(expr)) < self.thresholds['max_operands'] or\
+                    not (expr.rhs.is_Add or expr.rhs.is_Mul):
+                processed.append(expr)
+                continue
+            chunks = expr.rhs.args
+            template = self.conventions['split'] + "%d"
+            targets = [Symbol(template % (c + i)) for i in range(len(chunks))]
+            chunks = [Eq(k, v) for k, v in zip(targets, chunks)]
+            chunks.append(Eq(expr.lhs, expr.rhs.func(*targets)))
+            processed.extend(chunks)
+            c += len(chunks)
 
         return {'exprs': processed}
 
