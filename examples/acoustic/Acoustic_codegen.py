@@ -50,7 +50,7 @@ class Acoustic_cg(object):
                              coordinates=self.data.receiver_coords)
 
             # Create the forward wavefield
-            u = TimeData(name="u", shape=self.model.shape_pml, time_dim=nt,
+            u = TimeData(name="u", shape=self.model.shape_domain, time_dim=nt,
                          time_order=2, space_order=self.s_order, save=False,
                          dtype=dtype)
             fw = ForwardOperator(self.model, u, src, rec, self.data,
@@ -85,7 +85,7 @@ class Acoustic_cg(object):
             cache_blocking = self.at.block_size
 
         # Create the forward wavefield
-        u = TimeData(name="u", shape=self.model.shape_pml, time_dim=nt,
+        u = TimeData(name="u", shape=self.model.shape_domain, time_dim=nt,
                      time_order=2, space_order=self.s_order, save=save,
                      dtype=self.model.dtype)
         u.pad_time = save

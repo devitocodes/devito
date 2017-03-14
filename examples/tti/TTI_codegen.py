@@ -36,11 +36,11 @@ class TTI_cg:
         # uses space_order/2 for the first derivatives to
         # have spc_order second derivatives for consistency
         # with the acoustic kernel
-        u = TimeData(name="u", shape=self.model.shape_pml,
+        u = TimeData(name="u", shape=self.model.shape_domain,
                      time_dim=nt, time_order=self.t_order,
                      space_order=self.s_order/2,
                      save=save, dtype=dtype)
-        v = TimeData(name="v", shape=self.model.shape_pml,
+        v = TimeData(name="v", shape=self.model.shape_domain,
                      time_dim=nt, time_order=self.t_order,
                      space_order=self.s_order/2,
                      save=save, dtype=dtype)
@@ -75,11 +75,11 @@ class TTI_cg:
             # uses space_order/2 for the first derivatives to
             # have spc_order second derivatives for consistency
             # with the acoustic kernel
-            u = TimeData(name="u", shape=self.model.shape_pml,
+            u = TimeData(name="u", shape=self.model.shape_domain,
                          time_dim=nt, time_order=self.t_order,
                          space_order=self.s_order/2,
                          save=save, dtype=dtype)
-            v = TimeData(name="v", shape=self.model.shape_pml,
+            v = TimeData(name="v", shape=self.model.shape_domain,
                          time_dim=nt, time_order=self.t_order,
                          space_order=self.s_order/2,
                          save=save, dtype=dtype)

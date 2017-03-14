@@ -49,7 +49,7 @@ def ForwardOperator(model, u, src, rec, data, time_order=2, spc_order=6,
     if legacy:
         kwargs.pop('dle', None)
 
-        op = Operator(nt, model.shape_pml, stencils=Eq(u.forward, stencil), subs=subs,
+        op = Operator(nt, model.shape_domain, stencils=Eq(u.forward, stencil), subs=subs,
                       spc_border=max(spc_order / 2, 2), time_order=2, forward=True,
                       dtype=model.dtype, **kwargs)
 
@@ -106,7 +106,7 @@ class AdjointOperator(Operator):
         nt, nrec = data.shape
         s, h = symbols('s h')
         m, damp = model.m, model.damp
-        v = TimeData(name="v", shape=model.shape_pml, time_dim=nt,
+        v = TimeData(name="v", shape=model.shape_domain, time_dim=nt,
                      time_order=2, space_order=spc_order,
                      save=False, dtype=model.dtype)
         v.pad_time = False
@@ -143,7 +143,7 @@ class AdjointOperator(Operator):
                          dtype=model.dtype, nbpml=model.nbpml)
         rec.data[:] = recin[:]
 
-        super(AdjointOperator, self).__init__(nt, model.shape_pml,
+        super(AdjointOperator, self).__init__(nt, model.shape_domain,
                                               stencils=Eq(v.backward, stencil),
                                               subs=subs,
                                               spc_border=max(spc_order / 2, 2),
@@ -177,11 +177,11 @@ class GradientOperator(Operator):
         nt, nrec = data.shape
         s, h = symbols('s h')
         m, damp = model.m, model.damp
-        v = TimeData(name="v", shape=model.shape_pml, time_dim=nt,
+        v = TimeData(name="v", shape=model.shape_domain, time_dim=nt,
                      time_order=2, space_order=spc_order,
                      save=False, dtype=model.dtype)
         v.pad_time = False
-        grad = DenseData(name="grad", shape=model.shape_pml, dtype=model.dtype)
+        grad = DenseData(name="grad", shape=model.shape_domain, dtype=model.dtype)
 
         # Derive stencil from symbolic equation
         if time_order == 2:
@@ -219,7 +219,7 @@ class GradientOperator(Operator):
                          coordinates=data.receiver_coords, ndim=len(model.shape),
                          dtype=model.dtype, nbpml=model.nbpml)
         rec.data[:] = recin
-        super(GradientOperator, self).__init__(rec.nt - 1, model.shape_pml,
+        super(GradientOperator, self).__init__(rec.nt - 1, model.shape_domain,
                                                stencils=stencils,
                                                subs=[subs, subs, {}],
                                                spc_border=max(spc_order, 2),
@@ -252,14 +252,14 @@ class BornOperator(Operator):
         nt, nrec = data.shape
         nt, nsrc = src.shape
         m, damp = model.m, model.damp
-        u = TimeData(name="u", shape=model.shape_pml, time_dim=nt,
+        u = TimeData(name="u", shape=model.shape_domain, time_dim=nt,
                      time_order=2, space_order=spc_order,
                      save=False, dtype=model.dtype)
-        U = TimeData(name="U", shape=model.shape_pml, time_dim=nt,
+        U = TimeData(name="U", shape=model.shape_domain, time_dim=nt,
                      time_order=2, space_order=spc_order,
                      save=False, dtype=model.dtype)
 
-        dm = DenseData(name="dm", shape=model.shape_pml, dtype=model.dtype)
+        dm = DenseData(name="dm", shape=model.shape_domain, dtype=model.dtype)
         dm.data[:] = model.pad(dmin)
         s, h = symbols('s h')
 
@@ -299,7 +299,7 @@ class BornOperator(Operator):
                             dtype=model.dtype, nbpml=model.nbpml)
         source.data[:] = src.traces[:]
 
-        super(BornOperator, self).__init__(nt, model.shape_pml,
+        super(BornOperator, self).__init__(nt, model.shape_domain,
                                            stencils=stencils,
                                            subs=[subs, subs],
                                            spc_border=max(spc_order, 2),

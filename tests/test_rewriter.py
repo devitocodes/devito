@@ -86,9 +86,9 @@ def tti_operator(dse=False):
     dtype = problem.model.dtype
     nbpml = problem.model.nbpml
 
-    u = TimeData(name="u", shape=problem.model.shape_pml,
+    u = TimeData(name="u", shape=problem.model.shape_domain,
                  time_dim=nt, time_order=2, space_order=2, dtype=dtype)
-    v = TimeData(name="v", shape=problem.model.shape_pml,
+    v = TimeData(name="v", shape=problem.model.shape_domain,
                  time_dim=nt, time_order=2, space_order=2, dtype=dtype)
 
     # Create source symbol
