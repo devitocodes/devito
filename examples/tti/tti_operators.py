@@ -122,7 +122,7 @@ def ForwardOperator(model, u, v, src, rec, data, time_order=2,
     if legacy:
         kwargs.pop('dle', None)
 
-        op = Operator(nt, model.shape_pml, stencils=stencils, subs=[subs, subs],
+        op = Operator(nt, model.shape_domain, stencils=stencils, subs=[subs, subs],
                       spc_border=spc_order, time_order=time_order,
                       forward=True, dtype=m.dtype, input_params=parm,
                       **kwargs)

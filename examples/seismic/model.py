@@ -59,11 +59,11 @@ class Model(object):
         self.dtype = dtype
 
         # Create square slowness of the wave as symbol `m`
-        self.m = DenseData(name="m", shape=self.shape_pml, dtype=self.dtype)
+        self.m = DenseData(name="m", shape=self.shape_domain, dtype=self.dtype)
         self.m.data[:] = self.pad(1 / (self.vp * self.vp))
 
         # Create dampening field as symbol `damp`
-        self.damp = DenseData(name="damp", shape=self.shape_pml, dtype=self.dtype)
+        self.damp = DenseData(name="damp", shape=self.shape_domain, dtype=self.dtype)
         damp_boundary(self.damp.data, nbpml, spacing=self.get_spacing())
 
         # Additional parameter fields for TTI operators
@@ -71,7 +71,7 @@ class Model(object):
         self.scale = 1.
 
         if epsilon is not None:
-            self.epsilon = DenseData(name="epsilon", shape=self.shape_pml,
+            self.epsilon = DenseData(name="epsilon", shape=self.shape_domain,
                                      dtype=self.dtype)
             self.epsilon.data[:] = self.pad(1 + 2 * epsilon)
             # Maximum velocity is scale*max(vp) if epsilon > 0
@@ -81,21 +81,21 @@ class Model(object):
             self.epsilon = 1.
 
         if delta is not None:
-            self.delta = DenseData(name="delta", shape=self.shape_pml,
+            self.delta = DenseData(name="delta", shape=self.shape_domain,
                                    dtype=self.dtype)
             self.delta.data[:] = self.pad(np.sqrt(1 + 2 * delta))
         else:
             self.delta = None
 
         if theta is not None:
-            self.theta = DenseData(name="theta", shape=self.shape_pml,
+            self.theta = DenseData(name="theta", shape=self.shape_domain,
                                    dtype=self.dtype)
             self.theta.data[:] = self.pad(theta)
         else:
             self.theta = None
 
         if phi is not None:
-            self.phi = DenseData(name="phi", shape=self.shape_pml,
+            self.phi = DenseData(name="phi", shape=self.shape_domain,
                                  dtype=self.dtype)
             self.phi.data[:] = self.pad(phi)
         else:
@@ -103,12 +103,12 @@ class Model(object):
 
     @property
     def shape(self):
-        """Original shape of the model without PML layers"""
+        """Original shape of the model, without PML layers"""
         return self.vp.shape
 
     @property
-    def shape_pml(self):
-        """Computational shape of the model with PML layers"""
+    def shape_domain(self):
+        """Computational shape of the model domain, with PML layers"""
         return tuple(d + 2*self.nbpml for d in self.shape)
 
     @property
