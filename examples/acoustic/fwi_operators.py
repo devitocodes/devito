@@ -69,7 +69,7 @@ def ForwardOperator(model, u, src, rec, data, time_order=2, spc_order=6,
 
         # Create stencil expressions for operator, source and receivers
         eqn = Eq(u.forward, stencil)
-        src_add = src.point2grid(u, m, u_t=t, p_t=time)
+        src_add = src.point2grid(u, m, u_t=t + 1, p_t=time)
         rec_read = Eq(rec, rec.grid2point(u))
         stencils = [eqn] + src_add + [rec_read]
 
@@ -79,75 +79,73 @@ def ForwardOperator(model, u, src, rec, data, time_order=2, spc_order=6,
     return op
 
 
-class AdjointOperator(Operator):
+def AdjointOperator(model, v, srca, rec, data, time_order=2, spc_order=6,
+                    save=False, u_ini=None, legacy=True, **kwargs):
     """
     Class to setup the adjoint modelling operator in an acoustic media
 
     :param model: :class:`Model` object containing the physical parameters
-    :param src: None or IShot() (not currently supported properly)
+    :param source: None or IShot() (not currently supported properly)
     :param data: IShot() object containing the acquisition geometry and field data
-    :param: recin : receiver data for the adjoint source
     :param: time_order: Time discretization order
     :param: spc_order: Space discretization order
     """
-    def __init__(self, model, data, src, recin, time_order=2, spc_order=6, **kwargs):
-        nt, nrec = data.shape
-        s, h = symbols('s h')
-        m, damp = model.m, model.damp
-        v = TimeData(name="v", shape=model.shape_domain, time_dim=nt,
-                     time_order=2, space_order=spc_order,
-                     save=False, dtype=model.dtype)
-        v.pad_time = False
-        # Derive stencil from symbolic equation
-        if time_order == 2:
-            laplacian = v.laplace
-            biharmonic = 0
-            # PDE for information
-            # eqn = m * v.dt2 - laplacian - damp * v.dt
-            dt = model.critical_dt
-        else:
-            laplacian = v.laplace
-            biharmonic = v.laplace2(1/m)
-            # PDE for information
-            # eqn = m * v.dt2 - laplacian - s**2 / 12 * biharmonic + damp * v.dt
-            dt = 1.73 * model.critical_dt
+    nt = data.shape[0]
+    s, h = symbols('s h')
+    m, damp = model.m, model.damp
+    # Derive stencil from symbolic equation
+    if time_order == 2:
+        laplacian = v.laplace
+        biharmonic = 0
+        # PDE for information
+        # eqn = m * u.dt2 - laplacian + damp * u.dt
+        dt = model.critical_dt
+    else:
+        laplacian = v.laplace
+        biharmonic = v.laplace2(1/m)
+        # PDE for information
+        # eqn = m * u.dt2 - laplacian - s**2 / 12 * biharmonic + damp * u.dt
+        dt = 1.73 * model.critical_dt
 
-        # Create the stencil by hand instead of calling numpy solve for speed purposes
-        # Simple linear solve of a v(t+dt) + b u(t) + c v(t-dt) = L for v(t-dt)
-        stencil = 1 / (2 * m + s * damp) * \
-            (4 * m * v + (s * damp - 2 * m) *
-             v.forward + 2 * s**2 * (laplacian + s ** 2 / 12.0 * biharmonic))
+    # Create the stencil by hand instead of calling numpy solve for speed purposes
+    # Simple linear solve of a u(t+dt) + b u(t) + c u(t-dt) = L for u(t+dt)
+    stencil = 1 / (2 * m + s * damp) * (
+        4 * m * v + (s * damp - 2 * m) * v.forward +
+        2 * s**2 * (laplacian + s**2 / 12 * biharmonic))
+    # Add substitutions for spacing (temporal and spatial)
+    subs = {s: dt, h: model.get_spacing()}
 
-        # Add substitutions for spacing (temporal and spatial)
-        subs = {s: dt, h: model.get_spacing()}
-        # Source and receiver initialization
-        srca = SourceLike(name="srca", npoint=src.traces.shape[1],
-                          nt=nt, dt=dt, h=model.get_spacing(),
-                          coordinates=src.receiver_coords,
-                          ndim=len(model.shape), dtype=model.dtype,
-                          nbpml=model.nbpml)
-        rec = SourceLike(name="rec", npoint=nrec, nt=nt, dt=dt, h=model.get_spacing(),
-                         coordinates=data.receiver_coords, ndim=len(model.shape),
-                         dtype=model.dtype, nbpml=model.nbpml)
-        rec.data[:] = recin[:]
+    if legacy:
+        kwargs.pop('dle', None)
 
-        super(AdjointOperator, self).__init__(nt, model.shape_domain,
-                                              stencils=Eq(v.backward, stencil),
-                                              subs=subs,
-                                              spc_border=max(spc_order / 2, 2),
-                                              time_order=2,
-                                              forward=False,
-                                              dtype=model.dtype,
-                                              **kwargs)
+        op = Operator(nt, model.shape_domain, stencils=Eq(v.backward, stencil), subs=subs,
+                      spc_border=max(spc_order / 2, 2), time_order=2, forward=True,
+                      dtype=model.dtype, **kwargs)
 
         # Insert source and receiver terms post-hoc
-        self.input_params += [srca, srca.coordinates, rec, rec.coordinates]
-        self.propagator.time_loop_stencils_a = rec.add(m, v) + srca.read(v)
-        self.output_params = [srca]
-        self.propagator.add_devito_param(srca)
-        self.propagator.add_devito_param(srca.coordinates)
-        self.propagator.add_devito_param(rec)
-        self.propagator.add_devito_param(rec.coordinates)
+        op.input_params += [srca, srca.coordinates, rec, rec.coordinates]
+        op.output_params += [rec]
+        op.propagator.time_loop_stencils_a = srca.read(v) + rec.add(m, v)
+        op.propagator.add_devito_param(srca)
+        op.propagator.add_devito_param(srca.coordinates)
+        op.propagator.add_devito_param(rec)
+        op.propagator.add_devito_param(rec.coordinates)
+
+    else:
+        dse = kwargs.get('dse', 'advanced')
+        dle = kwargs.get('dle', 'advanced')
+        compiler = kwargs.get('compiler', None)
+
+        # Create stencil expressions for operator, source and receivers
+        eqn = Eq(v.backward, stencil)
+        src_read = Eq(srca, srca.grid2point(v))
+        rec_add = rec.point2grid(v, m, u_t=t, p_t=time)
+        stencils = [eqn] + rec_add + [src_read]
+
+        op = StencilKernel(stencils=stencils, subs=subs, dse=dse, dle=dle,
+                           compiler=compiler, forward=False)
+
+    return op
 
 
 class GradientOperator(Operator):
