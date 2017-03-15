@@ -107,12 +107,50 @@ class Acoustic_cg(object):
             summary = fw.apply(autotune=auto_tuning)
             return rec.data, u, summary.gflopss, summary.oi, summary.timings
 
-    def Adjoint(self, rec, cache_blocking=None):
-        adj = AdjointOperator(self.model, self.data, self.source, rec,
+    def Adjoint(self, recin, cache_blocking=None, auto_tuning=False,
+                dse='advanced', dle='advanced', compiler=None, u_ini=None, legacy=True):
+        nt, nrec = self.data.shape
+        nsrc = self.source.shape[1]
+        ndim = len(self.model.shape)
+        h = self.model.get_spacing()
+        dtype = self.model.dtype
+        nbpml = self.model.nbpml
+
+        # Create source symbol
+        p_src = Dimension('p_src', size=nsrc)
+        srca = SourceLike(name="srca", dimensions=[time, p_src], npoint=nsrc, nt=nt,
+                          dt=self.dt, h=h, ndim=ndim, nbpml=nbpml, dtype=dtype,
+                          coordinates=self.source.receiver_coords)
+
+        # Create receiver symbol
+        p_rec = Dimension('p_rec', size=nrec)
+        rec = SourceLike(name="rec", dimensions=[time, p_rec], npoint=nrec, nt=nt,
+                         dt=self.dt, h=h, ndim=ndim, nbpml=nbpml, dtype=dtype,
+                         coordinates=self.data.receiver_coords)
+        rec.data[:] = recin[:]
+
+        if legacy and auto_tuning:
+            cache_blocking = self.at.block_size
+
+        # Create the forward wavefield
+        v = TimeData(name="v", shape=self.model.shape_domain, time_dim=nt,
+                     time_order=2, space_order=self.s_order,
+                     dtype=self.model.dtype)
+
+        # Execute operator and return wavefield and receiver data
+        adj = AdjointOperator(self.model, v, srca, rec, self.data,
                               time_order=self.t_order, spc_order=self.s_order,
-                              cache_blocking=cache_blocking)
-        v = adj.apply()[0]
-        return v.data
+                              cache_blocking=cache_blocking, dse=dse,
+                              dle=dle, compiler=compiler, profile=True,
+                              legacy=legacy)
+
+        if legacy:
+            adj.apply()
+            return (srca.data, v, adj.propagator.gflopss,
+                    adj.propagator.oi, adj.propagator.timings)
+        else:
+            summary = adj.apply(autotune=auto_tuning)
+            return srca.data, v, summary.gflopss, summary.oi, summary.timings
 
     def Gradient(self, rec, u, cache_blocking=None):
         grad_op = GradientOperator(self.model, self.data, rec, u,
