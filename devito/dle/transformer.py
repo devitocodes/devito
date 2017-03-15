@@ -242,7 +242,7 @@ class Rewriter(object):
     thresholds = {
         'collapse': 32,  # Available physical cores
         'elemental': 30,  # Operations
-        'max_fission': 80,  # Statements
+        'max_fission': 8000000,  # Statements
         'min_fission': 1  # Statements
     }
 

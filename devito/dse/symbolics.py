@@ -12,7 +12,7 @@ from __future__ import absolute_import
 from collections import OrderedDict, Sequence
 from time import time
 
-from sympy import (Eq, Indexed, IndexedBase, S, Symbol, cos,
+from sympy import (Eq, Indexed, IndexedBase, Symbol, cos,
                    numbered_symbols, preorder_traversal, sin)
 from sympy.simplify.cse_main import tree_cse
 
@@ -21,7 +21,7 @@ from devito.dse.extended_sympy import bhaskara_cos, bhaskara_sin
 from devito.dse.graph import Temporary, temporaries_graph
 from devito.dse.inspection import (collect_aliases, estimate_cost, estimate_memory,
                                    is_binary_op, is_terminal_op, terminals)
-from devito.dse.manipulation import (collect_nested, flip_indices, xreplace_constrained,
+from devito.dse.manipulation import (collect_nested, xreplace_constrained,
                                      xreplace_recursive, unevaluate_arithmetic)
 from devito.interfaces import ScalarFunction, TensorFunction
 from devito.logger import dse, dse_warning
@@ -97,11 +97,11 @@ class State(object):
 
     def __init__(self, exprs):
         self.exprs = exprs
-        self.mapper = OrderedDict()
+        self.aliases = OrderedDict()
 
-    def update(self, exprs=None, mapper=None):
+    def update(self, exprs=None, aliases=None):
         self.exprs = exprs or self.exprs
-        self.mapper = mapper or self.mapper
+        self.aliases = aliases or self.aliases
 
     @property
     def time_invariants(self):
@@ -159,6 +159,7 @@ class Rewriter(object):
     """
     conventions = {
         'cse': 't',
+        'redundancy': 'r',
         'time-invariant': 'ti',
         'time-dependent': 'td',
         'split': 'ts'
@@ -170,21 +171,22 @@ class Rewriter(object):
     triggers = {
         '_cse': ('basic', 'advanced'),
         '_factorize': ('factorize', 'advanced'),
-        '_optimize_trigonometry': ('approx-trigonometry', 'advanced'),
-        '_replace_time_invariants': ('glicm', 'advanced'),
+        '_optimize_trigonometry': ('approx-trigonometry',),
+        '_capture_redundancies': ('glicm', 'advanced'),
         '_split_expressions': ('split', 'devito3.0')  # TODO: -> 'advanced' upon release
-        '_capture_aliases': ('aliases', 'advanced')
     }
 
     """
     Bag of thresholds, to be used to trigger or prevent certain transformations.
     """
     thresholds = {
-        'expensive_expression': 100,
-        'max_operands': 40,
+        'min-cost-space-hoist': 10,
+        'min-cost-time-hoist': 100,
+        'min-cost-factorize': 100,
+        'max-operands': 40,
     }
 
-    def __init__(self, exprs, profile=False):
+    def __init__(self, exprs, profile=True):
         self.exprs = exprs
 
         self.profile = profile
@@ -196,10 +198,11 @@ class Rewriter(object):
 
         self._cse(state, mode=mode)
         self._optimize_trigonometry(state, mode=mode)
-        self._replace_time_invariants(state, mode=mode)
-        self._factorize(state, mode=mode)
         self._split_expressions(state, mode=mode)
-        #self._capture_aliases(state, mode=mode)
+        self._factorize(state, mode=mode)
+        for _ in range(2):
+            self._capture_redundancies(state, mode=mode)
+        from IPython import embed; embed()
 
         self._finalize(state)
 
@@ -224,7 +227,7 @@ class Rewriter(object):
             handle = collect_nested(expr)
             cost_handle = estimate_cost(handle)
 
-            if cost_handle >= self.thresholds['expensive_expression']:
+            if cost_handle >= self.thresholds['min-cost-factorize']:
                 handle_prev = handle
                 cost_prev = estimate_cost(expr)
                 while cost_handle < cost_prev:
@@ -336,80 +339,86 @@ class Rewriter(object):
         return {'exprs': processed}
 
     @dse_pass
-    def _replace_time_invariants(self, state, **kwargs):
+    def _capture_redundancies(self, state, **kwargs):
         """
-        Create a new expr' given expr where the longest time-invariant
-        sub-expressions are replaced by temporaries. A mapper from the
-        introduced temporaries to the corresponding time-invariant
-        sub-expressions is also returned.
+        Search for redundancies across the expressions and expose them
+        to the later stages of the optimisation pipeline by introducing
+        new temporaries of suitable rank.
+
+        Two type of redundancies are sought:
+
+            * Time-invariants, and
+            * Across different space points
 
         Examples
         ========
+        Let ``t`` be the time dimension, ``x, y, z`` the space dimensions. Then:
 
-        (a+b)*c[t] + s*d[t] + v*(d + e[t] + r)
-            --> (t1*c[t] + s*d[t] + v*(e[t] + t2), {t1: (a+b), t2: (d+r)})
-        (a*b[t] + c*d[t])*v[t]
-            --> ((a*b[t] + c*d[t])*v[t], {})
+        1) temp = (a[x,y,z]+b[x,y,z])*c[t,x,y,z]
+           >>>
+           ti[x,y,z] = a[x,y,z] + b[x,y,z]
+           temp = ti[x,y,z]*c[t,x,y,z]
+
+        2) temp1 = 2.0*a[x,y,z]*b[x,y,z]
+           temp2 = 3.0*a[x,y,z+1]*b[x,y,z+1]
+           >>>
+           ti[x,y,z] = a[x,y,z]*b[x,y,z]
+           temp1 = 2.0*ti[x,y,z]
+           temp2 = 3.0*ti[x,y,z+1]
         """
 
         graph = temporaries_graph(state.exprs)
-        rule = graph.time_invariant
         space_indices = graph.space_indices
-        template = lambda i: TensorFunction(name="TI%d" % i, shape=graph.space_shape,
+
+        # For more information about "aliases", refer to collect_aliases.__doc__
+        mapper, aliases = collect_aliases([e.rhs for e in state.exprs])
+
+        # Template for captured redundancies
+        name = self.conventions['redundancy'] + "%d"
+        template = lambda i: TensorFunction(name=name % i, shape=graph.space_shape,
                                             dimensions=space_indices).indexed
 
-        # What expressions is it worth transforming (cm=cost model)?
-        # Formula: ops(expr)*aliases(expr) > self.threshold <==> do it
-        # For more information about "aliases", check out collect_aliases.__doc__
-        aliases, clusters = collect_aliases([e.rhs for e in state.exprs])
-        cm = lambda e: estimate_cost(e, True)*len(aliases.get(e, [e])) >\
-            self.thresholds['expensive_expression']
-
-        # Replace time invariants
-        processed = OrderedDict()
-        mapper = OrderedDict()
-        queue = graph.copy()
-        while queue:
-            k, v = queue.popitem(last=False)
-
-            make = lambda m: Indexed(template(len(m)+len(mapper)), *space_indices)
-            handle, flag, mapped = xreplace_constrained(v, make, rule, cm)
-
-            # To be replacable, must be time invariant and all of the depending
-            # expressions must have been replaced too
-            if flag and all(i not in processed for i in v.reads):
-                mapper.update(mapped)
-                for i in v.readby:
-                    graph[i] = graph[i].construct({k: handle.rhs})
+        # Retain only the expensive time-invariant expressions (to minimize memory)
+        processed = []
+        candidates = OrderedDict()
+        for k, v in graph.items():
+            naliases = len(mapper.get(v.rhs, [v]))
+            cost = estimate_cost(v, True)*naliases
+            if graph.is_index(k):
+                processed.append(v)
+            elif cost >= self.thresholds['min-cost-time-hoist']\
+                    and graph.time_invariant(v):
+                candidates[v.rhs] = k
+            elif cost >= self.thresholds['min-cost-space-hoist'] and naliases > 1:
+                candidates[v.rhs] = k
             else:
-                processed[v.lhs] = graph[v.lhs].rhs
-        processed = [Eq(i, j) for i, j in processed.items()]
+                processed.append(v)
 
-        # Squash aliases and tweak the affected indices accordingly
-        reducible = OrderedDict()
-        others = OrderedDict()
-        for k, v in mapper.items():
-            cluster = aliases.get(v)
-            if cluster:
-                index = clusters.index(cluster)
-                reducible.setdefault(index, []).append(k)
-            else:
-                others[k] = v
-        rule = {}
-        reduced_mapper = OrderedDict()
-        for i, cluster in enumerate(reducible.values()):
-            for k in cluster:
-                v, flipped = flip_indices(mapper[k], space_indices)
-                assert len(flipped) == 1
-                reduced_mapper[Indexed(template(i), *space_indices)] = v
-                rule[k] = Indexed(template(i), *flipped.pop())
-        handle, processed = list(processed), []
-        for e in handle:
-            processed.append(e.xreplace(rule))
-        for k, v in others.items():
-            reduced_mapper[k] = v.xreplace(rule)
+        # Create temporaries capturing redundant computation
+        c = len(state.aliases)
+        found = []
+        rules = OrderedDict()
+        for origin, info in aliases.items():
+            handle = [(v, k) for k, v in candidates.items() if k in info.aliased]
+            if handle:
+                eq = Eq(Indexed(template(c), *space_indices), origin)
+                found.append(freeze_expression(eq))
+                for k, v in handle:
+                    translation = mapper[v][v]
+                    coordinates = tuple(sum([i, j]) for i, j in translation
+                                        if i in space_indices)
+                    rules[k] = Indexed(template(c), *coordinates)
+                c += 1
 
-        return {'exprs': processed, 'mapper': reduced_mapper}
+        # Switch temporaries in the expression trees
+        processed = found + [e.xreplace(rules) for e in processed]
+
+        # Only track what is strictly necessary for later passes
+        aliases = OrderedDict([(freeze_expression(k), v.offsets)
+                               for k, v in aliases.items() if k in candidates])
+        aliases = OrderedDict(state.aliases.items() + aliases.items())
+
+        return {'exprs': processed, 'aliases': aliases}
 
     @dse_pass
     def _split_expressions(self, state, **kwargs):
@@ -477,7 +486,7 @@ class Rewriter(object):
         c = 0
         processed, exprs = [], list(processed)
         for expr in exprs:
-            if len(terminals(expr)) < self.thresholds['max_operands'] or\
+            if len(terminals(expr)) < self.thresholds['max-operands'] or\
                     not (expr.rhs.is_Add or expr.rhs.is_Mul):
                 processed.append(expr)
                 continue
@@ -491,20 +500,12 @@ class Rewriter(object):
 
         return {'exprs': processed}
 
-    @dse_pass
-    def _capture_aliases(self, state, **kwargs):
-        """
-        Capture all time-varying aliasing expressions (see collect_aliases.__doc__).
-        """
-        pass
-
     def _finalize(self, state):
         """
         Make sure that any subsequent sympy operation applied to the expressions
         in ``state.exprs`` does not alter the structure of the transformed objects.
         """
-        exprs = [Eq(k, v) for k, v in state.mapper.items()] + state.exprs
-        state.update(exprs=[unevaluate_arithmetic(e) for e in exprs])
+        state.update(exprs=[unevaluate_arithmetic(e) for e in state.exprs])
 
     def _summary(self, mode):
         """

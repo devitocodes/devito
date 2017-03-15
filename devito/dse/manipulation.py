@@ -11,8 +11,8 @@ from devito.dse.graph import temporaries_graph
 from devito.interfaces import TensorFunction
 from devito.tools import as_tuple
 
-__all__ = ['collect_nested', 'unevaluate_arithmetic', 'flip_indices',
-           'xreplace_constrained', 'promote_scalar_expressions']
+__all__ = ['collect_nested', 'unevaluate_arithmetic', 'xreplace_constrained',
+           'promote_scalar_expressions']
 
 
 def unevaluate_arithmetic(expr):
@@ -41,36 +41,6 @@ def unevaluate_arithmetic(expr):
         return Eq(*rebuilt_args, evaluate=False)
     else:
         return expr.func(*[unevaluate_arithmetic(e) for e in expr.args])
-
-
-def flip_indices(expr, rule):
-    """
-    Construct a new ``expr'`` from ``expr`` such that all indices are shifted as
-    established by ``rule``.
-
-    For example: ::
-
-        (rule=(x, y)) a[i][j+2] + b[j][i] --> a[x][y] + b[x][y]
-    """
-
-    def run(expr, flipped):
-        if expr.is_Float:
-            return expr.func(*expr.atoms())
-        elif isinstance(expr, Indexed):
-            flipped.add(expr.indices)
-            return Indexed(expr.base, *rule)
-        elif expr.is_Symbol:
-            return expr.func(expr.name)
-        elif expr in [S.Zero, S.One, S.NegativeOne, S.Half]:
-            return expr.func()
-        elif expr.is_Atom:
-            return expr.func(*expr.atoms())
-        else:
-            return expr.func(*[run(e, flipped) for e in expr.args], evaluate=False)
-
-    flipped = set()
-    handle = run(expr, flipped)
-    return handle, flipped
 
 
 def promote_scalar_expressions(exprs, shape, indices, onstack):
