@@ -4,7 +4,7 @@ import numpy as np
 from sympy import Function, IndexedBase, Symbol, as_finite_diff, symbols
 from sympy.abc import h, s
 
-from devito.dimension import d, p, t, x, y, z
+from devito.dimension import d, p, t, x, y, z, time
 from devito.finite_difference import (centered, cross_derivative,
                                       first_derivative, left, right,
                                       second_derivative)
@@ -515,7 +515,9 @@ class TimeData(DenseData):
         dimensions = kwargs.get('dimensions', None)
         if dimensions is None:
             # Infer dimensions from default and data shape
-            _indices = [t, x, y, z]
+            save = kwargs.get('save', None)
+            tidx = time if save else t
+            _indices = [tidx, x, y, z]
             shape = kwargs.get('shape')
             dimensions = _indices[:len(shape) + 1]
         return dimensions
@@ -538,15 +540,17 @@ class TimeData(DenseData):
     def forward(self):
         """Symbol for the time-forward state of the function"""
         i = int(self.time_order / 2) if self.time_order >= 2 else 1
+        _t = self.indices[0]
 
-        return self.subs(t, t + i * s)
+        return self.subs(_t, _t + i * s)
 
     @property
     def backward(self):
         """Symbol for the time-backward state of the function"""
         i = int(self.time_order / 2) if self.time_order >= 2 else 1
+        _t = self.indices[0]
 
-        return self.subs(t, t - i * s)
+        return self.subs(_t, _t - i * s)
 
     @property
     def dt(self):
