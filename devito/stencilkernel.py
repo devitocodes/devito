@@ -156,7 +156,7 @@ class StencilKernel(Function):
                     if dim in dim_sizes:
                         # Ensure size matches previously defined size
                         if not dim.is_Buffered:
-                            assert dim_sizes[dim] == data.shape[i]
+                            assert dim_sizes[dim] <= data.shape[i]
                     else:
                         # Derive size from grid data shape and store
                         dim_sizes[dim] = data.shape[i]
