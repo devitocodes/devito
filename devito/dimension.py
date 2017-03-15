@@ -3,7 +3,7 @@ import cgen
 import numpy as np
 from sympy import Symbol
 
-__all__ = ['Dimension', 'x', 'y', 'z', 't', 'p', 'd']
+__all__ = ['Dimension', 'x', 'y', 'z', 't', 'p', 'd', 'time']
 
 
 class Dimension(Symbol):
@@ -14,6 +14,7 @@ class Dimension(Symbol):
     defines a potential iteration space.
 
     :param size: Optional, size of the array dimension.
+    :param reverse: Traverse dimension in reverse order (default False)
     :param buffered: Optional, boolean flag indicating whether to
                      buffer variables when iterating this dimension.
     """
@@ -22,6 +23,7 @@ class Dimension(Symbol):
         newobj = Symbol.__new__(cls, name)
         newobj.size = kwargs.get('size', None)
         newobj._count = 0
+        newobj.reverse = kwargs.get('reverse', False)
         return newobj
 
     def __str__(self):
@@ -68,6 +70,10 @@ class BufferedDimension(Dimension):
     @property
     def size(self):
         return self.parent.size
+
+    @property
+    def reverse(self):
+        return self.parent.reverse
 
 
 # Default dimensions for time
