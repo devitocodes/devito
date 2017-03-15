@@ -145,7 +145,7 @@ class State(object):
         Clusterize the expressions in ``self.exprs``. For more information
         about clusters, refer to TemporariesGraph.clusters.
         """
-        return temporaries_graph(self.exprs).clusters
+        return temporaries_graph(self.exprs).clusters(self.aliases)
 
 
 class Rewriter(object):

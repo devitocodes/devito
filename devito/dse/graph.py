@@ -25,8 +25,8 @@ from sympy import Indexed
 
 from devito.dimension import x, y, z, t  # TODO: Generalize to arbitrary dimensions
 from devito.dse.extended_sympy import Eq
-from devito.dse.inspection import (is_indirect, retrieve_indexed, terminals)
-from devito.tools import flatten
+from devito.dse.inspection import is_indirect, retrieve_indexed, stencil, terminals
+from devito.tools import SetOrderedDict, flatten
 
 __all__ = ['temporaries_graph']
 
@@ -55,6 +55,10 @@ class Temporary(Eq):
     @property
     def identifier(self):
         return self.lhs.base.label.name if self.is_tensor else self.lhs.name
+
+    @property
+    def function(self):
+        return self.lhs.base.function
 
     @property
     def reads(self):
@@ -101,37 +105,19 @@ class TemporariesGraph(OrderedDict):
     A temporaries graph built on top of an OrderedDict.
     """
 
-    @property
-    def clusters(self):
+    def clusters(self, aliases=None):
         """
-        Compute the clusters of the temporaries graph. A cluster is an ordered
-        collection of scalar expressions that are necessary to compute a tensor value,
-        plus the tensor value itself.
-
-        Examples
-        ========
-        In the following list of expressions: ::
-
-            temp1 = a*b
-            temp2 = c
-            temp3[k] = temp1 + temp2
-            temp4[k] = temp2 + 5
-            temp5 = d*e
-            temp6 = f+g
-            temp7[i] = temp5 + temp6 + temp4[k]
-
-        There are three target expressions: temp3, temp4, temp7. There are therefore
-        three clusters: ((temp1, temp2, temp3), (temp2, temp4), (temp5, temp6, temp7)).
-        The first and second clusters share the expression temp2. Note that temp4 does
-        not appear in the third cluster, as it is not a scalar.
+        Compute the clusters of the temporaries graph. See Cluster.__doc__ for
+        more information about clusters.
         """
+        aliases = aliases or {}
+
+        # Compute the clusters
         targets = [v for v in self.values() if v.is_tensor]
-        clusters = [self.trace(i.lhs) for i in targets]
-        # Drop the non-scalar expressions in each cluster
-        for cluster in clusters:
-            for k, v in list(cluster.items()):
-                if v.is_tensor and not v.is_terminal:
-                    cluster.pop(k)
+        clusters = []
+        for i in targets:
+            trace = self.trace(i.lhs)
+            clusters.append(Cluster(trace, aliases))
         return clusters
 
     @property
@@ -206,39 +192,80 @@ class TemporariesGraph(OrderedDict):
         return False
 
 
-class Trace(OrderedDict):
+class Cluster(object):
 
     """
-    Assign a depth level to each temporary in a temporary graph.
+    A Cluster is an ordered collection of scalar expressions that are necessary
+    to compute a tensor, plus the tensor expression itself.
+
+    A Cluster is associated with a "stencil", which tracks what neighborin points
+    are required, along each dimension, to compute an entry in the tensor.
+
+    Examples
+    ========
+    In the following list of expressions: ::
+
+        temp1 = a*b
+        temp2 = c
+        temp3[k] = temp1 + temp2
+        temp4[k] = temp2 + 5
+        temp5 = d*e
+        temp6 = f+g
+        temp7[i] = temp5 + temp6 + temp4[k]
+
+    There are three target expressions: temp3, temp4, temp7. There are therefore
+    three clusters: ((temp1, temp2, temp3), (temp2, temp4), (temp5, temp6, temp7)).
+    The first and second clusters share the expression temp2. Note that temp4 does
+    not appear in the third cluster, as it is not a scalar.
     """
 
-    def __init__(self, root, graph, *args, **kwargs):
-        super(Trace, self).__init__(*args, **kwargs)
-        self._root = root
-        self._compute(graph)
+    def __init__(self, trace, known_aliases=None):
+        known_aliases = known_aliases or {}
 
-    def _compute(self, graph):
-        if self.root not in graph:
-            return
-        to_visit = [(graph[self.root], 0)]
-        while to_visit:
-            temporary, level = to_visit.pop(0)
-            self.__setitem__(temporary.lhs, level)
-            to_visit.extend([(graph[i], level + 1) for i in temporary.reads])
+        self._full_trace = trace
+
+        # Determine the output tensor
+        output = [v for v in self.trace.values() if v.is_tensor]
+        assert len(output) == 1
+        self._output = output[0]
+
+        # Compute the required information to determine the stencil of this cluster
+        self._offsets = []
+        for v in self._full_trace.values():
+            self._offsets.append(stencil(v))
+            if v.rhs in known_aliases:
+                 self._offsets.append(known_aliases[v.rhs])
+
+    def _view(self, drop=lambda v: False):
+        handle = self._full_trace.copy()
+        for k, v in list(handle.items()):
+            if drop(v):
+                handle.pop(k)
+        return handle
 
     @property
-    def root(self):
-        return self._root
+    def output(self):
+        return self._output
 
     @property
-    def length(self):
-        return len(self)
+    def trace(self):
+        """The ordered collection of expressions to compute the output tensor."""
+        return self._view(lambda v: v.is_tensor and not v.is_terminal)
 
-    def intersect(self, other):
-        return Trace(self.root, {}, [(k, v) for k, v in self.items() if k in other])
+    @property
+    def needs(self):
+        handle = flatten(retrieve_indexed(v.rhs) for v in self._view().values())
+        handle = {v.base.function for v in handle}
+        return [v for v in handle if not v.is_SymbolicData]
 
-    def union(self, other):
-        return Trace(self.root, {}, [(k, v) for k, v in self.items() + other.items()])
+    @property
+    def stencil(self):
+        offsets = SetOrderedDict.union(*self._offsets)
+        free_symbols = flatten([i.free_symbols for i in self.trace.values()])
+        for k in list(offsets):
+            if k not in free_symbols:
+                offsets.pop(k)
+        return offsets
 
 
 def temporaries_graph(temporaries, scope=0):
