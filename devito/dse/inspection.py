@@ -1,3 +1,5 @@
+from collections import OrderedDict, namedtuple
+
 import numpy as np
 from sympy import (Function, Indexed, Number, Symbol, cos, count_ops, lambdify,
                    preorder_traversal, sin)
@@ -59,8 +61,32 @@ def collect_aliases(exprs):
         ``a[i+2] + b[i]``: because there are two offsets (+2 and +0)
     """
 
-    def check_ofs(e):
-        return len(set([i.indices for i in retrieve_indexed(e)])) <= 1
+    AliasInfo = namedtuple('AliasInfo', 'aliased offsets')
+
+    cache = {e: retrieve_indexed(e, mode='all') for e in exprs}
+
+    def find_translation(e1, e2):
+        # Example:
+        # e1 = A[i,j] + A[i,j+1]
+        # e2 = A[i+1,j] + A[i+1,j+1]
+        # Compute the pairwise offsets translation, that is:
+        # d=[(1,0), (1,0)]
+        # e1 and e2 alias each other iff the translation is uniform across
+        # their symbols ((1, 0) in this example)
+        translations = set()
+        for indexed1, indexed2 in zip(cache[e1], cache[e2]):
+            if is_indirect(indexed1) or is_indirect(indexed2):
+                return ()
+            translation = []
+            dimensions = indexed1.base.function.indices
+            for i1, i2, d in zip(indexed1.indices, indexed2.indices, dimensions):
+                stride = i2 - i1
+                if stride.is_Number:
+                    translation.append((d, stride))
+                else:
+                    return ()
+            translations.add(tuple(translation))
+        return () if len(translations) != 1 else translations.pop()
 
     def compare_ops(e1, e2):
         if type(e1) == type(e2) and len(e1.args) == len(e2.args):
@@ -77,28 +103,33 @@ def collect_aliases(exprs):
             return False
 
     def compare(e1, e2):
-        return compare_ops(e1, e2) and check_ofs(e1) and check_ofs(e2)
+        return find_translation(e1, e2) if compare_ops(e1, e2) else ()
 
-    found = {}
-    clusters = []
+    aliases = OrderedDict()
+    mapper = OrderedDict()
     unseen = list(exprs)
     while unseen:
         handle = unseen[0]
-        alias = []
+        alias = OrderedDict()
         for e in list(unseen):
-            if compare(handle, e):
-                alias.append(e)
+            translation = compare(handle, e)
+            if translation:
+                alias[e] = translation
                 unseen.remove(e)
         if alias:
-            cluster = tuple(alias)
             for e in alias:
-                found[e] = cluster
-            clusters.append(cluster)
+                mapper[e] = alias
+            # ``handle`` represents the group origin, ie the expression with
+            # respect to which all translations have been computed
+            # ``offsets`` is a summary of the translations w.r.t. the origin
+            v = [SetOrderedDict([(k, {v}) for k, v in i]) for i in alias.values()]
+            offsets = SetOrderedDict.union(*v)
+            aliases[handle] = AliasInfo(alias.keys(), offsets)
         else:
             unseen.remove(handle)
-            found[handle] = ()
+            mapper[handle] = OrderedDict()
 
-    return found, clusters
+    return mapper, aliases
 
 
 def estimate_cost(handle, estimate_external_functions=False):
