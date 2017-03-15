@@ -7,12 +7,12 @@ from sympy import (Function, Indexed, Number, Symbol, cos, count_ops, lambdify,
 from devito.dimension import Dimension, t
 from devito.interfaces import SymbolicData
 from devito.logger import warning
-from devito.tools import flatten
+from devito.tools import SetOrderedDict, flatten
 
 __all__ = ['estimate_cost', 'estimate_memory', 'indexify', 'is_binary_op',
            'is_indirect', 'retrieve_dimensions', 'retrieve_dtype', 'retrieve_symbols',
            'retrieve_shape', 'retrieve_indexed', 'retrieve_trigonometry', 'as_symbol',
-           'terminals', 'tolambda']
+           'stencil', 'terminals', 'tolambda']
 
 
 def terminals(expr, discard_indexed=False):
@@ -33,6 +33,34 @@ def terminals(expr, discard_indexed=False):
     else:
         indexed.update(symbols)
         return indexed
+
+
+def stencil(expr):
+    """
+    Return the stencil of ``expr`` as an OrderedDict from encountered dimensions
+    to integer points (the "neighboring" points accessed).
+    """
+    assert expr.is_Equality
+
+    offsets = SetOrderedDict()
+
+    indexed = list(retrieve_indexed(expr.lhs))
+    indexed += list(retrieve_indexed(expr.rhs))
+    indexed += flatten([retrieve_indexed(i) for i in e.indices] for e in indexed)
+    for e in indexed:
+        for a in e.indices:
+            if isinstance(a, Dimension):
+                offsets[a].update([0])
+            d = None
+            off = []
+            for idx in a.args:
+                if isinstance(idx, Dimension):
+                    d = idx
+                elif idx.is_integer:
+                    off += [idx]
+            if d is not None:
+                offsets[d].update(off)
+    return offsets
 
 
 def collect_aliases(exprs):

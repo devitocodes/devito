@@ -10,9 +10,9 @@ from sympy import Eq, preorder_traversal
 
 from devito.cgen_utils import ccode
 from devito.dimension import Dimension
-from devito.dse.inspection import as_symbol, retrieve_indexed
+from devito.dse.inspection import as_symbol, retrieve_indexed, stencil
 from devito.interfaces import IndexedData, SymbolicData, TensorFunction
-from devito.tools import SetOrderedDict, as_tuple, filter_ordered, flatten
+from devito.tools import as_tuple, filter_ordered, flatten
 
 __all__ = ['Node', 'Block', 'Expression', 'Function', 'Iteration', 'List',
            'TimedList']
@@ -239,25 +239,7 @@ class Expression(Node):
 
         Note: This assumes we have indexified the stencil expression.
         """
-        offsets = SetOrderedDict()
-
-        indexed = list(retrieve_indexed(self.stencil.lhs))
-        indexed += list(retrieve_indexed(self.stencil.rhs))
-        indexed += flatten([retrieve_indexed(i) for i in e.indices] for e in indexed)
-        for e in indexed:
-            for a in e.indices:
-                if isinstance(a, Dimension):
-                    offsets[a].update([0])
-                d = None
-                off = []
-                for idx in a.args:
-                    if isinstance(idx, Dimension):
-                        d = idx
-                    elif idx.is_integer:
-                        off += [idx]
-                if d is not None:
-                    offsets[d].update(off)
-        return offsets
+        return stencil(self.stencil)
 
 
 class Iteration(Node):
