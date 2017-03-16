@@ -144,7 +144,7 @@ class CodePrinter(CCodePrinter):
 
         return rv + 'F'
 
-    def _print_UnevaluatedExpr(self, expr):
+    def _print_FrozenExpr(self, expr):
         return self._print(expr.args[0])
 
 

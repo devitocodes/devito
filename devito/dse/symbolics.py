@@ -21,8 +21,8 @@ from devito.dse.extended_sympy import bhaskara_cos, bhaskara_sin
 from devito.dse.graph import Temporary, temporaries_graph
 from devito.dse.inspection import (collect_aliases, estimate_cost, estimate_memory,
                                    is_binary_op, is_terminal_op, terminals)
-from devito.dse.manipulation import (collect_nested, xreplace_constrained,
-                                     xreplace_recursive, unevaluate_arithmetic)
+from devito.dse.manipulation import (collect_nested, freeze_expression,
+                                     xreplace_constrained, xreplace_recursive)
 from devito.interfaces import ScalarFunction, TensorFunction
 from devito.logger import dse, dse_warning
 
@@ -505,7 +505,7 @@ class Rewriter(object):
         Make sure that any subsequent sympy operation applied to the expressions
         in ``state.exprs`` does not alter the structure of the transformed objects.
         """
-        state.update(exprs=[unevaluate_arithmetic(e) for e in state.exprs])
+        state.update(exprs=[freeze_expression(e) for e in state.exprs])
 
     def _summary(self, mode):
         """

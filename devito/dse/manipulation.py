@@ -11,11 +11,11 @@ from devito.dse.graph import temporaries_graph
 from devito.interfaces import TensorFunction
 from devito.tools import as_tuple
 
-__all__ = ['collect_nested', 'unevaluate_arithmetic', 'xreplace_constrained',
+__all__ = ['collect_nested', 'freeze_expression', 'xreplace_constrained',
            'promote_scalar_expressions']
 
 
-def unevaluate_arithmetic(expr):
+def freeze_expression(expr):
     """
     Reconstruct ``expr`` turning all :class:`sympy.Mul` and :class:`sympy.Add`
     into, respectively, :class:`devito.Mul` and :class:`devito.Add`.
@@ -31,16 +31,16 @@ def unevaluate_arithmetic(expr):
     elif expr.is_Atom:
         return expr.func(*expr.atoms())
     elif expr.is_Add:
-        rebuilt_args = [unevaluate_arithmetic(e) for e in expr.args]
+        rebuilt_args = [freeze_expression(e) for e in expr.args]
         return Add(*rebuilt_args, evaluate=False)
     elif expr.is_Mul:
-        rebuilt_args = [unevaluate_arithmetic(e) for e in expr.args]
+        rebuilt_args = [freeze_expression(e) for e in expr.args]
         return Mul(*rebuilt_args, evaluate=False)
     elif expr.is_Equality:
-        rebuilt_args = [unevaluate_arithmetic(e) for e in expr.args]
+        rebuilt_args = [freeze_expression(e) for e in expr.args]
         return Eq(*rebuilt_args, evaluate=False)
     else:
-        return expr.func(*[unevaluate_arithmetic(e) for e in expr.args])
+        return expr.func(*[freeze_expression(e) for e in expr.args])
 
 
 def promote_scalar_expressions(exprs, shape, indices, onstack):
