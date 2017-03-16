@@ -1,9 +1,7 @@
 from functools import partial
-from hashlib import sha1
 from os import environ, getuid, mkdir, path
 from tempfile import gettempdir
 from time import time
-from sys import platform
 
 import numpy.ctypeslib as npct
 from cgen import Pragma
@@ -12,7 +10,8 @@ from codepy.toolchain import GCCToolchain
 
 from devito.logger import log
 
-__all__ = ['get_tmp_dir', 'get_compiler_from_env', 'jit_compile', 'load',
+__all__ = ['get_tmp_dir', 'get_compiler_from_env',
+           'jit_compile', 'load', 'jit_compile_and_load',
            'GNUCompiler']
 
 
@@ -189,7 +188,7 @@ class CustomCompiler(Compiler):
         super(CustomCompiler, self).__init__(*args, **kwargs)
         self.cc = environ.get('CC', 'gcc')
         self.ld = environ.get('LD', 'gcc')
-        default = '-O3 -g -march=native -fPIC -mno-avx -Wall -std=c99'
+        default = '-O3 -g -march=native -fPIC -Wall -std=c99'
         self.cflags = environ.get('CFLAGS', default).split(' ')
         self.ldflags = environ.get('LDFLAGS', '-shared').split(' ')
         self.pragma_ivdep = [Pragma(environ.get('DEVITO_IVDEP', 'GCC ivdep'))]
