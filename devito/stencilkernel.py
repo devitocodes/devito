@@ -15,8 +15,8 @@ from devito.cgen_utils import Allocator
 from devito.compiler import (get_compiler_from_env, get_tmp_dir,
                              jit_compile_and_load)
 from devito.dimension import BufferedDimension, Dimension
-from devito.dle import filter_iterations, transform
-from devito.dse import (estimate_cost, estimate_memory, indexify, rewrite)
+from devito.dle import compose_nodes, filter_iterations, transform
+from devito.dse import (estimate_cost, estimate_memory, indexify, rewrite, stencil)
 from devito.interfaces import SymbolicData
 from devito.logger import bar, error, info, info_at
 from devito.nodes import (Element, Expression, Function, Iteration, List,
@@ -349,48 +349,57 @@ class StencilKernel(Function):
 
     def _schedule_expressions(self, dse_state):
         """Wrap :class:`Expression` objects within suitable hierarchies of
-        :class:`Iteration` according to dimensions.
-        """
+        :class:`Iteration` according to dimensions and stencils."""
+
+        Stencil = namedtuple('Stencil', 'dim ofs')
+
+        # Establish a partial ordering for the Iterations based on the order
+        # by which dimensions appeared in the input expressions
+        ordering = tuple(flatten(list(stencil(i)) for i in dse_state.input))
+        ordering = list(OrderedDict(zip(ordering, ordering)))
 
         processed = []
-        for cluster in dse_state.clusters:
-            # Build declarations or assignments
-            body = [Expression(v, np.int32 if cluster.is_index(k) else self.dtype)
-                    for k, v in cluster.items()]
-            offsets = SetOrderedDict.union(*[i.index_offsets for i in body])
+        schedule = OrderedDict()
+        for c in dse_state.clusters:
+            # Build the Expression objects to be inserted within an Iteration tree
+            expressions = [Expression(v, np.int32 if c.trace.is_index(k) else self.dtype)
+                           for k, v in c.trace.items()]
 
             # Filter out aliasing due to buffered dimensions
             key = lambda d: d.parent if d.is_Buffered else d
-            dimensions = filter_ordered(list(offsets.keys()), key=key)
+            dimensions = filter_ordered(list(c.stencil.keys()), key=key)
 
-            # Determine a total ordering for the dimensions
-            functions = flatten(i.functions for i in body)
-            ordering = partial_order([i.indices for i in functions])
+            # Reorder stencil based on the global partial ordering
             dimensions = filter_sorted(dimensions, key=lambda d: ordering.index(d))
-            for d in reversed(dimensions):
-                body = Iteration(body, dimension=d, limits=d.size, offsets=offsets[d])
-            processed.append(body)
+            cstencil = tuple([Stencil(key(d), c.stencil.get(key(d))) for d in dimensions])
 
-        # Merge Iterations iff outermost iterations agree
-        processed = MergeOuterIterations().visit(processed)
+            if cstencil:
+                # Can I reuse any of the previously scheduled Iterations ?
+                root = None
+                for index, i in enumerate(cstencil):
+                    if i not in schedule:
+                        break
+                    root = schedule[i]
+                needed = cstencil[index:]
 
-        # Remove temporaries became redundat after squashing Iterations
-        mapper = {}
-        for k, v in FindSections().visit(processed).items():
-            candidate = k[-1]
-            if not IsPerfectIteration().visit(candidate):
-                continue
-            found = set()
-            trimmed = []
-            for n in v:
-                if n.is_Expression:
-                    if n.stencil not in found:
-                        trimmed.append(n)
-                        found.add(n.stencil)
+                # Build and insert the required Iterations
+                iters = [Iteration([], i.dim, i.dim.size, offsets=i.ofs) for i in needed]
+                body, tree = compose_nodes(iters + [expressions], retrieve=True)
+                scheduling = OrderedDict(zip(needed, tree))
+                if root is None:
+                    processed.append(body)
+                    schedule = scheduling
                 else:
-                    trimmed.append(n)
-            mapper[candidate] = Iteration(trimmed, **candidate.args_frozen)
-        processed = Transformer(mapper).visit(processed)
+                    nodes = list(root.nodes) + [body]
+                    mapper = {root: root._rebuild(nodes, **root.args_frozen)}
+                    transformer = Transformer(mapper)
+                    processed = list(transformer.visit(processed))
+                    schedule = OrderedDict(schedule.items()[:index] + scheduling.items())
+                    for k, v in list(schedule.items()):
+                        schedule[k] = transformer.rebuilt.get(v, v)
+            else:
+                # No Iterations are needed
+                processed.extend(expressions)
 
         return processed
 
