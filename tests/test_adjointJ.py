@@ -30,9 +30,9 @@ def test_acousticJ(dimensions, space_order):
         location[0, 1] = origin[1] + 2 * spacing[1]
 
         # Receiver coordinates
-        receiver_coords = np.zeros((101, 2))
+        receiver_coords = np.zeros((dimensions[0], 2))
         receiver_coords[:, 0] = np.linspace(0, origin[0] +
-                                            dimensions[0] * spacing[0], num=101)
+                                            dimensions[0] * spacing[0], num=dimensions[0])
         receiver_coords[:, 1] = location[0, 1]
 
     elif len(dimensions) == 3:
@@ -51,9 +51,9 @@ def test_acousticJ(dimensions, space_order):
         location[0, 2] = origin[1] + 2 * spacing[2]
 
         # Receiver coordinates
-        receiver_coords = np.zeros((101, 3))
+        receiver_coords = np.zeros((dimensions[0], 3))
         receiver_coords[:, 0] = np.linspace(0, origin[0] +
-                                            dimensions[0] * spacing[0], num=101)
+                                            dimensions[0] * spacing[0], num=dimensions[0])
         receiver_coords[:, 1] = origin[1] + dimensions[1] * spacing[1] * 0.5
         receiver_coords[:, 2] = location[0, 2]
 
@@ -87,7 +87,7 @@ def test_acousticJ(dimensions, space_order):
     src.set_traces(time_series)
 
     data.set_receiver_pos(receiver_coords)
-    data.set_shape(nt, 101)
+    data.set_shape(nt, dimensions[0])
 
     # Adjoint test
     acoustic0 = Acoustic_cg(model0, data, src, t_order=2,

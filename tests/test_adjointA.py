@@ -30,9 +30,9 @@ def test_acoustic(dimensions, time_order, space_order):
         location[0, 1] = origin[1] + 2 * spacing[1]
 
         # Receiver coordinates
-        receiver_coords = np.zeros((101, 2))
+        receiver_coords = np.zeros((dimensions[0], 2))
         receiver_coords[:, 0] = np.linspace(0, origin[0] +
-                                            dimensions[0] * spacing[0], num=101)
+                                            (dimensions[0]-1) * spacing[0], num=dimensions[0])
         receiver_coords[:, 1] = location[0, 1]
 
     elif len(dimensions) == 3:
@@ -51,9 +51,9 @@ def test_acoustic(dimensions, time_order, space_order):
         location[0, 2] = origin[1] + 2 * spacing[2]
 
         # Receiver coordinates
-        receiver_coords = np.zeros((101, 3))
+        receiver_coords = np.zeros((dimensions[0], 3))
         receiver_coords[:, 0] = np.linspace(0, origin[0] +
-                                            dimensions[0] * spacing[0], num=101)
+                                            (dimensions[0] - 1) * spacing[0], num=dimensions[0])
         receiver_coords[:, 1] = origin[1] + dimensions[1] * spacing[1] * 0.5
         receiver_coords[:, 2] = location[0, 2]
 
@@ -80,7 +80,7 @@ def test_acoustic(dimensions, time_order, space_order):
         return (1-2.*r**2)*np.exp(-r**2)
 
     # Source geometry
-    time_series = np.zeros((nt, 1))
+    time_series = np.zeros((nt, 1), dtype=np.float32)
     time_series[:, 0] = source(np.linspace(t0, tn, nt), f0)
 
     src.set_receiver_pos(location)
@@ -88,18 +88,18 @@ def test_acoustic(dimensions, time_order, space_order):
     src.set_traces(time_series)
 
     data.set_receiver_pos(receiver_coords)
-    data.set_shape(nt, 101)
+    data.set_shape(nt, dimensions[0])
 
     # Adjoint test
     acoustic = Acoustic_cg(model, data, src, t_order=time_order,
                            s_order=space_order, nbpml=nbpml)
-    rec, _, _, _, _ = acoustic.Forward(save=False, legacy=True)
-    srca = acoustic.Adjoint(rec)
-
+    rec, _, _, _, _ = acoustic.Forward(save=False, legacy=False)
+    srca, _, _, _, _ = acoustic.Adjoint(rec, legacy=False)
     # Actual adjoint test
     term1 = np.dot(srca.reshape(-1), time_series)
-    term2 = linalg.norm(rec)**2
-    print(term1, term2, term1 - term2, term1 / term2)
+    term2 = linalg.norm(rec) ** 2
+    print(np.finfo(np.float32).eps)
+    print(term1, term2, ("%12.12f") % (term1 - term2), term1 / term2)
     assert np.isclose(term1 / term2, 1.0, atol=0.001)
 
 
