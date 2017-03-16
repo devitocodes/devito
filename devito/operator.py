@@ -110,7 +110,6 @@ class Operator(object):
         self.stencils = [eqn.subs(t, t + solve(eqn.lhs.args[0], t)[0])
                          if isinstance(eqn.lhs, TimeData) else eqn
                          for eqn in self.stencils]
-
         # Convert incoming stencil equations to "indexed access" format
         self.stencils = [Eq(indexify(eqn.lhs), indexify(eqn.rhs))
                          for eqn in self.stencils]
