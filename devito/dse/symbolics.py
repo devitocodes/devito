@@ -502,10 +502,28 @@ class Rewriter(object):
 
     def _finalize(self, state):
         """
-        Make sure that any subsequent sympy operation applied to the expressions
-        in ``state.exprs`` does not alter the structure of the transformed objects.
+        Reorder the expressions to match the semantics of the provided input, as
+        multiple DSE passes might have introduced/altered/removed expressions.
+
+        Also make sure that subsequent sympy operations applied to the expressions
+        will not alter the effect of the DSE passes.
         """
-        state.update(exprs=[freeze_expression(e) for e in state.exprs])
+        exprs = [freeze_expression(e) for e in state.exprs]
+
+        expected = ['alias-time-invariant', 'alias-time-dependent', 'other']
+        graph = temporaries_graph(exprs)
+        def key(i):
+            if i.rhs in state.aliases:
+                index = state.aliases.keys().index(i.rhs)
+                if graph.time_invariant(i.rhs):
+                    return (expected.index('alias-time-invariant'), index)
+                else:
+                    return (expected.index('alias-time-dependent'), index)
+            else:
+                return (expected.index('other'), 0)
+        processed = sorted(exprs, key=key)
+
+        state.update(exprs=processed)
 
     def _summary(self, mode):
         """
