@@ -18,13 +18,14 @@ from sympy.simplify.cse_main import tree_cse
 
 from devito.dimension import t, x, y, z
 from devito.dse.extended_sympy import bhaskara_cos, bhaskara_sin
-from devito.dse.graph import Temporary, temporaries_graph
+from devito.dse.graph import Cluster, Temporary, temporaries_graph
 from devito.dse.inspection import (collect_aliases, estimate_cost, estimate_memory,
                                    is_binary_op, is_terminal_op, terminals)
 from devito.dse.manipulation import (collect_nested, freeze_expression,
                                      xreplace_constrained, xreplace_recursive)
 from devito.interfaces import ScalarFunction, TensorFunction
 from devito.logger import dse, dse_warning
+from devito.tools import flatten
 
 __all__ = ['rewrite']
 
@@ -88,7 +89,12 @@ def dse_pass(func):
             key = '%s%d' % (func.__name__, len(self.timings))
             self.timings[key] = toc - tic
             if self.profile:
-                self.ops[key] = estimate_cost(state.exprs)
+                # Only count operations of those expressions that will be executed
+                # at every space-time iteration
+                traces = [c.trace for c in state.clusters]
+                exprs = flatten(i.values() for i in traces
+                                if i.space_indices and not i.time_invariant())
+                self.ops[key] = estimate_cost(exprs)
 
     return wrapper
 
@@ -145,7 +151,8 @@ class State(object):
         Clusterize the expressions in ``self.exprs``. For more information
         about clusters, refer to TemporariesGraph.clusters.
         """
-        return temporaries_graph(self.exprs).clusters(self.aliases)
+        clusters = temporaries_graph(self.exprs).clusters(self.aliases)
+        return Cluster.merge(clusters, self.aliases)
 
 
 class Rewriter(object):

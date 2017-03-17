@@ -153,20 +153,19 @@ class TemporariesGraph(OrderedDict):
         found = flatten(sorted(v, key=lambda i: i.identifier) for v in found)
         return temporaries_graph(found)
 
-    def time_invariant(self, expr):
+    def time_invariant(self, expr=None):
         """
         Check if ``expr`` is time invariant. ``expr`` may be an expression ``e``
         explicitly tracked by the TemporaryGraph or even a generic subexpression
-        of ``e``.
+        of ``e``. If no ``expr`` is provided, then time invariance is checked
+        on the entire TemporariesGraph.
         """
+        if expr is None:
+            return all(self.time_invariant(v) for v in self.values())
+
         if t in expr.free_symbols:
             return False
-
-        if expr.is_Equality:
-            to_visit = [expr.rhs]
-        else:
-            to_visit = [expr]
-
+        to_visit = [expr.rhs] if expr.is_Equality else [expr]
         while to_visit:
             handle = to_visit.pop()
             for i in retrieve_indexed(handle):
@@ -175,7 +174,6 @@ class TemporariesGraph(OrderedDict):
             temporaries = [i for i in handle.free_symbols if i in self]
             for i in temporaries:
                 to_visit.append(self[i].rhs)
-
         return True
 
     def is_index(self, root):
@@ -218,6 +216,29 @@ class Cluster(object):
     The first and second clusters share the expression temp2. Note that temp4 does
     not appear in the third cluster, as it is not a scalar.
     """
+
+    @classmethod
+    def merge(cls, clusters, aliases):
+        """
+        Given an ordered collection of :class:`Cluster` objects, return a
+        (potentially) smaller sequence in which clusters with identical stencil
+        have been merged.
+        """
+        mapper = OrderedDict()
+        for c in clusters:
+            mapper.setdefault(tuple(c.stencil.items()), []). append(c)
+
+        processed = []
+        for stencil, clusters in mapper.items():
+            temporaries = OrderedDict()
+            for c in clusters:
+                for k, v in c.trace.items():
+                    if k not in temporaries:
+                        temporaries[k] = v
+            processed.append(SuperCluster(temporaries_graph(temporaries.values()),
+                                          SetOrderedDict(stencil)))
+
+        return processed
 
     def __init__(self, trace, known_aliases=None):
         known_aliases = known_aliases or {}
@@ -265,7 +286,19 @@ class Cluster(object):
         for k in list(offsets):
             if k not in free_symbols:
                 offsets.pop(k)
+        offsets = SetOrderedDict([(k, frozenset(v)) for k, v in offsets.items()])
         return offsets
+
+
+class SuperCluster(object):
+
+    """
+    A SuperCluster represents the result of merging a collection of cluster.
+    """
+
+    def __init__(self, trace, stencil):
+        self.trace = trace
+        self.stencil = stencil
 
 
 def temporaries_graph(temporaries, scope=0):
