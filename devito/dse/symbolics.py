@@ -199,10 +199,9 @@ class Rewriter(object):
         self._cse(state, mode=mode)
         self._optimize_trigonometry(state, mode=mode)
         self._split_expressions(state, mode=mode)
-        self._factorize(state, mode=mode)
         for _ in range(2):
             self._capture_redundancies(state, mode=mode)
-        from IPython import embed; embed()
+        self._factorize(state, mode=mode)
 
         self._finalize(state)
 
