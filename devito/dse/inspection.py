@@ -377,8 +377,6 @@ def as_symbol(expr):
         return expr
     elif isinstance(expr, Indexed):
         return expr.base.label
-    elif isinstance(expr, Function):
-        return Symbol(expr.name)
     else:
         raise TypeError("Cannot extract symbol from type %s" % type(expr))
 
