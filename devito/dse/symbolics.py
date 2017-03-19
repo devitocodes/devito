@@ -14,15 +14,14 @@ from time import time
 
 from sympy import (Eq, Indexed, IndexedBase, Symbol, cos,
                    numbered_symbols, preorder_traversal, sin)
-from sympy.simplify.cse_main import tree_cse
 
 from devito.dimension import t, x, y, z
 from devito.dse.extended_sympy import bhaskara_cos, bhaskara_sin
 from devito.dse.graph import Cluster, Temporary, temporaries_graph
-from devito.dse.inspection import (collect_aliases, estimate_cost, estimate_memory,
-                                   is_binary_op, is_terminal_op, terminals)
+from devito.dse.inspection import (as_symbol, collect_aliases, estimate_cost,
+                                   estimate_memory, is_terminal_op, terminals)
 from devito.dse.manipulation import (collect_nested, freeze_expression,
-                                     xreplace_constrained, xreplace_recursive)
+                                     filter_expressions, xreplace_constrained)
 from devito.interfaces import ScalarFunction, TensorFunction
 from devito.logger import dse, dse_warning
 from devito.tools import flatten
@@ -102,6 +101,7 @@ def dse_pass(func):
 class State(object):
 
     def __init__(self, exprs):
+        self.input = exprs
         self.exprs = exprs
         self.aliases = OrderedDict()
 
@@ -146,6 +146,10 @@ class State(object):
         return [i.lhs for i in self.exprs if isinstance(i.lhs, Indexed)]
 
     @property
+    def exprs_aliased(self):
+        return [e for e in self.exprs if e.rhs in self.aliases]
+
+    @property
     def clusters(self):
         """
         Clusterize the expressions in ``self.exprs``. For more information
@@ -165,22 +169,22 @@ class Rewriter(object):
     Name conventions for new temporaries
     """
     conventions = {
-        'cse': 't',
         'redundancy': 'r',
         'time-invariant': 'ti',
         'time-dependent': 'td',
-        'split': 'ts'
+        'temporary': 't'
     }
 
     """
     Track what options trigger a given transformation.
     """
     triggers = {
-        '_cse': ('basic', 'advanced'),
+        '_extract_time_varying': ('advanced',),
+        '_extract_time_invariants': ('advanced',),
+        '_eliminate_intra_stencil_redundancies': ('basic', 'advanced'),
+        '_eliminate_inter_stencil_redundancies': ('glicm', 'advanced'),
         '_factorize': ('factorize', 'advanced'),
-        '_optimize_trigonometry': ('approx-trigonometry',),
-        '_capture_redundancies': ('glicm', 'advanced'),
-        '_split_expressions': ('split', 'devito3.0')  # TODO: -> 'advanced' upon release
+        '_optimize_trigonometry': ('approx-trigonometry', 'advanced')
     }
 
     """
@@ -188,7 +192,7 @@ class Rewriter(object):
     """
     thresholds = {
         'min-cost-space-hoist': 10,
-        'min-cost-time-hoist': 100,
+        'min-cost-time-hoist': 200,
         'min-cost-factorize': 100,
         'max-operands': 40,
     }
@@ -203,11 +207,11 @@ class Rewriter(object):
     def run(self, mode):
         state = State(self.exprs)
 
-        self._cse(state, mode=mode)
+        self._extract_time_varying(state, mode=mode)
+        self._extract_time_invariants(state, mode=mode)
         self._optimize_trigonometry(state, mode=mode)
-        self._split_expressions(state, mode=mode)
-        for _ in range(2):
-            self._capture_redundancies(state, mode=mode)
+        self._eliminate_inter_stencil_redundancies(state, mode=mode)
+        self._eliminate_intra_stencil_redundancies(state, mode=mode)
         self._factorize(state, mode=mode)
 
         self._finalize(state)
@@ -215,6 +219,95 @@ class Rewriter(object):
         self._summary(mode)
 
         return state
+
+    @dse_pass
+    def _extract_time_varying(self, state, **kwargs):
+        """
+        Extract time-varying subexpressions, and assign them to temporaries.
+        Time varying subexpressions arise for example when approximating
+        derivatives through finite differences.
+        """
+
+        template = self.conventions['time-dependent'] + "%d"
+        make = lambda i: ScalarFunction(name=template % i).indexify()
+
+        graph = temporaries_graph(state.exprs)
+        rule = lambda i: i.is_Number or not graph.time_invariant(i)
+
+        cm = lambda i: estimate_cost(i) > 0
+
+        processed = xreplace_constrained(state.exprs, make, rule, cm)
+
+        processed = filter_expressions(processed, make)
+
+        return {'exprs': processed}
+
+    @dse_pass
+    def _extract_time_invariants(self, state, **kwargs):
+        """
+        Extract time-invariant subexpressions, and assign them to temporaries.
+        """
+
+        template = self.conventions['time-invariant'] + "%d"
+        make = lambda i: ScalarFunction(name=template % i).indexify()
+
+        graph = temporaries_graph(state.exprs)
+        rule = lambda i: not i.is_Number and graph.time_invariant(i)
+
+        cm = lambda e: estimate_cost(e) > 0
+
+        processed = xreplace_constrained(state.exprs, make, rule, cm, repeat=True)
+
+        processed = filter_expressions(processed, make)
+
+        return {'exprs': processed}
+
+    @dse_pass
+    def _eliminate_intra_stencil_redundancies(self, state, **kwargs):
+        """
+        Perform common subexpression elimination.
+        """
+
+        # Not using SymPy's CSE() function for two reasons:
+        # - capture index functions (we are not interested in integer arithmetic)
+        # - very slow
+
+        aliased = state.exprs_aliased
+        candidates = [e for e in state.exprs if e not in aliased]
+
+        template = self.conventions['temporary'] + "%d"
+
+        def rule(e):
+            try:
+                as_symbol(e)
+                return True
+            except TypeError:
+                return is_terminal_op(e) or e.is_Function
+
+        cm = lambda e: estimate_cost(e) > 0
+
+        redundancies = []
+        while True:
+            make = lambda i: \
+                ScalarFunction(name=template % (len(redundancies) + i)).indexify()
+            handle = xreplace_constrained(candidates, make, rule, cm)
+
+            # Find redundant leaf operations
+            found = filter_expressions(handle, make, count=2)
+
+            # Replace redundancies
+            mapper = {e.rhs: e.lhs for e in found}
+            replaced = [e.xreplace(mapper) for e in candidates]
+            if replaced == candidates:
+                break
+
+            redundancies += found
+            candidates = replaced
+
+        make = lambda i: ScalarFunction(name=template % i).indexify()
+        processed = filter_expressions(aliased + redundancies + candidates, make)
+
+        return {'exprs': processed}
 
     @dse_pass
     def _factorize(self, state, **kwargs):
@@ -246,90 +339,6 @@ class Rewriter(object):
         return {'exprs': processed}
 
     @dse_pass
-    def _cse(self, state, **kwargs):
-        """
-        Perform common subexpression elimination.
-        """
-
-        template = self.conventions['cse']
-        temporaries, leaves = tree_cse(state.exprs, numbered_symbols(template))
-        for i in range(len(state.exprs)):
-            leaves[i] = Eq(state.exprs[i].lhs, leaves[i].rhs)
-
-        # Restore some of the common sub-expressions that have potentially
-        # been collected: simple index calculations (eg, t - 1), IndexedBase,
-        # Indexed, binary Add, binary Mul.
-        revert = OrderedDict()
-        keep = OrderedDict()
-        for k, v in temporaries:
-            if isinstance(v, (IndexedBase, Indexed)):
-                revert[k] = v
-            elif v.is_Add and not set([t, x, y, z]).isdisjoint(set(v.args)):
-                revert[k] = v
-            elif is_binary_op(v):
-                revert[k] = v
-            else:
-                keep[k] = v
-        for k, v in revert.items():
-            mapper = {}
-            for i in preorder_traversal(v):
-                if isinstance(i, Indexed):
-                    new_indices = []
-                    for index in i.indices:
-                        if index in revert:
-                            new_indices.append(revert[index])
-                        else:
-                            new_indices.append(index)
-                    if i.base.label in revert:
-                        mapper[i] = Indexed(revert[i.base.label], *new_indices)
-                if i in revert:
-                    mapper[i] = revert[i]
-            revert[k] = v.xreplace(mapper)
-        mapper = {}
-        for e in leaves + list(keep.values()):
-            for i in preorder_traversal(e):
-                if isinstance(i, Indexed):
-                    new_indices = []
-                    for index in i.indices:
-                        if index in revert:
-                            new_indices.append(revert[index])
-                        else:
-                            new_indices.append(index)
-                    if i.base.label in revert:
-                        mapper[i] = Indexed(revert[i.base.label], *new_indices)
-                    elif tuple(new_indices) != i.indices:
-                        mapper[i] = Indexed(i.base, *new_indices)
-                if i in revert:
-                    mapper[i] = revert[i]
-        leaves = xreplace_recursive(leaves, mapper)
-        kept = xreplace_recursive([Eq(k, v) for k, v in keep.items()], mapper)
-
-        # If the RHS of a temporary variable is the LHS of a leaf,
-        # update the value of the temporary variable after the leaf
-        new_leaves = []
-        for leaf in leaves:
-            new_leaves.append(leaf)
-            for i in kept:
-                if leaf.lhs in preorder_traversal(i.rhs):
-                    new_leaves.append(i)
-                    break
-
-        # Reshuffle to make sure temporaries come later than their read values
-        processed = OrderedDict([(i.lhs, i) for i in kept + new_leaves])
-        temporaries = set(processed.keys())
-        ordered = OrderedDict()
-        while processed:
-            k, v = processed.popitem(last=False)
-            temporary_reads = terminals(v.rhs) & temporaries - {v.lhs}
-            if all(i in ordered for i in temporary_reads):
-                ordered[k] = v
-            else:
-                # Must wait for some earlier temporaries, push back into queue
-                processed[k] = v
-
-        return {'exprs': list(ordered.values())}
-
-    @dse_pass
     def _optimize_trigonometry(self, state, **kwargs):
         """
         Rebuild ``exprs`` replacing trigonometric functions with Bhaskara
@@ -345,7 +354,7 @@ class Rewriter(object):
         return {'exprs': processed}
 
     @dse_pass
-    def _capture_redundancies(self, state, **kwargs):
+    def _eliminate_inter_stencil_redundancies(self, state, **kwargs):
         """
         Search for redundancies across the expressions and expose them
         to the later stages of the optimisation pipeline by introducing
@@ -391,14 +400,14 @@ class Rewriter(object):
             naliases = len(mapper.get(v.rhs, [v]))
             cost = estimate_cost(v, True)*naliases
             if graph.is_index(k):
-                processed.append(v)
+                processed.append(Eq(k, v.rhs))
             elif cost >= self.thresholds['min-cost-time-hoist']\
                     and graph.time_invariant(v):
                 candidates[v.rhs] = k
             elif cost >= self.thresholds['min-cost-space-hoist'] and naliases > 1:
                 candidates[v.rhs] = k
             else:
-                processed.append(v)
+                processed.append(Eq(k, v.rhs))
 
         # Create temporaries capturing redundant computation
         c = len(state.aliases)
@@ -425,86 +434,6 @@ class Rewriter(object):
         aliases = OrderedDict(state.aliases.items() + aliases.items())
 
         return {'exprs': processed, 'aliases': aliases}
-
-    @dse_pass
-    def _split_expressions(self, state, **kwargs):
-        """
-        Split expressions as sum of "canonical" products. Each canonical product
-        is assigned to a different temporary. A canonical product has the form: ::
-
-            temp = (sum_i w_i (sum_j u_i[f(t, x, y, z, j)])) g(x, y, z)
-
-        Where ``w_i`` is a real number, ``u_i`` is an indexed time-varying object
-        (note that ``t`` appears amongst its indices), ``g`` is a time-independent
-        object (only the space dimensions ``x, y, z`` may appear in an indexed
-        object within ``g``).
-
-        The output is the input expression itself if found to be non-reducible
-        to a sum of canonical products (e.g., if ``u_i`` appeared in denominators).
-        """
-
-        # Split the time-dependent sub-expressions
-        graph = temporaries_graph(state.exprs)
-        rule = lambda i: i.is_Number or not graph.time_invariant(i)
-        c = 0
-
-        def cm(e):
-            if e.is_Mul and is_terminal_op(e):
-                # Do not split individual products
-                return False
-            return estimate_cost(e) > 0
-
-        processed = []
-        for expr in state.exprs:
-            processing = expr
-            while True:
-                if not (processing.rhs.is_Add or processing.rhs.is_Mul):
-                    break
-                template = self.conventions['time-dependent'] + "%d"
-                make = lambda i: ScalarFunction(name=template % (c + len(i))).indexify()
-                handle, flag, mapped = xreplace_constrained(processing, make, rule, cm)
-                if flag or not mapped:
-                    break
-                else:
-                    processing = handle
-                    for k, v in mapped.items():
-                        processed.append(Eq(k, v))
-                        graph[k] = Temporary(k, v)
-                        c += 1
-            processed.append(processing)
-
-        # Split the time-invariant sub-expressions
-        rule = lambda i: not i.is_Number and graph.time_invariant(i)
-        cm = lambda e: estimate_cost(e) > 0
-        c = 0
-        processed, exprs = [], list(processed)
-        for expr in exprs:
-            template = self.conventions['time-invariant'] + "%d"
-            make = lambda i: ScalarFunction(name=template % (c + len(i))).indexify()
-            handle, flag, mapped = xreplace_constrained(expr, make, rule, cm)
-            if flag:
-                processed.append(expr)
-            else:
-                processed.extend([Eq(k, v) for k, v in mapped.items()] + [handle])
-                c += len(mapped)
-
-        # Split excessively long expressions (improves compilation speed)
-        c = 0
-        processed, exprs = [], list(processed)
-        for expr in exprs:
-            if len(terminals(expr)) < self.thresholds['max-operands'] or\
-                    not (expr.rhs.is_Add or expr.rhs.is_Mul):
-                processed.append(expr)
-                continue
-            chunks = expr.rhs.args
-            template = self.conventions['split'] + "%d"
-            targets = [Symbol(template % (c + i)) for i in range(len(chunks))]
-            chunks = [Eq(k, v) for k, v in zip(targets, chunks)]
-            chunks.append(Eq(expr.lhs, expr.rhs.func(*targets)))
-            processed.extend(chunks)
-            c += len(chunks)
-
-        return {'exprs': processed}
 
     def _finalize(self, state):
         """
@@ -537,15 +466,9 @@ class Rewriter(object):
         """
 
         if mode.intersection({'basic', 'advanced'}):
-            summary = " --> ".join("(%s) %s" % (filter(lambda c: not c.isdigit(), k),
-                                                str(self.ops.get(k, "")))
-                                   for k, v in self.timings.items())
-            try:
-                # The state after CSE should be used as baseline for fairness
-                baseline = self.ops['_cse0']
-                gain = float(baseline) / list(self.ops.values())[-1]
-                summary = " %s flops; gain: %.2f X" % (summary, gain)
-            except (KeyError, ZeroDivisionError):
-                pass
+            row = "%s [flops: %d, elapsed: %.2f]"
+            summary = " >>\n     ".join(row % (filter(lambda c: not c.isdigit(), k[1:]),
+                                               self.ops.get(k, ""), v)
+                                        for k, v in self.timings.items())
             elapsed = sum(self.timings.values())
-            dse("%s [%.2f s]" % (summary, elapsed))
+            dse("%s\n     [Total elapsed: %.2f s]" % (summary, elapsed))
