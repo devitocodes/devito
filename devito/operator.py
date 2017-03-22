@@ -4,7 +4,7 @@ import numpy as np
 from sympy import Eq, solve
 
 from devito.compiler import get_compiler_from_env
-from devito.dimension import t, x, y, z
+from devito.dimension import t, x, y, z, time
 from devito.dse.inspection import (indexify, retrieve_dimensions,
                                    retrieve_symbols, tolambda)
 from devito.interfaces import TimeData
@@ -82,7 +82,7 @@ class Operator(object):
             dimensions += [i for i in retrieve_dimensions(eqn.rhs) if i not in dimensions]
 
         # Time dimension is fixed for now
-        time_dim = t
+        time_dim = [t, time]
 
         # Derive space dimensions from expression
         self.space_dims = None
@@ -90,8 +90,9 @@ class Operator(object):
         if len(dimensions) > 0:
             self.space_dims = dimensions
 
-            if time_dim in self.space_dims:
-                self.space_dims.remove(time_dim)
+            for td in time_dim:
+                if td in self.space_dims:
+                    self.space_dims.remove(td)
         else:
             # Default space dimension symbols
             self.space_dims = ((x, z) if len(shape) == 2 else (x, y, z))[:len(shape)]
@@ -99,6 +100,9 @@ class Operator(object):
         # Remove known dimensions from undefined symbols
         for d in dimensions:
             sym_undef.remove(d)
+
+        # Replace all occurences of the `time` dimension with `t`
+        self.stencils = [eqn.subs(time, t) for eqn in self.stencils]
 
         # TODO: We should check that all undfined symbols have known subs
         # Shift time indices so that LHS writes into t only,
