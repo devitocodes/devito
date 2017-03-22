@@ -97,6 +97,7 @@ class State(object):
     def __init__(self, exprs):
         self.exprs = exprs
         self.mapper = OrderedDict()
+        self.input = exprs
 
     def update(self, exprs=None, mapper=None):
         self.exprs = exprs or self.exprs

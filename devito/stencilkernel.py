@@ -357,6 +357,8 @@ class StencilKernel(Function):
         """Wrap :class:`Expression` objects within suitable hierarchies of
         :class:`Iteration` according to dimensions.
         """
+        functions = flatten(Expression(i).functions for i in dse_state.input)
+        ordering = partial_order([i.indices for i in functions])
 
         processed = []
         for cluster in dse_state.clusters:
@@ -370,8 +372,6 @@ class StencilKernel(Function):
             dimensions = filter_ordered(list(offsets.keys()), key=key)
 
             # Determine a total ordering for the dimensions
-            functions = flatten(i.functions for i in body)
-            ordering = partial_order([i.indices for i in functions])
             dimensions = filter_sorted(dimensions, key=lambda d: ordering.index(d))
             for d in reversed(dimensions):
                 body = Iteration(body, dimension=d, limits=d.size, offsets=offsets[d])
