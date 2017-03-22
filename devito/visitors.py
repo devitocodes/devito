@@ -13,7 +13,7 @@ from operator import attrgetter
 import cgen as c
 from sympy import Symbol
 
-from devito.nodes import Iteration, List
+from devito.nodes import Iteration, List, Node
 from devito.tools import as_tuple, filter_ordered, filter_sorted, flatten
 
 
@@ -391,6 +391,7 @@ class Transformer(Visitor):
     def __init__(self, mapper={}):
         super(Transformer, self).__init__()
         self.mapper = mapper
+        self.rebuilt = {}
 
     def visit_object(self, o, **kwargs):
         return o
@@ -407,6 +408,12 @@ class Transformer(Visitor):
         else:
             rebuilt = [self.visit(i, **kwargs) for i in o.children]
             return o._rebuild(*rebuilt, **o.args_frozen)
+
+    def visit(self, o, *args, **kwargs):
+        obj = super(Transformer, self).visit(o, *args, **kwargs)
+        if isinstance(o, Node) and obj is not o:
+            self.rebuilt[o] = obj
+        return obj
 
 
 class SubstituteExpression(Transformer):
