@@ -12,13 +12,35 @@ from devito.logger import debug, error
 from devito.memmap_manager import MemmapManager
 from devito.memory import CMemory, first_touch
 
-__all__ = ['DenseData', 'TimeData', 'PointData']
+__all__ = ['DenseData', 'TimeData', 'PointData', 'Forward', 'Backward']
 
 
 # This cache stores a reference to each created data object
 # so that we may re-create equivalent symbols during symbolic
 # manipulation with the correct shapes, pointers, etc.
 _SymbolCache = {}
+
+
+class TimeAxis(object):
+    """Direction in which to advance the time index on
+    :class:`TimeData` objects.
+
+    :param axis: Either 'Forward' or 'Backward'
+    """
+
+    def __init__(self, axis):
+        assert axis in ['Forward', 'Backward']
+        self._axis = {'Forward': 1, 'Backward': -1}[axis]
+
+    def __eq__(self, other):
+        return self._axis == other._axis
+
+    def __repr__(self):
+        return {-1: 'Backward', 1: 'Forward'}[self._axis]
+
+
+Forward = TimeAxis('Forward')
+Backward = TimeAxis('Backward')
 
 
 class CachedSymbol(object):

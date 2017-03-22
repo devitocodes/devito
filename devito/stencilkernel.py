@@ -14,10 +14,10 @@ import numpy as np
 from devito.cgen_utils import Allocator
 from devito.compiler import (get_compiler_from_env, get_tmp_dir,
                              jit_compile_and_load)
-from devito.dimension import BufferedDimension, Dimension
+from devito.dimension import BufferedDimension, Dimension, time
 from devito.dle import filter_iterations, transform
 from devito.dse import (estimate_cost, estimate_memory, indexify, rewrite)
-from devito.interfaces import SymbolicData
+from devito.interfaces import SymbolicData, Forward, Backward
 from devito.logger import bar, error, info, info_at
 from devito.nodes import (Element, Expression, Function, Iteration, List,
                           LocalExpression, TimedList)
@@ -51,6 +51,8 @@ class StencilKernel(Function):
         * name : Name of the kernel function - defaults to "Kernel".
         * subs : Dict or list of dicts containing the SymPy symbol
                  substitutions for each stencil respectively.
+        * time_axis : :class:`TimeAxis` object to indicate direction in which
+                      to advance time during computation.
         * dse : Use the Devito Symbolic Engine to optimize the expressions -
                 defaults to "advanced".
         * dle : Use the Devito Loop Engine to optimize the loops -
@@ -64,6 +66,7 @@ class StencilKernel(Function):
     def __init__(self, stencils, **kwargs):
         name = kwargs.get("name", "Kernel")
         subs = kwargs.get("subs", {})
+        time_axis = kwargs.get("time_axis", Forward)
         dse = kwargs.get("dse", "advanced")
         dle = kwargs.get("dle", "advanced")
         compiler = kwargs.get("compiler", None)
@@ -75,6 +78,9 @@ class StencilKernel(Function):
         self._includes = list(self._default_includes)
         self._lib = None
         self._cfunction = None
+
+        # Set the direction of time acoording to the given TimeAxis
+        time.reverse = time_axis == Backward
 
         # Normalize the collection of stencils
         stencils = [indexify(s) for s in as_tuple(stencils)]
