@@ -373,7 +373,7 @@ class StencilKernel(Function):
             key = lambda d: d.parent if d.is_Buffered else d
             dimensions = filter_ordered(list(c.stencil.keys()), key=key)
 
-            # Reorder the expressions based on the global partial ordering
+            # Determine a total ordering for the dimensions
             dimensions = filter_sorted(dimensions, key=lambda d: ordering.index(d))
             stencil = Stencil([(key(d), c.stencil.get(key(d))) for d in dimensions])
 

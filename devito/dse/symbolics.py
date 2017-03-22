@@ -103,6 +103,7 @@ class State(object):
     def __init__(self, exprs):
         self.input = exprs
         self.exprs = exprs
+        self.mapper = OrderedDict()
 
         # Compute the stencil of each tensor expression
         mapper = OrderedDict()
