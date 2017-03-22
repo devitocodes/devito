@@ -184,7 +184,7 @@ class Rewriter(object):
         '_eliminate_intra_stencil_redundancies': ('basic', 'advanced'),
         '_eliminate_inter_stencil_redundancies': ('glicm', 'advanced'),
         '_factorize': ('factorize', 'advanced'),
-        '_optimize_trigonometry': ('approx-trigonometry', 'advanced')
+        '_optimize_trigonometry': ('approx-trigonometry',)
     }
 
     """
@@ -197,7 +197,7 @@ class Rewriter(object):
         'max-operands': 40,
     }
 
-    def __init__(self, exprs, profile=True):
+    def __init__(self, exprs, profile=False):
         self.exprs = exprs
 
         self.profile = profile
@@ -238,8 +238,6 @@ class Rewriter(object):
 
         processed = xreplace_constrained(state.exprs, make, rule, cm)
 
-        processed = filter_expressions(processed, make)
-
         return {'exprs': processed}
 
     @dse_pass
@@ -257,8 +255,6 @@ class Rewriter(object):
         cm = lambda e: estimate_cost(e) > 0
 
         processed = xreplace_constrained(state.exprs, make, rule, cm, repeat=True)
-
-        processed = filter_expressions(processed, make)
 
         return {'exprs': processed}
 
@@ -286,28 +282,19 @@ class Rewriter(object):
 
         cm = lambda e: estimate_cost(e) > 0
 
-        redundancies = []
+        c = 0
+        processed = candidates
         while True:
-            make = lambda i: \
-                ScalarFunction(name=template % (len(redundancies) + i)).indexify()
-            handle = xreplace_constrained(candidates, make, rule, cm)
+            make = lambda i: ScalarFunction(name=template % (c + i)).indexify()
+            processed = xreplace_constrained(candidates, make, rule, cm)
 
-            # Find redundant leaf operations
-            found = filter_expressions(handle, make, count=2)
-
-            # Replace redundancies
-            mapper = {e.rhs: e.lhs for e in found}
-            replaced = [e.xreplace(mapper) for e in candidates]
-            if replaced == candidates:
+            nredundancies = len(processed) - len(candidates)
+            if nredundancies == 0:
                 break
+            c += nredundancies
+            candidates = processed
 
-            redundancies += found
-            candidates = replaced
-
-        make = lambda i: ScalarFunction(name=template % i).indexify()
-        processed = filter_expressions(aliased + redundancies + candidates, make)
-
-        return {'exprs': processed}
+        return {'exprs': aliased + processed}
 
     @dse_pass
     def _factorize(self, state, **kwargs):
@@ -383,15 +370,16 @@ class Rewriter(object):
         """
 
         graph = temporaries_graph(state.exprs)
-        space_indices = graph.space_indices
+        indices = graph.space_indices
+        shape = graph.space_shape
 
         # For more information about "aliases", refer to collect_aliases.__doc__
         mapper, aliases = collect_aliases([e.rhs for e in state.exprs])
 
         # Template for captured redundancies
         name = self.conventions['redundancy'] + "%d"
-        template = lambda i: TensorFunction(name=name % i, shape=graph.space_shape,
-                                            dimensions=space_indices).indexed
+        template = lambda i: TensorFunction(name=name % i, shape=shape,
+                                            dimensions=indices).indexed
 
         # Retain only the expensive time-invariant expressions (to minimize memory)
         processed = []
@@ -399,9 +387,7 @@ class Rewriter(object):
         for k, v in graph.items():
             naliases = len(mapper.get(v.rhs, [v]))
             cost = estimate_cost(v, True)*naliases
-            if graph.is_index(k):
-                processed.append(Eq(k, v.rhs))
-            elif cost >= self.thresholds['min-cost-time-hoist']\
+            if cost >= self.thresholds['min-cost-time-hoist']\
                     and graph.time_invariant(v):
                 candidates[v.rhs] = k
             elif cost >= self.thresholds['min-cost-space-hoist'] and naliases > 1:
@@ -416,13 +402,12 @@ class Rewriter(object):
         for origin, info in aliases.items():
             handle = [(v, k) for k, v in candidates.items() if k in info.aliased]
             if handle:
-                eq = Eq(Indexed(template(c), *space_indices), origin)
+                eq = Eq(Indexed(template(c), *indices), origin)
                 found.append(freeze_expression(eq))
                 for k, v in handle:
                     translation = mapper[v][v]
-                    coordinates = tuple(sum([i, j]) for i, j in translation
-                                        if i in space_indices)
-                    rules[k] = Indexed(template(c), *coordinates)
+                    coordinates = [sum([i, j]) for i, j in translation if i in indices]
+                    rules[k] = Indexed(template(c), *tuple(coordinates))
                 c += 1
 
         # Switch temporaries in the expression trees
@@ -466,9 +451,9 @@ class Rewriter(object):
         """
 
         if mode.intersection({'basic', 'advanced'}):
-            row = "%s [flops: %d, elapsed: %.2f]"
+            row = "%s [flops: %s, elapsed: %.2f]"
             summary = " >>\n     ".join(row % (filter(lambda c: not c.isdigit(), k[1:]),
-                                               self.ops.get(k, ""), v)
+                                               str(self.ops.get(k, "?")), v)
                                         for k, v in self.timings.items())
             elapsed = sum(self.timings.values())
             dse("%s\n     [Total elapsed: %.2f s]" % (summary, elapsed))

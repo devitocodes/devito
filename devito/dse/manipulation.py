@@ -103,7 +103,7 @@ def promote_scalar_expressions(exprs, shape, indices, onstack):
     return processed
 
 
-def collect_nested(expr):
+def collect_nested(expr, aggressive=False):
     """
     Collect terms appearing in expr, checking all levels of the expression tree.
 
@@ -132,7 +132,7 @@ def collect_nested(expr):
             w_numbers = collect_const(expr.func(*w_numbers))
             wo_numbers = expr.func(*wo_numbers)
 
-            if wo_numbers:
+            if aggressive is True and wo_numbers:
                 for i in flatten(candidates):
                     wo_numbers = collect(wo_numbers, i)
 
@@ -175,12 +175,15 @@ def xreplace_constrained(exprs, make, rule, cm=lambda e: True, repeat=False):
                    possible (optional, defaults to False).
     """
 
-    processed = []
+    processed = OrderedDict()
 
     def replace(expr):
-        if cm(expr):
+        temporary = processed.get(expr)
+        if temporary:
+            return temporary
+        elif cm(expr):
             temporary = make(replace.c)
-            processed.append(Eq(temporary, expr))
+            processed[expr] = temporary
             replace.c += 1
             return temporary
         else:
@@ -188,16 +191,8 @@ def xreplace_constrained(exprs, make, rule, cm=lambda e: True, repeat=False):
     replace.c = 0  # Unique identifier for new temporaries
 
     def run(expr):
-        if expr.is_Float:
-            return expr.func(*expr.atoms()), rule(expr)
-        elif expr in [S.Zero, S.One, S.NegativeOne, S.Half]:
-            return expr.func(), rule(expr)
-        elif expr.is_Symbol:
-            return expr.func(expr.name), rule(expr)
-        elif expr.is_Atom:
-            return expr.func(*expr.atoms()), rule(expr)
-        elif isinstance(expr, Indexed):
-            return expr.func(*expr.args), rule(expr)
+        if expr.is_Atom or isinstance(expr, Indexed):
+            return expr, rule(expr)
         elif expr.is_Pow:
             base, flag = run(expr.base)
             return expr.func(base, expr.exp), flag
@@ -227,7 +222,7 @@ def xreplace_constrained(exprs, make, rule, cm=lambda e: True, repeat=False):
                 root = handle
             else:
                 rebuilt = expr.func(expr.lhs, handle) if expr.is_Equality else handle
-                processed.append(rebuilt)
+                processed[rebuilt.rhs] = rebuilt.lhs
                 break
 
-    return processed
+    return [Eq(v, k) for k, v in processed.items()]

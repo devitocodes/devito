@@ -160,14 +160,15 @@ def collect_aliases(exprs):
     return mapper, aliases
 
 
-def estimate_cost(handle, estimate_external_functions=False):
+def estimate_cost(handle, estimate_functions=False):
     """Estimate the operation count of ``handle``.
 
     :param handle: a SymPy expression or an iterator of SymPy expressions.
-    :param estimate_external_functions: approximate the operation count of known
-                                        functions (eg, sin, cos).
+    :param estimate_functions: approximate the operation count of known
+                               functions (eg, sin, cos).
     """
     internal_ops = {'trigonometry': 50}
+    external_functions = {sin: 50, cos: 50}
     try:
         # Is it a plain SymPy object ?
         iter(handle)
@@ -184,17 +185,21 @@ def estimate_cost(handle, estimate_external_functions=False):
             pass
     try:
         # At this point it must be a list of SymPy objects
-        # We don't count non floating point operations
+        # We don't use SymPy's count_ops because we do not count integer arithmetic
+        # (e.g., array index functions such as i+1 in A[i+1])
+        # Also, the routine below is *much* faster than count_ops
         handle = [i.rhs if i.is_Equality else i for i in handle]
-        handle = [i for i in handle if not i.is_Number]
-        total_ops = count_ops(handle)
-        indexed = flatten(retrieve_indexed(i, mode='all') for i in handle)
-        offsets = flatten(i.indices for i in indexed)
-        non_flops = [True for i in offsets if i.is_Add].count(True)
-        if estimate_external_functions:
-            costly_ops = [retrieve_trigonometry(i) for i in handle]
-            total_ops += sum([internal_ops['trigonometry']*len(i) for i in costly_ops])
-        return total_ops - non_flops
+        operations = flatten(retrieve_ops(i) for i in handle)
+        flops = 0
+        for op in operations:
+            if op.is_Function:
+                if estimate_functions:
+                    flops += external_functions.get(op.__class__, 1)
+                else:
+                    flops += 1
+            else:
+                flops += len(op.args) - (1 + sum(True for i in op.args if i.is_Integer))
+        return flops
     except:
         warning("Cannot estimate cost of %s" % str(handle))
 
@@ -297,15 +302,7 @@ def retrieve_shape(expr):
     return tuple(indices[0])
 
 
-def retrieve(expr, query, mode):
-    """
-    Find objects in an expression. This is much quicker than the more general
-    SymPy's find.
-
-    :param expr: The searched expression
-    :param query: Search query (accepted: 'indexed', 'trigonometry')
-    :param mode: either 'unique' or 'all' (catch all instances)
-    """
+class Retrieve(object):
 
     class Set(set):
 
@@ -324,41 +321,60 @@ def retrieve(expr, query, mode):
 
     rules = {
         'indexed': lambda e: isinstance(e, Indexed),
-        'trigonometry': lambda e: e.is_Function and e.func in [sin, cos]
+        'trigonometry': lambda e: e.is_Function and e.func in [sin, cos],
+        'ops': lambda e: e.is_Add or e.is_Mul or e.is_Function
     }
     modes = {
         'unique': Set,
         'all': List
     }
-    assert mode in modes
-    collection = modes[mode]
-    assert query in rules, "Unknown query"
-    rule = rules[query]
 
-    def run(expr):
-        if rule(expr):
-            return collection.wrap(expr)
-        else:
-            found = collection()
-            for a in expr.args:
-                found.update(run(a))
-            return found
+    def __init__(self, query, mode):
+        """
+        Search objects in an expression. This is much quicker than the more
+        general SymPy's find.
 
-    return run(expr)
+        :param query: Search query (accepted: 'indexed', 'trigonometry')
+        :param mode: either 'unique' or 'all' (catch all instances)
+        """
+        assert mode in self.modes, "Unknown mode"
+        assert query in self.rules, "Unknown query"
+        self.collection = self.modes[mode]
+        self.rule = self.rules[query]
+
+    def run(self, expr):
+        """
+        Perform the search.
+
+        :param expr: The searched expression
+        """
+        found = self.collection()
+        for a in expr.args:
+            found.update(self.run(a))
+        if self.rule(expr):
+            found.update(self.collection.wrap(expr))
+        return found
 
 
 def retrieve_indexed(expr, mode='unique'):
     """
-    Shorthand for ``retrieve(expr, 'indexed', 'unique')``.
+    Shorthand to retrieve :class:`Indexed` objects in ``expr``.
     """
-    return retrieve(expr, 'indexed', mode)
+    return Retrieve('indexed', mode).run(expr)
 
 
 def retrieve_trigonometry(expr, mode='unique'):
     """
-    Shorthand for ``retrieve(expr, 'trigonometry', 'unique')``.
+    Shorthand to retrieve trigonometric function objects in ``expr``.
     """
-    return retrieve(expr, 'trigonometry', mode)
+    return Retrieve('trigonometry', mode).run(expr)
+
+
+def retrieve_ops(expr, mode='all'):
+    """
+    Shorthand to retrieve arithmetic operations rooted in ``expr``.
+    """
+    return Retrieve('ops', mode).run(expr)
 
 
 def as_symbol(expr):
