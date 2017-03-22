@@ -555,22 +555,24 @@ class TimeData(DenseData):
     @property
     def dt(self):
         """Symbol for the first derivative wrt the time dimension"""
+        _t = self.indices[0]
         if self.time_order == 1:
             # This hack is needed for the first-order diffusion test
-            indices = [t, t + s]
+            indices = [_t, _t + s]
         else:
             width = int(self.time_order / 2)
-            indices = [(t + i * s) for i in range(-width, width + 1)]
+            indices = [(_t + i * s) for i in range(-width, width + 1)]
 
-        return as_finite_diff(self.diff(t), indices)
+        return as_finite_diff(self.diff(_t), indices)
 
     @property
     def dt2(self):
         """Symbol for the second derivative wrt the t dimension"""
-        width_t = int(self.time_order/2)
-        indt = [(t + i * s) for i in range(-width_t, width_t + 1)]
+        _t = self.indices[0]
+        width_t = int(self.time_order / 2)
+        indt = [(_t + i * s) for i in range(-width_t, width_t + 1)]
 
-        return as_finite_diff(self.diff(t, t), indt)
+        return as_finite_diff(self.diff(_t, _t), indt)
 
 
 class CoordinateData(SymbolicData):
