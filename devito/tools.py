@@ -104,22 +104,19 @@ def partial_order(elements):
     roots = OrderedDict([(k, v) for k, v in mapper.items()
                          if k not in flatten(mapper.values())])
 
-    # Compute the partial orders
+    # Start by queuing up roots
     ordering = []
+    queue = []
     for k, v in roots.items():
-        pos = 0
         ordering.append(k)
-        queue = [(i, k) for i in v]
-        while queue:
-            item, prev = queue.pop(0)
-            pos = ordering.index(prev) + 1
-            ordering.insert(pos, item)
-            for i in mapper[item]:
-                if i in ordering:
-                    if any(i == j for j in ordering[:pos]):
-                        return []
-                else:
-                    queue.append((i, item))
+        queue += [(i, k) for i in v]
+
+    # Compute the partial orders from roots
+    while queue:
+        item, prev = queue.pop(0)
+        if item not in ordering:
+            ordering += [item]
+        queue += [(i, item) for i in mapper[item]]
 
     return ordering
 
