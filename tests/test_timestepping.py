@@ -53,3 +53,15 @@ def test_forward_unroll(a, c, nt=5):
     StencilKernel([eqn_c, eqn_a], dle=None, dse=None)(time=nt)
     for i in range(nt):
         assert np.allclose(a.data[i, :], 1. + i, rtol=1.e-12)
+
+
+def test_forward_backward(a, b, nt=5):
+    a.data[0, :] = 1.
+    b.data[0, :] = 1.
+    eqn_a = Eq(a.forward, a + 1.)
+    StencilKernel(eqn_a, dle=None, dse=None, time_axis=Forward)(time=nt)
+
+    eqn_b = Eq(b, a + 1.)
+    StencilKernel(eqn_b, dle=None, dse=None, time_axis=Backward)(time=nt)
+    for i in range(nt):
+        assert np.allclose(b.data[i, :], 2. + i, rtol=1.e-12)
