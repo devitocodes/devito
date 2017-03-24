@@ -6,12 +6,31 @@ from operator import mul
 from sympy import finite_diff_weights, symbols
 
 from devito.dimension import x, y
+from devito.logger import error
 
 __all__ = ['first_derivative', 'second_derivative', 'cross_derivative',
            'left', 'right', 'centered']
 
 # Default spacing symbol
 h = symbols('h')
+
+
+class Transpose(object):
+    """Class that defines if the derivative is itself or adjoint (transpose).
+    This only matter for odd order derivatives that requires
+    a minus sign for the transpose."""
+    def __init__(self, transpose):
+        self._transpose = transpose
+
+    def __eq__(self, other):
+        return self._transpose == other._transpose
+
+    def __repr__(self):
+        return {1: 'direct', -1: 'transpose'}[self._transpose]
+
+
+direct = Transpose(1)
+transpose = Transpose(-1)
 
 
 class Side(object):
@@ -25,6 +44,19 @@ class Side(object):
 
     def __repr__(self):
         return {-1: 'left', 0: 'centered', 1: 'right'}[self._side]
+
+    def adjoint(self, matvec):
+        if matvec == direct:
+            return self
+        else:
+            if self == centered:
+                return centered
+            elif self == right:
+                return left
+            elif self == left:
+                return right
+            else:
+                error("Unsupported side value")
 
 
 left = Side(-1)
@@ -139,7 +171,8 @@ def first_derivative(*args, **kwargs):
     dim = kwargs.get('dim', x)
     diff = kwargs.get('diff', h)
     order = int(kwargs.get('order', 1))
-    side = kwargs.get('side', centered)
+    matvec = kwargs.get('matvec', direct)
+    side = kwargs.get('side', centered).adjoint(matvec)
     deriv = 0
     # Stencil positions for non-symmetric cross-derivatives with symmetric averaging
     if side == right:
@@ -159,4 +192,4 @@ def first_derivative(*args, **kwargs):
     for i in range(0, len(ind)):
             var = [a.subs({dim: ind[i]}) for a in args]
             deriv += c[i] * reduce(mul, var, 1)
-    return deriv
+    return matvec._transpose*deriv
