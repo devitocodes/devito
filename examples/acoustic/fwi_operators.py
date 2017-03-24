@@ -1,10 +1,8 @@
 from sympy import Eq, solve, symbols
 
 from devito.dimension import t, time
-from devito.interfaces import DenseData, TimeData
-from devito.operator import *
 from devito.stencilkernel import StencilKernel
-from examples.source_type import SourceLike
+from devito.operator import *
 
 
 def ForwardOperator(model, u, src, rec, data, time_order=2, spc_order=6,
@@ -119,13 +117,13 @@ def AdjointOperator(model, v, srca, rec, data, time_order=2, spc_order=6,
         kwargs.pop('dle', None)
 
         op = Operator(nt, model.shape_domain, stencils=Eq(v.backward, stencil), subs=subs,
-                      spc_border=max(spc_order / 2, 2), time_order=2, forward=True,
+                      spc_border=max(spc_order, 2), time_order=2, forward=False,
                       dtype=model.dtype, **kwargs)
 
         # Insert source and receiver terms post-hoc
         op.input_params += [srca, srca.coordinates, rec, rec.coordinates]
         op.output_params += [rec]
-        op.propagator.time_loop_stencils_a = srca.read(v) + rec.add(m, v)
+        op.propagator.time_loop_stencils_a = rec.add(m, v) + srca.read(v)
         op.propagator.add_devito_param(srca)
         op.propagator.add_devito_param(srca.coordinates)
         op.propagator.add_devito_param(rec)
