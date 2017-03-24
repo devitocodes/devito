@@ -345,28 +345,34 @@ class Iteration(Node):
 
         # Start
         if offsets[0] != 0:
-            val = "%s + %s" % (self.limits[0], -offsets[0])
+            start = "%s + %s" % (self.limits[0], -offsets[0])
             try:
-                val = eval(val)
+                start = eval(start)
             except (NameError, TypeError):
                 pass
         else:
-            val = self.limits[0]
-        loop_init = c.InlineInitializer(c.Value("int", self.index), ccode(val))
+            start = self.limits[0]
 
         # Bound
         if offsets[1] != 0:
-            val = "%s - %s" % (self.limits[1], offsets[1])
+            end = "%s - %s" % (self.limits[1], offsets[1])
             try:
-                val = eval(val)
+                end = eval(end)
             except (NameError, TypeError):
                 pass
         else:
-            val = self.limits[1]
-        loop_cond = '%s < %s' % (self.index, ccode(val))
+            end = self.limits[1]
 
-        # Increment
-        loop_inc = '%s += %s' % (self.index, self.limits[2])
+        # For reverse dimensions flip loop bounds
+        if self.dim.reverse:
+            loop_init = c.InlineInitializer(c.Value("int", self.index),
+                                            ccode('%s - 1' % end))
+            loop_cond = '%s >= %s' % (self.index, ccode(start))
+            loop_inc = '%s -= %s' % (self.index, self.limits[2])
+        else:
+            loop_init = c.InlineInitializer(c.Value("int", self.index), ccode(start))
+            loop_cond = '%s < %s' % (self.index, ccode(end))
+            loop_inc = '%s += %s' % (self.index, self.limits[2])
 
         return c.For(loop_init, loop_cond, loop_inc, c.Block(loop_body))
 

@@ -4,7 +4,7 @@ import numpy as np
 from sympy import Function, IndexedBase, Symbol, as_finite_diff, symbols
 from sympy.abc import h, s
 
-from devito.dimension import d, p, t, x, y, z
+from devito.dimension import d, p, t, x, y, z, time
 from devito.finite_difference import (centered, cross_derivative,
                                       first_derivative, left, right,
                                       second_derivative)
@@ -12,13 +12,35 @@ from devito.logger import debug, error
 from devito.memmap_manager import MemmapManager
 from devito.memory import CMemory, first_touch
 
-__all__ = ['DenseData', 'TimeData', 'PointData']
+__all__ = ['DenseData', 'TimeData', 'PointData', 'Forward', 'Backward']
 
 
 # This cache stores a reference to each created data object
 # so that we may re-create equivalent symbols during symbolic
 # manipulation with the correct shapes, pointers, etc.
 _SymbolCache = {}
+
+
+class TimeAxis(object):
+    """Direction in which to advance the time index on
+    :class:`TimeData` objects.
+
+    :param axis: Either 'Forward' or 'Backward'
+    """
+
+    def __init__(self, axis):
+        assert axis in ['Forward', 'Backward']
+        self._axis = {'Forward': 1, 'Backward': -1}[axis]
+
+    def __eq__(self, other):
+        return self._axis == other._axis
+
+    def __repr__(self):
+        return {-1: 'Backward', 1: 'Forward'}[self._axis]
+
+
+Forward = TimeAxis('Forward')
+Backward = TimeAxis('Backward')
 
 
 class CachedSymbol(object):
@@ -515,7 +537,9 @@ class TimeData(DenseData):
         dimensions = kwargs.get('dimensions', None)
         if dimensions is None:
             # Infer dimensions from default and data shape
-            _indices = [t, x, y, z]
+            save = kwargs.get('save', None)
+            tidx = time if save else t
+            _indices = [tidx, x, y, z]
             shape = kwargs.get('shape')
             dimensions = _indices[:len(shape) + 1]
         return dimensions
@@ -538,35 +562,39 @@ class TimeData(DenseData):
     def forward(self):
         """Symbol for the time-forward state of the function"""
         i = int(self.time_order / 2) if self.time_order >= 2 else 1
+        _t = self.indices[0]
 
-        return self.subs(t, t + i * s)
+        return self.subs(_t, _t + i * s)
 
     @property
     def backward(self):
         """Symbol for the time-backward state of the function"""
         i = int(self.time_order / 2) if self.time_order >= 2 else 1
+        _t = self.indices[0]
 
-        return self.subs(t, t - i * s)
+        return self.subs(_t, _t - i * s)
 
     @property
     def dt(self):
         """Symbol for the first derivative wrt the time dimension"""
+        _t = self.indices[0]
         if self.time_order == 1:
             # This hack is needed for the first-order diffusion test
-            indices = [t, t + s]
+            indices = [_t, _t + s]
         else:
             width = int(self.time_order / 2)
-            indices = [(t + i * s) for i in range(-width, width + 1)]
+            indices = [(_t + i * s) for i in range(-width, width + 1)]
 
-        return as_finite_diff(self.diff(t), indices)
+        return as_finite_diff(self.diff(_t), indices)
 
     @property
     def dt2(self):
         """Symbol for the second derivative wrt the t dimension"""
-        width_t = int(self.time_order/2)
-        indt = [(t + i * s) for i in range(-width_t, width_t + 1)]
+        _t = self.indices[0]
+        width_t = int(self.time_order / 2)
+        indt = [(_t + i * s) for i in range(-width_t, width_t + 1)]
 
-        return as_finite_diff(self.diff(t, t), indt)
+        return as_finite_diff(self.diff(_t, _t), indt)
 
 
 class CoordinateData(SymbolicData):
