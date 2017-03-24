@@ -4,9 +4,10 @@ from __future__ import print_function
 import numpy as np
 
 from devito.at_controller import AutoTuner
-from devito.dimension import Dimension, time
+from devito.dimension import Dimension
+from devito.interfaces import DenseData, TimeData, CachedSymbol
 from examples.acoustic.fwi_operators import *
-
+from examples.source_type import SourceLike
 
 class Acoustic_cg(object):
     """
@@ -159,7 +160,6 @@ class Acoustic_cg(object):
     def Gradient(self, recin, u, cache_blocking=None, auto_tuning=False,
                 dse='advanced', dle='advanced', compiler=None, legacy=True):
         nt, nrec = self.data.shape
-        nsrc = self.source.shape[1]
         ndim = len(self.model.shape)
         h = self.model.get_spacing()
         dtype = self.model.dtype
@@ -240,7 +240,6 @@ class Acoustic_cg(object):
                             cache_blocking=cache_blocking, dse=dse,
                             dle=dle, compiler=compiler, profile=True,
                             legacy=legacy)
-
         if legacy:
             born.apply()
             return (rec.data, u, U, born.propagator.gflopss,
