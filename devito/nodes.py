@@ -340,7 +340,8 @@ class Iteration(Node):
 
         # For reverse dimensions flip loop bounds
         if self.dim.reverse:
-            loop_init = c.InlineInitializer(c.Value("int", self.index), ccode(end))
+            loop_init = c.InlineInitializer(c.Value("int", self.index),
+                                            ccode('%s - 1' % end))
             loop_cond = '%s >= %s' % (self.index, ccode(start))
             loop_inc = '%s -= %s' % (self.index, self.limits[2])
         else:
