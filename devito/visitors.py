@@ -469,8 +469,8 @@ class ResolveIterationVariable(Transformer):
             init = []
             for i, off in enumerate(filter_ordered(offsets[o.dim])):
                 vname = "%s%d" % (o.dim.name, i)
+                value = o.dim.parent + off
                 modulo = o.dim.modulo
-                value = o.dim.parent + off + modulo
                 init += [c.Initializer(c.Value('int', vname),
                                        "(%s) %% %d" % (value, modulo))]
                 subs[o.dim + off] = Symbol(vname)
