@@ -13,7 +13,7 @@ import numpy as np
 
 from devito.cgen_utils import Allocator
 from devito.compiler import (get_compiler_from_env, get_tmp_dir,
-                             jit_compile_and_load)
+                             jit_compile_and_load, jit_compile_only)
 from devito.dimension import BufferedDimension, Dimension, time
 from devito.dle import filter_iterations, transform
 from devito.dse import (estimate_cost, estimate_memory, indexify, rewrite)
@@ -65,6 +65,7 @@ class StencilKernel(Function):
     """
     def __init__(self, stencils, **kwargs):
         name = kwargs.get("name", "Kernel")
+        self.name = name
         subs = kwargs.get("subs", {})
         time_axis = kwargs.get("time_axis", Forward)
         dse = kwargs.get("dse", "advanced")
@@ -97,7 +98,8 @@ class StencilKernel(Function):
 
         # Introduce C-level profiling infrastructure
         self.sections = OrderedDict()
-        nodes = self._profile_sections(nodes)
+        if self.profiler:
+            nodes = self._profile_sections(nodes)
 
         # Parameters of the StencilKernel (Dimensions necessary for data casts)
         parameters = FindSymbols('kernel-data').visit(nodes)
@@ -462,8 +464,10 @@ class StencilKernel(Function):
     @property
     def _cparameters(self):
         cparameters = super(StencilKernel, self)._cparameters
-        cparameters += [c.Pointer(c.Value('struct %s' % self.profiler.s_name,
-                                          self.profiler.t_name))]
+        if self.profiler:
+            cparameters += [c.Pointer(c.Value('struct %s' % self.profiler.s_name,
+                                              self.profiler.t_name))]
+
         return cparameters
 
     @property
@@ -489,7 +493,10 @@ class StencilKernel(Function):
         header = [c.Line(i) for i in self._headers]
         includes = [c.Include(i, system=False) for i in self._includes]
         includes += [blankline]
-        profiling = [self.profiler.as_cgen_struct(Profiler.TIME), blankline]
+        if self.profiler:
+            profiling = [self.profiler.as_cgen_struct(Profiler.TIME), blankline]
+        else:
+            profiling = []
         return c.Module(header + includes + profiling + elemental_functions + [kernel])
 
     @property
@@ -511,6 +518,22 @@ class StencilKernel(Function):
             self._cfunction.argtypes = self.argtypes
 
         return self._cfunction
+        
+    @property
+    def cfunctionJ(self):
+        """Returns the JIT-compiled C function as a ctypes.FuncPtr object
+        Note that this invokes the JIT compilation toolchain with the
+        compiler class derived in the constructor
+        :returns: The generated C function
+        """
+
+        if self._lib is None:
+            ccode = self.ccode
+            hash_key = sha1(str(ccode).encode()).hexdigest()
+            basename = path.join(get_tmp_dir(), hash_key)
+            self._lib = jit_compile_only(ccode, basename, self.compiler)
+
+        return (self._lib, self.name)
 
     @property
     def argtypes(self):
