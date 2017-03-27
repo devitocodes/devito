@@ -76,7 +76,7 @@ class GNUCompiler(Compiler):
         self.version = kwargs.get('version', None)
         self.cc = 'gcc' if self.version is None else 'gcc-%s' % self.version
         self.ld = 'gcc' if self.version is None else 'gcc-%s' % self.version
-        self.cflags = ['-O3', '-g', '-march=native', '-fPIC', '-Wall', '-std=c99',
+        self.cflags = ['-O3', '-g', '-fPIC', '-Wall', '-std=c99',
                        '-Wno-unused-result', '-Wno-unused-variable']
         self.ldflags = ['-shared']
 
@@ -258,8 +258,16 @@ def jit_compile(ccode, basename, compiler=GNUCompiler):
     :param compiler: The toolchain used for compilation. GNUCompiler by default.
     :return: Path to compiled lib
     """
+
     src_file = "%s.%s" % (basename, compiler.src_ext)
-    lib_file = "%s.%s" % (basename, compiler.lib_ext)
+    from sys import platform
+    if platform == "linux" or platform == "linux2":
+        lib_file = "%s.so" % basename
+    elif platform == "darwin":
+        lib_file = "%s.dylib" % basename
+    elif platform == "win32" or platform == "win64":
+        lib_file = "%s.dll" % basename
+    
     tic = time()
     extension_file_from_string(toolchain=compiler, ext_file=lib_file,
                                source_string=ccode, source_name=src_file)
@@ -301,3 +309,13 @@ def jit_compile_and_load(ccode, basename, compiler=GNUCompiler):
     jit_compile(ccode, basename, compiler=compiler)
 
     return load(basename, compiler=compiler)
+    
+def jit_compile_only(ccode, basename, compiler=GNUCompiler):
+    """JIT compile the given ccode
+    :param ccode: String of C source code.
+    :param basename: The string used to name various files for this compilation.
+    :param compiler: The toolchain used for compilation. GNUCompiler by default.
+    :return: The compiled library.
+    """
+    jit_compile(ccode, basename, compiler=compiler)
+    return "%s" % basename
