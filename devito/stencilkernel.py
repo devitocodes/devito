@@ -64,8 +64,7 @@ class StencilKernel(Function):
                     meta-data at runtime. Use profiler=None to disable profiling.
     """
     def __init__(self, expressions, **kwargs):
-        name = kwargs.get("name", "Kernel")
-        self.name = name
+        self.name = kwargs.get("name", "Kernel")
         subs = kwargs.get("subs", {})
         time_axis = kwargs.get("time_axis", Forward)
         dse = kwargs.get("dse", "advanced")
@@ -127,7 +126,7 @@ class StencilKernel(Function):
         self._dle_state = dle_state
 
         # Finish instantiation
-        super(StencilKernel, self).__init__(name, nodes, 'int', parameters, ())
+        super(StencilKernel, self).__init__(self.name, nodes, 'int', parameters, ())
 
     def __call__(self, *args, **kwargs):
         self.apply(*args, **kwargs)
@@ -527,7 +526,7 @@ class StencilKernel(Function):
             self._cfunction.argtypes = self.argtypes
 
         return self._cfunction
-   
+
     @property
     def cfunctionJ(self):
         """Returns the JIT-compiled C function as a ctypes.FuncPtr object

@@ -2,6 +2,7 @@ from functools import partial
 from os import environ, getuid, mkdir, path
 from tempfile import gettempdir
 from time import time
+from sys import platform
 
 import numpy.ctypeslib as npct
 from cgen import Pragma
@@ -260,7 +261,6 @@ def jit_compile(ccode, basename, compiler=GNUCompiler):
     """
 
     src_file = "%s.%s" % (basename, compiler.src_ext)
-    from sys import platform
     if platform == "linux" or platform == "linux2":
         lib_file = "%s.so" % basename
     elif platform == "darwin":
