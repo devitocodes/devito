@@ -267,7 +267,7 @@ def jit_compile(ccode, basename, compiler=GNUCompiler):
         lib_file = "%s.dylib" % basename
     elif platform == "win32" or platform == "win64":
         lib_file = "%s.dll" % basename
-    
+
     tic = time()
     extension_file_from_string(toolchain=compiler, ext_file=lib_file,
                                source_string=ccode, source_name=src_file)
@@ -309,7 +309,8 @@ def jit_compile_and_load(ccode, basename, compiler=GNUCompiler):
     jit_compile(ccode, basename, compiler=compiler)
 
     return load(basename, compiler=compiler)
-    
+
+
 def jit_compile_only(ccode, basename, compiler=GNUCompiler):
     """JIT compile the given ccode
     :param ccode: String of C source code.
