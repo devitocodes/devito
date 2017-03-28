@@ -316,7 +316,6 @@ class Iteration(Node):
         loop_body = [s.ccode for s in self.nodes]
 
         # Disregard offsets for buffered dimensions
-        # [0, 0] if self.dim.is_Buffered else 
         offsets = self.offsets
 
         # Start

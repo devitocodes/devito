@@ -527,7 +527,7 @@ class StencilKernel(Function):
             self._cfunction.argtypes = self.argtypes
 
         return self._cfunction
-        
+   
     @property
     def cfunctionJ(self):
         """Returns the JIT-compiled C function as a ctypes.FuncPtr object
