@@ -85,6 +85,19 @@ class GNUCompiler(Compiler):
         self.pragma_ivdep = [Pragma('GCC ivdep')]
 
 
+class GNUCompilerNoAVX(GNUCompiler):
+    """Set of compiler flags for GCC but with AVX suppressed. This is
+    a work around for a known gcc bug on MAC OS."
+
+    :param openmp: Boolean indicating if openmp is enabled. False by default
+    """
+
+    def __init__(self, *args, **kwargs):
+        super(GNUCompilerNoAVX, self).__init__(*args, **kwargs)
+        self.cflags = ['-O3', '-g', '-march=native', '-mno-avx', '-fPIC', '-Wall',
+                       '-std=c99', '-Wno-unused-result', '-Wno-unused-variable']
+
+
 class ClangCompiler(Compiler):
     """Set of standard compiler flags for the clang toolchain
 
@@ -175,7 +188,7 @@ class CustomCompiler(Compiler):
         super(CustomCompiler, self).__init__(*args, **kwargs)
         self.cc = environ.get('CC', 'gcc')
         self.ld = environ.get('LD', 'gcc')
-        default = '-O3 -g -march=native -fPIC -Wall -std=c99'
+        default = '-O3 -g -march=native -fPIC -mno-avx -Wall -std=c99'
         self.cflags = environ.get('CFLAGS', default).split(' ')
         self.ldflags = environ.get('LDFLAGS', '-shared').split(' ')
 
@@ -191,6 +204,7 @@ compiler_registry = {
     'gcc': GNUCompiler, 'gnu': GNUCompiler,
     'gcc-4.9': partial(GNUCompiler, version='4.9'),
     'gcc-5': partial(GNUCompiler, version='5'),
+    'gcc-noavx': GNUCompilerNoAVX, 'gnu-noavx': GNUCompilerNoAVX,
     'clang': ClangCompiler, 'osx': ClangCompiler,
     'intel': IntelCompiler, 'icpc': IntelCompiler,
     'icc': IntelCompiler,
