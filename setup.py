@@ -1,6 +1,6 @@
 import versioneer
 try:
-    from setuptools import setup
+    from setuptools import setup, find_packages
 except ImportError:
     from distutils.core import setup
 
@@ -19,6 +19,6 @@ setup(name='devito',
       author="Imperial College London",
       author_email='opesci@imperial.ac.uk',
       license='MIT',
-      packages=['devito'],
+      packages=find_packages(exclude=['docs', 'examples', 'tests']),
       install_requires=['numpy', 'sympy', 'mpmath', 'cgen', 'codepy'],
       test_requires=['pytest', 'flake8', 'isort'])
