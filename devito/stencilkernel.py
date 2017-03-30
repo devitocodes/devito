@@ -218,6 +218,70 @@ class StencilKernel(Function):
 
         return summary
 
+    def argument_list(self, **kwargs):
+        args = self.parameters
+
+        # Perform auto-tuning if the user requests it and loop blocking is in use
+        maybe_autotune = kwargs.get('autotune', False)
+
+        # Map of required arguments and actual dimension sizes
+        arguments = OrderedDict([(arg.name, arg) for arg in self.parameters])
+        dim_sizes = {}
+
+        # Traverse positional args and infer loop sizes for open dimensions
+        f_args = [f for f in arguments.values() if isinstance(f, SymbolicData)]
+        for f, arg in zip(f_args, args):
+            arguments[f.name] = None
+            # Ensure data dimensions match symbol dimensions
+            for i, dim in enumerate(f.indices):
+                # Infer open loop limits
+                if dim.size is None:
+                    if dim in dim_sizes:
+                        # Ensure size matches previously defined size
+                        if not dim.is_Buffered:
+                            assert dim_sizes[dim] <= f.shape[i]
+                    else:
+                        # Derive size from grid data shape and store
+                        dim_sizes[dim] = f.shape[i]
+
+                    # Ensure parent for buffered dims is defined
+                    if dim.is_Buffered and dim.parent not in dim_sizes:
+                        dim_sizes[dim.parent] = dim_sizes[dim]
+                else:
+                    if not isinstance(dim, BufferedDimension):
+                        assert dim.size == f.shape[i]
+
+        # Add user-provided block sizes, if any
+        dle_arguments = OrderedDict()
+        for i in self._dle_state.arguments:
+            dim_size = dim_sizes.get(i.original_dim, i.original_dim.size)
+            assert dim_size is not None, "Unable to match arguments and values"
+            if i.value:
+                try:
+                    dle_arguments[i.argument] = i.value(dim_size)
+                except TypeError:
+                    dle_arguments[i.argument] = i.value
+                    # User-provided block size available, do not autotune
+                    maybe_autotune = False
+            else:
+                dle_arguments[i.argument] = dim_size
+        dim_sizes.update(dle_arguments)
+
+        # Insert loop size arguments from dimension values
+        d_args = [d for d in arguments.values() if isinstance(d, Dimension)]
+        for d in d_args:
+            arguments[d.name] = dim_sizes[d]
+
+        # Might have been asked to auto-tune the block size
+        if maybe_autotune:
+            self._autotune(arguments)
+
+        # Add profiler structs
+        if self.profiler:
+            cpointer = self.profiler.as_ctypes_pointer(Profiler.TIME)
+            arguments[self.profiler.s_name] = cpointer
+        return arguments.items()
+
     def _profile_sections(self, nodes):
         """Introduce C-level profiling nodes within the Iteration/Expression tree."""
         mapper = {}
