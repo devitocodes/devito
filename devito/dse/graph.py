@@ -255,7 +255,7 @@ class Cluster(object):
         for v in self._full_trace.values():
             self._offsets.append(stencil(v))
             if v.rhs in known_aliases:
-                 self._offsets.append(known_aliases[v.rhs])
+                self._offsets.append(known_aliases[v.rhs])
 
     def _view(self, drop=lambda v: False):
         handle = self._full_trace.copy()

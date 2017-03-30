@@ -46,13 +46,6 @@ def q_terminalop(expr):
         return True
 
 
-def q_binaryop(expr):
-    if not (expr.is_Add or expr.is_Mul) and not len(expr.args) == 2:
-        return False
-
-    return all(isinstance(a, (Number, Symbol, Indexed)) for a in expr.args)
-
-
 def q_indirect(expr):
     """
     Return True if ``indexed`` has indirect accesses, False otherwise.

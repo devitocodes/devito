@@ -1,7 +1,7 @@
 from collections import OrderedDict, namedtuple
 
 import numpy as np
-from sympy import (Function, Indexed, Number, Symbol, cos, count_ops, lambdify,
+from sympy import (Function, Indexed, Number, Symbol, cos, lambdify,
                    preorder_traversal, sin)
 
 from devito.dimension import Dimension, t
@@ -182,7 +182,6 @@ def estimate_cost(handle, estimate_functions=False):
     :param estimate_functions: approximate the operation count of known
                                functions (eg, sin, cos).
     """
-    internal_ops = {'trigonometry': 50}
     external_functions = {sin: 50, cos: 50}
     try:
         # Is it a plain SymPy object ?

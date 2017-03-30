@@ -12,16 +12,14 @@ from __future__ import absolute_import
 from collections import OrderedDict, Sequence
 from time import time
 
-from sympy import (Eq, Indexed, IndexedBase, Symbol, cos,
-                   numbered_symbols, preorder_traversal, sin)
+from sympy import (Eq, Indexed, cos, sin)
 
-from devito.dimension import t, x, y, z
 from devito.dse.extended_sympy import bhaskara_cos, bhaskara_sin
-from devito.dse.graph import Cluster, Temporary, temporaries_graph
-from devito.dse.inspection import (as_symbol, collect_aliases, count,
-                                   estimate_cost, estimate_memory, terminals)
+from devito.dse.graph import Cluster, temporaries_graph
+from devito.dse.inspection import (collect_aliases, count,
+                                   estimate_cost, estimate_memory)
 from devito.dse.manipulation import (collect_nested, freeze_expression,
-                                     filter_expressions, xreplace_constrained)
+                                     xreplace_constrained)
 from devito.dse.queries import iq_timeinvariant, iq_timevarying, q_op
 from devito.interfaces import ScalarFunction, TensorFunction
 from devito.logger import dse, dse_warning
@@ -436,6 +434,7 @@ class Rewriter(object):
 
         expected = ['alias-time-invariant', 'alias-time-dependent', 'other']
         graph = temporaries_graph(exprs)
+
         def key(i):
             if i.rhs in state.aliases:
                 index = state.aliases.keys().index(i.rhs)
@@ -445,6 +444,7 @@ class Rewriter(object):
                     return (expected.index('alias-time-dependent'), index)
             else:
                 return (expected.index('other'), 0)
+
         processed = sorted(exprs, key=key)
 
         state.update(exprs=processed)
