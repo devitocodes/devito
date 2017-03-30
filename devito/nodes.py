@@ -10,7 +10,7 @@ from sympy import Eq, preorder_traversal
 
 from devito.cgen_utils import ccode
 from devito.dimension import Dimension
-from devito.dse.inspection import as_symbol, retrieve_indexed, stencil
+from devito.dse import as_symbol, retrieve_indexed, stencil
 from devito.interfaces import IndexedData, SymbolicData, TensorFunction
 from devito.tools import as_tuple, filter_ordered, flatten
 

@@ -5,13 +5,14 @@ from sympy import (Function, Indexed, Number, Symbol, cos, count_ops, lambdify,
                    preorder_traversal, sin)
 
 from devito.dimension import Dimension, t
+from devito.dse.search import retrieve_indexed, retrieve_ops, search
+from devito.dse.queries import q_indirect
 from devito.interfaces import SymbolicData
 from devito.logger import warning
 from devito.tools import SetOrderedDict, flatten
 
-__all__ = ['estimate_cost', 'estimate_memory', 'indexify', 'is_binary_op',
-           'is_indirect', 'retrieve_dimensions', 'retrieve_dtype', 'retrieve_symbols',
-           'retrieve_shape', 'retrieve_indexed', 'retrieve_trigonometry', 'as_symbol',
+__all__ = ['estimate_cost', 'estimate_memory', 'indexify', 'retrieve_dimensions',
+           'retrieve_dtype', 'retrieve_symbols', 'retrieve_shape', 'as_symbol',
            'stencil', 'terminals', 'tolambda']
 
 
@@ -103,7 +104,7 @@ def collect_aliases(exprs):
         # their symbols ((1, 0) in this example)
         translations = set()
         for indexed1, indexed2 in zip(cache[e1], cache[e2]):
-            if is_indirect(indexed1) or is_indirect(indexed2):
+            if q_indirect(indexed1) or q_indirect(indexed2):
                 return ()
             translation = []
             dimensions = indexed1.base.function.indices
@@ -302,81 +303,6 @@ def retrieve_shape(expr):
     return tuple(indices[0])
 
 
-class Retrieve(object):
-
-    class Set(set):
-
-        @staticmethod
-        def wrap(obj):
-            return {obj}
-
-    class List(list):
-
-        @staticmethod
-        def wrap(obj):
-            return [obj]
-
-        def update(self, obj):
-            return self.extend(obj)
-
-    rules = {
-        'indexed': lambda e: isinstance(e, Indexed),
-        'trigonometry': lambda e: e.is_Function and e.func in [sin, cos],
-        'ops': lambda e: e.is_Add or e.is_Mul or e.is_Function
-    }
-    modes = {
-        'unique': Set,
-        'all': List
-    }
-
-    def __init__(self, query, mode):
-        """
-        Search objects in an expression. This is much quicker than the more
-        general SymPy's find.
-
-        :param query: Search query (accepted: 'indexed', 'trigonometry')
-        :param mode: either 'unique' or 'all' (catch all instances)
-        """
-        assert mode in self.modes, "Unknown mode"
-        assert query in self.rules, "Unknown query"
-        self.collection = self.modes[mode]
-        self.rule = self.rules[query]
-
-    def run(self, expr):
-        """
-        Perform the search.
-
-        :param expr: The searched expression
-        """
-        found = self.collection()
-        for a in expr.args:
-            found.update(self.run(a))
-        if self.rule(expr):
-            found.update(self.collection.wrap(expr))
-        return found
-
-
-def retrieve_indexed(expr, mode='unique'):
-    """
-    Shorthand to retrieve :class:`Indexed` objects in ``expr``.
-    """
-    return Retrieve('indexed', mode).run(expr)
-
-
-def retrieve_trigonometry(expr, mode='unique'):
-    """
-    Shorthand to retrieve trigonometric function objects in ``expr``.
-    """
-    return Retrieve('trigonometry', mode).run(expr)
-
-
-def retrieve_ops(expr, mode='all'):
-    """
-    Shorthand to retrieve arithmetic operations rooted in ``expr``.
-    """
-    return Retrieve('ops', mode).run(expr)
-
-
 def as_symbol(expr):
     """
     Extract the "main" symbol from a SymPy object.
@@ -395,52 +321,6 @@ def as_symbol(expr):
         return expr.base.label
     else:
         raise TypeError("Cannot extract symbol from type %s" % type(expr))
-
-
-def is_binary_op(expr):
-    """
-    Return True if ``expr`` is a binary operation, False otherwise.
-    """
-
-    if not (expr.is_Add or expr.is_Mul) and not len(expr.args) == 2:
-        return False
-
-    return all(isinstance(a, (Number, Symbol, Indexed)) for a in expr.args)
-
-
-def is_terminal_op(expr):
-    """
-    Return True if ``expr`` is a terminal operation; that is, no Add or
-    Mul is present amongst its args.
-    """
-    if not (expr.is_Add or expr.is_Mul):
-        return False
-
-    for a in expr.args:
-        try:
-            as_symbol(a)
-        except TypeError:
-            if a.is_Add or a.is_Mul:
-                return False
-
-    return True
-
-
-def is_indirect(indexed):
-    """
-    Return True if ``indexed`` has indirect accesses, False otherwise.
-
-    Examples
-    ========
-    a[i] --> False
-    a[b[i]] --> True
-    """
-    if not isinstance(indexed, Indexed):
-        return False
-    if any(retrieve_indexed(i) for i in indexed.indices):
-        return True
-    else:
-        return False
 
 
 def indexify(expr):

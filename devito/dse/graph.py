@@ -25,7 +25,9 @@ from sympy import Indexed
 
 from devito.dimension import x, y, z, t  # TODO: Generalize to arbitrary dimensions
 from devito.dse.extended_sympy import Eq
-from devito.dse.inspection import is_indirect, retrieve_indexed, stencil, terminals
+from devito.dse.search import retrieve_indexed
+from devito.dse.inspection import stencil, terminals
+from devito.dse.queries import q_indirect
 from devito.tools import SetOrderedDict, flatten
 
 __all__ = ['temporaries_graph']
@@ -111,8 +113,6 @@ class TemporariesGraph(OrderedDict):
         more information about clusters.
         """
         aliases = aliases or {}
-
-        # Compute the clusters
         targets = [v for v in self.values() if v.is_tensor]
         clusters = []
         for i in targets:
@@ -124,7 +124,7 @@ class TemporariesGraph(OrderedDict):
     def space_indices(self):
         seen = set()
         candidates = [x, y, z]
-        terms = [k for k, v in self.items() if v.is_tensor and not is_indirect(k)]
+        terms = [k for k, v in self.items() if v.is_tensor and not q_indirect(k)]
         for term in terms:
             seen |= {i for i in term.base.function.indices if i in candidates}
         return tuple(sorted(seen, key=lambda i: candidates.index(i)))
@@ -132,7 +132,7 @@ class TemporariesGraph(OrderedDict):
     @property
     def space_shape(self):
         candidates = self.space_indices
-        terms = [k for k, v in self.items() if v.is_tensor and not is_indirect(k)]
+        terms = [k for k, v in self.items() if v.is_tensor and not q_indirect(k)]
         for term in terms:
             indices = term.base.function.indices
             if set(candidates).issubset(set(indices)):
