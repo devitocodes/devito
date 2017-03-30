@@ -64,6 +64,20 @@ def stencil(expr):
     return offsets
 
 
+def count(exprs, query):
+    """
+    Return a mapper ``{(k, v)}`` where ``k`` is a sub-expression in ``exprs``
+    matching ``query`` and ``v`` is the number of its occurrences.
+    """
+    mapper = OrderedDict()
+    for expr in exprs:
+        found = search(expr, query, 'all', 'bfs')
+        for i in found:
+            mapper.setdefault(i, 0)
+            mapper[i] += 1
+    return mapper
+
+
 def collect_aliases(exprs):
     """
     Determine all expressions in ``exprs`` that alias to the same expression.

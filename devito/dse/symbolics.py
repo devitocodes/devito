@@ -18,10 +18,11 @@ from sympy import (Eq, Indexed, IndexedBase, Symbol, cos,
 from devito.dimension import t, x, y, z
 from devito.dse.extended_sympy import bhaskara_cos, bhaskara_sin
 from devito.dse.graph import Cluster, Temporary, temporaries_graph
-from devito.dse.inspection import (as_symbol, collect_aliases, estimate_cost,
-                                   estimate_memory, is_terminal_op, terminals)
+from devito.dse.inspection import (as_symbol, collect_aliases, count,
+                                   estimate_cost, estimate_memory, terminals)
 from devito.dse.manipulation import (collect_nested, freeze_expression,
                                      filter_expressions, xreplace_constrained)
+from devito.dse.queries import iq_timeinvariant, iq_timevarying, q_op
 from devito.interfaces import ScalarFunction, TensorFunction
 from devito.logger import dse, dse_warning
 from devito.tools import flatten
@@ -231,8 +232,7 @@ class Rewriter(object):
         template = self.conventions['time-dependent'] + "%d"
         make = lambda i: ScalarFunction(name=template % i).indexify()
 
-        graph = temporaries_graph(state.exprs)
-        rule = lambda i: i.is_Number or not graph.time_invariant(i)
+        rule = iq_timevarying(state.exprs)
 
         cm = lambda i: estimate_cost(i) > 0
 
@@ -249,12 +249,11 @@ class Rewriter(object):
         template = self.conventions['time-invariant'] + "%d"
         make = lambda i: ScalarFunction(name=template % i).indexify()
 
-        graph = temporaries_graph(state.exprs)
-        rule = lambda i: not i.is_Number and graph.time_invariant(i)
+        rule = iq_timeinvariant(state.exprs)
 
         cm = lambda e: estimate_cost(e) > 0
 
-        processed = xreplace_constrained(state.exprs, make, rule, cm, repeat=True)
+        processed = xreplace_constrained(state.exprs, make, rule, cm)
 
         return {'exprs': processed}
 
@@ -264,8 +263,9 @@ class Rewriter(object):
         Perform common subexpression elimination.
         """
 
-        # Not using SymPy's CSE() function for two reasons:
+        # Not using SymPy's CSE() function for three reasons:
         # - capture index functions (we are not interested in integer arithmetic)
+        # - doesn't consider the possibliity of losing factorization opportunities
         # - very slow
 
         aliased = state.exprs_aliased
@@ -273,26 +273,30 @@ class Rewriter(object):
 
         template = self.conventions['temporary'] + "%d"
 
-        def rule(e):
-            try:
-                as_symbol(e)
-                return True
-            except TypeError:
-                return is_terminal_op(e) or e.is_Function
-
-        cm = lambda e: estimate_cost(e) > 0
-
-        c = 0
-        processed = candidates
+        mapped = []
         while True:
-            make = lambda i: ScalarFunction(name=template % (c + i)).indexify()
-            processed = xreplace_constrained(candidates, make, rule, cm)
-
-            nredundancies = len(processed) - len(candidates)
-            if nredundancies == 0:
+            # Detect redundancies
+            counted = count(mapped + candidates, q_op).items()
+            targets = OrderedDict([(k, estimate_cost(k)) for k, v in counted if v > 1])
+            if not targets:
                 break
-            c += nredundancies
-            candidates = processed
+
+            # Create temporaries
+            make = lambda i: ScalarFunction(name=template % (len(mapped) + i)).indexify()
+            highests = [k for k, v in targets.items() if v == max(targets.values())]
+            mapper = OrderedDict([(e, make(i)) for i, e in enumerate(highests)])
+            candidates = [e.xreplace(mapper) for e in candidates]
+            mapped = [e.xreplace(mapper) for e in mapped]
+            mapped = [Eq(v, k) for k, v in reversed(mapper.items())] + mapped
+
+            # Prepare for the next round
+            for k in highests:
+                targets.pop(k)
+        processed = mapped + candidates
+
+        # Simply renumber the temporaries in ascending order
+        mapper = {i.lhs: j.lhs for i, j in zip(mapped, reversed(mapped))}
+        processed = [e.xreplace(mapper) for e in processed]
 
         return {'exprs': aliased + processed}
 
