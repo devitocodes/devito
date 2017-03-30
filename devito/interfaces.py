@@ -550,9 +550,6 @@ class TimeData(DenseData):
 
         self._full_data = self._data.view()
 
-        if self.pad_time:
-            self._data = self._data[self.time_order:, :, :]
-
     @property
     def dim(self):
         """Returns the spatial dimension of the data object"""
