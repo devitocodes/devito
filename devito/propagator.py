@@ -739,7 +739,7 @@ class Propagator(object):
 
         for i, j in zip(self.block_sizes, self.space_dims):
             if i is not None:
-                self.fd.add_value_param("%sblock" % self._mapper[j], np.int64)
+                self.fd.add_value_param("%sblock" % self._mapper[j], np.int32)
 
     def add_inner_most_dim_pragma(self, inner_most_dim, space_dims, loop_body):
         """
