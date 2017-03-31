@@ -68,7 +68,7 @@ def test_acousticJ(dimensions, space_order):
     src = IShot()
 
     f0 = .010
-    dt = model.critical_dt
+    dt = model0.critical_dt
     t0 = 0.0
     tn = 400.0
     nt = int(1+(tn-t0)/dt)
