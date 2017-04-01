@@ -172,3 +172,6 @@ def ccode_eq(eq, **settings):
     """
     return CodePrinter(settings).doprint(eq.lhs, None) \
         + ' = ' + CodePrinter(settings).doprint(eq.rhs, None)
+
+
+blankline = c.Line("")

@@ -1,4 +1,5 @@
 from functools import partial
+from hashlib import sha1
 from os import environ, getuid, mkdir, path
 from tempfile import gettempdir
 from time import time
@@ -11,8 +12,7 @@ from codepy.toolchain import GCCToolchain
 
 from devito.logger import log
 
-__all__ = ['get_tmp_dir', 'get_compiler_from_env',
-           'jit_compile', 'load', 'jit_compile_and_load',
+__all__ = ['get_tmp_dir', 'get_compiler_from_env', 'jit_compile', 'load',
            'GNUCompiler']
 
 
@@ -251,32 +251,6 @@ def get_tmp_dir():
     return tmpdir
 
 
-def jit_compile(ccode, basename, compiler=GNUCompiler):
-    """JIT compiles the given ccode and returns the lib filepath.
-
-    :param ccode: String of C source code.
-    :param basename: The string used to name various files for this compilation.
-    :param compiler: The toolchain used for compilation. GNUCompiler by default.
-    :return: Path to compiled lib
-    """
-
-    src_file = "%s.%s" % (basename, compiler.src_ext)
-    if platform == "linux" or platform == "linux2":
-        lib_file = "%s.so" % basename
-    elif platform == "darwin":
-        lib_file = "%s.dylib" % basename
-    elif platform == "win32" or platform == "win64":
-        lib_file = "%s.dll" % basename
-
-    tic = time()
-    extension_file_from_string(toolchain=compiler, ext_file=lib_file,
-                               source_string=ccode, source_name=src_file)
-    toc = time()
-    log("%s: compiled %s [%.2f s]" % (compiler, src_file, toc-tic))
-
-    return lib_file
-
-
 def load(basename, compiler=GNUCompiler):
     """Load a compiled library
 
@@ -298,25 +272,30 @@ def load(basename, compiler=GNUCompiler):
     return npct.load_library(lib_file, '.')
 
 
-def jit_compile_and_load(ccode, basename, compiler=GNUCompiler):
-    """JIT compile the given ccode
+def jit_compile(ccode, compiler=GNUCompiler):
+    """JIT compile the given ccode.
 
     :param ccode: String of C source code.
-    :param basename: The string used to name various files for this compilation.
     :param compiler: The toolchain used for compilation. GNUCompiler by default.
-    :return: The compiled library.
+
+    :return: The name of the compilation unit.
     """
-    jit_compile(ccode, basename, compiler=compiler)
 
-    return load(basename, compiler=compiler)
+    hash_key = sha1(str(ccode).encode()).hexdigest()
+    basename = path.join(get_tmp_dir(), hash_key)
 
+    src_file = "%s.%s" % (basename, compiler.src_ext)
+    if platform == "linux" or platform == "linux2":
+        lib_file = "%s.so" % basename
+    elif platform == "darwin":
+        lib_file = "%s.dylib" % basename
+    elif platform == "win32" or platform == "win64":
+        lib_file = "%s.dll" % basename
 
-def jit_compile_only(ccode, basename, compiler=GNUCompiler):
-    """JIT compile the given ccode
-    :param ccode: String of C source code.
-    :param basename: The string used to name various files for this compilation.
-    :param compiler: The toolchain used for compilation. GNUCompiler by default.
-    :return: The compiled library.
-    """
-    jit_compile(ccode, basename, compiler=compiler)
-    return "%s" % basename
+    tic = time()
+    extension_file_from_string(toolchain=compiler, ext_file=lib_file,
+                               source_string=ccode, source_name=src_file)
+    toc = time()
+    log("%s: compiled %s [%.2f s]" % (compiler, src_file, toc-tic))
+
+    return basename
