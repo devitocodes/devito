@@ -396,6 +396,16 @@ class OperatorBasic(Function):
         return []
 
 
+class OperatorForeign(OperatorBasic):
+    """
+    A special :class:`OperatorBasic` for use outside of Python.
+    """
+
+    def arguments(self, *args, **kwargs):
+        arguments, _ = super(OperatorForeign, self).arguments(*args, **kwargs)
+        return arguments.items()
+
+
 class OperatorCore(OperatorBasic):
     """
     A special :class:`OperatorBasic` that, besides generation and compilation of
@@ -591,7 +601,7 @@ class StencilKernel(object):
 
     def __new__(cls, *args, **kwargs):
         # What type of Operator should I return ?
-        cls = OperatorBasic if kwargs.pop('external', False) else OperatorCore
+        cls = OperatorForeign if kwargs.pop('external', False) else OperatorCore
 
         # Trigger instantiation
         obj = cls.__new__(cls, *args, **kwargs)
