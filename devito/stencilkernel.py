@@ -4,16 +4,13 @@ import operator
 from collections import OrderedDict, namedtuple
 from ctypes import c_double, c_int
 from functools import reduce
-from hashlib import sha1
 from itertools import combinations
-from os import path
 
 import cgen as c
 import numpy as np
 
-from devito.cgen_utils import Allocator
-from devito.compiler import (get_compiler_from_env, get_tmp_dir,
-                             jit_compile_and_load)
+from devito.cgen_utils import Allocator, blankline
+from devito.compiler import (get_compiler_from_env, jit_compile, load)
 from devito.dimension import BufferedDimension, Dimension, time
 from devito.dle import filter_iterations, transform
 from devito.dse import (estimate_cost, estimate_memory, indexify, rewrite)
@@ -31,18 +28,13 @@ from devito.visitors import (FindNodes, FindSections, FindSymbols, FindScopes,
 __all__ = ['StencilKernel']
 
 
-class StencilKernel(Function):
-
-    """
-    Cache of auto-tuned StencilKernels.
-    """
-    _AT_cache = {}
+class OperatorBasic(Function):
 
     _default_headers = ['#define _POSIX_C_SOURCE 200809L']
     _default_includes = ['stdlib.h', 'math.h', 'sys/time.h']
 
-    """A special :class:`Function` to evaluate stencils through just-in-time
-    compilation of C code.
+    """A special :class:`Function` to generate and compile C code evaluating
+    an ordered sequence of stencil expressions.
 
     :param stencils: SymPy equation or list of equations that define the
                      stencil used to create the kernel of this Operator.
@@ -60,20 +52,15 @@ class StencilKernel(Function):
         * compiler: Compiler class used to perform JIT compilation.
                     If not provided, the compiler will be inferred from the
                     environment variable DEVITO_ARCH, or default to GNUCompiler.
-        * profiler: :class:`devito.Profiler` instance to collect profiling
-                    meta-data at runtime. Use profiler=None to disable profiling.
     """
     def __init__(self, stencils, **kwargs):
-        name = kwargs.get("name", "Kernel")
+        self.name = kwargs.get("name", "Kernel")
         subs = kwargs.get("subs", {})
         time_axis = kwargs.get("time_axis", Forward)
         dse = kwargs.get("dse", "advanced")
         dle = kwargs.get("dle", "advanced")
-        compiler = kwargs.get("compiler", None)
 
         # Default attributes required for compilation
-        self.compiler = compiler or get_compiler_from_env()
-        self.profiler = kwargs.get("profiler", Profiler(self.compiler.openmp))
         self._headers = list(self._default_headers)
         self._includes = list(self._default_includes)
         self._lib = None
@@ -86,7 +73,7 @@ class StencilKernel(Function):
         stencils = [indexify(s) for s in as_tuple(stencils)]
         stencils = [s.xreplace(subs) for s in stencils]
 
-        # Retrieve the data type of the StencilKernel
+        # Retrieve the data type of the Operator
         self.dtype = self._retrieve_dtype(stencils)
 
         # Apply the Devito Symbolic Engine for symbolic optimization
@@ -99,7 +86,7 @@ class StencilKernel(Function):
         self.sections = OrderedDict()
         nodes = self._profile_sections(nodes)
 
-        # Parameters of the StencilKernel (Dimensions necessary for data casts)
+        # Parameters of the Operator (Dimensions necessary for data casts)
         parameters = FindSymbols('kernel-data').visit(nodes)
         dimensions = FindSymbols('dimensions').visit(nodes)
         dimensions += [d.parent for d in dimensions if d.is_Buffered]
@@ -125,31 +112,26 @@ class StencilKernel(Function):
         self._dle_state = dle_state
 
         # Finish instantiation
-        super(StencilKernel, self).__init__(name, nodes, 'int', parameters, ())
+        super(OperatorBasic, self).__init__(self.name, nodes, 'int', parameters, ())
 
-    def __call__(self, *args, **kwargs):
-        self.apply(*args, **kwargs)
-
-    def apply(self, *args, **kwargs):
-        """Apply defined stencil kernel to a set of data objects"""
-        if len(args) <= 0:
+    def arguments(self, *args, **kwargs):
+        """
+        Return the arguments necessary to apply the Operator.
+        """
+        if len(args) == 0:
             args = self.parameters
 
-        # Perform auto-tuning if the user requests it and loop blocking is in use
+        # Will perform auto-tuning if the user requested it and loop blocking was used
         maybe_autotune = kwargs.get('autotune', False)
 
-        # Map of required arguments and actual dimension sizes
         arguments = OrderedDict([(arg.name, arg) for arg in self.parameters])
         dim_sizes = {}
 
         # Traverse positional args and infer loop sizes for open dimensions
         f_args = [f for f in arguments.values() if isinstance(f, SymbolicData)]
         for f, arg in zip(f_args, args):
-            # Ensure we're dealing or deriving numpy arrays
-            data = f.data if isinstance(f, SymbolicData) else arg
-            if not isinstance(data, np.ndarray):
-                error('No array data found for argument %s' % f.name)
-            arguments[f.name] = data
+            arguments[f.name] = self._arg_data(f)
+            shape = self._arg_shape(f)
 
             # Ensure data dimensions match symbol dimensions
             for i, dim in enumerate(f.indices):
@@ -162,17 +144,17 @@ class StencilKernel(Function):
                     if dim in dim_sizes:
                         # Ensure size matches previously defined size
                         if not dim.is_Buffered:
-                            assert dim_sizes[dim] <= data.shape[i]
+                            assert dim_sizes[dim] <= shape[i]
                     else:
                         # Derive size from grid data shape and store
-                        dim_sizes[dim] = data.shape[i]
+                        dim_sizes[dim] = shape[i]
 
                     # Ensure parent for buffered dims is defined
                     if dim.is_Buffered and dim.parent not in dim_sizes:
                         dim_sizes[dim.parent] = dim_sizes[dim]
                 else:
                     if not isinstance(dim, BufferedDimension):
-                        assert dim.size == data.shape[i]
+                        assert dim.size == shape[i]
 
         # Add user-provided block sizes, if any
         dle_arguments = OrderedDict()
@@ -200,158 +182,95 @@ class StencilKernel(Function):
             self._autotune(arguments)
 
         # Add profiler structs
-        if self.profiler:
-            cpointer = self.profiler.as_ctypes_pointer(Profiler.TIME)
-            arguments[self.profiler.s_name] = cpointer
+        arguments.update(self._extra_arguments())
 
-        # Invoke kernel function with args
-        self.cfunction(*list(arguments.values()))
+        return arguments, dim_sizes
 
-        # Output summary of performance achieved
-        summary = self._profile_summary(dim_sizes)
-        with bar():
-            for k, v in summary.items():
-                name = '%s<%s>' % (k, ','.join('%d' % i for i in v.itershape))
-                info("Section %s with OI=%.2f computed in %.3f s [Perf: %.2f GFlops/s]" %
-                     (name, v.oi, v.time, v.gflopss))
+    @property
+    def ccode(self):
+        """Returns the C code generated by this kernel.
 
-        return summary
+        This function generates the internal code block from Iteration
+        and Expression objects, and adds the necessary template code
+        around it.
+        """
+        # Generate function body with all the trimmings
+        body = [e.ccode for e in self.body]
+        ret = [c.Statement("return 0")]
+        kernel = c.FunctionBody(self._ctop, c.Block(self._ccasts + body + ret))
+
+        # Generate elemental functions produced by the DLE
+        elemental_functions = [e.ccode for e in self.elemental_functions]
+        elemental_functions += [blankline]
+
+        # Generate file header with includes and definitions
+        header = [c.Line(i) for i in self._headers]
+        includes = [c.Include(i, system=False) for i in self._includes]
+        includes += [blankline]
+
+        return c.Module(header + includes + self._cglobals +
+                        elemental_functions + [kernel])
+
+    @property
+    def compile(self):
+        """
+        JIT-compile the Operator.
+
+        Note that this invokes the JIT compilation toolchain with the compiler
+        class derived in the constructor. Also, JIT compilation it is ensured that
+        JIT compilation will only be performed once per Operator, reagardless of
+        how many times this method is invoked.
+
+        :returns: The file name of the JIT-compiled function.
+        """
+        if self._lib is None:
+            # No need to recompile if a shared object has already been loaded.
+            return jit_compile(self.ccode, self.compiler)
+        else:
+            return self._lib.name
+
+    @property
+    def cfunction(self):
+        """Returns the JIT-compiled C function as a ctypes.FuncPtr object."""
+        if self._lib is None:
+            basename = self.compile
+            self._lib = load(basename, self.compiler)
+            self._lib.name = basename
+
+        if self._cfunction is None:
+            self._cfunction = getattr(self._lib, self.name)
+            argtypes = [c_int if isinstance(v, Dimension) else
+                        np.ctypeslib.ndpointer(dtype=v.dtype, flags='C')
+                        for v in self.parameters]
+            self._cfunction.argtypes = argtypes
+
+        return self._cfunction
+
+    def _arg_data(self, argument):
+        return None
+
+    def _arg_shape(self, argument):
+        return argument.shape
+
+    def _extra_arguments(self):
+        return {}
 
     def _profile_sections(self, nodes):
         """Introduce C-level profiling nodes within the Iteration/Expression tree."""
-        mapper = {}
-        for i, expr in enumerate(nodes):
-            for itspace in FindSections().visit(expr).keys():
-                for j in itspace:
-                    if IsPerfectIteration().visit(j) and j not in mapper:
-                        # Insert `TimedList` block. This should come from
-                        # the profiler, but we do this manually for now.
-                        lname = 'loop_%s_%d' % (j.index, i)
-                        mapper[j] = TimedList(gname=self.profiler.t_name,
-                                              lname=lname, body=j)
-                        self.profiler.t_fields += [(lname, c_double)]
-
-                        # Estimate computational properties of the timed section
-                        # (operational intensity, memory accesses)
-                        expressions = FindNodes(Expression).visit(j)
-                        ops = estimate_cost([e.stencil for e in expressions])
-                        memory = estimate_memory([e.stencil for e in expressions])
-                        self.sections[itspace] = Profile(lname, ops, memory)
-                        break
-        processed = Transformer(mapper).visit(List(body=nodes))
-        return processed
+        return nodes
 
     def _profile_summary(self, dim_sizes):
         """
         Produce a summary of the performance achieved
         """
-        summary = PerformanceSummary()
-        for itspace, profile in self.sections.items():
-            dims = {i: i.dim.parent if i.dim.is_Buffered else i.dim for i in itspace}
-
-            # Time
-            time = self.profiler.timings[profile.timer]
-
-            # Flops
-            itershape = [i.extent(finish=dim_sizes.get(dims[i])) for i in itspace]
-            iterspace = reduce(operator.mul, itershape)
-            flops = float(profile.ops*iterspace)
-            gflops = flops/10**9
-
-            # Compulsory traffic
-            datashape = [i.dim.size or dim_sizes[dims[i]] for i in itspace]
-            dataspace = reduce(operator.mul, datashape)
-            traffic = profile.memory*dataspace*self.dtype().itemsize
-
-            # Derived metrics
-            oi = flops/traffic
-            gflopss = gflops/time
-
-            # Keep track of performance achieved
-            summary.setsection(profile.timer, time, gflopss, oi, itershape, datashape)
-
-        # Rename the most time consuming section as 'main'
-        summary['main'] = summary.pop(max(summary, key=summary.get))
-
-        return summary
+        return PerformanceSummary()
 
     def _autotune(self, arguments):
-        """Use auto-tuning on this StencilKernel to determine empirically the
+        """Use auto-tuning on this Operator to determine empirically the
         best block sizes (when loop blocking is in use). The block sizes tested
         are those listed in ``options['at_blocksizes']``, plus the case that is
         as if blocking were not applied (ie, unitary block size)."""
-        if not self._dle_state.has_applied_blocking:
-            return
-
-        at_arguments = arguments.copy()
-
-        # Output data must not be changed
-        output = [i.base.label.name for i in self._dse_state.output_fields]
-        for k, v in arguments.items():
-            if k in output:
-                at_arguments[k] = v.copy()
-
-        # Squeeze dimensions to minimize auto-tuning time
-        iterations = FindNodes(Iteration).visit(self.body)
-        squeezable = [i.dim.parent.name for i in iterations
-                      if i.is_Sequential and i.dim.is_Buffered]
-
-        # Attempted block sizes
-        mapper = OrderedDict([(i.argument.name, i) for i in self._dle_state.arguments])
-        blocksizes = [OrderedDict([(i, v) for i in mapper])
-                      for v in options['at_blocksize']]
-        if self._dle_state.needs_aggressive_autotuning:
-            elaborated = []
-            for blocksize in list(blocksizes)[:3]:
-                for i in list(blocksizes):
-                    handle = i.items()[-1]
-                    elaborated.append(OrderedDict(blocksize.items()[:-1] + [handle]))
-            for blocksize in list(blocksizes):
-                ncombs = len(blocksize)
-                for i in range(ncombs):
-                    for j in combinations(blocksize, i+1):
-                        handle = [(k, blocksize[k]*2 if k in j else v)
-                                  for k, v in blocksize.items()]
-                        elaborated.append(OrderedDict(handle))
-            blocksizes.extend(elaborated)
-
-        # Note: there is only a single loop over 'blocksize' because only
-        # square blocks are tested
-        timings = OrderedDict()
-        for blocksize in blocksizes:
-            illegal = False
-            for k, v in at_arguments.items():
-                if k in blocksize:
-                    val = blocksize[k]
-                    handle = at_arguments.get(mapper[k].original_dim.name)
-                    if val <= mapper[k].iteration.end(handle):
-                        at_arguments[k] = val
-                    else:
-                        # Block size cannot be larger than actual dimension
-                        illegal = True
-                        break
-                elif k in squeezable:
-                    at_arguments[k] = options['at_squeezer']
-            if illegal:
-                continue
-
-            # Add profiler structs
-            if self.profiler:
-                cpointer = self.profiler.as_ctypes_pointer(Profiler.TIME)
-                at_arguments[self.profiler.s_name] = cpointer
-
-            self.cfunction(*list(at_arguments.values()))
-            elapsed = sum(self.profiler.timings.values())
-            timings[tuple(blocksize.items())] = elapsed
-            info_at("<%s>: %f" %
-                    (','.join('%d' % i for i in blocksize.values()), elapsed))
-
-        best = dict(min(timings, key=timings.get))
-        for k, v in arguments.items():
-            if k in mapper:
-                arguments[k] = best[k]
-
-        info('Auto-tuned block shape: %s' % best)
+        pass
 
     def _schedule_expressions(self, dse_state):
         """Wrap :class:`Expression` objects within suitable hierarchies of
@@ -401,7 +320,7 @@ class StencilKernel(Function):
         return processed
 
     def _insert_declarations(self, dle_state, parameters):
-        """Populate the StencilKernel's body with the required array and
+        """Populate the Operator's body with the required array and
         variable declarations, to generate a legal C file."""
 
         nodes = dle_state.nodes
@@ -461,66 +380,225 @@ class StencilKernel(Function):
 
     @property
     def _cparameters(self):
-        cparameters = super(StencilKernel, self)._cparameters
+        return super(OperatorBasic, self)._cparameters
+
+    @property
+    def _cglobals(self):
+        return []
+
+
+class OperatorForeign(OperatorBasic):
+    """
+    A special :class:`OperatorBasic` for use outside of Python.
+    """
+
+    def arguments(self, *args, **kwargs):
+        arguments, _ = super(OperatorForeign, self).arguments(*args, **kwargs)
+        return arguments.items()
+
+
+class OperatorCore(OperatorBasic):
+    """
+    A special :class:`OperatorBasic` that, besides generation and compilation of
+    C code evaluating stencil expressions, can also execute the computation.
+    """
+
+    def __init__(self, stencils, **kwargs):
+        self.profiler = Profiler(self.compiler.openmp)
+        super(OperatorCore, self).__init__(stencils, **kwargs)
+
+    def __call__(self, *args, **kwargs):
+        self.apply(*args, **kwargs)
+
+    def apply(self, *args, **kwargs):
+        """Apply the stencil kernel to a set of data objects"""
+        # Build the arguments list to invoke the kernel function
+        arguments, dim_sizes = self.arguments(*args, **kwargs)
+
+        # Invoke kernel function with args
+        self.cfunction(*list(arguments.values()))
+
+        # Output summary of performance achieved
+        summary = self._profile_summary(dim_sizes)
+        with bar():
+            for k, v in summary.items():
+                name = '%s<%s>' % (k, ','.join('%d' % i for i in v.itershape))
+                info("Section %s with OI=%.2f computed in %.3f s [Perf: %.2f GFlops/s]" %
+                     (name, v.oi, v.time, v.gflopss))
+
+        return summary
+
+    def _arg_data(self, argument):
+        # Ensure we're dealing or deriving numpy arrays
+        data = argument.data
+        if not isinstance(data, np.ndarray):
+            error('No array data found for argument %s' % argument.name)
+        return data
+
+    def _arg_shape(self, argument):
+        return argument.data.shape
+
+    def _profile_sections(self, nodes):
+        """Introduce C-level profiling nodes within the Iteration/Expression tree."""
+        mapper = {}
+        for i, expr in enumerate(nodes):
+            for itspace in FindSections().visit(expr).keys():
+                for j in itspace:
+                    if IsPerfectIteration().visit(j) and j not in mapper:
+                        # Insert `TimedList` block. This should come from
+                        # the profiler, but we do this manually for now.
+                        lname = 'loop_%s_%d' % (j.index, i)
+                        mapper[j] = TimedList(gname=self.profiler.t_name,
+                                              lname=lname, body=j)
+                        self.profiler.t_fields += [(lname, c_double)]
+
+                        # Estimate computational properties of the timed section
+                        # (operational intensity, memory accesses)
+                        expressions = FindNodes(Expression).visit(j)
+                        ops = estimate_cost([e.stencil for e in expressions])
+                        memory = estimate_memory([e.stencil for e in expressions])
+                        self.sections[itspace] = Profile(lname, ops, memory)
+                        break
+        processed = Transformer(mapper).visit(List(body=nodes))
+        return processed
+
+    def _profile_summary(self, dim_sizes):
+        """
+        Produce a summary of the performance achieved
+        """
+        summary = PerformanceSummary()
+        for itspace, profile in self.sections.items():
+            dims = {i: i.dim.parent if i.dim.is_Buffered else i.dim for i in itspace}
+
+            # Time
+            time = self.profiler.timings[profile.timer]
+
+            # Flops
+            itershape = [i.extent(finish=dim_sizes.get(dims[i])) for i in itspace]
+            iterspace = reduce(operator.mul, itershape)
+            flops = float(profile.ops*iterspace)
+            gflops = flops/10**9
+
+            # Compulsory traffic
+            datashape = [i.dim.size or dim_sizes[dims[i]] for i in itspace]
+            dataspace = reduce(operator.mul, datashape)
+            traffic = profile.memory*dataspace*self.dtype().itemsize
+
+            # Derived metrics
+            oi = flops/traffic
+            gflopss = gflops/time
+
+            # Keep track of performance achieved
+            summary.setsection(profile.timer, time, gflopss, oi, itershape, datashape)
+
+        # Rename the most time consuming section as 'main'
+        summary['main'] = summary.pop(max(summary, key=summary.get))
+
+        return summary
+
+    def _extra_arguments(self):
+        return OrderedDict([(self.profiler.s_name,
+                             self.profiler.as_ctypes_pointer(Profiler.TIME))])
+
+    def _autotune(self, arguments):
+        """Use auto-tuning on this Operator to determine empirically the
+        best block sizes (when loop blocking is in use). The block sizes tested
+        are those listed in ``options['at_blocksizes']``, plus the case that is
+        as if blocking were not applied (ie, unitary block size)."""
+        if not self._dle_state.has_applied_blocking:
+            return
+
+        at_arguments = arguments.copy()
+
+        # Output data must not be changed
+        output = [i.base.label.name for i in self._dse_state.output_fields]
+        for k, v in arguments.items():
+            if k in output:
+                at_arguments[k] = v.copy()
+
+        # Squeeze dimensions to minimize auto-tuning time
+        iterations = FindNodes(Iteration).visit(self.body)
+        squeezable = [i.dim.parent.name for i in iterations
+                      if i.is_Sequential and i.dim.is_Buffered]
+
+        # Attempted block sizes
+        mapper = OrderedDict([(i.argument.name, i) for i in self._dle_state.arguments])
+        blocksizes = [OrderedDict([(i, v) for i in mapper])
+                      for v in options['at_blocksize']]
+        if self._dle_state.needs_aggressive_autotuning:
+            elaborated = []
+            for blocksize in list(blocksizes)[:3]:
+                for i in list(blocksizes):
+                    handle = i.items()[-1]
+                    elaborated.append(OrderedDict(blocksize.items()[:-1] + [handle]))
+            for blocksize in list(blocksizes):
+                ncombs = len(blocksize)
+                for i in range(ncombs):
+                    for j in combinations(blocksize, i+1):
+                        handle = [(k, blocksize[k]*2 if k in j else v)
+                                  for k, v in blocksize.items()]
+                        elaborated.append(OrderedDict(handle))
+            blocksizes.extend(elaborated)
+
+        # Note: there is only a single loop over 'blocksize' because only
+        # square blocks are tested
+        timings = OrderedDict()
+        for blocksize in blocksizes:
+            illegal = False
+            for k, v in at_arguments.items():
+                if k in blocksize:
+                    val = blocksize[k]
+                    handle = at_arguments.get(mapper[k].original_dim.name)
+                    if val <= mapper[k].iteration.end(handle):
+                        at_arguments[k] = val
+                    else:
+                        # Block size cannot be larger than actual dimension
+                        illegal = True
+                        break
+                elif k in squeezable:
+                    at_arguments[k] = options['at_squeezer']
+            if illegal:
+                continue
+
+            # Add profiler structs
+            at_arguments.update(self._extra_arguments())
+
+            self.cfunction(*list(at_arguments.values()))
+            elapsed = sum(self.profiler.timings.values())
+            timings[tuple(blocksize.items())] = elapsed
+            info_at("<%s>: %f" %
+                    (','.join('%d' % i for i in blocksize.values()), elapsed))
+
+        best = dict(min(timings, key=timings.get))
+        for k, v in arguments.items():
+            if k in mapper:
+                arguments[k] = best[k]
+
+        info('Auto-tuned block shape: %s' % best)
+
+    @property
+    def _cparameters(self):
+        cparameters = super(OperatorCore, self)._cparameters
         cparameters += [c.Pointer(c.Value('struct %s' % self.profiler.s_name,
                                           self.profiler.t_name))]
         return cparameters
 
     @property
-    def ccode(self):
-        """Returns the C code generated by this kernel.
+    def _cglobals(self):
+        return [self.profiler.as_cgen_struct(Profiler.TIME), blankline]
 
-        This function generates the internal code block from Iteration
-        and Expression objects, and adds the necessary template code
-        around it.
-        """
-        blankline = c.Line("")
 
-        # Generate function body with all the trimmings
-        body = [e.ccode for e in self.body]
-        ret = [c.Statement("return 0")]
-        kernel = c.FunctionBody(self._ctop, c.Block(self._ccasts + body + ret))
+class StencilKernel(object):
 
-        # Generate elemental functions produced by the DLE
-        elemental_functions = [e.ccode for e in self.elemental_functions]
-        elemental_functions += [blankline]
+    def __new__(cls, *args, **kwargs):
+        # What type of Operator should I return ?
+        cls = OperatorForeign if kwargs.pop('external', False) else OperatorCore
 
-        # Generate file header with includes and definitions
-        header = [c.Line(i) for i in self._headers]
-        includes = [c.Include(i, system=False) for i in self._includes]
-        includes += [blankline]
-        profiling = [self.profiler.as_cgen_struct(Profiler.TIME), blankline]
-        return c.Module(header + includes + profiling + elemental_functions + [kernel])
-
-    @property
-    def cfunction(self):
-        """Returns the JIT-compiled C function as a ctypes.FuncPtr object
-
-        Note that this invokes the JIT compilation toolchain with the
-        compiler class derived in the constructor
-
-        :returns: The generated C function
-        """
-        if self._lib is None:
-            ccode = self.ccode
-            hash_key = sha1(str(ccode).encode()).hexdigest()
-            basename = path.join(get_tmp_dir(), hash_key)
-            self._lib = jit_compile_and_load(ccode, basename, self.compiler)
-        if self._cfunction is None:
-            self._cfunction = getattr(self._lib, self.name)
-            self._cfunction.argtypes = self.argtypes
-
-        return self._cfunction
-
-    @property
-    def argtypes(self):
-        """Create argument types for defining function signatures via ctypes
-
-        :returns: A list of ctypes of the matrix parameters and scalar parameters
-        """
-        return [c_int if isinstance(v, Dimension) else
-                np.ctypeslib.ndpointer(dtype=v.dtype, flags='C')
-                for v in self.parameters]
+        # Trigger instantiation
+        obj = cls.__new__(cls, *args, **kwargs)
+        obj.compiler = kwargs.pop("compiler", get_compiler_from_env())
+        obj.__init__(*args, **kwargs)
+        return obj
 
 
 # Helpers for performance tracking
