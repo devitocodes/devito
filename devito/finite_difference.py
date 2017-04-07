@@ -55,7 +55,7 @@ def second_derivative(*args, **kwargs):
     ind = [(dim + i * diff) for i in range(-int(order / 2),
                                            int(order / 2) + 1)]
 
-    coeffs = finite_diff_weights(1, ind, dim)[-1][-1]
+    coeffs = finite_diff_weights(2, ind, dim)[-1][-1]
     deriv = 0
 
     for i in range(0, len(ind)):
