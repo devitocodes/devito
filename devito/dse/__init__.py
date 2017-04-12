@@ -1,3 +1,4 @@
+from devito.dse.aliases import *  # noqa
 from devito.dse.extended_sympy import *  # noqa
 from devito.dse.graph import *  # noqa
 from devito.dse.inspection import *  # noqa
