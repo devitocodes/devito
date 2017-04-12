@@ -14,16 +14,16 @@ from time import time
 
 from sympy import (Eq, Indexed, cos, sin)
 
+from devito.dse.aliases import collect_aliases
 from devito.dse.extended_sympy import bhaskara_cos, bhaskara_sin
 from devito.dse.graph import Cluster, temporaries_graph
-from devito.dse.inspection import (collect_aliases, count,
-                                   estimate_cost, estimate_memory)
+from devito.dse.inspection import count, estimate_cost, estimate_memory, stencil
 from devito.dse.manipulation import (collect_nested, freeze_expression,
                                      xreplace_constrained)
-from devito.dse.queries import iq_timeinvariant, iq_timevarying, q_op
+from devito.dse.queries import iq_timeinvariant, iq_timevarying, q_op, q_indirect
 from devito.interfaces import ScalarFunction, TensorFunction
 from devito.logger import dse, dse_warning
-from devito.tools import flatten
+from devito.tools import SetOrderedDict, flatten
 
 __all__ = ['rewrite']
 
@@ -102,11 +102,19 @@ class State(object):
     def __init__(self, exprs):
         self.input = exprs
         self.exprs = exprs
-        self.aliases = OrderedDict()
 
-    def update(self, exprs=None, aliases=None):
+        # Compute the domain of each tensor expression
+        mapper = OrderedDict()
+        for expr in exprs:
+            mapper.setdefault(expr.lhs, []).append(expr)
+        domains = OrderedDict()
+        for k, v in mapper.items():
+            domains[k] = SetOrderedDict.union(*[stencil(i) for i in v])
+        self.domains = domains
+
+    def update(self, exprs=None, domains=None):
         self.exprs = exprs or self.exprs
-        self.aliases = aliases or self.aliases
+        self.domains.update(domains or {})
 
     @property
     def time_invariants(self):
@@ -145,17 +153,13 @@ class State(object):
         return [i.lhs for i in self.exprs if isinstance(i.lhs, Indexed)]
 
     @property
-    def exprs_aliased(self):
-        return [e for e in self.exprs if e.rhs in self.aliases]
-
-    @property
     def clusters(self):
         """
         Clusterize the expressions in ``self.exprs``. For more information
         about clusters, refer to TemporariesGraph.clusters.
         """
-        clusters = temporaries_graph(self.exprs).clusters(self.aliases)
-        return Cluster.merge(clusters, self.aliases)
+        clusters = temporaries_graph(self.exprs).clusters(self.domains)
+        return Cluster.merge(clusters)
 
 
 class Rewriter(object):
@@ -266,8 +270,8 @@ class Rewriter(object):
         # - doesn't consider the possibliity of losing factorization opportunities
         # - very slow
 
-        aliased = state.exprs_aliased
-        candidates = [e for e in state.exprs if e not in aliased]
+        skip = [e for e in state.exprs if e.lhs.base.function.is_TensorFunction]
+        candidates = [e for e in state.exprs if e not in skip]
 
         template = self.conventions['temporary'] + "%d"
 
@@ -296,7 +300,7 @@ class Rewriter(object):
         mapper = {i.lhs: j.lhs for i, j in zip(mapped, reversed(mapped))}
         processed = [e.xreplace(mapper) for e in processed]
 
-        return {'exprs': aliased + processed}
+        return {'exprs': skip + processed}
 
     @dse_pass
     def _factorize(self, state, **kwargs):
@@ -376,7 +380,7 @@ class Rewriter(object):
         shape = graph.space_shape
 
         # For more information about "aliases", refer to collect_aliases.__doc__
-        mapper, aliases = collect_aliases([e.rhs for e in state.exprs])
+        mapper, aliases = collect_aliases(state.exprs)
 
         # Template for captured redundancies
         name = self.conventions['redundancy'] + "%d"
@@ -398,54 +402,46 @@ class Rewriter(object):
                 processed.append(Eq(k, v.rhs))
 
         # Create temporaries capturing redundant computation
-        c = len(state.aliases)
         found = []
         rules = OrderedDict()
-        for origin, info in aliases.items():
-            handle = [(v, k) for k, v in candidates.items() if k in info.aliased]
-            if handle:
-                eq = Eq(Indexed(template(c), *indices), origin)
-                found.append(freeze_expression(eq))
-                for k, v in handle:
-                    translation = mapper[v][v]
-                    coordinates = [sum([i, j]) for i, j in translation if i in indices]
-                    rules[k] = Indexed(template(c), *tuple(coordinates))
-                c += 1
+        domains = OrderedDict()
+        for c, (origin, alias) in enumerate(aliases.items()):
+            temporary = Indexed(template(c), *indices)
+            found.append(Eq(temporary, origin))
+            # Track the domain of each TensorFunction introduced
+            domains[temporary] = alias.domain
+            for aliased, distance in alias.with_distance:
+                coordinates = [sum([i, j]) for i, j in distance.items() if i in indices]
+                rules[candidates[aliased]] = Indexed(template(c), *tuple(coordinates))
 
         # Switch temporaries in the expression trees
         processed = found + [e.xreplace(rules) for e in processed]
 
-        # Only track what is strictly necessary for later passes
-        aliases = OrderedDict([(freeze_expression(k), v.offsets)
-                               for k, v in aliases.items() if k in candidates])
-        aliases = OrderedDict(state.aliases.items() + aliases.items())
-
-        return {'exprs': processed, 'aliases': aliases}
+        return {'exprs': processed, 'domains': domains}
 
     def _finalize(self, state):
         """
-        Reorder the expressions to match the semantics of the provided input, as
-        multiple DSE passes might have introduced/altered/removed expressions.
+        Finalize the DSE output: ::
 
-        Also make sure that subsequent sympy operations applied to the expressions
-        will not alter the effect of the DSE passes.
+            * Reordering. The expressions in ``state.exprs`` are reordered so
+              that all tensor temporaries will appear at the top, which honors
+              the computation semantics.
+            * Freezing. Make sure that subsequent SymPy operations applied to
+              the expressions in ``state.exprs`` will not alter the effect of
+              the DSE passes.
         """
-        exprs = [freeze_expression(e) for e in state.exprs]
-
-        expected = ['alias-time-invariant', 'alias-time-dependent', 'other']
-        graph = temporaries_graph(exprs)
+        # Reordering
+        graph = temporaries_graph(state.exprs)
 
         def key(i):
-            if i.rhs in state.aliases:
-                index = state.aliases.keys().index(i.rhs)
-                if graph.time_invariant(i.rhs):
-                    return (expected.index('alias-time-invariant'), index)
-                else:
-                    return (expected.index('alias-time-dependent'), index)
-            else:
-                return (expected.index('other'), 0)
+            return (not i.lhs.base.function.is_TensorFunction,
+                    not graph.time_invariant(i.rhs),
+                    state.exprs.index(i))
 
-        processed = sorted(exprs, key=key)
+        processed = sorted(state.exprs, key=key)
+
+        # Freezing
+        processed = [freeze_expression(e) for e in processed]
 
         state.update(exprs=processed)
 

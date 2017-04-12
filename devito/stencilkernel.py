@@ -367,11 +367,11 @@ class StencilKernel(Function):
 
             # Filter out aliasing due to buffered dimensions
             key = lambda d: d.parent if d.is_Buffered else d
-            dimensions = filter_ordered(list(c.stencil.keys()), key=key)
+            dimensions = filter_ordered(list(c.domain.keys()), key=key)
 
             # Reorder stencil based on the global partial ordering
             dimensions = filter_sorted(dimensions, key=lambda d: ordering.index(d))
-            cstencil = tuple([Stencil(key(d), c.stencil.get(key(d))) for d in dimensions])
+            cstencil = tuple([Stencil(key(d), c.domain.get(key(d))) for d in dimensions])
 
             if cstencil:
                 # Can I reuse any of the previously scheduled Iterations ?

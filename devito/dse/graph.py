@@ -26,7 +26,7 @@ from sympy import Indexed
 from devito.dimension import x, y, z, t  # TODO: Generalize to arbitrary dimensions
 from devito.dse.extended_sympy import Eq
 from devito.dse.search import retrieve_indexed
-from devito.dse.inspection import stencil, terminals
+from devito.dse.inspection import terminals
 from devito.dse.queries import q_indirect
 from devito.tools import SetOrderedDict, flatten
 
@@ -107,17 +107,21 @@ class TemporariesGraph(OrderedDict):
     A temporaries graph built on top of an OrderedDict.
     """
 
-    def clusters(self, aliases=None):
+    def clusters(self, domains):
         """
         Compute the clusters of the temporaries graph. See Cluster.__doc__ for
         more information about clusters.
         """
-        aliases = aliases or {}
         targets = [v for v in self.values() if v.is_tensor]
         clusters = []
         for i in targets:
+            # Determine what temporaries are needed to compute /i/
             trace = self.trace(i.lhs)
-            clusters.append(Cluster(trace, aliases))
+            # Compute the domain of the cluster
+            domain = [domains.get(v.lhs, {}) for v in trace.values()]
+            domain = SetOrderedDict.union(*domain)
+            # Create and track the cluster
+            clusters.append(Cluster(trace, domain))
         return clusters
 
     @property
@@ -156,7 +160,7 @@ class TemporariesGraph(OrderedDict):
     def time_invariant(self, expr=None):
         """
         Check if ``expr`` is time invariant. ``expr`` may be an expression ``e``
-        explicitly tracked by the TemporaryGraph or even a generic subexpression
+        explicitly tracked by the TemporariesGraph or even a generic subexpression
         of ``e``. If no ``expr`` is provided, then time invariance is checked
         on the entire TemporariesGraph.
         """
@@ -193,10 +197,10 @@ class TemporariesGraph(OrderedDict):
 class Cluster(object):
 
     """
-    A Cluster is an ordered collection of scalar expressions that are necessary
-    to compute a tensor, plus the tensor expression itself.
+    A Cluster is an ordered collection of expressions that are necessary to
+    compute a tensor, plus the tensor expression itself.
 
-    A Cluster is associated with a "stencil", which tracks what neighborin points
+    A Cluster is associated with a "domain", which tracks what neighborin points
     are required, along each dimension, to compute an entry in the tensor.
 
     Examples
@@ -218,51 +222,40 @@ class Cluster(object):
     """
 
     @classmethod
-    def merge(cls, clusters, aliases):
+    def merge(cls, clusters):
         """
         Given an ordered collection of :class:`Cluster` objects, return a
-        (potentially) smaller sequence in which clusters with identical stencil
+        (potentially) smaller sequence in which clusters with identical domain
         have been merged.
         """
         mapper = OrderedDict()
         for c in clusters:
-            mapper.setdefault(tuple(c.stencil.items()), []). append(c)
+            mapper.setdefault(tuple(c.domain.items()), []).append(c)
 
         processed = []
-        for stencil, clusters in mapper.items():
+        for domain, clusters in mapper.items():
             temporaries = OrderedDict()
             for c in clusters:
                 for k, v in c.trace.items():
                     if k not in temporaries:
                         temporaries[k] = v
             processed.append(SuperCluster(temporaries_graph(temporaries.values()),
-                                          SetOrderedDict(stencil)))
+                                          SetOrderedDict(domain)))
 
         return processed
 
-    def __init__(self, trace, known_aliases=None):
-        known_aliases = known_aliases or {}
-
+    def __init__(self, trace, domain):
         self._full_trace = trace
+        self._domain = SetOrderedDict([(k, frozenset(v)) for k, v in domain.items()])
 
         # Determine the output tensor
         output = [v for v in self.trace.values() if v.is_tensor]
         assert len(output) == 1
         self._output = output[0]
 
-        # Compute the required information to determine the stencil of this cluster
-        self._offsets = []
-        for v in self._full_trace.values():
-            self._offsets.append(stencil(v))
-            if v.rhs in known_aliases:
-                self._offsets.append(known_aliases[v.rhs])
-
     def _view(self, drop=lambda v: False):
-        handle = self._full_trace.copy()
-        for k, v in list(handle.items()):
-            if drop(v):
-                handle.pop(k)
-        return handle
+        cls = type(self._full_trace)
+        return cls([(k, v) for k, v in self._full_trace.items() if not drop(v)])
 
     @property
     def output(self):
@@ -274,20 +267,19 @@ class Cluster(object):
         return self._view(lambda v: v.is_tensor and not v.is_terminal)
 
     @property
+    def external(self):
+        """Tensors from other clusters required to compute the output tensor."""
+        return self._view(lambda v: v.is_scalar or v == self.output)
+
+    @property
     def needs(self):
         handle = flatten(retrieve_indexed(v.rhs) for v in self._view().values())
         handle = {v.base.function for v in handle}
         return [v for v in handle if not v.is_SymbolicData]
 
     @property
-    def stencil(self):
-        offsets = SetOrderedDict.union(*self._offsets)
-        free_symbols = flatten([i.free_symbols for i in self.trace.values()])
-        for k in list(offsets):
-            if k not in free_symbols:
-                offsets.pop(k)
-        offsets = SetOrderedDict([(k, frozenset(v)) for k, v in offsets.items()])
-        return offsets
+    def domain(self):
+        return self._domain
 
 
 class SuperCluster(object):
@@ -296,9 +288,9 @@ class SuperCluster(object):
     A SuperCluster represents the result of merging a collection of cluster.
     """
 
-    def __init__(self, trace, stencil):
+    def __init__(self, trace, domain):
         self.trace = trace
-        self.stencil = stencil
+        self.domain = domain
 
 
 def temporaries_graph(temporaries, scope=0):
