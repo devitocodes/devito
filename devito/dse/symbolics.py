@@ -20,7 +20,7 @@ from devito.dse.graph import Cluster, temporaries_graph
 from devito.dse.inspection import count, estimate_cost, estimate_memory
 from devito.dse.manipulation import (collect_nested, freeze_expression,
                                      xreplace_constrained)
-from devito.dse.queries import iq_timeinvariant, iq_timevarying, q_op, q_indirect
+from devito.dse.queries import iq_timeinvariant, iq_timevarying, q_op
 from devito.interfaces import ScalarFunction, TensorFunction
 from devito.logger import dse, dse_warning
 from devito.stencil import Stencil

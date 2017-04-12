@@ -10,10 +10,10 @@ from sympy import Eq, preorder_traversal
 
 from devito.cgen_utils import ccode
 from devito.dimension import Dimension
-from devito.dse import as_symbol, retrieve_indexed
+from devito.dse import as_symbol
 from devito.interfaces import IndexedData, SymbolicData, TensorFunction
 from devito.stencil import Stencil
-from devito.tools import as_tuple, filter_ordered, flatten
+from devito.tools import as_tuple, filter_ordered
 
 __all__ = ['Node', 'Block', 'Expression', 'Function', 'Iteration', 'List',
            'TimedList']

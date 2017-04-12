@@ -1,7 +1,7 @@
 import itertools
-from collections import OrderedDict, defaultdict, namedtuple
+from collections import OrderedDict, namedtuple
 
-from sympy import Indexed, Expr
+from sympy import Indexed
 
 from devito.dse.search import retrieve_indexed
 from devito.dse.queries import q_indirect
@@ -192,8 +192,8 @@ def is_translated(ofs1, ofs2):
 
     For example: ::
 
-	e1 = A[i,j] + A[i,j+1]
-	e2 = A[i+1,j] + A[i+1,j+1]
+        e1 = A[i,j] + A[i,j+1]
+        e2 = A[i+1,j] + A[i+1,j+1]
 
     ``ofs1`` would be [(0, 0), (0, 1)], while ``ofs2`` would be [(1, 0), (1,1)], so
     ``e2`` is translated w.r.t. ``e1`` by ``(1, 0)``, and True is returned.
