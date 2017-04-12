@@ -28,7 +28,8 @@ from devito.dse.extended_sympy import Eq
 from devito.dse.search import retrieve_indexed
 from devito.dse.inspection import terminals
 from devito.dse.queries import q_indirect
-from devito.tools import SetOrderedDict, flatten
+from devito.stencil import Stencil
+from devito.tools import flatten
 
 __all__ = ['temporaries_graph']
 
@@ -117,11 +118,10 @@ class TemporariesGraph(OrderedDict):
         for i in targets:
             # Determine what temporaries are needed to compute /i/
             trace = self.trace(i.lhs)
-            # Compute the domain of the cluster
-            domain = [domains.get(v.lhs, {}) for v in trace.values()]
-            domain = SetOrderedDict.union(*domain)
+            # Compute the stencil of the cluster
+            stencil = Stencil.union(*[domains.get(v.lhs, {}) for v in trace.values()])
             # Create and track the cluster
-            clusters.append(Cluster(trace, domain))
+            clusters.append(Cluster(trace, stencil))
         return clusters
 
     @property
@@ -200,7 +200,7 @@ class Cluster(object):
     A Cluster is an ordered collection of expressions that are necessary to
     compute a tensor, plus the tensor expression itself.
 
-    A Cluster is associated with a "domain", which tracks what neighborin points
+    A Cluster is associated with a "stencil", which tracks what neighboring points
     are required, along each dimension, to compute an entry in the tensor.
 
     Examples
@@ -225,28 +225,28 @@ class Cluster(object):
     def merge(cls, clusters):
         """
         Given an ordered collection of :class:`Cluster` objects, return a
-        (potentially) smaller sequence in which clusters with identical domain
+        (potentially) smaller sequence in which clusters with identical stencil
         have been merged.
         """
         mapper = OrderedDict()
         for c in clusters:
-            mapper.setdefault(tuple(c.domain.items()), []).append(c)
+            mapper.setdefault(tuple(c.stencil.entries), []).append(c)
 
         processed = []
-        for domain, clusters in mapper.items():
+        for entries, clusters in mapper.items():
             temporaries = OrderedDict()
             for c in clusters:
                 for k, v in c.trace.items():
                     if k not in temporaries:
                         temporaries[k] = v
             processed.append(SuperCluster(temporaries_graph(temporaries.values()),
-                                          SetOrderedDict(domain)))
+                                          Stencil(entries)))
 
         return processed
 
-    def __init__(self, trace, domain):
+    def __init__(self, trace, stencil):
         self._full_trace = trace
-        self._domain = SetOrderedDict([(k, frozenset(v)) for k, v in domain.items()])
+        self._stencil = stencil.frozen
 
         # Determine the output tensor
         output = [v for v in self.trace.values() if v.is_tensor]
@@ -278,8 +278,8 @@ class Cluster(object):
         return [v for v in handle if not v.is_SymbolicData]
 
     @property
-    def domain(self):
-        return self._domain
+    def stencil(self):
+        return self._stencil
 
 
 class SuperCluster(object):
@@ -288,9 +288,9 @@ class SuperCluster(object):
     A SuperCluster represents the result of merging a collection of cluster.
     """
 
-    def __init__(self, trace, domain):
+    def __init__(self, trace, stencil):
         self.trace = trace
-        self.domain = domain
+        self.stencil = stencil
 
 
 def temporaries_graph(temporaries, scope=0):

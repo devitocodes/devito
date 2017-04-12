@@ -3,10 +3,9 @@ from collections import OrderedDict, defaultdict, namedtuple
 
 from sympy import Indexed, Expr
 
-from devito.dse.inspection import stencil
 from devito.dse.search import retrieve_indexed
 from devito.dse.queries import q_indirect
-from devito.tools import SetOrderedDict
+from devito.stencil import Stencil
 
 __all__ = ['collect_aliases']
 
@@ -77,10 +76,10 @@ def collect_aliases(exprs):
     for i in aliases.values():
         grouped.setdefault(i.dimensions, []).append(i)
     for dimensions, group in grouped.items():
-        ideal_domain = SetOrderedDict.union(*[i.domain for i in group])
+        ideal_stencil = Stencil.union(*[i.stencil for i in group])
         for i in group:
-            if i.domain.subtract(ideal_domain).empty:
-                aliases[i.alias] = i.relax(ideal_domain)
+            if i.stencil.subtract(ideal_stencil).empty:
+                aliases[i.alias] = i.relax(ideal_stencil)
 
     return mapper, aliases
 
@@ -232,8 +231,8 @@ class Alias(object):
         self._ghost_offsets = ghost_offsets or []
 
     @property
-    def domain(self):
-        handle = SetOrderedDict()
+    def stencil(self):
+        handle = Stencil()
         for d, i in zip(self.dimensions, zip(*self.distances)):
             handle[d].update(set(i))
         for d, i in zip(self.dimensions, zip(*self._ghost_offsets)):

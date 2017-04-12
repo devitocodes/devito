@@ -10,8 +10,9 @@ from sympy import Eq, preorder_traversal
 
 from devito.cgen_utils import ccode
 from devito.dimension import Dimension
-from devito.dse import as_symbol, retrieve_indexed, stencil
+from devito.dse import as_symbol, retrieve_indexed
 from devito.interfaces import IndexedData, SymbolicData, TensorFunction
+from devito.stencil import Stencil
 from devito.tools import as_tuple, filter_ordered, flatten
 
 __all__ = ['Node', 'Block', 'Expression', 'Function', 'Iteration', 'List',
@@ -151,19 +152,19 @@ class FunCall(Node):
 
 class Expression(Node):
 
-    """Class encpasulating a single stencil expression"""
+    """Class encpasulating a single SymPy equation."""
 
     is_Expression = True
 
-    def __init__(self, stencil, dtype=None):
-        assert isinstance(stencil, Eq)
-        self.stencil = stencil
+    def __init__(self, expr, dtype=None):
+        assert isinstance(expr, Eq)
+        self.expr = expr
         self.dtype = dtype
 
         self.dimensions = []
         self.functions = []
-        # Traverse stencil to determine meta information
-        for e in preorder_traversal(self.stencil):
+        # Traverse /expression/ to determine meta information
+        for e in preorder_traversal(self.expr):
             if isinstance(e, SymbolicData):
                 self.dimensions += list(e.indices)
                 self.functions += [e]
@@ -179,23 +180,23 @@ class Expression(Node):
                              filter_ordered([f.func for f in self.functions]))
 
     def substitute(self, substitutions):
-        """Apply substitutions to the expression stencil
+        """Apply substitutions to the expression.
 
         :param substitutions: Dict containing the substitutions to apply to
-                              the stored loop stencils.
+                              the stored expression.
         """
-        self.stencil = self.stencil.xreplace(substitutions)
+        self.expr = self.expr.xreplace(substitutions)
 
     @property
     def ccode(self):
-        return c.Assign(ccode(self.stencil.lhs), ccode(self.stencil.rhs))
+        return c.Assign(ccode(self.expr.lhs), ccode(self.expr.rhs))
 
     @property
     def output(self):
         """
         Return the symbol written by this Expression.
         """
-        return as_symbol(self.stencil.lhs)
+        return as_symbol(self.expr.lhs)
 
     @property
     def output_function(self):
@@ -204,7 +205,7 @@ class Expression(Node):
         """
         if self.is_scalar:
             return None
-        handle = self.stencil.lhs.base
+        handle = self.expr.lhs.base
         return handle.function if isinstance(handle, IndexedData) else None
 
     @property
@@ -212,7 +213,7 @@ class Expression(Node):
         """
         Return True if a scalar expression, False otherwise.
         """
-        return self.stencil.lhs.is_Symbol
+        return self.expr.lhs.is_Symbol
 
     @property
     def is_tensor(self):
@@ -226,20 +227,12 @@ class Expression(Node):
         """
         Return the shape of the written LHS.
         """
-        return () if self.is_scalar else self.stencil.lhs.shape
+        return () if self.is_scalar else self.expr.lhs.shape
 
     @property
-    def index_offsets(self):
-        """Mapping of :class:`Dimension` symbols to each integer
-        stencil offset used with it in this expression.
-
-        This also include zero offsets, so that the keys of this map
-        may be used as the set of :class:`Dimension` symbols used in
-        this expression.
-
-        Note: This assumes we have indexified the stencil expression.
-        """
-        return stencil(self.stencil)
+    def stencil(self):
+        """Compute the stencil of the expression."""
+        return Stencil(self.expr)
 
 
 class Iteration(Node):
@@ -562,15 +555,16 @@ class Denormals(List):
 
 class LocalExpression(Expression):
 
-    """Class encpasulating a single stencil expression with known data type
-    (represented as a NumPy data type)."""
+    """
+    Class encpasulating a single expression with known data type
+    (represented as a NumPy data type).
+    """
 
-    def __init__(self, stencil, dtype):
-        super(LocalExpression, self).__init__(stencil)
+    def __init__(self, expr, dtype):
+        super(LocalExpression, self).__init__(expr)
         self.dtype = dtype
 
     @property
     def ccode(self):
         ctype = c.dtype_to_ctype(self.dtype)
-        return c.Initializer(c.Value(ctype, ccode(self.stencil.lhs)),
-                             ccode(self.stencil.rhs))
+        return c.Initializer(c.Value(ctype, ccode(self.expr.lhs)), ccode(self.expr.rhs))

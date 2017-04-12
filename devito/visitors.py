@@ -205,7 +205,7 @@ class PrintAST(Visitor):
 
     def visit_Expression(self, o):
         if self.verbose:
-            body = "%s = %s" % (o.stencil.lhs, o.stencil.rhs)
+            body = "%s = %s" % (o.expr.lhs, o.expr.rhs)
             return self.indent + "<Expression %s>" % body
         else:
             return self.indent + str(o)
@@ -296,7 +296,7 @@ class FindSymbols(Visitor):
         'kernel-data': lambda e: [i for i in e.functions if i.is_SymbolicData],
         'symbolics': lambda e: e.functions,
         'symbolics-writes': lambda e: as_tuple(e.output_function),
-        'free-symbols': lambda e: e.stencil.free_symbols,
+        'free-symbols': lambda e: e.expr.free_symbols,
         'dimensions': lambda e: e.dimensions,
     }
 
@@ -430,7 +430,7 @@ class SubstituteExpression(Transformer):
 
     def visit_Expression(self, o):
         o.substitute(self.subs)
-        return o._rebuild(stencil=o.stencil)
+        return o._rebuild(expr=o.expr)
 
 
 class ResolveIterationVariable(Transformer):

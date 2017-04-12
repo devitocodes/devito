@@ -16,14 +16,14 @@ from devito.compiler import (get_compiler_from_env, get_tmp_dir,
                              jit_compile_and_load)
 from devito.dimension import BufferedDimension, Dimension
 from devito.dle import compose_nodes, filter_iterations, transform
-from devito.dse import (estimate_cost, estimate_memory, indexify, rewrite, stencil)
+from devito.dse import (estimate_cost, estimate_memory, indexify, rewrite)
 from devito.interfaces import SymbolicData
 from devito.logger import bar, error, info, info_at
 from devito.nodes import (Element, Expression, Function, Iteration, List,
                           LocalExpression, TimedList)
 from devito.profiler import Profiler
-from devito.tools import (SetOrderedDict, as_tuple, filter_ordered, filter_sorted,
-                          flatten, partial_order)
+from devito.stencil import Stencil
+from devito.tools import as_tuple, filter_ordered, filter_sorted, flatten, partial_order
 from devito.visitors import (FindNodes, FindSections, FindSymbols, FindScopes,
                              IsPerfectIteration, MergeOuterIterations,
                              ResolveIterationVariable, SubstituteExpression, Transformer)
@@ -41,16 +41,16 @@ class StencilKernel(Function):
     _default_headers = ['#define _POSIX_C_SOURCE 200809L']
     _default_includes = ['stdlib.h', 'math.h', 'sys/time.h']
 
-    """A special :class:`Function` to evaluate stencils through just-in-time
+    """A special :class:`Function` to evaluate expressions through just-in-time
     compilation of C code.
 
-    :param stencils: SymPy equation or list of equations that define the
-                     stencil used to create the kernel of this Operator.
+    :param expressions: SymPy equation or list of equations that define the
+                        the kernel of this Operator.
     :param kwargs: Accept the following entries: ::
 
         * name : Name of the kernel function - defaults to "Kernel".
-        * subs : Dict or list of dicts containing the SymPy symbol
-                 substitutions for each stencil respectively.
+        * subs : Dict or list of dicts containing SymPy symbol substitutions
+                 for each expression respectively.
         * dse : Use the Devito Symbolic Engine to optimize the expressions -
                 defaults to "advanced".
         * dle : Use the Devito Loop Engine to optimize the loops -
@@ -61,7 +61,7 @@ class StencilKernel(Function):
         * profiler: :class:`devito.Profiler` instance to collect profiling
                     meta-data at runtime. Use profiler=None to disable profiling.
     """
-    def __init__(self, stencils, **kwargs):
+    def __init__(self, expressions, **kwargs):
         name = kwargs.get("name", "Kernel")
         subs = kwargs.get("subs", {})
         dse = kwargs.get("dse", "advanced")
@@ -76,15 +76,15 @@ class StencilKernel(Function):
         self._lib = None
         self._cfunction = None
 
-        # Normalize the collection of stencils
-        stencils = [indexify(s) for s in as_tuple(stencils)]
-        stencils = [s.xreplace(subs) for s in stencils]
+        # Normalize the expressions
+        expressions = [indexify(s) for s in as_tuple(expressions)]
+        expressions = [s.xreplace(subs) for s in expressions]
 
         # Retrieve the data type of the StencilKernel
-        self.dtype = self._retrieve_dtype(stencils)
+        self.dtype = self._retrieve_dtype(expressions)
 
         # Apply the Devito Symbolic Engine for symbolic optimization
-        dse_state = rewrite(stencils, mode=dse)
+        dse_state = rewrite(expressions, mode=dse)
 
         # Wrap expressions with Iterations according to dimensions
         nodes = self._schedule_expressions(dse_state)
@@ -228,8 +228,8 @@ class StencilKernel(Function):
                         # Estimate computational properties of the timed section
                         # (operational intensity, memory accesses)
                         expressions = FindNodes(Expression).visit(j)
-                        ops = estimate_cost([e.stencil for e in expressions])
-                        memory = estimate_memory([e.stencil for e in expressions])
+                        ops = estimate_cost([e.expr for e in expressions])
+                        memory = estimate_memory([e.expr for e in expressions])
                         self.sections[itspace] = Profile(lname, ops, memory)
                         break
         processed = Transformer(mapper).visit(List(body=nodes))
@@ -351,11 +351,9 @@ class StencilKernel(Function):
         """Wrap :class:`Expression` objects within suitable hierarchies of
         :class:`Iteration` according to dimensions and stencils."""
 
-        Stencil = namedtuple('Stencil', 'dim ofs')
-
         # Establish a partial ordering for the Iterations based on the order
         # by which dimensions appeared in the input expressions
-        ordering = tuple(flatten(list(stencil(i)) for i in dse_state.input))
+        ordering = tuple(flatten(list(Stencil(i)) for i in dse_state.input))
         ordering = list(OrderedDict(zip(ordering, ordering)))
 
         processed = []
@@ -367,20 +365,22 @@ class StencilKernel(Function):
 
             # Filter out aliasing due to buffered dimensions
             key = lambda d: d.parent if d.is_Buffered else d
-            dimensions = filter_ordered(list(c.domain.keys()), key=key)
+            dimensions = filter_ordered(list(c.stencil.keys()), key=key)
 
-            # Reorder stencil based on the global partial ordering
+            # Reorder the expressions based on the global partial ordering
             dimensions = filter_sorted(dimensions, key=lambda d: ordering.index(d))
-            cstencil = tuple([Stencil(key(d), c.domain.get(key(d))) for d in dimensions])
+            stencil = Stencil([(key(d), c.stencil.get(key(d))) for d in dimensions])
 
-            if cstencil:
-                # Can I reuse any of the previously scheduled Iterations ?
+            if not stencil.empty:
                 root = None
-                for index, i in enumerate(cstencil):
+                entries = stencil.entries
+
+                # Can I reuse any of the previously scheduled Iterations ?
+                for index, i in enumerate(entries):
                     if i not in schedule:
                         break
                     root = schedule[i]
-                needed = cstencil[index:]
+                needed = entries[index:]
 
                 # Build and insert the required Iterations
                 iters = [Iteration([], i.dim, i.dim.size, offsets=i.ofs) for i in needed]
@@ -451,15 +451,15 @@ class StencilKernel(Function):
 
         return nodes, elemental_functions
 
-    def _retrieve_dtype(self, stencils):
+    def _retrieve_dtype(self, expressions):
         """
-        Retrieve the data type of a set of stencils. Raise an error if there
-        is no common data type (ie, if at least one stencil differs in the
+        Retrieve the data type of a set of expressions. Raise an error if there
+        is no common data type (ie, if at least one expression differs in the
         data type).
         """
-        lhss = set([s.lhs.base.function.dtype for s in stencils])
+        lhss = set([s.lhs.base.function.dtype for s in expressions])
         if len(lhss) != 1:
-            raise RuntimeError("Stencil types mismatch.")
+            raise RuntimeError("Expression types mismatch.")
         return lhss.pop()
 
     @property

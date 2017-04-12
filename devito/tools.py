@@ -195,39 +195,3 @@ class DefaultOrderedDict(OrderedDict):
 
     def __copy__(self):
         return type(self)(self.default_factory, self)
-
-
-class SetOrderedDict(DefaultOrderedDict):
-
-    def __init__(self, *args, **kwargs):
-        super(SetOrderedDict, self).__init__(set, *args, **kwargs)
-
-    @classmethod
-    def union(cls, *dicts):
-        """
-        Compute the union of an iterable of :class:`SetOrderedDict`.
-        """
-        output = SetOrderedDict()
-        for i in dicts:
-            for k, v in i.items():
-                output[k] |= v
-        return output
-
-    def subtract(self, o):
-        """
-        Compute the set difference of each item in self with the corresponding
-        item in ``o``.
-        """
-        output = SetOrderedDict()
-        for k, v in self.items():
-            output[k] = v
-            if k in o:
-                output[k] -= o[k]
-        return output
-
-    def empty(self):
-        return all(len(i) == 0 for i in self.values())
-
-    def get(self, k, v=None):
-        obj = super(SetOrderedDict, self).get(k, v)
-        return frozenset([0]) if obj is None else obj

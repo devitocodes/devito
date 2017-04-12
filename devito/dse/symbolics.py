@@ -17,13 +17,14 @@ from sympy import (Eq, Indexed, cos, sin)
 from devito.dse.aliases import collect_aliases
 from devito.dse.extended_sympy import bhaskara_cos, bhaskara_sin
 from devito.dse.graph import Cluster, temporaries_graph
-from devito.dse.inspection import count, estimate_cost, estimate_memory, stencil
+from devito.dse.inspection import count, estimate_cost, estimate_memory
 from devito.dse.manipulation import (collect_nested, freeze_expression,
                                      xreplace_constrained)
 from devito.dse.queries import iq_timeinvariant, iq_timevarying, q_op, q_indirect
 from devito.interfaces import ScalarFunction, TensorFunction
 from devito.logger import dse, dse_warning
-from devito.tools import SetOrderedDict, flatten
+from devito.stencil import Stencil
+from devito.tools import flatten
 
 __all__ = ['rewrite']
 
@@ -103,13 +104,13 @@ class State(object):
         self.input = exprs
         self.exprs = exprs
 
-        # Compute the domain of each tensor expression
+        # Compute the stencil of each tensor expression
         mapper = OrderedDict()
         for expr in exprs:
             mapper.setdefault(expr.lhs, []).append(expr)
         domains = OrderedDict()
         for k, v in mapper.items():
-            domains[k] = SetOrderedDict.union(*[stencil(i) for i in v])
+            domains[k] = Stencil.union(*[Stencil(i) for i in v])
         self.domains = domains
 
     def update(self, exprs=None, domains=None):
@@ -409,7 +410,7 @@ class Rewriter(object):
             temporary = Indexed(template(c), *indices)
             found.append(Eq(temporary, origin))
             # Track the domain of each TensorFunction introduced
-            domains[temporary] = alias.domain
+            domains[temporary] = alias.stencil
             for aliased, distance in alias.with_distance:
                 coordinates = [sum([i, j]) for i, j in distance.items() if i in indices]
                 rules[candidates[aliased]] = Indexed(template(c), *tuple(coordinates))

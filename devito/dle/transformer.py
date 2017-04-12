@@ -294,7 +294,7 @@ class Rewriter(object):
         # parallel or OSIP trees when this is actually false), but this should
         # never be the case in practice, given the targeted stencil codes.
         for tree in candidates:
-            exprs = [e.stencil for e in sections[tree]]
+            exprs = [e.expr for e in sections[tree]]
 
             # "Prefetch" objects to speed up the analsys
             terms = {e: tuple(terminals(e.rhs)) for e in exprs}
@@ -438,7 +438,7 @@ class Rewriter(object):
 
                 # Heuristic: create elemental functions only if more than
                 # self.thresholds['elemental_functions'] operations are present
-                ops = estimate_cost([e.stencil for e in expressions])
+                ops = estimate_cost([e.expr for e in expressions])
                 if ops < self.thresholds['elemental'] and not root.is_Elementizable:
                     continue
 
@@ -517,9 +517,9 @@ class Rewriter(object):
                     continue
 
                 functions = list(set.union(*[set(e.functions) for e in expressions]))
-                stencils = [e.stencil for e in expressions]
+                wrapped = [e.expr for e in expressions]
 
-                if not functions or not stencils:
+                if not functions or not wrapped:
                     # Heuristically avoided
                     continue
 
@@ -531,10 +531,10 @@ class Rewriter(object):
                     # Dangerous for correctness
                     continue
 
-                stencils = promote_scalar_expressions(stencils, (size,), (dim,), True)
+                wrapped = promote_scalar_expressions(wrapped, (size,), (dim,), True)
 
-                assert len(stencils) == len(expressions)
-                rebuilt = [Expression(s, e.dtype) for s, e in zip(stencils, expressions)]
+                assert len(wrapped) == len(expressions)
+                rebuilt = [Expression(s, e.dtype) for s, e in zip(wrapped, expressions)]
 
                 # Group statements
                 # TODO: Need a heuristic here to maximize reuse
