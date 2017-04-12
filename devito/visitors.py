@@ -471,7 +471,7 @@ class ResolveIterationVariable(Transformer):
 
     def visit_Expression(self, o, subs={}, offsets=defaultdict(set)):
         """Collect all offsets used with a dimension"""
-        for dim, offs in o.index_offsets.items():
+        for dim, offs in o.stencil.entries:
             offsets[dim].update(offs)
         return o
 
