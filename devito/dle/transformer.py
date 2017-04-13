@@ -268,7 +268,8 @@ class Rewriter(object):
         self._loop_fission(state, mode=mode)
         self._padding(state, mode=mode)
         self._create_elemental_functions(state, mode=mode)
-        self._loop_blocking(state, mode=mode)
+        # FIXME: still unsupported
+        #self._loop_blocking(state, mode=mode)
         self._simdize(state, mode=mode)
         self._nontemporal_stores(state, mode=mode)
         self._ompize(state, mode=mode)
