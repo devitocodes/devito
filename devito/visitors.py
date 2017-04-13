@@ -18,8 +18,8 @@ from devito.tools import as_tuple, filter_ordered, filter_sorted, flatten
 
 
 __all__ = ['FindNodes', 'FindSections', 'FindSymbols', 'FindScopes',
-           'IsPerfectIteration', 'SubstituteExpression',
-           'ResolveIterationVariable', 'Transformer', 'printAST']
+           'IsPerfectIteration', 'SubstituteExpression', 'printAST',
+           'ResolveIterationVariable', 'Transformer', 'NestedTransformer']
 
 
 class Visitor(object):
@@ -386,11 +386,12 @@ class Transformer(Visitor):
 
     """Given an Iteration/Expression tree T and a mapper from nodes in T to
     a set of new nodes L, M : N --> L, build a new Iteration/Expression tree T'
-    where a node ``n`` in N is replaced with ``M[n]``."""
+    where a node ``n`` in N is replaced with ``M[n]``.
+    """
 
     def __init__(self, mapper={}):
         super(Transformer, self).__init__()
-        self.mapper = mapper
+        self.mapper = mapper.copy()
         self.rebuilt = {}
 
     def visit_object(self, o, **kwargs):
@@ -414,6 +415,18 @@ class Transformer(Visitor):
         if isinstance(o, Node) and obj is not o:
             self.rebuilt[o] = obj
         return obj
+
+
+class NestedTransformer(Transformer):
+    """
+    As opposed to a :class:`Transformer`, a :class:`NestedTransforer` applies
+    replacements in a depth-first fashion.
+    """
+
+    def visit_Node(self, o, **kwargs):
+        rebuilt = [self.visit(i, **kwargs) for i in o.children]
+        handle = self.mapper.get(o, o)
+        return handle._rebuild(*rebuilt, **handle.args_frozen)
 
 
 class SubstituteExpression(Transformer):
