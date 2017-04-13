@@ -20,7 +20,8 @@ from devito.nodes import (Block, Denormals, Element, Expression, FunCall,
                           Function, Iteration, List)
 from devito.tools import as_tuple, filter_sorted, flatten, grouper, roundm
 from devito.visitors import (FindNodes, FindSections, FindSymbols,
-                             IsPerfectIteration, SubstituteExpression, Transformer)
+                             IsPerfectIteration, SubstituteExpression,
+                             NestedTransformer, Transformer)
 
 
 def transform(node, mode='basic', compiler=None):
@@ -293,6 +294,7 @@ class Rewriter(object):
         # The analysis below may return "false positives" (ie, absence of fully-
         # parallel or OSIP trees when this is actually false), but this should
         # never be the case in practice, given the targeted stencil codes.
+        mapper = OrderedDict()
         for tree in candidates:
             exprs = [e.expr for e in sections[tree]]
 
@@ -324,19 +326,21 @@ class Rewriter(object):
                         is_OSIP = True
                         break
 
-            # Track the discovered properties in the Iteration/Expression tree
+            # Track the discovered properties
             if is_OSIP:
-                args = tree[0].args
-                properties = as_tuple(args.pop('properties')) + ('sequential',)
-                mapper = {tree[0]: Iteration(properties=properties, **args)}
-                nodes = Transformer(mapper).visit(nodes)
-            mapper = {i: ('parallel',) for i in tree[is_OSIP:]}
-            mapper[tree[-1]] += ('vector-dim',)
-            for i in tree[is_OSIP:]:
-                args = i.args
-                properties = as_tuple(args.pop('properties')) + mapper[i]
-                propertized = Iteration(properties=properties, **args)
-                nodes = Transformer({i: propertized}).visit(nodes)
+                mapper.setdefault(tree[0], []).append('sequential')
+            for i in tree[is_OSIP:-1]:
+                mapper.setdefault(i, []).append('parallel')
+            mapper.setdefault(tree[-1], []).extend(['parallel', 'vector-dim'])
+
+        # Introduce the discovered properties in the Iteration/Expression tree
+        for k, v in list(mapper.items()):
+            args = k.args
+            # 'sequential' has obviously precedence over 'parallel'
+            properties = ('sequential',) if 'sequential' in v else tuple(v)
+            properties = as_tuple(args.pop('properties')) + properties
+            mapper[k] = Iteration(properties=properties, **args)
+        nodes = NestedTransformer(mapper).visit(nodes)
 
         state.update(nodes=nodes)
 
