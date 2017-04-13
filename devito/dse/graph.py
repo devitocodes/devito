@@ -72,8 +72,13 @@ class Temporary(Eq):
         return self._readby
 
     @property
+    def is_cyclic_readby(self):
+        return self.lhs in self.readby
+
+    @property
     def is_terminal(self):
-        return len(self.readby) == 0
+        return (len(self.readby) == 0) or\
+            (len(self.readby) == 1 and self.is_cyclic_readby)
 
     @property
     def is_tensor(self):
@@ -149,9 +154,9 @@ class TemporariesGraph(OrderedDict):
         found = OrderedDict()
         queue = [(self[root], 0)]
         while queue:
-            temporary, index = queue.pop(0)
-            found.setdefault(index, []).append(temporary)
-            queue.extend([(self[i], index + 1) for i in temporary.reads])
+            item, index = queue.pop(0)
+            found.setdefault(index, []).append(item)
+            queue.extend([(self[i], index+1) for i in item.reads if self[i] != item])
         # Sort output for determinism
         found = reversed(found.values())
         found = flatten(sorted(v, key=lambda i: i.identifier) for v in found)
@@ -171,13 +176,12 @@ class TemporariesGraph(OrderedDict):
             return False
         to_visit = [expr.rhs] if expr.is_Equality else [expr]
         while to_visit:
-            handle = to_visit.pop()
-            for i in retrieve_indexed(handle):
+            item = to_visit.pop()
+            for i in retrieve_indexed(item):
                 if t in i.free_symbols:
                     return False
-            temporaries = [i for i in handle.free_symbols if i in self]
-            for i in temporaries:
-                to_visit.append(self[i].rhs)
+            temporaries = [i for i in item.free_symbols if i in self]
+            to_visit.extend([self[i].rhs for i in temporaries if self[i].rhs != item])
         return True
 
     def is_index(self, root):
@@ -185,12 +189,12 @@ class TemporariesGraph(OrderedDict):
             return False
         queue = [self[root]]
         while queue:
-            temporary = queue.pop(0)
-            if any(root in i.atoms() for i in retrieve_indexed(temporary)):
-                # /root/ appears amongst the indices of /temporary/
+            item = queue.pop(0)
+            if any(root in i.atoms() for i in retrieve_indexed(item)):
+                # /root/ appears amongst the indices of /item/
                 return True
             else:
-                queue.extend([self[i] for i in temporary.readby])
+                queue.extend([self[i] for i in item.readby if self[i] != item])
         return False
 
 
@@ -295,18 +299,29 @@ class SuperCluster(object):
 
 def temporaries_graph(temporaries, scope=0):
     """
-    Create a temporaries graph given a list of :class:`sympy.Eq`.
+    Create a dependency graph given a list of :class:`sympy.Eq`.
     """
 
+    unseen = OrderedDict()
     mapper = OrderedDict()
     Node = namedtuple('Node', ['rhs', 'reads', 'readby'])
 
     for lhs, rhs in [i.args for i in temporaries]:
-        reads = {i for i in terminals(rhs) if i in mapper}
+        reads = set()
+        for i in terminals(rhs):
+            if i in mapper:
+                # Already in the TemporariesGraph
+                reads.add(i)
+            else:
+                # Assume /i/ will pop up later
+                unseen.setdefault(i, []).append(lhs)
         mapper[lhs] = Node(rhs, reads, set())
         for i in mapper[lhs].reads:
-            assert i in mapper, "Illegal Flow"
             mapper[i].readby.add(lhs)
+        for i in unseen.pop(lhs, []):
+            # /lhs/ had popped up on some earliner rhs
+            mapper[i].reads.add(lhs)
+            mapper[lhs].readby.add(i)
 
     nodes = [Temporary(k, v.rhs, reads=v.reads, readby=v.readby, scope=scope)
              for k, v in mapper.items()]
