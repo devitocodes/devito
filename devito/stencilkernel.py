@@ -449,10 +449,10 @@ class OperatorCore(OperatorBasic):
     def _profile_sections(self, nodes):
         """Introduce C-level profiling nodes within the Iteration/Expression tree."""
         mapper = {}
-        for expr in nodes:
-            for itspace in FindSections().visit(expr).keys():
+        for node in nodes:
+            for itspace in FindSections().visit(node).keys():
                 for i in itspace:
-                    if IsPerfectIteration().visit(i) and i not in mapper:
+                    if IsPerfectIteration().visit(i):
                         # Insert `TimedList` block. This should come from
                         # the profiler, but we do this manually for now.
                         lname = 'loop_%s_%d' % (i.index, len(mapper))
