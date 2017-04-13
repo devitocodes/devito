@@ -114,16 +114,14 @@ def transform(node, mode='basic', compiler=None):
         mode.add('advanced')
     if 'noop' not in mode and params.pop('openmp', False):
         mode |= {'openmp'}
-    if mode.isdisjoint({'noop', 'basic', 'advanced', '3D-advanced', 'speculative',
-                        'fission', 'padding', 'blocking', 'split', 'simd',
-                        'openmp', 'ntstores'}):
+    if mode.isdisjoint(set(Rewriter.modes)):
         dle_warning("Unknown transformer mode(s) %s" % str(mode))
         return State(node)
     else:
         return Rewriter(node, params, compiler).run(mode)
 
 
-def dle_transformation(func):
+def dle_pass(func):
 
     def wrapper(self, state, **kwargs):
         if kwargs['mode'].intersection(set(self.triggers[func.__name__])):
@@ -224,9 +222,16 @@ class Rewriter(object):
     """
 
     """
+    All DLE transformation modes.
+    """
+    modes = ('noop', 'basic', 'advanced', '3D-advanced', 'speculative',
+             'fission', 'padding', 'blocking', 'split', 'simd', 'openmp', 'ntstores')
+
+    """
     Track what options trigger a given transformation.
     """
     triggers = {
+        '_analyze': modes,
         '_avoid_denormals': ('basic', 'advanced', 'speculative'),
         '_loop_fission': ('fission', 'split', 'advanced', 'speculative'),
         '_create_elemental_functions': ('split', 'basic', 'advanced', 'speculative'),
@@ -257,7 +262,7 @@ class Rewriter(object):
     def run(self, mode):
         state = State(self.nodes, mode)
 
-        self._analyze_and_decorate(state)
+        self._analyze(state, mode=mode)
 
         self._avoid_denormals(state, mode=mode)
         self._loop_fission(state, mode=mode)
@@ -272,10 +277,11 @@ class Rewriter(object):
 
         return state
 
-    def _analyze_and_decorate(self, state):
+    @dle_pass
+    def _analyze(self, state, **kwargs):
         """
-        Analyze the Iteration/Expression trees in ``state.nodes`` and track
-        useful information for the subsequent DLE's transformation steps.
+        Analyze the Iteration/Expression trees in ``state.nodes`` to detect
+        information useful in subsequent DLE passes.
 
         In particular, the presence of fully-parallel or "outermost-sequential
         inner-parallel" (OSIP) :class:`Iteration` trees is tracked. In an OSIP
@@ -342,9 +348,9 @@ class Rewriter(object):
             mapper[k] = Iteration(properties=properties, **args)
         nodes = NestedTransformer(mapper).visit(nodes)
 
-        state.update(nodes=nodes)
+        return {'nodes': nodes}
 
-    @dle_transformation
+    @dle_pass
     def _avoid_denormals(self, state, **kwargs):
         """
         Introduce nodes in the Iteration/Expression tree that will generate macros
@@ -355,7 +361,7 @@ class Rewriter(object):
         return {'nodes': (Denormals(),) + state.nodes,
                 'includes': ('xmmintrin.h', 'pmmintrin.h')}
 
-    @dle_transformation
+    @dle_pass
     def _padding(self, state, **kwargs):
         """
         Introduce temporary buffers padded to the nearest multiple of the vector
@@ -413,7 +419,7 @@ class Rewriter(object):
 
         return {'nodes': processed}
 
-    @dle_transformation
+    @dle_pass
     def _create_elemental_functions(self, state, **kwargs):
         """
         Move :class:`Iteration` sub-trees to separate functions.
@@ -494,7 +500,7 @@ class Rewriter(object):
 
         return {'nodes': processed, 'elemental_functions': functions}
 
-    @dle_transformation
+    @dle_pass
     def _loop_fission(self, state, **kwargs):
         """
         Apply loop fission to innermost :class:`Iteartion` objects. This pass
@@ -554,7 +560,7 @@ class Rewriter(object):
 
         return {'nodes': processed}
 
-    @dle_transformation
+    @dle_pass
     def _loop_blocking(self, state, **kwargs):
         """
         Apply loop blocking to :class:`Iteartion` trees.
@@ -689,7 +695,7 @@ class Rewriter(object):
 
         return {'nodes': processed, 'arguments': arguments, 'flags': 'blocking'}
 
-    @dle_transformation
+    @dle_pass
     def _ompize(self, state, **kwargs):
         """
         Add OpenMP pragmas to the Iteration/Expression tree to emit parallel code
@@ -728,7 +734,7 @@ class Rewriter(object):
 
         return {'nodes': processed}
 
-    @dle_transformation
+    @dle_pass
     def _simdize(self, state, **kwargs):
         """
         Add compiler-specific or, if not available, OpenMP pragmas to the
@@ -762,7 +768,7 @@ class Rewriter(object):
         return {'nodes': decorate(state.nodes),
                 'elemental_functions': decorate(state.elemental_functions)}
 
-    @dle_transformation
+    @dle_pass
     def _nontemporal_stores(self, state, **kwargs):
         """
         Add compiler-specific pragmas and instructions to generate nontemporal
@@ -810,9 +816,11 @@ class Rewriter(object):
         """
 
         if mode.intersection({'blocking', 'basic', 'advanced', 'speculative'}):
-            steps = " --> ".join("(%s)" % i for i in self.timings.keys())
+            row = "%s [elapsed: %.2f]"
+            out = " >>\n     ".join(row % (filter(lambda c: not c.isdigit(), k[1:]), v)
+                                    for k, v in self.timings.items())
             elapsed = sum(self.timings.values())
-            dle("%s [%.2f s]" % (steps, elapsed))
+            dle("%s\n     [Total elapsed: %.2f s]" % (out, elapsed))
 
 
 # Utilities

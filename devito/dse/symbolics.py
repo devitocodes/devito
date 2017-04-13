@@ -36,19 +36,15 @@ def rewrite(expr, mode='advanced'):
     Transform expressions to reduce their operation count.
 
     :param expr: the target expression.
-    :param mode: drive the expression transformation. Available modes are
-                 'basic', 'factorize', 'approx-trigonometry' and 'advanced'
-                 (default). They act as follows: ::
+    :param mode: drive the expression transformation as follows: ::
 
-                     * 'noop': do nothing, but track performance metrics
-                     * 'basic': apply common sub-expressions elimination.
-                     * 'factorize': apply heuristic factorization of temporaries.
-                     * 'approx-trigonometry': replace expensive trigonometric
-                         functions with suitable polynomial approximations.
-                     * 'glicm': apply heuristic hoisting of time-invariant terms.
-                     * 'split': split long expressions into smaller sub-expressions
-                          exploiting associativity and commutativity.
-                     * 'advanced': compose all known transformations.
+         * 'noop': do nothing, but track performance metrics
+         * 'basic': apply common sub-expressions elimination.
+         * 'factorize': apply heuristic factorization of temporaries.
+         * 'approx-trigonometry': replace expensive trigonometric
+             functions with suitable polynomial approximations.
+         * 'glicm': apply heuristic hoisting of time-invariant terms.
+         * 'advanced': compose all known transformations.
     """
 
     if isinstance(expr, Sequence):
@@ -69,8 +65,7 @@ def rewrite(expr, mode='advanced'):
         except TypeError:
             dse_warning("Arg mode must be str or tuple (got %s)" % type(mode))
             return State(expr)
-    if mode.isdisjoint({'noop', 'basic', 'factorize', 'approx-trigonometry',
-                        'glicm', 'advanced'}):
+    if mode.isdisjoint(set(Rewriter.modes)):
         dse_warning("Unknown rewrite mode(s) %s" % str(mode))
         return State(expr)
     else:
@@ -171,7 +166,13 @@ class Rewriter(object):
     """
 
     """
-    Name conventions for new temporaries
+    All DSE transformation modes.
+    """
+    modes = ('noop', 'basic', 'advanced',
+             'factorize', 'approx-trigonometry', 'glicm')
+
+    """
+    Name conventions for new temporaries.
     """
     conventions = {
         'redundancy': 'r',
@@ -181,7 +182,7 @@ class Rewriter(object):
     }
 
     """
-    Track what options trigger a given transformation.
+    Track what options trigger a given pass.
     """
     triggers = {
         '_extract_time_varying': ('advanced',),
@@ -189,7 +190,8 @@ class Rewriter(object):
         '_eliminate_intra_stencil_redundancies': ('basic', 'advanced'),
         '_eliminate_inter_stencil_redundancies': ('glicm', 'advanced'),
         '_factorize': ('factorize', 'advanced'),
-        '_optimize_trigonometry': ('approx-trigonometry',)
+        '_optimize_trigonometry': ('approx-trigonometry',),
+        '_finalize': modes
     }
 
     """
@@ -219,7 +221,7 @@ class Rewriter(object):
         self._eliminate_intra_stencil_redundancies(state, mode=mode)
         self._factorize(state, mode=mode)
 
-        self._finalize(state)
+        self._finalize(state, mode=mode)
 
         self._summary(mode)
 
@@ -421,7 +423,8 @@ class Rewriter(object):
 
         return {'exprs': processed, 'domains': domains}
 
-    def _finalize(self, state):
+    @dse_pass
+    def _finalize(self, state, **kwargs):
         """
         Finalize the DSE output: ::
 
@@ -445,7 +448,7 @@ class Rewriter(object):
         # Freezing
         processed = [freeze_expression(e) for e in processed]
 
-        state.update(exprs=processed)
+        return {'exprs': processed}
 
     def _summary(self, mode):
         """
