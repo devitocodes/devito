@@ -202,7 +202,7 @@ class Rewriter(object):
         'max-operands': 40,
     }
 
-    def __init__(self, exprs, profile=False):
+    def __init__(self, exprs, profile=True):
         self.exprs = exprs
 
         self.profile = profile
