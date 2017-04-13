@@ -20,7 +20,7 @@ from devito.dse.graph import Cluster, temporaries_graph
 from devito.dse.inspection import count, estimate_cost, estimate_memory
 from devito.dse.manipulation import (collect_nested, freeze_expression,
                                      xreplace_constrained)
-from devito.dse.queries import iq_timeinvariant, iq_timevarying, q_op
+from devito.dse.queries import iq_timeinvariant, iq_timevarying, q_op, q_indexed
 from devito.interfaces import ScalarFunction, TensorFunction
 from devito.logger import dse, dse_warning
 from devito.stencil import Stencil
@@ -152,7 +152,7 @@ class State(object):
 
     @property
     def output_fields(self):
-        return [i.lhs for i in self.exprs if isinstance(i.lhs, Indexed)]
+        return [i.lhs.base.function for i in self.input if q_indexed(i.lhs)]
 
     @property
     def clusters(self):
@@ -177,7 +177,7 @@ class Rewriter(object):
         'redundancy': 'r',
         'time-invariant': 'ti',
         'time-dependent': 'td',
-        'temporary': 't'
+        'temporary': 'tcse'
     }
 
     """

@@ -274,7 +274,9 @@ class OperatorBasic(Function):
 
     def _schedule_expressions(self, dse_state):
         """Wrap :class:`Expression` objects within suitable hierarchies of
-        :class:`Iteration` according to dimensions and stencils."""
+        :class:`Iteration` objects according to dimensions and stencils."""
+        # Will be used to filter out aliasing buffered dimensions
+        key = lambda d: d.parent if d.is_Buffered else d
 
         # Establish a partial ordering for the Iterations based on the order
         # by which dimensions appeared in the input expressions
@@ -288,13 +290,10 @@ class OperatorBasic(Function):
             expressions = [Expression(v, np.int32 if c.trace.is_index(k) else self.dtype)
                            for k, v in c.trace.items()]
 
-            # Filter out aliasing due to buffered dimensions
-            key = lambda d: d.parent if d.is_Buffered else d
-            dimensions = filter_ordered(list(c.stencil.keys()), key=key)
-
-            # Determine a total ordering for the dimensions
-            dimensions = filter_sorted(dimensions, key=lambda d: ordering.index(d))
-            stencil = Stencil([(key(d), c.stencil.get(key(d))) for d in dimensions])
+            # Reorder the stencil dimensions based on the global partial ordering
+            stencil = sorted(i.stencil.keys(), key=lambda d: ordering.index(d))
+            dimensions = filter_ordered(stencil, key=key)
+            stencil = Stencil([(d, i.stencil.get(key(d))) for d in dimensions])
 
             if not stencil.empty:
                 root = None
@@ -450,20 +449,20 @@ class OperatorCore(OperatorBasic):
     def _profile_sections(self, nodes):
         """Introduce C-level profiling nodes within the Iteration/Expression tree."""
         mapper = {}
-        for i, expr in enumerate(nodes):
+        for expr in nodes:
             for itspace in FindSections().visit(expr).keys():
-                for j in itspace:
-                    if IsPerfectIteration().visit(j) and j not in mapper:
+                for i in itspace:
+                    if IsPerfectIteration().visit(i) and i not in mapper:
                         # Insert `TimedList` block. This should come from
                         # the profiler, but we do this manually for now.
-                        lname = 'loop_%s_%d' % (j.index, i)
-                        mapper[j] = TimedList(gname=self.profiler.t_name,
-                                              lname=lname, body=j)
+                        lname = 'loop_%s_%d' % (i.index, len(mapper))
+                        mapper[i] = TimedList(gname=self.profiler.t_name,
+                                              lname=lname, body=i)
                         self.profiler.t_fields += [(lname, c_double)]
 
                         # Estimate computational properties of the timed section
                         # (operational intensity, memory accesses)
-                        expressions = FindNodes(Expression).visit(j)
+                        expressions = FindNodes(Expression).visit(i)
                         ops = estimate_cost([e.expr for e in expressions])
                         memory = estimate_memory([e.expr for e in expressions])
                         self.sections[itspace] = Profile(lname, ops, memory)
@@ -520,7 +519,7 @@ class OperatorCore(OperatorBasic):
         at_arguments = arguments.copy()
 
         # Output data must not be changed
-        output = [i.base.label.name for i in self._dse_state.output_fields]
+        output = [i.name for i in self._dse_state.output_fields]
         for k, v in arguments.items():
             if k in output:
                 at_arguments[k] = v.copy()
