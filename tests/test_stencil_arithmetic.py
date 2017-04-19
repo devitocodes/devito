@@ -140,3 +140,24 @@ def test_arithmetic_indexed_open_loops(i, j, k, l, expr, result):
     eqn = eval(expr)
     StencilKernel(eqn)(fa)
     assert np.allclose(fa.data[1, 1:-1, 1:-1], result[1:-1, 1:-1], rtol=1e-12)
+
+
+def test_override(i, j, k, l):
+    """Test that the call-time overriding of Operator arguments works"""
+    a = symbol(name='a', dimensions=(i, j, k, l), value=2., mode='indexed').base.function
+    a1 = symbol(name='a', dimensions=(i, j, k, l), value=3., mode='indexed').base.function
+    a2 = symbol(name='b', dimensions=(i, j, k, l), value=4., mode='indexed').base.function
+    eqn = Eq(a, a+3)
+    op = StencilKernel(eqn)
+    op()
+    op(a=a1)
+    op(a=a2)
+    shape = [d.size for d in [i, j, k, l]]
+
+    assert(np.allclose(a.data, np.zeros(shape) + 5))
+    assert(np.allclose(a1.data, np.zeros(shape) + 6))
+    assert(np.allclose(a2.data, np.zeros(shape) + 7))
+
+
+if __name__ == "__main__":
+    test_override(i(), j(), k(), l())
