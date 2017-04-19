@@ -261,20 +261,14 @@ def load(basename, compiler=GNUCompiler):
     Note: If the provided compiler is of type `IntelMICCompiler`
     we utilise the `pymic` package to manage device streams.
     """
-    if platform == "linux" or platform == "linux2":
-        lib_file = "%s.so" % basename
-    elif platform == "darwin":
-        lib_file = "%s.dylib" % basename
-    elif platform == "win32" or platform == "win64":
-        lib_file = "%s.dll" % basename
-
     if isinstance(compiler, IntelMICCompiler):
         compiler._device = compiler._mic.devices[0]
         compiler._stream = compiler._device.get_default_stream()
-
+        # The name with the extension is only used for MIC
+        lib_file = "%s.%s" % (basename, compiler.lib_ext)
         return compiler._device.load_library(lib_file)
 
-    return npct.load_library(lib_file, '.')
+    return npct.load_library(basename, '.')
 
 
 def jit_compile(ccode, compiler=GNUCompiler):
