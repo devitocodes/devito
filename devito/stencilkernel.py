@@ -24,6 +24,7 @@ from devito.tools import as_tuple, filter_ordered, filter_sorted, flatten, parti
 from devito.visitors import (FindNodes, FindSections, FindSymbols, FindScopes,
                              IsPerfectIteration, MergeOuterIterations,
                              ResolveIterationVariable, SubstituteExpression, Transformer)
+from devito.exceptions import InvalidArgument
 
 __all__ = ['StencilKernel']
 
@@ -127,10 +128,23 @@ class OperatorBasic(Function):
         arguments = OrderedDict([(arg.name, arg) for arg in self.parameters])
         dim_sizes = {}
 
+        # Have we been provided substitutes for symbol data?
+        # Only SymbolicData can be overridden with this route
+        r_args = [f_n for f_n, f in arguments.iteritems()
+                  if isinstance(f, SymbolicData)]
+        o_vals = OrderedDict([arg for arg in kwargs.iteritems() if arg[0] in r_args])
+
+        # Replace the over-ridden values with the provided ones
+        for argname in o_vals.keys():
+            if not arguments[argname].shape == o_vals[argname].shape:
+                raise InvalidArgument("Shapes must match")
+
+            arguments[argname] = o_vals[argname]
+
         # Traverse positional args and infer loop sizes for open dimensions
         f_args = [f for f in arguments.values() if isinstance(f, SymbolicData)]
         for f, arg in zip(f_args, args):
-            arguments[f.name] = self._arg_data(f)
+            arguments[arg.name] = self._arg_data(f)
             shape = self._arg_shape(f)
 
             # Ensure data dimensions match symbol dimensions
