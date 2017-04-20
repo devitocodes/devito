@@ -130,9 +130,8 @@ class OperatorBasic(Function):
 
         # Have we been provided substitutes for symbol data?
         # Only SymbolicData can be overridden with this route
-        r_args = [f_n for f_n, f in arguments.iteritems()
-                  if isinstance(f, SymbolicData)]
-        o_vals = OrderedDict([arg for arg in kwargs.iteritems() if arg[0] in r_args])
+        r_args = [f_n for f_n, f in arguments.items() if isinstance(f, SymbolicData)]
+        o_vals = OrderedDict([arg for arg in kwargs.items() if arg[0] in r_args])
 
         # Replace the over-ridden values with the provided ones
         for argname in o_vals.keys():
