@@ -1,6 +1,7 @@
 from sympy import Eq, solve, symbols
 
 from devito.dimension import t, time
+from devito.interfaces import Backward, Forward
 from devito.stencilkernel import StencilKernel
 from devito.operator import *
 
@@ -63,16 +64,15 @@ def ForwardOperator(model, u, src, rec, data, time_order=2, spc_order=6,
     else:
         dse = kwargs.get('dse', 'advanced')
         dle = kwargs.get('dle', 'advanced')
-        compiler = kwargs.get('compiler', None)
 
         # Create stencil expressions for operator, source and receivers
         eqn = Eq(u.forward, stencil)
-        src_add = src.point2grid(u, m, u_t=t + 1, p_t=time)
-        rec_read = Eq(rec, rec.grid2point(u))
+        src_add = src.point2grid(u, m, u_t=u.indices[0] + 1, p_t=time)
+        rec_read = Eq(rec, rec.grid2point(u, t=u.indices[0]))
         stencils = [eqn] + src_add + [rec_read]
 
         op = StencilKernel(stencils=stencils, subs=subs, dse=dse, dle=dle,
-                           compiler=compiler)
+                           compiler=compiler, time_axis=Forward, name="Forward")
 
     return op
 
@@ -132,7 +132,6 @@ def AdjointOperator(model, v, srca, rec, data, time_order=2, spc_order=6,
     else:
         dse = kwargs.get('dse', 'advanced')
         dle = kwargs.get('dle', 'advanced')
-        compiler = kwargs.get('compiler', None)
 
         # Create stencil expressions for operator, source and receivers
         eqn = Eq(v.backward, stencil)
@@ -141,7 +140,7 @@ def AdjointOperator(model, v, srca, rec, data, time_order=2, spc_order=6,
         stencils = [eqn] + rec_add + [src_read]
 
         op = StencilKernel(stencils=stencils, subs=subs, dse=dse, dle=dle,
-                           compiler=compiler, forward=False)
+                           time_axis=Backward, name="Adjoint")
 
     return op
 
@@ -170,7 +169,7 @@ def GradientOperator(model, v, grad, rec, u, data, time_order=2, spc_order=6,
         # eqn = m * v.dt2 - laplacian - damp * v.dt
         dt = model.critical_dt
 
-        gradient_update = Eq(grad, grad - u.dt2 * v.forward)
+        gradient_update = Eq(grad, grad - u.dt2 * v)
     else:
         laplacian = v.laplace
         biharmonic = v.laplace2(1/m)
@@ -180,23 +179,22 @@ def GradientOperator(model, v, grad, rec, u, data, time_order=2, spc_order=6,
         dt = 1.73 * model.critical_dt
         gradient_update = Eq(grad, grad -
                              (u.dt2 -
-                              s ** 2 / 12.0 * biharmonicu) * v.forward)
+                              s ** 2 / 12.0 * biharmonicu) * v)
 
     # Create the stencil by hand instead of calling numpy solve for speed purposes
     # Simple linear solve of a v(t+dt) + b u(t) + c v(t-dt) = L for v(t-dt)
     stencil = 1.0 / (2.0 * m + s * damp) * \
         (4.0 * m * v + (s * damp - 2.0 * m) *
          v.forward + 2.0 * s ** 2 * (laplacian + s**2 / 12.0 * biharmonic))
-    gradient_update = gradient_update.subs(time, t)
     # Add substitutions for spacing (temporal and spatial)
     subs = {s: dt, h: model.get_spacing()}
     # Add Gradient-specific updates. The dt2 is currently hacky
     #  as it has to match the cyclic indices
-    stencils = [gradient_update, Eq(v.backward, stencil)]
 
     if legacy:
         kwargs.pop('dle', None)
-
+        gradient_update = gradient_update.subs(time, t)
+        stencils = [gradient_update, Eq(v.backward, stencil)]
         op = Operator(rec.nt - 1, model.shape_domain,
                       stencils=stencils,
                       subs=[subs, subs, {}],
@@ -217,15 +215,13 @@ def GradientOperator(model, v, grad, rec, u, data, time_order=2, spc_order=6,
     else:
         dse = kwargs.get('dse', 'advanced')
         dle = kwargs.get('dle', 'advanced')
-        compiler = kwargs.get('compiler', None)
 
         # Create stencil expressions for operator, source and receivers
         eqn = Eq(v.backward, stencil)
         rec_add = rec.point2grid(v, m, u_t=t - 1, p_t=time)
-        stencils = [gradient_update] + [eqn] + rec_add
-
+        stencils = [eqn] + [gradient_update] + rec_add
         op = StencilKernel(stencils=stencils, subs=subs, dse=dse, dle=dle,
-                           compiler=compiler, forward=False)
+                           time_axis=Backward, name="Gradient")
 
     return op
 
@@ -299,17 +295,17 @@ def BornOperator(model, u, U, src, rec, dm, data, time_order=2, spc_order=6,
         op.propagator.add_devito_param(rec.coordinates)
 
     else:
-        dse = kwargs.get('dse', 'advanced')
-        dle = kwargs.get('dle', 'advanced')
-        compiler = kwargs.get('compiler', None)
+        dse = kwargs.get('dse', None)
+        dle = kwargs.get('dle', None)
 
         # Create stencil expressions for operator, source and receivers
-        eqn = [Eq(u.forward, stencil1)] + [Eq(U.forward, stencil2)]
+        eqn1 = [Eq(u.forward, stencil1)]
+        eqn2 = [Eq(U.forward, stencil2)]
         src_add = src.point2grid(u, m, u_t=t + 1, p_t=time)
         rec_read = Eq(rec, rec.grid2point(U))
-        stencils = eqn + src_add + [rec_read]
+        stencils = eqn1 + src_add + eqn2 + [rec_read]
 
         op = StencilKernel(stencils=stencils, subs=subs, dse=dse, dle=dle,
-                           compiler=compiler)
+                           time_axis=Forward, name="Born")
 
     return op
