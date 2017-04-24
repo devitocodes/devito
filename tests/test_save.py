@@ -34,7 +34,7 @@ def run_simulation(save=False, dx=0.01, dy=0.01, a=0.5, timesteps=100):
     eqn = Eq(u.dt, a * (u.dx2 + u.dy2))
     stencil = solve(eqn, u.forward)[0]
     op = StencilKernel(stencils=Eq(u.forward, stencil), subs={a: 0.5, h: dx, s: dt},
-                       dse=None, dle=None, compiler=None, time_axis=Forward)
+                       dse=None, dle=None, time_axis=Forward)
 
     op.apply()
 
