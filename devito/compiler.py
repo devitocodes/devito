@@ -192,7 +192,7 @@ class CustomCompiler(Compiler):
         default = '-O3 -g -march=native -fPIC -mno-avx -Wall -std=c99'
         self.cflags = environ.get('CFLAGS', default).split(' ')
         self.ldflags = environ.get('LDFLAGS', '-shared').split(' ')
-        self.pragma_ivdep = [Pragma(environ.get('DEVITO_PRAGMA', 'GCC ivdep'))]
+        self.pragma_ivdep = [Pragma(environ.get('DEVITO_IVDEP', 'GCC ivdep'))]
         if self.openmp:
             self.ldflags += environ.get('OMP_LDFLAGS', '-fopenmp').split(' ')
 
