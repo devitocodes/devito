@@ -1,4 +1,4 @@
-from sympy import Eq, solve, symbols
+from sympy import Eq, symbols
 
 from devito.dimension import t, time
 from devito.interfaces import Backward, Forward
@@ -72,7 +72,7 @@ def ForwardOperator(model, u, src, rec, data, time_order=2, spc_order=6,
         stencils = [eqn] + src_add + [rec_read]
 
         op = StencilKernel(stencils=stencils, subs=subs, dse=dse, dle=dle,
-                           compiler=compiler, time_axis=Forward, name="Forward")
+                           time_axis=Forward, name="Forward")
 
     return op
 

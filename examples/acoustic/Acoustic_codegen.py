@@ -5,9 +5,10 @@ import numpy as np
 
 from devito.at_controller import AutoTuner
 from devito.dimension import Dimension
-from devito.interfaces import DenseData, TimeData, CachedSymbol
+from devito.interfaces import DenseData, TimeData
 from examples.acoustic.fwi_operators import *
 from examples.source_type import SourceLike
+
 
 class Acoustic_cg(object):
     """
@@ -158,7 +159,7 @@ class Acoustic_cg(object):
     # Gradient operator (adjoint of Linearized Born modelling, action of
     # the Jacobian adjoint on an input data)
     def Gradient(self, recin, u, cache_blocking=None, auto_tuning=False,
-                dse='advanced', dle='advanced', compiler=None, legacy=True):
+                 dse='advanced', dle='advanced', compiler=None, legacy=True):
         nt, nrec = self.data.shape
         ndim = len(self.model.shape)
         h = self.model.get_spacing()
@@ -200,7 +201,7 @@ class Acoustic_cg(object):
 
     # Linearized Born modelling
     def Born(self, dmin, cache_blocking=None, auto_tuning=False,
-                dse='advanced', dle='advanced', compiler=None, legacy=True):
+             dse='advanced', dle='advanced', compiler=None, legacy=True):
         nt, nrec = self.data.shape
         nsrc = self.source.shape[1]
         ndim = len(self.model.shape)

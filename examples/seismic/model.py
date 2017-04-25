@@ -57,13 +57,12 @@ class Model(object):
         self.spacing = spacing
         self.nbpml = nbpml
         self.dtype = dtype
-        ind = np.random.randint(1e4, size=1)
         # Create square slowness of the wave as symbol `m`
-        self.m = DenseData(name="m%d" % ind, shape=self.shape_domain, dtype=self.dtype)
+        self.m = DenseData(name="m", shape=self.shape_domain, dtype=self.dtype)
         self.m.data[:] = self.pad(1 / (self.vp * self.vp))
 
         # Create dampening field as symbol `damp`
-        self.damp = DenseData(name="damp%d" % ind, shape=self.shape_domain,
+        self.damp = DenseData(name="damp", shape=self.shape_domain,
                               dtype=self.dtype)
         damp_boundary(self.damp.data, nbpml, spacing=self.get_spacing())
 
@@ -72,7 +71,7 @@ class Model(object):
         self.scale = 1.
 
         if epsilon is not None:
-            self.epsilon = DenseData(name="epsilon%d" % ind, shape=self.shape_domain,
+            self.epsilon = DenseData(name="epsilon", shape=self.shape_domain,
                                      dtype=self.dtype)
             self.epsilon.data[:] = self.pad(1 + 2 * epsilon)
             # Maximum velocity is scale*max(vp) if epsilon > 0
@@ -82,21 +81,21 @@ class Model(object):
             self.epsilon = 1.
 
         if delta is not None:
-            self.delta = DenseData(name="delta%d" % ind, shape=self.shape_domain,
+            self.delta = DenseData(name="delta", shape=self.shape_domain,
                                    dtype=self.dtype)
             self.delta.data[:] = self.pad(np.sqrt(1 + 2 * delta))
         else:
             self.delta = None
 
         if theta is not None:
-            self.theta = DenseData(name="theta%d" % ind, shape=self.shape_domain,
+            self.theta = DenseData(name="theta", shape=self.shape_domain,
                                    dtype=self.dtype)
             self.theta.data[:] = self.pad(theta)
         else:
             self.theta = None
 
         if phi is not None:
-            self.phi = DenseData(name="phi%d" % ind, shape=self.shape_domain,
+            self.phi = DenseData(name="phi", shape=self.shape_domain,
                                  dtype=self.dtype)
             self.phi.data[:] = self.pad(phi)
         else:

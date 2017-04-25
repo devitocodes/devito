@@ -1,7 +1,9 @@
 from functools import partial
+from hashlib import sha1
 from os import environ, getuid, mkdir, path
 from tempfile import gettempdir
 from time import time
+from sys import platform
 
 import numpy.ctypeslib as npct
 from cgen import Pragma
@@ -10,8 +12,7 @@ from codepy.toolchain import GCCToolchain
 
 from devito.logger import log
 
-__all__ = ['get_tmp_dir', 'get_compiler_from_env',
-           'jit_compile', 'load', 'jit_compile_and_load',
+__all__ = ['get_tmp_dir', 'get_compiler_from_env', 'jit_compile', 'load',
            'GNUCompiler']
 
 
