@@ -32,7 +32,8 @@ def test_acoustic(dimensions, time_order, space_order):
         # Receiver coordinates
         receiver_coords = np.zeros((dimensions[0], 2))
         receiver_coords[:, 0] = np.linspace(0, origin[0] +
-                                            (dimensions[0]-1) * spacing[0], num=dimensions[0])
+                                            (dimensions[0]-1) * spacing[0],
+                                            num=dimensions[0])
         receiver_coords[:, 1] = location[0, 1]
 
     elif len(dimensions) == 3:
@@ -53,7 +54,8 @@ def test_acoustic(dimensions, time_order, space_order):
         # Receiver coordinates
         receiver_coords = np.zeros((dimensions[0], 3))
         receiver_coords[:, 0] = np.linspace(0, origin[0] +
-                                            (dimensions[0] - 1) * spacing[0], num=dimensions[0])
+                                            (dimensions[0] - 1) * spacing[0],
+                                            num=dimensions[0])
         receiver_coords[:, 1] = origin[1] + dimensions[1] * spacing[1] * 0.5
         receiver_coords[:, 2] = location[0, 2]
 
