@@ -102,10 +102,10 @@ def test_gradient(dimensions, time_order, space_order):
     wave_0 = Acoustic_cg(model0, data, src, t_order=time_order,
                          s_order=space_order, nbpml=nbpml)
 
-    rec = wave_true.Forward()[0]
-    rec0, u0, _, _, _ = wave_0.Forward(save=True)
+    rec = wave_true.Forward(legacy=False)[0]
+    rec0, u0, _, _, _ = wave_0.Forward(save=True, legacy=False, dse=None)
     F0 = .5*linalg.norm(rec0 - rec)**2
-    gradient = wave_0.Gradient(rec0 - rec, u0)
+    gradient, _, _, _ = wave_0.Gradient(rec0 - rec, u0, legacy=False)
     # Actual Gradient test
     G = np.dot(gradient.reshape(-1), wave_0.model.pad(dm).reshape(-1))
     # FWI Gradient test
@@ -114,7 +114,7 @@ def test_gradient(dimensions, time_order, space_order):
     error2 = np.zeros(7)
     for i in range(0, 7):
         wave_0.model.set_vp(np.sqrt((initial_vp**-2 + H[i] * dm)**(-1)))
-        d = wave_0.Forward()[0]
+        d = wave_0.Forward(legacy=False)[0]
         error1[i] = np.absolute(.5*linalg.norm(d - rec)**2 - F0)
         error2[i] = np.absolute(.5*linalg.norm(d - rec)**2 - F0 - H[i] * G)
         # print(F0, .5*linalg.norm(d - rec)**2, error1[i], H[i] *G, error2[i])

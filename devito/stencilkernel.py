@@ -196,7 +196,6 @@ class OperatorBasic(Function):
 
         # Add profiler structs
         arguments.update(self._extra_arguments())
-
         return arguments, dim_sizes
 
     @property

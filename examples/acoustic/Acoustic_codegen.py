@@ -229,7 +229,7 @@ class Acoustic_cg(object):
         u = TimeData(name="u", shape=self.model.shape_domain, time_dim=nt,
                      time_order=2, space_order=self.s_order,
                      dtype=self.model.dtype)
-        U = TimeData(name="U", shape=self.model.shape_domain, time_dim=nt,
+        U = TimeData(name="ul", shape=self.model.shape_domain, time_dim=nt,
                      time_order=2, space_order=self.s_order,
                      dtype=self.model.dtype)
 

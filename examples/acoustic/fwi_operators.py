@@ -268,11 +268,9 @@ def BornOperator(model, u, U, src, rec, dm, data, time_order=2, spc_order=6,
                                       s**2 / 12 * biharmonicU - dm * u.dt2))
     # Add substitutions for spacing (temporal and spatial)
     subs = {s: dt, h: model.get_spacing()}
-    # Add Born-specific updates and resets
-    stencils = [Eq(u.forward, stencil1), Eq(U.forward, stencil2)]
     if legacy:
         kwargs.pop('dle', None)
-
+        stencils = [Eq(u.forward, stencil1), Eq(U.forward, stencil2)]
         op = Operator(nt, model.shape_domain,
                       stencils=stencils,
                       subs=[subs, subs],
@@ -302,7 +300,7 @@ def BornOperator(model, u, U, src, rec, dm, data, time_order=2, spc_order=6,
         eqn1 = [Eq(u.forward, stencil1)]
         eqn2 = [Eq(U.forward, stencil2)]
         src_add = src.point2grid(u, m, u_t=t + 1, p_t=time)
-        rec_read = Eq(rec, rec.grid2point(U))
+        rec_read = Eq(rec, rec.grid2point(U, t=U.indices[0]))
         stencils = eqn1 + src_add + eqn2 + [rec_read]
 
         op = StencilKernel(stencils=stencils, subs=subs, dse=dse, dle=dle,
