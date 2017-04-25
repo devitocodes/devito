@@ -157,7 +157,3 @@ def test_override(i, j, k, l):
     assert(np.allclose(a.data, np.zeros(shape) + 5))
     assert(np.allclose(a1.data, np.zeros(shape) + 6))
     assert(np.allclose(a2.data, np.zeros(shape) + 7))
-
-
-if __name__ == "__main__":
-    test_override(i(), j(), k(), l())
