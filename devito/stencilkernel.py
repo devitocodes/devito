@@ -292,8 +292,10 @@ class OperatorBasic(Function):
 
         # Establish a partial ordering for the Iterations based on the order
         # by which dimensions appeared in the input expressions
-        ordering = tuple(flatten(list(Stencil(i)) for i in dse_state.input))
-        ordering = list(OrderedDict(zip(ordering, ordering)))
+        ordering = []
+        for i in flatten(Stencil(i).dimensions for i in dse_state.input):
+            if i not in ordering:
+                ordering.extend([i, i.parent] if i.is_Buffered else [i])
 
         processed = []
         schedule = OrderedDict()
@@ -305,7 +307,7 @@ class OperatorBasic(Function):
             # Reorder the stencil dimensions based on the global partial ordering
             stencil = sorted(i.stencil.keys(), key=lambda d: ordering.index(d))
             dimensions = filter_ordered(stencil, key=key)
-            stencil = Stencil([(d, i.stencil.get(key(d))) for d in dimensions])
+            stencil = Stencil([(d, i.stencil.get(d)) for d in dimensions])
 
             if not stencil.empty:
                 root = None
