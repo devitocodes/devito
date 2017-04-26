@@ -104,14 +104,14 @@ class State(object):
         mapper = OrderedDict()
         for expr in exprs:
             mapper.setdefault(expr.lhs, []).append(expr)
-        domains = OrderedDict()
+        stencils = OrderedDict()
         for k, v in mapper.items():
-            domains[k] = Stencil.union(*[Stencil(i) for i in v])
-        self.domains = domains
+            stencils[k] = Stencil.union(*[Stencil(i) for i in v])
+        self.stencils = stencils
 
-    def update(self, exprs=None, domains=None):
+    def update(self, exprs=None, stencils=None):
         self.exprs = exprs or self.exprs
-        self.domains.update(domains or {})
+        self.stencils.update(stencils or {})
 
     @property
     def time_invariants(self):
@@ -155,7 +155,7 @@ class State(object):
         Clusterize the expressions in ``self.exprs``. For more information
         about clusters, refer to TemporariesGraph.clusters.
         """
-        clusters = temporaries_graph(self.exprs).clusters(self.domains)
+        clusters = temporaries_graph(self.exprs).clusters(self.stencils)
         return Cluster.merge(clusters)
 
 
@@ -408,12 +408,12 @@ class Rewriter(object):
         # Create temporaries capturing redundant computation
         found = []
         rules = OrderedDict()
-        domains = OrderedDict()
+        stencils = OrderedDict()
         for c, (origin, alias) in enumerate(aliases.items()):
             temporary = Indexed(template(c), *indices)
             found.append(Eq(temporary, origin))
-            # Track the domain of each TensorFunction introduced
-            domains[temporary] = alias.stencil
+            # Track the stencil of each TensorFunction introduced
+            stencils[temporary] = alias.stencil
             for aliased, distance in alias.with_distance:
                 coordinates = [sum([i, j]) for i, j in distance.items() if i in indices]
                 rules[candidates[aliased]] = Indexed(template(c), *tuple(coordinates))
@@ -421,7 +421,7 @@ class Rewriter(object):
         # Switch temporaries in the expression trees
         processed = found + [e.xreplace(rules) for e in processed]
 
-        return {'exprs': processed, 'domains': domains}
+        return {'exprs': processed, 'stencils': stencils}
 
     @dse_pass
     def _finalize(self, state, **kwargs):

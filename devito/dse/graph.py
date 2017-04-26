@@ -20,13 +20,14 @@ Temporaries graph are used for symbolic as well as loop-level transformations.
 """
 
 from collections import OrderedDict, namedtuple
+from itertools import islice
 
 from sympy import Indexed
 
-from devito.dimension import x, y, z, t  # TODO: Generalize to arbitrary dimensions
+from devito.dimension import x, y, z, t, time
 from devito.dse.extended_sympy import Eq
 from devito.dse.search import retrieve_indexed
-from devito.dse.inspection import terminals
+from devito.dse.inspection import as_symbol, terminals
 from devito.dse.queries import q_indirect
 from devito.stencil import Stencil
 from devito.tools import flatten
@@ -60,6 +61,10 @@ class Temporary(Eq):
     @property
     def function(self):
         return self.lhs.base.function
+
+    @property
+    def shape(self):
+        return self.lhs.shape if self.is_tensor else ()
 
     @property
     def reads(self):
@@ -106,106 +111,187 @@ class Temporary(Eq):
 class TemporariesGraph(OrderedDict):
 
     """
-    A temporaries graph built on top of an OrderedDict.
+    A temporaries graph represents an ordered sequence of operations.
+
+    The operations may involve scalars and indexed objects (arrays). The indices
+    of the indexed objects represent either "space" or "time" dimensions.
     """
 
-    def clusters(self, domains):
+    def __init__(self, *args, **kwargs):
+        super(TemporariesGraph, self).__init__(*args, **kwargs)
+
+        # TODO: The following need to be generalized to arbitrary dimensions,
+        # not just x, y, z, t, time
+
+        terms = [v for k, v in self.items() if v.is_tensor and not q_indirect(k)]
+
+        # Determine the indices along the space dimensions
+        candidates = [x, y, z]
+        seen = set()
+        for i in terms:
+            seen |= {j for j in i.function.indices if j in candidates}
+        self.space_indices = tuple(sorted(seen, key=lambda i: candidates.index(i)))
+
+        # Determine the shape of the tensors in the spatial dimensions
+        self.space_shape = ()
+        for i in terms:
+            if set(self.space_indices).issubset(set(i.function.indices)):
+                self.space_shape = tuple(k for k, v in zip(i.shape, i.function.indices)
+                                         if v in self.space_indices)
+                break
+
+        # Determine the indices along the time dimension
+        self.time_indices = [t, time]
+
+    def clusters(self, stencils):
         """
         Compute the clusters of the temporaries graph. See Cluster.__doc__ for
         more information about clusters.
         """
-        targets = [v for v in self.values() if v.is_tensor]
+        targets = [k for k, v in self.items() if v.is_tensor]
         clusters = []
         for i in targets:
             # Determine what temporaries are needed to compute /i/
-            trace = self.trace(i.lhs)
-            # Compute the stencil of the cluster
-            stencil = Stencil.union(*[domains.get(v.lhs, {}) for v in trace.values()])
+            trace = self.trace(i)
             # Create and track the cluster
-            clusters.append(Cluster(trace, stencil))
+            clusters.append(Cluster(trace, stencils))
         return clusters
 
-    @property
-    def space_indices(self):
-        seen = set()
-        candidates = [x, y, z]
-        terms = [k for k, v in self.items() if v.is_tensor and not q_indirect(k)]
-        for term in terms:
-            seen |= {i for i in term.base.function.indices if i in candidates}
-        return tuple(sorted(seen, key=lambda i: candidates.index(i)))
-
-    @property
-    def space_shape(self):
-        candidates = self.space_indices
-        terms = [k for k, v in self.items() if v.is_tensor and not q_indirect(k)]
-        for term in terms:
-            indices = term.base.function.indices
-            if set(candidates).issubset(set(indices)):
-                return tuple(i for i, j in zip(term.shape, indices) if j in candidates)
-        return ()
-
-    def trace(self, root):
-        if root not in self:
+    def trace(self, key):
+        """
+        Extract the tree computing the temporary ``key``.
+        """
+        if key not in self:
             return []
+        # OrderedDicts prevent scheduling the same temporary more than once
         found = OrderedDict()
-        queue = [(self[root], 0)]
+        queue = OrderedDict([(key, self[key])])
         while queue:
-            item, index = queue.pop(0)
-            found.setdefault(index, []).append(item)
-            queue.extend([(self[i], index+1) for i in item.reads if self[i] != item])
-        # Sort output for determinism
-        found = reversed(found.values())
-        found = flatten(sorted(v, key=lambda i: i.identifier) for v in found)
+            k, v = queue.popitem(last=False)
+            found[k] = v
+            if v.is_tensor and k != key:
+                # No need to check the reads of a tensor
+                continue
+            reads = sorted(self.extract(k), key=lambda i: i.identifier, reverse=True)
+            reads = OrderedDict([(i.lhs, i) for i in reads])
+            for k, v in reads.items():
+                if any(j in reads for j in v.reads):
+                    found[k] = v
+                else:
+                    # Postpone until all dependening temporaries are scheduled
+                    queue[k] = v
+        found = list(reversed(found.values()))
         return temporaries_graph(found)
 
     def time_invariant(self, expr=None):
         """
         Check if ``expr`` is time invariant. ``expr`` may be an expression ``e``
         explicitly tracked by the TemporariesGraph or even a generic subexpression
-        of ``e``. If no ``expr`` is provided, then time invariance is checked
-        on the entire TemporariesGraph.
+        of ``e``. If no ``expr`` is provided, then time invariance of the entire
+        TemporariesGraph is assessed.
         """
         if expr is None:
             return all(self.time_invariant(v) for v in self.values())
 
-        if t in expr.free_symbols:
+        if any(i in expr.free_symbols for i in self.time_indices):
             return False
-        to_visit = [expr.rhs] if expr.is_Equality else [expr]
-        while to_visit:
-            item = to_visit.pop()
+        queue = [expr.rhs] if expr.is_Equality else [expr]
+        while queue:
+            item = queue.pop()
             for i in retrieve_indexed(item):
-                if t in i.free_symbols:
+                if any(j in i.free_symbols for j in self.time_indices):
                     return False
             temporaries = [i for i in item.free_symbols if i in self]
-            to_visit.extend([self[i].rhs for i in temporaries if self[i].rhs != item])
+            queue.extend([self[i].rhs for i in temporaries if self[i].rhs != item])
         return True
 
-    def is_index(self, root):
-        if root not in self:
+    def is_index(self, key):
+        """
+        Return True if ``key`` is used as array index in an expression of the
+        TemporariesGraph, False otherwise.
+        """
+        if key not in self:
             return False
-        queue = [self[root]]
+        queue = [self[key]]
         while queue:
             item = queue.pop(0)
-            if any(root in i.atoms() for i in retrieve_indexed(item)):
-                # /root/ appears amongst the indices of /item/
+            if any(key in i.atoms() for i in retrieve_indexed(item)):
+                # /key/ appears amongst the indices of /item/
                 return True
             else:
-                queue.extend([self[i] for i in item.readby if self[i] != item])
+                queue.extend(self.extract(item.lhs, readby=True))
         return False
+
+    def extract(self, key, readby=False):
+        """
+        Return the list of temporaries appearing in ``key.reads`` that *preceed*
+        ``key`` in the TemporariesGraph (ie, in program order).
+
+        If ``readby`` is passed as True, return instead the list of temporaries
+        appearing in ``key.readby`` *after* ``key`` in the TemporariesGraph
+        (ie, in program order).
+
+        Examples
+        ========
+        Given the following sequence of operations: ::
+
+            t0 = ...
+            t1 = ...
+            u[i, j] = ...
+            u[3, j] = ...
+            v = t0 + t1 + u[z, k]
+            u[i, 5] = ...
+
+        Assuming ``key == v`` and ``readby`` set to False as by default, return
+        the following list of :class:`Temporary` objects: ::
+
+            [t0, t1, u[i, j], u[3, j]]
+
+        If ``readby`` is set to True, return: ::
+
+            [u[i, 5]]
+        """
+        if key not in self:
+            return []
+        if readby is False:
+            match = self[key].reads
+            section = self[:key]
+        else:
+            match = self[key].readby
+            section = self[key::1]
+        found = []
+        for k, v in section.items():
+            if k in match:
+                found.append(v)
+        return found
+
+    def __getitem__(self, key):
+        if not isinstance(key, slice):
+            return super(TemporariesGraph, self).__getitem__(key)
+        offset = key.step or 0
+        try:
+            start = self.keys().index(key.start) + offset
+        except ValueError:
+            start = 0
+        try:
+            stop = self.keys().index(key.stop) + offset
+        except ValueError:
+            stop = None
+        return TemporariesGraph(islice(self.viewitems(), start, stop))
 
 
 class Cluster(object):
 
     """
-    A Cluster is an ordered collection of expressions that are necessary to
+    A Cluster is an ordered sequence of expressions that are necessary to
     compute a tensor, plus the tensor expression itself.
 
-    A Cluster is associated with a "stencil", which tracks what neighboring points
+    A Cluster is associated with a stencil, which tracks what neighboring points
     are required, along each dimension, to compute an entry in the tensor.
 
     Examples
     ========
-    In the following list of expressions: ::
+    In the following sequence of operations: ::
 
         temp1 = a*b
         temp2 = c
@@ -230,28 +316,32 @@ class Cluster(object):
         """
         mapper = OrderedDict()
         for c in clusters:
-            mapper.setdefault(tuple(c.stencil.entries), []).append(c)
+            mapper.setdefault(c.stencil.entries, []).append(c)
 
         processed = []
         for entries, clusters in mapper.items():
+            # Eliminate redundant temporaries
             temporaries = OrderedDict()
             for c in clusters:
                 for k, v in c.trace.items():
                     if k not in temporaries:
                         temporaries[k] = v
-            processed.append(SuperCluster(temporaries_graph(temporaries.values()),
-                                          Stencil(entries)))
+            # Squash the clusters together
+            supertrace = temporaries_graph(temporaries.values())
+            processed.append(SuperCluster(supertrace, Stencil(entries)))
 
         return processed
 
-    def __init__(self, trace, stencil):
+    def __init__(self, trace, stencils):
         self._full_trace = trace
-        self._stencil = stencil.frozen
+        self._output = trace.values()[-1]
 
-        # Determine the output tensor
-        output = [v for v in self.trace.values() if v.is_tensor]
-        assert len(output) == 1
-        self._output = output[0]
+        # Compute the stencil of the cluster
+        stencil = Stencil(stencils[self.output.lhs].entries)
+        for i in trace:
+            if i in stencils:
+                stencil = stencil.add(stencils[i])
+        self._stencil = stencil.frozen
 
     def _view(self, drop=lambda v: False):
         cls = type(self._full_trace)
@@ -264,18 +354,7 @@ class Cluster(object):
     @property
     def trace(self):
         """The ordered collection of expressions to compute the output tensor."""
-        return self._view(lambda v: v.is_tensor and not v.is_terminal)
-
-    @property
-    def external(self):
-        """Tensors from other clusters required to compute the output tensor."""
-        return self._view(lambda v: v.is_scalar or v == self.output)
-
-    @property
-    def needs(self):
-        handle = flatten(retrieve_indexed(v.rhs) for v in self._view().values())
-        handle = {v.base.function for v in handle}
-        return [v for v in handle if not v.is_SymbolicData]
+        return self._view(drop=lambda v: v.is_tensor and v != self.output)
 
     @property
     def stencil(self):
