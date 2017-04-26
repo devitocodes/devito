@@ -1,10 +1,10 @@
-from collections import namedtuple
+from collections import OrderedDict, namedtuple
 
 from sympy import Eq
 
 from devito.dse.search import retrieve_indexed
 from devito.dimension import Dimension
-from devito.tools import DefaultOrderedDict, flatten
+from devito.tools import DefaultOrderedDict, flatten, partial_order
 
 
 class Stencil(DefaultOrderedDict):
@@ -55,11 +55,22 @@ class Stencil(DefaultOrderedDict):
         """
         assert expr.is_Equality
 
-        stencil = Stencil()
-
+        # Collect all indexed objects appearing in /expr/
         indexed = list(retrieve_indexed(expr.lhs))
         indexed += list(retrieve_indexed(expr.rhs))
         indexed += flatten([retrieve_indexed(i) for i in e.indices] for e in indexed)
+
+        # Enforce deterministic ordering
+        dims = []
+        for e in indexed:
+            d = []
+            for a in e.indices:
+                found = [idx for idx in a.free_symbols if isinstance(idx, Dimension)]
+                d.extend([idx for idx in found if idx not in d])
+            dims.append(tuple(d))
+        stencil = Stencil([(d, set()) for d in partial_order(dims)])
+
+        # Determine the points accessed along each dimension
         for e in indexed:
             for a in e.indices:
                 if isinstance(a, Dimension):
@@ -73,6 +84,7 @@ class Stencil(DefaultOrderedDict):
                         off += [idx]
                 if d is not None:
                     stencil[d].update(off)
+
         return stencil
 
     @classmethod
@@ -95,8 +107,19 @@ class Stencil(DefaultOrderedDict):
         return all(len(i) == 0 for i in self.values())
 
     @property
+    def dimensions(self):
+        return self.keys()
+
+    @property
     def entries(self):
-        return tuple(StencilEntry(k, v) for k, v in self.items())
+        processed = OrderedDict()
+        for k, v in self.items():
+            if k.is_Buffered and self.get(k.parent, v) == v:
+                # Ignore a BufferedDimension if identical to its parent
+                processed[k.parent] = v
+            else:
+                processed[k] = v
+        return tuple(StencilEntry(k, v) for k, v in processed.items())
 
     def subtract(self, o):
         """
@@ -108,6 +131,18 @@ class Stencil(DefaultOrderedDict):
             output[k] = v
             if k in o:
                 output[k] -= o[k]
+        return output
+
+    def add(self, o):
+        """
+        Compute the set union of each Dimension in self with the corresponding
+        Dimension in ``o``.
+        """
+        output = Stencil()
+        for k, v in self.items():
+            output[k] = v
+            if k in o:
+                output[k] |= o[k]
         return output
 
     def get(self, k, v=None):
