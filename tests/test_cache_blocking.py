@@ -5,6 +5,7 @@ from sympy import Eq
 from devito.dimension import t, x, y, z
 from devito.interfaces import DenseData
 from devito.operator import SimpleOperator
+from devito import clear_cache
 
 
 class Test_Cache_Blocking(object):
@@ -38,6 +39,7 @@ class Test_Cache_Blocking(object):
         self.cache_blocking_test(shape, time_order, spc_border, cache_blocking)
 
     def cache_blocking_test(self, shape, time_order, spc_border, cache_blocking):
+        clear_cache()
         symbols_combinations = [(t, ), (t, x), (t, x, z), (t, x, y, z)]
         indexes = symbols_combinations[len(shape) - 1]
 
