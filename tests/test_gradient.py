@@ -68,9 +68,10 @@ def test_gradient(dimensions, time_order, space_order):
 
     # Smooth velocity
     initial_vp = smooth10(true_vp)
+    m0 = initial_vp**-2
+    # Model perturbation
     dm = true_vp**-2 - initial_vp**-2
     model = Model(origin, spacing, true_vp, nbpml=nbpml)
-    model0 = Model(origin, spacing, initial_vp, nbpml=nbpml)
     # Define seismic data.
     data = IShot()
     src = IShot()
@@ -96,26 +97,33 @@ def test_gradient(dimensions, time_order, space_order):
 
     data.set_receiver_pos(receiver_coords)
     data.set_shape(nt, 101)
-    # Adjoint test
-    wave_true = Acoustic_cg(model, data, src, t_order=time_order,
-                            s_order=space_order, nbpml=nbpml)
-    wave_0 = Acoustic_cg(model0, data, src, t_order=time_order,
-                         s_order=space_order, nbpml=nbpml)
-
-    rec = wave_true.Forward(legacy=False)[0]
-    rec0, u0, _, _, _ = wave_0.Forward(save=True, legacy=False, dse=None)
+    # Define the acoustic wave
+    wave = Acoustic_cg(model, data, src, t_order=time_order,
+                       s_order=space_order, nbpml=nbpml)
+    # Data for the true velocity
+    rec = wave.Forward(legacy=False)[0]
+    # Change to the smooth velocity
+    wave.model.m.data[:] = wave.model.pad(1 / initial_vp ** 2)
+    # Data and wavefield for the smooth velocity
+    rec0, u0, _, _, _ = wave.Forward(save=True, legacy=False, dse=None)
+    # Objective function value
     F0 = .5*linalg.norm(rec0 - rec)**2
-    gradient, _, _, _ = wave_0.Gradient(rec0 - rec, u0, legacy=False)
-    # Actual Gradient test
-    G = np.dot(gradient.reshape(-1), wave_0.model.pad(dm).reshape(-1))
+    # Gradient
+    gradient, _, _, _ = wave.Gradient(rec0 - rec, u0, legacy=False)
+    # <J^T \delta d, dm>
+    G = np.dot(gradient.reshape(-1), wave.model.pad(dm).reshape(-1))
     # FWI Gradient test
     H = [0.5, 0.25, .125, 0.0625, 0.0312, 0.015625, 0.0078125]
     error1 = np.zeros(7)
     error2 = np.zeros(7)
     for i in range(0, 7):
-        wave_0.model.set_vp(np.sqrt((initial_vp**-2 + H[i] * dm)**(-1)))
-        d = wave_0.Forward(legacy=False)[0]
+        # Add the perturbation to the model
+        wave.model.m.data[:] = wave.model.pad(m0 + H[i] * dm)
+        # Data for the new model
+        d = wave.Forward(legacy=False)[0]
+        # First order error Phi(m0+dm) - Phi(m0)
         error1[i] = np.absolute(.5*linalg.norm(d - rec)**2 - F0)
+        # Second order term r Phi(m0+dm) - Phi(m0) - <J(m0)^T \delta d, dm>
         error2[i] = np.absolute(.5*linalg.norm(d - rec)**2 - F0 - H[i] * G)
         # print(F0, .5*linalg.norm(d - rec)**2, error1[i], H[i] *G, error2[i])
         # print('For h = ', H[i], '\nFirst order errors is : ', error1[i],
