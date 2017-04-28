@@ -48,11 +48,9 @@ class Temporary(Eq):
     def __new__(cls, lhs, rhs, **kwargs):
         reads = kwargs.pop('reads', [])
         readby = kwargs.pop('readby', [])
-        scope = kwargs.pop('scope', 0)
         obj = super(Temporary, cls).__new__(cls, lhs, rhs, **kwargs)
         obj._reads = set(reads)
         obj._readby = set(readby)
-        obj._scope = scope
         return obj
 
     @property
@@ -88,10 +86,6 @@ class Temporary(Eq):
     def is_scalar(self):
         return not self.is_tensor
 
-    @property
-    def scope(self):
-        return self._scope
-
     def construct(self, rule):
         """
         Create a new temporary starting from ``self`` replacing symbols in
@@ -99,8 +93,7 @@ class Temporary(Eq):
         """
         reads = set(self.reads) - set(rule.keys()) | set(rule.values())
         rhs = self.rhs.xreplace(rule)
-        return Temporary(self.lhs, rhs, reads=reads, readby=self.readby,
-                         scope=self.scope)
+        return Temporary(self.lhs, rhs, reads=reads, readby=self.readby)
 
     def __repr__(self):
         return "DSE(%s, reads=%s, readby=%s)" % (super(Temporary, self).__repr__(),
@@ -297,33 +290,25 @@ class SuperCluster(object):
         self.stencil = stencil
 
 
-def temporaries_graph(temporaries, scope=0):
+def temporaries_graph(temporaries):
     """
     Create a dependency graph given a list of :class:`sympy.Eq`.
     """
 
-    unseen = OrderedDict()
+    # Check input is legal and initialize the temporaries graph
+    temporaries = [Temporary(*i.args) for i in temporaries]
+    nodes = [i.lhs for i in temporaries]
+    assert len(set(nodes)) == len(nodes)
+    graph = TemporariesGraph(zip(nodes, temporaries))
+
+    # Add edges (i.e., reads and readby info) to the graph
     mapper = OrderedDict()
-    Node = namedtuple('Node', ['rhs', 'reads', 'readby'])
+    for i in nodes:
+        mapper.setdefault(as_symbol(i), []).append(i)
+    for k, v in graph.items():
+        handle = terminals(v.rhs)
+        v.reads.update(set(flatten([mapper.get(as_symbol(i), []) for i in handle])))
+        for i in v.reads:
+            graph[i].readby.add(k)
 
-    for lhs, rhs in [i.args for i in temporaries]:
-        reads = set()
-        for i in terminals(rhs):
-            if i in mapper:
-                # Already in the TemporariesGraph
-                reads.add(i)
-            else:
-                # Assume /i/ will pop up later
-                unseen.setdefault(i, []).append(lhs)
-        mapper[lhs] = Node(rhs, reads, set())
-        for i in mapper[lhs].reads:
-            mapper[i].readby.add(lhs)
-        for i in unseen.pop(lhs, []):
-            # /lhs/ had popped up on some earliner rhs
-            mapper[i].reads.add(lhs)
-            mapper[lhs].readby.add(i)
-
-    nodes = [Temporary(k, v.rhs, reads=v.reads, readby=v.readby, scope=scope)
-             for k, v in mapper.items()]
-
-    return TemporariesGraph([(i.lhs, i) for i in nodes])
+    return graph
