@@ -61,9 +61,11 @@ class Acoustic_cg(object):
             self.at = AutoTuner(fw)
             self.at.auto_tune_blocks(self.s_order + 1, self.s_order * 4 + 2)
 
-    # Forward modelling
     def Forward(self, save=False, cache_blocking=None, auto_tuning=False,
                 dse='advanced', dle='advanced', compiler=None, u_ini=None, legacy=True):
+        """
+        Forward modelling
+        """
         nt, nrec = self.data.shape
         nsrc = self.source.shape[1]
         ndim = len(self.model.shape)
@@ -110,9 +112,11 @@ class Acoustic_cg(object):
             summary = fw.apply(autotune=auto_tuning)
             return rec.data, u, summary.gflopss, summary.oi, summary.timings
 
-    # Adjoint modelling
     def Adjoint(self, recin, cache_blocking=None, auto_tuning=False,
                 dse='advanced', dle='advanced', compiler=None, u_ini=None, legacy=True):
+        """
+        Adjoint modelling
+        """
         nt, nrec = self.data.shape
         nsrc = self.source.shape[1]
         ndim = len(self.model.shape)
@@ -156,10 +160,12 @@ class Acoustic_cg(object):
             summary = adj.apply(autotune=auto_tuning)
             return srca.data, v, summary.gflopss, summary.oi, summary.timings
 
-    # Gradient operator (adjoint of Linearized Born modelling, action of
-    # the Jacobian adjoint on an input data)
     def Gradient(self, recin, u, cache_blocking=None, auto_tuning=False,
                  dse='advanced', dle='advanced', compiler=None, legacy=True):
+        """
+        Gradient operator (adjoint of Linearized Born modelling, action of
+        the Jacobian adjoint on an input data)
+        """
         nt, nrec = self.data.shape
         ndim = len(self.model.shape)
         h = self.model.get_spacing()
@@ -199,9 +205,11 @@ class Acoustic_cg(object):
             summary = gradop.apply(autotune=auto_tuning)
             return grad.data, summary.gflopss, summary.oi, summary.timings
 
-    # Linearized Born modelling
     def Born(self, dmin, cache_blocking=None, auto_tuning=False,
              dse='advanced', dle='advanced', compiler=None, legacy=True):
+        """
+        Linearized Born modelling
+        """
         nt, nrec = self.data.shape
         nsrc = self.source.shape[1]
         ndim = len(self.model.shape)
