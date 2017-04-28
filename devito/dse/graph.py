@@ -96,8 +96,11 @@ class Temporary(Eq):
         return Temporary(self.lhs, rhs, reads=reads, readby=self.readby)
 
     def __repr__(self):
-        return "DSE(%s, reads=%s, readby=%s)" % (super(Temporary, self).__repr__(),
-                                                 str(self.reads), str(self.readby))
+        reads = '[%s%s]' % (', '.join([str(i) for i in self.reads][:2]), '%s')
+        reads = reads % ('' if len(self.reads) <= 2 else ', ...')
+        readby = '[%s%s]' % (', '.join([str(i) for i in self.readby][:2]), '%s')
+        readby = readby % ('' if len(self.readby) <= 2 else ', ...')
+        return "Temp(key=%s, reads=%s, readby=%s)" % (self.lhs, reads, readby)
 
 
 class TemporariesGraph(OrderedDict):
