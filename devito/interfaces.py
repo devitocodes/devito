@@ -510,9 +510,7 @@ class TimeData(DenseData):
             self.save = kwargs.get('save', False)
             self.pad_time = kwargs.get('pad_time', False)
 
-            if self.save:
-                time_dim += self.time_order
-            else:
+            if not self.save:
                 time_dim = self.time_order + 1
                 self.indices[0].modulo = time_dim
 
@@ -549,9 +547,6 @@ class TimeData(DenseData):
         super(TimeData, self)._allocate_memory()
 
         self._full_data = self._data.view()
-
-        if self.pad_time:
-            self._data = self._data[self.time_order:, :, :]
 
     @property
     def dim(self):

@@ -189,7 +189,7 @@ class CustomCompiler(Compiler):
         super(CustomCompiler, self).__init__(*args, **kwargs)
         self.cc = environ.get('CC', 'gcc')
         self.ld = environ.get('LD', 'gcc')
-        default = '-O3 -g -march=native -fPIC -mno-avx -Wall -std=c99'
+        default = '-O3 -g -march=native -fPIC -Wall -std=c99'
         self.cflags = environ.get('CFLAGS', default).split(' ')
         self.ldflags = environ.get('LDFLAGS', '-shared').split(' ')
         self.pragma_ivdep = [Pragma(environ.get('DEVITO_IVDEP', 'GCC ivdep'))]

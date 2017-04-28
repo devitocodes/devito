@@ -196,7 +196,6 @@ class OperatorBasic(Function):
 
         # Add profiler structs
         arguments.update(self._extra_arguments())
-
         return arguments, dim_sizes
 
     @property
@@ -460,7 +459,7 @@ class OperatorCore(OperatorBasic):
                     if IsPerfectIteration().visit(j) and j not in mapper:
                         # Insert `TimedList` block. This should come from
                         # the profiler, but we do this manually for now.
-                        lname = 'loop_%s_%d' % (j.index, i)
+                        lname = 'loop_%s_%d' % (j.index, len(mapper))
                         mapper[j] = TimedList(gname=self.profiler.t_name,
                                               lname=lname, body=j)
                         self.profiler.t_fields += [(lname, c_double)]

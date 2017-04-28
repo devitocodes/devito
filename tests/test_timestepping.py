@@ -49,7 +49,7 @@ def test_backward(b):
     eqn = Eq(b.backward, b - 1.)
     StencilKernel(eqn, dle=None, dse=None, time_axis=Backward)()
     for i in range(b.shape[0]):
-        assert np.allclose(b.data[i, :], 1. + i, rtol=1.e-12)
+        assert np.allclose(b.data[i, :], 2. + i, rtol=1.e-12)
 
 
 def test_forward_unroll(a, c, nt=5):

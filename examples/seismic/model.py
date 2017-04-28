@@ -57,13 +57,13 @@ class Model(object):
         self.spacing = spacing
         self.nbpml = nbpml
         self.dtype = dtype
-
         # Create square slowness of the wave as symbol `m`
         self.m = DenseData(name="m", shape=self.shape_domain, dtype=self.dtype)
         self.m.data[:] = self.pad(1 / (self.vp * self.vp))
 
         # Create dampening field as symbol `damp`
-        self.damp = DenseData(name="damp", shape=self.shape_domain, dtype=self.dtype)
+        self.damp = DenseData(name="damp", shape=self.shape_domain,
+                              dtype=self.dtype)
         damp_boundary(self.damp.data, nbpml, spacing=self.get_spacing())
 
         # Additional parameter fields for TTI operators
