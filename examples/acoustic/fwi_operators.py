@@ -3,7 +3,7 @@ from sympy import Eq, symbols
 from devito.dimension import t, time
 from devito.interfaces import Backward, Forward
 from devito.stencilkernel import StencilKernel
-from devito.operator import *
+from devito.operator import Operator
 
 
 def ForwardOperator(model, u, src, rec, data, time_order=2, spc_order=6,
