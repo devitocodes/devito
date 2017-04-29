@@ -8,6 +8,7 @@ from itertools import combinations
 
 import cgen as c
 import numpy as np
+import sympy
 
 from devito.cgen_utils import Allocator, blankline
 from devito.compiler import (get_compiler_from_env, jit_compile, load)
@@ -23,9 +24,9 @@ from devito.profiler import Profiler
 from devito.stencil import Stencil
 from devito.tools import as_tuple, filter_ordered, filter_sorted, flatten, partial_order
 from devito.visitors import (FindNodes, FindSections, FindSymbols, FindScopes,
-                             IsPerfectIteration, MergeOuterIterations,
-                             ResolveIterationVariable, SubstituteExpression, Transformer)
-from devito.exceptions import InvalidArgument
+                             IsPerfectIteration, ResolveIterationVariable,
+                             SubstituteExpression, Transformer)
+from devito.exceptions import InvalidArgument, InvalidOperator
 
 __all__ = ['StencilKernel']
 
@@ -56,6 +57,11 @@ class OperatorBasic(Function):
                     environment variable DEVITO_ARCH, or default to GNUCompiler.
     """
     def __init__(self, expressions, **kwargs):
+        if any(not isinstance(i, sympy.Eq) for i in expressions):
+            raise InvalidOperator("Only SymPy expressions are allowed.")
+        if len(set(i.lhs for i in expressions)) < len(expressions):
+            raise InvalidOperator("Found redundant output field.")
+
         self.name = kwargs.get("name", "Kernel")
         subs = kwargs.get("subs", {})
         time_axis = kwargs.get("time_axis", Forward)
@@ -86,9 +92,8 @@ class OperatorBasic(Function):
         # Apply the Devito Symbolic Engine for symbolic optimization
         expressions = rewrite(expressions, stencils, mode=dse)
 
-        # Group expressions based on their stencil
+        # Group expressions based on their Stencil
         clusters = clusterize(expressions, stencils)
-        from IPython import embed; embed()
 
         # Wrap expressions with Iterations according to dimensions
         nodes = self._schedule_expressions(clusters, ordering)
@@ -297,8 +302,6 @@ class OperatorBasic(Function):
         """Wrap :class:`Expression` objects, already grouped in :class:`Cluster`
         objects, within nested :class:`Iteration` objects (representing loops),
         according to dimensions and stencils."""
-        # Will be used to filter out aliasing buffered dimensions
-        key = lambda d: d.parent if d.is_Buffered else d
 
         processed = []
         schedule = OrderedDict()
@@ -307,14 +310,9 @@ class OperatorBasic(Function):
             expressions = [Expression(v, np.int32 if c.trace.is_index(k) else self.dtype)
                            for k, v in c.trace.items()]
 
-            # Reorder the stencil dimensions based on the global partial ordering
-            stencil = sorted(i.stencil.keys(), key=lambda d: ordering.index(d))
-            dimensions = filter_ordered(stencil, key=key)
-            stencil = Stencil([(d, i.stencil.get(d)) for d in dimensions])
-
-            if not stencil.empty:
+            if not i.stencil.empty:
                 root = None
-                entries = stencil.entries
+                entries = i.stencil.entries
 
                 # Can I reuse any of the previously scheduled Iterations ?
                 for index, i in enumerate(entries):
@@ -421,12 +419,16 @@ class OperatorBasic(Function):
 
     def _retrieve_stencils(self, expressions):
         """Determine the :class:`Stencil` of each provided expression."""
-        mapper = OrderedDict()
-        for i in expressions:
-            mapper.setdefault(i.lhs, []).append(i)
-        stencils = OrderedDict()
-        for k, v in mapper.items():
-            stencils[k] = Stencil.union(*[Stencil(i) for i in v])
+        stencils = OrderedDict([(i.lhs, Stencil(i)) for i in expressions])
+        dimensions = set.union(*[set(i.dimensions) for i in stencils.values()])
+
+        # Filter out aliasing buffered dimensions
+        mapper = {d.parent: d for d in dimensions if d.is_Buffered}
+        for i, j in list(stencils.items()):
+            for d in j.dimensions:
+                if d in mapper:
+                    j[mapper[d]] = j.pop(d).union(j.get(mapper[d], set()))
+
         return stencils
 
     @property

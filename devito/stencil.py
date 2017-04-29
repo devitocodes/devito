@@ -112,14 +112,7 @@ class Stencil(DefaultOrderedDict):
 
     @property
     def entries(self):
-        processed = OrderedDict()
-        for k, v in self.items():
-            if k.is_Buffered and self.get(k.parent, v) == v:
-                # Ignore a BufferedDimension if identical to its parent
-                processed[k.parent] = v
-            else:
-                processed[k] = v
-        return tuple(StencilEntry(k, v) for k, v in processed.items())
+        return tuple(StencilEntry(k, v) for k, v in self.items())
 
     def subtract(self, o):
         """
