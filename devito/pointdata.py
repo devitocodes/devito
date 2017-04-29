@@ -192,5 +192,5 @@ class PointData(DenseData):
         # Substitute coordinate base symbols into the coefficients
         subs = OrderedDict(zip(self.point_symbols, self.coordinate_bases))
         return [Eq(field.subs(vsub),
-                   field.subs(vsub) + expr.subs(subs) * b.subs(subs))
+                   field.subs(vsub) + expr.subs(subs).subs(vsub) * b.subs(subs))
                 for b, vsub in zip(self.coefficients, idx_subs)]

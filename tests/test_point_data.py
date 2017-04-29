@@ -48,10 +48,23 @@ def test_inject_2d(a, points_horizontal):
     """Test point injection with a set of points forming a line
     through the middle of the grid.
     """
-    np.set_printoptions(precision=10, linewidth=200)
     points = points_horizontal
     spacing = a.data[1, 1]
     a.data[:] = 0.
     expr = points.inject(a, Function('FLOAT')(1.))
     Operator(expr, dse=None, dle=None, subs={h: spacing})(t=1)
     assert np.allclose(a.data[1:-1, 4:6], 1., rtol=1.e-6)
+
+
+def test_inject_from_field_2d(a, points_horizontal):
+    """Test point injection from a second field along a line
+    through the middle of the grid.
+    """
+    points = points_horizontal
+    spacing = a.data[1, 1]
+    b = DenseData(name='b', shape=a.data.shape)
+    b.data[:] = 0.
+    expr = points.inject(field=b, expr=a)
+    StencilKernel(expr, dse=None, dle=None, subs={h: spacing})(t=1)
+    assert np.allclose(a.data[1:-1, 4], np.arange(.1, 1., 0.1), rtol=1.e-6)
+    assert np.allclose(a.data[1:-1, 5], np.arange(.1, 1., 0.1), rtol=1.e-6)
