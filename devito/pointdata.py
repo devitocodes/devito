@@ -182,11 +182,12 @@ class PointData(DenseData):
                               in zip(inc, self.coordinate_indices))
                         for inc in self.point_increments]
 
-        # Generate index substituions for all grid variables
+        # Generate index substituions for all grid variables except
+        # the sparse `PointData` types
         idx_subs = []
         for i, idx in enumerate(index_matrix):
             v_subs = [(v, v.base[v.indices[:-self.ndim] + idx])
-                      for v in variables]
+                      for v in variables if not v.base.function.is_PointData]
             idx_subs += [OrderedDict(v_subs)]
 
         # Substitute coordinate base symbols into the coefficients
