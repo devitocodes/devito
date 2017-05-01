@@ -45,13 +45,22 @@ def ForwardOperator(model, u, src, rec, time_order=2, spc_order=6,
     dse = kwargs.get('dse', 'advanced')
     dle = kwargs.get('dle', 'advanced')
 
-    # Create stencil expressions for operator, source and receivers
+    # Create stencil expression
     eqn = Eq(u.forward, stencil)
-    src_add = src.point2grid(u, m, u_t=u.indices[0] + 1, p_t=time)
-    rec_read = Eq(rec, rec.grid2point(u, t=u.indices[0]))
-    stencils = [eqn] + src_add + [rec_read]
 
-    return Operator(stencils=stencils, subs=subs, dse=dse, dle=dle,
+    # Construct expression to inject source values
+    # Note that src and field terms have differing time indices:
+    #   src[time, ...] - always accesses the "unrolled" time index
+    #   u[ti + 1, ...] - accesses the forward stencil value
+    ti = u.indices[0]
+    source = src.inject(field=u.indexed[ti + 1, ...], offset=model.nbpml,
+                        expr=src.indexed[time, ...] * dt * dt / m)
+
+    # Create interpolation expression for receivers
+    receivers = Eq(rec, rec.interpolate(expr=u, offset=model.nbpml))
+
+    return Operator(stencils=[eqn] + source + [receivers],
+                    subs=subs, dse=dse, dle=dle,
                     time_axis=Forward, name="Forward")
 
 
@@ -95,11 +104,17 @@ def AdjointOperator(model, v, srca, rec, time_order=2, spc_order=6,
 
     # Create stencil expressions for operator, source and receivers
     eqn = Eq(v.backward, stencil)
-    src_read = Eq(srca, srca.grid2point(v))
-    rec_add = rec.point2grid(v, m, u_t=t - 1, p_t=time)
-    stencils = [eqn] + rec_add + [src_read]
 
-    return Operator(stencils=stencils, subs=subs, dse=dse, dle=dle,
+    # Construct expression to inject receiver values
+    ti = v.indices[0]
+    receivers = rec.inject(field=v.indexed[ti - 1, ...], offset=model.nbpml,
+                           expr=rec.indexed[time, ...] * dt * dt / m)
+
+    # Create interpolation expression for the adjoint-source
+    source_a = Eq(srca, srca.interpolate(expr=v, offset=model.nbpml))
+
+    return Operator(stencils=[eqn] + receivers + [source_a],
+                    subs=subs, dse=dse, dle=dle,
                     time_axis=Backward, name="Adjoint")
 
 
