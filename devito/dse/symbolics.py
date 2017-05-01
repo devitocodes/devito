@@ -15,8 +15,9 @@ from time import time
 from sympy import (Eq, Indexed, cos, sin)
 
 from devito.dse.aliases import collect_aliases
+from devito.dse.clusterizer import clusterize
 from devito.dse.extended_sympy import bhaskara_cos, bhaskara_sin
-from devito.dse.graph import Cluster, temporaries_graph
+from devito.dse.graph import temporaries_graph
 from devito.dse.inspection import count, estimate_cost, estimate_memory
 from devito.dse.manipulation import (collect_nested, freeze_expression,
                                      xreplace_constrained)
@@ -31,11 +32,12 @@ __all__ = ['rewrite']
 _temp_prefix = 'temp'
 
 
-def rewrite(expr, mode='advanced'):
+def rewrite(expr, stencil, mode='advanced'):
     """
     Transform expressions to reduce their operation count.
 
-    :param expr: the target expression.
+    :param expr: A SymPy expression, or an iterator of SymPy expressions.
+    :param stencil: A :class:`Stencil` for each of the provided SymPy expressions.
     :param mode: drive the expression transformation as follows: ::
 
          * 'noop': do nothing, but track performance metrics
@@ -45,6 +47,9 @@ def rewrite(expr, mode='advanced'):
              functions with suitable polynomial approximations.
          * 'glicm': apply heuristic hoisting of time-invariant terms.
          * 'advanced': compose all known transformations.
+
+    :return: A transformed sequence of SymPy expressions; also update ``stencil``
+             in place with a :class:`Stencil` for each of the new expressions.
     """
 
     if isinstance(expr, Sequence):
@@ -56,7 +61,7 @@ def rewrite(expr, mode='advanced'):
         raise ValueError("Got illegal expr of type %s." % type(expr))
 
     if not mode:
-        return State(expr)
+        return expr
     elif isinstance(mode, str):
         mode = set([mode])
     else:
@@ -64,12 +69,12 @@ def rewrite(expr, mode='advanced'):
             mode = set(mode)
         except TypeError:
             dse_warning("Arg mode must be str or tuple (got %s)" % type(mode))
-            return State(expr)
+            return expr
     if mode.isdisjoint(set(Rewriter.modes)):
         dse_warning("Unknown rewrite mode(s) %s" % str(mode))
-        return State(expr)
+        return expr
     else:
-        return Rewriter(expr).run(mode)
+        return Rewriter().run(expr, stencil, mode)
 
 
 def dse_pass(func):
@@ -85,7 +90,7 @@ def dse_pass(func):
             if self.profile:
                 # Only count operations of those expressions that will be executed
                 # at every space-time iteration
-                traces = [c.trace for c in state.clusters]
+                traces = [c.trace for c in clusterize(state.exprs, state.stencils)]
                 exprs = flatten(i.values() for i in traces
                                 if i.space_indices and not i.time_invariant())
                 self.ops[key] = estimate_cost(exprs)
@@ -95,19 +100,10 @@ def dse_pass(func):
 
 class State(object):
 
-    def __init__(self, exprs):
-        self.input = exprs
+    def __init__(self, exprs, stencils):
         self.exprs = exprs
-        self.mapper = OrderedDict()
-
-        # Compute the stencil of each tensor expression
-        mapper = OrderedDict()
-        for expr in exprs:
-            mapper.setdefault(expr.lhs, []).append(expr)
-        stencils = OrderedDict()
-        for k, v in mapper.items():
-            stencils[k] = Stencil.union(*[Stencil(i) for i in v])
         self.stencils = stencils
+        self.mapper = OrderedDict()
 
     def update(self, exprs=None, stencils=None):
         self.exprs = exprs or self.exprs
@@ -144,19 +140,6 @@ class State(object):
     @property
     def memory(self):
         return self.memory_time_invariants + self.memory_time_varying
-
-    @property
-    def output_fields(self):
-        return [i.lhs.base.function for i in self.input if q_indexed(i.lhs)]
-
-    @property
-    def clusters(self):
-        """
-        Clusterize the expressions in ``self.exprs``. For more information
-        about clusters, refer to TemporariesGraph.clusters.
-        """
-        clusters = temporaries_graph(self.exprs).clusters(self.stencils)
-        return Cluster.merge(clusters)
 
 
 class Rewriter(object):
@@ -204,15 +187,13 @@ class Rewriter(object):
         'max-operands': 40,
     }
 
-    def __init__(self, exprs, profile=True):
-        self.exprs = exprs
-
+    def __init__(self, profile=True):
         self.profile = profile
         self.ops = OrderedDict()
         self.timings = OrderedDict()
 
-    def run(self, mode):
-        state = State(self.exprs)
+    def run(self, exprs, stencils, mode):
+        state = State(exprs, stencils)
 
         self._extract_time_varying(state, mode=mode)
         self._extract_time_invariants(state, mode=mode)
@@ -225,7 +206,7 @@ class Rewriter(object):
 
         self._summary(mode)
 
-        return state
+        return state.exprs
 
     @dse_pass
     def _extract_time_varying(self, state, **kwargs):
