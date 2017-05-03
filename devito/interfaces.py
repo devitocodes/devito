@@ -510,7 +510,11 @@ class TimeData(DenseData):
             if not self.save:
                 time_dim = self.time_order + 1
                 self.indices[0].modulo = time_dim
-
+            else:
+                if time_dim is None:
+                    error('Time dimension (time_dim) is required'
+                          'to save intermediate data with save=True')
+                    raise ValueError("Unknown time dimensions")
             self.shape = (time_dim,) + self.shape
 
     def initialize(self):
