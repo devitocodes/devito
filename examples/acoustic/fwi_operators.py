@@ -165,11 +165,16 @@ def GradientOperator(model, v, grad, rec, u, time_order=2, spc_order=6,
     dse = kwargs.get('dse', 'advanced')
     dle = kwargs.get('dle', 'advanced')
 
-    # Create stencil expressions for operator, source and receivers
+    # Create stencil expressions for operator
     eqn = Eq(v.backward, stencil)
-    rec_add = rec.point2grid(v, m, u_t=t - 1, p_t=time)
-    stencils = [eqn] + [gradient_update] + rec_add
-    return Operator(stencils=stencils, subs=subs, dse=dse, dle=dle,
+
+    # Add expression for receiver injection
+    ti = v.indices[0]
+    receivers = rec.inject(field=v.indexed[ti - 1, ...], offset=model.nbpml,
+                           expr=rec.indexed[time, ...] * dt * dt / m)
+
+    return Operator(stencils=[eqn] + [gradient_update] + receivers,
+                    subs=subs, dse=dse, dle=dle,
                     time_axis=Backward, name="Gradient")
 
 
@@ -218,11 +223,16 @@ def BornOperator(model, u, U, src, rec, dm, time_order=2, spc_order=6,
     dle = kwargs.get('dle', None)
 
     # Create stencil expressions for operator, source and receivers
-    eqn1 = [Eq(u.forward, stencil1)]
-    eqn2 = [Eq(U.forward, stencil2)]
-    src_add = src.point2grid(u, m, u_t=t + 1, p_t=time)
-    rec_read = Eq(rec, rec.grid2point(U, t=U.indices[0]))
-    stencils = eqn1 + src_add + eqn2 + [rec_read]
+    eqn1 = Eq(u.forward, stencil1)
+    eqn2 = Eq(U.forward, stencil2)
 
-    return Operator(stencils=stencils, subs=subs, dse=dse, dle=dle,
+    # Add source term expression for u
+    source = src.inject(field=u.indexed[t + 1, ...], offset=model.nbpml,
+                        expr=src.indexed[time, ...] * dt * dt / m)
+
+    # Create receiver interpolation expression from U
+    receivers = Eq(rec, rec.interpolate(expr=U, offset=model.nbpml))
+
+    return Operator(stencils=[eqn1] + source + [eqn2] + [receivers],
+                    subs=subs, dse=dse, dle=dle,
                     time_axis=Forward, name="Born")
