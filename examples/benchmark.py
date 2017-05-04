@@ -58,9 +58,6 @@ if __name__ == "__main__":
                             type=int, help="End time of the simulation in ms")
 
     devito = parser.add_argument_group("Devito")
-    devito.add_argument("--no-legacy", dest="legacy", action="store_false",
-                        help="Use this option to run with the new StencilKernel "
-                             "infrastructure, rather than Operator/Propagator")
     devito.add_argument("-dse", default="advanced", nargs="*",
                         choices=["noop", "basic", "factorize", "approx-trigonometry",
                                  "glicm", "advanced"],

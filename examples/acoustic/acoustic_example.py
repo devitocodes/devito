@@ -27,8 +27,7 @@ def source(t, f0):
 
 def run(dimensions=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=1000.0,
         time_order=2, space_order=4, nbpml=40, dse='advanced', dle='advanced',
-        auto_tuning=False, compiler=None, cache_blocking=None, full_run=False,
-        legacy=False):
+        auto_tuning=False, compiler=None, cache_blocking=None, full_run=False):
 
     origin = (0., 0., 0.)
 
@@ -80,23 +79,23 @@ def run(dimensions=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=1000.0,
 
     Acoustic = Acoustic_cg(model, data, src, nbpml=nbpml, t_order=time_order,
                            s_order=space_order, auto_tuning=auto_tuning, dse=dse,
-                           dle=dle, compiler=compiler, legacy=legacy)
+                           dle=dle, compiler=compiler)
 
     info("Applying Forward")
     rec, u, gflopss, oi, timings = Acoustic.Forward(
         cache_blocking=cache_blocking, save=full_run, dse=dse, dle=dle,
-        auto_tuning=auto_tuning, compiler=compiler, legacy=legacy,
+        auto_tuning=auto_tuning, compiler=compiler
     )
 
     if not full_run:
         return gflopss, oi, timings, [rec, u.data]
 
     info("Applying Adjoint")
-    Acoustic.Adjoint(rec, dse=dse, dle=dle, legacy=legacy)
+    Acoustic.Adjoint(rec, dse=dse, dle=dle)
     info("Applying Born")
-    Acoustic.Born(dm, dse=dse, dle=dle, legacy=legacy)
+    Acoustic.Born(dm, dse=dse, dle=dle)
     info("Applying Gradient")
-    Acoustic.Gradient(rec, u, dse=dse, dle=dle, legacy=legacy)
+    Acoustic.Gradient(rec, u, dse=dse, dle=dle)
 
 
 if __name__ == "__main__":
