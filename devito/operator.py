@@ -26,7 +26,7 @@ from devito.visitors import (FindNodes, FindSections, FindSymbols, FindScopes,
                              ResolveIterationVariable, SubstituteExpression, Transformer)
 from devito.exceptions import InvalidArgument
 
-__all__ = ['StencilKernel']
+__all__ = ['Operator']
 
 
 class OperatorBasic(Function):
@@ -602,7 +602,7 @@ class OperatorCore(OperatorBasic):
         return [self.profiler.as_cgen_struct(Profiler.TIME), blankline]
 
 
-class StencilKernel(object):
+class Operator(object):
 
     def __new__(cls, *args, **kwargs):
         # What type of Operator should I return ?
@@ -645,7 +645,7 @@ class PerformanceSummary(OrderedDict):
         return OrderedDict([(k, v.time) for k, v in self.items()])
 
 
-# StencilKernel options and name conventions
+# Operator options and name conventions
 
 """
 A dict of standard names to be used for code generation
@@ -656,7 +656,7 @@ cnames = {
 }
 
 """
-StencilKernel options
+Operator options
 """
 options = {
     'at_squeezer': 3,
@@ -669,11 +669,11 @@ A helper to track profiled sections of code.
 Profile = namedtuple('Profile', 'timer ops memory')
 
 
-# Helpers to use a StencilKernel
+# Helpers to use a Operator
 
 def set_dle_mode(mode, compiler):
     """
-    Transform :class:`StencilKernel` input in a format understandable by the DLE.
+    Transform :class:`Operator` input in a format understandable by the DLE.
     """
     if not mode:
         return 'noop'

@@ -10,7 +10,7 @@ from devito.dle import transform
 from devito.dle.transformer import Rewriter
 from devito.interfaces import DenseData, TimeData
 from devito.nodes import Expression, Function, List
-from devito.stencilkernel import StencilKernel
+from devito.operator import Operator
 from devito.visitors import ResolveIterationVariable, SubstituteExpression
 
 
@@ -107,7 +107,7 @@ def _new_operator1(shape, **kwargs):
     stencil = Eq(outfield.indexify(), outfield.indexify() + infield.indexify()*3.0)
 
     # Run the operator
-    StencilKernel(stencil, **kwargs)(infield, outfield)
+    Operator(stencil, **kwargs)(infield, outfield)
 
     return outfield
 
@@ -122,7 +122,7 @@ def _new_operator2(shape, time_order, **kwargs):
                  outfield.indexify() + infield.indexify()*3.0)
 
     # Run the operator
-    StencilKernel(stencil, **kwargs)(infield, outfield, t=10)
+    Operator(stencil, **kwargs)(infield, outfield, t=10)
 
     return outfield
 
@@ -231,7 +231,7 @@ void f_0_2(float *restrict a_vec, float *restrict b_vec, const int i)
 
 # Loop blocking tests
 # ATM, these tests resemble the ones in test_cache_blocking.py, with the main
-# difference being that here the new StencilKernel interface is used
+# difference being that here the new Operator interface is used
 
 @pytest.mark.parametrize("shape", [(10,), (10, 45), (10, 31, 45)])
 @pytest.mark.parametrize("blockshape", [2, 7, (3, 3), (2, 9, 1)])

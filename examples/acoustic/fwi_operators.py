@@ -1,9 +1,7 @@
 from sympy import Eq
 from sympy.abc import h, s
 
-from devito.dimension import t, time
-from devito.interfaces import Backward, Forward
-from devito.stencilkernel import StencilKernel
+from devito import Operator, Forward, Backward, t, time
 
 
 def ForwardOperator(model, u, src, rec, data, time_order=2, spc_order=6,
@@ -53,8 +51,8 @@ def ForwardOperator(model, u, src, rec, data, time_order=2, spc_order=6,
     rec_read = Eq(rec, rec.grid2point(u, t=u.indices[0]))
     stencils = [eqn] + src_add + [rec_read]
 
-    return StencilKernel(stencils=stencils, subs=subs, dse=dse, dle=dle,
-                         time_axis=Forward, name="Forward")
+    return Operator(stencils=stencils, subs=subs, dse=dse, dle=dle,
+                    time_axis=Forward, name="Forward")
 
 
 def AdjointOperator(model, v, srca, rec, data, time_order=2, spc_order=6,
@@ -101,8 +99,8 @@ def AdjointOperator(model, v, srca, rec, data, time_order=2, spc_order=6,
     rec_add = rec.point2grid(v, m, u_t=t - 1, p_t=time)
     stencils = [eqn] + rec_add + [src_read]
 
-    return StencilKernel(stencils=stencils, subs=subs, dse=dse, dle=dle,
-                         time_axis=Backward, name="Adjoint")
+    return Operator(stencils=stencils, subs=subs, dse=dse, dle=dle,
+                    time_axis=Backward, name="Adjoint")
 
 
 def GradientOperator(model, v, grad, rec, u, data, time_order=2, spc_order=6,
@@ -156,8 +154,8 @@ def GradientOperator(model, v, grad, rec, u, data, time_order=2, spc_order=6,
     eqn = Eq(v.backward, stencil)
     rec_add = rec.point2grid(v, m, u_t=t - 1, p_t=time)
     stencils = [eqn] + [gradient_update] + rec_add
-    return StencilKernel(stencils=stencils, subs=subs, dse=dse, dle=dle,
-                         time_axis=Backward, name="Gradient")
+    return Operator(stencils=stencils, subs=subs, dse=dse, dle=dle,
+                    time_axis=Backward, name="Gradient")
 
 
 def BornOperator(model, u, U, src, rec, dm, data, time_order=2, spc_order=6,
@@ -211,5 +209,5 @@ def BornOperator(model, u, U, src, rec, dm, data, time_order=2, spc_order=6,
     rec_read = Eq(rec, rec.grid2point(U, t=U.indices[0]))
     stencils = eqn1 + src_add + eqn2 + [rec_read]
 
-    return StencilKernel(stencils=stencils, subs=subs, dse=dse, dle=dle,
-                         time_axis=Forward, name="Born")
+    return Operator(stencils=stencils, subs=subs, dse=dse, dle=dle,
+                    time_axis=Forward, name="Born")

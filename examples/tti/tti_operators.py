@@ -1,10 +1,8 @@
 from sympy import Eq, sin, cos
 from sympy.abc import h, s
 
-from devito.dimension import x, y, z, t, time
+from devito import Operator, DenseData, x, y, z, t, time
 from devito.finite_difference import centered, first_derivative, right, transpose
-from devito.interfaces import DenseData
-from devito.stencilkernel import StencilKernel
 
 
 def ForwardOperator(model, u, v, src, rec, data, time_order=2,
@@ -147,4 +145,4 @@ def ForwardOperator(model, u, v, src, rec, data, time_order=2,
     stencils += src.point2grid(v, m, u_t=t, p_t=time)
     stencils += [Eq(rec, rec.grid2point(u) + rec.grid2point(v))]
 
-    return StencilKernel(stencils=stencils, subs=subs, dse=dse, dle=dle)
+    return Operator(stencils=stencils, subs=subs, dse=dse, dle=dle)
