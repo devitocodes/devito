@@ -1,15 +1,14 @@
-from sympy import *
+from sympy import Eq, sin, cos
+from sympy.abc import h, s
 
 from devito.dimension import x, y, z, t, time
 from devito.finite_difference import centered, first_derivative, right, transpose
 from devito.interfaces import DenseData
-from devito.operator import Operator
 from devito.stencilkernel import StencilKernel
 
 
 def ForwardOperator(model, u, v, src, rec, data, time_order=2,
-                    spc_order=4, save=False, u_ini=None, legacy=True,
-                    **kwargs):
+                    spc_order=4, save=False, u_ini=None, **kwargs):
     """
     Constructor method for the forward modelling operator in an acoustic media
 
@@ -27,8 +26,6 @@ def ForwardOperator(model, u, v, src, rec, data, time_order=2,
     epsilon, delta, theta, phi = model.epsilon, model.delta, model.theta, model.phi
     parm = [m, damp, u, v]
     parm += [p for p in [epsilon, delta, theta, phi] if isinstance(p, DenseData)]
-
-    s, h = symbols('s h')
 
     spc_brd = spc_order/2
 
@@ -143,32 +140,11 @@ def ForwardOperator(model, u, v, src, rec, data, time_order=2,
     second_stencil = Eq(v.forward, stencilr)
     stencils = [first_stencil, second_stencil]
 
-    if legacy:
-        kwargs.pop('dle', None)
+    dse = kwargs.get('dse', 'advanced')
+    dle = kwargs.get('dle', 'advanced')
 
-        op = Operator(nt, model.shape_domain, stencils=stencils, subs=[subs, subs],
-                      spc_border=spc_order, time_order=time_order,
-                      forward=True, dtype=m.dtype, input_params=parm,
-                      **kwargs)
+    stencils += src.point2grid(u, m, u_t=t, p_t=time)
+    stencils += src.point2grid(v, m, u_t=t, p_t=time)
+    stencils += [Eq(rec, rec.grid2point(u) + rec.grid2point(v))]
 
-        # Insert source and receiver terms post-hoc
-        op.input_params += [src, src.coordinates, rec, rec.coordinates]
-        op.output_params += [v, rec]
-        op.propagator.time_loop_stencils_a = (src.add(m, u) + src.add(m, v) +
-                                              rec.read2(u, v))
-        op.propagator.add_devito_param(src)
-        op.propagator.add_devito_param(src.coordinates)
-        op.propagator.add_devito_param(rec)
-        op.propagator.add_devito_param(rec.coordinates)
-
-    else:
-        dse = kwargs.get('dse', 'advanced')
-        dle = kwargs.get('dle', 'advanced')
-
-        stencils += src.point2grid(u, m, u_t=t, p_t=time)
-        stencils += src.point2grid(v, m, u_t=t, p_t=time)
-        stencils += [Eq(rec, rec.grid2point(u) + rec.grid2point(v))]
-
-        op = StencilKernel(stencils=stencils, subs=subs, dse=dse, dle=dle)
-
-    return op
+    return StencilKernel(stencils=stencils, subs=subs, dse=dse, dle=dle)
