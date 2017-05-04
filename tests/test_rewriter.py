@@ -26,7 +26,7 @@ def run_acoustic_forward(dse=None):
     true_vp = np.ones(dimensions) + 2.0
     true_vp[:, :, int(dimensions[0] / 2):int(dimensions[0])] = 4.5
 
-    model = Model(origin, spacing, true_vp, nbpml=nbpml)
+    model = Model(origin, spacing, dimensions, true_vp, nbpml=nbpml)
 
     # Define seismic data.
     data = IShot()
