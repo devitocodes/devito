@@ -33,14 +33,10 @@ def run(dimensions=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=1000.0,
     origin = (0., 0., 0.)
 
     # True velocity
-    true_vp = np.ones(dimensions) + .5
-    if len(dimensions) == 2:
-        true_vp[:, int(dimensions[0] / 2):dimensions[0]] = 2.5
-    else:
-        true_vp[:, :, int(dimensions[0] / 2):dimensions[0]] = 2.5
+    true_vp = 2.
 
     # Smooth velocity
-    initial_vp = smooth10(true_vp, dimensions)
+    initial_vp = 1.8
 
     dm = 1. / (true_vp * true_vp) - 1. / (initial_vp * initial_vp)
 
@@ -100,4 +96,4 @@ def run(dimensions=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=1000.0,
 
 
 if __name__ == "__main__":
-    run(full_run=False, auto_tuning=False, space_order=6, time_order=2)
+    run(full_run=True, auto_tuning=False, space_order=6, time_order=2)
