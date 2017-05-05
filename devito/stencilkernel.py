@@ -133,7 +133,7 @@ class OperatorBasic(Function):
         r_args = [f_n for f_n, f in arguments.items() if isinstance(f, SymbolicData)]
         o_vals = OrderedDict([arg for arg in kwargs.items() if arg[0] in r_args])
 
-        # Replace the over-ridden values with the provided ones
+        # Replace the overridden values with the provided ones
         for argname in o_vals.keys():
             if not arguments[argname].shape == o_vals[argname].shape:
                 raise InvalidArgument("Shapes must match")
