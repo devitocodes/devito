@@ -246,4 +246,4 @@ class Alias(object):
 
     def relax(self, distances):
         return Alias(self.alias, self.aliased, self.distances, self.dimensions,
-                     list(itertools.product(*distances.values())))
+                     self._ghost_offsets + list(itertools.product(*distances.values())))

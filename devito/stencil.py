@@ -114,6 +114,17 @@ class Stencil(DefaultOrderedDict):
     def entries(self):
         return tuple(StencilEntry(k, v) for k, v in self.items())
 
+    def section(self, d):
+        """
+        Return a view of the Stencil in which the Dimensions in ``d`` have been
+        dropped.
+        """
+        output = Stencil()
+        for k, v in self.items():
+            if k not in d:
+                output[k] = v
+        return output
+
     def subtract(self, o):
         """
         Compute the set difference of each Dimension in self with the corresponding

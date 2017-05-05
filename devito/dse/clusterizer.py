@@ -58,6 +58,10 @@ class Cluster(object):
     def is_dense(self):
         return self.trace.space_indices and not self.trace.time_invariant()
 
+    @property
+    def is_sparse(self):
+        return not self.is_dense
+
     def rebuild(self, exprs):
         return Cluster(exprs, self.stencil)
 

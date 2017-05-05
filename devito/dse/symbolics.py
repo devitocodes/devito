@@ -14,6 +14,7 @@ from devito.dse.manipulation import (collect_nested, freeze_expression,
 from devito.dse.queries import iq_timeinvariant, iq_timevarying, q_op
 from devito.interfaces import ScalarFunction, TensorFunction
 from devito.logger import dse, dse_warning
+from devito.stencil import Stencil
 from devito.tools import flatten
 
 __all__ = ['rewrite']
@@ -234,7 +235,7 @@ class Rewriter(object):
         # - doesn't consider the possibliity of losing factorization opportunities
         # - very slow
 
-        skip = [e for e in cluster.exprs if e.lhs.base.function.is_TensorFunction]
+        skip = [e for e in cluster.exprs if e.lhs.base.function.is_SymbolicFunction]
         candidates = [e for e in cluster.exprs if e not in skip]
 
         template = self.conventions['temporary'] + "%d"
@@ -338,33 +339,56 @@ class Rewriter(object):
            temp1 = 2.0*ti[x,y,z]
            temp2 = 3.0*ti[x,y,z+1]
         """
-
-        graph = cluster.trace
-        indices = graph.space_indices
-        shape = graph.space_shape
+        if cluster.is_sparse:
+            return cluster
 
         # For more information about "aliases", refer to collect_aliases.__doc__
         mapper, aliases = collect_aliases(cluster.exprs)
+
+        # Redundancies will be stored in space-varying temporaries
+        g = cluster.trace
+        indices = g.space_indices
+        shape = g.space_shape
 
         # Template for captured redundancies
         name = self.conventions['redundancy'] + "%d"
         template = lambda i: TensorFunction(name=name % i, shape=shape,
                                             dimensions=indices).indexed
 
-        # Retain only the expensive time-invariant expressions (to minimize memory)
+        # Cross-time redundancies, if any, cannot be exploited by this pass
+        scope = cluster.stencil.section(indices)
+        if len(scope) == 0:
+            # No time dimension, nothing to capture
+            return cluster
+        elif len(scope) > 1:
+            dse_warning("Unexpected Stencil %s" % str(cluster.stencil))
+            return cluster
+        else:
+            dim = scope.dimensions[0]
+            for origin, alias in list(aliases.items()):
+                if alias.stencil.get(dim) != {0}:
+                    # Time-varying, let's not exploit this
+                    aliases.pop(origin)
+                    for i in alias.aliased:
+                        mapper.pop(i)
+                elif dim in alias.stencil:
+                    aliases[origin] = alias.relax(Stencil.union(*[scope, alias.stencil]))
+
+        # Find the candidate expressions
         processed = []
         candidates = OrderedDict()
-        for k, v in graph.items():
+        for k, v in g.items():
             # Cost check (to keep the memory footprint under control)
-            naliases = len(mapper.get(v.rhs, [v]))
+            naliases = len(mapper.get(v.rhs, []))
             cost = estimate_cost(v, True)*naliases
-            if cost >= self.thresholds['min-cost-time-hoist']\
-                    and graph.time_invariant(v):
+            if cost >= self.thresholds['min-cost-time-hoist'] and g.time_invariant(v):
                 candidates[v.rhs] = k
             elif cost >= self.thresholds['min-cost-space-hoist'] and naliases > 1:
                 candidates[v.rhs] = k
             else:
                 processed.append(Eq(k, v.rhs))
+
+        # TODO need a way of incorporating the time dimension in the stencil
 
         # Create temporaries capturing redundant computation
         found = []
