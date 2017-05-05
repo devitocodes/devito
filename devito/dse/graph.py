@@ -148,25 +148,26 @@ class TemporariesGraph(OrderedDict):
         """
         if key not in self:
             return []
-        # OrderedDicts prevent scheduling the same temporary more than once
+
+        # OrderedDicts, besides preserving the scheduling order, also prevent
+        # scheduling the same temporary more than once
         found = OrderedDict()
         queue = OrderedDict([(key, self[key])])
         while queue:
             k, v = queue.popitem(last=False)
-            found[k] = v
-            if v.is_tensor and k != key:
-                # No need to check the reads of a tensor
-                continue
-            reads = sorted(self.extract(k), key=lambda i: i.identifier, reverse=True)
-            reads = OrderedDict([(i.lhs, i) for i in reads])
-            for k, v in reads.items():
-                if any(j in reads for j in v.reads):
-                    found[k] = v
-                else:
-                    # Postpone until all dependening temporaries are scheduled
-                    queue[k] = v
-        found = list(reversed(found.values()))
-        return temporaries_graph(found)
+            reads = self.extract(k)
+            if set(reads).issubset(set(found.values())):
+                # All dependencies satisfied, schedulable
+                found[k] = v
+            else:
+                # Tensors belong to other traces, so they can be scheduled straight away
+                tensors = [i for i in reads if i.is_tensor]
+                found = OrderedDict(found.items() + [(i.lhs, i) for i in tensors])
+                # Postpone the rest until all dependening temporaries got scheduled
+                scalars = [i for i in reads if i.is_scalar]
+                queue = OrderedDict([(i.lhs, i) for i in scalars] +
+                                    [(k, v)] + queue.items())
+        return temporaries_graph(found.values())
 
     def time_invariant(self, expr=None):
         """
