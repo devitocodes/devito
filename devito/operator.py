@@ -100,7 +100,7 @@ class OperatorBasic(Function):
         nodes = SubstituteExpression(subs=subs).visit(nodes)
 
         # Apply the Devito Loop Engine for loop optimization
-        dle_state = transform(nodes, set_dle_mode(dle, self.compiler), self.compiler)
+        dle_state = transform(nodes, *set_dle_mode(dle, self.compiler))
         parameters += [i.argument for i in dle_state.arguments]
         self._includes.extend(list(dle_state.includes))
 
@@ -676,12 +676,14 @@ def set_dle_mode(mode, compiler):
     Transform :class:`Operator` input in a format understandable by the DLE.
     """
     if not mode:
-        return 'noop'
-    mode = as_tuple(mode)
-    params = mode[-1]
-    if isinstance(params, dict):
-        params['openmp'] = compiler.openmp
-    else:
-        params = {'openmp': compiler.openmp}
-        mode += (params,)
-    return mode
+        return 'noop', {}, compiler
+    elif isinstance(mode, str):
+        return mode, {'openmp': compiler.openmp}, compiler
+    elif isinstance(mode, tuple):
+        if len(mode) == 1:
+            return mode[0], {'openmp': compiler.openmp}, compiler
+        elif len(mode) == 2 and isinstance(mode[1], dict):
+            mode, params = mode
+            params['openmp'] = compiler.openmp
+            return mode, params, compiler
+    raise TypeError("Illegal DLE mode %s." % str(mode))
