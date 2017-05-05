@@ -161,13 +161,15 @@ class OperatorBasic(Function):
                     else:
                         # Derive size from grid data shape and store
                         dim_sizes[dim] = shape[i]
-
-                    # Ensure parent for buffered dims is defined
-                    if dim.is_Buffered and dim.parent not in dim_sizes:
-                        dim_sizes[dim.parent] = dim_sizes[dim]
                 else:
                     if not isinstance(dim, BufferedDimension):
                         assert dim.size == shape[i]
+
+        # Ensure parent for buffered dims is defined
+        buf_dims = [d for d in dim_sizes if d.is_Buffered]
+        for dim in buf_dims:
+            if dim.parent not in dim_sizes:
+                dim_sizes[dim.parent] = dim_sizes[dim]
 
         # Add user-provided block sizes, if any
         dle_arguments = OrderedDict()
