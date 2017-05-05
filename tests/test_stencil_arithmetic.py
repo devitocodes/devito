@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 from sympy import Eq  # noqa
 
-from devito import DenseData, Dimension, StencilKernel
+from devito import DenseData, TimeData, Dimension, StencilKernel, time, t, x, y, z
 
 
 @pytest.fixture
@@ -157,3 +157,20 @@ def test_override(i, j, k, l):
     assert(np.allclose(a.data, np.zeros(shape) + 5))
     assert(np.allclose(a1.data, np.zeros(shape) + 6))
     assert(np.allclose(a2.data, np.zeros(shape) + 7))
+
+
+def test_dimension_size_infer(i, j, k, nt=100):
+    """Test that the dimension sizes are being inferred correctly"""
+    shape = tuple([d.size for d in [i, j, k]])
+    a = DenseData(name='a', shape=shape).indexed
+    b = TimeData(name='b', shape=shape, save=False, time_dim=nt).indexed
+    c = TimeData(name='c', shape=shape, save=True, time_dim=nt).indexed
+    eqn1 = Eq(b[t, x, y, z], a[x, y, z])
+    eqn2 = Eq(c[time, x, y, z], a[x, y, z])
+    op1 = StencilKernel(eqn1)
+    op2 = StencilKernel(eqn2)
+
+    _, op1_dim_sizes = op1.arguments()
+    _, op2_dim_sizes = op2.arguments()
+    assert(op1_dim_sizes[time] == 2)
+    assert(op2_dim_sizes[time] == nt)

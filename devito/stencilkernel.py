@@ -133,7 +133,7 @@ class OperatorBasic(Function):
         r_args = [f_n for f_n, f in arguments.items() if isinstance(f, SymbolicData)]
         o_vals = OrderedDict([arg for arg in kwargs.items() if arg[0] in r_args])
 
-        # Replace the over-ridden values with the provided ones
+        # Replace the overridden values with the provided ones
         for argname in o_vals.keys():
             if not arguments[argname].shape == o_vals[argname].shape:
                 raise InvalidArgument("Shapes must match")
@@ -161,13 +161,15 @@ class OperatorBasic(Function):
                     else:
                         # Derive size from grid data shape and store
                         dim_sizes[dim] = shape[i]
-
-                    # Ensure parent for buffered dims is defined
-                    if dim.is_Buffered and dim.parent not in dim_sizes:
-                        dim_sizes[dim.parent] = dim_sizes[dim]
                 else:
                     if not isinstance(dim, BufferedDimension):
                         assert dim.size == shape[i]
+
+        # Ensure parent for buffered dims is defined
+        buf_dims = [d for d in dim_sizes if d.is_Buffered]
+        for dim in buf_dims:
+            if dim.parent not in dim_sizes:
+                dim_sizes[dim.parent] = dim_sizes[dim]
 
         # Add user-provided block sizes, if any
         dle_arguments = OrderedDict()
