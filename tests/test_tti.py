@@ -51,9 +51,8 @@ def test_tti(dimensions, space_order):
     # True velocity
     true_vp = np.ones(dimensions) + .5
 
-    model = Model(origin, spacing,
+    model = Model(origin, spacing, dimensions,
                   true_vp, nbpml=nbpml,
-                  rho=0.0 * true_vp,
                   epsilon=0.0 * true_vp,
                   delta=0.0 * true_vp,
                   theta=0.0 * true_vp,

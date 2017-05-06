@@ -14,8 +14,7 @@ true_vp = np.ones(dimensions) + 1.0
 true_vp[:, int(dimensions[1] / 3):int(2*dimensions[1]/3)] = 3.0
 true_vp[:, int(2*dimensions[1] / 3):int(dimensions[1])] = 4.0
 
-model = Model(origin, spacing, true_vp,
-              rho=None,
+model = Model(origin, spacing, dimensions, true_vp,
               epsilon=0.1*(true_vp - 2),
               delta=0.08 * (true_vp - 2),
               theta=np.pi/5*np.ones(dimensions),

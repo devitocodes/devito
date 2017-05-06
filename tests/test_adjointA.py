@@ -64,7 +64,7 @@ def test_acoustic(dimensions, time_order, space_order):
               "must be a tuple of either size 2 or 3.")
 
     # Define seismic data
-    model = Model(origin, spacing, true_vp, nbpml=nbpml)
+    model = Model(origin, spacing, dimensions, true_vp, nbpml=nbpml)
     data = IShot()
     src = IShot()
 
