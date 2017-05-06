@@ -84,7 +84,7 @@ def run(dimensions=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=1000.0,
 
     info("Applying Forward")
     rec, u, gflopss, oi, timings = Acoustic.Forward(
-        cache_blocking=cache_blocking, save=full_run, dse='basic', dle=dle,
+        cache_blocking=cache_blocking, save=full_run, dse=dse, dle=dle,
         auto_tuning=auto_tuning, compiler=compiler, legacy=legacy,
     )
 
@@ -94,7 +94,7 @@ def run(dimensions=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=1000.0,
     info("Applying Adjoint")
     Acoustic.Adjoint(rec, dse=dse, dle=dle, legacy=legacy)
     info("Applying Born")
-    Acoustic.Born(dm, dse=None, dle=dle, legacy=legacy)
+    Acoustic.Born(dm, dse=dse, dle=dle, legacy=legacy)
     info("Applying Gradient")
     Acoustic.Gradient(rec, u, dse=dse, dle=dle, legacy=legacy)
 
