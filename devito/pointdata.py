@@ -99,8 +99,10 @@ class PointData(DenseData):
                         [py*pz],
                         [px*py*pz]])
         else:
-            error("Interpolation coefficients not implemented for "
-                  "%d dimensions." % self.ndim)
+            error('Point interpolation only supported for 2D and 3D')
+            raise NotImplementedError('Interpolation coefficients not '
+                                      'implemented for %d dimensions.'
+                                      % self.ndim)
 
         # Map to reference cell
         reference_cell = {x1: 0, y1: 0, z1: 0, x2: h, y2: h, z2: h}
@@ -120,6 +122,10 @@ class PointData(DenseData):
         elif self.ndim == 3:
             return ((0, 0, 0), (0, 1, 0), (1, 0, 0), (0, 0, 1),
                     (1, 1, 0), (0, 1, 1), (1, 0, 1), (1, 1, 1))
+        else:
+            error('Point interpolation only supported for 2D and 3D')
+            raise NotImplementedError('Point increments not defined '
+                                      'for %d dimensions.' % self.ndim)
 
     @property
     def coordinate_symbols(self):
