@@ -174,7 +174,7 @@ class TemporariesGraph(OrderedDict):
                 # /root/ appears amongst the indices of /temporary/
                 return True
             else:
-                queue.extend([self[i] for i in temporary.readby])
+                queue.extend([self[i] for i in temporary.readby if i in self])
         return False
 
 
