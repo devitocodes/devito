@@ -33,14 +33,10 @@ def run(dimensions=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=1000.0,
     origin = (0., 0., 0.)
 
     # True velocity
-    true_vp = np.ones(dimensions) + .5
-    if len(dimensions) == 2:
-        true_vp[:, int(dimensions[0] / 2):dimensions[0]] = 2.5
-    else:
-        true_vp[:, :, int(dimensions[0] / 2):dimensions[0]] = 2.5
+    true_vp = 2.
 
     # Smooth velocity
-    initial_vp = smooth10(true_vp, dimensions)
+    initial_vp = 1.8
 
     dm = 1. / (true_vp * true_vp) - 1. / (initial_vp * initial_vp)
 
@@ -84,7 +80,7 @@ def run(dimensions=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=1000.0,
 
     info("Applying Forward")
     rec, u, gflopss, oi, timings = Acoustic.Forward(
-        cache_blocking=cache_blocking, save=full_run, dse=dse, dle=dle,
+        cache_blocking=cache_blocking, save=full_run, dse='basic', dle=dle,
         auto_tuning=auto_tuning, compiler=compiler, legacy=legacy,
     )
 
@@ -94,7 +90,7 @@ def run(dimensions=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=1000.0,
     info("Applying Adjoint")
     Acoustic.Adjoint(rec, dse=dse, dle=dle, legacy=legacy)
     info("Applying Born")
-    Acoustic.Born(dm, dse=dse, dle=dle, legacy=legacy)
+    Acoustic.Born(dm, dse=None, dle=dle, legacy=legacy)
     info("Applying Gradient")
     Acoustic.Gradient(rec, u, dse=dse, dle=dle, legacy=legacy)
 

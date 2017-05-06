@@ -240,9 +240,12 @@ class Acoustic_cg(object):
         U = TimeData(name="U", shape=self.model.shape_domain, time_dim=nt,
                      time_order=2, space_order=self.s_order,
                      dtype=self.model.dtype)
-
-        dm = DenseData(name="dm", shape=self.model.shape_domain, dtype=self.model.dtype)
-        dm.data[:] = self.model.pad(dmin)
+        if isinstance(dmin, np.ndarray):
+            dm = DenseData(name="dm", shape=self.model.shape_domain,
+                           dtype=self.model.dtype)
+            dm.data[:] = self.model.pad(dmin)
+        else:
+            dm = dmin
         # Execute operator and return wavefield and receiver data
         born = BornOperator(self.model, u, U, src, rec, dm, self.data,
                             time_order=self.t_order, spc_order=self.s_order,

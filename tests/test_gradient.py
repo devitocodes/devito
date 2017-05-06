@@ -71,7 +71,7 @@ def test_gradient(dimensions, time_order, space_order):
     m0 = initial_vp**-2
     # Model perturbation
     dm = true_vp**-2 - initial_vp**-2
-    model = Model(origin, spacing, true_vp, nbpml=nbpml)
+    model = Model(origin, spacing, dimensions, true_vp, nbpml=nbpml)
     # Define seismic data.
     data = IShot()
     src = IShot()

@@ -50,16 +50,20 @@ class Model(object):
     :param m: The square slowness of the wave
     :param damp: The damping field for absorbing boundarycondition
     """
-    def __init__(self, origin, spacing, vp, nbpml=0, dtype=np.float32,
-                 rho=None, epsilon=None, delta=None, theta=None, phi=None):
+    def __init__(self, origin, spacing, shape, vp, nbpml=0, dtype=np.float32,
+                 epsilon=None, delta=None, theta=None, phi=None):
         self.vp = vp
         self.origin = origin
         self.spacing = spacing
         self.nbpml = nbpml
         self.dtype = dtype
+        self.shape = shape
         # Create square slowness of the wave as symbol `m`
-        self.m = DenseData(name="m", shape=self.shape_domain, dtype=self.dtype)
-        self.m.data[:] = self.pad(1 / (self.vp * self.vp))
+        if isinstance(vp, np.ndarray):
+            self.m = DenseData(name="m", shape=self.shape_domain, dtype=self.dtype)
+            self.m.data[:] = self.pad(1 / (self.vp * self.vp))
+        else:
+            self.m = 1/vp**2
 
         # Create dampening field as symbol `damp`
         self.damp = DenseData(name="damp", shape=self.shape_domain,
@@ -67,44 +71,51 @@ class Model(object):
         damp_boundary(self.damp.data, nbpml, spacing=self.get_spacing())
 
         # Additional parameter fields for TTI operators
-        self.rho = rho
         self.scale = 1.
 
         if epsilon is not None:
-            self.epsilon = DenseData(name="epsilon", shape=self.shape_domain,
-                                     dtype=self.dtype)
-            self.epsilon.data[:] = self.pad(1 + 2 * epsilon)
-            # Maximum velocity is scale*max(vp) if epsilon > 0
-            if np.max(self.epsilon.data) > 0:
-                self.scale = np.sqrt(np.max(self.epsilon.data))
+            if isinstance(epsilon, np.ndarray):
+                self.epsilon = DenseData(name="epsilon", shape=self.shape_domain,
+                                         dtype=self.dtype)
+                self.epsilon.data[:] = self.pad(1 + 2 * epsilon)
+                # Maximum velocity is scale*max(vp) if epsilon > 0
+                if np.max(self.epsilon.data) > 0:
+                    self.scale = np.sqrt(np.max(self.epsilon.data))
+            else:
+                self.epsilon = epsilon
+                self.scale = epsilon
         else:
-            self.epsilon = 1.
+            self.epsilon = 1
 
         if delta is not None:
-            self.delta = DenseData(name="delta", shape=self.shape_domain,
-                                   dtype=self.dtype)
-            self.delta.data[:] = self.pad(np.sqrt(1 + 2 * delta))
+            if isinstance(delta, np.ndarray):
+                self.delta = DenseData(name="delta", shape=self.shape_domain,
+                                       dtype=self.dtype)
+                self.delta.data[:] = self.pad(np.sqrt(1 + 2 * delta))
+            else:
+                self.delta = delta
         else:
-            self.delta = None
+            self.delta = 1
 
         if theta is not None:
-            self.theta = DenseData(name="theta", shape=self.shape_domain,
-                                   dtype=self.dtype)
-            self.theta.data[:] = self.pad(theta)
+            if isinstance(theta, np.ndarray):
+                self.theta = DenseData(name="theta", shape=self.shape_domain,
+                                       dtype=self.dtype)
+                self.theta.data[:] = self.pad(theta)
+            else:
+                self.theta = theta
         else:
-            self.theta = None
+            self.theta = 0
 
         if phi is not None:
-            self.phi = DenseData(name="phi", shape=self.shape_domain,
-                                 dtype=self.dtype)
-            self.phi.data[:] = self.pad(phi)
+            if isinstance(phi, np.ndarray):
+                self.phi = DenseData(name="phi", shape=self.shape_domain,
+                                     dtype=self.dtype)
+                self.phi.data[:] = self.pad(phi)
+            else:
+                self.phi = phi
         else:
-            self.phi = None
-
-    @property
-    def shape(self):
-        """Original shape of the model, without PML layers"""
-        return self.vp.shape
+            self.phi = 0
 
     @property
     def shape_domain(self):
