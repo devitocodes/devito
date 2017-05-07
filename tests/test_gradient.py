@@ -105,7 +105,7 @@ def test_gradient(dimensions, time_order, space_order):
     # Change to the smooth velocity
     wave.model.m.data[:] = wave.model.pad(1 / initial_vp ** 2)
     # Data and wavefield for the smooth velocity
-    rec0, u0, _, _, _ = wave.Forward(save=True, legacy=False, dse=None)
+    rec0, u0, _, _, _ = wave.Forward(save=True, legacy=False)
     # Objective function value
     F0 = .5*linalg.norm(rec0 - rec)**2
     # Gradient

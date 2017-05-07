@@ -90,10 +90,10 @@ def test_acousticJ(dimensions, space_order):
     # Adjoint test
     acoustic0 = Acoustic_cg(model0, data, src, t_order=2,
                             s_order=space_order, nbpml=nbpml)
-    rec, u0, _, _, _ = acoustic0.Forward(save=True, legacy=False, dse=None)
+    rec, u0, _, _, _ = acoustic0.Forward(save=True, legacy=False)
 
     du, _, _, _, _, _ = acoustic0.Born(1 / model.vp ** 2 - 1 / model0.vp ** 2,
-                                       legacy=False, dse=None)
+                                       legacy=False)
     im, _, _, _ = acoustic0.Gradient(du, u0, legacy=False)
 
     # Actual adjoint test

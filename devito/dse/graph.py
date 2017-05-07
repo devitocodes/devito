@@ -23,7 +23,7 @@ from collections import OrderedDict, namedtuple
 
 from sympy import Indexed
 
-from devito.dimension import t
+from devito.dimension import t, time
 from devito.dse.extended_sympy import Eq
 from devito.dse.inspection import (is_indirect, retrieve_indexed, terminals)
 from devito.tools import flatten
@@ -138,7 +138,7 @@ class TemporariesGraph(OrderedDict):
     def space_indices(self):
         for v in self.values():
             if v.is_terminal and not is_indirect(v.lhs):
-                found = v.lhs.free_symbols - {t, v.lhs.base.label}
+                found = v.lhs.free_symbols - {t, time, v.lhs.base.label}
                 return tuple(sorted(found, key=lambda i: v.lhs.indices.index(i)))
         return ()
 
@@ -174,7 +174,7 @@ class TemporariesGraph(OrderedDict):
                 # /root/ appears amongst the indices of /temporary/
                 return True
             else:
-                queue.extend([self[i] for i in temporary.readby])
+                queue.extend([self[i] for i in temporary.readby if i in self])
         return False
 
 
