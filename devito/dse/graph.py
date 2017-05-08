@@ -19,7 +19,7 @@ A section of the ``temporaries graph`` looks as follows: ::
 Temporaries graph are used for symbolic as well as loop-level transformations.
 """
 
-from collections import OrderedDict, namedtuple
+from collections import OrderedDict
 from itertools import islice
 
 from sympy import Indexed
@@ -167,7 +167,7 @@ class TemporariesGraph(OrderedDict):
                 scalars = [i for i in reads if i.is_scalar]
                 queue = OrderedDict([(i.lhs, i) for i in scalars] +
                                     [(k, v)] + queue.items())
-        return temporaries_graph(found.values())
+        return found.values()
 
     def time_invariant(self, expr=None):
         """

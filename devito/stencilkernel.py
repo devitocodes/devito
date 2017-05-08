@@ -89,11 +89,11 @@ class OperatorBasic(Function):
         ordering = self._retrieve_loop_ordering(expressions)
         stencils = self._retrieve_stencils(expressions)
 
-        # Apply the Devito Symbolic Engine for symbolic optimization
-        expressions = rewrite(expressions, stencils, mode=dse)
-
         # Group expressions based on their Stencil
         clusters = clusterize(expressions, stencils)
+
+        # Apply the Devito Symbolic Engine for symbolic optimization
+        clusters = rewrite(clusters, mode=dse)
 
         # Wrap expressions with Iterations according to dimensions
         nodes = self._schedule_expressions(clusters, ordering)

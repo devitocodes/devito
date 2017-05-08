@@ -1,15 +1,6 @@
-"""
-The Devito symbolic engine is built on top of SymPy and provides two
-classes of functions:
-- for inspection of expressions
-- for (in-place) manipulation of expressions
-- for creation of new objects given some expressions
-All exposed functions are prefixed with 'dse' (devito symbolic engine)
-"""
-
 from __future__ import absolute_import
 
-from collections import OrderedDict, Sequence
+from collections import OrderedDict
 from time import time
 
 from sympy import (Eq, Indexed, cos, sin)
@@ -17,14 +8,12 @@ from sympy import (Eq, Indexed, cos, sin)
 from devito.dse.aliases import collect_aliases
 from devito.dse.clusterizer import clusterize
 from devito.dse.extended_sympy import bhaskara_cos, bhaskara_sin
-from devito.dse.graph import temporaries_graph
 from devito.dse.inspection import count, estimate_cost, estimate_memory
 from devito.dse.manipulation import (collect_nested, freeze_expression,
                                      xreplace_constrained)
-from devito.dse.queries import iq_timeinvariant, iq_timevarying, q_op, q_indexed
+from devito.dse.queries import iq_timeinvariant, iq_timevarying, q_op
 from devito.interfaces import ScalarFunction, TensorFunction
 from devito.logger import dse, dse_warning
-from devito.stencil import Stencil
 from devito.tools import flatten
 
 __all__ = ['rewrite']
@@ -32,36 +21,25 @@ __all__ = ['rewrite']
 _temp_prefix = 'temp'
 
 
-def rewrite(expr, stencil, mode='advanced'):
+def rewrite(clusters, mode='advanced'):
     """
-    Transform expressions to reduce their operation count.
+    Transform N :class:`Cluster`s of SymPy expressions into M :class:`Cluster`s
+    of SymPy expressions with reduced operation count, with M >= N.
 
-    :param expr: A SymPy expression, or an iterator of SymPy expressions.
-    :param stencil: A :class:`Stencil` for each of the provided SymPy expressions.
+    :param clusters: The clusters to be transformed.
     :param mode: drive the expression transformation as follows: ::
 
-         * 'noop': do nothing, but track performance metrics
-         * 'basic': apply common sub-expressions elimination.
-         * 'factorize': apply heuristic factorization of temporaries.
-         * 'approx-trigonometry': replace expensive trigonometric
+         * 'noop': Do nothing.
+         * 'basic': Apply common sub-expressions elimination.
+         * 'factorize': Apply heuristic factorization of temporaries.
+         * 'approx-trigonometry': Replace expensive trigonometric
              functions with suitable polynomial approximations.
-         * 'glicm': apply heuristic hoisting of time-invariant terms.
-         * 'advanced': compose all known transformations.
-
-    :return: A transformed sequence of SymPy expressions; also update ``stencil``
-             in place with a :class:`Stencil` for each of the new expressions.
+         * 'glicm': Heuristically hoist time-invariant and cross-stencil
+             redundancies.
+         * 'advanced': Compose all known transformations.
     """
-
-    if isinstance(expr, Sequence):
-        assert all(isinstance(e, Eq) for e in expr)
-        expr = list(expr)
-    elif isinstance(expr, Eq):
-        expr = [expr]
-    else:
-        raise ValueError("Got illegal expr of type %s." % type(expr))
-
     if not mode:
-        return expr
+        return clusters
     elif isinstance(mode, str):
         mode = set([mode])
     else:
@@ -69,45 +47,44 @@ def rewrite(expr, stencil, mode='advanced'):
             mode = set(mode)
         except TypeError:
             dse_warning("Arg mode must be str or tuple (got %s)" % type(mode))
-            return expr
+            return clusters
+
     if mode.isdisjoint(set(Rewriter.modes)):
         dse_warning("Unknown rewrite mode(s) %s" % str(mode))
-        return expr
+        return clusters
     else:
-        return Rewriter().run(expr, stencil, mode)
+        processed = []
+        for cluster in clusters:
+            rewriter = Rewriter(mode, profile=cluster.is_dense)
+            processed.extend(rewriter.run(cluster))
+        return processed
 
 
 def dse_pass(func):
 
     def wrapper(self, state, **kwargs):
-        if kwargs['mode'].intersection(set(self.triggers[func.__name__])):
+        if self.mode.intersection(set(self.triggers[func.__name__])):
             tic = time()
-            state.update(**func(self, state))
+            state.update(flatten([func(self, c) for c in state.clusters]))
             toc = time()
 
             key = '%s%d' % (func.__name__, len(self.timings))
             self.timings[key] = toc - tic
             if self.profile:
-                # Only count operations of those expressions that will be executed
-                # at every space-time iteration
-                traces = [c.trace for c in clusterize(state.exprs, state.stencils)]
-                exprs = flatten(i.values() for i in traces
-                                if i.space_indices and not i.time_invariant())
-                self.ops[key] = estimate_cost(exprs)
+                candidates = [c.exprs for c in state.clusters if c.is_dense]
+                self.ops[key] = estimate_cost(flatten(candidates))
 
     return wrapper
 
 
 class State(object):
 
-    def __init__(self, exprs, stencils):
-        self.exprs = exprs
-        self.stencils = stencils
+    def __init__(self, cluster):
+        self.clusters = [cluster]
         self.mapper = OrderedDict()
 
-    def update(self, exprs=None, stencils=None):
-        self.exprs = exprs or self.exprs
-        self.stencils.update(stencils or {})
+    def update(self, clusters):
+        self.clusters = clusters or self.clusters
 
     @property
     def time_invariants(self):
@@ -187,29 +164,31 @@ class Rewriter(object):
         'max-operands': 40,
     }
 
-    def __init__(self, profile=True):
+    def __init__(self, mode, profile=True):
+        self.mode = mode
         self.profile = profile
+
         self.ops = OrderedDict()
         self.timings = OrderedDict()
 
-    def run(self, exprs, stencils, mode):
-        state = State(exprs, stencils)
+    def run(self, cluster):
+        state = State(cluster)
 
-        self._extract_time_varying(state, mode=mode)
-        self._extract_time_invariants(state, mode=mode)
-        self._optimize_trigonometry(state, mode=mode)
-        self._eliminate_inter_stencil_redundancies(state, mode=mode)
-        self._eliminate_intra_stencil_redundancies(state, mode=mode)
-        self._factorize(state, mode=mode)
+        self._extract_time_varying(state)
+        self._extract_time_invariants(state)
+        self._optimize_trigonometry(state)
+        self._eliminate_inter_stencil_redundancies(state)
+        self._eliminate_intra_stencil_redundancies(state)
+        self._factorize(state)
 
-        self._finalize(state, mode=mode)
+        self._finalize(state)
 
-        self._summary(mode)
+        self._summary()
 
-        return state.exprs
+        return state.clusters
 
     @dse_pass
-    def _extract_time_varying(self, state, **kwargs):
+    def _extract_time_varying(self, cluster, **kwargs):
         """
         Extract time-varying subexpressions, and assign them to temporaries.
         Time varying subexpressions arise for example when approximating
@@ -219,16 +198,16 @@ class Rewriter(object):
         template = self.conventions['time-dependent'] + "%d"
         make = lambda i: ScalarFunction(name=template % i).indexify()
 
-        rule = iq_timevarying(state.exprs)
+        rule = iq_timevarying(cluster.trace)
 
         cm = lambda i: estimate_cost(i) > 0
 
-        processed = xreplace_constrained(state.exprs, make, rule, cm)
+        processed = xreplace_constrained(cluster.exprs, make, rule, cm)
 
-        return {'exprs': processed}
+        return cluster.rebuild(processed)
 
     @dse_pass
-    def _extract_time_invariants(self, state, **kwargs):
+    def _extract_time_invariants(self, cluster, **kwargs):
         """
         Extract time-invariant subexpressions, and assign them to temporaries.
         """
@@ -236,16 +215,16 @@ class Rewriter(object):
         template = self.conventions['time-invariant'] + "%d"
         make = lambda i: ScalarFunction(name=template % i).indexify()
 
-        rule = iq_timeinvariant(state.exprs)
+        rule = iq_timeinvariant(cluster.trace)
 
         cm = lambda e: estimate_cost(e) > 0
 
-        processed = xreplace_constrained(state.exprs, make, rule, cm)
+        processed = xreplace_constrained(cluster.exprs, make, rule, cm)
 
-        return {'exprs': processed}
+        return cluster.rebuild(processed)
 
     @dse_pass
-    def _eliminate_intra_stencil_redundancies(self, state, **kwargs):
+    def _eliminate_intra_stencil_redundancies(self, cluster, **kwargs):
         """
         Perform common subexpression elimination.
         """
@@ -255,8 +234,8 @@ class Rewriter(object):
         # - doesn't consider the possibliity of losing factorization opportunities
         # - very slow
 
-        skip = [e for e in state.exprs if e.lhs.base.function.is_TensorFunction]
-        candidates = [e for e in state.exprs if e not in skip]
+        skip = [e for e in cluster.exprs if e.lhs.base.function.is_TensorFunction]
+        candidates = [e for e in cluster.exprs if e not in skip]
 
         template = self.conventions['temporary'] + "%d"
 
@@ -285,10 +264,10 @@ class Rewriter(object):
         mapper = {i.lhs: j.lhs for i, j in zip(mapped, reversed(mapped))}
         processed = [e.xreplace(mapper) for e in processed]
 
-        return {'exprs': skip + processed}
+        return cluster.rebuild(skip + processed)
 
     @dse_pass
-    def _factorize(self, state, **kwargs):
+    def _factorize(self, cluster, **kwargs):
         """
         Collect terms in each expr in exprs based on the following heuristic:
 
@@ -300,7 +279,7 @@ class Rewriter(object):
         """
 
         processed = []
-        for expr in state.exprs:
+        for expr in cluster.exprs:
             handle = collect_nested(expr)
             cost_handle = estimate_cost(handle)
 
@@ -314,25 +293,25 @@ class Rewriter(object):
 
             processed.append(handle)
 
-        return {'exprs': processed}
+        return cluster.rebuild(processed)
 
     @dse_pass
-    def _optimize_trigonometry(self, state, **kwargs):
+    def _optimize_trigonometry(self, cluster, **kwargs):
         """
         Rebuild ``exprs`` replacing trigonometric functions with Bhaskara
         polynomials.
         """
 
         processed = []
-        for expr in state.exprs:
+        for expr in cluster.exprs:
             handle = expr.replace(sin, bhaskara_sin)
             handle = handle.replace(cos, bhaskara_cos)
             processed.append(handle)
 
-        return {'exprs': processed}
+        return cluster.rebuild(processed)
 
     @dse_pass
-    def _eliminate_inter_stencil_redundancies(self, state, **kwargs):
+    def _eliminate_inter_stencil_redundancies(self, cluster, **kwargs):
         """
         Search for redundancies across the expressions and expose them
         to the later stages of the optimisation pipeline by introducing
@@ -360,12 +339,12 @@ class Rewriter(object):
            temp2 = 3.0*ti[x,y,z+1]
         """
 
-        graph = temporaries_graph(state.exprs)
+        graph = cluster.trace
         indices = graph.space_indices
         shape = graph.space_shape
 
         # For more information about "aliases", refer to collect_aliases.__doc__
-        mapper, aliases = collect_aliases(state.exprs)
+        mapper, aliases = collect_aliases(cluster.exprs)
 
         # Template for captured redundancies
         name = self.conventions['redundancy'] + "%d"
@@ -376,6 +355,7 @@ class Rewriter(object):
         processed = []
         candidates = OrderedDict()
         for k, v in graph.items():
+            # Cost check (to keep the memory footprint under control)
             naliases = len(mapper.get(v.rhs, [v]))
             cost = estimate_cost(v, True)*naliases
             if cost >= self.thresholds['min-cost-time-hoist']\
@@ -399,44 +379,32 @@ class Rewriter(object):
                 coordinates = [sum([i, j]) for i, j in distance.items() if i in indices]
                 rules[candidates[aliased]] = Indexed(template(c), *tuple(coordinates))
 
-        # Switch temporaries in the expression trees
-        processed = found + [e.xreplace(rules) for e in processed]
+        # Create the alias clusters
+        alias_clusters = clusterize(found, stencils)
+        alias_clusters = sorted(alias_clusters, key=lambda i: i.is_dense)
 
-        return {'exprs': processed, 'stencils': stencils}
+        # Switch temporaries in the expression trees
+        processed = [e.xreplace(rules) for e in processed]
+
+        return alias_clusters + [cluster.rebuild(processed)]
 
     @dse_pass
-    def _finalize(self, state, **kwargs):
+    def _finalize(self, cluster, **kwargs):
         """
         Finalize the DSE output: ::
 
-            * Reordering. The expressions in ``state.exprs`` are reordered so
-              that all tensor temporaries will appear at the top, which honors
-              the computation semantics.
             * Freezing. Make sure that subsequent SymPy operations applied to
-              the expressions in ``state.exprs`` will not alter the effect of
+              the expressions in ``cluster.exprs`` will not alter the effect of
               the DSE passes.
         """
-        # Reordering
-        graph = temporaries_graph(state.exprs)
+        return cluster.rebuild([freeze_expression(e) for e in cluster.exprs])
 
-        def key(i):
-            return (not i.lhs.base.function.is_TensorFunction,
-                    not graph.time_invariant(i.rhs),
-                    state.exprs.index(i))
-
-        processed = sorted(state.exprs, key=key)
-
-        # Freezing
-        processed = [freeze_expression(e) for e in processed]
-
-        return {'exprs': processed}
-
-    def _summary(self, mode):
+    def _summary(self):
         """
         Print a summary of the DSE transformations
         """
 
-        if mode.intersection({'basic', 'advanced'}):
+        if self.profile:
             row = "%s [flops: %s, elapsed: %.2f]"
             summary = " >>\n     ".join(row % (filter(lambda c: not c.isdigit(), k[1:]),
                                                str(self.ops.get(k, "?")), v)

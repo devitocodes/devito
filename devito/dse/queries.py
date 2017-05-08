@@ -62,13 +62,9 @@ def q_indirect(expr):
     return any(retrieve_indexed(i) for i in expr.indices)
 
 
-def iq_timeinvariant(exprs):
-    from devito.dse.graph import temporaries_graph
-    graph = temporaries_graph(exprs)
+def iq_timeinvariant(graph):
     return lambda e: not e.is_Number and graph.time_invariant(e)
 
 
-def iq_timevarying(exprs):
-    from devito.dse.graph import temporaries_graph
-    graph = temporaries_graph(exprs)
+def iq_timevarying(graph):
     return lambda e: e.is_Number or not graph.time_invariant(e)

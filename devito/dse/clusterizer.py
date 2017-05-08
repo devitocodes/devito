@@ -5,13 +5,13 @@ from devito.dse.graph import temporaries_graph
 from devito.stencil import Stencil
 
 
-class Cluster(object):
+class BasicCluster(object):
 
     """
-    A Cluster is an ordered sequence of expressions that are necessary to
+    A BasicCluster is an ordered sequence of expressions that are necessary to
     compute a tensor, plus the tensor expression itself.
 
-    A Cluster is associated with a stencil, which tracks what neighboring points
+    A BasicCluster is associated with a stencil, which tracks what neighboring points
     are required, along each dimension, to compute an entry in the tensor.
 
     Examples
@@ -27,74 +27,63 @@ class Cluster(object):
         temp7[i] = temp5 + temp6 + temp4[k]
 
     There are three target expressions: temp3, temp4, temp7. There are therefore
-    three clusters: ((temp1, temp2, temp3), (temp2, temp4), (temp5, temp6, temp7)).
-    The first and second clusters share the expression temp2. Note that temp4 does
-    not appear in the third cluster, as it is not a scalar.
+    three BasicClusters: ((temp1, temp2, temp3), (temp2, temp4), (temp5, temp6, temp7)).
+    The first and the second share the expression temp2. Note that temp4 does
+    not appear in the third BasicCluster, as it is not a scalar.
     """
 
-    def __init__(self, trace, stencils):
-        self._full_trace = trace
-        self._output = trace.values()[-1]
-
-        # Compute the stencil of the cluster
-        stencil = Stencil(stencils[self.output.lhs].entries)
-        for i in trace:
-            if i in stencils:
-                stencil = stencil.add(stencils[i])
-        self._stencil = stencil.frozen
-
-    def _view(self, drop=lambda v: False):
-        cls = type(self._full_trace)
-        return cls([(k, v) for k, v in self._full_trace.items() if not drop(v)])
-
-    @property
-    def output(self):
-        return self._output
-
-    @property
-    def trace(self):
-        """The ordered collection of expressions to compute the output tensor."""
-        return self._view(drop=lambda v: v.is_tensor and v != self.output)
-
-    @property
-    def stencil(self):
-        return self._stencil
-
-
-class SuperCluster(object):
-
-    """
-    A SuperCluster represents the result of merging a collection of cluster.
-    """
-
-    @classmethod
-    def merge(cls, clusters):
-        """
-        Given an ordered collection of :class:`Cluster` objects, return a
-        (potentially) smaller sequence in which clusters with identical stencil
-        have been merged.
-        """
-        mapper = OrderedDict()
-        for c in clusters:
-            mapper.setdefault(c.stencil.entries, []).append(c)
-
-        processed = []
-        for entries, clusters in mapper.items():
-            # Eliminate redundant temporaries
-            temporaries = OrderedDict()
-            for c in clusters:
-                for k, v in c.trace.items():
-                    if k not in temporaries:
-                        temporaries[k] = v
-            # Squash the clusters together
-            supertrace = temporaries_graph(temporaries.values())
-            processed.append(SuperCluster(supertrace, Stencil(entries)))
-
-        return processed
-
-    def __init__(self, trace, stencil):
-        self.trace = trace
+    def __init__(self, exprs, stencil):
+        self.trace = temporaries_graph(exprs)
         self.stencil = stencil
+
+        self.output = exprs[-1]
+
+
+class Cluster(object):
+
+    """
+    A Cluster is obtained by merging an ordered collection of :class:`BasicCluster`
+    having identical stencil, so it has more than one output tensors.
+    """
+
+    def __init__(self, exprs, stencil):
+        self.trace = temporaries_graph(exprs)
+        self.stencil = stencil
+
+    @property
+    def exprs(self):
+        return self.trace.values()
+
+    @property
+    def is_dense(self):
+        return self.trace.space_indices and not self.trace.time_invariant()
+
+    def rebuild(self, exprs):
+        return Cluster(exprs, self.stencil)
+
+
+def merge(clusters):
+    """
+    Given an ordered collection of :class:`BasicCluster` objects, return a
+    (potentially) smaller sequence in which clusters with identical stencil
+    have been merged into a :class:`Cluster`.
+    """
+    mapper = OrderedDict()
+    for c in clusters:
+        mapper.setdefault(c.stencil.entries, []).append(c)
+
+    processed = []
+    for entries, clusters in mapper.items():
+        # Eliminate redundant temporaries
+        temporaries = OrderedDict()
+        for c in clusters:
+            for k, v in c.trace.items():
+                if k not in temporaries:
+                    temporaries[k] = v
+        # Squash the clusters together
+        processed.append(Cluster(temporaries.values(), Stencil(entries)))
+
+    return processed
 
 
 def clusterize(exprs, stencils):
@@ -105,8 +94,19 @@ def clusterize(exprs, stencils):
     clusters = []
     for i in targets:
         # Determine what temporaries are needed to compute /i/
-        trace = graph.trace(i)
-        # Create and track the cluster
-        clusters.append(Cluster(trace, stencils))
+        exprs = graph.trace(i)
 
-    return SuperCluster.merge(clusters)
+        # Determine the Stencil of the cluster
+        stencil = Stencil(stencils[i].entries)
+        for j in exprs:
+            if j.lhs in stencils:
+                stencil = stencil.add(stencils[j.lhs])
+        stencil = stencil.frozen
+
+        # Drop all non-output tensors, as computed by other clusters
+        exprs = [j for j in exprs if j.lhs.is_Symbol or j.lhs == i]
+
+        # Create and track the cluster
+        clusters.append(Cluster(exprs, stencil))
+
+    return merge(clusters)
