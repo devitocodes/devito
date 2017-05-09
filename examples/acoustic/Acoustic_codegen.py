@@ -51,7 +51,7 @@ class Acoustic_cg(object):
                              time_order=self.t_order, spc_order=self.s_order,
                              save=save, u_ini=u_ini, **kwargs)
 
-        summary = fw.apply(**kwargs)
+        summary = fw.apply(src=src, rec=rec, u=u, **kwargs)
         return rec.data, u, summary.gflopss, summary.oi, summary.timings
 
     def Adjoint(self, recin, u_ini=None, **kwargs):
@@ -76,7 +76,7 @@ class Acoustic_cg(object):
                               time_order=self.t_order, spc_order=self.s_order,
                               **kwargs)
 
-        summary = adj.apply(**kwargs)
+        summary = adj.apply(srca=srca, rec=rec, v=v, **kwargs)
         return srca.data, v, summary.gflopss, summary.oi, summary.timings
 
     def Gradient(self, recin, u, **kwargs):
@@ -104,7 +104,7 @@ class Acoustic_cg(object):
                                   time_order=self.t_order, spc_order=self.s_order,
                                   **kwargs)
 
-        summary = gradop.apply(**kwargs)
+        summary = gradop.apply(rec=rec, grad=grad, v=v, u=u, **kwargs)
         return grad.data, summary.gflopss, summary.oi, summary.timings
 
     def Born(self, dmin, **kwargs):
@@ -137,5 +137,5 @@ class Acoustic_cg(object):
                             time_order=self.t_order, spc_order=self.s_order,
                             **kwargs)
 
-        summary = born.apply(**kwargs)
+        summary = born.apply(u=u, U=U, src=src, rec=rec, dm=dm, **kwargs)
         return rec.data, u, U, summary.gflopss, summary.oi, summary.timings
