@@ -14,8 +14,7 @@ class Acoustic_cg(object):
 
     Note: s_order must always be greater than t_order
     """
-    def __init__(self, model, data, source, nbpml=40, t_order=2, s_order=2,
-                 auto_tuning=False, dse=True, dle='advanced', compiler=None):
+    def __init__(self, model, data, source, t_order=2, s_order=2):
         self.model = model
         self.t_order = t_order
         self.s_order = s_order
@@ -27,8 +26,7 @@ class Acoustic_cg(object):
         if self.t_order == 4:
             self.dt *= 1.73
 
-    def Forward(self, save=False, cache_blocking=None, auto_tuning=False,
-                dse='advanced', dle='advanced', compiler=None, u_ini=None):
+    def Forward(self, save=False, cache_blocking=None, u_ini=None, **kwargs):
         """
         Forward modelling
         """
@@ -51,14 +49,12 @@ class Acoustic_cg(object):
         # Execute operator and return wavefield and receiver data
         fw = ForwardOperator(self.model, u, src, rec,
                              time_order=self.t_order, spc_order=self.s_order,
-                             save=save, cache_blocking=cache_blocking, dse=dse,
-                             dle=dle, compiler=compiler, profile=True, u_ini=u_ini)
+                             save=save, u_ini=u_ini, **kwargs)
 
-        summary = fw.apply(autotune=auto_tuning)
+        summary = fw.apply(**kwargs)
         return rec.data, u, summary.gflopss, summary.oi, summary.timings
 
-    def Adjoint(self, recin, cache_blocking=None, auto_tuning=False,
-                dse='advanced', dle='advanced', compiler=None, u_ini=None):
+    def Adjoint(self, recin, u_ini=None, **kwargs):
         """
         Adjoint modelling
         """
@@ -78,14 +74,12 @@ class Acoustic_cg(object):
         # Execute operator and return wavefield and receiver data
         adj = AdjointOperator(self.model, v, srca, rec,
                               time_order=self.t_order, spc_order=self.s_order,
-                              cache_blocking=cache_blocking, dse=dse,
-                              dle=dle, compiler=compiler, profile=True)
+                              **kwargs)
 
-        summary = adj.apply(autotune=auto_tuning)
+        summary = adj.apply(**kwargs)
         return srca.data, v, summary.gflopss, summary.oi, summary.timings
 
-    def Gradient(self, recin, u, cache_blocking=None, auto_tuning=False,
-                 dse='advanced', dle='advanced', compiler=None):
+    def Gradient(self, recin, u, **kwargs):
         """
         Gradient operator (adjoint of Linearized Born modelling, action of
         the Jacobian adjoint on an input data)
@@ -108,14 +102,12 @@ class Acoustic_cg(object):
         # Execute operator and return wavefield and receiver data
         gradop = GradientOperator(self.model, v, grad, rec, u,
                                   time_order=self.t_order, spc_order=self.s_order,
-                                  cache_blocking=cache_blocking, dse=dse,
-                                  dle=dle, compiler=compiler, profile=True)
+                                  **kwargs)
 
-        summary = gradop.apply(autotune=auto_tuning)
+        summary = gradop.apply(**kwargs)
         return grad.data, summary.gflopss, summary.oi, summary.timings
 
-    def Born(self, dmin, cache_blocking=None, auto_tuning=False,
-             dse='advanced', dle='advanced', compiler=None):
+    def Born(self, dmin, **kwargs):
         """
         Linearized Born modelling
         """
@@ -143,8 +135,7 @@ class Acoustic_cg(object):
         # Execute operator and return wavefield and receiver data
         born = BornOperator(self.model, u, U, src, rec, dm,
                             time_order=self.t_order, spc_order=self.s_order,
-                            cache_blocking=cache_blocking, dse=dse,
-                            dle=dle, compiler=compiler, profile=True)
+                            **kwargs)
 
-        summary = born.apply(autotune=auto_tuning)
+        summary = born.apply(**kwargs)
         return rec.data, u, U, summary.gflopss, summary.oi, summary.timings

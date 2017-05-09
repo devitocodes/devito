@@ -94,7 +94,7 @@ def test_acoustic(dimensions, time_order, space_order):
 
     # Adjoint test
     acoustic = Acoustic_cg(model, data, src, t_order=time_order,
-                           s_order=space_order, nbpml=nbpml)
+                           s_order=space_order)
     rec, _, _, _, _ = acoustic.Forward(save=False)
     srca, _, _, _, _ = acoustic.Adjoint(rec)
     # Actual adjoint test

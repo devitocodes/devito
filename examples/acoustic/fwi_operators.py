@@ -34,18 +34,12 @@ def ForwardOperator(model, u, src, rec, time_order=2, spc_order=6,
         # eqn = m * u.dt2 - laplacian - s**2 / 12 * biharmonic + damp * u.dt
         dt = 1.73 * model.critical_dt
 
+    # Derive both stencils from symbolic equation:
     # Create the stencil by hand instead of calling numpy solve for speed purposes
     # Simple linear solve of a u(t+dt) + b u(t) + c u(t-dt) = L for u(t+dt)
     stencil = 1 / (2 * m + s * damp) * (
         4 * m * u + (s * damp - 2 * m) * u.backward +
         2 * s**2 * (laplacian + s**2 / 12 * biharmonic))
-    # Add substitutions for spacing (temporal and spatial)
-    subs = {s: dt, h: model.get_spacing()}
-
-    dse = kwargs.get('dse', 'advanced')
-    dle = kwargs.get('dle', 'advanced')
-
-    # Create stencil expression
     eqn = Eq(u.forward, stencil)
 
     # Construct expression to inject source values
@@ -60,8 +54,8 @@ def ForwardOperator(model, u, src, rec, time_order=2, spc_order=6,
     receivers = Eq(rec, rec.interpolate(expr=u, offset=model.nbpml))
 
     return Operator(stencils=[eqn] + source + [receivers],
-                    subs=subs, dse=dse, dle=dle,
-                    time_axis=Forward, name="Forward")
+                    subs={s: dt, h: model.get_spacing()},
+                    time_axis=Forward, name='Forward', **kwargs)
 
 
 def AdjointOperator(model, v, srca, rec, time_order=2, spc_order=6,
@@ -77,7 +71,6 @@ def AdjointOperator(model, v, srca, rec, time_order=2, spc_order=6,
     """
     m, damp = model.m, model.damp
 
-    # Derive stencil from symbolic equation
     if time_order == 2:
         laplacian = v.laplace
         biharmonic = 0
@@ -91,18 +84,10 @@ def AdjointOperator(model, v, srca, rec, time_order=2, spc_order=6,
         # eqn = m * u.dt2 - laplacian - s**2 / 12 * biharmonic + damp * u.dt
         dt = 1.73 * model.critical_dt
 
-    # Create the stencil by hand instead of calling numpy solve for speed purposes
-    # Simple linear solve of a u(t+dt) + b u(t) + c u(t-dt) = L for u(t+dt)
+    # Derive both stencils from symbolic equation
     stencil = 1 / (2 * m + s * damp) * (
         4 * m * v + (s * damp - 2 * m) * v.forward +
         2 * s**2 * (laplacian + s**2 / 12 * biharmonic))
-    # Add substitutions for spacing (temporal and spatial)
-    subs = {s: dt, h: model.get_spacing()}
-
-    dse = kwargs.get('dse', 'advanced')
-    dle = kwargs.get('dle', 'advanced')
-
-    # Create stencil expressions for operator, source and receivers
     eqn = Eq(v.backward, stencil)
 
     # Construct expression to inject receiver values
@@ -114,8 +99,8 @@ def AdjointOperator(model, v, srca, rec, time_order=2, spc_order=6,
     source_a = Eq(srca, srca.interpolate(expr=v, offset=model.nbpml))
 
     return Operator(stencils=[eqn] + receivers + [source_a],
-                    subs=subs, dse=dse, dle=dle,
-                    time_axis=Backward, name="Adjoint")
+                    subs={s: dt, h: model.get_spacing()},
+                    time_axis=Backward, name='Adjoint', **kwargs)
 
 
 def GradientOperator(model, v, grad, rec, u, time_order=2, spc_order=6,
@@ -152,20 +137,10 @@ def GradientOperator(model, v, grad, rec, u, time_order=2, spc_order=6,
                              (u.dt2 -
                               s ** 2 / 12.0 * biharmonicu) * v)
 
-    # Create the stencil by hand instead of calling numpy solve for speed purposes
-    # Simple linear solve of a v(t+dt) + b u(t) + c v(t-dt) = L for v(t-dt)
+    # Derive stencil from symbolic equation
     stencil = 1.0 / (2.0 * m + s * damp) * \
         (4.0 * m * v + (s * damp - 2.0 * m) *
          v.forward + 2.0 * s ** 2 * (laplacian + s**2 / 12.0 * biharmonic))
-    # Add substitutions for spacing (temporal and spatial)
-    subs = {s: dt, h: model.get_spacing()}
-    # Add Gradient-specific updates. The dt2 is currently hacky
-    #  as it has to match the cyclic indices
-
-    dse = kwargs.get('dse', 'advanced')
-    dle = kwargs.get('dle', 'advanced')
-
-    # Create stencil expressions for operator
     eqn = Eq(v.backward, stencil)
 
     # Add expression for receiver injection
@@ -174,8 +149,8 @@ def GradientOperator(model, v, grad, rec, u, time_order=2, spc_order=6,
                            expr=rec.indexed[time, ...] * dt * dt / m)
 
     return Operator(stencils=[eqn] + [gradient_update] + receivers,
-                    subs=subs, dse=dse, dle=dle,
-                    time_axis=Backward, name="Gradient")
+                    subs={s: dt, h: model.get_spacing()},
+                    time_axis=Backward, name='Gradient', **kwargs)
 
 
 def BornOperator(model, u, U, src, rec, dm, time_order=2, spc_order=6,
@@ -209,6 +184,7 @@ def BornOperator(model, u, U, src, rec, dm, time_order=2, spc_order=6,
         # first_eqn = m * u.dt2 - u.laplace + damp * u.dt
         # second_eqn = m * U.dt2 - U.laplace - dm* u.dt2 + damp * U.dt
 
+    # Derive both stencils from symbolic equation
     stencil1 = 1.0 / (2.0 * m + s * damp) * \
         (4.0 * m * u + (s * damp - 2.0 * m) *
          u.backward + 2.0 * s ** 2 * (laplacianu + s**2 / 12 * biharmonicu))
@@ -216,13 +192,6 @@ def BornOperator(model, u, U, src, rec, dm, time_order=2, spc_order=6,
         (4.0 * m * U + (s * damp - 2.0 * m) *
          U.backward + 2.0 * s ** 2 * (laplacianU +
                                       s**2 / 12 * biharmonicU - dm * u.dt2))
-    # Add substitutions for spacing (temporal and spatial)
-    subs = {s: dt, h: model.get_spacing()}
-
-    dse = kwargs.get('dse', None)
-    dle = kwargs.get('dle', None)
-
-    # Create stencil expressions for operator, source and receivers
     eqn1 = Eq(u.forward, stencil1)
     eqn2 = Eq(U.forward, stencil2)
 
@@ -234,5 +203,5 @@ def BornOperator(model, u, U, src, rec, dm, time_order=2, spc_order=6,
     receivers = Eq(rec, rec.interpolate(expr=U, offset=model.nbpml))
 
     return Operator(stencils=[eqn1] + source + [eqn2] + [receivers],
-                    subs=subs, dse=dse, dle=dle,
-                    time_axis=Forward, name="Born")
+                    subs={s: dt, h: model.get_spacing()},
+                    time_axis=Forward, name='Born', **kwargs)
