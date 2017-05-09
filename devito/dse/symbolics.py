@@ -146,7 +146,7 @@ class Rewriter(object):
     Track what options trigger a given pass.
     """
     triggers = {
-        '_extract_time_varying': ('advanced',),
+        '_extract_time_varying': ('future',),
         '_extract_time_invariants': ('advanced',),
         '_eliminate_intra_stencil_redundancies': ('basic', 'advanced'),
         '_eliminate_inter_stencil_redundancies': ('glicm', 'advanced'),
@@ -387,8 +387,6 @@ class Rewriter(object):
                 candidates[v.rhs] = k
             else:
                 processed.append(Eq(k, v.rhs))
-
-        # TODO need a way of incorporating the time dimension in the stencil
 
         # Create temporaries capturing redundant computation
         found = []
