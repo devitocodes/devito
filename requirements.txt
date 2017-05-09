@@ -3,6 +3,7 @@ sympy>=0.7.6
 mpmath>=0.19
 pytest
 flake8>=2.1.0
+cached_property
 isort
 py-cpuinfo
 psutil>=5.1.0

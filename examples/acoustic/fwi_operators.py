@@ -1,11 +1,12 @@
 from sympy import Eq
 from sympy.abc import h, s
 
-from devito import Operator, Forward, Backward, time
+from devito import Operator, Forward, Backward, DenseData, TimeData, t, time
+from examples.seismic import PointSource, Receiver
 
 
-def ForwardOperator(model, u, src, rec, time_order=2, spc_order=6,
-                    save=False, u_ini=None, **kwargs):
+def ForwardOperator(model, data, source, time_order=2, space_order=4,
+                    save=False, **kwargs):
     """
     Constructor method for the forward modelling operator in an acoustic media
 
@@ -19,6 +20,16 @@ def ForwardOperator(model, u, src, rec, time_order=2, spc_order=6,
      required for the time marching scheme
     """
     m, damp = model.m, model.damp
+
+    # Create the forward wavefield
+    u = TimeData(name='u', shape=model.shape_domain, time_dim=data.shape[0],
+                 time_order=time_order, space_order=space_order, save=save,
+                 dtype=model.dtype)
+    # Create source and receiver symbols
+    src = PointSource(name='src', ntime=data.shape[0],
+                      coordinates=source.receiver_coords)
+    rec = Receiver(name='rec', ntime=data.shape[0],
+                   coordinates=data.receiver_coords)
 
     # Derive stencil from symbolic equation
     if time_order == 2:
@@ -40,26 +51,25 @@ def ForwardOperator(model, u, src, rec, time_order=2, spc_order=6,
     stencil = 1 / (2 * m + s * damp) * (
         4 * m * u + (s * damp - 2 * m) * u.backward +
         2 * s**2 * (laplacian + s**2 / 12 * biharmonic))
-    eqn = Eq(u.forward, stencil)
+    eqn = [Eq(u.forward, stencil)]
 
     # Construct expression to inject source values
     # Note that src and field terms have differing time indices:
     #   src[time, ...] - always accesses the "unrolled" time index
     #   u[ti + 1, ...] - accesses the forward stencil value
     ti = u.indices[0]
-    source = src.inject(field=u, u_t=ti + 1, offset=model.nbpml,
-                        expr=src * dt * dt / m, p_t=time)
+    src_term = src.inject(field=u, u_t=ti + 1, offset=model.nbpml,
+                          expr=src * dt * dt / m, p_t=time)
 
     # Create interpolation expression for receivers
-    receivers = rec.interpolate(expr=u, u_t=ti, offset=model.nbpml)
+    rec_term = rec.interpolate(expr=u, u_t=ti, offset=model.nbpml)
 
-    return Operator(stencils=[eqn] + source + receivers,
+    return Operator(stencils=eqn + src_term + rec_term,
                     subs={s: dt, h: model.get_spacing()},
                     time_axis=Forward, name='Forward', **kwargs)
 
 
-def AdjointOperator(model, v, srca, rec, time_order=2, spc_order=6,
-                    save=False, u_ini=None, **kwargs):
+def AdjointOperator(model, source, data, time_order=2, space_order=4, **kwargs):
     """
     Class to setup the adjoint modelling operator in an acoustic media
 
@@ -70,6 +80,15 @@ def AdjointOperator(model, v, srca, rec, time_order=2, spc_order=6,
     :param: spc_order: Space discretization order
     """
     m, damp = model.m, model.damp
+    nt = data.shape[0]
+
+    v = TimeData(name='v', shape=model.shape_domain, save=False,
+                 time_order=time_order, space_order=space_order,
+                 dtype=model.dtype)
+    rec = Receiver(name='rec', ntime=nt,
+                   coordinates=data.receiver_coords)
+    srca = PointSource(name='srca', ntime=nt,
+                       coordinates=source.receiver_coords)
 
     if time_order == 2:
         laplacian = v.laplace
@@ -103,8 +122,7 @@ def AdjointOperator(model, v, srca, rec, time_order=2, spc_order=6,
                     time_axis=Backward, name='Adjoint', **kwargs)
 
 
-def GradientOperator(model, v, grad, rec, u, time_order=2, spc_order=6,
-                     **kwargs):
+def GradientOperator(model, source, data, time_order=2, space_order=4, **kwargs):
     """
     Class to setup the gradient operator in an acoustic media
 
@@ -116,6 +134,20 @@ def GradientOperator(model, v, grad, rec, u, time_order=2, spc_order=6,
     :param: spc_order: Space discretization order
     """
     m, damp = model.m, model.damp
+    nt = data.shape[0]
+
+    # Gradient symbol
+    grad = DenseData(name='grad', shape=model.shape_domain,
+                     dtype=model.dtype)
+    u = TimeData(name='u', shape=model.shape_domain, save=True,
+                 time_dim=nt,
+                 time_order=time_order, space_order=space_order,
+                 dtype=model.dtype)
+    v = TimeData(name='v', shape=model.shape_domain,save=False,
+                 time_order=time_order, space_order=space_order,
+                 dtype=model.dtype)
+    rec = Receiver(name='rec', ntime=nt,
+                   coordinates=data.receiver_coords)
 
     # Derive stencil from symbolic equation
     if time_order == 2:
@@ -153,8 +185,7 @@ def GradientOperator(model, v, grad, rec, u, time_order=2, spc_order=6,
                     time_axis=Backward, name='Gradient', **kwargs)
 
 
-def BornOperator(model, u, U, src, rec, dm, time_order=2, spc_order=6,
-                 **kwargs):
+def BornOperator(model, source, data, time_order=2, space_order=4, **kwargs):
     """
     Class to setup the linearized modelling operator in an acoustic media
 
@@ -167,6 +198,23 @@ def BornOperator(model, u, U, src, rec, dm, time_order=2, spc_order=6,
     :param: spc_order: Space discretization order
     """
     m, damp = model.m, model.damp
+    nt = data.shape[0]
+
+    # Create source and receiver symbols
+    src = PointSource(name='src', ntime=nt,
+                      coordinates=source.receiver_coords)
+    rec = Receiver(name='rec', ntime=data.shape[0],
+                   coordinates=data.receiver_coords)
+
+    # Create the forward wavefield
+    u = TimeData(name="u", shape=model.shape_domain, time_dim=nt,
+                 time_order=2, space_order=space_order,
+                 dtype=model.dtype)
+    U = TimeData(name="U", shape=model.shape_domain, time_dim=nt,
+                 time_order=2, space_order=space_order,
+                 dtype=model.dtype)
+    dm = DenseData(name="dm", shape=model.shape_domain,
+                   dtype=model.dtype)
 
     # Derive stencils from symbolic equation
     if time_order == 2:

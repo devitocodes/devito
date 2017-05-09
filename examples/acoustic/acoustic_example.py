@@ -80,10 +80,10 @@ def run(dimensions=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=1000.0,
                            s_order=space_order)
 
     info("Applying Forward")
-    rec, u, gflopss, oi, timings = Acoustic.Forward(save=full_run, **kwargs)
+    rec, u, summary = Acoustic.Forward(save=full_run, **kwargs)
 
     if not full_run:
-        return gflopss, oi, timings, [rec, u.data]
+        return summary.gflopss, summary.oi, summary.timings, [rec, u.data]
 
     info("Applying Adjoint")
     Acoustic.Adjoint(rec, **kwargs)

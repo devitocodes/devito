@@ -105,11 +105,11 @@ def test_gradient(dimensions, time_order, space_order):
     # Change to the smooth velocity
     wave.model.m.data[:] = wave.model.pad(1 / initial_vp ** 2)
     # Data and wavefield for the smooth velocity
-    rec0, u0, _, _, _ = wave.Forward(save=True)
+    rec0, u0, _ = wave.Forward(save=True)
     # Objective function value
     F0 = .5*linalg.norm(rec0 - rec)**2
     # Gradient
-    gradient, _, _, _ = wave.Gradient(rec0 - rec, u0)
+    gradient, _ = wave.Gradient(rec0 - rec, u0)
     # <J^T \delta d, dm>
     G = np.dot(gradient.reshape(-1), wave.model.pad(dm).reshape(-1))
     # FWI Gradient test

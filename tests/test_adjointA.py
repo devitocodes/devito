@@ -95,8 +95,9 @@ def test_acoustic(dimensions, time_order, space_order):
     # Adjoint test
     acoustic = Acoustic_cg(model, data, src, t_order=time_order,
                            s_order=space_order)
-    rec, _, _, _, _ = acoustic.Forward(save=False)
-    srca, _, _, _, _ = acoustic.Adjoint(rec)
+    rec, _, _ = acoustic.Forward(save=False)
+    srca, _, _ = acoustic.Adjoint(rec)
+
     # Actual adjoint test
     term1 = np.dot(srca.reshape(-1), time_series)
     term2 = linalg.norm(rec) ** 2
