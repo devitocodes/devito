@@ -29,70 +29,11 @@ class DevitoRewriter(BasicRewriter):
     def _pipeline(self, state):
         self._avoid_denormals(state)
         self._loop_fission(state)
-        self._padding(state)
         self._create_elemental_functions(state)
         self._loop_blocking(state)
         self._simdize(state)
         if self.params.get('openmp') is True:
             self._ompize(state)
-
-    @dle_pass
-    def _padding(self, state, **kwargs):
-        """
-        Introduce temporary buffers padded to the nearest multiple of the vector
-        length, to maximize data alignment. At the bottom of the kernel, the
-        values in the padded temporaries will be copied back into the input arrays.
-        """
-
-        mapper = OrderedDict()
-        for node in state.nodes:
-            # Assess feasibility of the transformation
-            handle = FindSymbols('symbolics-writes').visit(node)
-            if not handle:
-                continue
-
-            shape = max([i.shape for i in handle], key=len)
-            if not shape:
-                continue
-
-            candidates = [i for i in handle if i.shape[-1] == shape[-1]]
-            if not candidates:
-                continue
-
-            # Retrieve the maximum number of items in a SIMD register when processing
-            # the expressions in /node/
-            exprs = FindNodes(Expression).visit(node)
-            exprs = [e for e in exprs if e.output_function in candidates]
-            assert len(exprs) > 0
-            dtype = exprs[0].dtype
-            assert all(e.dtype == dtype for e in exprs)
-            try:
-                simd_items = get_simd_items(dtype)
-            except KeyError:
-                # Fallback to 16 (maximum expectable padding, for AVX512 registers)
-                simd_items = simdinfo['avx512f'] / np.dtype(dtype).itemsize
-
-            shapes = {k: k.shape[:-1] + (roundm(k.shape[-1], simd_items),)
-                      for k in candidates}
-            mapper.update(OrderedDict([(k.indexed,
-                                        TensorFunction(name='p%s' % k.name,
-                                                       shape=shapes[k],
-                                                       dimensions=k.indices,
-                                                       onstack=k._mem_stack).indexed)
-                          for k in candidates]))
-
-        # Substitute original arrays with padded buffers
-        processed = [SubstituteExpression(mapper).visit(n) for n in state.nodes]
-
-        # Build Iteration trees for initialization and copy-back of padded arrays
-        mapper = OrderedDict([(k, v) for k, v in mapper.items()
-                              if k.function.is_SymbolicData])
-        init = copy_arrays(mapper, reverse=True)
-        copyback = copy_arrays(mapper)
-
-        processed = init + as_tuple(processed) + copyback
-
-        return {'nodes': processed}
 
     @dle_pass
     def _loop_fission(self, state, **kwargs):
@@ -375,6 +316,64 @@ class DevitoSpeculativeRewriter(DevitoRewriter):
         self._nontemporal_stores(state)
         if self.params.get('openmp') is True:
             self._ompize(state)
+
+    @dle_pass
+    def _padding(self, state, **kwargs):
+        """
+        Introduce temporary buffers padded to the nearest multiple of the vector
+        length, to maximize data alignment. At the bottom of the kernel, the
+        values in the padded temporaries will be copied back into the input arrays.
+        """
+
+        mapper = OrderedDict()
+        for node in state.nodes:
+            # Assess feasibility of the transformation
+            handle = FindSymbols('symbolics-writes').visit(node)
+            if not handle:
+                continue
+
+            shape = max([i.shape for i in handle], key=len)
+            if not shape:
+                continue
+
+            candidates = [i for i in handle if i.shape[-1] == shape[-1]]
+            if not candidates:
+                continue
+
+            # Retrieve the maximum number of items in a SIMD register when processing
+            # the expressions in /node/
+            exprs = FindNodes(Expression).visit(node)
+            exprs = [e for e in exprs if e.output_function in candidates]
+            assert len(exprs) > 0
+            dtype = exprs[0].dtype
+            assert all(e.dtype == dtype for e in exprs)
+            try:
+                simd_items = get_simd_items(dtype)
+            except KeyError:
+                # Fallback to 16 (maximum expectable padding, for AVX512 registers)
+                simd_items = simdinfo['avx512f'] / np.dtype(dtype).itemsize
+
+            shapes = {k: k.shape[:-1] + (roundm(k.shape[-1], simd_items),)
+                      for k in candidates}
+            mapper.update(OrderedDict([(k.indexed,
+                                        TensorFunction(name='p%s' % k.name,
+                                                       shape=shapes[k],
+                                                       dimensions=k.indices,
+                                                       onstack=k._mem_stack).indexed)
+                          for k in candidates]))
+
+        # Substitute original arrays with padded buffers
+        processed = [SubstituteExpression(mapper).visit(n) for n in state.nodes]
+
+        # Build Iteration trees for initialization and copy-back of padded arrays
+        mapper = OrderedDict([(k, v) for k, v in mapper.items()
+                              if k.function.is_SymbolicData])
+        init = copy_arrays(mapper, reverse=True)
+        copyback = copy_arrays(mapper)
+
+        processed = init + as_tuple(processed) + copyback
+
+        return {'nodes': processed}
 
     @dle_pass
     def _nontemporal_stores(self, state, **kwargs):
