@@ -141,8 +141,9 @@ def ForwardOperator(model, u, v, src, rec, data, time_order=2,
     dse = kwargs.get('dse', 'advanced')
     dle = kwargs.get('dle', 'advanced')
 
-    stencils += src.point2grid(u, m, u_t=t, p_t=time)
-    stencils += src.point2grid(v, m, u_t=t, p_t=time)
-    stencils += [Eq(rec, rec.grid2point(u) + rec.grid2point(v))]
+    stencils += src.inject(field=u, expr=src * dt * dt / m, offset=model.nbpml)
+    stencils += src.inject(field=v, expr=src * dt * dt / m, offset=model.nbpml)
+    stencils += [Eq(rec, rec.interpolate(expr=u, offset=model.nbpml))]
+    stencils += [Eq(rec, rec.interpolate(expr=v, offset=model.nbpml))]
 
     return Operator(stencils=stencils, subs=subs, dse=dse, dle=dle)

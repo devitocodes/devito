@@ -1,14 +1,12 @@
 import numpy as np
 import pytest
 
-from devito.dimension import Dimension, time
 from devito.dse.graph import temporaries_graph
 from devito.dse.symbolics import rewrite
 from devito.interfaces import TimeData
 from examples.acoustic.Acoustic_codegen import Acoustic_cg
 from examples.containers import IShot
-from examples.seismic import Model
-from examples.source_type import SourceLike
+from examples.seismic import Model, PointSource, Receiver
 from examples.tti.tti_example import setup
 from examples.tti.tti_operators import ForwardOperator
 
@@ -59,7 +57,7 @@ def run_acoustic_forward(dse=None):
     receiver_coords[:, 2] = location[0, 1]
     data.set_receiver_pos(receiver_coords)
     data.set_shape(nt, 101)
-    acoustic = Acoustic_cg(model, data, src, dse=dse)
+    acoustic = Acoustic_cg(model, data, src)
     rec, u, _, _, _ = acoustic.Forward(save=False, dse=dse)
 
     return rec, u
@@ -79,30 +77,18 @@ def tti_operator(dse=False):
     problem = setup(dimensions=(50, 50, 50), time_order=2,
                     space_order=4, tn=250.0)
     nt, nrec = problem.data.shape
-    nsrc = problem.source.shape[1]
-    ndim = len(problem.model.shape)
-    dt = problem.dt
-    h = problem.model.get_spacing()
     dtype = problem.model.dtype
-    nbpml = problem.model.nbpml
 
     u = TimeData(name="u", shape=problem.model.shape_domain,
                  time_dim=nt, time_order=2, space_order=2, dtype=dtype)
     v = TimeData(name="v", shape=problem.model.shape_domain,
                  time_dim=nt, time_order=2, space_order=2, dtype=dtype)
 
-    # Create source symbol
-    p_src = Dimension('p_src', size=nsrc)
-    src = SourceLike(name="src", dimensions=[time, p_src], npoint=nsrc, nt=nt,
-                     dt=dt, h=h, ndim=ndim, nbpml=nbpml, dtype=dtype,
-                     coordinates=problem.source.receiver_coords)
-    src.data[:] = .5 * problem.source.traces[:]
-
-    # Create receiver symbol
-    p_rec = Dimension('p_rec', size=nrec)
-    rec = SourceLike(name="rec", dimensions=[time, p_rec], npoint=nrec, nt=nt,
-                     dt=dt, h=h, ndim=ndim, nbpml=nbpml, dtype=dtype,
-                     coordinates=problem.data.receiver_coords)
+    # Create source and receiver symbol
+    src = PointSource(name='src', data=0.5 * problem.source.traces,
+                      coordinates=problem.source.receiver_coords)
+    rec = Receiver(name='rec', ntime=nt,
+                   coordinates=problem.data.receiver_coords)
 
     handle = ForwardOperator(problem.model, u, v, src, rec,
                              problem.data, time_order=problem.t_order,
