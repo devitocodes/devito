@@ -1,7 +1,7 @@
 from sympy import Eq, sin, cos
 from sympy.abc import h, s
 
-from devito import Operator, DenseData, x, y, z, t, time
+from devito import Operator, DenseData, x, y, z
 from devito.finite_difference import centered, first_derivative, right, transpose
 
 

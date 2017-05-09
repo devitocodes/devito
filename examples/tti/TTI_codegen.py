@@ -20,11 +20,6 @@ class TTI_cg:
 
     def Forward(self, save=False, u_ini=None, **kwargs):
         nt, nrec = self.data.shape
-        nsrc = self.source.shape[1]
-        ndim = len(self.model.shape)
-        h = self.model.get_spacing()
-        dtype = self.model.dtype
-        nbpml = self.model.nbpml
 
         # uses space_order/2 for the first derivatives to
         # have spc_order second derivatives for consistency
