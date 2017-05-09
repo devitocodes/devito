@@ -331,7 +331,8 @@ class Rewriter(object):
                 mapper = {tree[0]: Iteration(properties=properties, **args)}
                 nodes = Transformer(mapper).visit(nodes)
             mapper = {i: ('parallel',) for i in tree[is_OSIP:]}
-            mapper[tree[-1]] += ('vector-dim',)
+            if len(mapper) > 0:
+                mapper[tree[-1]] += ('vector-dim',)
             for i in tree[is_OSIP:]:
                 args = i.args
                 properties = as_tuple(args.pop('properties')) + mapper[i]

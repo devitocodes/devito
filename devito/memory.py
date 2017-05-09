@@ -73,8 +73,9 @@ def first_touch(array):
     in the same pattern that would later be used to access it.
     """
     from devito.propagator import Propagator
-    from devito.interfaces import TimeData, PointData
+    from devito.interfaces import TimeData
     from devito.nodes import Iteration
+    from devito.pointdata import PointData
 
     exp_init = [Eq(array.indexed[array.indices], 0)]
     it_init = []

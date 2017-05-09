@@ -1,8 +1,6 @@
 from sympy import Eq, Function, Matrix, symbols
 
-from devito.dimension import t
-from devito.interfaces import PointData, DenseData
-from devito.nodes import Iteration
+from devito import Iteration, DenseData, PointData, t
 
 
 class SourceLike(PointData):

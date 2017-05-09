@@ -9,6 +9,7 @@ from devito.operator import *  # noqa
 from devito.interfaces import *  # noqa
 from devito.interfaces import _SymbolCache
 from devito.nodes import *  # noqa
+from devito.pointdata import *  # noqa
 
 
 def clear_cache():

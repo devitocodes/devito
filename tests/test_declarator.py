@@ -103,14 +103,14 @@ def test_stack_vector_temporaries(c_stack, e):
   {
     for (int s = 0; s < 4; s += 1)
     {
-      for (int p = 0; p < 4; p += 1)
+      for (int q = 0; q < 4; q += 1)
       {
         double c_stack[3][5] __attribute__((aligned(64)));
         for (int i = 0; i < 3; i += 1)
         {
           for (int j = 0; j < 5; j += 1)
           {
-            c_stack[i][j] = 1.0F*e[k][s][p][i][j];
+            c_stack[i][j] = 1.0F*e[k][s][q][i][j];
           }
         }
       }
