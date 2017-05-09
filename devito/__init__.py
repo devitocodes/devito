@@ -3,10 +3,9 @@ import gc
 
 from sympy.core import cache
 
-from devito.operator import *  # noqa
 from devito.finite_difference import *  # noqa
 from devito.dimension import *  # noqa
-from devito.stencilkernel import *  # noqa
+from devito.operator import *  # noqa
 from devito.interfaces import *  # noqa
 from devito.interfaces import _SymbolCache
 from devito.nodes import *  # noqa

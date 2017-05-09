@@ -101,15 +101,15 @@ def test_gradient(dimensions, time_order, space_order):
     wave = Acoustic_cg(model, data, src, t_order=time_order,
                        s_order=space_order, nbpml=nbpml)
     # Data for the true velocity
-    rec = wave.Forward(legacy=False)[0]
+    rec = wave.Forward()[0]
     # Change to the smooth velocity
     wave.model.m.data[:] = wave.model.pad(1 / initial_vp ** 2)
     # Data and wavefield for the smooth velocity
-    rec0, u0, _, _, _ = wave.Forward(save=True, legacy=False)
+    rec0, u0, _, _, _ = wave.Forward(save=True)
     # Objective function value
     F0 = .5*linalg.norm(rec0 - rec)**2
     # Gradient
-    gradient, _, _, _ = wave.Gradient(rec0 - rec, u0, legacy=False)
+    gradient, _, _, _ = wave.Gradient(rec0 - rec, u0)
     # <J^T \delta d, dm>
     G = np.dot(gradient.reshape(-1), wave.model.pad(dm).reshape(-1))
     # FWI Gradient test
@@ -120,7 +120,7 @@ def test_gradient(dimensions, time_order, space_order):
         # Add the perturbation to the model
         wave.model.m.data[:] = wave.model.pad(m0 + H[i] * dm)
         # Data for the new model
-        d = wave.Forward(legacy=False)[0]
+        d = wave.Forward()[0]
         # First order error Phi(m0+dm) - Phi(m0)
         error1[i] = np.absolute(.5*linalg.norm(d - rec)**2 - F0)
         # Second order term r Phi(m0+dm) - Phi(m0) - <J(m0)^T \delta d, dm>

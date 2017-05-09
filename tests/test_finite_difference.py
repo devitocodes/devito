@@ -2,8 +2,7 @@ import numpy as np
 import pytest
 from sympy import Eq, diff, symbols
 
-from devito import StencilKernel, clear_cache
-from devito.interfaces import DenseData
+from devito import Operator, clear_cache, DenseData
 
 
 @pytest.mark.parametrize('space_order', [2, 4, 6, 8, 10, 12, 14, 16, 18, 20])
@@ -39,7 +38,7 @@ def test_fd_space(derivative, space_order):
     u_deriv = getattr(u, derivative)
     # Compute numerical FD
     stencil = Eq(du, u_deriv)
-    op = StencilKernel(stencil, subs={h: dx})
+    op = Operator(stencil, subs={h: dx})
     op.apply()
 
     # Check exactness of the numerical derivative except inside space_brd

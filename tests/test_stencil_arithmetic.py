@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 from sympy import Eq  # noqa
 
-from devito import DenseData, TimeData, Dimension, StencilKernel, time, t, x, y, z
+from devito import Operator, DenseData, TimeData, Dimension, time, t, x, y, z
 
 
 @pytest.fixture
@@ -49,7 +49,7 @@ def test_arithmetic_flat(i, j, expr, result, mode):
     fb = b.base.function if mode == 'indexed' else b
 
     eqn = eval(expr)
-    StencilKernel(eqn)(fa, fb)
+    Operator(eqn)(fa, fb)
     assert np.allclose(fa.data, result, rtol=1e-12)
 
 
@@ -68,7 +68,7 @@ def test_arithmetic_deep(i, j, k, l, expr, result, mode):
     fb = b.base.function if mode == 'indexed' else b
 
     eqn = eval(expr)
-    StencilKernel(eqn)(fa, fb)
+    Operator(eqn)(fa, fb)
     assert np.allclose(fa.data, result, rtol=1e-12)
 
 
@@ -85,7 +85,7 @@ def test_arithmetic_indexed_increment(i, j, k, l, expr, result):
     fa.data[1:, 1:] = 0
 
     eqn = eval(expr)
-    StencilKernel(eqn)(fa)
+    Operator(eqn)(fa)
     assert np.allclose(fa.data, result, rtol=1e-12)
 
 
@@ -104,7 +104,7 @@ def test_arithmetic_indexed_stencil(i, j, k, l, expr, result):
     fb = b.function
 
     eqn = eval(expr)
-    StencilKernel(eqn)(fa, fb)
+    Operator(eqn)(fa, fb)
     assert np.allclose(fa.data[1:-1, 1:-1], result[1:-1, 1:-1], rtol=1e-12)
 
 
@@ -121,7 +121,7 @@ def test_arithmetic_indexed_buffered(i, j, k, l, expr, result):
     fa = a.function
 
     eqn = eval(expr)
-    StencilKernel(eqn)(fa)
+    Operator(eqn)(fa)
     assert np.allclose(fa.data[1, 1:-1, 1:-1], result[1:-1, 1:-1], rtol=1e-12)
 
 
@@ -138,7 +138,7 @@ def test_arithmetic_indexed_open_loops(i, j, k, l, expr, result):
     fa.data[0, :, :] = 2.
 
     eqn = eval(expr)
-    StencilKernel(eqn)(fa)
+    Operator(eqn)(fa)
     assert np.allclose(fa.data[1, 1:-1, 1:-1], result[1:-1, 1:-1], rtol=1e-12)
 
 
@@ -148,7 +148,7 @@ def test_override(i, j, k, l):
     a1 = symbol(name='a', dimensions=(i, j, k, l), value=3., mode='indexed').base.function
     a2 = symbol(name='b', dimensions=(i, j, k, l), value=4., mode='indexed').base.function
     eqn = Eq(a, a+3)
-    op = StencilKernel(eqn)
+    op = Operator(eqn)
     op()
     op(a=a1)
     op(a=a2)
@@ -167,8 +167,8 @@ def test_dimension_size_infer(i, j, k, nt=100):
     c = TimeData(name='c', shape=shape, save=True, time_dim=nt).indexed
     eqn1 = Eq(b[t, x, y, z], a[x, y, z])
     eqn2 = Eq(c[time, x, y, z], a[x, y, z])
-    op1 = StencilKernel(eqn1)
-    op2 = StencilKernel(eqn2)
+    op1 = Operator(eqn1)
+    op2 = Operator(eqn2)
 
     _, op1_dim_sizes = op1.arguments()
     _, op2_dim_sizes = op2.arguments()

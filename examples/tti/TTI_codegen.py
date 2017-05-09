@@ -3,7 +3,6 @@ from __future__ import print_function
 
 import numpy as np
 
-from devito.at_controller import AutoTuner
 from devito.dimension import Dimension, time
 from devito.interfaces import TimeData
 from examples.tti.tti_operators import *
@@ -25,7 +24,7 @@ class TTI_cg:
         self.model.nbpml = nbpml
 
     def Forward(self, save=False, dse='advanced', dle='advanced', auto_tuning=False,
-                cache_blocking=None, compiler=None, u_ini=None, legacy=True):
+                cache_blocking=None, compiler=None, u_ini=None):
         nt, nrec = self.data.shape
         nsrc = self.source.shape[1]
         ndim = len(self.model.shape)
@@ -69,49 +68,7 @@ class TTI_cg:
         fw = ForwardOperator(self.model, u, v, src, rec, self.data,
                              time_order=self.t_order, spc_order=self.s_order,
                              profile=True, save=save, cache_blocking=cache_blocking,
-                             dse=dse, dle=dle, compiler=compiler, legacy=legacy)
+                             dse=dse, dle=dle, compiler=compiler)
 
-        if auto_tuning and legacy:
-            # uses space_order/2 for the first derivatives to
-            # have spc_order second derivatives for consistency
-            # with the acoustic kernel
-            u = TimeData(name="u", shape=self.model.shape_domain,
-                         time_dim=nt, time_order=self.t_order,
-                         space_order=self.s_order/2,
-                         save=save, dtype=dtype)
-            v = TimeData(name="v", shape=self.model.shape_domain,
-                         time_dim=nt, time_order=self.t_order,
-                         space_order=self.s_order/2,
-                         save=save, dtype=dtype)
-
-            u.pad_time = save
-            v.pad_time = save
-
-            # Create source symbol
-            src_new = SourceLike(name="src", dimensions=[time, p_src], npoint=nsrc, nt=nt,
-                                 dt=self.dt, h=h, ndim=ndim, nbpml=nbpml, dtype=dtype,
-                                 coordinates=self.source.receiver_coords)
-            src_new.data[:] = .5 * self.source.traces[:]
-
-            # Create receiver symbol
-            rec_new = SourceLike(name="rec", dimensions=[time, p_rec], npoint=nrec, nt=nt,
-                                 dt=self.dt, h=h, ndim=ndim, nbpml=nbpml, dtype=dtype,
-                                 coordinates=self.data.receiver_coords)
-
-            # Ceate tuning operator
-            fw_new = ForwardOperator(self.model, u, v, src_new, rec_new,
-                                     self.data, time_order=self.t_order,
-                                     spc_order=self.s_order, profile=True, save=save,
-                                     dse=dse, compiler=compiler)
-
-            at = AutoTuner(fw_new)
-            at.auto_tune_blocks(self.s_order + 1, self.s_order * 4 + 2)
-            fw.propagator.cache_blocking = at.block_size
-
-        if legacy:
-            fw.apply()
-            return (rec.data, u.data, v.data,
-                    fw.propagator.gflopss, fw.propagator.oi, fw.propagator.timings)
-        else:
-            summary = fw.apply(autotune=auto_tuning)
-            return rec.data, u.data, v.data, summary.gflopss, summary.oi, summary.timings
+        summary = fw.apply(autotune=auto_tuning)
+        return rec.data, u.data, v.data, summary.gflopss, summary.oi, summary.timings
