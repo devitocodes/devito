@@ -15,10 +15,10 @@ class Acoustic_cg(object):
 
     Note: s_order must always be greater than t_order
     """
-    def __init__(self, model, data, source, t_order=2, s_order=2):
+    def __init__(self, model, source, receiver, t_order=2, s_order=2):
         self.model = model
-        self.data = data
         self.source = source
+        self.receiver = receiver
 
         self.t_order = t_order
         self.s_order = s_order
@@ -32,7 +32,7 @@ class Acoustic_cg(object):
     def op_fwd(self):
         """Cached operator for forward runs with buffered wavefield"""
         return ForwardOperator(self.model, save=False,
-                               data=self.data, source=self.source,
+                               source=self.source, receiver=self.receiver,
                                time_order=self.t_order,
                                space_order=self.s_order)
 
@@ -40,7 +40,7 @@ class Acoustic_cg(object):
     def op_fwd_save(self):
         """Cached operator for forward runs with unrolled wavefield"""
         return ForwardOperator(self.model, save=True,
-                               data=self.data, source=self.source,
+                               source=self.source, receiver=self.receiver,
                                time_order=self.t_order,
                                space_order=self.s_order)
 
@@ -48,7 +48,7 @@ class Acoustic_cg(object):
     def op_adj(self):
         """Cached operator for adjoint runs"""
         return AdjointOperator(self.model, save=False,
-                               data=self.data, source=self.source,
+                               source=self.source, receiver=self.receiver,
                                time_order=self.t_order,
                                space_order=self.s_order)
 
@@ -56,7 +56,7 @@ class Acoustic_cg(object):
     def op_grad(self):
         """Cached operator for gradient runs"""
         return GradientOperator(self.model, save=False,
-                                data=self.data, source=self.source,
+                                source=self.source, receiver=self.receiver,
                                 time_order=self.t_order,
                                 space_order=self.s_order)
 
@@ -64,7 +64,7 @@ class Acoustic_cg(object):
     def op_born(self):
         """Cached operator for gradient runs"""
         return BornOperator(self.model, save=False,
-                            data=self.data, source=self.source,
+                            source=self.source, receiver=self.receiver,
                             time_order=self.t_order,
                             space_order=self.s_order)
 
@@ -72,18 +72,16 @@ class Acoustic_cg(object):
         """
         Forward modelling
         """
-        nt, nrec = self.data.shape
-
-        # Create source and receiver symbol
-        src = PointSource(name='src', data=self.source.traces,
-                          coordinates=self.source.receiver_coords)
-        rec = Receiver(name='rec', ntime=nt,
-                       coordinates=self.data.receiver_coords)
+        # Create source and receiver symbols
+        src = PointSource(name='src', data=self.source.data,
+                          coordinates=self.source.coordinates.data)
+        rec = Receiver(name='rec', ntime=self.receiver.nt,
+                       coordinates=self.receiver.coordinates.data)
 
         # Create the forward wavefield
-        u = TimeData(name="u", shape=self.model.shape_domain, time_dim=nt,
-                     time_order=2, space_order=self.s_order, save=save,
-                     dtype=self.model.dtype)
+        u = TimeData(name='u', shape=self.model.shape_domain, save=save,
+                     time_dim=self.source.nt, time_order=self.t_order,
+                     space_order=self.s_order, dtype=self.model.dtype)
         if u_ini is not None:
             u.data[0:3, :] = u_ini[:]
 
@@ -98,16 +96,14 @@ class Acoustic_cg(object):
         """
         Adjoint modelling
         """
-        nt, nrec = self.data.shape
-
         # Create a new adjoint source and receiver symbol
-        srca = PointSource(name='srca', ntime=nt,
-                           coordinates=self.source.receiver_coords)
+        srca = PointSource(name='srca', ntime=self.source.nt,
+                           coordinates=self.source.coordinates.data)
         rec = Receiver(name='rec', data=recin,
-                       coordinates=self.data.receiver_coords)
+                       coordinates=self.receiver.coordinates.data)
 
-        # Create the forward wavefield
-        v = TimeData(name="v", shape=self.model.shape_domain, time_dim=nt,
+        # Create the adjoint wavefield
+        v = TimeData(name='v', shape=self.model.shape_domain, save=False,
                      time_order=2, space_order=self.s_order,
                      dtype=self.model.dtype)
 
@@ -119,20 +115,18 @@ class Acoustic_cg(object):
         Gradient operator (adjoint of Linearized Born modelling, action of
         the Jacobian adjoint on an input data)
         """
-        nt, nrec = self.data.shape
-
         # Create receiver symbol
         rec = Receiver(name='rec', data=recin,
-                       coordinates=self.data.receiver_coords)
+                       coordinates=self.receiver.coordinates.data)
 
         # Gradient symbol
-        grad = DenseData(name="grad", shape=self.model.shape_domain,
+        grad = DenseData(name='grad', shape=self.model.shape_domain,
                          dtype=self.model.dtype)
 
         # Create the forward wavefield
-        v = TimeData(name="v", shape=self.model.shape_domain, time_dim=nt,
-                     time_order=2, space_order=self.s_order,
-                     dtype=self.model.dtype)
+        v = TimeData(name='v', shape=self.model.shape_domain,
+                     time_dim=self.source.nt, time_order=self.t_order,
+                     space_order=self.s_order, dtype=self.model.dtype)
 
         summary = self.op_grad.apply(rec=rec, grad=grad, v=v, u=u, **kwargs)
         return grad.data, summary
@@ -141,23 +135,21 @@ class Acoustic_cg(object):
         """
         Linearized Born modelling
         """
-        nt, nrec = self.data.shape
-
         # Create source and receiver symbols
-        src = PointSource(name='src', data=self.source.traces,
-                          coordinates=self.source.receiver_coords)
-        rec = Receiver(name='rec', ntime=nt,
-                       coordinates=self.data.receiver_coords)
+        src = PointSource(name='src', data=self.source.data,
+                          coordinates=self.source.coordinates.data)
+        rec = Receiver(name='rec', ntime=self.receiver.nt,
+                       coordinates=self.receiver.coordinates.data)
 
         # Create the forward wavefield
-        u = TimeData(name="u", shape=self.model.shape_domain, time_dim=nt,
-                     time_order=2, space_order=self.s_order,
+        u = TimeData(name='u', shape=self.model.shape_domain, save=False,
+                     time_order=self.t_order, space_order=self.s_order,
                      dtype=self.model.dtype)
-        U = TimeData(name="U", shape=self.model.shape_domain, time_dim=nt,
+        U = TimeData(name='U', shape=self.model.shape_domain,
                      time_order=2, space_order=self.s_order,
                      dtype=self.model.dtype)
         if isinstance(dmin, np.ndarray):
-            dm = DenseData(name="dm", shape=self.model.shape_domain,
+            dm = DenseData(name='dm', shape=self.model.shape_domain,
                            dtype=self.model.dtype)
             dm.data[:] = self.model.pad(dmin)
         else:

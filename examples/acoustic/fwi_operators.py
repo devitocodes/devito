@@ -1,11 +1,11 @@
 from sympy import Eq
 from sympy.abc import h, s
 
-from devito import Operator, Forward, Backward, DenseData, TimeData, t, time
+from devito import Operator, Forward, Backward, DenseData, TimeData, time
 from examples.seismic import PointSource, Receiver
 
 
-def ForwardOperator(model, data, source, time_order=2, space_order=4,
+def ForwardOperator(model, source, receiver, time_order=2, space_order=4,
                     save=False, **kwargs):
     """
     Constructor method for the forward modelling operator in an acoustic media
@@ -21,15 +21,14 @@ def ForwardOperator(model, data, source, time_order=2, space_order=4,
     """
     m, damp = model.m, model.damp
 
-    # Create the forward wavefield
-    u = TimeData(name='u', shape=model.shape_domain, time_dim=data.shape[0],
+    # Create symbols for forward wavefield, source and receivers
+    u = TimeData(name='u', shape=model.shape_domain, time_dim=source.nt,
                  time_order=time_order, space_order=space_order, save=save,
                  dtype=model.dtype)
-    # Create source and receiver symbols
-    src = PointSource(name='src', ntime=data.shape[0],
-                      coordinates=source.receiver_coords)
-    rec = Receiver(name='rec', ntime=data.shape[0],
-                   coordinates=data.receiver_coords)
+    src = PointSource(name='src', ntime=source.nt, ndim=source.ndim,
+                      npoint=source.npoint)
+    rec = Receiver(name='rec', ntime=receiver.nt, ndim=receiver.ndim,
+                   npoint=receiver.npoint)
 
     # Derive stencil from symbolic equation
     if time_order == 2:
@@ -69,7 +68,7 @@ def ForwardOperator(model, data, source, time_order=2, space_order=4,
                     time_axis=Forward, name='Forward', **kwargs)
 
 
-def AdjointOperator(model, source, data, time_order=2, space_order=4, **kwargs):
+def AdjointOperator(model, source, receiver, time_order=2, space_order=4, **kwargs):
     """
     Class to setup the adjoint modelling operator in an acoustic media
 
@@ -80,15 +79,14 @@ def AdjointOperator(model, source, data, time_order=2, space_order=4, **kwargs):
     :param: spc_order: Space discretization order
     """
     m, damp = model.m, model.damp
-    nt = data.shape[0]
 
     v = TimeData(name='v', shape=model.shape_domain, save=False,
                  time_order=time_order, space_order=space_order,
                  dtype=model.dtype)
-    rec = Receiver(name='rec', ntime=nt,
-                   coordinates=data.receiver_coords)
-    srca = PointSource(name='srca', ntime=nt,
-                       coordinates=source.receiver_coords)
+    srca = PointSource(name='srca', ntime=source.nt, ndim=source.ndim,
+                       npoint=source.npoint)
+    rec = Receiver(name='rec', ntime=receiver.nt, ndim=receiver.ndim,
+                   npoint=receiver.npoint)
 
     if time_order == 2:
         laplacian = v.laplace
@@ -122,7 +120,7 @@ def AdjointOperator(model, source, data, time_order=2, space_order=4, **kwargs):
                     time_axis=Backward, name='Adjoint', **kwargs)
 
 
-def GradientOperator(model, source, data, time_order=2, space_order=4, **kwargs):
+def GradientOperator(model, source, receiver, time_order=2, space_order=4, **kwargs):
     """
     Class to setup the gradient operator in an acoustic media
 
@@ -134,20 +132,18 @@ def GradientOperator(model, source, data, time_order=2, space_order=4, **kwargs)
     :param: spc_order: Space discretization order
     """
     m, damp = model.m, model.damp
-    nt = data.shape[0]
 
     # Gradient symbol
     grad = DenseData(name='grad', shape=model.shape_domain,
                      dtype=model.dtype)
     u = TimeData(name='u', shape=model.shape_domain, save=True,
-                 time_dim=nt,
+                 time_dim=source.nt, time_order=time_order,
+                 space_order=space_order, dtype=model.dtype)
+    v = TimeData(name='v', shape=model.shape_domain, save=False,
                  time_order=time_order, space_order=space_order,
                  dtype=model.dtype)
-    v = TimeData(name='v', shape=model.shape_domain,save=False,
-                 time_order=time_order, space_order=space_order,
-                 dtype=model.dtype)
-    rec = Receiver(name='rec', ntime=nt,
-                   coordinates=data.receiver_coords)
+    rec = Receiver(name='rec', ntime=receiver.nt, ndim=receiver.ndim,
+                   npoint=receiver.npoint)
 
     # Derive stencil from symbolic equation
     if time_order == 2:
@@ -185,7 +181,7 @@ def GradientOperator(model, source, data, time_order=2, space_order=4, **kwargs)
                     time_axis=Backward, name='Gradient', **kwargs)
 
 
-def BornOperator(model, source, data, time_order=2, space_order=4, **kwargs):
+def BornOperator(model, source, receiver, time_order=2, space_order=4, **kwargs):
     """
     Class to setup the linearized modelling operator in an acoustic media
 
@@ -198,20 +194,19 @@ def BornOperator(model, source, data, time_order=2, space_order=4, **kwargs):
     :param: spc_order: Space discretization order
     """
     m, damp = model.m, model.damp
-    nt = data.shape[0]
 
     # Create source and receiver symbols
-    src = PointSource(name='src', ntime=nt,
-                      coordinates=source.receiver_coords)
-    rec = Receiver(name='rec', ntime=data.shape[0],
-                   coordinates=data.receiver_coords)
+    src = PointSource(name='src', ntime=source.nt, ndim=source.ndim,
+                      npoint=source.npoint)
+    rec = Receiver(name='rec', ntime=receiver.nt, ndim=receiver.ndim,
+                   npoint=receiver.npoint)
 
     # Create the forward wavefield
-    u = TimeData(name="u", shape=model.shape_domain, time_dim=nt,
-                 time_order=2, space_order=space_order,
+    u = TimeData(name="u", shape=model.shape_domain, save=False,
+                 time_order=time_order, space_order=space_order,
                  dtype=model.dtype)
-    U = TimeData(name="U", shape=model.shape_domain, time_dim=nt,
-                 time_order=2, space_order=space_order,
+    U = TimeData(name="U", shape=model.shape_domain, save=False,
+                 time_order=time_order, space_order=space_order,
                  dtype=model.dtype)
     dm = DenseData(name="dm", shape=model.shape_domain,
                    dtype=model.dtype)

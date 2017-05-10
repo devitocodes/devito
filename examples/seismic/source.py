@@ -21,9 +21,11 @@ class PointSource(PointData):
     initialised `data` array need to be provided.
     """
 
-    def __new__(cls, name, coordinates, data=None, ntime=None, **kwargs):
+    def __new__(cls, name, ntime=None, npoint=None, ndim=None,
+                data=None, coordinates=None, **kwargs):
         p_dim = kwargs.get('dimension', Dimension('p_%s' % name))
-        npoint = coordinates.shape[0]
+        ndim = ndim or coordinates.shape[1]
+        npoint = npoint or coordinates.shape[0]
         if data is None:
             if ntime is None:
                 error('Either data or ntime are required to'
@@ -33,8 +35,7 @@ class PointSource(PointData):
 
         # Create the underlying PointData object
         obj = PointData(name=name, dimensions=[time, p_dim],
-                        npoint=npoint, nt=ntime,
-                        ndim=coordinates.shape[1],
+                        npoint=npoint, nt=ntime, ndim=ndim,
                         coordinates=coordinates, **kwargs)
 
         # If provided, copy initial data into the allocated buffer

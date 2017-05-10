@@ -3,8 +3,7 @@ import pytest
 from numpy import linalg
 
 from examples.acoustic.Acoustic_codegen import Acoustic_cg
-from examples.containers import IShot
-from examples.seismic import Model
+from examples.seismic import Model, PointSource, Receiver
 
 
 @pytest.mark.parametrize('space_order', [4])
@@ -72,9 +71,7 @@ def test_gradient(dimensions, time_order, space_order):
     # Model perturbation
     dm = true_vp**-2 - initial_vp**-2
     model = Model(origin, spacing, dimensions, true_vp, nbpml=nbpml)
-    # Define seismic data.
-    data = IShot()
-    src = IShot()
+
     f0 = .010
     dt = model.critical_dt
     if time_order == 4:
@@ -91,15 +88,13 @@ def test_gradient(dimensions, time_order, space_order):
     # Source geometry
     time_series = np.zeros((nt, 1))
     time_series[:, 0] = source(np.linspace(t0, tn, nt), f0)
-    src.set_receiver_pos(location)
-    src.set_shape(nt, 1)
-    src.set_traces(time_series)
 
-    data.set_receiver_pos(receiver_coords)
-    data.set_shape(nt, 101)
-    # Define the acoustic wave
-    wave = Acoustic_cg(model, data, src, t_order=time_order,
-                       s_order=space_order)
+    # Define source and receivers and create acoustic wave solver
+    src = PointSource(name='src', data=time_series, coordinates=location)
+    rec = Receiver(name='rec', ntime=nt, coordinates=receiver_coords)
+    wave = Acoustic_cg(model, source=src, receiver=rec,
+                       t_order=time_order, s_order=space_order)
+
     # Data for the true velocity
     rec = wave.Forward()[0]
     # Change to the smooth velocity
