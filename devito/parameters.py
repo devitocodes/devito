@@ -7,29 +7,30 @@ __all__ = ['Parameters', 'parameters']
 # https://softwareengineering.stackexchange.com/questions/148108/why-is-global-state-so-evil
 # If any issues related to global state arise, the following class should
 # be made immutable. It shall only be written to at application startup
-# and never modified. 
+# and never modified.
+
 
 class Parameters(dict):
     """ A dictionary-like class to hold global configuration parameters for devito
         On top of a normal dict, this provides the option to provide callback functions
-        so that any interested module can be informed when the configuration changes. 
+        so that any interested module can be informed when the configuration changes.
     """
     def __init__(self, name=None, **kwargs):
         self._name = name
-        self.update_functions = None
-
-        for key, value in iteritems(kwargs):
-            self[key] = value
+        self.update_functions = []
+        if kwargs is not None:
+            for key, value in kwargs.items():
+                self[key] = value
 
     def __setitem__(self, key, value):
         super(Parameters, self).__setitem__(key, value)
 
         # If a Parameters dictionary is being added as a child,
         # ask it to tell us when it is updated
-        
+
         if isinstance(value, Parameters):
             child_update = lambda x: self._updated(*x)
-            value.update_functions.push(child_update) 
+            value.update_functions.push(child_update)
 
         # Tell everyone we've been updated
         self._updated(key, value)
@@ -40,5 +41,7 @@ class Parameters(dict):
         for f in self.update_functions:
             f(key, value)
 
+
 parameters = Parameters()
-parameters["log_level"] = 'info'
+# Default log level set to INFO
+parameters["log_level"] = 'INFO'

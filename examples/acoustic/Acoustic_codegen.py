@@ -15,7 +15,7 @@ class Acoustic_cg(object):
 
     Note: s_order must always be greater than t_order
     """
-    def __init__(self, model, source, nbpml=40, t_order=2, s_order=2,
+    def __init__(self, model, data, source, nbpml=40, t_order=2, s_order=2,
                  auto_tuning=False, dse=True, dle='advanced', compiler=None):
         self.model = model
         self.t_order = t_order
@@ -101,7 +101,7 @@ class Acoustic_cg(object):
                      dtype=self.model.dtype)
 
         # Execute operator and return wavefield and receiver data
-        adj = AdjointOperator(self.model, v, srca, rec, 
+        adj = AdjointOperator(self.model, v, srca, rec,
                               time_order=self.t_order, spc_order=self.s_order,
                               cache_blocking=cache_blocking, dse=dse,
                               dle=dle, compiler=compiler, profile=True)
