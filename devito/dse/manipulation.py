@@ -143,15 +143,16 @@ def xreplace_constrained(exprs, make, rule, cm=lambda e: True, repeat=False):
                    possible (optional, defaults to False).
     """
 
-    processed = OrderedDict()
+    found = OrderedDict()
+    rebuilt = []
 
     def replace(expr):
-        temporary = processed.get(expr)
+        temporary = found.get(expr)
         if temporary:
             return temporary
         elif cm(expr):
             temporary = make(replace.c)
-            processed[expr] = temporary
+            found[expr] = temporary
             replace.c += 1
             return temporary
         else:
@@ -181,19 +182,23 @@ def xreplace_constrained(exprs, make, rule, cm=lambda e: True, repeat=False):
                     return expr.func(*(other + [replace(e) for e in matching])), False
             return expr.func(*other), False
 
+    # Process the provided expressions
     for expr in as_tuple(exprs):
-        root = expr.rhs if expr.is_Equality else expr
+        assert expr.is_Equality
+        root = expr.rhs
 
         while True:
-            handle, _ = run(root)
-            if repeat and handle != root:
-                root = handle
+            ret, _ = run(root)
+            if repeat and ret != root:
+                root = ret
             else:
-                rebuilt = expr.func(expr.lhs, handle) if expr.is_Equality else handle
-                processed[rebuilt.rhs] = rebuilt.lhs
+                rebuilt.append(expr.func(expr.lhs, ret))
                 break
 
-    return [Eq(v, k) for k, v in processed.items()]
+    # Post-process the output
+    found = [Eq(v, k) for k, v in found.items()]
+
+    return found + rebuilt, found
 
 
 def common_subexprs_elimination(exprs, make, mode='default'):

@@ -203,7 +203,7 @@ class Rewriter(object):
 
         cm = lambda i: estimate_cost(i) > 0
 
-        processed = xreplace_constrained(cluster.exprs, make, rule, cm)
+        processed, _ = xreplace_constrained(cluster.exprs, make, rule, cm)
 
         return cluster.rebuild(processed)
 
@@ -213,6 +213,7 @@ class Rewriter(object):
         Extract time-invariant subexpressions, and assign them to temporaries.
         """
 
+        # Extract time invariants
         template = self.conventions['time-invariant'] + "%d"
         make = lambda i: ScalarFunction(name=template % i).indexify()
 
@@ -220,9 +221,17 @@ class Rewriter(object):
 
         cm = lambda e: estimate_cost(e) > 0
 
-        processed = xreplace_constrained(cluster.exprs, make, rule, cm)
+        processed, found = xreplace_constrained(cluster.exprs, make, rule, cm)
+        leaves = [i for i in processed if i not in found]
 
-        return cluster.rebuild(processed)
+        # Search for common sub-expressions amongst them (and only them)
+        template = "%s%s%s" % (self.conventions['redundancy'],
+                               self.conventions['time-invariant'], '%d')
+        make = lambda i: ScalarFunction(name=template % i).indexify()
+
+        found = common_subexprs_elimination(found, make)
+
+        return cluster.rebuild(found + leaves)
 
     @dse_pass
     def _eliminate_intra_stencil_redundancies(self, cluster, **kwargs):
