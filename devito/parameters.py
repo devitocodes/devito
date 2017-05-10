@@ -4,6 +4,7 @@ __all__ = ['Parameters', 'parameters']
 
 # Be EXTREMELY careful when writing to a Parameters dictionary
 # Read here for reference: http://wiki.c2.com/?GlobalVariablesAreBad
+# https://softwareengineering.stackexchange.com/questions/148108/why-is-global-state-so-evil
 # If any issues related to global state arise, the following class should
 # be made immutable. It shall only be written to at application startup
 # and never modified. 
@@ -38,3 +39,6 @@ class Parameters(dict):
         """
         for f in self.update_functions:
             f(key, value)
+
+parameters = Parameters()
+parameters["log_level"] = 'info'
