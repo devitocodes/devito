@@ -11,7 +11,7 @@ from devito.dse.extended_sympy import bhaskara_cos, bhaskara_sin
 from devito.dse.inspection import estimate_cost, estimate_memory
 from devito.dse.manipulation import (common_subexprs_elimination, collect_nested,
                                      freeze_expression, xreplace_constrained)
-from devito.dse.queries import iq_timeinvariant, iq_timevarying, q_op
+from devito.dse.queries import iq_timeinvariant, iq_timevarying
 from devito.interfaces import ScalarFunction, TensorFunction
 from devito.logger import dse, dse_warning
 from devito.stencil import Stencil
