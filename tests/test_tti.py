@@ -3,6 +3,7 @@ import pytest
 from numpy import linalg
 
 from devito.logger import log
+from devito import TimeData
 from examples.acoustic import AcousticWaveSolver
 from examples.containers import IShot
 from examples.seismic import Model, PointSource, Receiver
@@ -89,7 +90,7 @@ def test_tti(dimensions, space_order):
     receiver = Receiver(name='rec', ntime=nt, coordinates=receiver_coords)
     acoustic = AcousticWaveSolver(model, source=source, receiver=receiver,
                                   time_order=2, space_order=space_order)
-    rec, u1, _ = acoustic.Forward(save=False)
+    rec, u1, _ = acoustic.forward(save=False)
 
     tn = 50.0
     nt = int(1 + (tn - t0) / dt)
@@ -107,7 +108,11 @@ def test_tti(dimensions, space_order):
 
     wave_tti = TTI_cg(model, data, src, t_order=2, s_order=space_order)
 
-    rec, u, _ = acoustic.Forward(save=False, u_ini=u1.data[indlast, :])
+    # Create new wavefield object restart forward computation
+    u = TimeData(name='u', shape=model.shape_domain, save=False,
+                 time_order=2, space_order=space_order, dtype=model.dtype)
+    u.data[0:3, :] = u1.data[indlast, :]
+    rec, _, _ = acoustic.forward(save=False, u=u)
     rec_tti, u_tti, v_tti, _, _, _ = wave_tti.Forward(save=False,
                                                       u_ini=u1.data[indlast, :])
 

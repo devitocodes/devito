@@ -83,14 +83,14 @@ def test_acousticJ(dimensions, space_order):
     solver = AcousticWaveSolver(model0, source=src, receiver=rec,
                                 time_order=2, space_order=space_order)
 
-    rec, u0, _ = solver.Forward(save=True)
+    # Compute the full wavefield
+    _, u0, _ = solver.forward(save=True)
 
-    du, _, _, _ = solver.Born(1 / model.vp ** 2 - 1 / model0.vp ** 2)
-    im, _ = solver.Gradient(du, u0)
+    du, _, _, _ = solver.born(model.m.data - model0.m.data)
+    im, _ = solver.gradient(du, u0)
 
     # Actual adjoint test
-    term1 = np.dot(im.reshape(-1),
-                   model0.pad(1 / model.vp ** 2 - 1 / model0.vp ** 2).reshape(-1))
+    term1 = np.dot(im.data.reshape(-1), (model.m.data - model0.m.data).reshape(-1))
     term2 = linalg.norm(du)**2
     print(term1, term2, term1 - term2, term1 / term2)
     assert np.isclose(term1 / term2, 1.0, atol=0.001)
