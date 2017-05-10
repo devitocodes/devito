@@ -88,20 +88,24 @@ class AcousticWaveSolver(object):
         :returns: Receiver, wavefield and performance summary
         """
         # Source term is read-only, so re-use the default
-        src = src or self.source
+        if src is None:
+            src = self.source
         # Create a new receiver object to store the result
-        rec = rec or Receiver(name='rec', ntime=self.receiver.nt,
-                              coordinates=self.receiver.coordinates.data)
+        if rec is None:
+            rec = Receiver(name='rec', ntime=self.receiver.nt,
+                           coordinates=self.receiver.coordinates.data)
 
         # Create the forward wavefield if not provided
-        u = u or TimeData(name='u', shape=self.model.shape_domain,
-                          save=save, time_dim=self.source.nt,
-                          time_order=self.time_order,
-                          space_order=self.space_order,
-                          dtype=self.model.dtype)
+        if u is None:
+            u = TimeData(name='u', shape=self.model.shape_domain,
+                         save=save, time_dim=self.source.nt,
+                         time_order=self.time_order,
+                         space_order=self.space_order,
+                         dtype=self.model.dtype)
 
         # Pick m from model unless explicitly provided
-        m = m or self.model.m
+        if m is None:
+            m = m or self.model.m
 
         # Execute operator and return wavefield and receiver data
         if save:
@@ -125,17 +129,20 @@ class AcousticWaveSolver(object):
         :returns: Adjoint source, wavefield and performance summary
         """
         # Create a new adjoint source and receiver symbol
-        srca = srca or PointSource(name='srca', ntime=self.source.nt,
-                                   coordinates=self.source.coordinates.data)
+        if srca is None:
+            srca = PointSource(name='srca', ntime=self.source.nt,
+                               coordinates=self.source.coordinates.data)
 
         # Create the adjoint wavefield if not provided
-        v = v or TimeData(name='v', shape=self.model.shape_domain,
-                          save=False, time_order=self.time_order,
-                          space_order=self.space_order,
-                          dtype=self.model.dtype)
+        if v is None:
+            v = TimeData(name='v', shape=self.model.shape_domain,
+                         save=False, time_order=self.time_order,
+                         space_order=self.space_order,
+                         dtype=self.model.dtype)
 
         # Pick m from model unless explicitly provided
-        m = m or self.model.m
+        if m is None:
+            m = self.model.m
 
         # Execute operator and return wavefield and receiver data
         summary = self.op_adj.apply(srca=srca, rec=rec, v=v, m=m, **kwargs)
@@ -159,18 +166,21 @@ class AcousticWaveSolver(object):
                        coordinates=self.receiver.coordinates.data)
 
         # Gradient symbol
-        grad = grad or DenseData(name='grad', shape=self.model.shape_domain,
-                                 dtype=self.model.dtype)
+        if grad is None:
+            grad = DenseData(name='grad', shape=self.model.shape_domain,
+                             dtype=self.model.dtype)
 
         # Create the forward wavefield
-        v = v or TimeData(name='v', shape=self.model.shape_domain,
-                          save=False, time_dim=self.source.nt,
-                          time_order=self.time_order,
-                          space_order=self.space_order,
-                          dtype=self.model.dtype)
+        if v is None:
+            v = TimeData(name='v', shape=self.model.shape_domain,
+                         save=False, time_dim=self.source.nt,
+                         time_order=self.time_order,
+                         space_order=self.space_order,
+                         dtype=self.model.dtype)
 
         # Pick m from model unless explicitly provided
-        m = m or self.model.m
+        if m is None:
+            m = m or self.model.m
 
         summary = self.op_grad.apply(rec=rec, grad=grad, v=v, u=u, m=m, **kwargs)
         return grad, summary
@@ -187,22 +197,27 @@ class AcousticWaveSolver(object):
         :param m: (Optional) Symbol for the time-constant square slowness
         """
         # Source term is read-only, so re-use the default
-        src = src or self.source
+        if src is None:
+            src = self.source
         # Create a new receiver object to store the result
-        rec = rec or Receiver(name='rec', ntime=self.receiver.nt,
-                              coordinates=self.receiver.coordinates.data)
+        if rec is None:
+            rec = rec or Receiver(name='rec', ntime=self.receiver.nt,
+                                  coordinates=self.receiver.coordinates.data)
 
         # Create the forward wavefields u and U if not provided
-        u = u or TimeData(name='u', shape=self.model.shape_domain,
-                          save=False, time_order=self.time_order,
-                          space_order=self.space_order,
-                          dtype=self.model.dtype)
-        U = U or TimeData(name='U', shape=self.model.shape_domain,
-                          save=False, time_order=self.time_order,
-                          space_order=self.space_order, dtype=self.model.dtype)
+        if u is None:
+            u = TimeData(name='u', shape=self.model.shape_domain,
+                         save=False, time_order=self.time_order,
+                         space_order=self.space_order,
+                         dtype=self.model.dtype)
+        if U is None:
+            U = TimeData(name='U', shape=self.model.shape_domain,
+                         save=False, time_order=self.time_order,
+                         space_order=self.space_order, dtype=self.model.dtype)
 
         # Pick m from model unless explicitly provided
-        m = m or self.model.m
+        if m is None:
+            m = self.model.m
 
         if isinstance(dmin, np.ndarray):
             dm = DenseData(name='dm', shape=self.model.shape_domain,
