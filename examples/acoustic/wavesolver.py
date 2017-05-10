@@ -22,7 +22,8 @@ class AcousticWaveSolver(object):
 
     Note: space_order must always be greater than time_order
     """
-    def __init__(self, model, source, receiver, time_order=2, space_order=2):
+    def __init__(self, model, source, receiver,
+                 time_order=2, space_order=2, **kwargs):
         self.model = model
         self.source = source
         self.receiver = receiver
@@ -35,45 +36,43 @@ class AcousticWaveSolver(object):
         if self.time_order == 4:
             self.dt *= 1.73
 
+        # Cache compiler options
+        self._kwargs = kwargs
+
     @cached_property
     def op_fwd(self):
         """Cached operator for forward runs with buffered wavefield"""
-        return ForwardOperator(self.model, save=False,
-                               source=self.source, receiver=self.receiver,
-                               time_order=self.time_order,
-                               space_order=self.space_order)
+        return ForwardOperator(self.model, save=False, source=self.source,
+                               receiver=self.receiver, time_order=self.time_order,
+                               space_order=self.space_order, **self._kwargs)
 
     @cached_property
     def op_fwd_save(self):
         """Cached operator for forward runs with unrolled wavefield"""
-        return ForwardOperator(self.model, save=True,
-                               source=self.source, receiver=self.receiver,
-                               time_order=self.time_order,
-                               space_order=self.space_order)
+        return ForwardOperator(self.model, save=True, source=self.source,
+                               receiver=self.receiver, time_order=self.time_order,
+                               space_order=self.space_order, **self._kwargs)
 
     @property
     def op_adj(self):
         """Cached operator for adjoint runs"""
-        return AdjointOperator(self.model, save=False,
-                               source=self.source, receiver=self.receiver,
-                               time_order=self.time_order,
-                               space_order=self.space_order)
+        return AdjointOperator(self.model, save=False, source=self.source,
+                               receiver=self.receiver, time_order=self.time_order,
+                               space_order=self.space_order, **self._kwargs)
 
     @property
     def op_grad(self):
         """Cached operator for gradient runs"""
-        return GradientOperator(self.model, save=False,
-                                source=self.source, receiver=self.receiver,
-                                time_order=self.time_order,
-                                space_order=self.space_order)
+        return GradientOperator(self.model, save=False, source=self.source,
+                                receiver=self.receiver, time_order=self.time_order,
+                                space_order=self.space_order, **self._kwargs)
 
     @property
     def op_born(self):
-        """Cached operator for gradient runs"""
-        return BornOperator(self.model, save=False,
-                            source=self.source, receiver=self.receiver,
-                            time_order=self.time_order,
-                            space_order=self.space_order)
+        """Cached operator for born runs"""
+        return BornOperator(self.model, save=False, source=self.source,
+                            receiver=self.receiver, time_order=self.time_order,
+                            space_order=self.space_order, **self._kwargs)
 
     def Forward(self, save=False, u_ini=None, **kwargs):
         """

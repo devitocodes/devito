@@ -1,9 +1,8 @@
 import numpy as np
 
 from devito.logger import info
-from examples.acoustic.Acoustic_codegen import Acoustic_cg
-from examples.containers import IShot
-from examples.seismic import Model
+from examples.acoustic import AcousticWaveSolver
+from examples.seismic import Model, PointSource, Receiver
 
 
 # Velocity models
@@ -44,9 +43,6 @@ def run(dimensions=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=1000.0,
 
     model = Model(origin, spacing, dimensions, true_vp, nbpml=nbpml)
 
-    # Define seismic data.
-    data = IShot()
-    src = IShot()
     f0 = .010
     dt = model.critical_dt
     if time_order == 4:
@@ -56,16 +52,13 @@ def run(dimensions=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=1000.0,
 
     # Source geometry
     time_series = np.zeros((nt, 1))
-
     time_series[:, 0] = source(np.linspace(t0, tn, nt), f0)
 
     location = np.zeros((1, 3))
     location[0, 0] = origin[0] + dimensions[0] * spacing[0] * 0.5
     location[0, 1] = origin[1] + dimensions[1] * spacing[1] * 0.5
     location[0, 2] = origin[1] + 2 * spacing[2]
-    src.set_receiver_pos(location)
-    src.set_shape(nt, 1)
-    src.set_traces(time_series)
+    src = PointSource(name='src', data=time_series, coordinates=location)
 
     # Receiver geometry
     receiver_coords = np.zeros((101, 3))
@@ -73,24 +66,25 @@ def run(dimensions=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=1000.0,
                                         dimensions[0] * spacing[0], num=101)
     receiver_coords[:, 1] = origin[1] + dimensions[1] * spacing[1] * 0.5
     receiver_coords[:, 2] = location[0, 1]
-    data.set_receiver_pos(receiver_coords)
-    data.set_shape(nt, 101)
+    rec = Receiver(name='rec', ntime=nt, coordinates=receiver_coords)
 
-    Acoustic = Acoustic_cg(model, data, src, t_order=time_order,
-                           s_order=space_order)
+    # Create wave solver from model, source and receiver definitions
+    solver = AcousticWaveSolver(model, source=src, receiver=rec,
+                                time_order=time_order,
+                                space_order=space_order, **kwargs)
 
     info("Applying Forward")
-    rec, u, summary = Acoustic.Forward(save=full_run, **kwargs)
+    rec, u, summary = solver.Forward(save=full_run, **kwargs)
 
     if not full_run:
         return summary.gflopss, summary.oi, summary.timings, [rec, u.data]
 
     info("Applying Adjoint")
-    Acoustic.Adjoint(rec, **kwargs)
+    solver.Adjoint(rec, **kwargs)
     info("Applying Born")
-    Acoustic.Born(dm, **kwargs)
+    solver.Born(dm, **kwargs)
     info("Applying Gradient")
-    Acoustic.Gradient(rec, u, **kwargs)
+    solver.Gradient(rec, u, **kwargs)
 
 
 if __name__ == "__main__":
