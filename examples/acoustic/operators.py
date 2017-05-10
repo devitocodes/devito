@@ -11,13 +11,11 @@ def ForwardOperator(model, source, receiver, time_order=2, space_order=4,
     Constructor method for the forward modelling operator in an acoustic media
 
     :param model: :class:`Model` object containing the physical parameters
-    :param source: None or IShot() (not currently supported properly)
-    :param data: IShot() object containing the acquisition geometry and field data
-    :param: time_order: Time discretization order
-    :param: spc_order: Space discretization order
+    :param source: :class:`PointData` object containing the source geometry
+    :param receiver: :class:`PointData` object containing the acquisition geometry
+    :param time_order: Time discretization order
+    :param space_order: Space discretization order
     :param save : Saving flag, True saves all time steps, False only the three
-    :param: u_ini : wavefield at the three first time step for non-zero initial condition
-     required for the time marching scheme
     """
     m, damp = model.m, model.damp
 
@@ -30,18 +28,11 @@ def ForwardOperator(model, source, receiver, time_order=2, space_order=4,
     rec = Receiver(name='rec', ntime=receiver.nt, ndim=receiver.ndim,
                    npoint=receiver.npoint)
 
-    # Derive stencil from symbolic equation
     if time_order == 2:
-        laplacian = u.laplace
         biharmonic = 0
-        # PDE for information
-        # eqn = m * u.dt2 - laplacian + damp * u.dt
         dt = model.critical_dt
     else:
-        laplacian = u.laplace
         biharmonic = u.laplace2(1/m)
-        # PDE for information
-        # eqn = m * u.dt2 - laplacian - s**2 / 12 * biharmonic + damp * u.dt
         dt = 1.73 * model.critical_dt
 
     # Derive both stencils from symbolic equation:
@@ -49,7 +40,7 @@ def ForwardOperator(model, source, receiver, time_order=2, space_order=4,
     # Simple linear solve of a u(t+dt) + b u(t) + c u(t-dt) = L for u(t+dt)
     stencil = 1 / (2 * m + s * damp) * (
         4 * m * u + (s * damp - 2 * m) * u.backward +
-        2 * s**2 * (laplacian + s**2 / 12 * biharmonic))
+        2 * s**2 * (u.laplace + s**2 / 12 * biharmonic))
     eqn = [Eq(u.forward, stencil)]
 
     # Construct expression to inject source values
@@ -70,13 +61,13 @@ def ForwardOperator(model, source, receiver, time_order=2, space_order=4,
 
 def AdjointOperator(model, source, receiver, time_order=2, space_order=4, **kwargs):
     """
-    Class to setup the adjoint modelling operator in an acoustic media
+    Constructor method for the adjoint modelling operator in an acoustic media
 
     :param model: :class:`Model` object containing the physical parameters
-    :param source: None or IShot() (not currently supported properly)
-    :param data: IShot() object containing the acquisition geometry and field data
-    :param: time_order: Time discretization order
-    :param: spc_order: Space discretization order
+    :param source: :class:`PointData` object containing the source geometry
+    :param receiver: :class:`PointData` object containing the acquisition geometry
+    :param time_order: Time discretization order
+    :param space_order: Space discretization order
     """
     m, damp = model.m, model.damp
 
@@ -89,22 +80,16 @@ def AdjointOperator(model, source, receiver, time_order=2, space_order=4, **kwar
                    npoint=receiver.npoint)
 
     if time_order == 2:
-        laplacian = v.laplace
         biharmonic = 0
-        # PDE for information
-        # eqn = m * u.dt2 - laplacian + damp * u.dt
         dt = model.critical_dt
     else:
-        laplacian = v.laplace
         biharmonic = v.laplace2(1/m)
-        # PDE for information
-        # eqn = m * u.dt2 - laplacian - s**2 / 12 * biharmonic + damp * u.dt
         dt = 1.73 * model.critical_dt
 
     # Derive both stencils from symbolic equation
     stencil = 1 / (2 * m + s * damp) * (
         4 * m * v + (s * damp - 2 * m) * v.forward +
-        2 * s**2 * (laplacian + s**2 / 12 * biharmonic))
+        2 * s**2 * (v.laplace + s**2 / 12 * biharmonic))
     eqn = Eq(v.backward, stencil)
 
     # Construct expression to inject receiver values
@@ -122,18 +107,17 @@ def AdjointOperator(model, source, receiver, time_order=2, space_order=4, **kwar
 
 def GradientOperator(model, source, receiver, time_order=2, space_order=4, **kwargs):
     """
-    Class to setup the gradient operator in an acoustic media
+    Constructor method for the gradient operator in an acoustic media
 
     :param model: :class:`Model` object containing the physical parameters
-    :param src: None ot IShot() (not currently supported properly)
-    :param data: IShot() object containing the acquisition geometry and field data
-    :param: recin : receiver data for the adjoint source
-    :param: time_order: Time discretization order
-    :param: spc_order: Space discretization order
+    :param source: :class:`PointData` object containing the source geometry
+    :param receiver: :class:`PointData` object containing the acquisition geometry
+    :param time_order: Time discretization order
+    :param space_order: Space discretization order
     """
     m, damp = model.m, model.damp
 
-    # Gradient symbol
+    # Gradient symbol and wavefield symbols
     grad = DenseData(name='grad', shape=model.shape_domain,
                      dtype=model.dtype)
     u = TimeData(name='u', shape=model.shape_domain, save=True,
@@ -145,30 +129,20 @@ def GradientOperator(model, source, receiver, time_order=2, space_order=4, **kwa
     rec = Receiver(name='rec', ntime=receiver.nt, ndim=receiver.ndim,
                    npoint=receiver.npoint)
 
-    # Derive stencil from symbolic equation
     if time_order == 2:
-        laplacian = v.laplace
         biharmonic = 0
-        # PDE for information
-        # eqn = m * v.dt2 - laplacian - damp * v.dt
         dt = model.critical_dt
-
         gradient_update = Eq(grad, grad - u.dt2 * v)
     else:
-        laplacian = v.laplace
         biharmonic = v.laplace2(1/m)
         biharmonicu = - u.laplace2(1/(m**2))
-        # PDE for information
-        # eqn = m * v.dt2 - laplacian - s**2 / 12 * biharmonic + damp * v.dt
         dt = 1.73 * model.critical_dt
-        gradient_update = Eq(grad, grad -
-                             (u.dt2 -
-                              s ** 2 / 12.0 * biharmonicu) * v)
+        gradient_update = Eq(grad, grad - (u.dt2 - s**2 / 12.0 * biharmonicu) * v)
 
     # Derive stencil from symbolic equation
     stencil = 1.0 / (2.0 * m + s * damp) * \
         (4.0 * m * v + (s * damp - 2.0 * m) *
-         v.forward + 2.0 * s ** 2 * (laplacian + s**2 / 12.0 * biharmonic))
+         v.forward + 2.0 * s ** 2 * (v.laplace + s**2 / 12.0 * biharmonic))
     eqn = Eq(v.backward, stencil)
 
     # Add expression for receiver injection
@@ -183,15 +157,13 @@ def GradientOperator(model, source, receiver, time_order=2, space_order=4, **kwa
 
 def BornOperator(model, source, receiver, time_order=2, space_order=4, **kwargs):
     """
-    Class to setup the linearized modelling operator in an acoustic media
+    Constructor method for the Linearized Born operator in an acoustic media
 
     :param model: :class:`Model` object containing the physical parameters
-    :param src: None ot IShot() (not currently supported properly)
-    :param data: IShot() object containing the acquisition geometry and field data
-    :param: dmin : square slowness perturbation
-    :param: recin : receiver data for the adjoint source
-    :param: time_order: Time discretization order
-    :param: spc_order: Space discretization order
+    :param source: :class:`PointData` object containing the source geometry
+    :param receiver: :class:`PointData` object containing the acquisition geometry
+    :param time_order: Time discretization order
+    :param space_order: Space discretization order
     """
     m, damp = model.m, model.damp
 
@@ -201,7 +173,7 @@ def BornOperator(model, source, receiver, time_order=2, space_order=4, **kwargs)
     rec = Receiver(name='rec', ntime=receiver.nt, ndim=receiver.ndim,
                    npoint=receiver.npoint)
 
-    # Create the forward wavefield
+    # Create wavefields and a dm field
     u = TimeData(name="u", shape=model.shape_domain, save=False,
                  time_order=time_order, space_order=space_order,
                  dtype=model.dtype)
@@ -211,29 +183,24 @@ def BornOperator(model, source, receiver, time_order=2, space_order=4, **kwargs)
     dm = DenseData(name="dm", shape=model.shape_domain,
                    dtype=model.dtype)
 
-    # Derive stencils from symbolic equation
     if time_order == 2:
-        laplacianu = u.laplace
         biharmonicu = 0
-        laplacianU = U.laplace
         biharmonicU = 0
         dt = model.critical_dt
     else:
-        laplacianu = u.laplace
         biharmonicu = u.laplace2(1/m)
-        laplacianU = U.laplace
         biharmonicU = U.laplace2(1/m)
         dt = 1.73 * model.critical_dt
-        # first_eqn = m * u.dt2 - u.laplace + damp * u.dt
-        # second_eqn = m * U.dt2 - U.laplace - dm* u.dt2 + damp * U.dt
 
     # Derive both stencils from symbolic equation
+    # first_eqn = m * u.dt2 - u.laplace + damp * u.dt
+    # second_eqn = m * U.dt2 - U.laplace - dm* u.dt2 + damp * U.dt
     stencil1 = 1.0 / (2.0 * m + s * damp) * \
         (4.0 * m * u + (s * damp - 2.0 * m) *
-         u.backward + 2.0 * s ** 2 * (laplacianu + s**2 / 12 * biharmonicu))
+         u.backward + 2.0 * s ** 2 * (u.laplace + s**2 / 12 * biharmonicu))
     stencil2 = 1.0 / (2.0 * m + s * damp) * \
         (4.0 * m * U + (s * damp - 2.0 * m) *
-         U.backward + 2.0 * s ** 2 * (laplacianU +
+         U.backward + 2.0 * s ** 2 * (U.laplace +
                                       s**2 / 12 * biharmonicU - dm * u.dt2))
     eqn1 = Eq(u.forward, stencil1)
     eqn2 = Eq(U.forward, stencil2)

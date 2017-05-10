@@ -74,17 +74,17 @@ def run(dimensions=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=1000.0,
                                 space_order=space_order, **kwargs)
 
     info("Applying Forward")
-    rec, u, summary = solver.Forward(save=full_run, **kwargs)
+    rec, u, summary = solver.forward(save=full_run, **kwargs)
 
     if not full_run:
         return summary.gflopss, summary.oi, summary.timings, [rec, u.data]
 
     info("Applying Adjoint")
-    solver.Adjoint(rec, **kwargs)
+    solver.adjoint(rec, **kwargs)
     info("Applying Born")
-    solver.Born(dm, **kwargs)
+    solver.born(dm, **kwargs)
     info("Applying Gradient")
-    solver.Gradient(rec, u, **kwargs)
+    solver.gradient(rec, u, **kwargs)
 
 
 if __name__ == "__main__":
