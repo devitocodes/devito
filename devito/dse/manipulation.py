@@ -200,6 +200,8 @@ def common_subexprs_elimination(exprs, make, mode='default'):
     """
     Perform common subexpressions elimination.
 
+    Note: the output is not guranteed to be topologically sorted.
+
     :param exprs: The target SymPy expression, or a collection of SymPy expressions.
     :param make: A function to construct symbols used for replacement.
                  The function takes as input an integer ID; ID is computed internally
@@ -212,11 +214,10 @@ def common_subexprs_elimination(exprs, make, mode='default'):
     # - very slow
     # TODO: a second "sympy" mode will be provided, relying on SymPy's CSE() but
     # also ensuring some sort of post-processing
-
     assert mode == 'default'  # Only supported mode ATM
 
-    mapped = []
     processed = list(exprs)
+    mapped = []
     while True:
         # Detect redundancies
         counted = count(mapped + processed, q_op).items()
@@ -225,19 +226,43 @@ def common_subexprs_elimination(exprs, make, mode='default'):
             break
 
         # Create temporaries
-        highests = [k for k, v in targets.items() if v == max(targets.values())]
-        mapper = OrderedDict([(e, make(len(mapped) + i)) for i, e in enumerate(highests)])
+        hit = max(targets.values())
+        picked = [k for k, v in targets.items() if v == hit]
+        mapper = OrderedDict([(e, make(len(mapped) + i)) for i, e in enumerate(picked)])
+
+        # Apply repleacements
         processed = [e.xreplace(mapper) for e in processed]
         mapped = [e.xreplace(mapper) for e in mapped]
         mapped = [Eq(v, k) for k, v in reversed(mapper.items())] + mapped
 
         # Prepare for the next round
-        for k in highests:
+        for k in picked:
             targets.pop(k)
     processed = mapped + processed
 
     # Simply renumber the temporaries in ascending order
     mapper = {i.lhs: j.lhs for i, j in zip(mapped, reversed(mapped))}
     processed = [e.xreplace(mapper) for e in processed]
+
+    # Some temporaries may be droppable at this point
+    processed = compact_temporaries(processed)
+
+    return processed
+
+
+def compact_temporaries(exprs):
+    """
+    Drop temporaries consisting of single symbols.
+    """
+    g = temporaries_graph(exprs)
+
+    mapper = {list(v.reads)[0]: k for k, v in g.items() if v.is_dead}
+
+    processed = []
+    for k, v in g.items():
+        if k in mapper:
+            processed.append(Eq(mapper[k], v.rhs))
+        elif not v.is_dead:
+            processed.append(v.xreplace(mapper))
 
     return processed
