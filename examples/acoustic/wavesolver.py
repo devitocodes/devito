@@ -2,7 +2,7 @@ import numpy as np
 from cached_property import cached_property
 
 from devito.interfaces import DenseData, TimeData
-from examples.acoustic.fwi_operators import (
+from examples.acoustic.operators import (
     ForwardOperator, AdjointOperator, GradientOperator, BornOperator
 )
 from examples.seismic import PointSource, Receiver
