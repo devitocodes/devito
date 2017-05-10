@@ -8,9 +8,9 @@ from sympy import (Eq, Indexed, cos, sin)
 from devito.dse.aliases import collect_aliases
 from devito.dse.clusterizer import clusterize
 from devito.dse.extended_sympy import bhaskara_cos, bhaskara_sin
-from devito.dse.inspection import count, estimate_cost, estimate_memory
-from devito.dse.manipulation import (collect_nested, freeze_expression,
-                                     xreplace_constrained)
+from devito.dse.inspection import estimate_cost, estimate_memory
+from devito.dse.manipulation import (common_subexprs_elimination, collect_nested,
+                                     freeze_expression, xreplace_constrained)
 from devito.dse.queries import iq_timeinvariant, iq_timevarying, q_op
 from devito.interfaces import ScalarFunction, TensorFunction
 from devito.logger import dse, dse_warning
@@ -227,43 +227,17 @@ class Rewriter(object):
     @dse_pass
     def _eliminate_intra_stencil_redundancies(self, cluster, **kwargs):
         """
-        Perform common subexpression elimination.
+        Perform common subexpression elimination, bypassing the scalar expressions
+        extracted in previous passes.
         """
-
-        # Not using SymPy's CSE() function for three reasons:
-        # - capture index functions (we are not interested in integer arithmetic)
-        # - doesn't consider the possibliity of losing factorization opportunities
-        # - very slow
 
         skip = [e for e in cluster.exprs if e.lhs.base.function.is_SymbolicFunction]
         candidates = [e for e in cluster.exprs if e not in skip]
 
         template = self.conventions['temporary'] + "%d"
+        make = lambda i: ScalarFunction(name=template % i).indexify()
 
-        mapped = []
-        while True:
-            # Detect redundancies
-            counted = count(mapped + candidates, q_op).items()
-            targets = OrderedDict([(k, estimate_cost(k)) for k, v in counted if v > 1])
-            if not targets:
-                break
-
-            # Create temporaries
-            make = lambda i: ScalarFunction(name=template % (len(mapped) + i)).indexify()
-            highests = [k for k, v in targets.items() if v == max(targets.values())]
-            mapper = OrderedDict([(e, make(i)) for i, e in enumerate(highests)])
-            candidates = [e.xreplace(mapper) for e in candidates]
-            mapped = [e.xreplace(mapper) for e in mapped]
-            mapped = [Eq(v, k) for k, v in reversed(mapper.items())] + mapped
-
-            # Prepare for the next round
-            for k in highests:
-                targets.pop(k)
-        processed = mapped + candidates
-
-        # Simply renumber the temporaries in ascending order
-        mapper = {i.lhs: j.lhs for i, j in zip(mapped, reversed(mapped))}
-        processed = [e.xreplace(mapper) for e in processed]
+        processed = common_subexprs_elimination(candidates, make)
 
         return cluster.rebuild(skip + processed)
 

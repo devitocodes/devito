@@ -7,11 +7,13 @@ from collections import OrderedDict
 from sympy import Indexed, S, collect, collect_const, flatten
 
 from devito.dse.extended_sympy import Add, Eq, Mul
+from devito.dse.inspection import count, estimate_cost
 from devito.dse.graph import temporaries_graph
+from devito.dse.queries import q_op
 from devito.interfaces import TensorFunction
 from devito.tools import as_tuple
 
-__all__ = ['collect_nested', 'filter_expressions', 'freeze_expression',
+__all__ = ['collect_nested', 'common_subexprs_elimination', 'freeze_expression',
            'xreplace_constrained', 'promote_scalar_expressions']
 
 
@@ -134,7 +136,7 @@ def xreplace_constrained(exprs, make, rule, cm=lambda e: True, repeat=False):
     :param exprs: The target SymPy expression, or a collection of SymPy expressions.
     :param make: A function to construct symbols used for replacement.
                  The function takes as input an integer ID; ID is computed internally
-                 and used as a unique identifier for the newly constructed symbol.
+                 and used as a unique identifier for the constructed symbols.
     :param rule: The matching rule (a lambda function).
     :param cm: The cost model (a lambda function, optional).
     :param repeat: Repeatedly apply ``xreplace`` until no more replacements are
@@ -192,3 +194,50 @@ def xreplace_constrained(exprs, make, rule, cm=lambda e: True, repeat=False):
                 break
 
     return [Eq(v, k) for k, v in processed.items()]
+
+
+def common_subexprs_elimination(exprs, make, mode='default'):
+    """
+    Perform common subexpressions elimination.
+
+    :param exprs: The target SymPy expression, or a collection of SymPy expressions.
+    :param make: A function to construct symbols used for replacement.
+                 The function takes as input an integer ID; ID is computed internally
+                 and used as a unique identifier for the constructed symbols.
+    """
+
+    # Note: not defaulting to SymPy's CSE() function for three reasons:
+    # - it also captures array index access functions (eg, i+1 in A[i+1] and B[i+1]);
+    # - it sometimes "captures too much", losing factorization opportunities;
+    # - very slow
+    # TODO: a second "sympy" mode will be provided, relying on SymPy's CSE() but
+    # also ensuring some sort of post-processing
+
+    assert mode == 'default'  # Only supported mode ATM
+
+    mapped = []
+    processed = list(exprs)
+    while True:
+        # Detect redundancies
+        counted = count(mapped + processed, q_op).items()
+        targets = OrderedDict([(k, estimate_cost(k)) for k, v in counted if v > 1])
+        if not targets:
+            break
+
+        # Create temporaries
+        highests = [k for k, v in targets.items() if v == max(targets.values())]
+        mapper = OrderedDict([(e, make(len(mapped) + i)) for i, e in enumerate(highests)])
+        processed = [e.xreplace(mapper) for e in processed]
+        mapped = [e.xreplace(mapper) for e in mapped]
+        mapped = [Eq(v, k) for k, v in reversed(mapper.items())] + mapped
+
+        # Prepare for the next round
+        for k in highests:
+            targets.pop(k)
+    processed = mapped + processed
+
+    # Simply renumber the temporaries in ascending order
+    mapper = {i.lhs: j.lhs for i, j in zip(mapped, reversed(mapped))}
+    processed = [e.xreplace(mapper) for e in processed]
+
+    return processed
