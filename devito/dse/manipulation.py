@@ -43,40 +43,6 @@ def freeze_expression(expr):
         return expr.func(*[freeze_expression(e) for e in expr.args])
 
 
-def filter_expressions(exprs, make=lambda i: i, count=1):
-    """Remove duplicates expressions from ``exprs``.
-
-    The optional lambda function ``make`` may be provided to build new unique
-    identifiers (otherwise, the redundant expression LHS is used)
-
-    A value of ``count`` different than 1 (default) may be passed to
-    filter off all expressions that do not appear more than ``count`` times.
-    """
-    mapper = OrderedDict()
-    for expr in exprs:
-        mapper.setdefault(expr.rhs, []).append(expr.lhs)
-
-    drop = {}
-    identifiers = {}
-    c = 0
-    for k, v in mapper.items():
-        if len(v) >= count:
-            if v[0].is_Symbol:
-                identifiers[v[0]] = make(c)
-                drop.update({i: identifiers[v[0]] for i in v[1:]})
-                c += 1
-        else:
-            drop.update({i: i for i in v})
-    replacements = dict(identifiers.items() + drop.items())
-
-    processed = []
-    for expr in exprs:
-        if expr.lhs not in drop:
-            processed.append(expr.xreplace(replacements))
-
-    return processed
-
-
 def promote_scalar_expressions(exprs, shape, indices, onstack):
     """
     Transform a collection of scalar expressions into tensor expressions.
