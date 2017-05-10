@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 from numpy import linalg
 
-from examples.acoustic.Acoustic_codegen import Acoustic_cg
+from examples.acoustic import AcousticWaveSolver
 from examples.seismic import Model, PointSource, Receiver
 
 
@@ -92,8 +92,8 @@ def test_gradient(dimensions, time_order, space_order):
     # Define source and receivers and create acoustic wave solver
     src = PointSource(name='src', data=time_series, coordinates=location)
     rec = Receiver(name='rec', ntime=nt, coordinates=receiver_coords)
-    wave = Acoustic_cg(model, source=src, receiver=rec,
-                       t_order=time_order, s_order=space_order)
+    wave = AcousticWaveSolver(model, source=src, receiver=rec,
+                              time_order=time_order, space_order=space_order)
 
     # Data for the true velocity
     rec = wave.Forward()[0]

@@ -3,7 +3,7 @@ import pytest
 from numpy import linalg
 
 from devito.logger import log
-from examples.acoustic.Acoustic_codegen import Acoustic_cg
+from examples.acoustic import AcousticWaveSolver
 from examples.containers import IShot
 from examples.seismic import Model, PointSource, Receiver
 from examples.tti.TTI_codegen import TTI_cg
@@ -87,9 +87,9 @@ def test_tti(dimensions, space_order):
     # Adjoint test
     source = PointSource(name='src', data=time_series, coordinates=location)
     receiver = Receiver(name='rec', ntime=nt, coordinates=receiver_coords)
-    wave_acou = Acoustic_cg(model, source=source, receiver=receiver,
-                            t_order=2, s_order=space_order)
-    rec, u1, _ = wave_acou.Forward(save=False)
+    acoustic = AcousticWaveSolver(model, source=source, receiver=receiver,
+                                  time_order=2, space_order=space_order)
+    rec, u1, _ = acoustic.Forward(save=False)
 
     tn = 50.0
     nt = int(1 + (tn - t0) / dt)
@@ -102,12 +102,12 @@ def test_tti(dimensions, space_order):
 
     source = PointSource(name='src', data=time_series, coordinates=location)
     receiver = Receiver(name='rec', ntime=nt, coordinates=receiver_coords)
-    wave_acou = Acoustic_cg(model, source=source, receiver=receiver,
-                            t_order=2, s_order=space_order)
+    acoustic = AcousticWaveSolver(model, source=source, receiver=receiver,
+                                  time_order=2, space_order=space_order)
 
     wave_tti = TTI_cg(model, data, src, t_order=2, s_order=space_order)
 
-    rec, u, _ = wave_acou.Forward(save=False, u_ini=u1.data[indlast, :])
+    rec, u, _ = acoustic.Forward(save=False, u_ini=u1.data[indlast, :])
     rec_tti, u_tti, v_tti, _, _, _ = wave_tti.Forward(save=False,
                                                       u_ini=u1.data[indlast, :])
 

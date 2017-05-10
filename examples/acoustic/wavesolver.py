@@ -1,31 +1,38 @@
-# coding: utf-8
-from __future__ import print_function
-
 import numpy as np
 from cached_property import cached_property
 
 from devito.interfaces import DenseData, TimeData
-from examples.acoustic.fwi_operators import *
+from examples.acoustic.fwi_operators import (
+    ForwardOperator, AdjointOperator, GradientOperator, BornOperator
+)
 from examples.seismic import PointSource, Receiver
 
 
-class Acoustic_cg(object):
+class AcousticWaveSolver(object):
     """
-    Class to setup the problem for the Acoustic Wave.
+    Solver object that provides operators for seismic inversion problems
+    and encapsulates the time and space discretization for a given problem
+    setup.
 
-    Note: s_order must always be greater than t_order
+    :param model: Physical model with domain parameters
+    :param source: Sparse point symbol providing the injected wave
+    :param receiver: Sparse point symbol describing an array of receivers
+    :param time_order: Order of the time-stepping scheme (default: 2)
+    :param space_order: Order of the spatial stencil discretisation (default: 4)
+
+    Note: space_order must always be greater than time_order
     """
-    def __init__(self, model, source, receiver, t_order=2, s_order=2):
+    def __init__(self, model, source, receiver, time_order=2, space_order=2):
         self.model = model
         self.source = source
         self.receiver = receiver
 
-        self.t_order = t_order
-        self.s_order = s_order
+        self.time_order = time_order
+        self.space_order = space_order
 
         # Time step can be \sqrt{3}=1.73 bigger with 4th order
         self.dt = self.model.critical_dt
-        if self.t_order == 4:
+        if self.time_order == 4:
             self.dt *= 1.73
 
     @cached_property
@@ -33,40 +40,40 @@ class Acoustic_cg(object):
         """Cached operator for forward runs with buffered wavefield"""
         return ForwardOperator(self.model, save=False,
                                source=self.source, receiver=self.receiver,
-                               time_order=self.t_order,
-                               space_order=self.s_order)
+                               time_order=self.time_order,
+                               space_order=self.space_order)
 
     @cached_property
     def op_fwd_save(self):
         """Cached operator for forward runs with unrolled wavefield"""
         return ForwardOperator(self.model, save=True,
                                source=self.source, receiver=self.receiver,
-                               time_order=self.t_order,
-                               space_order=self.s_order)
+                               time_order=self.time_order,
+                               space_order=self.space_order)
 
     @property
     def op_adj(self):
         """Cached operator for adjoint runs"""
         return AdjointOperator(self.model, save=False,
                                source=self.source, receiver=self.receiver,
-                               time_order=self.t_order,
-                               space_order=self.s_order)
+                               time_order=self.time_order,
+                               space_order=self.space_order)
 
     @property
     def op_grad(self):
         """Cached operator for gradient runs"""
         return GradientOperator(self.model, save=False,
                                 source=self.source, receiver=self.receiver,
-                                time_order=self.t_order,
-                                space_order=self.s_order)
+                                time_order=self.time_order,
+                                space_order=self.space_order)
 
     @property
     def op_born(self):
         """Cached operator for gradient runs"""
         return BornOperator(self.model, save=False,
                             source=self.source, receiver=self.receiver,
-                            time_order=self.t_order,
-                            space_order=self.s_order)
+                            time_order=self.time_order,
+                            space_order=self.space_order)
 
     def Forward(self, save=False, u_ini=None, **kwargs):
         """
@@ -80,8 +87,8 @@ class Acoustic_cg(object):
 
         # Create the forward wavefield
         u = TimeData(name='u', shape=self.model.shape_domain, save=save,
-                     time_dim=self.source.nt, time_order=self.t_order,
-                     space_order=self.s_order, dtype=self.model.dtype)
+                     time_dim=self.source.nt, time_order=self.time_order,
+                     space_order=self.space_order, dtype=self.model.dtype)
         if u_ini is not None:
             u.data[0:3, :] = u_ini[:]
 
@@ -104,7 +111,7 @@ class Acoustic_cg(object):
 
         # Create the adjoint wavefield
         v = TimeData(name='v', shape=self.model.shape_domain, save=False,
-                     time_order=2, space_order=self.s_order,
+                     time_order=2, space_order=self.space_order,
                      dtype=self.model.dtype)
 
         summary = self.op_adj.apply(srca=srca, rec=rec, v=v, **kwargs)
@@ -125,8 +132,8 @@ class Acoustic_cg(object):
 
         # Create the forward wavefield
         v = TimeData(name='v', shape=self.model.shape_domain,
-                     time_dim=self.source.nt, time_order=self.t_order,
-                     space_order=self.s_order, dtype=self.model.dtype)
+                     time_dim=self.source.nt, time_order=self.time_order,
+                     space_order=self.space_order, dtype=self.model.dtype)
 
         summary = self.op_grad.apply(rec=rec, grad=grad, v=v, u=u, **kwargs)
         return grad.data, summary
@@ -143,10 +150,10 @@ class Acoustic_cg(object):
 
         # Create the forward wavefield
         u = TimeData(name='u', shape=self.model.shape_domain, save=False,
-                     time_order=self.t_order, space_order=self.s_order,
+                     time_order=self.time_order, space_order=self.space_order,
                      dtype=self.model.dtype)
         U = TimeData(name='U', shape=self.model.shape_domain,
-                     time_order=2, space_order=self.s_order,
+                     time_order=2, space_order=self.space_order,
                      dtype=self.model.dtype)
         if isinstance(dmin, np.ndarray):
             dm = DenseData(name='dm', shape=self.model.shape_domain,

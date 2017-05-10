@@ -4,7 +4,7 @@ from numpy import linalg
 
 from devito.logger import error
 
-from examples.acoustic.Acoustic_codegen import Acoustic_cg
+from examples.acoustic import AcousticWaveSolver
 from examples.seismic import Model, PointSource, Receiver
 
 
@@ -85,12 +85,12 @@ def test_acoustic(dimensions, time_order, space_order):
     # Define source and receivers and create acoustic wave solver
     src = PointSource(name='src', data=time_series, coordinates=location)
     rec = Receiver(name='rec', ntime=nt, coordinates=receiver_coords)
-    acoustic = Acoustic_cg(model, source=src, receiver=rec,
-                           t_order=time_order, s_order=space_order)
+    solver = AcousticWaveSolver(model, source=src, receiver=rec,
+                                time_order=time_order, space_order=space_order)
 
     # Run forward and adjoint operators
-    rec, _, _ = acoustic.Forward(save=False)
-    srca, _, _ = acoustic.Adjoint(rec)
+    rec, _, _ = solver.Forward(save=False)
+    srca, _, _ = solver.Adjoint(rec)
 
     # Actual adjoint test
     term1 = np.dot(srca.reshape(-1), time_series)
