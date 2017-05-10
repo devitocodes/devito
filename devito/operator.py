@@ -198,6 +198,11 @@ class OperatorBasic(Function):
 
         # Add profiler structs
         arguments.update(self._extra_arguments())
+
+        # Sanity check argument derivation
+        for name, arg in arguments.items():
+            if isinstance(arg, SymbolicData) or isinstance(arg, Dimension):
+                raise ValueError('Runtime argument %s not defined' % arg)
         return arguments, dim_sizes
 
     @property
