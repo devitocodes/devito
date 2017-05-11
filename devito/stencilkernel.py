@@ -307,22 +307,22 @@ class OperatorBasic(Function):
         schedule = OrderedDict()
         for i in clusters:
             # Build the Expression objects to be inserted within an Iteration tree
-            expressions = [Expression(v, np.int32 if c.trace.is_index(k) else self.dtype)
-                           for k, v in c.trace.items()]
+            expressions = [Expression(v, np.int32 if i.trace.is_index(k) else self.dtype)
+                           for k, v in i.trace.items()]
 
             if not i.stencil.empty:
                 root = None
                 entries = i.stencil.entries
 
                 # Can I reuse any of the previously scheduled Iterations ?
-                for index, i in enumerate(entries):
-                    if i not in schedule:
+                for index, j in enumerate(entries):
+                    if j not in schedule:
                         break
-                    root = schedule[i]
+                    root = schedule[j]
                 needed = entries[index:]
 
                 # Build and insert the required Iterations
-                iters = [Iteration([], i.dim, i.dim.size, offsets=i.ofs) for i in needed]
+                iters = [Iteration([], j.dim, j.dim.size, offsets=j.ofs) for j in needed]
                 body, tree = compose_nodes(iters + [expressions], retrieve=True)
                 scheduling = OrderedDict(zip(needed, tree))
                 if root is None:
