@@ -8,7 +8,7 @@ from sympy import (Eq, Indexed, cos, sin)
 from devito.dse.aliases import collect_aliases
 from devito.dse.clusterizer import clusterize
 from devito.dse.extended_sympy import bhaskara_cos, bhaskara_sin
-from devito.dse.inspection import estimate_cost, estimate_memory
+from devito.dse.inspection import estimate_cost
 from devito.dse.manipulation import (common_subexprs_elimination, collect_nested,
                                      freeze_expression, xreplace_constrained)
 from devito.dse.queries import iq_timeinvariant, iq_timevarying
@@ -17,8 +17,6 @@ from devito.logger import dse, dse_warning
 from devito.tools import flatten
 
 __all__ = ['rewrite']
-
-_temp_prefix = 'temp'
 
 
 def rewrite(clusters, mode='advanced'):
@@ -81,42 +79,9 @@ class State(object):
 
     def __init__(self, cluster):
         self.clusters = [cluster]
-        self.mapper = OrderedDict()
 
     def update(self, clusters):
         self.clusters = clusters or self.clusters
-
-    @property
-    def time_invariants(self):
-        return [i for i in self.exprs if i.lhs in self.mapper]
-
-    @property
-    def time_varying(self):
-        return [i for i in self.exprs if i not in self.time_invariants]
-
-    @property
-    def ops_time_invariants(self):
-        return estimate_cost(self.time_invariants)
-
-    @property
-    def ops_time_varying(self):
-        return estimate_cost(self.time_varying)
-
-    @property
-    def ops(self):
-        return self.ops_time_invariants + self.ops_time_varying
-
-    @property
-    def memory_time_invariants(self):
-        return estimate_memory(self.time_invariants)
-
-    @property
-    def memory_time_varying(self):
-        return estimate_memory(self.time_varying)
-
-    @property
-    def memory(self):
-        return self.memory_time_invariants + self.memory_time_varying
 
 
 class Rewriter(object):

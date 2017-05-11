@@ -1,17 +1,14 @@
 from collections import OrderedDict
 
-import numpy as np
 from sympy import (Function, Indexed, Number, Symbol, cos, lambdify,
                    preorder_traversal, sin)
 
 from devito.dimension import Dimension, t
 from devito.dse.search import retrieve_indexed, retrieve_ops, search
-from devito.interfaces import SymbolicData
 from devito.logger import warning
 from devito.tools import flatten
 
-__all__ = ['estimate_cost', 'estimate_memory', 'indexify', 'retrieve_dimensions',
-           'retrieve_dtype', 'retrieve_symbols', 'retrieve_shape', 'as_symbol',
+__all__ = ['estimate_cost', 'estimate_memory', 'indexify', 'as_symbol',
            'terminals', 'tolambda']
 
 
@@ -133,61 +130,6 @@ def estimate_memory(handle, mode='realistic'):
         return len(set(reads) | set(writes))
     else:
         return len(reads) + len(writes)
-
-
-def retrieve_dimensions(expr):
-    """
-    Collect all function dimensions used in a sympy expression.
-    """
-    dimensions = []
-
-    for e in preorder_traversal(expr):
-        if isinstance(e, SymbolicData):
-            dimensions += [i for i in e.indices if i not in dimensions]
-
-    return dimensions
-
-
-def retrieve_symbols(expr):
-    """
-    Collect defined and undefined symbols used in a sympy expression.
-
-    Defined symbols are functions that have an associated :class
-    SymbolicData: object, or dimensions that are known to the devito
-    engine. Undefined symbols are generic `sympy.Function` or
-    `sympy.Symbol` objects that need to be substituted before generating
-    operator C code.
-    """
-    defined = set()
-    undefined = set()
-
-    for e in preorder_traversal(expr):
-        if isinstance(e, SymbolicData):
-            defined.add(e.func(*e.indices))
-        elif isinstance(e, Function):
-            undefined.add(e)
-        elif isinstance(e, Symbol):
-            undefined.add(e)
-
-    return list(defined), list(undefined)
-
-
-def retrieve_dtype(expr):
-    """
-    Try to infer the data type of an expression.
-    """
-    dtypes = [e.dtype for e in preorder_traversal(expr) if hasattr(e, 'dtype')]
-    return np.find_common_type(dtypes, [])
-
-
-def retrieve_shape(expr):
-    indexed = set([e for e in preorder_traversal(expr) if isinstance(e, Indexed)])
-    if not indexed:
-        return ()
-    indexed = sorted(indexed, key=lambda s: len(s.indices), reverse=True)
-    indices = [flatten([j.free_symbols for j in i.indices]) for i in indexed]
-    assert all(set(indices[0]).issuperset(set(i)) for i in indices)
-    return tuple(indices[0])
 
 
 def as_symbol(expr):
