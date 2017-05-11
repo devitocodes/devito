@@ -89,14 +89,12 @@ def run(dimensions=(50, 50, 50), spacing=(15.0, 15.0, 15.0), tn=750.0,
     u_nosave = TimeData(name="u_ns", shape=model.shape_domain, time_dim=nt,
                         time_order=time_order, space_order=space_order, save=False,
                         dtype=model.dtype)
-    u_nosave.pad_time = False
 
     # Forward wavefield where all timesteps are stored
     # With checkpointing this should go away <----
     u_save = TimeData(name="u_s", shape=model.shape_domain, time_dim=nt,
                       time_order=time_order, space_order=space_order, save=True,
                       dtype=model.dtype)
-    u_save.pad_time = True
 
     # Forward Operators - one with save = True and one with save = False
     fw = ForwardOperator(model, u_save, src, rec_t, time_order=time_order,
