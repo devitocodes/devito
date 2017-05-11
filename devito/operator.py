@@ -22,7 +22,7 @@ from devito.nodes import (Element, Expression, Function, Iteration, List,
                           LocalExpression, TimedList)
 from devito.profiler import Profiler
 from devito.stencil import Stencil
-from devito.tools import as_tuple, filter_ordered, filter_sorted, flatten, partial_order
+from devito.tools import as_tuple, filter_ordered, flatten
 from devito.visitors import (FindNodes, FindSections, FindSymbols, FindScopes,
                              IsPerfectIteration, ResolveIterationVariable,
                              SubstituteExpression, Transformer)
@@ -57,6 +57,7 @@ class OperatorBasic(Function):
                     environment variable DEVITO_ARCH, or default to GNUCompiler.
     """
     def __init__(self, expressions, **kwargs):
+        expressions = as_tuple(expressions)
         if any(not isinstance(i, sympy.Eq) for i in expressions):
             raise InvalidOperator("Only SymPy expressions are allowed.")
         if len(set(i.lhs for i in expressions)) < len(expressions):
@@ -78,7 +79,7 @@ class OperatorBasic(Function):
         time.reverse = time_axis == Backward
 
         # Expression lowering
-        expressions = [indexify(s) for s in as_tuple(expressions)]
+        expressions = [indexify(s) for s in expressions]
         expressions = [s.xreplace(subs) for s in expressions]
 
         # Analysis 1 - required *also after* the Operator construction

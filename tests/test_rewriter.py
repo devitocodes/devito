@@ -2,9 +2,11 @@ import numpy as np
 import pytest
 
 from devito.dimension import Dimension, time
-from devito.dse.graph import temporaries_graph
+from devito.dse.clusterizer import clusterize
 from devito.dse.symbolics import rewrite
 from devito.interfaces import TimeData
+from devito.nodes import Expression
+from devito.visitors import FindNodes
 from examples.acoustic.Acoustic_codegen import Acoustic_cg
 from examples.containers import IShot
 from examples.seismic import Model
@@ -69,8 +71,8 @@ def test_acoustic_rewrite_basic():
     output1 = run_acoustic_forward(dse=None)
     output2 = run_acoustic_forward(dse='basic')
 
-    assert np.allclose(output1[0], output2[0], atol=10e-6)
-    assert np.allclose(output1[1].data, output2[1].data, atol=10e-6)
+    assert np.allclose(output1[0], output2[0], atol=10e-5)
+    assert np.allclose(output1[1].data, output2[1].data, atol=10e-5)
 
 
 # TTI
@@ -107,7 +109,7 @@ def tti_operator(dse=False):
     handle = ForwardOperator(problem.model, u, v, src, rec,
                              problem.data, time_order=problem.t_order,
                              spc_order=problem.s_order, save=False,
-                             cache_blocking=None, dse=dse)
+                             cache_blocking=None, dse=dse, dle='basic')
     return handle, v, rec
 
 
@@ -119,15 +121,24 @@ def tti_nodse():
     return (np.copy(v.data), np.copy(rec.data))
 
 
-@pytest.mark.xfail(reason="New-style operator does store `.stencils`")
-def test_tti_rewrite_temporaries_graph():
+def test_tti_clusters_to_graph():
     operator, _, _ = tti_operator()
-    handle = rewrite(operator.stencils, mode='basic')
 
-    graph = temporaries_graph(handle.exprs)
+    nodes = FindNodes(Expression).visit(operator.elemental_functions)
+    expressions = [n.expr for n in nodes]
+    stencils = operator._retrieve_stencils(expressions)
+    clusters = clusterize(expressions, stencils)
+    assert len(clusters) == 3
 
-    assert len([v for v in graph.values() if v.is_terminal]) == 2  # u and v
-    assert len(graph) == len(handle.exprs)
+    main_cluster = clusters[0]
+    n_output_tensors = len(main_cluster.trace)
+
+    clusters = rewrite([main_cluster], mode='basic')
+    assert len(clusters) == 1
+    main_cluster = clusters[0]
+
+    graph = main_cluster.trace
+    assert len([v for v in graph.values() if v.is_tensor]) == n_output_tensors  # u and v
     assert all(v.reads or v.readby for v in graph.values())
 
 
