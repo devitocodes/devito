@@ -130,7 +130,7 @@ def _new_operator2(shape, time_order, **kwargs):
 def test_create_elemental_functions_simple(simple_function):
     old = Rewriter.thresholds['elemental']
     Rewriter.thresholds['elemental'] = 0
-    handle = transform(simple_function, mode=('split',))
+    handle = transform(simple_function, mode='split')
     block = List(body=handle.nodes + handle.elemental_functions)
     output = str(block.ccode)
     # Make output compiler independent
@@ -171,7 +171,7 @@ void f_0_0(float *restrict a_vec, float *restrict b_vec,"""
 def test_create_elemental_functions_complex(complex_function):
     old = Rewriter.thresholds['elemental']
     Rewriter.thresholds['elemental'] = 0
-    handle = transform(complex_function, mode=('split',))
+    handle = transform(complex_function, mode='split')
     block = List(body=handle.nodes + handle.elemental_functions)
     output = str(block.ccode)
     # Make output compiler independent
@@ -283,7 +283,7 @@ def test_cache_blocking_edge_cases(shape, blockshape):
 def test_loop_nofission(simple_function):
     old = Rewriter.thresholds['max_fission']
     Rewriter.thresholds['max_fission'] = 0
-    handle = transform(simple_function, mode=('fission',))
+    handle = transform(simple_function, mode='fission')
     assert """\
   for (int i = 0; i < 3; i += 1)
   {
@@ -302,7 +302,7 @@ def test_loop_nofission(simple_function):
 def test_loop_fission(simple_function_fissionable):
     old = Rewriter.thresholds['max_fission']
     Rewriter.thresholds['max_fission'] = 0
-    handle = transform(simple_function_fissionable, mode=('fission',))
+    handle = transform(simple_function_fissionable, mode='fission')
     assert """\
  for (int i = 0; i < 3; i += 1)
   {
@@ -322,7 +322,7 @@ def test_loop_fission(simple_function_fissionable):
 
 
 def test_padding(simple_function_with_paddable_arrays):
-    handle = transform(simple_function_with_paddable_arrays, mode=('padding',))
+    handle = transform(simple_function_with_paddable_arrays, mode='padding')
     assert str(handle.nodes[0].ccode) == """\
 for (int i = 0; i < 3; i += 1)
 {

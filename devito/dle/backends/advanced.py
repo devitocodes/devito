@@ -16,6 +16,7 @@ from devito.dle import (compose_nodes, copy_arrays, filter_iterations,
 from devito.dle.backends import (BasicRewriter, BlockingArg, dle_pass, omplang,
                                  simdinfo, get_simd_flag, get_simd_items)
 from devito.dse import promote_scalar_expressions
+from devito.exceptions import DLEException
 from devito.interfaces import TensorFunction
 from devito.logger import dle_warning
 from devito.nodes import Block, Denormals, Element, Expression, Iteration, List
@@ -408,3 +409,26 @@ class DevitoSpeculativeRewriter(DevitoRewriter):
         return {'nodes': decorate(state.nodes),
                 'elemental_functions': decorate(state.elemental_functions),
                 'flags': 'ntstores'}
+
+
+class DevitoCustomRewriter(DevitoSpeculativeRewriter):
+
+    passes_mapper = {
+        'fission': DevitoSpeculativeRewriter._loop_fission,
+        'padding': DevitoSpeculativeRewriter._padding,
+        'split': DevitoSpeculativeRewriter._create_elemental_functions
+    }
+
+    def __init__(self, nodes, passes, params, compiler):
+        try:
+            passes = passes.split(',')
+        except AttributeError:
+            raise DLEException
+        if not all(i in DevitoCustomRewriter.passes_mapper for i in passes):
+            raise DLEException
+        self.passes = passes
+        super(DevitoCustomRewriter, self).__init__(nodes, params, compiler)
+
+    def _pipeline(self, state):
+        for i in self.passes:
+            DevitoCustomRewriter.passes_mapper[i](self, state)

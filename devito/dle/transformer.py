@@ -1,7 +1,8 @@
 from collections import Sequence
 
-from devito.dle.backends import (State, BasicRewriter, DevitoRewriter,
-                                 DevitoSpeculativeRewriter, YaskRewriter)
+from devito.dle.backends import (State, BasicRewriter, DevitoCustomRewriter,
+                                 DevitoRewriter, DevitoSpeculativeRewriter, YaskRewriter)
+from devito.exceptions import DLEException
 from devito.logger import dle_warning
 
 
@@ -22,16 +23,16 @@ def transform(node, mode='basic', options=None, compiler=None):
     :param mode: Drive the tree transformation. ``mode`` is a string indicating
                  a certain optimization pipeline. The following values are accepted: ::
 
-                     * 'noop': Do nothing
+                     * 'noop': Do nothing.
                      * 'basic': Add instructions to avoid denormal numbers and create
                                 elemental functions for rapid JIT-compilation.
-                     * 'advanced': 'basic', vectorization, loop blocking
+                     * 'advanced': 'basic', vectorization, loop blocking.
                      * '3D-advanced': Like 'advanced', but apply 3D loop blocking
                                       if there are at least the perfectly nested
-                                      parallel iteration spaces -- [S]
+                                      parallel iteration spaces.
                      * 'speculative': Apply all of the 'advanced' transformations,
                                       plus other transformations that might increase
-                                      (or possibly decrease) performance -- [S]
+                                      (or possibly decrease) performance.
                      * 'yask': Optimize by offloading to the YASK optimizer.
     :param options: A dictionary with additional information to drive the DLE. The
                     following values are accepted: ::
@@ -58,6 +59,7 @@ def transform(node, mode='basic', options=None, compiler=None):
         raise ValueError("Got illegal node of type %s." % type(node))
 
     # Check input options
+    options = options or {}
     params = options.copy()
     for i in options:
         if i not in ('blockshape', 'blockinner', 'openmp'):
@@ -71,8 +73,12 @@ def transform(node, mode='basic', options=None, compiler=None):
         params['blockinner'] = True
         mode = 'advanced'
     elif mode not in modes:
-        dle_warning("Unknown transformer mode(s) %s" % mode)
-        return State(node)
-
-    rewriter = modes[mode](node, params, compiler)
-    return rewriter.run()
+        try:
+            rewriter = DevitoCustomRewriter(node, mode, params, compiler)
+            return rewriter.run()
+        except DLEException:
+            dle_warning("Unknown transformer mode(s) %s" % mode)
+            return State(node)
+    else:
+        rewriter = modes[mode](node, params, compiler)
+        return rewriter.run()
