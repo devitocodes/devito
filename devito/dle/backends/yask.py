@@ -47,13 +47,28 @@ class YaskRewriter(BasicRewriter):
                 grids = {g.name: soln.new_grid(g.name, *[str(i) for i in g.indices])
                          for g in grids}
 
+                # Vector folding API usage example
+                soln.set_fold_len('x', 1)
+                soln.set_fold_len('y', 1)
+                soln.set_fold_len('z', 8)
+
                 # Perform the translation on an expression basis
                 transformer = sympy2yask(grids)
                 expressions = [e for e in candidate.nodes if e.is_Expression]
                 # yaskASTs = [transformer(e.stencil) for e in expressions]
                 for i in expressions:
                     try:
-                        print(transformer(i.stencil).format_simple())
+                        ast = transformer(i.stencil)
+                        # Scalar
+                        print(ast.format_simple())
+
+                        # AVX2 intrinsics
+                        # print soln.format('avx2')
+
+                        # AVX2 intrinsics to file
+                        # import os
+                        # path = os.path.join(os.environ.get('YASK_HOME', '.'), 'src')
+                        # soln.write(os.path.join(path, 'stencil_code.hpp'), 'avx2')
                     except:
                         pass
 
