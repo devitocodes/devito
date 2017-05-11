@@ -4,3 +4,7 @@ class InvalidArgument(Exception):
 
 class InvalidOperator(Exception):
     pass
+
+
+class StencilOperationError(Exception):
+    pass

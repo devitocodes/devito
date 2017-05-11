@@ -76,10 +76,10 @@ def collect_aliases(exprs):
     for i in aliases.values():
         grouped.setdefault(i.dimensions, []).append(i)
     for dimensions, group in grouped.items():
-        ideal_stencil = Stencil.union(*[i.stencil for i in group])
+        ideal_anti_stencil = Stencil.union(*[i.anti_stencil for i in group])
         for i in group:
-            if i.stencil.subtract(ideal_stencil).empty:
-                aliases[i.alias] = i.relax(ideal_stencil)
+            if i.anti_stencil.subtract(ideal_anti_stencil).empty:
+                aliases[i.alias] = i.relax(ideal_anti_stencil)
 
     return mapper, aliases
 
@@ -231,7 +231,7 @@ class Alias(object):
         self._ghost_offsets = ghost_offsets or []
 
     @property
-    def stencil(self):
+    def anti_stencil(self):
         handle = Stencil()
         for d, i in zip(self.dimensions, zip(*self.distances)):
             handle[d].update(set(i))

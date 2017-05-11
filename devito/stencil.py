@@ -3,6 +3,7 @@ from collections import namedtuple
 from sympy import Eq
 
 from devito.dse.search import retrieve_indexed
+from devito.exceptions import StencilOperationError
 from devito.dimension import Dimension
 from devito.tools import DefaultOrderedDict, flatten, partial_order
 
@@ -114,6 +115,17 @@ class Stencil(DefaultOrderedDict):
     def entries(self):
         return tuple(StencilEntry(k, v) for k, v in self.items())
 
+    def null(self):
+        """
+        Return the null Stencil of ``self``.
+
+        Examples
+        ========
+        self = {i: {-1, 0, 1}, j: {-2, -1, 0, 1, 2}}
+        self.null() >> {i: {0}, j: {0}}
+        """
+        return Stencil([(i, set([0])) for i in self.dimensions])
+
     def section(self, d):
         """
         Return a view of the Stencil in which the Dimensions in ``d`` have been
@@ -122,7 +134,7 @@ class Stencil(DefaultOrderedDict):
         output = Stencil()
         for k, v in self.items():
             if k not in d:
-                output[k] = v
+                output[k] = set(v)
         return output
 
     def subtract(self, o):
@@ -132,7 +144,7 @@ class Stencil(DefaultOrderedDict):
         """
         output = Stencil()
         for k, v in self.items():
-            output[k] = v
+            output[k] = set(v)
             if k in o:
                 output[k] -= o[k]
         return output
@@ -144,10 +156,64 @@ class Stencil(DefaultOrderedDict):
         """
         output = Stencil()
         for k, v in self.items():
-            output[k] = v
+            output[k] = set(v)
             if k in o:
                 output[k] |= o[k]
         return output
+
+    def rshift(self, m):
+        """
+        Right-shift the Dimensions ``d`` of ``self`` appearing in the mapper ``m``
+        by the constant quantity ``m[d]``.
+        """
+        return Stencil([(k, set([i - m.get(k, 0) for i in v])) for k, v in self.items()])
+
+    def split(self, ds=None):
+        """
+        Split ``self`` into two Stencils, one with the negative axis, and one
+        with the positive axis. If ``ds`` is provided, the split occurs only
+        along the Dimensions listed in ``ds``.
+        """
+        ds = ds or self.dimensions
+        negative, positive = Stencil(), Stencil()
+        for k, v in self.items():
+            if k in ds:
+                negative[k] = {i for i in v if i < 0}
+                positive[k] = {i for i in v if i > 0}
+        return negative, positive
+
+    def anti(self, o):
+        """
+        Compute the anti-Stencil of ``self`` constrained by ``o``.
+
+        Examples
+        ========
+        Assuming one single dimension (omitted for brevity)
+
+        self = {-3, -2, -1, 0, 1, 2, 3}
+        o = {-3, -2, -1, 0, 1, 2, 3}
+        self.anti(o) >> {}
+
+        self = {-3, -2, -1, 0, 1, 2, 3}
+        o = {-2, -1, 0, 1}
+        self.anti(o) >> {-1, 0, 1, 2}
+
+        self = {-1, 0, 1}
+        o = {-2, -1, 0, 1, 2}
+        self.anti(o) >> {-1, 0, 1}
+        """
+        o = o.section([i for i in o.dimensions if i not in self])
+
+        if any(not o[i].issuperset(self[i]) for i in o.dimensions):
+            raise StencilOperationError
+
+        diff = o.subtract(self)
+        n, p = diff.split()
+        n = n.rshift({i: min(self[i]) for i in self})
+        p = p.rshift({i: max(self[i]) for i in self})
+        union = Stencil.union(*[n, self.null(), p])
+
+        return union
 
     def get(self, k, v=None):
         obj = super(Stencil, self).get(k, v)

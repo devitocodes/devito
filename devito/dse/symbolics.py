@@ -14,7 +14,6 @@ from devito.dse.manipulation import (common_subexprs_elimination, collect_nested
 from devito.dse.queries import iq_timeinvariant, iq_timevarying
 from devito.interfaces import ScalarFunction, TensorFunction
 from devito.logger import dse, dse_warning
-from devito.stencil import Stencil
 from devito.tools import flatten
 
 __all__ = ['rewrite']
@@ -338,25 +337,6 @@ class Rewriter(object):
         template = lambda i: TensorFunction(name=name % i, shape=shape,
                                             dimensions=indices).indexed
 
-        # Cross-time redundancies, if any, cannot be exploited by this pass
-        scope = cluster.stencil.section(indices)
-        if len(scope) == 0:
-            # No time dimension, nothing to capture
-            return cluster
-        elif len(scope) > 1:
-            dse_warning("Unexpected Stencil %s" % str(cluster.stencil))
-            return cluster
-        else:
-            dim = scope.dimensions[0]
-            for origin, alias in list(aliases.items()):
-                if alias.stencil.get(dim) != {0}:
-                    # Time-varying, let's not exploit this
-                    aliases.pop(origin)
-                    for i in alias.aliased:
-                        mapper.pop(i)
-                elif dim in alias.stencil:
-                    aliases[origin] = alias.relax(Stencil.union(*[scope, alias.stencil]))
-
         # Find the candidate expressions
         processed = []
         candidates = OrderedDict()
@@ -379,7 +359,7 @@ class Rewriter(object):
             temporary = Indexed(template(c), *indices)
             found.append(Eq(temporary, origin))
             # Track the stencil of each TensorFunction introduced
-            stencils[temporary] = alias.stencil
+            stencils[temporary] = alias.anti_stencil.anti(cluster.stencil)
             for aliased, distance in alias.with_distance:
                 coordinates = [sum([i, j]) for i, j in distance.items() if i in indices]
                 rules[candidates[aliased]] = Indexed(template(c), *tuple(coordinates))
