@@ -17,6 +17,14 @@ logger = logging.getLogger('Devito')
 _ch = logging.StreamHandler()
 logger.addHandler(_ch)
 
+log_level = "log_level"
+
+
+def parameters_updated(key, value):
+    if key == log_level:
+        logger.setLevel(eval(value))
+
+
 # Add extra levels between INFO (value=20) and WARNING (value=30)
 DEBUG = logging.DEBUG
 AUTOTUNER = 19
@@ -35,8 +43,8 @@ logging.addLevelName(DSE_WARN, "DSE_WARN")
 logging.addLevelName(DSE, "DLE")
 logging.addLevelName(DSE_WARN, "DLE_WARN")
 
-init_log_level = eval(parameters["log_level"])
-logger.setLevel(init_log_level)
+parameters_updated(log_level, parameters[log_level])
+parameters.update_functions.append(parameters_updated)
 
 NOCOLOR = '%s'
 RED = '\033[1;37;31m%s\033[0m'
