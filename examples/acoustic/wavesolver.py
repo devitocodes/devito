@@ -1,4 +1,3 @@
-import numpy as np
 from cached_property import cached_property
 
 from devito.interfaces import DenseData, TimeData
@@ -219,14 +218,7 @@ class AcousticWaveSolver(object):
         if m is None:
             m = self.model.m
 
-        if isinstance(dmin, np.ndarray):
-            dm = DenseData(name='dm', shape=self.model.shape_domain,
-                           dtype=self.model.dtype)
-            dm.data[:] = dmin
-        else:
-            dm = dmin
-
-        # execute operator and return wavefield and receiver data
-        summary = self.op_born.apply(dm=dm, u=u, U=U, src=src, rec=rec,
+        # Execute operator and return wavefield and receiver data
+        summary = self.op_born.apply(dm=dmin, u=u, U=U, src=src, rec=rec,
                                      m=m, **kwargs)
         return rec.data, u, U, summary
