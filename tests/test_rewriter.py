@@ -4,8 +4,7 @@ import pytest
 from devito.dse.graph import temporaries_graph
 from devito.dse.symbolics import rewrite
 from devito.interfaces import TimeData
-from examples.acoustic.Acoustic_codegen import Acoustic_cg
-from examples.containers import IShot
+from examples.acoustic import AcousticWaveSolver
 from examples.seismic import Model, PointSource, Receiver
 from examples.tti.tti_example import setup
 from examples.tti.tti_operators import ForwardOperator
@@ -27,8 +26,6 @@ def run_acoustic_forward(dse=None):
     model = Model(origin, spacing, dimensions, true_vp, nbpml=nbpml)
 
     # Define seismic data.
-    data = IShot()
-    src = IShot()
     f0 = .010
     dt = model.critical_dt
     t0 = 0.0
@@ -45,9 +42,6 @@ def run_acoustic_forward(dse=None):
     location[0, 0] = origin[0] + dimensions[0] * spacing[0] * 0.5
     location[0, 1] = origin[1] + dimensions[1] * spacing[1] * 0.5
     location[0, 2] = origin[1] + 2 * spacing[2]
-    src.set_receiver_pos(location)
-    src.set_shape(nt, 1)
-    src.set_traces(time_series)
 
     # Receiver geometry
     receiver_coords = np.zeros((101, 3))
@@ -55,10 +49,11 @@ def run_acoustic_forward(dse=None):
                                         dimensions[0] * spacing[0], num=101)
     receiver_coords[:, 1] = origin[1] + dimensions[1] * spacing[1] * 0.5
     receiver_coords[:, 2] = location[0, 1]
-    data.set_receiver_pos(receiver_coords)
-    data.set_shape(nt, 101)
-    acoustic = Acoustic_cg(model, data, src)
-    rec, u, _, _, _ = acoustic.Forward(save=False, dse=dse)
+
+    src = PointSource(name='src', data=time_series, coordinates=location)
+    rec = Receiver(name='rec', ntime=nt, coordinates=receiver_coords)
+    acoustic = AcousticWaveSolver(model, source=src, receiver=rec)
+    rec, u, _ = acoustic.forward(save=False, dse=dse)
 
     return rec, u
 
@@ -67,7 +62,7 @@ def test_acoustic_rewrite_basic():
     output1 = run_acoustic_forward(dse=None)
     output2 = run_acoustic_forward(dse='basic')
 
-    assert np.allclose(output1[0], output2[0], atol=10e-6)
+    assert np.allclose(output1[0].data, output2[0].data, atol=10e-6)
     assert np.allclose(output1[1].data, output2[1].data, atol=10e-6)
 
 
