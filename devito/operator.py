@@ -142,8 +142,8 @@ class OperatorBasic(Function):
 
         # Traverse positional args and infer loop sizes for open dimensions
         f_args = [f for f in arguments.values() if isinstance(f, SymbolicData)]
-        for f, arg in zip(f_args, args):
-            arguments[arg.name] = self._arg_data(f)
+        for f in f_args:
+            arguments[f.name] = self._arg_data(f)
             shape = self._arg_shape(f)
 
             # Ensure data dimensions match symbol dimensions
