@@ -7,7 +7,7 @@ from examples.seismic import Model, PointSource, Receiver
 
 # Velocity models
 def smooth10(vel, shape):
-    out = np.ones(shape)
+    out = np.ones(shape, dtype=np.float32)
     out[:, :] = vel[:, :]
     nx = shape[0]
 
@@ -30,7 +30,7 @@ def run(dimensions=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=1000.0,
     origin = (0., 0., 0.)
 
     # True velocity
-    true_vp = np.ones(dimensions) + .5
+    true_vp = np.ones(dimensions, dtype=np.float32) + .5
     if len(dimensions) == 2:
         true_vp[:, int(dimensions[0] / 2):dimensions[0]] = 2.5
     else:
@@ -39,9 +39,9 @@ def run(dimensions=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=1000.0,
     # Smooth velocity
     initial_vp = smooth10(true_vp, dimensions)
 
-    dm = 1. / (true_vp * true_vp) - 1. / (initial_vp * initial_vp)
-
     model = Model(origin, spacing, dimensions, true_vp, nbpml=nbpml)
+
+    dm = model.pad(1. / (true_vp * true_vp) - 1. / (initial_vp * initial_vp))
 
     f0 = .010
     dt = model.critical_dt
@@ -84,7 +84,7 @@ def run(dimensions=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=1000.0,
     info("Applying Born")
     solver.born(dm, **kwargs)
     info("Applying Gradient")
-    solver.gradient(rec, u, **kwargs)
+    solver.gradient(rec.data, u, **kwargs)
 
 
 if __name__ == "__main__":
