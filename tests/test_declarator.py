@@ -2,11 +2,11 @@ from __future__ import absolute_import
 
 from sympy import Eq
 
-from devito.stencilkernel import StencilKernel
+from devito import Operator
 
 
 def test_heap_1D_stencil(a, b):
-    operator = StencilKernel(Eq(a, a + b + 5.), dse='noop', dle='noop')
+    operator = Operator(Eq(a, a + b + 5.), dse='noop', dle='noop')
     assert """\
   float (*a);
   posix_memalign((void**)&a, 64, sizeof(float[3]));
@@ -24,7 +24,7 @@ def test_heap_1D_stencil(a, b):
 
 
 def test_heap_perfect_2D_stencil(a, c):
-    operator = StencilKernel([Eq(a, c), Eq(c, c*a)], dse='noop', dle='noop')
+    operator = Operator([Eq(a, c), Eq(c, c*a)], dse='noop', dle='noop')
     assert """\
   float (*a);
   float (*c)[5];
@@ -49,7 +49,7 @@ def test_heap_perfect_2D_stencil(a, c):
 
 
 def test_heap_nonperfect_2D_stencil(a, c):
-    operator = StencilKernel([Eq(a, 0.), Eq(c, c*a)], dse='noop', dle='noop')
+    operator = Operator([Eq(a, 0.), Eq(c, c*a)], dse='noop', dle='noop')
     assert """\
   float (*a);
   float (*c)[5];
@@ -74,8 +74,8 @@ def test_heap_nonperfect_2D_stencil(a, c):
 
 
 def test_stack_scalar_temporaries(a, t0, t1):
-    operator = StencilKernel([Eq(t0, 1.), Eq(t1, 2.), Eq(a, t0*t1*3.)],
-                             dse='noop', dle='noop')
+    operator = Operator([Eq(t0, 1.), Eq(t1, 2.), Eq(a, t0*t1*3.)],
+                        dse='noop', dle='noop')
     assert """\
   float (*a);
   posix_memalign((void**)&a, 64, sizeof(float[3]));
@@ -95,8 +95,7 @@ def test_stack_scalar_temporaries(a, t0, t1):
 
 
 def test_stack_vector_temporaries(c_stack, e):
-    operator = StencilKernel([Eq(c_stack, e*1.)],
-                             dse='noop', dle='noop')
+    operator = Operator([Eq(c_stack, e*1.)], dse='noop', dle='noop')
     assert """\
   struct timeval start_loop_k_0, end_loop_k_0;
   gettimeofday(&start_loop_k_0, NULL);
@@ -104,14 +103,14 @@ def test_stack_vector_temporaries(c_stack, e):
   {
     for (int s = 0; s < 4; s += 1)
     {
-      for (int p = 0; p < 4; p += 1)
+      for (int q = 0; q < 4; q += 1)
       {
         double c_stack[3][5] __attribute__((aligned(64)));
         for (int i = 0; i < 3; i += 1)
         {
           for (int j = 0; j < 5; j += 1)
           {
-            c_stack[i][j] = 1.0F*e[k][s][p][i][j];
+            c_stack[i][j] = 1.0F*e[k][s][q][i][j];
           }
         }
       }

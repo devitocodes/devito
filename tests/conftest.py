@@ -25,7 +25,7 @@ def dims():
             'j': Dimension(name='j', size=5),
             'k': Dimension(name='k', size=7),
             's': Dimension(name='s', size=4),
-            'p': Dimension(name='p', size=4)}
+            'q': Dimension(name='q', size=4)}
 
 
 @pytest.fixture(scope="session")
@@ -34,7 +34,7 @@ def iters(dims):
             lambda ex: Iteration(ex, dims['j'], (0, 5, 1)),
             lambda ex: Iteration(ex, dims['k'], (0, 7, 1)),
             lambda ex: Iteration(ex, dims['s'], (0, 4, 1)),
-            lambda ex: Iteration(ex, dims['p'], (0, 4, 1))]
+            lambda ex: Iteration(ex, dims['q'], (0, 4, 1))]
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -84,5 +84,5 @@ def d(dims):
 
 @pytest.fixture(scope="session", autouse=True)
 def e(dims):
-    dimensions = [dims['k'], dims['s'], dims['p'], dims['i'], dims['j']]
+    dimensions = [dims['k'], dims['s'], dims['q'], dims['i'], dims['j']]
     return tensorfunction('e', (7, 4, 4, 3, 5), dimensions).indexify()

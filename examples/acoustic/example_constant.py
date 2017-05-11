@@ -27,19 +27,16 @@ def source(t, f0):
 
 def run(dimensions=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=1000.0,
         time_order=2, space_order=4, nbpml=40, dse='advanced', dle='advanced',
-        auto_tuning=False, compiler=None, cache_blocking=None, full_run=False):
+        auto_tuning=False, compiler=None, cache_blocking=None, full_run=False,
+        legacy=False):
 
     origin = (0., 0., 0.)
 
     # True velocity
-    true_vp = np.ones(dimensions) + .5
-    if len(dimensions) == 2:
-        true_vp[:, int(dimensions[0] / 2):dimensions[0]] = 2.5
-    else:
-        true_vp[:, :, int(dimensions[0] / 2):dimensions[0]] = 2.5
+    true_vp = 2.
 
     # Smooth velocity
-    initial_vp = smooth10(true_vp, dimensions)
+    initial_vp = 1.8
 
     dm = 1. / (true_vp * true_vp) - 1. / (initial_vp * initial_vp)
 
@@ -79,24 +76,24 @@ def run(dimensions=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=1000.0,
 
     Acoustic = Acoustic_cg(model, data, src, nbpml=nbpml, t_order=time_order,
                            s_order=space_order, auto_tuning=auto_tuning, dse=dse,
-                           dle=dle, compiler=compiler)
+                           dle=dle, compiler=compiler, legacy=legacy)
 
     info("Applying Forward")
     rec, u, gflopss, oi, timings = Acoustic.Forward(
-        cache_blocking=cache_blocking, save=full_run, dse=dse, dle=dle,
-        auto_tuning=auto_tuning, compiler=compiler
+        cache_blocking=cache_blocking, save=full_run, dse='basic', dle=dle,
+        auto_tuning=auto_tuning, compiler=compiler, legacy=legacy,
     )
 
     if not full_run:
         return gflopss, oi, timings, [rec, u.data]
 
     info("Applying Adjoint")
-    Acoustic.Adjoint(rec, dse=dse, dle=dle)
+    Acoustic.Adjoint(rec, dse=dse, dle=dle, legacy=legacy)
     info("Applying Born")
-    Acoustic.Born(dm, dse=dse, dle=dle)
+    Acoustic.Born(dm, dse=None, dle=dle, legacy=legacy)
     info("Applying Gradient")
-    Acoustic.Gradient(rec, u, dse=dse, dle=dle)
+    Acoustic.Gradient(rec, u, dse=dse, dle=dle, legacy=legacy)
 
 
 if __name__ == "__main__":
-    run(full_run=False, auto_tuning=False, space_order=6, time_order=2)
+    run(full_run=True, auto_tuning=False, space_order=6, time_order=2)

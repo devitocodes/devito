@@ -59,8 +59,8 @@ def test_acousticJ(dimensions, space_order):
         error("Unknown dimension size. `dimensions` parameter"
               "must be a tuple of either size 2 or 3.")
 
-    model = Model(origin, spacing, true_vp, nbpml=nbpml)
-    model0 = Model(origin, spacing, v0, nbpml=nbpml)
+    model = Model(origin, spacing, dimensions, true_vp, nbpml=nbpml)
+    model0 = Model(origin, spacing, dimensions, v0, nbpml=nbpml)
     # Define seismic data.
     data = IShot()
     src = IShot()
@@ -90,11 +90,10 @@ def test_acousticJ(dimensions, space_order):
     # Adjoint test
     acoustic0 = Acoustic_cg(model0, data, src, t_order=2,
                             s_order=space_order, nbpml=nbpml)
-    rec, u0, _, _, _ = acoustic0.Forward(save=True, legacy=False, dse=None)
+    rec, u0, _, _, _ = acoustic0.Forward(save=True)
 
-    du, _, _, _, _, _ = acoustic0.Born(1 / model.vp ** 2 - 1 / model0.vp ** 2,
-                                       legacy=False, dse=None)
-    im, _, _, _ = acoustic0.Gradient(du, u0, legacy=False)
+    du, _, _, _, _, _ = acoustic0.Born(1 / model.vp ** 2 - 1 / model0.vp ** 2)
+    im, _, _, _ = acoustic0.Gradient(du, u0)
 
     # Actual adjoint test
     term1 = np.dot(im.reshape(-1),

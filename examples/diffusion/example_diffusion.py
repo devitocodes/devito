@@ -10,7 +10,7 @@ import numpy as np
 from sympy import Eq, Function, as_finite_diff, lambdify, solve
 from sympy.abc import h, s, t, x, y
 
-from devito import TimeData, StencilKernel
+from devito import Operator, TimeData
 from devito.logger import log
 
 try:
@@ -124,7 +124,7 @@ def execute_devito(ui, spacing=0.01, a=0.5, timesteps=500):
     # Derive the stencil according to devito conventions
     eqn = Eq(u.dt, a * (u.dx2 + u.dy2))
     stencil = solve(eqn, u.forward)[0]
-    op = StencilKernel(Eq(u.forward, stencil), subs={h: spacing, s: dt})
+    op = Operator(Eq(u.forward, stencil), subs={h: spacing, s: dt})
 
     # Execute the generated Devito stencil operator
     tstart = time.time()

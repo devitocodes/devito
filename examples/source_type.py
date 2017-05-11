@@ -1,8 +1,6 @@
 from sympy import Eq, Function, Matrix, symbols
 
-from devito.dimension import t
-from devito.interfaces import PointData
-from devito.nodes import Iteration
+from devito import Iteration, DenseData, PointData, t
 
 
 class SourceLike(PointData):
@@ -102,8 +100,12 @@ class SourceLike(PointData):
         p_idx = self.indexed[(p_t, ) + tuple(self.indices[1:])]
         eqns = []
         for idx, b in zip(self.index_matrix, self.bs):
+            if isinstance(m, DenseData):
+                exprm = m.indexed[idx]
+            else:
+                exprm = m
             u_idx = u.indexed[(u_t, ) + idx]
-            expr = p_idx * dt * dt / m.indexed[idx] * b.subs(subs)
+            expr = p_idx * dt * dt / exprm * b.subs(subs)
             eqns += [Eq(u_idx, u_idx + expr)]
         return eqns
 

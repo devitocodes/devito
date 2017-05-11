@@ -1,13 +1,11 @@
-from sympy import Eq, symbols
+from sympy import Eq
+from sympy.abc import h, s
 
-from devito.dimension import t, time
-from devito.interfaces import Backward, Forward
-from devito.stencilkernel import StencilKernel
-from devito.operator import *
+from devito import Operator, Forward, Backward, t, time
 
 
 def ForwardOperator(model, u, src, rec, data, time_order=2, spc_order=6,
-                    save=False, u_ini=None, legacy=True, **kwargs):
+                    save=False, u_ini=None, **kwargs):
     """
     Constructor method for the forward modelling operator in an acoustic media
 
@@ -20,9 +18,8 @@ def ForwardOperator(model, u, src, rec, data, time_order=2, spc_order=6,
     :param: u_ini : wavefield at the three first time step for non-zero initial condition
      required for the time marching scheme
     """
-    nt = data.shape[0]
-    s, h = symbols('s h')
     m, damp = model.m, model.damp
+
     # Derive stencil from symbolic equation
     if time_order == 2:
         laplacian = u.laplace
@@ -45,40 +42,21 @@ def ForwardOperator(model, u, src, rec, data, time_order=2, spc_order=6,
     # Add substitutions for spacing (temporal and spatial)
     subs = {s: dt, h: model.get_spacing()}
 
-    if legacy:
-        kwargs.pop('dle', None)
+    dse = kwargs.get('dse', 'advanced')
+    dle = kwargs.get('dle', 'advanced')
 
-        op = Operator(nt, model.shape_domain, stencils=Eq(u.forward, stencil), subs=subs,
-                      spc_border=max(spc_order / 2, 2), time_order=2, forward=True,
-                      dtype=model.dtype, **kwargs)
+    # Create stencil expressions for operator, source and receivers
+    eqn = Eq(u.forward, stencil)
+    src_add = src.point2grid(u, m, u_t=u.indices[0] + 1, p_t=time)
+    rec_read = Eq(rec, rec.grid2point(u, t=u.indices[0]))
+    stencils = [eqn] + src_add + [rec_read]
 
-        # Insert source and receiver terms post-hoc
-        op.input_params += [src, src.coordinates, rec, rec.coordinates]
-        op.output_params += [rec]
-        op.propagator.time_loop_stencils_a = src.add(m, u) + rec.read(u)
-        op.propagator.add_devito_param(src)
-        op.propagator.add_devito_param(src.coordinates)
-        op.propagator.add_devito_param(rec)
-        op.propagator.add_devito_param(rec.coordinates)
-
-    else:
-        dse = kwargs.get('dse', 'advanced')
-        dle = kwargs.get('dle', 'advanced')
-
-        # Create stencil expressions for operator, source and receivers
-        eqn = Eq(u.forward, stencil)
-        src_add = src.point2grid(u, m, u_t=u.indices[0] + 1, p_t=time)
-        rec_read = Eq(rec, rec.grid2point(u, t=u.indices[0]))
-        stencils = [eqn] + src_add + [rec_read]
-
-        op = StencilKernel(stencils=stencils, subs=subs, dse=dse, dle=dle,
-                           time_axis=Forward, name="Forward")
-
-    return op
+    return Operator(stencils=stencils, subs=subs, dse=dse, dle=dle,
+                    time_axis=Forward, name="Forward")
 
 
 def AdjointOperator(model, v, srca, rec, data, time_order=2, spc_order=6,
-                    save=False, u_ini=None, legacy=True, **kwargs):
+                    save=False, u_ini=None, **kwargs):
     """
     Class to setup the adjoint modelling operator in an acoustic media
 
@@ -88,9 +66,8 @@ def AdjointOperator(model, v, srca, rec, data, time_order=2, spc_order=6,
     :param: time_order: Time discretization order
     :param: spc_order: Space discretization order
     """
-    nt = data.shape[0]
-    s, h = symbols('s h')
     m, damp = model.m, model.damp
+
     # Derive stencil from symbolic equation
     if time_order == 2:
         laplacian = v.laplace
@@ -113,40 +90,21 @@ def AdjointOperator(model, v, srca, rec, data, time_order=2, spc_order=6,
     # Add substitutions for spacing (temporal and spatial)
     subs = {s: dt, h: model.get_spacing()}
 
-    if legacy:
-        kwargs.pop('dle', None)
+    dse = kwargs.get('dse', 'advanced')
+    dle = kwargs.get('dle', 'advanced')
 
-        op = Operator(nt, model.shape_domain, stencils=Eq(v.backward, stencil), subs=subs,
-                      spc_border=max(spc_order, 2), time_order=2, forward=False,
-                      dtype=model.dtype, **kwargs)
+    # Create stencil expressions for operator, source and receivers
+    eqn = Eq(v.backward, stencil)
+    src_read = Eq(srca, srca.grid2point(v))
+    rec_add = rec.point2grid(v, m, u_t=t - 1, p_t=time)
+    stencils = [eqn] + rec_add + [src_read]
 
-        # Insert source and receiver terms post-hoc
-        op.input_params += [srca, srca.coordinates, rec, rec.coordinates]
-        op.output_params += [rec]
-        op.propagator.time_loop_stencils_a = rec.add(m, v) + srca.read(v)
-        op.propagator.add_devito_param(srca)
-        op.propagator.add_devito_param(srca.coordinates)
-        op.propagator.add_devito_param(rec)
-        op.propagator.add_devito_param(rec.coordinates)
-
-    else:
-        dse = kwargs.get('dse', 'advanced')
-        dle = kwargs.get('dle', 'advanced')
-
-        # Create stencil expressions for operator, source and receivers
-        eqn = Eq(v.backward, stencil)
-        src_read = Eq(srca, srca.grid2point(v))
-        rec_add = rec.point2grid(v, m, u_t=t - 1, p_t=time)
-        stencils = [eqn] + rec_add + [src_read]
-
-        op = StencilKernel(stencils=stencils, subs=subs, dse=dse, dle=dle,
-                           time_axis=Backward, name="Adjoint")
-
-    return op
+    return Operator(stencils=stencils, subs=subs, dse=dse, dle=dle,
+                    time_axis=Backward, name="Adjoint")
 
 
 def GradientOperator(model, v, grad, rec, u, data, time_order=2, spc_order=6,
-                     legacy=True, **kwargs):
+                     **kwargs):
     """
     Class to setup the gradient operator in an acoustic media
 
@@ -157,8 +115,6 @@ def GradientOperator(model, v, grad, rec, u, data, time_order=2, spc_order=6,
     :param: time_order: Time discretization order
     :param: spc_order: Space discretization order
     """
-    nt, nrec = data.shape
-    s, h = symbols('s h')
     m, damp = model.m, model.damp
 
     # Derive stencil from symbolic equation
@@ -191,43 +147,19 @@ def GradientOperator(model, v, grad, rec, u, data, time_order=2, spc_order=6,
     # Add Gradient-specific updates. The dt2 is currently hacky
     #  as it has to match the cyclic indices
 
-    if legacy:
-        kwargs.pop('dle', None)
-        gradient_update = gradient_update.subs(time, t)
-        stencils = [gradient_update, Eq(v.backward, stencil)]
-        op = Operator(rec.nt - 1, model.shape_domain,
-                      stencils=stencils,
-                      subs=[subs, subs, {}],
-                      spc_border=max(spc_order, 2),
-                      time_order=2,
-                      forward=False,
-                      dtype=model.dtype,
-                      input_params=[m, v, damp, u, grad],
-                      **kwargs)
+    dse = kwargs.get('dse', 'advanced')
+    dle = kwargs.get('dle', 'advanced')
 
-        # Insert source and receiver terms post-hoc
-        op.input_params += [rec, rec.coordinates]
-        op.output_params += [grad]
-        op.propagator.time_loop_stencils_b = rec.add(m, v, u_t=t + 1, p_t=t + 1)
-        op.propagator.add_devito_param(rec)
-        op.propagator.add_devito_param(rec.coordinates)
-
-    else:
-        dse = kwargs.get('dse', 'advanced')
-        dle = kwargs.get('dle', 'advanced')
-
-        # Create stencil expressions for operator, source and receivers
-        eqn = Eq(v.backward, stencil)
-        rec_add = rec.point2grid(v, m, u_t=t - 1, p_t=time)
-        stencils = [eqn] + [gradient_update] + rec_add
-        op = StencilKernel(stencils=stencils, subs=subs, dse=dse, dle=dle,
-                           time_axis=Backward, name="Gradient")
-
-    return op
+    # Create stencil expressions for operator, source and receivers
+    eqn = Eq(v.backward, stencil)
+    rec_add = rec.point2grid(v, m, u_t=t - 1, p_t=time)
+    stencils = [eqn] + [gradient_update] + rec_add
+    return Operator(stencils=stencils, subs=subs, dse=dse, dle=dle,
+                    time_axis=Backward, name="Gradient")
 
 
 def BornOperator(model, u, U, src, rec, dm, data, time_order=2, spc_order=6,
-                 legacy=True, **kwargs):
+                 **kwargs):
     """
     Class to setup the linearized modelling operator in an acoustic media
 
@@ -239,9 +171,7 @@ def BornOperator(model, u, U, src, rec, dm, data, time_order=2, spc_order=6,
     :param: time_order: Time discretization order
     :param: spc_order: Space discretization order
     """
-    nt = data.shape[0]
     m, damp = model.m, model.damp
-    s, h = symbols('s h')
 
     # Derive stencils from symbolic equation
     if time_order == 2:
@@ -268,42 +198,16 @@ def BornOperator(model, u, U, src, rec, dm, data, time_order=2, spc_order=6,
                                       s**2 / 12 * biharmonicU - dm * u.dt2))
     # Add substitutions for spacing (temporal and spatial)
     subs = {s: dt, h: model.get_spacing()}
-    if legacy:
-        kwargs.pop('dle', None)
-        stencils = [Eq(u.forward, stencil1), Eq(U.forward, stencil2)]
-        op = Operator(nt, model.shape_domain,
-                      stencils=stencils,
-                      subs=[subs, subs],
-                      spc_border=max(spc_order, 2),
-                      time_order=2,
-                      forward=True,
-                      dtype=model.dtype,
-                      **kwargs)
 
-        # Insert source and receiver terms post-hoc
-        op.input_params += [dm, src, src.coordinates, rec, rec.coordinates, U]
-        op.output_params += [rec]
-        op.propagator.time_loop_stencils_b = src.add(m, u, u_t=t - 1, p_t=t - 1)
-        op.propagator.time_loop_stencils_a = rec.read(U)
-        op.propagator.add_devito_param(dm)
-        op.propagator.add_devito_param(U)
-        op.propagator.add_devito_param(src)
-        op.propagator.add_devito_param(src.coordinates)
-        op.propagator.add_devito_param(rec)
-        op.propagator.add_devito_param(rec.coordinates)
+    dse = kwargs.get('dse', None)
+    dle = kwargs.get('dle', None)
 
-    else:
-        dse = kwargs.get('dse', None)
-        dle = kwargs.get('dle', None)
+    # Create stencil expressions for operator, source and receivers
+    eqn1 = [Eq(u.forward, stencil1)]
+    eqn2 = [Eq(U.forward, stencil2)]
+    src_add = src.point2grid(u, m, u_t=t + 1, p_t=time)
+    rec_read = Eq(rec, rec.grid2point(U, t=U.indices[0]))
+    stencils = eqn1 + src_add + eqn2 + [rec_read]
 
-        # Create stencil expressions for operator, source and receivers
-        eqn1 = [Eq(u.forward, stencil1)]
-        eqn2 = [Eq(U.forward, stencil2)]
-        src_add = src.point2grid(u, m, u_t=t + 1, p_t=time)
-        rec_read = Eq(rec, rec.grid2point(U, t=U.indices[0]))
-        stencils = eqn1 + src_add + eqn2 + [rec_read]
-
-        op = StencilKernel(stencils=stencils, subs=subs, dse=dse, dle=dle,
-                           time_axis=Forward, name="Born")
-
-    return op
+    return Operator(stencils=stencils, subs=subs, dse=dse, dle=dle,
+                    time_axis=Forward, name="Born")

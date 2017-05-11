@@ -22,8 +22,8 @@ def setup(dimensions=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=250.0,
     true_vp[:, :, int(dimensions[0] / 3):int(2*dimensions[0]/3)] = 3.0
     true_vp[:, :, int(2*dimensions[0] / 3):int(dimensions[0])] = 4.0
 
-    model = Model(origin, spacing, true_vp, nbpml=nbpml,
-                  rho=None,
+    model = Model(origin, spacing, dimensions, true_vp,
+                  nbpml=nbpml,
                   epsilon=.4*np.ones(dimensions),
                   delta=-.1*np.ones(dimensions),
                   theta=-np.pi/7*np.ones(dimensions),
@@ -67,16 +67,16 @@ def setup(dimensions=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=250.0,
 
 def run(dimensions=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=250.0,
         time_order=2, space_order=4, nbpml=10, dse='advanced', dle='advanced',
-        auto_tuning=False, compiler=None, cache_blocking=None, legacy=True):
+        auto_tuning=False, compiler=None, cache_blocking=None):
     if auto_tuning:
         cache_blocking = None
 
     TTI = setup(dimensions, spacing, tn, time_order, space_order, nbpml)
 
-    rec, u, v, gflopss, oi, timings = TTI.Forward(dse=dse, dle=dle,
+    rec, u, v, gflopss, oi, timings = TTI.Forward(dse=dse, dle=None,
                                                   auto_tuning=auto_tuning,
                                                   cache_blocking=cache_blocking,
-                                                  compiler=compiler, legacy=legacy)
+                                                  compiler=compiler)
 
     return gflopss, oi, timings, [rec, u, v]
 
