@@ -166,11 +166,11 @@ class TemporariesGraph(OrderedDict):
             else:
                 # Tensors belong to other traces, so they can be scheduled straight away
                 tensors = [i for i in reads if i.is_tensor]
-                found = OrderedDict(found.items() + [(i.lhs, i) for i in tensors])
+                found = OrderedDict(list(found.items()) + [(i.lhs, i) for i in tensors])
                 # Postpone the rest until all dependening temporaries got scheduled
                 scalars = [i for i in reads if i.is_scalar]
                 queue = OrderedDict([(i.lhs, i) for i in scalars] +
-                                    [(k, v)] + queue.items())
+                                    [(k, v)] + list(queue.items()))
         return found.values()
 
     def time_invariant(self, expr=None):
@@ -260,14 +260,14 @@ class TemporariesGraph(OrderedDict):
             return super(TemporariesGraph, self).__getitem__(key)
         offset = key.step or 0
         try:
-            start = self.keys().index(key.start) + offset
+            start = list(self.keys()).index(key.start) + offset
         except ValueError:
             start = 0
         try:
-            stop = self.keys().index(key.stop) + offset
+            stop = list(self.keys()).index(key.stop) + offset
         except ValueError:
             stop = None
-        return TemporariesGraph(islice(self.viewitems(), start, stop))
+        return TemporariesGraph(islice(list(self.items()), start, stop))
 
 
 def temporaries_graph(temporaries):

@@ -69,7 +69,7 @@ class Stencil(DefaultOrderedDict):
                 found = [idx for idx in a.free_symbols if isinstance(idx, Dimension)]
                 d.extend([idx for idx in found if idx not in d])
             dims.append(tuple(d))
-        stencil = Stencil([(d, set()) for d in partial_order(dims)])
+        stencil = Stencil([(i, set()) for i in partial_order(dims)])
 
         # Determine the points accessed along each dimension
         for e in indexed:
@@ -109,7 +109,7 @@ class Stencil(DefaultOrderedDict):
 
     @property
     def dimensions(self):
-        return self.keys()
+        return list(self.keys())
 
     @property
     def entries(self):

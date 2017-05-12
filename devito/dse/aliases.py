@@ -124,7 +124,7 @@ def calculate_COM(offsets):
             # - middle point if odd number of values, or
             # - zero-offset if present, or
             # - middle point rounded to the bottom
-            index = (len(strides) - 1) / 2
+            index = int((len(strides) - 1) / 2)
             if (len(strides) - 1) % 2 == 0:
                 handle.append(strides[index])
             elif 0 in strides:

@@ -336,7 +336,8 @@ class OperatorBasic(Function):
                     mapper = {root: root._rebuild(nodes, **root.args_frozen)}
                     transformer = Transformer(mapper)
                     processed = list(transformer.visit(processed))
-                    schedule = OrderedDict(schedule.items()[:index] + scheduling.items())
+                    schedule = OrderedDict(list(schedule.items())[:index] +
+                                           list(scheduling.items()))
                     for k, v in list(schedule.items()):
                         schedule[k] = transformer.rebuilt.get(v, v)
             else:
