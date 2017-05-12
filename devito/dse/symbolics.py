@@ -47,13 +47,21 @@ def rewrite(clusters, mode='advanced'):
             dse_warning("Arg mode must be str or tuple (got %s)" % type(mode))
             return clusters
 
-    if mode.isdisjoint(set(Rewriter.modes)):
+    if 'noop' in mode:
+        return clusters
+    elif mode.isdisjoint(set(Rewriter.modes)):
         dse_warning("Unknown rewrite mode(s) %s" % str(mode))
         return clusters
     else:
         processed = []
         for cluster in clusters:
-            rewriter = Rewriter(mode, profile=cluster.is_dense)
+            if cluster.is_dense:
+                rewriter = Rewriter(mode)
+            else:
+                # Downgrade sparse clusters to basic rewrite mode since it's
+                # pointless to expose loop-redundancies when the iteration space
+                # only consists of a few points
+                rewriter = Rewriter(set(['basic']), False)
             processed.extend(rewriter.run(cluster))
         return processed
 
