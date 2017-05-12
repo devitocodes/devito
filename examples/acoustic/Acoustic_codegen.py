@@ -62,7 +62,7 @@ class Acoustic_cg(object):
             u.data[0:3, :] = u_ini[:]
 
         # Execute operator and return wavefield and receiver data
-        fw = ForwardOperator(self.model, u, src, rec, self.data,
+        fw = ForwardOperator(self.model, u, src, rec,
                              time_order=self.t_order, spc_order=self.s_order,
                              save=save, cache_blocking=cache_blocking, dse=dse,
                              dle=dle, compiler=compiler, profile=True, u_ini=u_ini)
@@ -101,7 +101,7 @@ class Acoustic_cg(object):
                      dtype=self.model.dtype)
 
         # Execute operator and return wavefield and receiver data
-        adj = AdjointOperator(self.model, v, srca, rec, self.data,
+        adj = AdjointOperator(self.model, v, srca, rec,
                               time_order=self.t_order, spc_order=self.s_order,
                               cache_blocking=cache_blocking, dse=dse,
                               dle=dle, compiler=compiler, profile=True)
@@ -138,7 +138,7 @@ class Acoustic_cg(object):
                      dtype=self.model.dtype)
 
         # Execute operator and return wavefield and receiver data
-        gradop = GradientOperator(self.model, v, grad, rec, u, self.data,
+        gradop = GradientOperator(self.model, v, grad, rec, u,
                                   time_order=self.t_order, spc_order=self.s_order,
                                   cache_blocking=cache_blocking, dse=dse,
                                   dle=dle, compiler=compiler, profile=True)
@@ -185,7 +185,7 @@ class Acoustic_cg(object):
         else:
             dm = dmin
         # Execute operator and return wavefield and receiver data
-        born = BornOperator(self.model, u, U, src, rec, dm, self.data,
+        born = BornOperator(self.model, u, U, src, rec, dm,
                             time_order=self.t_order, spc_order=self.s_order,
                             cache_blocking=cache_blocking, dse=dse,
                             dle=dle, compiler=compiler, profile=True)

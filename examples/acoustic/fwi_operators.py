@@ -4,7 +4,7 @@ from sympy.abc import h, s
 from devito import Operator, Forward, Backward, t, time
 
 
-def ForwardOperator(model, u, src, rec, data, time_order=2, spc_order=6,
+def ForwardOperator(model, u, src, rec, time_order=2, spc_order=6,
                     save=False, u_ini=None, **kwargs):
     """
     Constructor method for the forward modelling operator in an acoustic media
@@ -55,7 +55,7 @@ def ForwardOperator(model, u, src, rec, data, time_order=2, spc_order=6,
                     time_axis=Forward, name="Forward")
 
 
-def AdjointOperator(model, v, srca, rec, data, time_order=2, spc_order=6,
+def AdjointOperator(model, v, srca, rec, time_order=2, spc_order=6,
                     save=False, u_ini=None, **kwargs):
     """
     Class to setup the adjoint modelling operator in an acoustic media
@@ -103,7 +103,7 @@ def AdjointOperator(model, v, srca, rec, data, time_order=2, spc_order=6,
                     time_axis=Backward, name="Adjoint")
 
 
-def GradientOperator(model, v, grad, rec, u, data, time_order=2, spc_order=6,
+def GradientOperator(model, v, grad, rec, u, time_order=2, spc_order=6,
                      **kwargs):
     """
     Class to setup the gradient operator in an acoustic media
@@ -158,7 +158,7 @@ def GradientOperator(model, v, grad, rec, u, data, time_order=2, spc_order=6,
                     time_axis=Backward, name="Gradient")
 
 
-def BornOperator(model, u, U, src, rec, dm, data, time_order=2, spc_order=6,
+def BornOperator(model, u, U, src, rec, dm, time_order=2, spc_order=6,
                  **kwargs):
     """
     Class to setup the linearized modelling operator in an acoustic media
