@@ -1,10 +1,11 @@
 import numpy as np
 import pytest
+from sympy import Eq, Symbol  # noqa
 
-from devito.dimension import Dimension, time
-from devito.dse.clusterizer import clusterize
-from devito.dse.symbolics import rewrite
-from devito.interfaces import TimeData
+from devito.dse import (clusterize, rewrite, xreplace_constrained, iq_timeinvariant,
+                        iq_timevarying, estimate_cost, temporaries_graph,
+                        common_subexprs_elimination)
+from devito import Dimension, x, y, z, time, TimeData, clear_cache  # noqa
 from devito.nodes import Expression
 from devito.visitors import FindNodes
 from examples.acoustic.Acoustic_codegen import Acoustic_cg
@@ -19,6 +20,9 @@ from examples.tti.tti_operators import ForwardOperator
 
 
 def run_acoustic_forward(dse=None):
+    # TODO: temporary work around to issue #225 on GitHub
+    clear_cache()
+
     dimensions = (50, 50, 50)
     origin = (0., 0., 0.)
     spacing = (10., 10., 10.)
@@ -172,3 +176,58 @@ def test_tti_rewrite_advanced(tti_nodse):
 
     assert np.allclose(tti_nodse[0], v.data, atol=10e-1)
     assert np.allclose(tti_nodse[1], rec.data, atol=10e-1)
+
+
+# DSE manipulation
+
+@pytest.mark.parametrize('expr,expected', [
+    ('Eq(u, ti0 + ti1 + 5.)',  # simple
+     ['ti0[x, y, z] + ti1[x, y, z]']),
+    ('Eq(u, (ti0*ti1*t0) + (ti1*v) + (t1 + ti1)*w)',  # more ops
+     ['t1 + ti1[x, y, z]', 't0*ti0[x, y, z]*ti1[x, y, z]']),
+    ('Eq(u, ((ti0*ti1*t0)*v + (ti0*ti1*v)*t1))',  # wrapped
+     ['t0*ti0[x, y, z]*ti1[x, y, z]', 't1*ti0[x, y, z]*ti1[x, y, z]']),
+])
+def test_xreplace_constrained_time_invariants(u, v, w, ti0, ti1, t0, t1, expr, expected):
+    exprs = [eval(expr)]
+    processed, found = xreplace_constrained(exprs,
+                                            lambda i: Symbol('r%d' % i),
+                                            iq_timeinvariant(temporaries_graph(exprs)),
+                                            lambda i: estimate_cost(i) > 0)
+    assert len(found) == len(expected)
+    assert all(str(i.rhs) == j for i, j in zip(found, expected))
+
+
+@pytest.mark.parametrize('expr,expected', [
+    ('Eq(u, v + w + 5. + ti0)',  # simple
+     ['v[t, x, y, z] + w[t, x, y, z] + 5.0']),
+    ('Eq(u, v*w*4.*ti0 + ti1*v)',  # more ops
+     ['4.0*v[t, x, y, z]*w[t, x, y, z]']),
+    ('Eq(u, ((v + 4.)*ti0*ti1 + (v + w)/3.)*ti1*t0)',  # wrapped
+     ['v[t, x, y, z] + 4.0',
+      '0.333333333333333*v[t, x, y, z] + 0.333333333333333*w[t, x, y, z]']),
+])
+def test_xreplace_constrained_time_varying(u, v, w, ti0, ti1, t0, t1, expr, expected):
+    exprs = [eval(expr)]
+    processed, found = xreplace_constrained(exprs,
+                                            lambda i: Symbol('r%d' % i),
+                                            iq_timevarying(temporaries_graph(exprs)),
+                                            lambda i: estimate_cost(i) > 0)
+    assert len(found) == len(expected)
+    assert all(str(i.rhs) == j for i, j in zip(found, expected))
+
+
+@pytest.mark.parametrize('exprs,expected', [
+    (['Eq(u, (v + w + 5.)*(ti0 + ti1) + (t0 + t1)*(ti0 + ti1))'],  # simple
+     ['ti0[x, y, z] + ti1[x, y, z]',
+      'r0*(t0 + t1) + r0*(v[t, x, y, z] + w[t, x, y, z] + 5.0)']),
+    (['Eq(u, v*4 + w*5 + w*5*t0)', 'Eq(v, w*5)'],  # across expressions
+     ['5*w[t, x, y, z]', '5*t0*w[t, x, y, z] + r0 + 4*v[t, x, y, z]', 'r0']),
+    pytest.mark.xfail((['Eq(u, ti0*ti1 + ti0*ti1*t0 + ti0*ti1*t0*t1)'],  # intersecting
+                       ['ti0*ti1', 'r0', 'r0*t0', 'r0*t0*t1'])),
+])
+def test_common_subexprs_elimination(u, v, w, ti0, ti1, t0, t1, exprs, expected):
+    processed = common_subexprs_elimination([eval(i) for i in exprs],
+                                            lambda i: Symbol('r%d' % i))
+    assert len(processed) == len(expected)
+    assert all(str(i.rhs) == j for i, j in zip(processed, expected))

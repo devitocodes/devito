@@ -2,7 +2,7 @@ from __future__ import absolute_import
 
 import pytest
 
-from devito.dimension import Dimension
+from devito.dimension import Dimension, t, x, y, z
 from devito.interfaces import DenseData, ScalarFunction, TensorFunction
 from devito.nodes import Iteration
 
@@ -39,12 +39,12 @@ def iters(dims):
 
 @pytest.fixture(scope="session", autouse=True)
 def t0(dims):
-    return scalarfunction('t0')
+    return scalarfunction('t0').indexify()
 
 
 @pytest.fixture(scope="session", autouse=True)
 def t1(dims):
-    return scalarfunction('t1')
+    return scalarfunction('t1').indexify()
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -86,3 +86,28 @@ def d(dims):
 def e(dims):
     dimensions = [dims['k'], dims['s'], dims['q'], dims['i'], dims['j']]
     return tensorfunction('e', (7, 4, 4, 3, 5), dimensions).indexify()
+
+
+@pytest.fixture(scope="session", autouse=True)
+def ti0(dims):
+    return tensorfunction('ti0', (3, 5, 7), (x, y, z)).indexify()
+
+
+@pytest.fixture(scope="session", autouse=True)
+def ti1(dims):
+    return tensorfunction('ti1', (3, 5, 7), (x, y, z)).indexify()
+
+
+@pytest.fixture(scope="session", autouse=True)
+def u(dims):
+    return tensorfunction('u', (10, 3, 5, 7), (t, x, y, z)).indexify()
+
+
+@pytest.fixture(scope="session", autouse=True)
+def v(dims):
+    return tensorfunction('v', (10, 3, 5, 7), (t, x, y, z)).indexify()
+
+
+@pytest.fixture(scope="session", autouse=True)
+def w(dims):
+    return tensorfunction('w', (10, 3, 5, 7), (t, x, y, z)).indexify()
