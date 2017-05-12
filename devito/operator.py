@@ -543,8 +543,8 @@ class OperatorCore(OperatorBasic):
             elaborated = []
             for blocksize in list(blocksizes)[:3]:
                 for i in list(blocksizes):
-                    handle = i.items()[-1]
-                    elaborated.append(OrderedDict(blocksize.items()[:-1] + [handle]))
+                    elaborated.append(OrderedDict(list(blocksize.items())[:-1] +
+                                                  [list(i.items())[-1]]))
             for blocksize in list(blocksizes):
                 ncombs = len(blocksize)
                 for i in range(ncombs):
