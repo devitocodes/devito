@@ -140,10 +140,12 @@ def ForwardOperator(model, u, v, src, rec, data, time_order=2,
 
     dse = kwargs.get('dse', 'advanced')
     dle = kwargs.get('dle', 'advanced')
-
-    stencils += src.inject(field=u, expr=src * dt * dt / m, offset=model.nbpml)
-    stencils += src.inject(field=v, expr=src * dt * dt / m, offset=model.nbpml)
-    stencils += [Eq(rec, rec.interpolate(expr=u, offset=model.nbpml))]
-    stencils += [Eq(rec, rec.interpolate(expr=v, offset=model.nbpml))]
+    ti = u.indices[0]
+    stencils += src.inject(field=u, u_t=ti + 1, expr=src * dt * dt / m,
+                           offset=model.nbpml)
+    stencils += src.inject(field=v, u_t=ti + 1, expr=src * dt * dt / m,
+                           offset=model.nbpml)
+    stencils += rec.interpolate(expr=u, u_t=ti, offset=model.nbpml)
+    stencils += rec.interpolate(expr=v, u_t=ti, offset=model.nbpml)
 
     return Operator(stencils=stencils, subs=subs, dse=dse, dle=dle)

@@ -100,7 +100,6 @@ def test_acoustic(dimensions, time_order, space_order):
     # Actual adjoint test
     term1 = np.dot(srca.reshape(-1), time_series)
     term2 = linalg.norm(rec) ** 2
-    print(np.finfo(np.float32).eps)
     print(term1, term2, ("%12.12f") % (term1 - term2), term1 / term2)
     assert np.isclose(term1 / term2, 1.0, atol=0.001)
 

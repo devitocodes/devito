@@ -1,7 +1,7 @@
 from sympy import Eq
 from sympy.abc import h, s
 
-from devito import Operator, Forward, Backward, t, time
+from devito import Operator, Forward, Backward, time
 
 
 def ForwardOperator(model, u, src, rec, time_order=2, spc_order=6,
@@ -47,13 +47,13 @@ def ForwardOperator(model, u, src, rec, time_order=2, spc_order=6,
     #   src[time, ...] - always accesses the "unrolled" time index
     #   u[ti + 1, ...] - accesses the forward stencil value
     ti = u.indices[0]
-    source = src.inject(field=u.indexed[ti + 1, ...], offset=model.nbpml,
-                        expr=src.indexed[time, ...] * dt * dt / m)
+    source = src.inject(field=u, u_t=ti + 1, offset=model.nbpml,
+                        expr=src * dt * dt / m, p_t=time)
 
     # Create interpolation expression for receivers
-    receivers = Eq(rec, rec.interpolate(expr=u, offset=model.nbpml))
+    receivers = rec.interpolate(expr=u, u_t=ti, offset=model.nbpml)
 
-    return Operator(stencils=[eqn] + source + [receivers],
+    return Operator(stencils=[eqn] + source + receivers,
                     subs={s: dt, h: model.get_spacing()},
                     time_axis=Forward, name='Forward', **kwargs)
 
@@ -92,13 +92,13 @@ def AdjointOperator(model, v, srca, rec, time_order=2, spc_order=6,
 
     # Construct expression to inject receiver values
     ti = v.indices[0]
-    receivers = rec.inject(field=v.indexed[ti - 1, ...], offset=model.nbpml,
-                           expr=rec.indexed[time, ...] * dt * dt / m)
+    receivers = rec.inject(field=v, u_t=ti - 1, offset=model.nbpml,
+                           expr=rec * dt * dt / m, p_t=time)
 
     # Create interpolation expression for the adjoint-source
-    source_a = Eq(srca, srca.interpolate(expr=v, offset=model.nbpml))
+    source_a = srca.interpolate(expr=v, u_t=ti, offset=model.nbpml)
 
-    return Operator(stencils=[eqn] + receivers + [source_a],
+    return Operator(stencils=[eqn] + receivers + source_a,
                     subs={s: dt, h: model.get_spacing()},
                     time_axis=Backward, name='Adjoint', **kwargs)
 
@@ -145,8 +145,8 @@ def GradientOperator(model, v, grad, rec, u, time_order=2, spc_order=6,
 
     # Add expression for receiver injection
     ti = v.indices[0]
-    receivers = rec.inject(field=v.indexed[ti - 1, ...], offset=model.nbpml,
-                           expr=rec.indexed[time, ...] * dt * dt / m)
+    receivers = rec.inject(field=v, u_t=ti - 1, offset=model.nbpml,
+                           expr=rec * dt * dt / m, p_t=time)
 
     return Operator(stencils=[eqn] + [gradient_update] + receivers,
                     subs={s: dt, h: model.get_spacing()},
@@ -196,12 +196,13 @@ def BornOperator(model, u, U, src, rec, dm, time_order=2, spc_order=6,
     eqn2 = Eq(U.forward, stencil2)
 
     # Add source term expression for u
-    source = src.inject(field=u.indexed[t + 1, ...], offset=model.nbpml,
-                        expr=src.indexed[time, ...] * dt * dt / m)
+    ti = u.indices[0]
+    source = src.inject(field=u, u_t=ti + 1, offset=model.nbpml,
+                        expr=src * dt * dt / m, p_t=time)
 
     # Create receiver interpolation expression from U
-    receivers = Eq(rec, rec.interpolate(expr=U, offset=model.nbpml))
+    receivers = rec.interpolate(expr=U, u_t=ti, offset=model.nbpml)
 
-    return Operator(stencils=[eqn1] + source + [eqn2] + [receivers],
+    return Operator(stencils=[eqn1] + source + [eqn2] + receivers,
                     subs={s: dt, h: model.get_spacing()},
                     time_axis=Forward, name='Born', **kwargs)
