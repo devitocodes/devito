@@ -30,7 +30,7 @@ class Parameters(dict):
 
         if isinstance(value, Parameters):
             child_update = lambda x: self._updated(*x)
-            value.update_functions.push(child_update)
+            value.update_functions.append(child_update)
 
         # Tell everyone we've been updated
         self._updated(key, value)
