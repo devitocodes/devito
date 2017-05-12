@@ -92,7 +92,7 @@ class Temporary(Eq):
 
     @property
     def is_dead(self):
-        return self.is_terminal and len(self.reads) == 1
+        return self.is_scalar and self.is_terminal and len(self.reads) == 1
 
     def construct(self, rule):
         """
