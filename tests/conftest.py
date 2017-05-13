@@ -48,6 +48,16 @@ def t1(dims):
 
 
 @pytest.fixture(scope="session", autouse=True)
+def t2(dims):
+    return scalarfunction('t2').indexify()
+
+
+@pytest.fixture(scope="session", autouse=True)
+def t3(dims):
+    return scalarfunction('t3').indexify()
+
+
+@pytest.fixture(scope="session", autouse=True)
 def a(dims):
     return tensorfunction('a', (3,), (dims['i'],)).indexify()
 
@@ -111,3 +121,23 @@ def v(dims):
 @pytest.fixture(scope="session", autouse=True)
 def w(dims):
     return tensorfunction('w', (10, 3, 5, 7), (t, x, y, z)).indexify()
+
+
+@pytest.fixture(scope="session", autouse=True)
+def fa(dims):
+    return tensorfunction('fa', (3,), (x,)).indexed
+
+
+@pytest.fixture(scope="session", autouse=True)
+def fb(dims):
+    return tensorfunction('fb', (3,), (x,)).indexed
+
+
+@pytest.fixture(scope="session", autouse=True)
+def fc(dims):
+    return tensorfunction('fc', (3, 5), (x, y)).indexed
+
+
+@pytest.fixture(scope="session", autouse=True)
+def fd(dims):
+    return tensorfunction('fd', (3, 5), (x, y)).indexed

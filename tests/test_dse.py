@@ -4,9 +4,10 @@ from sympy import Eq, Symbol  # noqa
 
 from devito.dse import (clusterize, rewrite, xreplace_constrained, iq_timeinvariant,
                         iq_timevarying, estimate_cost, temporaries_graph,
-                        common_subexprs_elimination)
+                        common_subexprs_elimination, collect_aliases)
 from devito import Dimension, x, y, z, time, TimeData, clear_cache  # noqa
 from devito.nodes import Expression
+from devito.stencil import Stencil
 from devito.visitors import FindNodes
 from examples.acoustic.Acoustic_codegen import Acoustic_cg
 from examples.containers import IShot
@@ -181,11 +182,14 @@ def test_tti_rewrite_advanced(tti_nodse):
 # DSE manipulation
 
 @pytest.mark.parametrize('expr,expected', [
-    ('Eq(u, ti0 + ti1 + 5.)',  # simple
+    # simple
+    ('Eq(u, ti0 + ti1 + 5.)',
      ['ti0[x, y, z] + ti1[x, y, z]']),
-    ('Eq(u, (ti0*ti1*t0) + (ti1*v) + (t1 + ti1)*w)',  # more ops
+    # more ops
+    ('Eq(u, (ti0*ti1*t0) + (ti1*v) + (t1 + ti1)*w)',
      ['t1 + ti1[x, y, z]', 't0*ti0[x, y, z]*ti1[x, y, z]']),
-    ('Eq(u, ((ti0*ti1*t0)*v + (ti0*ti1*v)*t1))',  # wrapped
+    # wrapped
+    ('Eq(u, ((ti0*ti1*t0)*v + (ti0*ti1*v)*t1))',
      ['t0*ti0[x, y, z]*ti1[x, y, z]', 't1*ti0[x, y, z]*ti1[x, y, z]']),
 ])
 def test_xreplace_constrained_time_invariants(u, v, w, ti0, ti1, t0, t1, expr, expected):
@@ -199,11 +203,14 @@ def test_xreplace_constrained_time_invariants(u, v, w, ti0, ti1, t0, t1, expr, e
 
 
 @pytest.mark.parametrize('expr,expected', [
-    ('Eq(u, v + w + 5. + ti0)',  # simple
+    # simple
+    ('Eq(u, v + w + 5. + ti0)',
      ['v[t, x, y, z] + w[t, x, y, z] + 5.0']),
-    ('Eq(u, v*w*4.*ti0 + ti1*v)',  # more ops
+    # more ops
+    ('Eq(u, v*w*4.*ti0 + ti1*v)',
      ['4.0*v[t, x, y, z]*w[t, x, y, z]']),
-    ('Eq(u, ((v + 4.)*ti0*ti1 + (v + w)/3.)*ti1*t0)',  # wrapped
+    # wrapped
+    ('Eq(u, ((v + 4.)*ti0*ti1 + (v + w)/3.)*ti1*t0)',
      ['v[t, x, y, z] + 4.0',
       '0.333333333333333*v[t, x, y, z] + 0.333333333333333*w[t, x, y, z]']),
 ])
@@ -218,12 +225,15 @@ def test_xreplace_constrained_time_varying(u, v, w, ti0, ti1, t0, t1, expr, expe
 
 
 @pytest.mark.parametrize('exprs,expected', [
-    (['Eq(u, (v + w + 5.)*(ti0 + ti1) + (t0 + t1)*(ti0 + ti1))'],  # simple
+    # simple
+    (['Eq(u, (v + w + 5.)*(ti0 + ti1) + (t0 + t1)*(ti0 + ti1))'],
      ['ti0[x, y, z] + ti1[x, y, z]',
       'r0*(t0 + t1) + r0*(v[t, x, y, z] + w[t, x, y, z] + 5.0)']),
-    (['Eq(u, v*4 + w*5 + w*5*t0)', 'Eq(v, w*5)'],  # across expressions
+    # across expressions
+    (['Eq(u, v*4 + w*5 + w*5*t0)', 'Eq(v, w*5)'],
      ['5*w[t, x, y, z]', '5*t0*w[t, x, y, z] + r0 + 4*v[t, x, y, z]', 'r0']),
-    pytest.mark.xfail((['Eq(u, ti0*ti1 + ti0*ti1*t0 + ti0*ti1*t0*t1)'],  # intersecting
+    # intersecting
+    pytest.mark.xfail((['Eq(u, ti0*ti1 + ti0*ti1*t0 + ti0*ti1*t0*t1)'],
                        ['ti0*ti1', 'r0', 'r0*t0', 'r0*t0*t1'])),
 ])
 def test_common_subexprs_elimination(u, v, w, ti0, ti1, t0, t1, exprs, expected):
@@ -231,3 +241,50 @@ def test_common_subexprs_elimination(u, v, w, ti0, ti1, t0, t1, exprs, expected)
                                             lambda i: Symbol('r%d' % i))
     assert len(processed) == len(expected)
     assert all(str(i.rhs) == j for i, j in zip(processed, expected))
+
+
+@pytest.mark.parametrize('exprs,expected', [
+    (['Eq(t0, 3.)', 'Eq(t1, 7.)', 'Eq(ti0, t0*3. + 2.)', 'Eq(ti1, t1 + t0 + 1.5)',
+      'Eq(v, (ti0 + ti1)*t0)', 'Eq(w, (ti0 + ti1)*t1)',
+      'Eq(u, (v + w + 5.)*(ti0 + ti1) + (t0 + t1)*(ti0 + ti1))'],
+     '{u: {u, v, w, ti0, ti1, t0, t1}, v: {ti0, ti1, t0, v}, w: {ti0, ti1, t1, w},\
+ti0: {ti0, t0}, ti1: {ti1, t1, t0}, t0: {t0}, t1: {t1}}'),
+])
+def test_graph_trace(u, v, w, ti0, ti1, t0, t1, exprs, expected):
+    g = temporaries_graph([eval(i) for i in exprs])
+    mapper = eval(expected)
+    for i in [u, v, w, ti0, ti1, t0, t1]:
+        assert set([j.lhs for j in g.trace(i)]) == mapper[i]
+
+
+@pytest.mark.parametrize('exprs,expected', [
+    # none (different distance)
+    (['Eq(t0, fa[x] + fb[x])', 'Eq(t1, fa[x+1] + fb[x])'],
+     {}),
+    # none (different dimension)
+    (['Eq(t0, fa[x] + fb[x])', 'Eq(t1, fa[x] + fb[y])'],
+     {}),
+    # none (different operation)
+    (['Eq(t0, fa[x] + fb[x])', 'Eq(t1, fa[x] - fb[x])'],
+     {}),
+    # simple
+    (['Eq(t0, fa[x] + fb[x])', 'Eq(t1, fa[x+1] + fb[x+1])', 'Eq(t2, fa[x-1] + fb[x-1])'],
+     {'fa[x] + fb[x]': Stencil([(x, {-1, 0, 1})])}),
+    # 2D simple
+    (['Eq(t0, fc[x,y] + fd[x,y])', 'Eq(t1, fc[x+1,y+1] + fd[x+1,y+1])'],
+     {'fc[x,y] + fd[x,y]': Stencil([(x, {0, 1}), (y, {0, 1})])}),
+    # 2D with stride
+    (['Eq(t0, fc[x,y] + fd[x+1,y+2])', 'Eq(t1, fc[x+1,y+1] + fd[x+2,y+3])'],
+     {'fc[x,y] + fd[x+1,y+2]': Stencil([(x, {0, 1}), (y, {0, 1})])}),
+    # complex (two 2D aliases with stride inducing relaxation)
+    (['Eq(t0, fc[x,y] + fd[x+1,y+2])', 'Eq(t1, fc[x+1,y+1] + fd[x+2,y+3])',
+      'Eq(t2, fc[x-2,y-2]*3. + fd[x+2,y+2])', 'Eq(t3, fc[x-4,y-4]*3. + fd[x,y])'],
+     {'fc[x,y] + fd[x+1,y+2]': Stencil([(x, {0, 1, 2}), (y, {0, 1, 2})]),
+      '3.*fc[x-4,y-4] + fd[x,y]': Stencil([(x, {0, 1, 2}), (y, {0, 1, 2})])}),
+])
+def test_collect_aliases(fa, fb, fc, fd, t0, t1, t2, t3, exprs, expected):
+    mapper = dict([(eval(k), v) for k, v in expected.items()])
+    _, aliases = collect_aliases([eval(i) for i in exprs])
+    for k, v in aliases.items():
+        assert k in mapper
+        assert v.anti_stencil == mapper[k]
