@@ -112,18 +112,18 @@ def ti1(dims):
 
 
 @pytest.fixture(scope="session", autouse=True)
-def u(dims):
-    return tensorfunction('u', (10, 3, 5, 7), (t, x, y, z)).indexify()
+def tu(dims):
+    return tensorfunction('tu', (10, 3, 5, 7), (t, x, y, z)).indexify()
 
 
 @pytest.fixture(scope="session", autouse=True)
-def v(dims):
-    return tensorfunction('v', (10, 3, 5, 7), (t, x, y, z)).indexify()
+def tv(dims):
+    return tensorfunction('tv', (10, 3, 5, 7), (t, x, y, z)).indexify()
 
 
 @pytest.fixture(scope="session", autouse=True)
-def w(dims):
-    return tensorfunction('w', (10, 3, 5, 7), (t, x, y, z)).indexify()
+def tw(dims):
+    return tensorfunction('tw', (10, 3, 5, 7), (t, x, y, z)).indexify()
 
 
 @pytest.fixture(scope="session", autouse=True)

@@ -68,18 +68,19 @@ def run_acoustic_forward(dse=None):
     receiver_coords[:, 2] = location[0, 1]
     data.set_receiver_pos(receiver_coords)
     data.set_shape(nt, 101)
-    acoustic = Acoustic_cg(model, data, src, dse=dse)
-    rec, u, _, _, _ = acoustic.Forward(save=False, dse=dse)
+    acoustic = Acoustic_cg(model, data, src, dse=dse, dle='basic')
+    rec, u, _, _, _ = acoustic.Forward(save=False, dse=dse, dle='basic')
 
-    return rec, u
+    # FIXME: note that np.copy is necessary because of the broken caching system
+    return np.copy(rec), np.copy(u.data)
 
 
 def test_acoustic_rewrite_basic():
-    output1 = run_acoustic_forward(dse=None)
-    output2 = run_acoustic_forward(dse='basic')
+    ret1 = run_acoustic_forward(dse=None)
+    ret2 = run_acoustic_forward(dse='basic')
 
-    assert np.allclose(output1[0], output2[0], atol=10e-5)
-    assert np.allclose(output1[1].data, output2[1].data, atol=10e-5)
+    assert np.allclose(ret1[0], ret2[0], atol=10e-5)
+    assert np.allclose(ret1[1], ret2[1], atol=10e-5)
 
 
 # TTI
@@ -185,16 +186,17 @@ def test_tti_rewrite_advanced(tti_nodse):
 
 @pytest.mark.parametrize('expr,expected', [
     # simple
-    ('Eq(u, ti0 + ti1 + 5.)',
+    ('Eq(tu, ti0 + ti1 + 5.)',
      ['ti0[x, y, z] + ti1[x, y, z]']),
     # more ops
-    ('Eq(u, (ti0*ti1*t0) + (ti1*v) + (t1 + ti1)*w)',
+    ('Eq(tu, (ti0*ti1*t0) + (ti1*tv) + (t1 + ti1)*tw)',
      ['t1 + ti1[x, y, z]', 't0*ti0[x, y, z]*ti1[x, y, z]']),
     # wrapped
-    ('Eq(u, ((ti0*ti1*t0)*v + (ti0*ti1*v)*t1))',
+    ('Eq(tu, ((ti0*ti1*t0)*tv + (ti0*ti1*tv)*t1))',
      ['t0*ti0[x, y, z]*ti1[x, y, z]', 't1*ti0[x, y, z]*ti1[x, y, z]']),
 ])
-def test_xreplace_constrained_time_invariants(u, v, w, ti0, ti1, t0, t1, expr, expected):
+def test_xreplace_constrained_time_invariants(tu, tv, tw, ti0, ti1, t0, t1,
+                                              expr, expected):
     exprs = [eval(expr)]
     processed, found = xreplace_constrained(exprs,
                                             lambda i: Symbol('r%d' % i),
@@ -206,17 +208,17 @@ def test_xreplace_constrained_time_invariants(u, v, w, ti0, ti1, t0, t1, expr, e
 
 @pytest.mark.parametrize('expr,expected', [
     # simple
-    ('Eq(u, v + w + 5. + ti0)',
-     ['v[t, x, y, z] + w[t, x, y, z] + 5.0']),
+    ('Eq(tu, tv + tw + 5. + ti0)',
+     ['tv[t, x, y, z] + tw[t, x, y, z] + 5.0']),
     # more ops
-    ('Eq(u, v*w*4.*ti0 + ti1*v)',
-     ['4.0*v[t, x, y, z]*w[t, x, y, z]']),
+    ('Eq(tu, tv*tw*4.*ti0 + ti1*tv)',
+     ['4.0*tv[t, x, y, z]*tw[t, x, y, z]']),
     # wrapped
-    ('Eq(u, ((v + 4.)*ti0*ti1 + (v + w)/3.)*ti1*t0)',
-     ['v[t, x, y, z] + 4.0',
-      '0.333333333333333*v[t, x, y, z] + 0.333333333333333*w[t, x, y, z]']),
+    ('Eq(tu, ((tv + 4.)*ti0*ti1 + (tv + tw)/3.)*ti1*t0)',
+     ['tv[t, x, y, z] + 4.0',
+      '0.333333333333333*tv[t, x, y, z] + 0.333333333333333*tw[t, x, y, z]']),
 ])
-def test_xreplace_constrained_time_varying(u, v, w, ti0, ti1, t0, t1, expr, expected):
+def test_xreplace_constrained_time_varying(tu, tv, tw, ti0, ti1, t0, t1, expr, expected):
     exprs = [eval(expr)]
     processed, found = xreplace_constrained(exprs,
                                             lambda i: Symbol('r%d' % i),
@@ -228,18 +230,18 @@ def test_xreplace_constrained_time_varying(u, v, w, ti0, ti1, t0, t1, expr, expe
 
 @pytest.mark.parametrize('exprs,expected', [
     # simple
-    (['Eq(u, (v + w + 5.)*(ti0 + ti1) + (t0 + t1)*(ti0 + ti1))'],
+    (['Eq(tu, (tv + tw + 5.)*(ti0 + ti1) + (t0 + t1)*(ti0 + ti1))'],
      ['ti0[x, y, z] + ti1[x, y, z]',
-      'r0*(t0 + t1) + r0*(v[t, x, y, z] + w[t, x, y, z] + 5.0)']),
+      'r0*(t0 + t1) + r0*(tv[t, x, y, z] + tw[t, x, y, z] + 5.0)']),
     # across expressions
-    (['Eq(u, v*4 + w*5 + w*5*t0)', 'Eq(v, w*5)'],
-     ['5*w[t, x, y, z]', '5*t0*w[t, x, y, z] + r0 + 4*v[t, x, y, z]', 'r0']),
+    (['Eq(tu, tv*4 + tw*5 + tw*5*t0)', 'Eq(tv, tw*5)'],
+     ['5*tw[t, x, y, z]', '5*t0*tw[t, x, y, z] + r0 + 4*tv[t, x, y, z]', 'r0']),
     # intersecting
-    pytest.mark.xfail((['Eq(u, ti0*ti1 + ti0*ti1*t0 + ti0*ti1*t0*t1)'],
+    pytest.mark.xfail((['Eq(tu, ti0*ti1 + ti0*ti1*t0 + ti0*ti1*t0*t1)'],
                        ['ti0*ti1', 'r0', 'r0*t0', 'r0*t0*t1'])),
 ])
-def test_common_subexprs_elimination(u, v, w, ti0, ti1, t0, t1, exprs, expected):
-    processed = common_subexprs_elimination(EVAL(exprs, u, v, w, ti0, ti1, t0, t1),
+def test_common_subexprs_elimination(tu, tv, tw, ti0, ti1, t0, t1, exprs, expected):
+    processed = common_subexprs_elimination(EVAL(exprs, tu, tv, tw, ti0, ti1, t0, t1),
                                             lambda i: Symbol('r%d' % i))
     assert len(processed) == len(expected)
     assert all(str(i.rhs) == j for i, j in zip(processed, expected))
@@ -247,15 +249,15 @@ def test_common_subexprs_elimination(u, v, w, ti0, ti1, t0, t1, exprs, expected)
 
 @pytest.mark.parametrize('exprs,expected', [
     (['Eq(t0, 3.)', 'Eq(t1, 7.)', 'Eq(ti0, t0*3. + 2.)', 'Eq(ti1, t1 + t0 + 1.5)',
-      'Eq(v, (ti0 + ti1)*t0)', 'Eq(w, (ti0 + ti1)*t1)',
-      'Eq(u, (v + w + 5.)*(ti0 + ti1) + (t0 + t1)*(ti0 + ti1))'],
-     '{u: {u, v, w, ti0, ti1, t0, t1}, v: {ti0, ti1, t0, v}, w: {ti0, ti1, t1, w},\
-ti0: {ti0, t0}, ti1: {ti1, t1, t0}, t0: {t0}, t1: {t1}}'),
+      'Eq(tv, (ti0 + ti1)*t0)', 'Eq(tw, (ti0 + ti1)*t1)',
+      'Eq(tu, (tv + tw + 5.)*(ti0 + ti1) + (t0 + t1)*(ti0 + ti1))'],
+     '{tu: {tu, tv, tw, ti0, ti1, t0, t1}, tv: {ti0, ti1, t0, tv},\
+tw: {ti0, ti1, t1, tw}, ti0: {ti0, t0}, ti1: {ti1, t1, t0}, t0: {t0}, t1: {t1}}'),
 ])
-def test_graph_trace(u, v, w, ti0, ti1, t0, t1, exprs, expected):
-    g = temporaries_graph(EVAL(exprs, u, v, w, ti0, ti1, t0, t1))
+def test_graph_trace(tu, tv, tw, ti0, ti1, t0, t1, exprs, expected):
+    g = temporaries_graph(EVAL(exprs, tu, tv, tw, ti0, ti1, t0, t1))
     mapper = eval(expected)
-    for i in [u, v, w, ti0, ti1, t0, t1]:
+    for i in [tu, tv, tw, ti0, ti1, t0, t1]:
         assert set([j.lhs for j in g.trace(i)]) == mapper[i]
 
 
