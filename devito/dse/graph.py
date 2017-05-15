@@ -148,7 +148,7 @@ class TemporariesGraph(OrderedDict):
 
     def trace(self, key):
         """
-        Extract the tree computing the temporary ``key``.
+        Return the sequence of operations required to compute the temporary ``key``.
         """
         if key not in self:
             return []
@@ -202,55 +202,51 @@ class TemporariesGraph(OrderedDict):
         """
         if key not in self:
             return False
+        seen = set()
         queue = [self[key]]
         while queue:
             item = queue.pop(0)
+            seen.add(item)
             if any(key in i.atoms() for i in retrieve_indexed(item)):
                 # /key/ appears amongst the indices of /item/
                 return True
             else:
-                queue.extend(self.extract(item.lhs, readby=True))
+                queue.extend([i for i in self.extract(item.lhs, readby=True)
+                              if i not in seen])
         return False
 
     def extract(self, key, readby=False):
         """
-        Return the list of temporaries appearing in ``key.reads`` that *preceed*
-        ``key`` in the TemporariesGraph (ie, in program order).
-
-        If ``readby`` is passed as True, return instead the list of temporaries
-        appearing in ``key.readby`` *after* ``key`` in the TemporariesGraph
-        (ie, in program order).
+        Return the list of nodes appearing in ``key.reads``, in program order
+        (ie, based on the order in which the temporaries appear in ``self``). If
+        ``readby is True``, then return instead the list of nodes appearing
+        ``key.readby``, in program order.
 
         Examples
         ========
         Given the following sequence of operations: ::
 
-            t0 = ...
             t1 = ...
-            u[i, j] = ...
+            t0 = ...
+            u[i, j] = ... v ...
             u[3, j] = ...
             v = t0 + t1 + u[z, k]
-            u[i, 5] = ...
+            t2 = ...
 
-        Assuming ``key == v`` and ``readby`` set to False as by default, return
+        Assuming ``key == v`` and ``readby is False`` (as by default), return
         the following list of :class:`Temporary` objects: ::
 
-            [t0, t1, u[i, j], u[3, j]]
+            [t1, t0, u[i, j], u[3, j]]
 
-        If ``readby`` is set to True, return: ::
+        If ``readby is True``, return: ::
 
-            [u[i, 5]]
+            [v, t2]
         """
         if key not in self:
             return []
-        if readby is False:
-            match = self[key].reads
-            section = self[:key]
-        else:
-            match = self[key].readby
-            section = self[key::1]
+        match = self[key].reads if readby is False else self[key].readby
         found = []
-        for k, v in section.items():
+        for k, v in self.items():
             if k in match:
                 found.append(v)
         return found
