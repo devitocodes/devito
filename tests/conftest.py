@@ -2,9 +2,12 @@ from __future__ import absolute_import
 
 import pytest
 
+from sympy import Eq  # noqa
+
 from devito.dimension import Dimension, t, x, y, z
 from devito.interfaces import DenseData, ScalarFunction, TensorFunction
 from devito.nodes import Iteration
+from devito.tools import as_tuple
 
 
 def scalarfunction(name):
@@ -141,3 +144,24 @@ def fc(dims):
 @pytest.fixture(scope="session", autouse=True)
 def fd(dims):
     return tensorfunction('fd', (3, 5), (x, y)).indexed
+
+
+def EVAL(exprs, *args):
+    """
+    Convert strings into SymPy objects.
+
+    Required to work around this 'won't fix' Python3 issue: ::
+
+        http://stackoverflow.com/questions/29336616/eval-scope-in-python-2-vs-3
+    """
+    # Cannot use list comprehension because of the issue linked in the docstring
+    scope = {}
+    for i in args:
+        try:
+            scope[i.base.function.name] = i
+        except AttributeError:
+            scope[i.label.name] = i
+    processed = []
+    for i in as_tuple(exprs):
+        processed.append(eval(i, globals(), scope))
+    return processed[0] if isinstance(exprs, str) else processed

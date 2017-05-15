@@ -1,3 +1,5 @@
+from conftest import EVAL
+
 import numpy as np
 import pytest
 from sympy import Eq, Symbol  # noqa
@@ -237,7 +239,7 @@ def test_xreplace_constrained_time_varying(u, v, w, ti0, ti1, t0, t1, expr, expe
                        ['ti0*ti1', 'r0', 'r0*t0', 'r0*t0*t1'])),
 ])
 def test_common_subexprs_elimination(u, v, w, ti0, ti1, t0, t1, exprs, expected):
-    processed = common_subexprs_elimination([eval(i) for i in exprs],
+    processed = common_subexprs_elimination(EVAL(exprs, u, v, w, ti0, ti1, t0, t1),
                                             lambda i: Symbol('r%d' % i))
     assert len(processed) == len(expected)
     assert all(str(i.rhs) == j for i, j in zip(processed, expected))
@@ -251,7 +253,7 @@ def test_common_subexprs_elimination(u, v, w, ti0, ti1, t0, t1, exprs, expected)
 ti0: {ti0, t0}, ti1: {ti1, t1, t0}, t0: {t0}, t1: {t1}}'),
 ])
 def test_graph_trace(u, v, w, ti0, ti1, t0, t1, exprs, expected):
-    g = temporaries_graph([eval(i) for i in exprs])
+    g = temporaries_graph(EVAL(exprs, u, v, w, ti0, ti1, t0, t1))
     mapper = eval(expected)
     for i in [u, v, w, ti0, ti1, t0, t1]:
         assert set([j.lhs for j in g.trace(i)]) == mapper[i]
@@ -283,8 +285,9 @@ def test_graph_trace(u, v, w, ti0, ti1, t0, t1, exprs, expected):
       '3.*fc[x-4,y-4] + fd[x,y]': Stencil([(x, {0, 1, 2}), (y, {0, 1, 2})])}),
 ])
 def test_collect_aliases(fa, fb, fc, fd, t0, t1, t2, t3, exprs, expected):
-    mapper = dict([(eval(k), v) for k, v in expected.items()])
-    _, aliases = collect_aliases([eval(i) for i in exprs])
+    scope = [fa, fb, fc, fd, t0, t1, t2, t3]
+    mapper = dict([(EVAL(k, *scope), v) for k, v in expected.items()])
+    _, aliases = collect_aliases(EVAL(exprs, *scope))
     for k, v in aliases.items():
         assert k in mapper
         assert v.anti_stencil == mapper[k]
