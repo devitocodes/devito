@@ -60,15 +60,15 @@ class YaskRewriter(BasicRewriter):
                     try:
                         ast = transformer(i.stencil)
                         # Scalar
-                        print(ast.format_simple())
+                        # print(ast.format_simple())
 
                         # AVX2 intrinsics
                         # print soln.format('avx2')
 
                         # AVX2 intrinsics to file
-                        # import os
-                        # path = os.path.join(os.environ.get('YASK_HOME', '.'), 'src')
-                        # soln.write(os.path.join(path, 'stencil_code.hpp'), 'avx2')
+                        import os
+                        path = os.path.join(os.environ.get('YASK_HOME', '.'), 'src')
+                        soln.write(os.path.join(path, 'stencil_code.hpp'), 'avx2')
                     except:
                         pass
 
