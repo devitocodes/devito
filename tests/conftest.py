@@ -27,6 +27,7 @@ def dims():
     return {'i': Dimension(name='i', size=3),
             'j': Dimension(name='j', size=5),
             'k': Dimension(name='k', size=7),
+            'l': Dimension(name='l', size=6),
             's': Dimension(name='s', size=4),
             'q': Dimension(name='q', size=4)}
 
@@ -37,7 +38,8 @@ def iters(dims):
             lambda ex: Iteration(ex, dims['j'], (0, 5, 1)),
             lambda ex: Iteration(ex, dims['k'], (0, 7, 1)),
             lambda ex: Iteration(ex, dims['s'], (0, 4, 1)),
-            lambda ex: Iteration(ex, dims['q'], (0, 4, 1))]
+            lambda ex: Iteration(ex, dims['q'], (0, 4, 1)),
+            lambda ex: Iteration(ex, dims['l'], (0, 6, 1))]
 
 
 @pytest.fixture(scope="session", autouse=True)
