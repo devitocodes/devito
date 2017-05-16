@@ -7,7 +7,7 @@ import pytest
 from sympy import Eq  # noqa
 
 from devito import (clear_cache, Operator, DenseData, TimeData,
-                    Dimension, time, t, x, y, z)
+                    time, t, x, y, z)
 from devito.dle import retrieve_iteration_tree
 from devito.visitors import IsPerfectIteration
 
@@ -124,7 +124,6 @@ class TestArithmetic(object):
         Operator(eqn)(fa)
         assert np.allclose(fa.data[1, 1:-1, 1:-1], result[1:-1, 1:-1], rtol=1e-12)
 
-
     @pytest.mark.parametrize('expr, result', [
         ('Eq(a[1, j, l], a[0, j - 1 , l] + 1.)', np.zeros((5, 6)) + 3.),
     ])
@@ -154,9 +153,12 @@ class TestArguments(object):
     def test_override(self):
         """Test that the call-time overriding of Operator arguments works"""
         i, j, k, l = dimify('i j k l')
-        a = symbol(name='a', dimensions=(i, j, k, l), value=2., mode='indexed').base.function
-        a1 = symbol(name='a', dimensions=(i, j, k, l), value=3., mode='indexed').base.function
-        a2 = symbol(name='b', dimensions=(i, j, k, l), value=4., mode='indexed').base.function
+        a = symbol(name='a', dimensions=(i, j, k, l), value=2.,
+                   mode='indexed').base.function
+        a1 = symbol(name='a', dimensions=(i, j, k, l), value=3.,
+                    mode='indexed').base.function
+        a2 = symbol(name='b', dimensions=(i, j, k, l), value=4.,
+                    mode='indexed').base.function
         eqn = Eq(a, a+3)
         op = Operator(eqn)
         op()
@@ -209,7 +211,6 @@ class TestDeclarator(object):
   free(a);
   return 0;""" in str(operator.ccode)
 
-
     def test_heap_perfect_2D_stencil(self, a, c):
         operator = Operator([Eq(a, c), Eq(c, c*a)], dse='noop', dle='noop', aaa=True)
         assert """\
@@ -233,7 +234,6 @@ class TestDeclarator(object):
   free(a);
   free(c);
   return 0;""" in str(operator.ccode)
-
 
     def test_heap_imperfect_2D_stencil(self, a, c):
         operator = Operator([Eq(a, 0.), Eq(c, c*a)], dse='noop', dle='noop')
@@ -259,7 +259,6 @@ class TestDeclarator(object):
   free(c);
   return 0;""" in str(operator.ccode)
 
-
     def test_stack_scalar_temporaries(self, a, t0, t1):
         operator = Operator([Eq(t0, 1.), Eq(t1, 2.), Eq(a, t0*t1*3.)],
                             dse='noop', dle='noop')
@@ -279,7 +278,6 @@ class TestDeclarator(object):
 +(double)(end_loop_i_0.tv_usec-start_loop_i_0.tv_usec)/1000000;
   free(a);
   return 0;""" in str(operator.ccode)
-
 
     def test_stack_vector_temporaries(self, c_stack, e):
         operator = Operator([Eq(c_stack, e*1.)], dse='noop', dle='noop')
