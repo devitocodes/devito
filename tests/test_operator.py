@@ -8,6 +8,8 @@ from sympy import Eq  # noqa
 
 from devito import (clear_cache, Operator, DenseData, TimeData,
                     Dimension, time, t, x, y, z)
+from devito.dle import retrieve_iteration_tree
+from devito.visitors import IsPerfectIteration
 
 
 def dimify(dimensions):
@@ -305,3 +307,44 @@ class TestDeclarator(object):
   timings->loop_k_0 += (double)(end_loop_k_0.tv_sec-start_loop_k_0.tv_sec)\
 +(double)(end_loop_k_0.tv_usec-start_loop_k_0.tv_usec)/1000000;
   return 0;""" in str(operator.ccode)
+
+
+class TestLoopScheduler(object):
+
+    def test_consistency_perfect_loops(self, tu, tv, ti0, t0, t1):
+        eq1 = Eq(tu, tv*ti0*t0 + ti0*t1)
+        eq2 = Eq(ti0, tu + t0*3.)
+        eq3 = Eq(tv, ti0*tu)
+        op1 = Operator([eq1, eq2, eq3], dse='noop', dle='noop')
+        op2 = Operator([eq2, eq1, eq3], dse='noop', dle='noop')
+        op3 = Operator([eq3, eq2, eq1], dse='noop', dle='noop')
+
+        trees = [retrieve_iteration_tree(i) for i in [op1, op2, op3]]
+        assert all(len(i) == 1 for i in trees)
+        trees = [i[0] for i in trees]
+        for tree in trees:
+            assert IsPerfectIteration().visit(tree[0])
+            assert len(tree[-1].nodes) == 3
+        pivot = set([j.expr for j in trees[0][-1].nodes])
+        assert all(set([j.expr for j in i[-1].nodes]) == pivot for i in trees)
+
+    def test_expressions_imperfect_loops(self, ti0, ti1, ti2, t0):
+        eq1 = Eq(ti2, t0*3.)
+        eq2 = Eq(ti0, ti1 + 4. + ti2*5.)
+        op = Operator([eq1, eq2], dse='noop', dle='noop')
+        trees = retrieve_iteration_tree(op)
+        assert len(trees) == 2
+        outer, inner = trees
+        assert len(outer) == 2 and len(inner) == 3
+        assert all(i == j for i, j in zip(outer, inner[:-1]))
+        assert outer[-1].nodes[0].expr.rhs == eq1.rhs
+        assert inner[-1].nodes[0].expr.rhs == eq2.rhs
+
+    def test_different_loop_nests(self, tu, ti0, t0, t1):
+        eq1 = Eq(ti0, t0*3.)
+        eq2 = Eq(tu, ti0 + t1*3.)
+        op = Operator([eq1, eq2], dse='noop', dle='noop')
+        trees = retrieve_iteration_tree(op)
+        assert len(trees) == 2
+        assert trees[0][-1].nodes[0].expr.rhs == eq1.rhs
+        assert trees[1][-1].nodes[0].expr.rhs == eq2.rhs

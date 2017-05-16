@@ -114,6 +114,11 @@ def ti1(dims):
 
 
 @pytest.fixture(scope="session", autouse=True)
+def ti2(dims):
+    return tensorfunction('ti2', (3, 5), (x, y)).indexify()
+
+
+@pytest.fixture(scope="session", autouse=True)
 def tu(dims):
     return tensorfunction('tu', (10, 3, 5, 7), (t, x, y, z)).indexify()
 
