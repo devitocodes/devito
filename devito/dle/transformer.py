@@ -33,7 +33,8 @@ def transform(node, mode='basic', options=None, compiler=None):
                      * 'speculative': Apply all of the 'advanced' transformations,
                                       plus other transformations that might increase
                                       (or possibly decrease) performance.
-                     * 'yask': Optimize by offloading to the YASK optimizer.
+                     * 'yask': Optimize by offloading to the YASK optimizer. Still
+                               work-in-progress; should only be used by developers.
     :param options: A dictionary with additional information to drive the DLE. The
                     following values are accepted: ::
 

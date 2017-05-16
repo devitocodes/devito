@@ -39,7 +39,7 @@ class DevitoRewriter(BasicRewriter):
     @dle_pass
     def _loop_fission(self, state, **kwargs):
         """
-        Apply loop fission to innermost :class:`Iteartion` objects. This pass
+        Apply loop fission to innermost :class:`Iteration` objects. This pass
         is not applied if the number of statements in an Iteration's body is
         lower than ``self.thresholds['fission'].``
         """
@@ -99,7 +99,7 @@ class DevitoRewriter(BasicRewriter):
     @dle_pass
     def _loop_blocking(self, state, **kwargs):
         """
-        Apply loop blocking to :class:`Iteartion` trees.
+        Apply loop blocking to :class:`Iteration` trees.
 
         By default, the blocked :class:`Iteration` objects and the block size are
         determined heuristically. The heuristic consists of searching the deepest
