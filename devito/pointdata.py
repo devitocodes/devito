@@ -148,11 +148,16 @@ class PointData(DenseData):
                                         self.coordinate_indices)])
 
     def interpolate(self, expr, offset=0, **kwargs):
-        """Symbol for interpolation of an expression onto a sparse point
+        """Creates a :class:`sympy.Eq` equation for the interpolation
+        of an expression onto this sparse point collection.
 
-        :param expr: The expression to interpolate
+        :param expr: The expression to interpolate.
         :param offset: Additional offset from the boundary for
-        absorbing boundary conditions
+                       absorbing boundary conditions.
+        :param u_t: (Optional) time index to use for indexing into
+                    field data in `expr`.
+        :param p_t: (Optional) time index to use for indexing into
+                    the sparse point data.
         """
         u_t = kwargs.get('u_t', self.indices[0])
         p_t = kwargs.get('p_t', self.indices[0])
@@ -177,10 +182,12 @@ class PointData(DenseData):
     def inject(self, field, expr, offset=0, **kwargs):
         """Symbol for injection of an expression onto a grid
 
-        :param expr: The grid field into which to inject
-        :param expr: The expression to inject
+        :param field: The grid field into which we inject.
+        :param expr: The expression to inject.
         :param offset: Additional offset from the boundary for
-        absorbing boundary conditions
+                       absorbing boundary conditions.
+        :param u_t: (Optional) time index to use for indexing into `field`.
+        :param p_t: (Optional) time index to use for indexing into `expr`.
         """
         u_t = kwargs.get('u_t', field.indices[0])
         p_t = kwargs.get('p_t', self.indices[0])
