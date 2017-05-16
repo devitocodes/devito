@@ -606,30 +606,6 @@ class IndexedData(IndexedBase):
         obj.function = self.function
         return obj
 
-    def __getitem__(self, idx):
-        """Allow the use of `Ellipsis` to derive default indices from
-        the original `SymbolicData` (`sympy.Function`) symbol in indexed
-        notation. This provides notational short-cuts, such as:
-
-        In  > a = TimeData(name='a', shape=(2, 3, 4))
-        Out > a(t, x, y, z)
-
-        In  > a.indexed[time, ...]
-        Out > a[time, x, y, z]
-        """
-        if idx is Ellipsis:
-            # Argument is only a single ellipsis, indexify()
-            return self[self.function.indices]
-        elif Ellipsis in idx:
-            # Partial replacement with defaults from parten function
-            i = idx.index(Ellipsis)
-            j = len(self.function.indices) - len(idx) + 1
-            idx_ell = list(self.function.indices[i:i+j])
-            indices = list(idx[:i]) + idx_ell + list(idx[i+1:])
-            return self[indices]
-        else:
-            return super(IndexedData, self).__getitem__(idx)
-
 
 class EmptyIndexed(Symbol):
 
