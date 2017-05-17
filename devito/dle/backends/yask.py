@@ -1,3 +1,4 @@
+import numpy as np
 from sympy import Indexed
 
 from devito.dimension import LoweredDimension
@@ -13,6 +14,8 @@ try:
     fac = yask.node_factory()
 except ImportError:
     yask = None
+
+__all__ = ['YaskRewriter', 'yaskarray']
 
 
 class YaskRewriter(BasicRewriter):
@@ -117,3 +120,22 @@ class sympy2yask(object):
                 raise NotImplementedError
 
         return run(expr)
+
+
+class yaskarray(np.ndarray):
+
+    """
+    An implementation of a ``numpy.ndarray`` suitable for the YASK storage layout.
+
+    This subclass follows the ``numpy`` rules for subclasses detailed at: ::
+
+        https://docs.scipy.org/doc/numpy/user/basics.subclassing.html
+    """
+
+    def __new__(cls, array):
+        # Input array is an already formed ndarray instance
+        # We first cast to be our class type
+        return np.asarray(array).view(cls)
+
+    def __array_finalize__(self, obj):
+        if obj is None: return

@@ -10,12 +10,25 @@ from sympy import Eq
 
 from devito.dimension import t
 from devito.logger import error
+from devito.parameters import parameters
 from devito.tools import convert_dtype_to_ctype
 
 
 class CMemory(object):
+
     def __init__(self, shape, dtype=np.float32, alignment=None):
         self.ndpointer, self.data_pointer = malloc_aligned(shape, alignment, dtype)
+
+    @classmethod
+    def cast(cls, ndpointer):
+        """
+        Pick a different ndarray type depending on how the backend will access the data.
+        """
+        if parameters['dle']['mode'] == 'yask':
+            from devito.dle import yaskarray
+            return yaskarray(ndpointer)
+        else:
+            return ndpointer
 
     def __del__(self):
         free(self.data_pointer)
