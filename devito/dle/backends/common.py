@@ -8,7 +8,7 @@ from devito.dse import as_symbol, terminals
 from devito.logger import dle
 from devito.nodes import Iteration
 from devito.tools import as_tuple, flatten
-from devito.visitors import FindSections, NestedTransformer, Transformer
+from devito.visitors import FindSections, NestedTransformer
 
 
 __all__ = ['AbstractRewriter', 'Arg', 'BlockingArg', 'State', 'dle_pass']
@@ -122,7 +122,7 @@ class AbstractRewriter(object):
     thresholds = {
         'collapse': 32,  # Available physical cores
         'elemental': 30,  # Operations
-        'max_fission': 80,  # Statements
+        'max_fission': 180,  # Statements
         'min_fission': 1  # Statements
     }
 

@@ -60,8 +60,8 @@ class OperatorBasic(Function):
         expressions = as_tuple(expressions)
         if any(not isinstance(i, sympy.Eq) for i in expressions):
             raise InvalidOperator("Only SymPy expressions are allowed.")
-        if len(set(i.lhs for i in expressions)) < len(expressions):
-            raise InvalidOperator("Found redundant output field.")
+        #if len(set(i.lhs for i in expressions)) < len(expressions):
+        #    raise InvalidOperator("Found redundant output field.")
 
         self.name = kwargs.get("name", "Kernel")
         subs = kwargs.get("subs", {})
