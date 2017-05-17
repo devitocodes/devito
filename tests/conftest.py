@@ -2,7 +2,7 @@ from __future__ import absolute_import
 
 import pytest
 
-from sympy import Eq  # noqa
+from sympy import Eq, cos  # noqa
 
 from devito.dimension import Dimension, t, x, y, z
 from devito.interfaces import DenseData, ScalarFunction, TensorFunction

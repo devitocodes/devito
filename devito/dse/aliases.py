@@ -25,14 +25,15 @@ def collect_aliases(exprs):
 
     The following expressions in ``exprs`` alias to ``a[i] + b[i]``: ::
 
-        ``(a[i+1] + b[i+1], a[i-1] + b[i-1])``
+        a[i+1] + b[i+1] : same operands and operations, distance along i = 1
+        a[i-1] + b[i-1] : same operands and operations, distance along i = -1
 
     Whereas the following do not: ::
 
-        ``a[i+1] + b[j+1]``: because at least one index differs
-        ``a[i] + c[i]``: because at least one of the operands differs
-        ``a[i+2] - b[i+2]``: because at least one operation differs
-        ``a[i+2] + b[i]``: because offsets along ``i`` differ (+2 and +0)
+        a[i+1] + b[j+1] : because at least one index differs
+        a[i] + c[i] : because at least one of the operands differs
+        a[i+2] - b[i+2] : because at least one operation differs
+        a[i+2] + b[i] : because distance along ``i`` differ (+2 and +0)
     """
 
     ExprData = namedtuple('ExprData', 'dimensions offsets')
@@ -220,6 +221,12 @@ def compare(e1, e2):
 
 
 class Alias(object):
+
+    """
+    Map an expression (the so called "alias") to a set of aliasing expressions.
+    For each aliasing expression, the distance from the alias along each dimension
+    is tracked.
+    """
 
     def __init__(self, alias, aliased, distances, dimensions, ghost_offsets=None):
         assert len(aliased) == len(distances)

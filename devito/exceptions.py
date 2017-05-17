@@ -8,3 +8,7 @@ class InvalidOperator(Exception):
 
 class StencilOperationError(Exception):
     pass
+
+
+class DSEException(Exception):
+    pass

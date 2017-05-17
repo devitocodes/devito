@@ -29,6 +29,7 @@ from devito.dse.extended_sympy import Eq
 from devito.dse.search import retrieve_indexed
 from devito.dse.inspection import as_symbol, terminals
 from devito.dse.queries import q_indirect
+from devito.exceptions import DSEException
 from devito.tools import flatten
 
 __all__ = ['temporaries_graph']
@@ -274,7 +275,8 @@ def temporaries_graph(temporaries):
     # Check input is legal and initialize the temporaries graph
     temporaries = [Temporary(*i.args) for i in temporaries]
     nodes = [i.lhs for i in temporaries]
-    assert len(set(nodes)) == len(nodes)
+    if len(set(nodes)) != len(nodes):
+        raise DSEException("Found redundant node in the TemporariesGraph.")
     graph = TemporariesGraph(zip(nodes, temporaries))
 
     # Add edges (i.e., reads and readby info) to the graph

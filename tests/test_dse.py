@@ -293,3 +293,21 @@ def test_collect_aliases(fa, fb, fc, fd, t0, t1, t2, t3, exprs, expected):
     for k, v in aliases.items():
         assert k in mapper
         assert v.anti_stencil == mapper[k]
+
+
+@pytest.mark.parametrize('expr,expected', [
+    ('Eq(t0, t1)', 0),
+    ('Eq(t0, fa[x] + fb[x])', 1),
+    ('Eq(t0, fa[x + 1] + fb[x - 1])', 1),
+    ('Eq(t0, fa[fb[x+1]] + fa[x])', 1),
+    ('Eq(t0, fa[fb[x+1]] + fc[x+2, y+1])', 1),
+    ('Eq(t0, t1*t2)', 1),
+    ('Eq(t0, 2.*t0*t1*t2)', 3),
+    ('Eq(t0, cos(t1*t2))', 2),
+    ('Eq(t0, 2.*t0*t1*t2 + t0*fa[x+1])', 5),
+    ('Eq(t0, (2.*t0*t1*t2 + t0*fa[x+1])*3. - t0)', 7),
+    ('[Eq(t0, (2.*t0*t1*t2 + t0*fa[x+1])*3. - t0), Eq(t0, cos(t1*t2))]', 9),
+])
+def test_estimate_cost(fa, fb, fc, t0, t1, t2, expr, expected):
+    # Note: integer arithmetic isn't counted
+    assert estimate_cost(EVAL(expr, fa, fb, fc, t0, t1, t2)) == expected
