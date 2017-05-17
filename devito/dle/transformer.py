@@ -27,9 +27,7 @@ def transform(node, mode='basic', options=None, compiler=None):
                      * 'basic': Add instructions to avoid denormal numbers and create
                                 elemental functions for rapid JIT-compilation.
                      * 'advanced': 'basic', vectorization, loop blocking.
-                     * '3D-advanced': Like 'advanced', but apply 3D loop blocking
-                                      if there are at least the perfectly nested
-                                      parallel iteration spaces.
+                     * '3D-advanced': Like 'advanced', but attempt 3D loop blocking.
                      * 'speculative': Apply all of the 'advanced' transformations,
                                       plus other transformations that might increase
                                       (or possibly decrease) performance.
@@ -48,9 +46,10 @@ def transform(node, mode='basic', options=None, compiler=None):
     :param compiler: Compiler class used to perform JIT compilation. Useful to
                      introduce compiler-specific vectorization pragmas.
     """
-    assert mode is None or isinstance(mode, str)
+    # Check input options
+    if not (mode is None or isinstance(mode, str)):
+        raise ValueError("Parameter 'mode' should be a string, not %s." % type(mode))
 
-    # Check input AST
     if isinstance(node, Sequence):
         assert all(n.is_Node for n in node)
         node = list(node)
@@ -59,7 +58,6 @@ def transform(node, mode='basic', options=None, compiler=None):
     else:
         raise ValueError("Got illegal node of type %s." % type(node))
 
-    # Check input options
     options = options or {}
     params = options.copy()
     for i in options:
@@ -67,7 +65,7 @@ def transform(node, mode='basic', options=None, compiler=None):
             dle_warning("Illegal DLE parameter '%s'" % i)
             params.pop(i)
 
-    # Check input mode
+    # Process the Iteration/Expression tree through the DLE
     if mode is None or mode == 'noop':
         return State(node)
     elif mode == '3D-advanced':
