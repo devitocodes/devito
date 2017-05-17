@@ -56,5 +56,5 @@ receiver_coords[:, 1] = location[0, 1]
 data.set_receiver_pos(receiver_coords)
 data.set_shape(nt, 101)
 
-TTI = TTI_cg(model, data, src, t_order=2, s_order=spc_order, nbpml=10)
+TTI = TTI_cg(model, data, src, t_order=2, s_order=spc_order)
 rec, u, v, gflopss, oi, timings = TTI.Forward()

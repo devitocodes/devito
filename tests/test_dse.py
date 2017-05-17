@@ -68,7 +68,7 @@ def run_acoustic_forward(dse=None):
     receiver_coords[:, 2] = location[0, 1]
     data.set_receiver_pos(receiver_coords)
     data.set_shape(nt, 101)
-    acoustic = Acoustic_cg(model, data, src, dse=dse, dle='basic')
+    acoustic = Acoustic_cg(model, data, src)
     rec, u, _, _, _ = acoustic.Forward(save=False, dse=dse, dle='basic')
 
     # FIXME: note that np.copy is necessary because of the broken caching system

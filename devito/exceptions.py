@@ -12,3 +12,7 @@ class StencilOperationError(Exception):
 
 class DSEException(Exception):
     pass
+
+
+class DLEException(Exception):
+    pass

@@ -3,10 +3,9 @@ from __future__ import print_function
 
 import numpy as np
 
-from devito.dimension import Dimension
 from devito.interfaces import DenseData, TimeData
 from examples.acoustic.fwi_operators import *
-from examples.source_type import SourceLike
+from examples.seismic import PointSource, Receiver
 
 
 class Acoustic_cg(object):
@@ -15,8 +14,7 @@ class Acoustic_cg(object):
 
     Note: s_order must always be greater than t_order
     """
-    def __init__(self, model, data, source, nbpml=40, t_order=2, s_order=2,
-                 auto_tuning=False, dse=True, dle='advanced', compiler=None):
+    def __init__(self, model, data, source, t_order=2, s_order=2):
         self.model = model
         self.t_order = t_order
         self.s_order = s_order
@@ -28,31 +26,17 @@ class Acoustic_cg(object):
         if self.t_order == 4:
             self.dt *= 1.73
 
-    # Forward modelling
-    def Forward(self, save=False, cache_blocking=None, auto_tuning=False,
-                dse='advanced', dle='advanced', compiler=None, u_ini=None):
+    def Forward(self, save=False, cache_blocking=None, u_ini=None, **kwargs):
         """
         Forward modelling
         """
         nt, nrec = self.data.shape
-        nsrc = self.source.shape[1]
-        ndim = len(self.model.shape)
-        h = self.model.get_spacing()
-        dtype = self.model.dtype
-        nbpml = self.model.nbpml
 
-        # Create source symbol
-        p_src = Dimension('p_src', size=nsrc)
-        src = SourceLike(name="src", dimensions=[time, p_src], npoint=nsrc, nt=nt,
-                         dt=self.dt, h=h, ndim=ndim, nbpml=nbpml, dtype=dtype,
-                         coordinates=self.source.receiver_coords)
-        src.data[:] = self.source.traces[:]
-
-        # Create receiver symbol
-        p_rec = Dimension('p_rec', size=nrec)
-        rec = SourceLike(name="rec", dimensions=[time, p_rec], npoint=nrec, nt=nt,
-                         dt=self.dt, h=h, ndim=ndim, nbpml=nbpml, dtype=dtype,
-                         coordinates=self.data.receiver_coords)
+        # Create source and receiver symbol
+        src = PointSource(name='src', data=self.source.traces,
+                          coordinates=self.source.receiver_coords)
+        rec = Receiver(name='rec', ntime=nt,
+                       coordinates=self.data.receiver_coords)
 
         # Create the forward wavefield
         u = TimeData(name="u", shape=self.model.shape_domain, time_dim=nt,
@@ -63,38 +47,24 @@ class Acoustic_cg(object):
             u.data[0:3, :] = u_ini[:]
 
         # Execute operator and return wavefield and receiver data
-        fw = ForwardOperator(self.model, u, src, rec, self.data,
+        fw = ForwardOperator(self.model, u, src, rec,
                              time_order=self.t_order, spc_order=self.s_order,
-                             save=save, cache_blocking=cache_blocking, dse=dse,
-                             dle=dle, compiler=compiler, profile=True, u_ini=u_ini)
+                             save=save, u_ini=u_ini, **kwargs)
 
-        summary = fw.apply(autotune=auto_tuning)
+        summary = fw.apply(src=src, rec=rec, u=u, **kwargs)
         return rec.data, u, summary.gflopss, summary.oi, summary.timings
 
-    def Adjoint(self, recin, cache_blocking=None, auto_tuning=False,
-                dse='advanced', dle='advanced', compiler=None, u_ini=None):
+    def Adjoint(self, recin, u_ini=None, **kwargs):
         """
         Adjoint modelling
         """
         nt, nrec = self.data.shape
-        nsrc = self.source.shape[1]
-        ndim = len(self.model.shape)
-        h = self.model.get_spacing()
-        dtype = self.model.dtype
-        nbpml = self.model.nbpml
 
-        # Create source symbol
-        p_src = Dimension('p_src', size=nsrc)
-        srca = SourceLike(name="srca", dimensions=[time, p_src], npoint=nsrc, nt=nt,
-                          dt=self.dt, h=h, ndim=ndim, nbpml=nbpml, dtype=dtype,
-                          coordinates=self.source.receiver_coords)
-
-        # Create receiver symbol
-        p_rec = Dimension('p_rec', size=nrec)
-        rec = SourceLike(name="rec", dimensions=[time, p_rec], npoint=nrec, nt=nt,
-                         dt=self.dt, h=h, ndim=ndim, nbpml=nbpml, dtype=dtype,
-                         coordinates=self.data.receiver_coords)
-        rec.data[:] = recin[:]
+        # Create a new adjoint source and receiver symbol
+        srca = PointSource(name='srca', ntime=nt,
+                           coordinates=self.source.receiver_coords)
+        rec = Receiver(name='rec', data=recin,
+                       coordinates=self.data.receiver_coords)
 
         # Create the forward wavefield
         v = TimeData(name="v", shape=self.model.shape_domain, time_dim=nt,
@@ -102,32 +72,23 @@ class Acoustic_cg(object):
                      dtype=self.model.dtype)
 
         # Execute operator and return wavefield and receiver data
-        adj = AdjointOperator(self.model, v, srca, rec, self.data,
+        adj = AdjointOperator(self.model, v, srca, rec,
                               time_order=self.t_order, spc_order=self.s_order,
-                              cache_blocking=cache_blocking, dse=dse,
-                              dle=dle, compiler=compiler, profile=True)
+                              **kwargs)
 
-        summary = adj.apply(autotune=auto_tuning)
+        summary = adj.apply(srca=srca, rec=rec, v=v, **kwargs)
         return srca.data, v, summary.gflopss, summary.oi, summary.timings
 
-    def Gradient(self, recin, u, cache_blocking=None, auto_tuning=False,
-                 dse='advanced', dle='advanced', compiler=None):
+    def Gradient(self, recin, u, **kwargs):
         """
         Gradient operator (adjoint of Linearized Born modelling, action of
         the Jacobian adjoint on an input data)
         """
         nt, nrec = self.data.shape
-        ndim = len(self.model.shape)
-        h = self.model.get_spacing()
-        dtype = self.model.dtype
-        nbpml = self.model.nbpml
 
         # Create receiver symbol
-        p_rec = Dimension('p_rec', size=nrec)
-        rec = SourceLike(name="rec", dimensions=[time, p_rec], npoint=nrec, nt=nt,
-                         dt=self.dt, h=h, ndim=ndim, nbpml=nbpml, dtype=dtype,
-                         coordinates=self.data.receiver_coords)
-        rec.data[:] = recin[:]
+        rec = Receiver(name='rec', data=recin,
+                       coordinates=self.data.receiver_coords)
 
         # Gradient symbol
         grad = DenseData(name="grad", shape=self.model.shape_domain,
@@ -139,38 +100,24 @@ class Acoustic_cg(object):
                      dtype=self.model.dtype)
 
         # Execute operator and return wavefield and receiver data
-        gradop = GradientOperator(self.model, v, grad, rec, u, self.data,
+        gradop = GradientOperator(self.model, v, grad, rec, u,
                                   time_order=self.t_order, spc_order=self.s_order,
-                                  cache_blocking=cache_blocking, dse=dse,
-                                  dle=dle, compiler=compiler, profile=True)
+                                  **kwargs)
 
-        summary = gradop.apply(autotune=auto_tuning)
+        summary = gradop.apply(rec=rec, grad=grad, v=v, u=u, **kwargs)
         return grad.data, summary.gflopss, summary.oi, summary.timings
 
-    def Born(self, dmin, cache_blocking=None, auto_tuning=False,
-             dse='advanced', dle='advanced', compiler=None):
+    def Born(self, dmin, **kwargs):
         """
         Linearized Born modelling
         """
         nt, nrec = self.data.shape
-        nsrc = self.source.shape[1]
-        ndim = len(self.model.shape)
-        h = self.model.get_spacing()
-        dtype = self.model.dtype
-        nbpml = self.model.nbpml
 
-        # Create source symbol
-        p_src = Dimension('p_src', size=nsrc)
-        src = SourceLike(name="src", dimensions=[time, p_src], npoint=nsrc, nt=nt,
-                         dt=self.dt, h=h, ndim=ndim, nbpml=nbpml, dtype=dtype,
-                         coordinates=self.source.receiver_coords)
-        src.data[:] = self.source.traces[:]
-
-        # Create receiver symbol
-        p_rec = Dimension('p_rec', size=nrec)
-        rec = SourceLike(name="rec", dimensions=[time, p_rec], npoint=nrec, nt=nt,
-                         dt=self.dt, h=h, ndim=ndim, nbpml=nbpml, dtype=dtype,
-                         coordinates=self.data.receiver_coords)
+        # Create source and receiver symbols
+        src = PointSource(name='src', data=self.source.traces,
+                          coordinates=self.source.receiver_coords)
+        rec = Receiver(name='rec', ntime=nt,
+                       coordinates=self.data.receiver_coords)
 
         # Create the forward wavefield
         u = TimeData(name="u", shape=self.model.shape_domain, time_dim=nt,
@@ -186,10 +133,9 @@ class Acoustic_cg(object):
         else:
             dm = dmin
         # Execute operator and return wavefield and receiver data
-        born = BornOperator(self.model, u, U, src, rec, dm, self.data,
+        born = BornOperator(self.model, u, U, src, rec, dm,
                             time_order=self.t_order, spc_order=self.s_order,
-                            cache_blocking=cache_blocking, dse=dse,
-                            dle=dle, compiler=compiler, profile=True)
+                            **kwargs)
 
-        summary = born.apply(autotune=auto_tuning)
+        summary = born.apply(u=u, U=U, src=src, rec=rec, dm=dm, **kwargs)
         return rec.data, u, U, summary.gflopss, summary.oi, summary.timings

@@ -61,8 +61,7 @@ def setup(dimensions=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=250.0,
     data.set_receiver_pos(receiver_coords)
     data.set_shape(nt, 101)
 
-    TTI = TTI_cg(model, data, src, t_order=time_order, s_order=space_order, nbpml=nbpml)
-    return TTI
+    return TTI_cg(model, data, src, t_order=time_order, s_order=space_order)
 
 
 def run(dimensions=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=250.0,

@@ -89,7 +89,7 @@ def test_acousticJ(dimensions, space_order):
 
     # Adjoint test
     acoustic0 = Acoustic_cg(model0, data, src, t_order=2,
-                            s_order=space_order, nbpml=nbpml)
+                            s_order=space_order)
     rec, u0, _, _, _ = acoustic0.Forward(save=True)
 
     du, _, _, _, _, _ = acoustic0.Born(1 / model.vp ** 2 - 1 / model0.vp ** 2)

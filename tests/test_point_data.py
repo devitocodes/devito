@@ -1,6 +1,6 @@
 import numpy as np
 import pytest
-from sympy import Eq, Function
+from sympy import Function
 from sympy.abc import h
 
 from devito import Operator, DenseData, PointData
@@ -46,7 +46,7 @@ def test_interpolate(shape, coords, npoints=20):
     p = points(coords, npoints=npoints)
     xcoords = p.coordinates.data[:, 0]
 
-    expr = Eq(p, p.interpolate(a))
+    expr = p.interpolate(a)
     Operator(expr, subs={h: spacing})(a=a, t=1)
 
     assert np.allclose(p.data[0, :], xcoords, rtol=1e-6)

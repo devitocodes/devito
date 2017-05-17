@@ -13,6 +13,7 @@ from operator import attrgetter
 import cgen as c
 from sympy import Symbol
 
+from devito.dimension import LoweredDimension
 from devito.nodes import Iteration, List, Node
 from devito.tools import as_tuple, filter_ordered, filter_sorted, flatten
 
@@ -473,7 +474,7 @@ class ResolveIterationVariable(Transformer):
                 modulo = o.dim.modulo
                 init += [c.Initializer(c.Value('int', vname),
                                        "(%s) %% %d" % (value, modulo))]
-                subs[o.dim + off] = Symbol(vname)
+                subs[o.dim + off] = LoweredDimension(vname, o.dim, off)
             # Always lower to symbol
             subs[o.dim.parent] = Symbol(o.dim.parent.name)
             # Insert block with modulo initialisations

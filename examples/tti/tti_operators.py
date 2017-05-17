@@ -1,7 +1,7 @@
 from sympy import Eq, sin, cos
 from sympy.abc import h, s
 
-from devito import Operator, DenseData, x, y, z, t, time
+from devito import Operator, DenseData, x, y, z
 from devito.finite_difference import centered, first_derivative, right, transpose
 
 
@@ -140,9 +140,12 @@ def ForwardOperator(model, u, v, src, rec, data, time_order=2,
 
     dse = kwargs.get('dse', 'advanced')
     dle = kwargs.get('dle', 'advanced')
-
-    stencils += src.point2grid(u, m, u_t=t, p_t=time)
-    stencils += src.point2grid(v, m, u_t=t, p_t=time)
-    stencils += [Eq(rec, rec.grid2point(u) + rec.grid2point(v))]
+    ti = u.indices[0]
+    stencils += src.inject(field=u, u_t=ti + 1, expr=src * dt * dt / m,
+                           offset=model.nbpml)
+    stencils += src.inject(field=v, u_t=ti + 1, expr=src * dt * dt / m,
+                           offset=model.nbpml)
+    stencils += rec.interpolate(expr=u, u_t=ti, offset=model.nbpml)
+    stencils += rec.interpolate(expr=v, u_t=ti, offset=model.nbpml)
 
     return Operator(stencils=stencils, subs=subs, dse=dse, dle=dle)
