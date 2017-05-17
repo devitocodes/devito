@@ -58,10 +58,10 @@ class OperatorBasic(Function):
     """
     def __init__(self, expressions, **kwargs):
         expressions = as_tuple(expressions)
+
+        # Input check
         if any(not isinstance(i, sympy.Eq) for i in expressions):
             raise InvalidOperator("Only SymPy expressions are allowed.")
-        #if len(set(i.lhs for i in expressions)) < len(expressions):
-        #    raise InvalidOperator("Found redundant output field.")
 
         self.name = kwargs.get("name", "Kernel")
         subs = kwargs.get("subs", {})
@@ -423,15 +423,15 @@ class OperatorBasic(Function):
 
     def _retrieve_stencils(self, expressions):
         """Determine the :class:`Stencil` of each provided expression."""
-        stencils = OrderedDict([(i.lhs, Stencil(i)) for i in expressions])
-        dimensions = set.union(*[set(i.dimensions) for i in stencils.values()])
+        stencils = [Stencil(i) for i in expressions]
+        dimensions = set.union(*[set(i.dimensions) for i in stencils])
 
         # Filter out aliasing buffered dimensions
         mapper = {d.parent: d for d in dimensions if d.is_Buffered}
-        for i, j in list(stencils.items()):
-            for d in j.dimensions:
+        for i in list(stencils):
+            for d in i.dimensions:
                 if d in mapper:
-                    j[mapper[d]] = j.pop(d).union(j.get(mapper[d], set()))
+                    i[mapper[d]] = i.pop(d).union(i.get(mapper[d], set()))
 
         return stencils
 

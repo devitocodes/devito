@@ -113,7 +113,7 @@ class Stencil(DefaultOrderedDict):
 
     @property
     def entries(self):
-        return tuple(StencilEntry(k, v) for k, v in self.items())
+        return tuple(StencilEntry(k, frozenset(v)) for k, v in self.items())
 
     def null(self):
         """
