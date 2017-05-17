@@ -127,6 +127,9 @@ class yaskarray(np.ndarray):
     """
     An implementation of a ``numpy.ndarray`` suitable for the YASK storage layout.
 
+    WIP: Currently, the YASK storage layout is assumed transposed w.r.t. the
+         usual row-major format.
+
     This subclass follows the ``numpy`` rules for subclasses detailed at: ::
 
         https://docs.scipy.org/doc/numpy/user/basics.subclassing.html
@@ -139,3 +142,10 @@ class yaskarray(np.ndarray):
 
     def __array_finalize__(self, obj):
         if obj is None: return
+
+    def __getitem__(self, index):
+        expected_layout = self.transpose()
+        return super(yaskarray, expected_layout).__getitem__(index)
+
+    def __setitem__(self, index, val):
+        super(yaskarray, self).__setitem__(index, val)
