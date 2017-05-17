@@ -99,7 +99,7 @@ def test_gradient(dimensions, time_order, space_order):
     data.set_shape(nt, 101)
     # Define the acoustic wave
     wave = Acoustic_cg(model, data, src, t_order=time_order,
-                       s_order=space_order, nbpml=nbpml)
+                       s_order=space_order)
     # Data for the true velocity
     rec = wave.Forward()[0]
     # Change to the smooth velocity

@@ -94,13 +94,12 @@ def test_acoustic(dimensions, time_order, space_order):
 
     # Adjoint test
     acoustic = Acoustic_cg(model, data, src, t_order=time_order,
-                           s_order=space_order, nbpml=nbpml)
+                           s_order=space_order)
     rec, _, _, _, _ = acoustic.Forward(save=False)
     srca, _, _, _, _ = acoustic.Adjoint(rec)
     # Actual adjoint test
     term1 = np.dot(srca.reshape(-1), time_series)
     term2 = linalg.norm(rec) ** 2
-    print(np.finfo(np.float32).eps)
     print(term1, term2, ("%12.12f") % (term1 - term2), term1 / term2)
     assert np.isclose(term1 / term2, 1.0, atol=0.001)
 

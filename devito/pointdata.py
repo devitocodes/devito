@@ -2,7 +2,7 @@ from sympy import Eq, Function, Matrix, symbols
 from sympy.abc import h
 
 from collections import OrderedDict
-from devito.dimension import d, p, t
+from devito.dimension import d, p, t, time
 from devito.dse.inspection import indexify, retrieve_indexed
 from devito.interfaces import DenseData
 from devito.logger import error
@@ -147,14 +147,21 @@ class PointData(DenseData):
                       for x, idx in zip(self.coordinate_symbols,
                                         self.coordinate_indices)])
 
-    def interpolate(self, expr, offset=0):
-        """Symbol for interpolation of an expression onto a sparse point
+    def interpolate(self, expr, offset=0, **kwargs):
+        """Creates a :class:`sympy.Eq` equation for the interpolation
+        of an expression onto this sparse point collection.
 
-        :param expr: The expression to interpolate
+        :param expr: The expression to interpolate.
         :param offset: Additional offset from the boundary for
-        absorbing boundary conditions
+                       absorbing boundary conditions.
+        :param u_t: (Optional) time index to use for indexing into
+                    field data in `expr`.
+        :param p_t: (Optional) time index to use for indexing into
+                    the sparse point data.
         """
-        expr = indexify(expr)
+        u_t = kwargs.get('u_t', self.indices[0])
+        p_t = kwargs.get('p_t', self.indices[0])
+        expr = indexify(expr).subs(t, u_t).subs(time, u_t)
         variables = list(retrieve_indexed(expr))
         # List of indirection indices for all adjacent grid points
         index_matrix = [tuple(idx + ii + offset for ii, idx
@@ -168,19 +175,24 @@ class PointData(DenseData):
             idx_subs += [OrderedDict(v_subs)]
         # Substitute coordinate base symbols into the coefficients
         subs = OrderedDict(zip(self.point_symbols, self.coordinate_bases))
-        return sum([expr.subs(vsub) * b.subs(subs)
-                    for b, vsub in zip(self.coefficients, idx_subs)])
+        rhs = sum([expr.subs(vsub) * b.subs(subs)
+                   for b, vsub in zip(self.coefficients, idx_subs)])
+        return [Eq(self.subs(self.indices[0], p_t), rhs)]
 
-    def inject(self, field, expr, offset=0):
+    def inject(self, field, expr, offset=0, **kwargs):
         """Symbol for injection of an expression onto a grid
 
-        :param expr: The grid field into which to inject
-        :param expr: The expression to inject
+        :param field: The grid field into which we inject.
+        :param expr: The expression to inject.
         :param offset: Additional offset from the boundary for
-        absorbing boundary conditions
+                       absorbing boundary conditions.
+        :param u_t: (Optional) time index to use for indexing into `field`.
+        :param p_t: (Optional) time index to use for indexing into `expr`.
         """
-        expr = indexify(expr)
-        field = indexify(field)
+        u_t = kwargs.get('u_t', field.indices[0])
+        p_t = kwargs.get('p_t', self.indices[0])
+        expr = indexify(expr).subs(self.indices[0], p_t)
+        field = indexify(field).subs(field.indices[0], u_t)
         variables = list(retrieve_indexed(expr)) + [field]
 
         # List of indirection indices for all adjacent grid points

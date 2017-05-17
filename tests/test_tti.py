@@ -85,8 +85,7 @@ def test_tti(dimensions, space_order):
     data.set_shape(nt, 101)
 
     # Adjoint test
-    wave_acou = Acoustic_cg(model, data, src, t_order=2, s_order=space_order,
-                            nbpml=nbpml)
+    wave_acou = Acoustic_cg(model, data, src, t_order=2, s_order=space_order)
     rec, u1, _, _, _ = wave_acou.Forward(save=False)
 
     tn = 50.0
@@ -98,11 +97,9 @@ def test_tti(dimensions, space_order):
     src.set_traces(time_series)
     data.set_shape(nt, 101)
 
-    wave_acou = Acoustic_cg(model, data, src, t_order=2, s_order=space_order,
-                            nbpml=nbpml)
+    wave_acou = Acoustic_cg(model, data, src, t_order=2, s_order=space_order)
 
-    wave_tti = TTI_cg(model, data, src, t_order=2, s_order=space_order,
-                      nbpml=nbpml)
+    wave_tti = TTI_cg(model, data, src, t_order=2, s_order=space_order)
 
     rec, u, _, _, _ = wave_acou.Forward(save=False, u_ini=u1.data[indlast, :])
     rec_tti, u_tti, v_tti, _, _, _ = wave_tti.Forward(save=False,

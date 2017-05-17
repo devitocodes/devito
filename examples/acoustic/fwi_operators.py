@@ -1,7 +1,7 @@
 from sympy import Eq
 from sympy.abc import h, s
 
-from devito import Operator, Forward, Backward, t, time
+from devito import Operator, Forward, Backward, time
 
 
 def ForwardOperator(model, u, src, rec, time_order=2, spc_order=6,
@@ -34,25 +34,28 @@ def ForwardOperator(model, u, src, rec, time_order=2, spc_order=6,
         # eqn = m * u.dt2 - laplacian - s**2 / 12 * biharmonic + damp * u.dt
         dt = 1.73 * model.critical_dt
 
+    # Derive both stencils from symbolic equation:
     # Create the stencil by hand instead of calling numpy solve for speed purposes
     # Simple linear solve of a u(t+dt) + b u(t) + c u(t-dt) = L for u(t+dt)
     stencil = 1 / (2 * m + s * damp) * (
         4 * m * u + (s * damp - 2 * m) * u.backward +
         2 * s**2 * (laplacian + s**2 / 12 * biharmonic))
-    # Add substitutions for spacing (temporal and spatial)
-    subs = {s: dt, h: model.get_spacing()}
-
-    dse = kwargs.get('dse', 'advanced')
-    dle = kwargs.get('dle', 'advanced')
-
-    # Create stencil expressions for operator, source and receivers
     eqn = Eq(u.forward, stencil)
-    src_add = src.point2grid(u, m, u_t=u.indices[0] + 1, p_t=time)
-    rec_read = Eq(rec, rec.grid2point(u, t=u.indices[0]))
-    stencils = [eqn] + src_add + [rec_read]
 
-    return Operator(stencils=stencils, subs=subs, dse=dse, dle=dle,
-                    time_axis=Forward, name="Forward")
+    # Construct expression to inject source values
+    # Note that src and field terms have differing time indices:
+    #   src[time, ...] - always accesses the "unrolled" time index
+    #   u[ti + 1, ...] - accesses the forward stencil value
+    ti = u.indices[0]
+    source = src.inject(field=u, u_t=ti + 1, offset=model.nbpml,
+                        expr=src * dt * dt / m, p_t=time)
+
+    # Create interpolation expression for receivers
+    receivers = rec.interpolate(expr=u, u_t=ti, offset=model.nbpml)
+
+    return Operator(stencils=[eqn] + source + receivers,
+                    subs={s: dt, h: model.get_spacing()},
+                    time_axis=Forward, name='Forward', **kwargs)
 
 
 def AdjointOperator(model, v, srca, rec, time_order=2, spc_order=6,
@@ -68,7 +71,6 @@ def AdjointOperator(model, v, srca, rec, time_order=2, spc_order=6,
     """
     m, damp = model.m, model.damp
 
-    # Derive stencil from symbolic equation
     if time_order == 2:
         laplacian = v.laplace
         biharmonic = 0
@@ -82,25 +84,23 @@ def AdjointOperator(model, v, srca, rec, time_order=2, spc_order=6,
         # eqn = m * u.dt2 - laplacian - s**2 / 12 * biharmonic + damp * u.dt
         dt = 1.73 * model.critical_dt
 
-    # Create the stencil by hand instead of calling numpy solve for speed purposes
-    # Simple linear solve of a u(t+dt) + b u(t) + c u(t-dt) = L for u(t+dt)
+    # Derive both stencils from symbolic equation
     stencil = 1 / (2 * m + s * damp) * (
         4 * m * v + (s * damp - 2 * m) * v.forward +
         2 * s**2 * (laplacian + s**2 / 12 * biharmonic))
-    # Add substitutions for spacing (temporal and spatial)
-    subs = {s: dt, h: model.get_spacing()}
-
-    dse = kwargs.get('dse', 'advanced')
-    dle = kwargs.get('dle', 'advanced')
-
-    # Create stencil expressions for operator, source and receivers
     eqn = Eq(v.backward, stencil)
-    src_read = Eq(srca, srca.grid2point(v))
-    rec_add = rec.point2grid(v, m, u_t=t - 1, p_t=time)
-    stencils = [eqn] + rec_add + [src_read]
 
-    return Operator(stencils=stencils, subs=subs, dse=dse, dle=dle,
-                    time_axis=Backward, name="Adjoint")
+    # Construct expression to inject receiver values
+    ti = v.indices[0]
+    receivers = rec.inject(field=v, u_t=ti - 1, offset=model.nbpml,
+                           expr=rec * dt * dt / m, p_t=time)
+
+    # Create interpolation expression for the adjoint-source
+    source_a = srca.interpolate(expr=v, u_t=ti, offset=model.nbpml)
+
+    return Operator(stencils=[eqn] + receivers + source_a,
+                    subs={s: dt, h: model.get_spacing()},
+                    time_axis=Backward, name='Adjoint', **kwargs)
 
 
 def GradientOperator(model, v, grad, rec, u, time_order=2, spc_order=6,
@@ -137,25 +137,20 @@ def GradientOperator(model, v, grad, rec, u, time_order=2, spc_order=6,
                              (u.dt2 -
                               s ** 2 / 12.0 * biharmonicu) * v)
 
-    # Create the stencil by hand instead of calling numpy solve for speed purposes
-    # Simple linear solve of a v(t+dt) + b u(t) + c v(t-dt) = L for v(t-dt)
+    # Derive stencil from symbolic equation
     stencil = 1.0 / (2.0 * m + s * damp) * \
         (4.0 * m * v + (s * damp - 2.0 * m) *
          v.forward + 2.0 * s ** 2 * (laplacian + s**2 / 12.0 * biharmonic))
-    # Add substitutions for spacing (temporal and spatial)
-    subs = {s: dt, h: model.get_spacing()}
-    # Add Gradient-specific updates. The dt2 is currently hacky
-    #  as it has to match the cyclic indices
-
-    dse = kwargs.get('dse', 'advanced')
-    dle = kwargs.get('dle', 'advanced')
-
-    # Create stencil expressions for operator, source and receivers
     eqn = Eq(v.backward, stencil)
-    rec_add = rec.point2grid(v, m, u_t=t - 1, p_t=time)
-    stencils = [eqn] + [gradient_update] + rec_add
-    return Operator(stencils=stencils, subs=subs, dse=dse, dle=dle,
-                    time_axis=Backward, name="Gradient")
+
+    # Add expression for receiver injection
+    ti = v.indices[0]
+    receivers = rec.inject(field=v, u_t=ti - 1, offset=model.nbpml,
+                           expr=rec * dt * dt / m, p_t=time)
+
+    return Operator(stencils=[eqn] + [gradient_update] + receivers,
+                    subs={s: dt, h: model.get_spacing()},
+                    time_axis=Backward, name='Gradient', **kwargs)
 
 
 def BornOperator(model, u, U, src, rec, dm, time_order=2, spc_order=6,
@@ -189,6 +184,7 @@ def BornOperator(model, u, U, src, rec, dm, time_order=2, spc_order=6,
         # first_eqn = m * u.dt2 - u.laplace + damp * u.dt
         # second_eqn = m * U.dt2 - U.laplace - dm* u.dt2 + damp * U.dt
 
+    # Derive both stencils from symbolic equation
     stencil1 = 1.0 / (2.0 * m + s * damp) * \
         (4.0 * m * u + (s * damp - 2.0 * m) *
          u.backward + 2.0 * s ** 2 * (laplacianu + s**2 / 12 * biharmonicu))
@@ -196,18 +192,17 @@ def BornOperator(model, u, U, src, rec, dm, time_order=2, spc_order=6,
         (4.0 * m * U + (s * damp - 2.0 * m) *
          U.backward + 2.0 * s ** 2 * (laplacianU +
                                       s**2 / 12 * biharmonicU - dm * u.dt2))
-    # Add substitutions for spacing (temporal and spatial)
-    subs = {s: dt, h: model.get_spacing()}
+    eqn1 = Eq(u.forward, stencil1)
+    eqn2 = Eq(U.forward, stencil2)
 
-    dse = kwargs.get('dse', None)
-    dle = kwargs.get('dle', None)
+    # Add source term expression for u
+    ti = u.indices[0]
+    source = src.inject(field=u, u_t=ti + 1, offset=model.nbpml,
+                        expr=src * dt * dt / m, p_t=time)
 
-    # Create stencil expressions for operator, source and receivers
-    eqn1 = [Eq(u.forward, stencil1)]
-    eqn2 = [Eq(U.forward, stencil2)]
-    src_add = src.point2grid(u, m, u_t=t + 1, p_t=time)
-    rec_read = Eq(rec, rec.grid2point(U, t=U.indices[0]))
-    stencils = eqn1 + src_add + eqn2 + [rec_read]
+    # Create receiver interpolation expression from U
+    receivers = rec.interpolate(expr=U, u_t=ti, offset=model.nbpml)
 
-    return Operator(stencils=stencils, subs=subs, dse=dse, dle=dle,
-                    time_axis=Forward, name="Born")
+    return Operator(stencils=[eqn1] + source + [eqn2] + receivers,
+                    subs={s: dt, h: model.get_spacing()},
+                    time_axis=Forward, name='Born', **kwargs)
