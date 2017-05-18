@@ -3,6 +3,7 @@ import numpy as np
 from examples.containers import IShot
 from examples.tti.TTI_codegen import TTI_cg
 from examples.seismic import Model
+from devito.logger import warning
 
 
 def source(t, f0):
@@ -65,20 +66,17 @@ def setup(dimensions=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=250.0,
 
 
 def run(dimensions=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=250.0,
-        time_order=2, space_order=4, nbpml=10, dse='advanced', dle='advanced',
-        auto_tuning=False, compiler=None, cache_blocking=None):
-    if auto_tuning:
-        cache_blocking = None
+        time_order=2, space_order=4, nbpml=10, **kwargs):
 
     TTI = setup(dimensions, spacing, tn, time_order, space_order, nbpml)
 
-    rec, u, v, gflopss, oi, timings = TTI.Forward(dse=dse, dle=None,
-                                                  auto_tuning=auto_tuning,
-                                                  cache_blocking=cache_blocking,
-                                                  compiler=compiler)
+    if space_order % 4 != 0:
+        warning('WARNING: TTI requires a space_order that is a multiple of 4!')
+
+    rec, u, v, gflopss, oi, timings = TTI.Forward(**kwargs)
 
     return gflopss, oi, timings, [rec, u, v]
 
 
 if __name__ == "__main__":
-    run(auto_tuning=True)
+    run(autotune=True)

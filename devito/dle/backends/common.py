@@ -122,8 +122,8 @@ class AbstractRewriter(object):
     thresholds = {
         'collapse': 32,  # Available physical cores
         'elemental': 30,  # Operations
-        'max_fission': 180,  # Statements
-        'min_fission': 1  # Statements
+        'max_fission': 800,  # Statements
+        'min_fission': 20  # Statements
     }
 
     def __init__(self, nodes, params, compiler):

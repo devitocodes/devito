@@ -4,9 +4,8 @@ from numpy import linalg
 
 from devito.logger import error
 
-from examples.acoustic.Acoustic_codegen import Acoustic_cg
-from examples.containers import IShot
-from examples.seismic import Model
+from examples.acoustic import AcousticWaveSolver
+from examples.seismic import Model, PointSource, Receiver
 
 
 @pytest.mark.parametrize('space_order', [4, 8, 12])
@@ -65,8 +64,6 @@ def test_acoustic(dimensions, time_order, space_order):
 
     # Define seismic data
     model = Model(origin, spacing, dimensions, true_vp, nbpml=nbpml)
-    data = IShot()
-    src = IShot()
 
     f0 = .010
     dt = model.critical_dt
@@ -85,21 +82,20 @@ def test_acoustic(dimensions, time_order, space_order):
     time_series = np.zeros((nt, 1), dtype=np.float32)
     time_series[:, 0] = source(np.linspace(t0, tn, nt), f0)
 
-    src.set_receiver_pos(location)
-    src.set_shape(nt, 1)
-    src.set_traces(time_series)
+    # Define source and receivers and create acoustic wave solver
+    src = PointSource(name='src', data=time_series, coordinates=location)
+    rec = Receiver(name='rec', ntime=nt, coordinates=receiver_coords)
+    srca = PointSource(name='srca', data=time_series, coordinates=location)
+    solver = AcousticWaveSolver(model, source=src, receiver=rec,
+                                time_order=time_order, space_order=space_order)
 
-    data.set_receiver_pos(receiver_coords)
-    data.set_shape(nt, dimensions[0])
+    # Run forward and adjoint operators
+    solver.forward(src=src, rec=rec, save=False)
+    solver.adjoint(rec=rec, srca=srca)
 
-    # Adjoint test
-    acoustic = Acoustic_cg(model, data, src, t_order=time_order,
-                           s_order=space_order)
-    rec, _, _, _, _ = acoustic.Forward(save=False)
-    srca, _, _, _, _ = acoustic.Adjoint(rec)
     # Actual adjoint test
-    term1 = np.dot(srca.reshape(-1), time_series)
-    term2 = linalg.norm(rec) ** 2
+    term1 = np.dot(srca.data.reshape(-1), time_series)
+    term2 = linalg.norm(rec.data) ** 2
     print(term1, term2, ("%12.12f") % (term1 - term2), term1 / term2)
     assert np.isclose(term1 / term2, 1.0, atol=0.001)
 

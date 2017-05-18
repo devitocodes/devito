@@ -3,9 +3,10 @@ import pytest
 from numpy import linalg
 
 from devito.logger import log
-from examples.acoustic.Acoustic_codegen import Acoustic_cg
+from devito import TimeData
+from examples.acoustic import AcousticWaveSolver
 from examples.containers import IShot
-from examples.seismic import Model
+from examples.seismic import Model, PointSource, Receiver
 from examples.tti.TTI_codegen import TTI_cg
 
 
@@ -70,13 +71,13 @@ def test_tti(dimensions, space_order):
     indlast = [(last + 1) % 3, (last+2) % 3, last % 3]
 
     # Set up the source as Ricker wavelet for f0
-    def source(t, f0):
+    def ricker_source(t, f0):
         r = (np.pi * f0 * (t - 1./f0))
         return (1-2.*r**2)*np.exp(-r**2)
 
     # Source geometry
     time_series = np.zeros((nt, 1))
-    time_series[:, 0] = source(np.linspace(t0, tn, nt), f0)
+    time_series[:, 0] = ricker_source(np.linspace(t0, tn, nt), f0)
     src.set_receiver_pos(location)
     src.set_shape(nt, 1)
     src.set_traces(time_series)
@@ -85,23 +86,33 @@ def test_tti(dimensions, space_order):
     data.set_shape(nt, 101)
 
     # Adjoint test
-    wave_acou = Acoustic_cg(model, data, src, t_order=2, s_order=space_order)
-    rec, u1, _, _, _ = wave_acou.Forward(save=False)
+    source = PointSource(name='src', data=time_series, coordinates=location)
+    receiver = Receiver(name='rec', ntime=nt, coordinates=receiver_coords)
+    acoustic = AcousticWaveSolver(model, source=source, receiver=receiver,
+                                  time_order=2, space_order=space_order)
+    rec, u1, _ = acoustic.forward(save=False)
 
     tn = 50.0
     nt = int(1 + (tn - t0) / dt)
     # Source geometry
     time_series = np.zeros((nt, 1))
-    time_series[:, 0] = 0*source(np.linspace(t0, tn, nt), f0)
+    time_series[:, 0] = 0*ricker_source(np.linspace(t0, tn, nt), f0)
     src.set_shape(nt, 1)
     src.set_traces(time_series)
     data.set_shape(nt, 101)
 
-    wave_acou = Acoustic_cg(model, data, src, t_order=2, s_order=space_order)
+    source = PointSource(name='src', data=time_series, coordinates=location)
+    receiver = Receiver(name='rec', ntime=nt, coordinates=receiver_coords)
+    acoustic = AcousticWaveSolver(model, source=source, receiver=receiver,
+                                  time_order=2, space_order=space_order)
 
     wave_tti = TTI_cg(model, data, src, t_order=2, s_order=space_order)
 
-    rec, u, _, _, _ = wave_acou.Forward(save=False, u_ini=u1.data[indlast, :])
+    # Create new wavefield object restart forward computation
+    u = TimeData(name='u', shape=model.shape_domain, save=False,
+                 time_order=2, space_order=space_order, dtype=model.dtype)
+    u.data[0:3, :] = u1.data[indlast, :]
+    rec, _, _ = acoustic.forward(save=False, u=u)
     rec_tti, u_tti, v_tti, _, _, _ = wave_tti.Forward(save=False,
                                                       u_ini=u1.data[indlast, :])
 
