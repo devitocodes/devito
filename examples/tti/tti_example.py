@@ -65,17 +65,11 @@ def setup(dimensions=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=250.0,
 
 
 def run(dimensions=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=250.0,
-        time_order=2, space_order=4, nbpml=10, dse='advanced', dle='advanced',
-        autotune=False, compiler=None, cache_blocking=None):
-    if autotune:
-        cache_blocking = None
+        time_order=2, space_order=4, nbpml=10, **kwargs):
 
     TTI = setup(dimensions, spacing, tn, time_order, space_order, nbpml)
 
-    rec, u, v, gflopss, oi, timings = TTI.Forward(dse=dse, dle=None,
-                                                  autotune=autotune,
-                                                  cache_blocking=cache_blocking,
-                                                  compiler=compiler)
+    rec, u, v, gflopss, oi, timings = TTI.Forward(**kwargs)
 
     return gflopss, oi, timings, [rec, u, v]
 
