@@ -146,7 +146,7 @@ def test_override(i, j, k, l):
     """Test that the call-time overriding of Operator arguments works"""
     a = symbol(name='a', dimensions=(i, j, k, l), value=2., mode='indexed').base.function
     a1 = symbol(name='a', dimensions=(i, j, k, l), value=3., mode='indexed').base.function
-    a2 = symbol(name='b', dimensions=(i, j, k, l), value=4., mode='indexed').base.function
+    a2 = symbol(name='a', dimensions=(i, j, k, l), value=4., mode='indexed').base.function
     eqn = Eq(a, a+3)
     op = Operator(eqn)
     op()

@@ -4,9 +4,8 @@ from numpy import linalg
 
 from devito.logger import error
 
-from examples.acoustic.Acoustic_codegen import Acoustic_cg
-from examples.containers import IShot
-from examples.seismic import Model
+from examples.acoustic import AcousticWaveSolver
+from examples.seismic import Model, PointSource, Receiver
 
 
 @pytest.mark.parametrize('space_order', [4, 8, 12])
@@ -59,11 +58,9 @@ def test_acousticJ(dimensions, space_order):
         error("Unknown dimension size. `dimensions` parameter"
               "must be a tuple of either size 2 or 3.")
 
+    # Define seismic model data
     model = Model(origin, spacing, dimensions, true_vp, nbpml=nbpml)
     model0 = Model(origin, spacing, dimensions, v0, nbpml=nbpml)
-    # Define seismic data.
-    data = IShot()
-    src = IShot()
 
     f0 = .010
     dt = model0.critical_dt
@@ -80,24 +77,20 @@ def test_acousticJ(dimensions, space_order):
     time_series = np.zeros((nt, 1))
     time_series[:, 0] = source(np.linspace(t0, tn, nt), f0)
 
-    src.set_receiver_pos(location)
-    src.set_shape(nt, 1)
-    src.set_traces(time_series)
+    # Define source and receivers and create acoustic wave solver
+    src = PointSource(name='src', data=time_series, coordinates=location)
+    rec = Receiver(name='rec', ntime=nt, coordinates=receiver_coords)
+    solver = AcousticWaveSolver(model0, source=src, receiver=rec,
+                                time_order=2, space_order=space_order)
 
-    data.set_receiver_pos(receiver_coords)
-    data.set_shape(nt, dimensions[0])
+    # Compute the full wavefield
+    _, u0, _ = solver.forward(save=True)
 
-    # Adjoint test
-    acoustic0 = Acoustic_cg(model0, data, src, t_order=2,
-                            s_order=space_order)
-    rec, u0, _, _, _ = acoustic0.Forward(save=True)
-
-    du, _, _, _, _, _ = acoustic0.Born(1 / model.vp ** 2 - 1 / model0.vp ** 2)
-    im, _, _, _ = acoustic0.Gradient(du, u0)
+    du, _, _, _ = solver.born(model.m.data - model0.m.data)
+    im, _ = solver.gradient(du, u0)
 
     # Actual adjoint test
-    term1 = np.dot(im.reshape(-1),
-                   model0.pad(1 / model.vp ** 2 - 1 / model0.vp ** 2).reshape(-1))
+    term1 = np.dot(im.data.reshape(-1), (model.m.data - model0.m.data).reshape(-1))
     term2 = linalg.norm(du)**2
     print(term1, term2, term1 - term2, term1 / term2)
     assert np.isclose(term1 / term2, 1.0, atol=0.001)

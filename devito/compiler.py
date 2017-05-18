@@ -44,6 +44,9 @@ class Compiler(GCCToolchain):
         * :data:`self.pragma_ivdep`
 
     """
+
+    fields = ['cc', 'ld']
+
     def __init__(self, openmp=False, **kwargs):
         self.cc = 'unknown'
         self.ld = 'unknown'
