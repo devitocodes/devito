@@ -1,0 +1,800 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>devito.nodes &mdash; Devito 1 documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+
+  
+  
+    
+
+  
+
+  
+  
+    <link rel="stylesheet" href="../../_static/css/theme.css" type="text/css" />
+  
+
+  
+
+  
+        <link rel="index" title="Index"
+              href="../../genindex.html"/>
+        <link rel="search" title="Search" href="../../search.html"/>
+    <link rel="top" title="Devito 1 documentation" href="../../index.html"/>
+        <link rel="up" title="devito" href="../devito.html"/> 
+
+  
+  <script src="../../_static/js/modernizr.min.js"></script>
+
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+   
+  <div class="wy-grid-for-nav">
+
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search">
+          
+
+          
+            <a href="../../index.html" class="icon icon-home"> Devito
+          
+
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                0
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="../../download.html">Download</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../tutorials.html">Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../devito.html">API Documentation</a></li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" role="navigation" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">Devito</a>
+        
+      </nav>
+
+
+      
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../../index.html">Docs</a> &raquo;</li>
+        
+          <li><a href="../index.html">Module code</a> &raquo;</li>
+        
+          <li><a href="../devito.html">devito</a> &raquo;</li>
+        
+      <li>devito.nodes</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+            
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <h1>Source code for devito.nodes</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;The Iteration/Expression hierarchy.&quot;&quot;&quot;</span>
+
+<span class="kn">from</span> <span class="nn">__future__</span> <span class="k">import</span> <span class="n">absolute_import</span>
+
+<span class="kn">import</span> <span class="nn">inspect</span>
+<span class="kn">from</span> <span class="nn">collections</span> <span class="k">import</span> <span class="n">Iterable</span><span class="p">,</span> <span class="n">OrderedDict</span>
+
+<span class="kn">import</span> <span class="nn">cgen</span> <span class="k">as</span> <span class="nn">c</span>
+<span class="kn">from</span> <span class="nn">sympy</span> <span class="k">import</span> <span class="n">Eq</span><span class="p">,</span> <span class="n">preorder_traversal</span>
+
+<span class="kn">from</span> <span class="nn">devito.cgen_utils</span> <span class="k">import</span> <span class="n">ccode</span>
+<span class="kn">from</span> <span class="nn">devito.dimension</span> <span class="k">import</span> <span class="n">Dimension</span>
+<span class="kn">from</span> <span class="nn">devito.dse</span> <span class="k">import</span> <span class="n">as_symbol</span>
+<span class="kn">from</span> <span class="nn">devito.interfaces</span> <span class="k">import</span> <span class="n">IndexedData</span><span class="p">,</span> <span class="n">SymbolicData</span><span class="p">,</span> <span class="n">TensorFunction</span>
+<span class="kn">from</span> <span class="nn">devito.stencil</span> <span class="k">import</span> <span class="n">Stencil</span>
+<span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">as_tuple</span><span class="p">,</span> <span class="n">filter_ordered</span>
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;Node&#39;</span><span class="p">,</span> <span class="s1">&#39;Block&#39;</span><span class="p">,</span> <span class="s1">&#39;Expression&#39;</span><span class="p">,</span> <span class="s1">&#39;Function&#39;</span><span class="p">,</span> <span class="s1">&#39;Iteration&#39;</span><span class="p">,</span> <span class="s1">&#39;List&#39;</span><span class="p">,</span>
+           <span class="s1">&#39;TimedList&#39;</span><span class="p">]</span>
+
+
+<div class="viewcode-block" id="Node"><a class="viewcode-back" href="../../devito.html#devito.nodes.Node">[docs]</a><span class="k">class</span> <span class="nc">Node</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+
+    <span class="n">is_Node</span> <span class="o">=</span> <span class="kc">True</span>
+    <span class="n">is_Block</span> <span class="o">=</span> <span class="kc">False</span>
+    <span class="n">is_Iteration</span> <span class="o">=</span> <span class="kc">False</span>
+    <span class="n">is_Expression</span> <span class="o">=</span> <span class="kc">False</span>
+    <span class="n">is_Function</span> <span class="o">=</span> <span class="kc">False</span>
+    <span class="n">is_FunCall</span> <span class="o">=</span> <span class="kc">False</span>
+    <span class="n">is_List</span> <span class="o">=</span> <span class="kc">False</span>
+    <span class="n">is_Element</span> <span class="o">=</span> <span class="kc">False</span>
+
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    :attr:`_traversable`. A list of traversable objects (ie, traversed by</span>
+<span class="sd">    :class:`Visitor` objects). A traversable object is intended as an argument</span>
+<span class="sd">    of a Node constructor and is represented as a string.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">_traversable</span> <span class="o">=</span> <span class="p">[]</span>
+
+    <span class="k">def</span> <span class="nf">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="n">obj</span> <span class="o">=</span> <span class="nb">super</span><span class="p">(</span><span class="n">Node</span><span class="p">,</span> <span class="bp">cls</span><span class="p">)</span><span class="o">.</span><span class="fm">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">)</span>
+        <span class="n">argnames</span> <span class="o">=</span> <span class="n">inspect</span><span class="o">.</span><span class="n">getargspec</span><span class="p">(</span><span class="bp">cls</span><span class="o">.</span><span class="fm">__init__</span><span class="p">)</span><span class="o">.</span><span class="n">args</span>
+        <span class="n">obj</span><span class="o">.</span><span class="n">_args</span> <span class="o">=</span> <span class="p">{</span><span class="n">k</span><span class="p">:</span> <span class="n">v</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">argnames</span><span class="p">[</span><span class="mi">1</span><span class="p">:],</span> <span class="n">args</span><span class="p">)}</span>
+        <span class="n">obj</span><span class="o">.</span><span class="n">_args</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">kwargs</span><span class="o">.</span><span class="n">items</span><span class="p">())</span>
+        <span class="n">obj</span><span class="o">.</span><span class="n">_args</span><span class="o">.</span><span class="n">update</span><span class="p">({</span><span class="n">k</span><span class="p">:</span> <span class="kc">None</span> <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">argnames</span><span class="p">[</span><span class="mi">1</span><span class="p">:]</span> <span class="k">if</span> <span class="n">k</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">obj</span><span class="o">.</span><span class="n">_args</span><span class="p">})</span>
+        <span class="k">return</span> <span class="n">obj</span>
+
+    <span class="k">def</span> <span class="nf">_rebuild</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Reconstruct self. None of the embedded Sympy expressions are rebuilt.&quot;&quot;&quot;</span>
+        <span class="n">handle</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_args</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>  <span class="c1"># Original constructor arguments</span>
+        <span class="n">argnames</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_traversable</span> <span class="k">if</span> <span class="n">i</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">kwargs</span><span class="p">]</span>
+        <span class="n">handle</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">OrderedDict</span><span class="p">([(</span><span class="n">k</span><span class="p">,</span> <span class="n">v</span><span class="p">)</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">argnames</span><span class="p">,</span> <span class="n">args</span><span class="p">)]))</span>
+        <span class="n">handle</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="k">return</span> <span class="nb">type</span><span class="p">(</span><span class="bp">self</span><span class="p">)(</span><span class="o">**</span><span class="n">handle</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">ccode</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Generate C code.&quot;&quot;&quot;</span>
+        <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">()</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">children</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return the traversable children.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="p">()</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">args</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Arguments used to construct the Node.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_args</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">args_frozen</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Arguments used to construct the Node that cannot be traversed.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="p">{</span><span class="n">k</span><span class="p">:</span> <span class="n">v</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">args</span><span class="o">.</span><span class="n">items</span><span class="p">()</span> <span class="k">if</span> <span class="n">k</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_traversable</span><span class="p">}</span></div>
+
+
+<div class="viewcode-block" id="Block"><a class="viewcode-back" href="../../devito.html#devito.nodes.Block">[docs]</a><span class="k">class</span> <span class="nc">Block</span><span class="p">(</span><span class="n">Node</span><span class="p">):</span>
+
+    <span class="n">is_Block</span> <span class="o">=</span> <span class="kc">True</span>
+
+    <span class="n">_wrapper</span> <span class="o">=</span> <span class="n">c</span><span class="o">.</span><span class="n">Block</span>
+
+    <span class="n">_traversable</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;body&#39;</span><span class="p">]</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">header</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">body</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">footer</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">header</span> <span class="o">=</span> <span class="n">as_tuple</span><span class="p">(</span><span class="n">header</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">body</span> <span class="o">=</span> <span class="n">as_tuple</span><span class="p">(</span><span class="n">body</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">footer</span> <span class="o">=</span> <span class="n">as_tuple</span><span class="p">(</span><span class="n">footer</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="s2">&quot;&lt;</span><span class="si">%s</span><span class="s2"> (</span><span class="si">%d</span><span class="s2">, </span><span class="si">%d</span><span class="s2">, </span><span class="si">%d</span><span class="s2">)&gt;&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="vm">__class__</span><span class="o">.</span><span class="vm">__name__</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">header</span><span class="p">),</span>
+                                      <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">body</span><span class="p">),</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">footer</span><span class="p">))</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">ccode</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">body</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">s</span><span class="o">.</span><span class="n">ccode</span> <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">body</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">c</span><span class="o">.</span><span class="n">Module</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">header</span> <span class="o">+</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_wrapper</span><span class="p">(</span><span class="n">body</span><span class="p">),)</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">footer</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">children</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">body</span><span class="p">,)</span></div>
+
+
+<div class="viewcode-block" id="List"><a class="viewcode-back" href="../../devito.html#devito.nodes.List">[docs]</a><span class="k">class</span> <span class="nc">List</span><span class="p">(</span><span class="n">Block</span><span class="p">):</span>
+
+    <span class="sd">&quot;&quot;&quot;Class representing a sequence of one or more statements.&quot;&quot;&quot;</span>
+
+    <span class="n">is_List</span> <span class="o">=</span> <span class="kc">True</span>
+
+    <span class="n">_wrapper</span> <span class="o">=</span> <span class="n">c</span><span class="o">.</span><span class="n">Collection</span></div>
+
+
+<span class="k">class</span> <span class="nc">Element</span><span class="p">(</span><span class="n">Node</span><span class="p">):</span>
+
+    <span class="sd">&quot;&quot;&quot;A generic node that is worth identifying in an Iteration/Expression tree.</span>
+
+<span class="sd">    It corresponds to a single :class:`cgen.Statement`.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">is_Element</span> <span class="o">=</span> <span class="kc">True</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">element</span><span class="p">):</span>
+        <span class="k">assert</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">element</span><span class="p">,</span> <span class="p">(</span><span class="n">c</span><span class="o">.</span><span class="n">Comment</span><span class="p">,</span> <span class="n">c</span><span class="o">.</span><span class="n">Statement</span><span class="p">,</span> <span class="n">c</span><span class="o">.</span><span class="n">Value</span><span class="p">,</span>
+                                    <span class="n">c</span><span class="o">.</span><span class="n">Pragma</span><span class="p">,</span> <span class="n">c</span><span class="o">.</span><span class="n">Line</span><span class="p">,</span> <span class="n">c</span><span class="o">.</span><span class="n">Assign</span><span class="p">,</span> <span class="n">c</span><span class="o">.</span><span class="n">POD</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">element</span> <span class="o">=</span> <span class="n">element</span>
+
+    <span class="k">def</span> <span class="nf">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="s2">&quot;Element::</span><span class="se">\n\t</span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">element</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">ccode</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">element</span>
+
+
+<span class="k">class</span> <span class="nc">FunCall</span><span class="p">(</span><span class="n">Node</span><span class="p">):</span>
+
+    <span class="sd">&quot;&quot;&quot;A node representing a function call.&quot;&quot;&quot;</span>
+
+    <span class="n">is_FunCall</span> <span class="o">=</span> <span class="kc">True</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">params</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">name</span> <span class="o">=</span> <span class="n">name</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">params</span> <span class="o">=</span> <span class="n">params</span>
+
+    <span class="k">def</span> <span class="nf">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="s2">&quot;FunCall::</span><span class="se">\n\t</span><span class="si">%s</span><span class="s2">(...)&quot;</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">ccode</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">c</span><span class="o">.</span><span class="n">Statement</span><span class="p">(</span><span class="s1">&#39;</span><span class="si">%s</span><span class="s1">(</span><span class="si">%s</span><span class="s1">)&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="s1">&#39;,&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">params</span><span class="p">)))</span>
+
+
+<div class="viewcode-block" id="Expression"><a class="viewcode-back" href="../../devito.html#devito.nodes.Expression">[docs]</a><span class="k">class</span> <span class="nc">Expression</span><span class="p">(</span><span class="n">Node</span><span class="p">):</span>
+
+    <span class="sd">&quot;&quot;&quot;Class encpasulating a single SymPy equation.&quot;&quot;&quot;</span>
+
+    <span class="n">is_Expression</span> <span class="o">=</span> <span class="kc">True</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">expr</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="k">assert</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">Eq</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">expr</span> <span class="o">=</span> <span class="n">expr</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">dtype</span> <span class="o">=</span> <span class="n">dtype</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">dimensions</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">functions</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="c1"># Traverse /expression/ to determine meta information</span>
+        <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">preorder_traversal</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">expr</span><span class="p">):</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">e</span><span class="p">,</span> <span class="n">SymbolicData</span><span class="p">):</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">dimensions</span> <span class="o">+=</span> <span class="nb">list</span><span class="p">(</span><span class="n">e</span><span class="o">.</span><span class="n">indices</span><span class="p">)</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">functions</span> <span class="o">+=</span> <span class="p">[</span><span class="n">e</span><span class="p">]</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">e</span><span class="p">,</span> <span class="n">IndexedData</span><span class="p">):</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">dimensions</span> <span class="o">+=</span> <span class="nb">list</span><span class="p">(</span><span class="n">e</span><span class="o">.</span><span class="n">function</span><span class="o">.</span><span class="n">indices</span><span class="p">)</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">functions</span> <span class="o">+=</span> <span class="p">[</span><span class="n">e</span><span class="o">.</span><span class="n">function</span><span class="p">]</span>
+        <span class="c1"># Filter collected dimensions and functions</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">dimensions</span> <span class="o">=</span> <span class="n">filter_ordered</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dimensions</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">functions</span> <span class="o">=</span> <span class="n">filter_ordered</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">functions</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="s2">&quot;&lt;</span><span class="si">%s</span><span class="s2">::</span><span class="si">%s</span><span class="s2">&gt;&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="vm">__class__</span><span class="o">.</span><span class="vm">__name__</span><span class="p">,</span>
+                             <span class="n">filter_ordered</span><span class="p">([</span><span class="n">f</span><span class="o">.</span><span class="n">func</span> <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">functions</span><span class="p">]))</span>
+
+<div class="viewcode-block" id="Expression.substitute"><a class="viewcode-back" href="../../devito.html#devito.nodes.Expression.substitute">[docs]</a>    <span class="k">def</span> <span class="nf">substitute</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">substitutions</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Apply substitutions to the expression.</span>
+
+<span class="sd">        :param substitutions: Dict containing the substitutions to apply to</span>
+<span class="sd">                              the stored expression.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">expr</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">expr</span><span class="o">.</span><span class="n">xreplace</span><span class="p">(</span><span class="n">substitutions</span><span class="p">)</span></div>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">ccode</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">c</span><span class="o">.</span><span class="n">Assign</span><span class="p">(</span><span class="n">ccode</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">expr</span><span class="o">.</span><span class="n">lhs</span><span class="p">),</span> <span class="n">ccode</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">expr</span><span class="o">.</span><span class="n">rhs</span><span class="p">))</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">output</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Return the symbol written by this Expression.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">as_symbol</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">expr</span><span class="o">.</span><span class="n">lhs</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">output_function</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Return the function written by this Expression, if any.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_scalar</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">None</span>
+        <span class="n">handle</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">expr</span><span class="o">.</span><span class="n">lhs</span><span class="o">.</span><span class="n">base</span>
+        <span class="k">return</span> <span class="n">handle</span><span class="o">.</span><span class="n">function</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">handle</span><span class="p">,</span> <span class="n">IndexedData</span><span class="p">)</span> <span class="k">else</span> <span class="kc">None</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">is_scalar</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Return True if a scalar expression, False otherwise.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">expr</span><span class="o">.</span><span class="n">lhs</span><span class="o">.</span><span class="n">is_Symbol</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">is_tensor</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Return True if a tensor expression, False otherwise.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_scalar</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">shape</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Return the shape of the written LHS.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="p">()</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_scalar</span> <span class="k">else</span> <span class="bp">self</span><span class="o">.</span><span class="n">expr</span><span class="o">.</span><span class="n">lhs</span><span class="o">.</span><span class="n">shape</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">stencil</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Compute the stencil of the expression.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">Stencil</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">expr</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="Iteration"><a class="viewcode-back" href="../../devito.html#devito.nodes.Iteration">[docs]</a><span class="k">class</span> <span class="nc">Iteration</span><span class="p">(</span><span class="n">Node</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Iteration object that encapsualtes a single loop over nodes, possibly</span>
+<span class="sd">    just SymPy expressions.</span>
+
+<span class="sd">    :param nodes: Single or list of :class:`Node` objects that</span>
+<span class="sd">                        define the loop body.</span>
+<span class="sd">    :param dimension: :class:`Dimension` object over which to iterate.</span>
+<span class="sd">    :param limits: Limits for the iteration space, either the loop size or a</span>
+<span class="sd">                   tuple of the form (start, finish, stepping).</span>
+<span class="sd">    :param index: Symbol to be used as iteration variable.</span>
+<span class="sd">    :param offsets: Optional map list of offsets to honour in the loop.</span>
+<span class="sd">    :param properties: A bag of strings indicating properties of this Iteration.</span>
+<span class="sd">                       For example, the string &#39;parallel&#39; may be used to identify</span>
+<span class="sd">                       a parallelizable Iteration.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">is_Iteration</span> <span class="o">=</span> <span class="kc">True</span>
+
+    <span class="n">_traversable</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;nodes&#39;</span><span class="p">]</span>
+
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    List of known properties, usable to decorate an Iteration: ::</span>
+
+<span class="sd">        * sequential: An inherently sequential iteration space.</span>
+<span class="sd">        * parallel: An iteration space whose iterations can safely be</span>
+<span class="sd">                    executed in parallel.</span>
+<span class="sd">        * vector-dim: A (SIMD) vectorizable iteration space.</span>
+<span class="sd">        * elemental: Hoistable to an elemental function.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">_known_properties</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;sequential&#39;</span><span class="p">,</span> <span class="s1">&#39;parallel&#39;</span><span class="p">,</span> <span class="s1">&#39;vector-dim&#39;</span><span class="p">,</span> <span class="s1">&#39;elemental&#39;</span><span class="p">]</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">nodes</span><span class="p">,</span> <span class="n">dimension</span><span class="p">,</span> <span class="n">limits</span><span class="p">,</span> <span class="n">index</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">offsets</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                 <span class="n">properties</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="c1"># Ensure we deal with a list of Expression objects internally</span>
+        <span class="n">nodes</span> <span class="o">=</span> <span class="n">as_tuple</span><span class="p">(</span><span class="n">nodes</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">nodes</span> <span class="o">=</span> <span class="n">as_tuple</span><span class="p">([</span><span class="n">n</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">n</span><span class="p">,</span> <span class="n">Node</span><span class="p">)</span> <span class="k">else</span> <span class="n">Expression</span><span class="p">(</span><span class="n">n</span><span class="p">)</span>
+                               <span class="k">for</span> <span class="n">n</span> <span class="ow">in</span> <span class="n">nodes</span><span class="p">])</span>
+        <span class="k">assert</span> <span class="nb">all</span><span class="p">(</span><span class="nb">isinstance</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">Node</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">nodes</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">dim</span> <span class="o">=</span> <span class="n">dimension</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">index</span> <span class="o">=</span> <span class="n">index</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">dim</span><span class="o">.</span><span class="n">name</span>
+
+        <span class="c1"># Generate loop limits</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">limits</span><span class="p">,</span> <span class="n">Iterable</span><span class="p">):</span>
+            <span class="k">assert</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">limits</span><span class="p">)</span> <span class="o">==</span> <span class="mi">3</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">limits</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">limits</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">limits</span> <span class="o">=</span> <span class="nb">list</span><span class="p">((</span><span class="mi">0</span><span class="p">,</span> <span class="n">limits</span><span class="p">,</span> <span class="mi">1</span><span class="p">))</span>
+
+        <span class="c1"># Replace open limits with variables names</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">limits</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="c1"># FIXME: Add dimension size as variable bound.</span>
+            <span class="c1"># Needs further generalisation to support loop blocking.</span>
+            <span class="n">dim</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">dim</span><span class="o">.</span><span class="n">parent</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">dim</span><span class="o">.</span><span class="n">is_Buffered</span> <span class="k">else</span> <span class="bp">self</span><span class="o">.</span><span class="n">dim</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">limits</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="n">dim</span><span class="o">.</span><span class="n">size</span> <span class="ow">or</span> <span class="n">dim</span><span class="o">.</span><span class="n">symbolic_size</span>
+
+        <span class="c1"># Record offsets to later adjust loop limits accordingly</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">offsets</span> <span class="o">=</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span>
+        <span class="k">for</span> <span class="n">off</span> <span class="ow">in</span> <span class="p">(</span><span class="n">offsets</span> <span class="ow">or</span> <span class="p">{}):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">offsets</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">offsets</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="nb">int</span><span class="p">(</span><span class="n">off</span><span class="p">))</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">offsets</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">offsets</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="nb">int</span><span class="p">(</span><span class="n">off</span><span class="p">))</span>
+
+        <span class="c1"># Track this Iteration&#39;s properties</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">properties</span> <span class="o">=</span> <span class="n">as_tuple</span><span class="p">(</span><span class="n">properties</span><span class="p">)</span>
+        <span class="k">assert</span> <span class="p">(</span><span class="n">i</span> <span class="ow">in</span> <span class="n">Iteration</span><span class="o">.</span><span class="n">_known_properties</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">properties</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">properties</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">properties</span><span class="p">:</span>
+            <span class="n">properties</span> <span class="o">=</span> <span class="s2">&quot;WithProperties[</span><span class="si">%s</span><span class="s2">]::&quot;</span> <span class="o">%</span> <span class="s2">&quot;,&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">properties</span><span class="p">)</span>
+        <span class="k">return</span> <span class="s2">&quot;&lt;</span><span class="si">%s</span><span class="s2">Iteration </span><span class="si">%s</span><span class="s2">; </span><span class="si">%s</span><span class="s2">&gt;&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">properties</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">index</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">limits</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">ccode</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Generate C code for the represented stencil loop</span>
+
+<span class="sd">        :returns: :class:`cgen.For` object representing the loop</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">loop_body</span> <span class="o">=</span> <span class="p">[</span><span class="n">s</span><span class="o">.</span><span class="n">ccode</span> <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">nodes</span><span class="p">]</span>
+
+        <span class="c1"># Start</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">offsets</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">start</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="si">%s</span><span class="s2"> + </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">limits</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">offsets</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">start</span> <span class="o">=</span> <span class="nb">eval</span><span class="p">(</span><span class="n">start</span><span class="p">)</span>
+            <span class="k">except</span> <span class="p">(</span><span class="ne">NameError</span><span class="p">,</span> <span class="ne">TypeError</span><span class="p">):</span>
+                <span class="k">pass</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">start</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">limits</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+
+        <span class="c1"># Bound</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">offsets</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">end</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="si">%s</span><span class="s2"> - </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">limits</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="bp">self</span><span class="o">.</span><span class="n">offsets</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">end</span> <span class="o">=</span> <span class="nb">eval</span><span class="p">(</span><span class="n">end</span><span class="p">)</span>
+            <span class="k">except</span> <span class="p">(</span><span class="ne">NameError</span><span class="p">,</span> <span class="ne">TypeError</span><span class="p">):</span>
+                <span class="k">pass</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">end</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">limits</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+
+        <span class="c1"># For reverse dimensions flip loop bounds</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">dim</span><span class="o">.</span><span class="n">reverse</span><span class="p">:</span>
+            <span class="n">loop_init</span> <span class="o">=</span> <span class="n">c</span><span class="o">.</span><span class="n">InlineInitializer</span><span class="p">(</span><span class="n">c</span><span class="o">.</span><span class="n">Value</span><span class="p">(</span><span class="s2">&quot;int&quot;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">index</span><span class="p">),</span>
+                                            <span class="n">ccode</span><span class="p">(</span><span class="s1">&#39;</span><span class="si">%s</span><span class="s1"> - 1&#39;</span> <span class="o">%</span> <span class="n">end</span><span class="p">))</span>
+            <span class="n">loop_cond</span> <span class="o">=</span> <span class="s1">&#39;</span><span class="si">%s</span><span class="s1"> &gt;= </span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">index</span><span class="p">,</span> <span class="n">ccode</span><span class="p">(</span><span class="n">start</span><span class="p">))</span>
+            <span class="n">loop_inc</span> <span class="o">=</span> <span class="s1">&#39;</span><span class="si">%s</span><span class="s1"> -= </span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">index</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">limits</span><span class="p">[</span><span class="mi">2</span><span class="p">])</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">loop_init</span> <span class="o">=</span> <span class="n">c</span><span class="o">.</span><span class="n">InlineInitializer</span><span class="p">(</span><span class="n">c</span><span class="o">.</span><span class="n">Value</span><span class="p">(</span><span class="s2">&quot;int&quot;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">index</span><span class="p">),</span> <span class="n">ccode</span><span class="p">(</span><span class="n">start</span><span class="p">))</span>
+            <span class="n">loop_cond</span> <span class="o">=</span> <span class="s1">&#39;</span><span class="si">%s</span><span class="s1"> &lt; </span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">index</span><span class="p">,</span> <span class="n">ccode</span><span class="p">(</span><span class="n">end</span><span class="p">))</span>
+            <span class="n">loop_inc</span> <span class="o">=</span> <span class="s1">&#39;</span><span class="si">%s</span><span class="s1"> += </span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">index</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">limits</span><span class="p">[</span><span class="mi">2</span><span class="p">])</span>
+
+        <span class="k">return</span> <span class="n">c</span><span class="o">.</span><span class="n">For</span><span class="p">(</span><span class="n">loop_init</span><span class="p">,</span> <span class="n">loop_cond</span><span class="p">,</span> <span class="n">loop_inc</span><span class="p">,</span> <span class="n">c</span><span class="o">.</span><span class="n">Block</span><span class="p">(</span><span class="n">loop_body</span><span class="p">))</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">is_Open</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">dim</span><span class="o">.</span><span class="n">size</span> <span class="ow">is</span> <span class="kc">None</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">is_Closed</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_Open</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">is_Sequential</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="s1">&#39;sequential&#39;</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">properties</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">is_Parallel</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="s1">&#39;parallel&#39;</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">properties</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">is_Vectorizable</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="s1">&#39;vector-dim&#39;</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">properties</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">is_Elementizable</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="s1">&#39;elemental&#39;</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">properties</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">bounds_symbolic</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return a 2-tuple representing the symbolic bounds of the object.&quot;&quot;&quot;</span>
+        <span class="n">start</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">limits</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="n">end</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">limits</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">start</span> <span class="o">=</span> <span class="n">as_symbol</span><span class="p">(</span><span class="n">start</span><span class="p">)</span>
+        <span class="k">except</span> <span class="ne">TypeError</span><span class="p">:</span>
+            <span class="c1"># Already a symbolic expression</span>
+            <span class="k">pass</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">end</span> <span class="o">=</span> <span class="n">as_symbol</span><span class="p">(</span><span class="n">end</span><span class="p">)</span>
+        <span class="k">except</span> <span class="ne">TypeError</span><span class="p">:</span>
+            <span class="c1"># Already a symbolic expression</span>
+            <span class="k">pass</span>
+        <span class="k">return</span> <span class="p">(</span><span class="n">start</span> <span class="o">-</span> <span class="n">as_symbol</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">offsets</span><span class="p">[</span><span class="mi">0</span><span class="p">]),</span> <span class="n">end</span> <span class="o">-</span> <span class="n">as_symbol</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">offsets</span><span class="p">[</span><span class="mi">1</span><span class="p">]))</span>
+
+<div class="viewcode-block" id="Iteration.bounds"><a class="viewcode-back" href="../../devito.html#devito.nodes.Iteration.bounds">[docs]</a>    <span class="k">def</span> <span class="nf">bounds</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">start</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">finish</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return the start and end points of the Iteration if the limits are</span>
+<span class="sd">        available (either statically known or provided through ``start``/</span>
+<span class="sd">        ``finish``). ``None`` is used as a placeholder in the returned 2-tuple</span>
+<span class="sd">        if a limit is unknown.&quot;&quot;&quot;</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">start</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">limits</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">offsets</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="k">except</span> <span class="p">(</span><span class="ne">TypeError</span><span class="p">,</span> <span class="ne">ValueError</span><span class="p">):</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">start</span><span class="p">:</span>
+                <span class="n">start</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">finish</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">limits</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">offsets</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+        <span class="k">except</span> <span class="p">(</span><span class="ne">TypeError</span><span class="p">,</span> <span class="ne">ValueError</span><span class="p">):</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">finish</span><span class="p">:</span>
+                <span class="n">finish</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="k">return</span> <span class="p">(</span><span class="n">start</span><span class="p">,</span> <span class="n">finish</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="Iteration.extent"><a class="viewcode-back" href="../../devito.html#devito.nodes.Iteration.extent">[docs]</a>    <span class="k">def</span> <span class="nf">extent</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">start</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">finish</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return the number of iterations executed if the limits are known,</span>
+<span class="sd">        ``None`` otherwise.&quot;&quot;&quot;</span>
+        <span class="n">start</span><span class="p">,</span> <span class="n">finish</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">bounds</span><span class="p">(</span><span class="n">start</span><span class="p">,</span> <span class="n">finish</span><span class="p">)</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">finish</span> <span class="o">-</span> <span class="n">start</span>
+        <span class="k">except</span> <span class="ne">TypeError</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">None</span></div>
+
+<div class="viewcode-block" id="Iteration.start"><a class="viewcode-back" href="../../devito.html#devito.nodes.Iteration.start">[docs]</a>    <span class="k">def</span> <span class="nf">start</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">start</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return the start point of the Iteration if the lower limit is known,</span>
+<span class="sd">        ``None`` otherwise.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">bounds</span><span class="p">(</span><span class="n">start</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span></div>
+
+<div class="viewcode-block" id="Iteration.end"><a class="viewcode-back" href="../../devito.html#devito.nodes.Iteration.end">[docs]</a>    <span class="k">def</span> <span class="nf">end</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">finish</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return the end point of the Iteration if the upper limit is known,</span>
+<span class="sd">        ``None`` otherwise.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">bounds</span><span class="p">(</span><span class="n">finish</span><span class="o">=</span><span class="n">finish</span><span class="p">)[</span><span class="mi">1</span><span class="p">]</span></div>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">children</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return the traversable children.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">nodes</span><span class="p">,)</span></div>
+
+
+<div class="viewcode-block" id="Function"><a class="viewcode-back" href="../../devito.html#devito.nodes.Function">[docs]</a><span class="k">class</span> <span class="nc">Function</span><span class="p">(</span><span class="n">Node</span><span class="p">):</span>
+
+    <span class="sd">&quot;&quot;&quot;Represent a C function.</span>
+
+<span class="sd">    :param name: The name of the function.</span>
+<span class="sd">    :param body: A :class:`Node` or an iterable of :class:`Node` objects representing</span>
+<span class="sd">                 the body of the function.</span>
+<span class="sd">    :param retval: The type of the value returned by the function.</span>
+<span class="sd">    :param parameters: An iterable of :class:`SymbolicData` objects in input to the</span>
+<span class="sd">                       function, or ``None`` if the function takes no parameter.</span>
+<span class="sd">    :param prefix: An iterable of qualifiers to prepend to the function declaration.</span>
+<span class="sd">                   The default value is (&#39;static&#39;, &#39;inline&#39;).</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">is_Function</span> <span class="o">=</span> <span class="kc">True</span>
+
+    <span class="n">_traversable</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;body&#39;</span><span class="p">]</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">body</span><span class="p">,</span> <span class="n">retval</span><span class="p">,</span> <span class="n">parameters</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">prefix</span><span class="o">=</span><span class="p">(</span><span class="s1">&#39;static&#39;</span><span class="p">,</span> <span class="s1">&#39;inline&#39;</span><span class="p">)):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">name</span> <span class="o">=</span> <span class="n">name</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">body</span> <span class="o">=</span> <span class="n">as_tuple</span><span class="p">(</span><span class="n">body</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">retval</span> <span class="o">=</span> <span class="n">retval</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">parameters</span> <span class="o">=</span> <span class="n">as_tuple</span><span class="p">(</span><span class="n">parameters</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">prefix</span> <span class="o">=</span> <span class="n">prefix</span>
+
+    <span class="k">def</span> <span class="nf">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">parameters</span> <span class="o">=</span> <span class="s2">&quot;,&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">([</span><span class="n">c</span><span class="o">.</span><span class="n">dtype_to_ctype</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">dtype</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">parameters</span><span class="p">])</span>
+        <span class="n">body</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="se">\n\t</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">([</span><span class="nb">str</span><span class="p">(</span><span class="n">s</span><span class="p">)</span> <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">body</span><span class="p">])</span>
+        <span class="k">return</span> <span class="s2">&quot;Function[</span><span class="si">%s</span><span class="s2">]&lt;</span><span class="si">%s</span><span class="s2">; </span><span class="si">%s</span><span class="s2">&gt;::</span><span class="se">\n\t</span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">retval</span><span class="p">,</span> <span class="n">parameters</span><span class="p">,</span> <span class="n">body</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">_cparameters</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Generate arguments signature.&quot;&quot;&quot;</span>
+        <span class="n">cparameters</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">parameters</span><span class="p">:</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="n">Dimension</span><span class="p">):</span>
+                <span class="n">cparameters</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">v</span><span class="o">.</span><span class="n">decl</span><span class="p">)</span>
+            <span class="k">elif</span> <span class="n">v</span><span class="o">.</span><span class="n">is_ScalarFunction</span><span class="p">:</span>
+                <span class="n">cparameters</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">c</span><span class="o">.</span><span class="n">Value</span><span class="p">(</span><span class="s1">&#39;const int&#39;</span><span class="p">,</span> <span class="n">v</span><span class="o">.</span><span class="n">name</span><span class="p">))</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">cparameters</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">c</span><span class="o">.</span><span class="n">Value</span><span class="p">(</span><span class="n">c</span><span class="o">.</span><span class="n">dtype_to_ctype</span><span class="p">(</span><span class="n">v</span><span class="o">.</span><span class="n">dtype</span><span class="p">),</span>
+                                           <span class="s1">&#39;*restrict </span><span class="si">%s</span><span class="s1">_vec&#39;</span> <span class="o">%</span> <span class="n">v</span><span class="o">.</span><span class="n">name</span><span class="p">))</span>
+        <span class="k">return</span> <span class="n">cparameters</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">_ccasts</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Generate data casts.&quot;&quot;&quot;</span>
+        <span class="n">alignment</span> <span class="o">=</span> <span class="s2">&quot;__attribute__((aligned(64)))&quot;</span>
+        <span class="n">handle</span> <span class="o">=</span> <span class="p">[</span><span class="n">f</span> <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">parameters</span>
+                  <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="p">(</span><span class="n">SymbolicData</span><span class="p">,</span> <span class="n">TensorFunction</span><span class="p">))]</span>
+        <span class="n">shapes</span> <span class="o">=</span> <span class="p">[(</span><span class="n">f</span><span class="p">,</span> <span class="s1">&#39;&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">([</span><span class="s2">&quot;[</span><span class="si">%s</span><span class="s2">]&quot;</span> <span class="o">%</span> <span class="n">i</span><span class="o">.</span><span class="n">ccode</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">f</span><span class="o">.</span><span class="n">indices</span><span class="p">[</span><span class="mi">1</span><span class="p">:]]))</span> <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">handle</span><span class="p">]</span>
+        <span class="n">casts</span> <span class="o">=</span> <span class="p">[</span><span class="n">c</span><span class="o">.</span><span class="n">Initializer</span><span class="p">(</span><span class="n">c</span><span class="o">.</span><span class="n">POD</span><span class="p">(</span><span class="n">v</span><span class="o">.</span><span class="n">dtype</span><span class="p">,</span>
+                                     <span class="s1">&#39;(*restrict </span><span class="si">%s</span><span class="s1">)</span><span class="si">%s</span><span class="s1"> </span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">v</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">shape</span><span class="p">,</span> <span class="n">alignment</span><span class="p">)),</span>
+                               <span class="s1">&#39;(</span><span class="si">%s</span><span class="s1"> (*)</span><span class="si">%s</span><span class="s1">) </span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">c</span><span class="o">.</span><span class="n">dtype_to_ctype</span><span class="p">(</span><span class="n">v</span><span class="o">.</span><span class="n">dtype</span><span class="p">),</span>
+                                                  <span class="n">shape</span><span class="p">,</span> <span class="s1">&#39;</span><span class="si">%s</span><span class="s1">_vec&#39;</span> <span class="o">%</span> <span class="n">v</span><span class="o">.</span><span class="n">name</span><span class="p">))</span>
+                 <span class="k">for</span> <span class="n">v</span><span class="p">,</span> <span class="n">shape</span> <span class="ow">in</span> <span class="n">shapes</span><span class="p">]</span>
+        <span class="k">return</span> <span class="n">casts</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">_ctop</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Generate the function declaration.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">c</span><span class="o">.</span><span class="n">FunctionDeclaration</span><span class="p">(</span><span class="n">c</span><span class="o">.</span><span class="n">Value</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">retval</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">),</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cparameters</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">ccode</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Generate C code for the represented C routine.</span>
+
+<span class="sd">        :returns: :class:`cgen.FunctionDeclaration` object representing the function.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">body</span> <span class="o">=</span> <span class="p">[</span><span class="n">e</span><span class="o">.</span><span class="n">ccode</span> <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">body</span><span class="p">]</span>
+        <span class="k">return</span> <span class="n">c</span><span class="o">.</span><span class="n">FunctionBody</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_ctop</span><span class="p">,</span> <span class="n">c</span><span class="o">.</span><span class="n">Block</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_ccasts</span> <span class="o">+</span> <span class="n">body</span><span class="p">))</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">children</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">body</span><span class="p">,)</span></div>
+
+
+<span class="c1"># Utilities</span>
+
+<div class="viewcode-block" id="TimedList"><a class="viewcode-back" href="../../devito.html#devito.nodes.TimedList">[docs]</a><span class="k">class</span> <span class="nc">TimedList</span><span class="p">(</span><span class="n">List</span><span class="p">):</span>
+
+    <span class="sd">&quot;&quot;&quot;Wrap a Node with C-level timers.&quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">lname</span><span class="p">,</span> <span class="n">gname</span><span class="p">,</span> <span class="n">body</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Initialize a TimedList object.</span>
+
+<span class="sd">        :param lname: Timer name in the local scope.</span>
+<span class="sd">        :param gname: Name of the global struct tracking all timers.</span>
+<span class="sd">        :param body: Timed block of code.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_name</span> <span class="o">=</span> <span class="n">lname</span>
+        <span class="c1"># TODO: need omp master pragma to be thread safe</span>
+        <span class="n">header</span> <span class="o">=</span> <span class="p">[</span><span class="n">c</span><span class="o">.</span><span class="n">Statement</span><span class="p">(</span><span class="s2">&quot;struct timeval start_</span><span class="si">%s</span><span class="s2">, end_</span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">lname</span><span class="p">,</span> <span class="n">lname</span><span class="p">)),</span>
+                  <span class="n">c</span><span class="o">.</span><span class="n">Statement</span><span class="p">(</span><span class="s2">&quot;gettimeofday(&amp;start_</span><span class="si">%s</span><span class="s2">, NULL)&quot;</span> <span class="o">%</span> <span class="n">lname</span><span class="p">)]</span>
+        <span class="n">footer</span> <span class="o">=</span> <span class="p">[</span><span class="n">c</span><span class="o">.</span><span class="n">Statement</span><span class="p">(</span><span class="s2">&quot;gettimeofday(&amp;end_</span><span class="si">%s</span><span class="s2">, NULL)&quot;</span> <span class="o">%</span> <span class="n">lname</span><span class="p">),</span>
+                  <span class="n">c</span><span class="o">.</span><span class="n">Statement</span><span class="p">((</span><span class="s2">&quot;</span><span class="si">%(gn)s</span><span class="s2">-&gt;</span><span class="si">%(ln)s</span><span class="s2"> += &quot;</span> <span class="o">+</span>
+                               <span class="s2">&quot;(double)(end_</span><span class="si">%(ln)s</span><span class="s2">.tv_sec-start_</span><span class="si">%(ln)s</span><span class="s2">.tv_sec)+&quot;</span> <span class="o">+</span>
+                               <span class="s2">&quot;(double)(end_</span><span class="si">%(ln)s</span><span class="s2">.tv_usec-start_</span><span class="si">%(ln)s</span><span class="s2">.tv_usec)&quot;</span> <span class="o">+</span>
+                               <span class="s2">&quot;/1000000&quot;</span><span class="p">)</span> <span class="o">%</span> <span class="p">{</span><span class="s1">&#39;gn&#39;</span><span class="p">:</span> <span class="n">gname</span><span class="p">,</span> <span class="s1">&#39;ln&#39;</span><span class="p">:</span> <span class="n">lname</span><span class="p">})]</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">TimedList</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">header</span><span class="p">,</span> <span class="n">body</span><span class="p">,</span> <span class="n">footer</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">body</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="se">\n\t</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">([</span><span class="nb">str</span><span class="p">(</span><span class="n">s</span><span class="p">)</span> <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">body</span><span class="p">])</span>
+        <span class="k">return</span> <span class="s2">&quot;</span><span class="si">%s</span><span class="s2">::</span><span class="se">\n\t</span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="vm">__class__</span><span class="o">.</span><span class="vm">__name__</span><span class="p">,</span> <span class="n">body</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">name</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_name</span></div>
+
+
+<span class="k">class</span> <span class="nc">Denormals</span><span class="p">(</span><span class="n">List</span><span class="p">):</span>
+
+    <span class="sd">&quot;&quot;&quot;Macros to make sure denormal numbers are flushed in hardware.&quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">header</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">body</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">footer</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="n">b</span> <span class="o">=</span> <span class="p">[</span><span class="n">Element</span><span class="p">(</span><span class="n">c</span><span class="o">.</span><span class="n">Comment</span><span class="p">(</span><span class="s1">&#39;Flush denormal numbers to zero in hardware&#39;</span><span class="p">)),</span>
+             <span class="n">Element</span><span class="p">(</span><span class="n">c</span><span class="o">.</span><span class="n">Statement</span><span class="p">(</span><span class="s1">&#39;_MM_SET_DENORMALS_ZERO_MODE(_MM_DENORMALS_ZERO_ON)&#39;</span><span class="p">)),</span>
+             <span class="n">Element</span><span class="p">(</span><span class="n">c</span><span class="o">.</span><span class="n">Statement</span><span class="p">(</span><span class="s1">&#39;_MM_SET_FLUSH_ZERO_MODE(_MM_FLUSH_ZERO_ON)&#39;</span><span class="p">))]</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">Denormals</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">header</span><span class="p">,</span> <span class="n">b</span><span class="p">,</span> <span class="n">footer</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="s2">&quot;&lt;DenormalsMacro&gt;&quot;</span>
+
+
+<span class="k">class</span> <span class="nc">LocalExpression</span><span class="p">(</span><span class="n">Expression</span><span class="p">):</span>
+
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Class encpasulating a single expression with known data type</span>
+<span class="sd">    (represented as a NumPy data type).</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">expr</span><span class="p">,</span> <span class="n">dtype</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">LocalExpression</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">expr</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">dtype</span> <span class="o">=</span> <span class="n">dtype</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">ccode</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">ctype</span> <span class="o">=</span> <span class="n">c</span><span class="o">.</span><span class="n">dtype_to_ctype</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dtype</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">c</span><span class="o">.</span><span class="n">Initializer</span><span class="p">(</span><span class="n">c</span><span class="o">.</span><span class="n">Value</span><span class="p">(</span><span class="n">ctype</span><span class="p">,</span> <span class="n">ccode</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">expr</span><span class="o">.</span><span class="n">lhs</span><span class="p">)),</span> <span class="n">ccode</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">expr</span><span class="o">.</span><span class="n">rhs</span><span class="p">))</span>
+</pre></div>
+
+           </div>
+           <div class="articleComments">
+            
+           </div>
+          </div>
+          <footer>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2016, Opesci.
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/snide/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  
+
+    <script type="text/javascript">
+        var DOCUMENTATION_OPTIONS = {
+            URL_ROOT:'../../',
+            VERSION:'1',
+            COLLAPSE_INDEX:false,
+            FILE_SUFFIX:'.html',
+            HAS_SOURCE:  true,
+            SOURCELINK_SUFFIX: '.txt'
+        };
+    </script>
+      <script type="text/javascript" src="../../_static/jquery.js"></script>
+      <script type="text/javascript" src="../../_static/underscore.js"></script>
+      <script type="text/javascript" src="../../_static/doctools.js"></script>
+      <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.0/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+
+  
+
+  
+  
+    <script type="text/javascript" src="../../_static/js/theme.js"></script>
+  
+
+  
+  
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.StickyNav.enable();
+      });
+  </script>
+   
+
+</body>
+</html>

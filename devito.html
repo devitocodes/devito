@@ -96,18 +96,19 @@
 <li class="toctree-l2"><a class="reference internal" href="#submodules">Submodules</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#module-devito.cgen_utils">devito.cgen_utils module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#module-devito.compiler">devito.compiler module</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#module-devito.finite_difference">devito.finite_difference module</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#devito-function-manager-module">devito.function_manager module</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#module-devito.interfaces">devito.interfaces module</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#module-devito.operator">devito.operator module</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#devito-propagator-module">devito.propagator module</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#devito-stencilkernel-module">devito.stencilkernel module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#module-devito.dimension">devito.dimension module</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#devito-iteration-module">devito.iteration module</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#devito-expression-module">devito.expression module</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#module-devito.tools">devito.tools module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#module-devito.finite_difference">devito.finite_difference module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#module-devito.interfaces">devito.interfaces module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#module-devito.logger">devito.logger module</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#devito-at-controller-module">devito.at_controller module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#devito-memmap-manager-module">devito.memmap_manager module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#module-devito.memory">devito.memory module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#module-devito.nodes">devito.nodes module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#module-devito.parameters">devito.parameters module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#module-devito.pointdata">devito.pointdata module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#module-devito.profiler">devito.profiler module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#module-devito.stencil">devito.stencil module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#module-devito.tools">devito.tools module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#devito-visitor-module">devito.visitor module</a></li>
 </ul>
 </li>
 </ul>
@@ -377,6 +378,70 @@ we utilise the <cite>pymic</cite> package to manage device streams.</p>
 </dd></dl>
 
 </div>
+<div class="section" id="module-devito.dimension">
+<span id="devito-dimension-module"></span><h2>devito.dimension module<a class="headerlink" href="#module-devito.dimension" title="Permalink to this headline">¶</a></h2>
+<dl class="class">
+<dt id="devito.dimension.Dimension">
+<em class="property">class </em><code class="descclassname">devito.dimension.</code><code class="descname">Dimension</code><a class="reference internal" href="_modules/devito/dimension.html#Dimension"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.dimension.Dimension" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">sympy.core.symbol.Symbol</span></code></p>
+<dl class="attribute">
+<dt id="devito.dimension.Dimension.ccode">
+<code class="descname">ccode</code><a class="headerlink" href="#devito.dimension.Dimension.ccode" title="Permalink to this definition">¶</a></dt>
+<dd><p>C-level variable name of this dimension</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="devito.dimension.Dimension.decl">
+<code class="descname">decl</code><a class="headerlink" href="#devito.dimension.Dimension.decl" title="Permalink to this definition">¶</a></dt>
+<dd><p>Variable declaration for C-level kernel headers</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="devito.dimension.Dimension.default_assumptions">
+<code class="descname">default_assumptions</code><em class="property"> = {}</em><a class="headerlink" href="#devito.dimension.Dimension.default_assumptions" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="devito.dimension.Dimension.dtype">
+<code class="descname">dtype</code><a class="headerlink" href="#devito.dimension.Dimension.dtype" title="Permalink to this definition">¶</a></dt>
+<dd><p>The data type of the iteration variable</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="devito.dimension.Dimension.is_Buffered">
+<code class="descname">is_Buffered</code><em class="property"> = False</em><a class="headerlink" href="#devito.dimension.Dimension.is_Buffered" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="devito.dimension.Dimension.is_Lowered">
+<code class="descname">is_Lowered</code><em class="property"> = False</em><a class="headerlink" href="#devito.dimension.Dimension.is_Lowered" title="Permalink to this definition">¶</a></dt>
+<dd><p>Index object that represents a problem dimension and thus
+defines a potential iteration space.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>size</strong> – Optional, size of the array dimension.</li>
+<li><strong>reverse</strong> – Traverse dimension in reverse order (default False)</li>
+<li><strong>buffered</strong> – Optional, boolean flag indicating whether to
+buffer variables when iterating this dimension.</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="devito.dimension.Dimension.symbolic_size">
+<code class="descname">symbolic_size</code><a class="headerlink" href="#devito.dimension.Dimension.symbolic_size" title="Permalink to this definition">¶</a></dt>
+<dd><p>The symbolic size of this dimension.</p>
+</dd></dl>
+
+</dd></dl>
+
+</div>
 <div class="section" id="module-devito.finite_difference">
 <span id="devito-finite-difference-module"></span><h2>devito.finite_difference module<a class="headerlink" href="#module-devito.finite_difference" title="Permalink to this headline">¶</a></h2>
 <dl class="function">
@@ -474,9 +539,6 @@ results in:
 </dl>
 </dd></dl>
 
-</div>
-<div class="section" id="devito-function-manager-module">
-<h2>devito.function_manager module<a class="headerlink" href="#devito-function-manager-module" title="Permalink to this headline">¶</a></h2>
 </div>
 <div class="section" id="module-devito.interfaces">
 <span id="devito-interfaces-module"></span><h2>devito.interfaces module<a class="headerlink" href="#module-devito.interfaces" title="Permalink to this headline">¶</a></h2>
@@ -751,69 +813,679 @@ and whether we want to write intermediate timesteps in the buffer.</p>
 </dd></dl>
 
 </div>
-<div class="section" id="module-devito.operator">
-<span id="devito-operator-module"></span><h2>devito.operator module<a class="headerlink" href="#module-devito.operator" title="Permalink to this headline">¶</a></h2>
+<div class="section" id="module-devito.logger">
+<span id="devito-logger-module"></span><h2>devito.logger module<a class="headerlink" href="#module-devito.logger" title="Permalink to this headline">¶</a></h2>
+<p>The Devito logger.</p>
+<dl class="function">
+<dt id="devito.logger.set_log_level">
+<code class="descclassname">devito.logger.</code><code class="descname">set_log_level</code><span class="sig-paren">(</span><em>level</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/logger.html#set_log_level"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.logger.set_log_level" title="Permalink to this definition">¶</a></dt>
+<dd><p>Set the log level of the Devito logger.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>level</strong> – accepted values are: DEBUG, INFO, AUTOTUNER, DSE, DSE_WARN,
+DLE, DLE_WARN, WARNING, ERROR, CRITICAL</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="function">
+<dt id="devito.logger.set_log_noperf">
+<code class="descclassname">devito.logger.</code><code class="descname">set_log_noperf</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/logger.html#set_log_noperf"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.logger.set_log_noperf" title="Permalink to this definition">¶</a></dt>
+<dd><p>Do not print performance-related messages.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="devito.logger.log">
+<code class="descclassname">devito.logger.</code><code class="descname">log</code><span class="sig-paren">(</span><em>msg</em>, <em>level=20</em>, <em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/logger.html#log"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.logger.log" title="Permalink to this definition">¶</a></dt>
+<dd><p>Wrapper of the main Python’s logging function. Print ‘msg % args’ with
+the severity ‘level’.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>msg</strong> – the message to be printed.</li>
+<li><strong>level</strong> – accepted values are: DEBUG, INFO, AUTOTUNER, DSE, DSE_WARN,
+DLE, DLE_WARN, WARNING, ERROR, CRITICAL</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="function">
+<dt>
+<code class="descclassname">devito.logger.</code><code class="descname">log</code><span class="sig-paren">(</span><em>msg</em>, <em>level=20</em>, <em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/logger.html#log"><span class="viewcode-link">[source]</span></a></dt>
+<dd><p>Wrapper of the main Python’s logging function. Print ‘msg % args’ with
+the severity ‘level’.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>msg</strong> – the message to be printed.</li>
+<li><strong>level</strong> – accepted values are: DEBUG, INFO, AUTOTUNER, DSE, DSE_WARN,
+DLE, DLE_WARN, WARNING, ERROR, CRITICAL</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="function">
+<dt id="devito.logger.warning">
+<code class="descclassname">devito.logger.</code><code class="descname">warning</code><span class="sig-paren">(</span><em>msg</em>, <em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/logger.html#warning"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.logger.warning" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="function">
+<dt id="devito.logger.error">
+<code class="descclassname">devito.logger.</code><code class="descname">error</code><span class="sig-paren">(</span><em>msg</em>, <em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/logger.html#error"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.logger.error" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="function">
+<dt id="devito.logger.info_at">
+<code class="descclassname">devito.logger.</code><code class="descname">info_at</code><span class="sig-paren">(</span><em>msg</em>, <em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/logger.html#info_at"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.logger.info_at" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="function">
+<dt id="devito.logger.dse">
+<code class="descclassname">devito.logger.</code><code class="descname">dse</code><span class="sig-paren">(</span><em>msg</em>, <em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/logger.html#dse"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.logger.dse" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="function">
+<dt id="devito.logger.dse_warning">
+<code class="descclassname">devito.logger.</code><code class="descname">dse_warning</code><span class="sig-paren">(</span><em>msg</em>, <em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/logger.html#dse_warning"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.logger.dse_warning" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="function">
+<dt id="devito.logger.dle">
+<code class="descclassname">devito.logger.</code><code class="descname">dle</code><span class="sig-paren">(</span><em>msg</em>, <em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/logger.html#dle"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.logger.dle" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="function">
+<dt id="devito.logger.dle_warning">
+<code class="descclassname">devito.logger.</code><code class="descname">dle_warning</code><span class="sig-paren">(</span><em>msg</em>, <em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/logger.html#dle_warning"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.logger.dle_warning" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</div>
+<div class="section" id="devito-memmap-manager-module">
+<h2>devito.memmap_manager module<a class="headerlink" href="#devito-memmap-manager-module" title="Permalink to this headline">¶</a></h2>
+<span class="target" id="module-devito.memmap_manager"></span><dl class="class">
+<dt id="devito.memmap_manager.MemmapManager">
+<em class="property">class </em><code class="descclassname">devito.memmap_manager.</code><code class="descname">MemmapManager</code><a class="reference internal" href="_modules/devito/memmap_manager.html#MemmapManager"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.memmap_manager.MemmapManager" title="Permalink to this definition">¶</a></dt>
+<dd><p>Class for managing all memmap related settings</p>
+<dl class="staticmethod">
+<dt id="devito.memmap_manager.MemmapManager.set_default_disk_path">
+<em class="property">static </em><code class="descname">set_default_disk_path</code><span class="sig-paren">(</span><em>default_disk_path</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/memmap_manager.html#MemmapManager.set_default_disk_path"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.memmap_manager.MemmapManager.set_default_disk_path" title="Permalink to this definition">¶</a></dt>
+<dd><p>Call this method to change the default disk path for memmap</p>
+</dd></dl>
+
+<dl class="staticmethod">
+<dt id="devito.memmap_manager.MemmapManager.set_delete_file">
+<em class="property">static </em><code class="descname">set_delete_file</code><span class="sig-paren">(</span><em>delete</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/memmap_manager.html#MemmapManager.set_delete_file"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.memmap_manager.MemmapManager.set_delete_file" title="Permalink to this definition">¶</a></dt>
+<dd><p>Call this method to set default flag contolling whether to delete
+crated files.</p>
+</dd></dl>
+
+<dl class="staticmethod">
+<dt id="devito.memmap_manager.MemmapManager.set_memmap">
+<em class="property">static </em><code class="descname">set_memmap</code><span class="sig-paren">(</span><em>memmap</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/memmap_manager.html#MemmapManager.set_memmap"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.memmap_manager.MemmapManager.set_memmap" title="Permalink to this definition">¶</a></dt>
+<dd><p>Call this method to set default value of memmap</p>
+</dd></dl>
+
+<dl class="staticmethod">
+<dt id="devito.memmap_manager.MemmapManager.setup">
+<em class="property">static </em><code class="descname">setup</code><span class="sig-paren">(</span><em>data_self</em>, <em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/memmap_manager.html#MemmapManager.setup"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.memmap_manager.MemmapManager.setup" title="Permalink to this definition">¶</a></dt>
+<dd><p>This method is used to setup memmap parameters for data classes.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>name</strong> – Name of data</li>
+<li><strong>memmap</strong> – Boolean indicates whether memmap is used. Optional</li>
+<li><strong>disk_path</strong> – String indicates directory to create memmap file. Optional</li>
+<li><strong>delete_file</strong> – Boolean indicates whether to delete created file. Optional</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+<p>Note: If memmap, disk_path or delete_file are not provided, the default values
+are used.</p>
+</dd></dl>
+
+</dd></dl>
+
+</div>
+<div class="section" id="module-devito.memory">
+<span id="devito-memory-module"></span><h2>devito.memory module<a class="headerlink" href="#module-devito.memory" title="Permalink to this headline">¶</a></h2>
 <dl class="class">
+<dt id="devito.memory.CMemory">
+<em class="property">class </em><code class="descclassname">devito.memory.</code><code class="descname">CMemory</code><span class="sig-paren">(</span><em>shape</em>, <em>dtype=&lt;type ‘numpy.float32’&gt;</em>, <em>alignment=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/memory.html#CMemory"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.memory.CMemory" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">object</span></code></p>
+<dl class="method">
+<dt id="devito.memory.CMemory.fill">
+<code class="descname">fill</code><span class="sig-paren">(</span><em>val</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/memory.html#CMemory.fill"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.memory.CMemory.fill" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="function">
+<dt id="devito.memory.first_touch">
+<code class="descclassname">devito.memory.</code><code class="descname">first_touch</code><span class="sig-paren">(</span><em>array</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/memory.html#first_touch"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.memory.first_touch" title="Permalink to this definition">¶</a></dt>
+<dd><p>Uses the Propagator low-level API to initialize the given array(in Devito types)
+in the same pattern that would later be used to access it.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="devito.memory.free">
+<code class="descclassname">devito.memory.</code><code class="descname">free</code><span class="sig-paren">(</span><em>internal_pointer</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/memory.html#free"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.memory.free" title="Permalink to this definition">¶</a></dt>
+<dd><p>Use the C function free to free the memory allocated for the
+given pointer.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="devito.memory.malloc_aligned">
+<code class="descclassname">devito.memory.</code><code class="descname">malloc_aligned</code><span class="sig-paren">(</span><em>shape</em>, <em>alignment=None</em>, <em>dtype=&lt;type ‘numpy.float32’&gt;</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/memory.html#malloc_aligned"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.memory.malloc_aligned" title="Permalink to this definition">¶</a></dt>
+<dd><p>Allocate memory using the C function malloc_aligned
+:param shape: Shape of the array to allocate
+:param alignment: number of bytes to align to. Defaults to
+page size if not set.
+:param dtype: Numpy datatype to allocate. Default to np.float32</p>
+<p>:returns (pointer, data_pointer) the first element of the tuple
+is the reference that can be used to access the data as a ctypes
+object. The second element is the low-level reference that is
+needed only for the call to free.</p>
+</dd></dl>
+
+</div>
+<div class="section" id="module-devito.nodes">
+<span id="devito-nodes-module"></span><h2>devito.nodes module<a class="headerlink" href="#module-devito.nodes" title="Permalink to this headline">¶</a></h2>
+<p>The Iteration/Expression hierarchy.</p>
+<blockquote>
+<div>devito.operator module</div></blockquote>
+<dl class="class">
+<dt id="devito.nodes.Node">
+<em class="property">class </em><code class="descclassname">devito.nodes.</code><code class="descname">Node</code><a class="reference internal" href="_modules/devito/nodes.html#Node"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.nodes.Node" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">object</span></code></p>
+<dl class="attribute">
+<dt id="devito.nodes.Node.args">
+<code class="descname">args</code><a class="headerlink" href="#devito.nodes.Node.args" title="Permalink to this definition">¶</a></dt>
+<dd><p>Arguments used to construct the Node.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="devito.nodes.Node.args_frozen">
+<code class="descname">args_frozen</code><a class="headerlink" href="#devito.nodes.Node.args_frozen" title="Permalink to this definition">¶</a></dt>
+<dd><p>Arguments used to construct the Node that cannot be traversed.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="devito.nodes.Node.ccode">
+<code class="descname">ccode</code><a class="headerlink" href="#devito.nodes.Node.ccode" title="Permalink to this definition">¶</a></dt>
+<dd><p>Generate C code.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="devito.nodes.Node.children">
+<code class="descname">children</code><a class="headerlink" href="#devito.nodes.Node.children" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return the traversable children.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="devito.nodes.Node.is_Block">
+<code class="descname">is_Block</code><em class="property"> = False</em><a class="headerlink" href="#devito.nodes.Node.is_Block" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="devito.nodes.Node.is_Element">
+<code class="descname">is_Element</code><em class="property"> = False</em><a class="headerlink" href="#devito.nodes.Node.is_Element" title="Permalink to this definition">¶</a></dt>
+<dd><p><code class="xref py py-attr docutils literal"><span class="pre">_traversable</span></code>. A list of traversable objects (ie, traversed by
+<code class="xref py py-class docutils literal"><span class="pre">Visitor</span></code> objects). A traversable object is intended as an argument
+of a Node constructor and is represented as a string.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="devito.nodes.Node.is_Expression">
+<code class="descname">is_Expression</code><em class="property"> = False</em><a class="headerlink" href="#devito.nodes.Node.is_Expression" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="devito.nodes.Node.is_FunCall">
+<code class="descname">is_FunCall</code><em class="property"> = False</em><a class="headerlink" href="#devito.nodes.Node.is_FunCall" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="devito.nodes.Node.is_Function">
+<code class="descname">is_Function</code><em class="property"> = False</em><a class="headerlink" href="#devito.nodes.Node.is_Function" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="devito.nodes.Node.is_Iteration">
+<code class="descname">is_Iteration</code><em class="property"> = False</em><a class="headerlink" href="#devito.nodes.Node.is_Iteration" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="devito.nodes.Node.is_List">
+<code class="descname">is_List</code><em class="property"> = False</em><a class="headerlink" href="#devito.nodes.Node.is_List" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="devito.nodes.Node.is_Node">
+<code class="descname">is_Node</code><em class="property"> = True</em><a class="headerlink" href="#devito.nodes.Node.is_Node" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="devito.nodes.Block">
+<em class="property">class </em><code class="descclassname">devito.nodes.</code><code class="descname">Block</code><span class="sig-paren">(</span><em>header=None</em>, <em>body=None</em>, <em>footer=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/nodes.html#Block"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.nodes.Block" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#devito.nodes.Node" title="devito.nodes.Node"><code class="xref py py-class docutils literal"><span class="pre">devito.nodes.Node</span></code></a></p>
+<dl class="attribute">
+<dt id="devito.nodes.Block.ccode">
+<code class="descname">ccode</code><a class="headerlink" href="#devito.nodes.Block.ccode" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="devito.nodes.Block.children">
+<code class="descname">children</code><a class="headerlink" href="#devito.nodes.Block.children" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="devito.nodes.Block.is_Block">
+<code class="descname">is_Block</code><em class="property"> = True</em><a class="headerlink" href="#devito.nodes.Block.is_Block" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="devito.nodes.Expression">
+<em class="property">class </em><code class="descclassname">devito.nodes.</code><code class="descname">Expression</code><span class="sig-paren">(</span><em>expr</em>, <em>dtype=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/nodes.html#Expression"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.nodes.Expression" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#devito.nodes.Node" title="devito.nodes.Node"><code class="xref py py-class docutils literal"><span class="pre">devito.nodes.Node</span></code></a></p>
+<p>Class encpasulating a single SymPy equation.</p>
+<dl class="attribute">
+<dt id="devito.nodes.Expression.ccode">
+<code class="descname">ccode</code><a class="headerlink" href="#devito.nodes.Expression.ccode" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="devito.nodes.Expression.is_Expression">
+<code class="descname">is_Expression</code><em class="property"> = True</em><a class="headerlink" href="#devito.nodes.Expression.is_Expression" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="devito.nodes.Expression.is_scalar">
+<code class="descname">is_scalar</code><a class="headerlink" href="#devito.nodes.Expression.is_scalar" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return True if a scalar expression, False otherwise.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="devito.nodes.Expression.is_tensor">
+<code class="descname">is_tensor</code><a class="headerlink" href="#devito.nodes.Expression.is_tensor" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return True if a tensor expression, False otherwise.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="devito.nodes.Expression.output">
+<code class="descname">output</code><a class="headerlink" href="#devito.nodes.Expression.output" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return the symbol written by this Expression.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="devito.nodes.Expression.output_function">
+<code class="descname">output_function</code><a class="headerlink" href="#devito.nodes.Expression.output_function" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return the function written by this Expression, if any.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="devito.nodes.Expression.shape">
+<code class="descname">shape</code><a class="headerlink" href="#devito.nodes.Expression.shape" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return the shape of the written LHS.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="devito.nodes.Expression.stencil">
+<code class="descname">stencil</code><a class="headerlink" href="#devito.nodes.Expression.stencil" title="Permalink to this definition">¶</a></dt>
+<dd><p>Compute the stencil of the expression.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="devito.nodes.Expression.substitute">
+<code class="descname">substitute</code><span class="sig-paren">(</span><em>substitutions</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/nodes.html#Expression.substitute"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.nodes.Expression.substitute" title="Permalink to this definition">¶</a></dt>
+<dd><p>Apply substitutions to the expression.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>substitutions</strong> – Dict containing the substitutions to apply to
+the stored expression.</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="devito.nodes.Function">
+<em class="property">class </em><code class="descclassname">devito.nodes.</code><code class="descname">Function</code><span class="sig-paren">(</span><em>name</em>, <em>body</em>, <em>retval</em>, <em>parameters=None</em>, <em>prefix=(‘static’</em>, <em>’inline’)</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/nodes.html#Function"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.nodes.Function" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#devito.nodes.Node" title="devito.nodes.Node"><code class="xref py py-class docutils literal"><span class="pre">devito.nodes.Node</span></code></a></p>
+<p>Represent a C function.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>name</strong> – The name of the function.</li>
+<li><strong>body</strong> – A <a class="reference internal" href="#devito.nodes.Node" title="devito.nodes.Node"><code class="xref py py-class docutils literal"><span class="pre">Node</span></code></a> or an iterable of <a class="reference internal" href="#devito.nodes.Node" title="devito.nodes.Node"><code class="xref py py-class docutils literal"><span class="pre">Node</span></code></a> objects representing
+the body of the function.</li>
+<li><strong>retval</strong> – The type of the value returned by the function.</li>
+<li><strong>parameters</strong> – An iterable of <code class="xref py py-class docutils literal"><span class="pre">SymbolicData</span></code> objects in input to the
+function, or <code class="docutils literal"><span class="pre">None</span></code> if the function takes no parameter.</li>
+<li><strong>prefix</strong> – An iterable of qualifiers to prepend to the function declaration.
+The default value is (‘static’, ‘inline’).</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+<dl class="attribute">
+<dt id="devito.nodes.Function.ccode">
+<code class="descname">ccode</code><a class="headerlink" href="#devito.nodes.Function.ccode" title="Permalink to this definition">¶</a></dt>
+<dd><p>Generate C code for the represented C routine.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Returns:</th><td class="field-body"><code class="xref py py-class docutils literal"><span class="pre">cgen.FunctionDeclaration</span></code> object representing the function.</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="devito.nodes.Function.children">
+<code class="descname">children</code><a class="headerlink" href="#devito.nodes.Function.children" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="devito.nodes.Function.is_Function">
+<code class="descname">is_Function</code><em class="property"> = True</em><a class="headerlink" href="#devito.nodes.Function.is_Function" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="devito.nodes.Iteration">
+<em class="property">class </em><code class="descclassname">devito.nodes.</code><code class="descname">Iteration</code><span class="sig-paren">(</span><em>nodes</em>, <em>dimension</em>, <em>limits</em>, <em>index=None</em>, <em>offsets=None</em>, <em>properties=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/nodes.html#Iteration"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.nodes.Iteration" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#devito.nodes.Node" title="devito.nodes.Node"><code class="xref py py-class docutils literal"><span class="pre">devito.nodes.Node</span></code></a></p>
+<p>Iteration object that encapsualtes a single loop over nodes, possibly
+just SymPy expressions.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>nodes</strong> – Single or list of <a class="reference internal" href="#devito.nodes.Node" title="devito.nodes.Node"><code class="xref py py-class docutils literal"><span class="pre">Node</span></code></a> objects that
+define the loop body.</li>
+<li><strong>dimension</strong> – <code class="xref py py-class docutils literal"><span class="pre">Dimension</span></code> object over which to iterate.</li>
+<li><strong>limits</strong> – Limits for the iteration space, either the loop size or a
+tuple of the form (start, finish, stepping).</li>
+<li><strong>index</strong> – Symbol to be used as iteration variable.</li>
+<li><strong>offsets</strong> – Optional map list of offsets to honour in the loop.</li>
+<li><strong>properties</strong> – A bag of strings indicating properties of this Iteration.
+For example, the string ‘parallel’ may be used to identify
+a parallelizable Iteration.</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+<dl class="method">
+<dt id="devito.nodes.Iteration.bounds">
+<code class="descname">bounds</code><span class="sig-paren">(</span><em>start=None</em>, <em>finish=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/nodes.html#Iteration.bounds"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.nodes.Iteration.bounds" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return the start and end points of the Iteration if the limits are
+available (either statically known or provided through <code class="docutils literal"><span class="pre">start</span></code>/
+<code class="docutils literal"><span class="pre">finish</span></code>). <code class="docutils literal"><span class="pre">None</span></code> is used as a placeholder in the returned 2-tuple
+if a limit is unknown.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="devito.nodes.Iteration.bounds_symbolic">
+<code class="descname">bounds_symbolic</code><a class="headerlink" href="#devito.nodes.Iteration.bounds_symbolic" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return a 2-tuple representing the symbolic bounds of the object.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="devito.nodes.Iteration.ccode">
+<code class="descname">ccode</code><a class="headerlink" href="#devito.nodes.Iteration.ccode" title="Permalink to this definition">¶</a></dt>
+<dd><p>Generate C code for the represented stencil loop</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Returns:</th><td class="field-body"><code class="xref py py-class docutils literal"><span class="pre">cgen.For</span></code> object representing the loop</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="devito.nodes.Iteration.children">
+<code class="descname">children</code><a class="headerlink" href="#devito.nodes.Iteration.children" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return the traversable children.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="devito.nodes.Iteration.end">
+<code class="descname">end</code><span class="sig-paren">(</span><em>finish=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/nodes.html#Iteration.end"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.nodes.Iteration.end" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return the end point of the Iteration if the upper limit is known,
+<code class="docutils literal"><span class="pre">None</span></code> otherwise.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="devito.nodes.Iteration.extent">
+<code class="descname">extent</code><span class="sig-paren">(</span><em>start=None</em>, <em>finish=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/nodes.html#Iteration.extent"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.nodes.Iteration.extent" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return the number of iterations executed if the limits are known,
+<code class="docutils literal"><span class="pre">None</span></code> otherwise.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="devito.nodes.Iteration.is_Closed">
+<code class="descname">is_Closed</code><a class="headerlink" href="#devito.nodes.Iteration.is_Closed" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="devito.nodes.Iteration.is_Elementizable">
+<code class="descname">is_Elementizable</code><a class="headerlink" href="#devito.nodes.Iteration.is_Elementizable" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="devito.nodes.Iteration.is_Iteration">
+<code class="descname">is_Iteration</code><em class="property"> = True</em><a class="headerlink" href="#devito.nodes.Iteration.is_Iteration" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="devito.nodes.Iteration.is_Open">
+<code class="descname">is_Open</code><a class="headerlink" href="#devito.nodes.Iteration.is_Open" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="devito.nodes.Iteration.is_Parallel">
+<code class="descname">is_Parallel</code><a class="headerlink" href="#devito.nodes.Iteration.is_Parallel" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="devito.nodes.Iteration.is_Sequential">
+<code class="descname">is_Sequential</code><a class="headerlink" href="#devito.nodes.Iteration.is_Sequential" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="devito.nodes.Iteration.is_Vectorizable">
+<code class="descname">is_Vectorizable</code><a class="headerlink" href="#devito.nodes.Iteration.is_Vectorizable" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="devito.nodes.Iteration.start">
+<code class="descname">start</code><span class="sig-paren">(</span><em>start=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/nodes.html#Iteration.start"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.nodes.Iteration.start" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return the start point of the Iteration if the lower limit is known,
+<code class="docutils literal"><span class="pre">None</span></code> otherwise.</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="devito.nodes.List">
+<em class="property">class </em><code class="descclassname">devito.nodes.</code><code class="descname">List</code><span class="sig-paren">(</span><em>header=None</em>, <em>body=None</em>, <em>footer=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/nodes.html#List"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.nodes.List" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#devito.nodes.Block" title="devito.nodes.Block"><code class="xref py py-class docutils literal"><span class="pre">devito.nodes.Block</span></code></a></p>
+<p>Class representing a sequence of one or more statements.</p>
+<dl class="attribute">
+<dt id="devito.nodes.List.is_List">
+<code class="descname">is_List</code><em class="property"> = True</em><a class="headerlink" href="#devito.nodes.List.is_List" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="devito.nodes.TimedList">
+<em class="property">class </em><code class="descclassname">devito.nodes.</code><code class="descname">TimedList</code><span class="sig-paren">(</span><em>lname</em>, <em>gname</em>, <em>body</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/nodes.html#TimedList"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.nodes.TimedList" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#devito.nodes.List" title="devito.nodes.List"><code class="xref py py-class docutils literal"><span class="pre">devito.nodes.List</span></code></a></p>
+<p>Wrap a Node with C-level timers.</p>
+<dl class="attribute">
+<dt id="devito.nodes.TimedList.name">
+<code class="descname">name</code><a class="headerlink" href="#devito.nodes.TimedList.name" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<hr class="docutils" />
+<span class="target" id="module-devito.operator"></span><dl class="class">
 <dt id="devito.operator.Operator">
 <em class="property">class </em><code class="descclassname">devito.operator.</code><code class="descname">Operator</code><a class="reference internal" href="_modules/devito/operator.html#Operator"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.operator.Operator" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">object</span></code></p>
 </dd></dl>
 
 </div>
-<div class="section" id="devito-propagator-module">
-<h2>devito.propagator module<a class="headerlink" href="#devito-propagator-module" title="Permalink to this headline">¶</a></h2>
-</div>
-<div class="section" id="devito-stencilkernel-module">
-<h2>devito.stencilkernel module<a class="headerlink" href="#devito-stencilkernel-module" title="Permalink to this headline">¶</a></h2>
-</div>
-<div class="section" id="module-devito.dimension">
-<span id="devito-dimension-module"></span><h2>devito.dimension module<a class="headerlink" href="#module-devito.dimension" title="Permalink to this headline">¶</a></h2>
+<div class="section" id="module-devito.parameters">
+<span id="devito-parameters-module"></span><h2>devito.parameters module<a class="headerlink" href="#module-devito.parameters" title="Permalink to this headline">¶</a></h2>
+<p>The parameters dictionary contains global parameter settings.</p>
 <dl class="class">
-<dt id="devito.dimension.Dimension">
-<em class="property">class </em><code class="descclassname">devito.dimension.</code><code class="descname">Dimension</code><a class="reference internal" href="_modules/devito/dimension.html#Dimension"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.dimension.Dimension" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">sympy.core.symbol.Symbol</span></code></p>
-<dl class="attribute">
-<dt id="devito.dimension.Dimension.ccode">
-<code class="descname">ccode</code><a class="headerlink" href="#devito.dimension.Dimension.ccode" title="Permalink to this definition">¶</a></dt>
-<dd><p>C-level variable name of this dimension</p>
+<dt id="devito.parameters.Parameters">
+<em class="property">class </em><code class="descclassname">devito.parameters.</code><code class="descname">Parameters</code><span class="sig-paren">(</span><em>name=None</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/parameters.html#Parameters"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.parameters.Parameters" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">dict</span></code></p>
+<p>A dictionary-like class to hold global configuration parameters for devito
+On top of a normal dict, this provides the option to provide callback functions
+so that any interested module can be informed when the configuration changes.</p>
 </dd></dl>
 
-<dl class="attribute">
-<dt id="devito.dimension.Dimension.decl">
-<code class="descname">decl</code><a class="headerlink" href="#devito.dimension.Dimension.decl" title="Permalink to this definition">¶</a></dt>
-<dd><p>Variable declaration for C-level kernel headers</p>
-</dd></dl>
-
-<dl class="attribute">
-<dt id="devito.dimension.Dimension.default_assumptions">
-<code class="descname">default_assumptions</code><em class="property"> = {}</em><a class="headerlink" href="#devito.dimension.Dimension.default_assumptions" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="attribute">
-<dt id="devito.dimension.Dimension.dtype">
-<code class="descname">dtype</code><a class="headerlink" href="#devito.dimension.Dimension.dtype" title="Permalink to this definition">¶</a></dt>
-<dd><p>The data type of the iteration variable</p>
-</dd></dl>
-
-<dl class="attribute">
-<dt id="devito.dimension.Dimension.is_Buffered">
-<code class="descname">is_Buffered</code><em class="property"> = False</em><a class="headerlink" href="#devito.dimension.Dimension.is_Buffered" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="attribute">
-<dt id="devito.dimension.Dimension.is_Lowered">
-<code class="descname">is_Lowered</code><em class="property"> = False</em><a class="headerlink" href="#devito.dimension.Dimension.is_Lowered" title="Permalink to this definition">¶</a></dt>
-<dd><p>Index object that represents a problem dimension and thus
-defines a potential iteration space.</p>
+</div>
+<div class="section" id="module-devito.pointdata">
+<span id="devito-pointdata-module"></span><h2>devito.pointdata module<a class="headerlink" href="#module-devito.pointdata" title="Permalink to this headline">¶</a></h2>
+<dl class="class">
+<dt id="devito.pointdata.PointData">
+<em class="property">class </em><code class="descclassname">devito.pointdata.</code><code class="descname">PointData</code><span class="sig-paren">(</span><em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/pointdata.html#PointData"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.pointdata.PointData" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#devito.interfaces.DenseData" title="devito.interfaces.DenseData"><code class="xref py py-class docutils literal"><span class="pre">devito.interfaces.DenseData</span></code></a></p>
+<p>Data object for sparse point data that acts as a Function symbol</p>
 <table class="docutils field-list" frame="void" rules="none">
 <col class="field-name" />
 <col class="field-body" />
 <tbody valign="top">
 <tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
-<li><strong>size</strong> – Optional, size of the array dimension.</li>
-<li><strong>reverse</strong> – Traverse dimension in reverse order (default False)</li>
-<li><strong>buffered</strong> – Optional, boolean flag indicating whether to
-buffer variables when iterating this dimension.</li>
+<li><strong>name</strong> – Name of the resulting <code class="xref py py-class docutils literal"><span class="pre">sympy.Function</span></code> symbol</li>
+<li><strong>npoint</strong> – Number of points to sample</li>
+<li><strong>nt</strong> – Size of the time dimension for point data</li>
+<li><strong>ndim</strong> – Dimension of the coordinate data, eg. 2D or 3D</li>
+<li><strong>coordinates</strong> – Optional coordinate data for the sparse points</li>
+<li><strong>dtype</strong> – Data type of the buffered data</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+<dl class="attribute">
+<dt id="devito.pointdata.PointData.coefficients">
+<code class="descname">coefficients</code><a class="headerlink" href="#devito.pointdata.PointData.coefficients" title="Permalink to this definition">¶</a></dt>
+<dd><p>Symbolic expression for the coefficients for sparse point
+interpolation according to:
+<a class="reference external" href="https://en.wikipedia.org/wiki/Bilinear_interpolation">https://en.wikipedia.org/wiki/Bilinear_interpolation</a>.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Returns:</th><td class="field-body">List of coefficients, eg. [b_11, b_12, b_21, b_22]</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="devito.pointdata.PointData.coordinate_bases">
+<code class="descname">coordinate_bases</code><a class="headerlink" href="#devito.pointdata.PointData.coordinate_bases" title="Permalink to this definition">¶</a></dt>
+<dd><p>Symbol for the base coordinates of the reference grid point</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="devito.pointdata.PointData.coordinate_indices">
+<code class="descname">coordinate_indices</code><a class="headerlink" href="#devito.pointdata.PointData.coordinate_indices" title="Permalink to this definition">¶</a></dt>
+<dd><p>Symbol for each grid index according to the coordinates</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="devito.pointdata.PointData.coordinate_symbols">
+<code class="descname">coordinate_symbols</code><a class="headerlink" href="#devito.pointdata.PointData.coordinate_symbols" title="Permalink to this definition">¶</a></dt>
+<dd><p>Symbol representing the coordinate values in each dimension</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="devito.pointdata.PointData.default_assumptions">
+<code class="descname">default_assumptions</code><em class="property"> = {}</em><a class="headerlink" href="#devito.pointdata.PointData.default_assumptions" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="devito.pointdata.PointData.inject">
+<code class="descname">inject</code><span class="sig-paren">(</span><em>field</em>, <em>expr</em>, <em>offset=0</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/pointdata.html#PointData.inject"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.pointdata.PointData.inject" title="Permalink to this definition">¶</a></dt>
+<dd><p>Symbol for injection of an expression onto a grid</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>field</strong> – The grid field into which we inject.</li>
+<li><strong>expr</strong> – The expression to inject.</li>
+<li><strong>offset</strong> – Additional offset from the boundary for
+absorbing boundary conditions.</li>
+<li><strong>u_t</strong> – (Optional) time index to use for indexing into <cite>field</cite>.</li>
+<li><strong>p_t</strong> – (Optional) time index to use for indexing into <cite>expr</cite>.</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="devito.pointdata.PointData.interpolate">
+<code class="descname">interpolate</code><span class="sig-paren">(</span><em>expr</em>, <em>offset=0</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/pointdata.html#PointData.interpolate"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.pointdata.PointData.interpolate" title="Permalink to this definition">¶</a></dt>
+<dd><p>Creates a <code class="xref py py-class docutils literal"><span class="pre">sympy.Eq</span></code> equation for the interpolation
+of an expression onto this sparse point collection.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>expr</strong> – The expression to interpolate.</li>
+<li><strong>offset</strong> – Additional offset from the boundary for
+absorbing boundary conditions.</li>
+<li><strong>u_t</strong> – (Optional) time index to use for indexing into
+field data in <cite>expr</cite>.</li>
+<li><strong>p_t</strong> – (Optional) time index to use for indexing into
+the sparse point data.</li>
 </ul>
 </td>
 </tr>
@@ -822,19 +1494,271 @@ buffer variables when iterating this dimension.</li>
 </dd></dl>
 
 <dl class="attribute">
-<dt id="devito.dimension.Dimension.symbolic_size">
-<code class="descname">symbolic_size</code><a class="headerlink" href="#devito.dimension.Dimension.symbolic_size" title="Permalink to this definition">¶</a></dt>
-<dd><p>The symbolic size of this dimension.</p>
+<dt id="devito.pointdata.PointData.is_PointData">
+<code class="descname">is_PointData</code><em class="property"> = True</em><a class="headerlink" href="#devito.pointdata.PointData.is_PointData" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="devito.pointdata.PointData.point_increments">
+<code class="descname">point_increments</code><a class="headerlink" href="#devito.pointdata.PointData.point_increments" title="Permalink to this definition">¶</a></dt>
+<dd><p>Index increments in each dimension for each point symbol</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="devito.pointdata.PointData.point_symbols">
+<code class="descname">point_symbols</code><a class="headerlink" href="#devito.pointdata.PointData.point_symbols" title="Permalink to this definition">¶</a></dt>
+<dd><p>Symbol for coordinate value in each dimension of the point</p>
 </dd></dl>
 
 </dd></dl>
 
 </div>
-<div class="section" id="devito-iteration-module">
-<h2>devito.iteration module<a class="headerlink" href="#devito-iteration-module" title="Permalink to this headline">¶</a></h2>
+<div class="section" id="module-devito.profiler">
+<span id="devito-profiler-module"></span><h2>devito.profiler module<a class="headerlink" href="#module-devito.profiler" title="Permalink to this headline">¶</a></h2>
+<dl class="class">
+<dt id="devito.profiler.Profiler">
+<em class="property">class </em><code class="descclassname">devito.profiler.</code><code class="descname">Profiler</code><span class="sig-paren">(</span><em>openmp=False</em>, <em>dtype=&lt;type ‘numpy.float32’&gt;</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/profiler.html#Profiler"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.profiler.Profiler" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">object</span></code></p>
+<p>The Profiler class is used to manage profiling information for Devito
+generated C code.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>openmp</strong> – True if OpenMP is on.</td>
+</tr>
+</tbody>
+</table>
+<dl class="attribute">
+<dt id="devito.profiler.Profiler.TIME">
+<code class="descname">TIME</code><em class="property"> = 0</em><a class="headerlink" href="#devito.profiler.Profiler.TIME" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="devito.profiler.Profiler.add_profiling">
+<code class="descname">add_profiling</code><span class="sig-paren">(</span><em>code</em>, <em>name</em>, <em>omp_flag=None</em>, <em>to_ignore=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/profiler.html#Profiler.add_profiling"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.profiler.Profiler.add_profiling" title="Permalink to this definition">¶</a></dt>
+<dd><p>Function to add profiling code to the given <code class="xref py py-class docutils literal"><span class="pre">cgen.Block</span></code>.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>code</strong> – A list of <code class="xref py py-class docutils literal"><span class="pre">cgen.Generable</span></code> with the code to be
+profiled.</li>
+<li><strong>name</strong> – The name of the field that will contain the timings.</li>
+<li><strong>byte_size</strong> – The size in bytes of the values used in the code.
+Defaults to 4.</li>
+<li><strong>omp_flag</strong> – OpenMP flag to add before profiling operations,
+if needed.</li>
+<li><strong>to_ignore</strong> – List of strings containing the labels of
+symbols used as loop variables</li>
+</ul>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first last">A list of <code class="xref py py-class docutils literal"><span class="pre">cgen.Generable</span></code> with the added profiling
+code.</p>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="devito.profiler.Profiler.as_cgen_struct">
+<code class="descname">as_cgen_struct</code><span class="sig-paren">(</span><em>choice</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/profiler.html#Profiler.as_cgen_struct"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.profiler.Profiler.as_cgen_struct" title="Permalink to this definition">¶</a></dt>
+<dd><p>Returns the <code class="xref py py-class docutils literal"><span class="pre">cgen.Struct</span></code> relative to the profiler</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Returns:</th><td class="field-body">The struct</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="devito.profiler.Profiler.as_ctypes_pointer">
+<code class="descname">as_ctypes_pointer</code><span class="sig-paren">(</span><em>choice</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/profiler.html#Profiler.as_ctypes_pointer"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.profiler.Profiler.as_ctypes_pointer" title="Permalink to this definition">¶</a></dt>
+<dd><p>Returns a pointer to the ctypes structure for the chosen
+metric</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>choice</strong> – The structure needed</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body">The pointer</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="devito.profiler.Profiler.get_class">
+<code class="descname">get_class</code><span class="sig-paren">(</span><em>choice</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/profiler.html#Profiler.get_class"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.profiler.Profiler.get_class" title="Permalink to this definition">¶</a></dt>
+<dd><p>Returns a <code class="xref py py-class docutils literal"><span class="pre">ctypes.Structure</span></code> subclass defining our structure
+for Ois or Timings</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>choice</strong> – Profiler.OIS or Profiler.TIMINGS</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body">A class definition</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="devito.profiler.Profiler.s_name">
+<code class="descname">s_name</code><em class="property"> = ‘profiler’</em><a class="headerlink" href="#devito.profiler.Profiler.s_name" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="devito.profiler.Profiler.t_name">
+<code class="descname">t_name</code><em class="property"> = ‘timings’</em><a class="headerlink" href="#devito.profiler.Profiler.t_name" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="devito.profiler.Profiler.timings">
+<code class="descname">timings</code><a class="headerlink" href="#devito.profiler.Profiler.timings" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return the timings, up to microseconds, as a python dictionary.</p>
+</dd></dl>
+
+</dd></dl>
+
 </div>
-<div class="section" id="devito-expression-module">
-<h2>devito.expression module<a class="headerlink" href="#devito-expression-module" title="Permalink to this headline">¶</a></h2>
+<div class="section" id="module-devito.stencil">
+<span id="devito-stencil-module"></span><h2>devito.stencil module<a class="headerlink" href="#module-devito.stencil" title="Permalink to this headline">¶</a></h2>
+<dl class="class">
+<dt id="devito.stencil.Stencil">
+<em class="property">class </em><code class="descclassname">devito.stencil.</code><code class="descname">Stencil</code><span class="sig-paren">(</span><em>*args</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/stencil.html#Stencil"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.stencil.Stencil" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#devito.tools.DefaultOrderedDict" title="devito.tools.DefaultOrderedDict"><code class="xref py py-class docutils literal"><span class="pre">devito.tools.DefaultOrderedDict</span></code></a></p>
+<p>A Stencil is a mapping from <code class="xref py py-class docutils literal"><span class="pre">Dimension</span></code> symbols to the set of integer
+offsets used with it in expressions (the “neighboring points accessed”).</p>
+<p>This also include zero offsets.</p>
+<p>The mapping is ordered based on the order in which dimensions are encountered
+(if extracted from expressions) or inserted.</p>
+<p>Note: Expressions must have been indexified for a Stencil to be computed.</p>
+<dl class="method">
+<dt id="devito.stencil.Stencil.add">
+<code class="descname">add</code><span class="sig-paren">(</span><em>o</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/stencil.html#Stencil.add"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.stencil.Stencil.add" title="Permalink to this definition">¶</a></dt>
+<dd><p>Compute the set union of each Dimension in self with the corresponding
+Dimension in <code class="docutils literal"><span class="pre">o</span></code>.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="devito.stencil.Stencil.anti">
+<code class="descname">anti</code><span class="sig-paren">(</span><em>o</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/stencil.html#Stencil.anti"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.stencil.Stencil.anti" title="Permalink to this definition">¶</a></dt>
+<dd><p>Compute the anti-Stencil of <code class="docutils literal"><span class="pre">self</span></code> constrained by <code class="docutils literal"><span class="pre">o</span></code>.</p>
+<p>Assuming one single dimension (omitted for brevity)</p>
+<p>self = {-3, -2, -1, 0, 1, 2, 3}
+o = {-3, -2, -1, 0, 1, 2, 3}
+self.anti(o) &gt;&gt; {}</p>
+<p>self = {-3, -2, -1, 0, 1, 2, 3}
+o = {-2, -1, 0, 1}
+self.anti(o) &gt;&gt; {-1, 0, 1, 2}</p>
+<p>self = {-1, 0, 1}
+o = {-2, -1, 0, 1, 2}
+self.anti(o) &gt;&gt; {-1, 0, 1}</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="devito.stencil.Stencil.dimensions">
+<code class="descname">dimensions</code><a class="headerlink" href="#devito.stencil.Stencil.dimensions" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="devito.stencil.Stencil.empty">
+<code class="descname">empty</code><a class="headerlink" href="#devito.stencil.Stencil.empty" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="devito.stencil.Stencil.entries">
+<code class="descname">entries</code><a class="headerlink" href="#devito.stencil.Stencil.entries" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="classmethod">
+<dt id="devito.stencil.Stencil.extract">
+<em class="property">classmethod </em><code class="descname">extract</code><span class="sig-paren">(</span><em>expr</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/stencil.html#Stencil.extract"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.stencil.Stencil.extract" title="Permalink to this definition">¶</a></dt>
+<dd><p>Compute the stencil of <code class="docutils literal"><span class="pre">expr</span></code>.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="devito.stencil.Stencil.frozen">
+<code class="descname">frozen</code><a class="headerlink" href="#devito.stencil.Stencil.frozen" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="devito.stencil.Stencil.get">
+<code class="descname">get</code><span class="sig-paren">(</span><em>k</em>, <em>v=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/stencil.html#Stencil.get"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.stencil.Stencil.get" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="devito.stencil.Stencil.null">
+<code class="descname">null</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/stencil.html#Stencil.null"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.stencil.Stencil.null" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return the null Stencil of <code class="docutils literal"><span class="pre">self</span></code>.</p>
+<p>self = {i: {-1, 0, 1}, j: {-2, -1, 0, 1, 2}}
+self.null() &gt;&gt; {i: {0}, j: {0}}</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="devito.stencil.Stencil.rshift">
+<code class="descname">rshift</code><span class="sig-paren">(</span><em>m</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/stencil.html#Stencil.rshift"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.stencil.Stencil.rshift" title="Permalink to this definition">¶</a></dt>
+<dd><p>Right-shift the Dimensions <code class="docutils literal"><span class="pre">d</span></code> of <code class="docutils literal"><span class="pre">self</span></code> appearing in the mapper <code class="docutils literal"><span class="pre">m</span></code>
+by the constant quantity <code class="docutils literal"><span class="pre">m[d]</span></code>.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="devito.stencil.Stencil.section">
+<code class="descname">section</code><span class="sig-paren">(</span><em>d</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/stencil.html#Stencil.section"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.stencil.Stencil.section" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return a view of the Stencil in which the Dimensions in <code class="docutils literal"><span class="pre">d</span></code> have been
+dropped.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="devito.stencil.Stencil.split">
+<code class="descname">split</code><span class="sig-paren">(</span><em>ds=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/stencil.html#Stencil.split"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.stencil.Stencil.split" title="Permalink to this definition">¶</a></dt>
+<dd><p>Split <code class="docutils literal"><span class="pre">self</span></code> into two Stencils, one with the negative axis, and one
+with the positive axis. If <code class="docutils literal"><span class="pre">ds</span></code> is provided, the split occurs only
+along the Dimensions listed in <code class="docutils literal"><span class="pre">ds</span></code>.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="devito.stencil.Stencil.subtract">
+<code class="descname">subtract</code><span class="sig-paren">(</span><em>o</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/stencil.html#Stencil.subtract"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.stencil.Stencil.subtract" title="Permalink to this definition">¶</a></dt>
+<dd><p>Compute the set difference of each Dimension in self with the corresponding
+Dimension in <code class="docutils literal"><span class="pre">o</span></code>.</p>
+</dd></dl>
+
+<dl class="classmethod">
+<dt id="devito.stencil.Stencil.union">
+<em class="property">classmethod </em><code class="descname">union</code><span class="sig-paren">(</span><em>*dicts</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/stencil.html#Stencil.union"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.stencil.Stencil.union" title="Permalink to this definition">¶</a></dt>
+<dd><p>Compute the union of an iterable of <a class="reference internal" href="#devito.stencil.Stencil" title="devito.stencil.Stencil"><code class="xref py py-class docutils literal"><span class="pre">Stencil</span></code></a> objects.</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="devito.stencil.StencilEntry">
+<em class="property">class </em><code class="descclassname">devito.stencil.</code><code class="descname">StencilEntry</code><span class="sig-paren">(</span><em>dim</em>, <em>ofs</em><span class="sig-paren">)</span><a class="headerlink" href="#devito.stencil.StencilEntry" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">tuple</span></code></p>
+<dl class="attribute">
+<dt id="devito.stencil.StencilEntry.dim">
+<code class="descname">dim</code><a class="headerlink" href="#devito.stencil.StencilEntry.dim" title="Permalink to this definition">¶</a></dt>
+<dd><p>Alias for field number 0</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="devito.stencil.StencilEntry.ofs">
+<code class="descname">ofs</code><a class="headerlink" href="#devito.stencil.StencilEntry.ofs" title="Permalink to this definition">¶</a></dt>
+<dd><p>Alias for field number 1</p>
+</dd></dl>
+
+</dd></dl>
+
 </div>
 <div class="section" id="module-devito.tools">
 <span id="devito-tools-module"></span><h2>devito.tools module<a class="headerlink" href="#module-devito.tools" title="Permalink to this headline">¶</a></h2>
@@ -952,108 +1876,8 @@ possible, determinism in ensured.</p>
 </dd></dl>
 
 </div>
-<div class="section" id="module-devito.logger">
-<span id="devito-logger-module"></span><h2>devito.logger module<a class="headerlink" href="#module-devito.logger" title="Permalink to this headline">¶</a></h2>
-<p>The Devito logger.</p>
-<dl class="function">
-<dt id="devito.logger.set_log_level">
-<code class="descclassname">devito.logger.</code><code class="descname">set_log_level</code><span class="sig-paren">(</span><em>level</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/logger.html#set_log_level"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.logger.set_log_level" title="Permalink to this definition">¶</a></dt>
-<dd><p>Set the log level of the Devito logger.</p>
-<table class="docutils field-list" frame="void" rules="none">
-<col class="field-name" />
-<col class="field-body" />
-<tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>level</strong> – accepted values are: DEBUG, INFO, AUTOTUNER, DSE, DSE_WARN,
-DLE, DLE_WARN, WARNING, ERROR, CRITICAL</td>
-</tr>
-</tbody>
-</table>
-</dd></dl>
-
-<dl class="function">
-<dt id="devito.logger.set_log_noperf">
-<code class="descclassname">devito.logger.</code><code class="descname">set_log_noperf</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/logger.html#set_log_noperf"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.logger.set_log_noperf" title="Permalink to this definition">¶</a></dt>
-<dd><p>Do not print performance-related messages.</p>
-</dd></dl>
-
-<dl class="function">
-<dt id="devito.logger.log">
-<code class="descclassname">devito.logger.</code><code class="descname">log</code><span class="sig-paren">(</span><em>msg</em>, <em>level=20</em>, <em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/logger.html#log"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.logger.log" title="Permalink to this definition">¶</a></dt>
-<dd><p>Wrapper of the main Python’s logging function. Print ‘msg % args’ with
-the severity ‘level’.</p>
-<table class="docutils field-list" frame="void" rules="none">
-<col class="field-name" />
-<col class="field-body" />
-<tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
-<li><strong>msg</strong> – the message to be printed.</li>
-<li><strong>level</strong> – accepted values are: DEBUG, INFO, AUTOTUNER, DSE, DSE_WARN,
-DLE, DLE_WARN, WARNING, ERROR, CRITICAL</li>
-</ul>
-</td>
-</tr>
-</tbody>
-</table>
-</dd></dl>
-
-<dl class="function">
-<dt>
-<code class="descclassname">devito.logger.</code><code class="descname">log</code><span class="sig-paren">(</span><em>msg</em>, <em>level=20</em>, <em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/logger.html#log"><span class="viewcode-link">[source]</span></a></dt>
-<dd><p>Wrapper of the main Python’s logging function. Print ‘msg % args’ with
-the severity ‘level’.</p>
-<table class="docutils field-list" frame="void" rules="none">
-<col class="field-name" />
-<col class="field-body" />
-<tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
-<li><strong>msg</strong> – the message to be printed.</li>
-<li><strong>level</strong> – accepted values are: DEBUG, INFO, AUTOTUNER, DSE, DSE_WARN,
-DLE, DLE_WARN, WARNING, ERROR, CRITICAL</li>
-</ul>
-</td>
-</tr>
-</tbody>
-</table>
-</dd></dl>
-
-<dl class="function">
-<dt id="devito.logger.warning">
-<code class="descclassname">devito.logger.</code><code class="descname">warning</code><span class="sig-paren">(</span><em>msg</em>, <em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/logger.html#warning"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.logger.warning" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="function">
-<dt id="devito.logger.error">
-<code class="descclassname">devito.logger.</code><code class="descname">error</code><span class="sig-paren">(</span><em>msg</em>, <em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/logger.html#error"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.logger.error" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="function">
-<dt id="devito.logger.info_at">
-<code class="descclassname">devito.logger.</code><code class="descname">info_at</code><span class="sig-paren">(</span><em>msg</em>, <em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/logger.html#info_at"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.logger.info_at" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="function">
-<dt id="devito.logger.dse">
-<code class="descclassname">devito.logger.</code><code class="descname">dse</code><span class="sig-paren">(</span><em>msg</em>, <em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/logger.html#dse"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.logger.dse" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="function">
-<dt id="devito.logger.dse_warning">
-<code class="descclassname">devito.logger.</code><code class="descname">dse_warning</code><span class="sig-paren">(</span><em>msg</em>, <em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/logger.html#dse_warning"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.logger.dse_warning" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="function">
-<dt id="devito.logger.dle">
-<code class="descclassname">devito.logger.</code><code class="descname">dle</code><span class="sig-paren">(</span><em>msg</em>, <em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/logger.html#dle"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.logger.dle" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="function">
-<dt id="devito.logger.dle_warning">
-<code class="descclassname">devito.logger.</code><code class="descname">dle_warning</code><span class="sig-paren">(</span><em>msg</em>, <em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/logger.html#dle_warning"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.logger.dle_warning" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-</div>
-<div class="section" id="devito-at-controller-module">
-<h2>devito.at_controller module<a class="headerlink" href="#devito-at-controller-module" title="Permalink to this headline">¶</a></h2>
+<div class="section" id="devito-visitor-module">
+<h2>devito.visitor module<a class="headerlink" href="#devito-visitor-module" title="Permalink to this headline">¶</a></h2>
 </div>
 </div>
 

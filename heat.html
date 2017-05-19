@@ -199,19 +199,16 @@ symbol for the time-forward state of the function.</p>
 <p>We plug the stencil in an Operator, as shown, and define the values of the
 thermal conductivity <code class="xref py py-obj docutils literal"><span class="pre">a</span></code>, the spacing between cells <code class="xref py py-obj docutils literal"><span class="pre">h</span></code> and the
 temporal spacing <code class="xref py py-obj docutils literal"><span class="pre">s</span></code>.:</p>
-<div class="highlight-default"><div class="highlight"><pre><span></span><span class="n">op</span> <span class="o">=</span> <span class="n">Operator</span><span class="p">(</span>
-        <span class="n">stencils</span> <span class="o">=</span> <span class="n">Eq</span><span class="p">(</span><span class="n">u</span><span class="o">.</span><span class="n">forward</span><span class="p">,</span> <span class="n">stencil</span><span class="p">),</span>
-        <span class="n">substitutions</span> <span class="o">=</span> <span class="p">{</span><span class="n">a</span><span class="p">:</span> <span class="n">tc</span><span class="p">,</span> <span class="n">h</span><span class="p">:</span> <span class="n">dx</span><span class="p">,</span> <span class="n">s</span><span class="p">:</span> <span class="n">dt</span><span class="p">},</span>
-        <span class="n">nt</span> <span class="o">=</span> <span class="n">timesteps</span><span class="p">,</span>
-        <span class="n">shape</span> <span class="o">=</span> <span class="p">(</span><span class="n">nx</span><span class="p">,</span> <span class="n">ny</span><span class="p">),</span>
-        <span class="n">spc_border</span> <span class="o">=</span> <span class="mi">1</span><span class="p">,</span>
-        <span class="n">time_border</span> <span class="o">=</span> <span class="mi">1</span><span class="p">)</span>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="n">op</span> <span class="o">=</span> <span class="n">Operator</span><span class="p">(</span><span class="n">Eq</span><span class="p">(</span><span class="n">u</span><span class="o">.</span><span class="n">forward</span><span class="p">,</span> <span class="n">stencil</span><span class="p">),</span>
+              <span class="n">subs</span><span class="o">=</span><span class="p">{</span><span class="n">h</span><span class="p">:</span> <span class="n">spacing</span><span class="p">,</span> <span class="n">s</span><span class="p">:</span> <span class="n">dt</span><span class="p">,</span> <span class="n">a</span><span class="p">:</span> <span class="n">tc</span><span class="p">})</span>
 </pre></div>
 </div>
-<p>To execute the generated Operator, we simply call <code class="samp docutils literal"><span class="pre">op.apply()</span></code>. The
-results will then be found in <code class="xref py py-obj docutils literal"><span class="pre">u.data[1,</span> <span class="pre">:]</span></code>.</p>
-<p>For a complete example of this code, check file <cite>test_diffusion.py</cite> in the
-<cite>tests</cite> folder.</p>
+<p>To execute the generated Operator, we simply call <code class="samp docutils literal"><span class="pre">op.apply(u=u,</span>
+<span class="pre">t=timesteps)</span></code>. The results will then be found in <code class="xref py py-obj docutils literal"><span class="pre">u.data[1,</span> <span class="pre">:]</span></code>.</p>
+<p>For a complete example of this code, please see
+<cite>examples/diffusion/example_diffusion.py</cite>. A more comprehensive set of
+CFD tutorials based on the excellent <a class="reference external" href="http://lorenabarba.com/blog/cfd-python-12-steps-to-navier-stokes/">12 steps to Navier-Stokes</a>
+tutorial is currently under construction and will be published here soon.</p>
 </div>
 
 
