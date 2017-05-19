@@ -8,7 +8,7 @@ from devito.dse import as_symbol, terminals
 from devito.logger import dle
 from devito.nodes import Iteration
 from devito.tools import as_tuple, flatten
-from devito.visitors import FindSections, Transformer
+from devito.visitors import FindSections, NestedTransformer
 
 
 __all__ = ['AbstractRewriter', 'Arg', 'BlockingArg', 'State', 'dle_pass']
@@ -122,8 +122,8 @@ class AbstractRewriter(object):
     thresholds = {
         'collapse': 32,  # Available physical cores
         'elemental': 30,  # Operations
-        'max_fission': 80,  # Statements
-        'min_fission': 1  # Statements
+        'max_fission': 800,  # Statements
+        'min_fission': 20  # Statements
     }
 
     def __init__(self, nodes, params, compiler):
@@ -137,7 +137,7 @@ class AbstractRewriter(object):
         """The optimization pipeline, as a sequence of AST transformation passes."""
         state = State(self.nodes)
 
-        self._analyze_and_decorate(state)
+        self._analyze(state)
 
         self._pipeline(state)
 
@@ -145,10 +145,11 @@ class AbstractRewriter(object):
 
         return state
 
-    def _analyze_and_decorate(self, state):
+    @dle_pass
+    def _analyze(self, state):
         """
-        Analyze the Iteration/Expression trees in ``state.nodes`` and track
-        useful information for the subsequent DLE's transformation steps.
+        Analyze the Iteration/Expression trees in ``state.nodes`` to detect
+        information useful to the subsequent DLE passes.
 
         In particular, the presence of fully-parallel or "outermost-sequential
         inner-parallel" (OSIP) :class:`Iteration` trees is tracked. In an OSIP
@@ -167,8 +168,9 @@ class AbstractRewriter(object):
         # The analysis below may return "false positives" (ie, absence of fully-
         # parallel or OSIP trees when this is actually false), but this should
         # never be the case in practice, given the targeted stencil codes.
+        mapper = OrderedDict()
         for tree in candidates:
-            exprs = [e.stencil for e in sections[tree]]
+            exprs = [e.expr for e in sections[tree]]
 
             # "Prefetch" objects to speed up the analsys
             terms = {e: tuple(terminals(e.rhs)) for e in exprs}
@@ -198,22 +200,23 @@ class AbstractRewriter(object):
                         is_OSIP = True
                         break
 
-            # Track the discovered properties in the Iteration/Expression tree
+            # Track the discovered properties
             if is_OSIP:
-                args = tree[0].args
-                properties = as_tuple(args.pop('properties')) + ('sequential',)
-                mapper = {tree[0]: Iteration(properties=properties, **args)}
-                nodes = Transformer(mapper).visit(nodes)
-            mapper = {i: ('parallel',) for i in tree[is_OSIP:]}
-            if len(mapper) > 0:
-                mapper[tree[-1]] += ('vector-dim',)
-            for i in tree[is_OSIP:]:
-                args = i.args
-                properties = as_tuple(args.pop('properties')) + mapper[i]
-                propertized = Iteration(properties=properties, **args)
-                nodes = Transformer({i: propertized}).visit(nodes)
+                mapper.setdefault(tree[0], []).append('sequential')
+            for i in tree[is_OSIP:-1]:
+                mapper.setdefault(i, []).append('parallel')
+            mapper.setdefault(tree[-1], []).extend(['parallel', 'vector-dim'])
 
-        state.update(nodes=nodes)
+        # Introduce the discovered properties in the Iteration/Expression tree
+        for k, v in list(mapper.items()):
+            args = k.args
+            # 'sequential' has obviously precedence over 'parallel'
+            properties = ('sequential',) if 'sequential' in v else tuple(v)
+            properties = as_tuple(args.pop('properties')) + properties
+            mapper[k] = Iteration(properties=properties, **args)
+        nodes = NestedTransformer(mapper).visit(nodes)
+
+        return {'nodes': nodes}
 
     @abc.abstractmethod
     def _pipeline(self, state):
@@ -223,6 +226,9 @@ class AbstractRewriter(object):
         """
         Print a summary of the DLE transformations
         """
-        steps = " --> ".join("(%s)" % i for i in self.timings.keys())
+
+        row = "%s [elapsed: %.2f]"
+        out = " >>\n     ".join(row % (filter(lambda c: not c.isdigit(), k[1:]), v)
+                                for k, v in self.timings.items())
         elapsed = sum(self.timings.values())
-        dle("%s [%.2f s]" % (steps, elapsed))
+        dle("%s\n     [Total elapsed: %.2f s]" % (out, elapsed))

@@ -6,16 +6,22 @@ from devito.visitors import MergeOuterIterations
 __all__ = ['compose_nodes', 'copy_arrays']
 
 
-def compose_nodes(nodes):
+def compose_nodes(nodes, retrieve=False):
     """Build an Iteration/Expression tree by nesting the nodes in ``nodes``."""
     l = list(nodes)
+    tree = []
 
     body = l.pop(-1)
     while l:
         handle = l.pop(-1)
         body = handle._rebuild(body, **handle.args_frozen)
+        tree.append(body)
 
-    return body
+    if retrieve is True:
+        tree = list(reversed(tree))
+        return body, tree
+    else:
+        return body
 
 
 def copy_arrays(mapper, reverse=False):

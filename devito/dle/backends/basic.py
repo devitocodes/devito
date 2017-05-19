@@ -59,7 +59,7 @@ class BasicRewriter(AbstractRewriter):
 
                 # Heuristic: create elemental functions only if more than
                 # self.thresholds['elemental_functions'] operations are present
-                ops = estimate_cost([e.stencil for e in expressions])
+                ops = estimate_cost([e.expr for e in expressions])
                 if ops < self.thresholds['elemental'] and not root.is_Elementizable:
                     continue
 

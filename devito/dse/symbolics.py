@@ -1,65 +1,43 @@
-"""
-The Devito symbolic engine is built on top of SymPy and provides two
-classes of functions:
-- for inspection of expressions
-- for (in-place) manipulation of expressions
-- for creation of new objects given some expressions
-All exposed functions are prefixed with 'dse' (devito symbolic engine)
-"""
-
 from __future__ import absolute_import
 
-from collections import OrderedDict, Sequence
+from collections import OrderedDict
 from time import time
 
-from sympy import (Eq, Indexed, IndexedBase, S, Symbol, collect, collect_const,
-                   cos, flatten, numbered_symbols, preorder_traversal, sin)
-from sympy.simplify.cse_main import tree_cse
+from sympy import (Eq, Indexed, cos, sin)
 
-from devito.dimension import t, x, y, z
+from devito.dse.aliases import collect_aliases
+from devito.dse.clusterizer import clusterize
 from devito.dse.extended_sympy import bhaskara_cos, bhaskara_sin
-from devito.dse.graph import temporaries_graph
-from devito.dse.inspection import (collect_aliases, estimate_cost, estimate_memory,
-                                   is_binary_op, is_time_invariant, terminals)
-from devito.dse.manipulation import (flip_indices, rxreplace, unevaluate_arithmetic)
-from devito.interfaces import TensorFunction
+from devito.dse.inspection import estimate_cost
+from devito.dse.manipulation import (common_subexprs_elimination, collect_nested,
+                                     freeze_expression, xreplace_constrained)
+from devito.dse.queries import iq_timeinvariant, iq_timevarying
+from devito.interfaces import ScalarFunction, TensorFunction
 from devito.logger import dse, dse_warning
+from devito.tools import flatten
 
 __all__ = ['rewrite']
 
-_temp_prefix = 'temp'
 
-
-def rewrite(expr, mode='advanced'):
+def rewrite(clusters, mode='advanced'):
     """
-    Transform expressions to reduce their operation count.
+    Transform N :class:`Cluster`s of SymPy expressions into M :class:`Cluster`s
+    of SymPy expressions with reduced operation count, with M >= N.
 
-    :param expr: the target expression.
-    :param mode: drive the expression transformation. Available modes are
-                 'basic', 'factorize', 'approx-trigonometry' and 'advanced'
-                 (default). They act as follows: ::
+    :param clusters: The clusters to be transformed.
+    :param mode: drive the expression transformation as follows: ::
 
-                     * 'noop': do nothing, but track performance metrics
-                     * 'basic': apply common sub-expressions elimination.
-                     * 'factorize': apply heuristic factorization of temporaries.
-                     * 'approx-trigonometry': replace expensive trigonometric
-                         functions with suitable polynomial approximations.
-                     * 'glicm': apply heuristic hoisting of time-invariant terms.
-                     * 'split': split long expressions into smaller sub-expressions
-                          exploiting associativity and commutativity.
-                     * 'advanced': compose all known transformations.
+         * 'noop': Do nothing.
+         * 'basic': Apply common sub-expressions elimination.
+         * 'factorize': Apply heuristic factorization of temporaries.
+         * 'approx-trigonometry': Replace expensive trigonometric
+             functions with suitable polynomial approximations.
+         * 'glicm': Heuristically hoist time-invariant and cross-stencil
+             redundancies.
+         * 'advanced': Compose all known transformations.
     """
-
-    if isinstance(expr, Sequence):
-        assert all(isinstance(e, Eq) for e in expr)
-        expr = list(expr)
-    elif isinstance(expr, Eq):
-        expr = [expr]
-    else:
-        raise ValueError("Got illegal expr of type %s." % type(expr))
-
     if not mode:
-        return State(expr)
+        return clusters
     elif isinstance(mode, str):
         mode = set([mode])
     else:
@@ -67,85 +45,51 @@ def rewrite(expr, mode='advanced'):
             mode = set(mode)
         except TypeError:
             dse_warning("Arg mode must be str or tuple (got %s)" % type(mode))
-            return State(expr)
-    if mode.isdisjoint({'noop', 'basic', 'factorize', 'approx-trigonometry',
-                        'glicm', 'advanced'}):
+            return clusters
+
+    if 'noop' in mode:
+        return clusters
+    elif mode.isdisjoint(set(Rewriter.modes)):
         dse_warning("Unknown rewrite mode(s) %s" % str(mode))
-        return State(expr)
+        return clusters
     else:
-        return Rewriter(expr).run(mode)
+        processed = []
+        for cluster in clusters:
+            if cluster.is_dense:
+                rewriter = Rewriter(mode)
+            else:
+                # Downgrade sparse clusters to basic rewrite mode since it's
+                # pointless to expose loop-redundancies when the iteration space
+                # only consists of a few points
+                rewriter = Rewriter(set(['basic']), False)
+            processed.extend(rewriter.run(cluster))
+        return processed
 
 
-def dse_transformation(func):
+def dse_pass(func):
 
     def wrapper(self, state, **kwargs):
-        if kwargs['mode'].intersection(set(self.triggers[func.__name__])):
+        if self.mode.intersection(set(self.triggers[func.__name__])):
             tic = time()
-            state.update(**func(self, state))
+            state.update(flatten([func(self, c) for c in state.clusters]))
             toc = time()
 
             key = '%s%d' % (func.__name__, len(self.timings))
             self.timings[key] = toc - tic
             if self.profile:
-                self.ops[key] = estimate_cost(state.exprs)
+                candidates = [c.exprs for c in state.clusters if c.is_dense]
+                self.ops[key] = estimate_cost(flatten(candidates))
 
     return wrapper
 
 
 class State(object):
 
-    def __init__(self, exprs):
-        self.exprs = exprs
-        self.mapper = OrderedDict()
-        self.input = exprs
+    def __init__(self, cluster):
+        self.clusters = [cluster]
 
-    def update(self, exprs=None, mapper=None):
-        self.exprs = exprs or self.exprs
-        self.mapper = mapper or self.mapper
-
-    @property
-    def time_invariants(self):
-        return [i for i in self.exprs if i.lhs in self.mapper]
-
-    @property
-    def time_varying(self):
-        return [i for i in self.exprs if i not in self.time_invariants]
-
-    @property
-    def ops_time_invariants(self):
-        return estimate_cost(self.time_invariants)
-
-    @property
-    def ops_time_varying(self):
-        return estimate_cost(self.time_varying)
-
-    @property
-    def ops(self):
-        return self.ops_time_invariants + self.ops_time_varying
-
-    @property
-    def memory_time_invariants(self):
-        return estimate_memory(self.time_invariants)
-
-    @property
-    def memory_time_varying(self):
-        return estimate_memory(self.time_varying)
-
-    @property
-    def memory(self):
-        return self.memory_time_invariants + self.memory_time_varying
-
-    @property
-    def output_fields(self):
-        return [i.lhs for i in self.exprs if isinstance(i.lhs, Indexed)]
-
-    @property
-    def clusters(self):
-        """
-        Clusterize the expressions in ``self.exprs``. For more information
-        about clusters, refer to TemporariesGraph.clusters.
-        """
-        return temporaries_graph(self.exprs).clusters
+    def update(self, clusters):
+        self.clusters = clusters or self.clusters
 
 
 class Rewriter(object):
@@ -155,48 +99,131 @@ class Rewriter(object):
     """
 
     """
-    Track what options trigger a given transformation.
+    All DSE transformation modes.
+    """
+    modes = ('noop', 'basic', 'advanced',
+             'factorize', 'approx-trigonometry', 'glicm')
+
+    """
+    Name conventions for new temporaries.
+    """
+    conventions = {
+        'redundancy': 'r',
+        'time-invariant': 'ti',
+        'time-dependent': 'td',
+        'temporary': 'tcse'
+    }
+
+    """
+    Track what options trigger a given pass.
     """
     triggers = {
-        '_cse': ('basic', 'advanced'),
+        '_extract_time_varying': ('future',),
+        '_extract_time_invariants': ('advanced',),
+        '_eliminate_intra_stencil_redundancies': ('basic', 'advanced'),
+        '_eliminate_inter_stencil_redundancies': ('glicm', 'advanced'),
         '_factorize': ('factorize', 'advanced'),
-        '_optimize_trigonometry': ('approx-trigonometry', 'advanced'),
-        '_replace_time_invariants': ('glicm', 'advanced'),
-        '_split_expressions': ('split', 'devito3.0')  # TODO: -> 'advanced' upon release
+        '_optimize_trigonometry': ('approx-trigonometry',),
+        '_finalize': modes
     }
 
     """
     Bag of thresholds, to be used to trigger or prevent certain transformations.
     """
     thresholds = {
-        'expensive_expression': 100,
-        'max_operands': 40,
+        'min-cost-space-hoist': 10,
+        'min-cost-time-hoist': 200,
+        'min-cost-factorize': 100,
+        'max-operands': 40,
     }
 
-    def __init__(self, exprs, profile=False):
-        self.exprs = exprs
-
+    def __init__(self, mode, profile=True):
+        self.mode = mode
         self.profile = profile
+
         self.ops = OrderedDict()
         self.timings = OrderedDict()
 
-    def run(self, mode):
-        state = State(self.exprs)
+    def run(self, cluster):
+        state = State(cluster)
 
-        self._cse(state, mode=mode)
-        self._optimize_trigonometry(state, mode=mode)
-        self._replace_time_invariants(state, mode=mode)
-        self._split_expressions(state, mode=mode)
-        self._factorize(state, mode=mode)
+        self._extract_time_varying(state)
+        self._extract_time_invariants(state)
+        self._optimize_trigonometry(state)
+        self._eliminate_inter_stencil_redundancies(state)
+        self._eliminate_intra_stencil_redundancies(state)
+        self._factorize(state)
 
         self._finalize(state)
 
-        self._summary(mode)
+        self._summary()
 
-        return state
+        return state.clusters
 
-    @dse_transformation
-    def _factorize(self, state, **kwargs):
+    @dse_pass
+    def _extract_time_varying(self, cluster, **kwargs):
+        """
+        Extract time-varying subexpressions, and assign them to temporaries.
+        Time varying subexpressions arise for example when approximating
+        derivatives through finite differences.
+        """
+
+        template = self.conventions['time-dependent'] + "%d"
+        make = lambda i: ScalarFunction(name=template % i).indexify()
+
+        rule = iq_timevarying(cluster.trace)
+
+        cm = lambda i: estimate_cost(i) > 0
+
+        processed, _ = xreplace_constrained(cluster.exprs, make, rule, cm)
+
+        return cluster.rebuild(processed)
+
+    @dse_pass
+    def _extract_time_invariants(self, cluster, **kwargs):
+        """
+        Extract time-invariant subexpressions, and assign them to temporaries.
+        """
+
+        # Extract time invariants
+        template = self.conventions['time-invariant'] + "%d"
+        make = lambda i: ScalarFunction(name=template % i).indexify()
+
+        rule = iq_timeinvariant(cluster.trace)
+
+        cm = lambda e: estimate_cost(e) > 0
+
+        processed, found = xreplace_constrained(cluster.exprs, make, rule, cm)
+        leaves = [i for i in processed if i not in found]
+
+        # Search for common sub-expressions amongst them (and only them)
+        template = "%s%s%s" % (self.conventions['redundancy'],
+                               self.conventions['time-invariant'], '%d')
+        make = lambda i: ScalarFunction(name=template % i).indexify()
+
+        found = common_subexprs_elimination(found, make)
+
+        return cluster.rebuild(found + leaves)
+
+    @dse_pass
+    def _eliminate_intra_stencil_redundancies(self, cluster, **kwargs):
+        """
+        Perform common subexpression elimination, bypassing the scalar expressions
+        extracted in previous passes.
+        """
+
+        skip = [e for e in cluster.exprs if e.lhs.base.function.is_SymbolicFunction]
+        candidates = [e for e in cluster.exprs if e not in skip]
+
+        template = self.conventions['temporary'] + "%d"
+        make = lambda i: ScalarFunction(name=template % i).indexify()
+
+        processed = common_subexprs_elimination(candidates, make)
+
+        return cluster.rebuild(skip + processed)
+
+    @dse_pass
+    def _factorize(self, cluster, **kwargs):
         """
         Collect terms in each expr in exprs based on the following heuristic:
 
@@ -208,11 +235,11 @@ class Rewriter(object):
         """
 
         processed = []
-        for expr in state.exprs:
+        for expr in cluster.exprs:
             handle = collect_nested(expr)
             cost_handle = estimate_cost(handle)
 
-            if cost_handle >= self.thresholds['expensive_expression']:
+            if cost_handle >= self.thresholds['min-cost-factorize']:
                 handle_prev = handle
                 cost_prev = estimate_cost(expr)
                 while cost_handle < cost_prev:
@@ -222,332 +249,123 @@ class Rewriter(object):
 
             processed.append(handle)
 
-        return {'exprs': processed}
+        return cluster.rebuild(processed)
 
-    @dse_transformation
-    def _cse(self, state, **kwargs):
-        """
-        Perform common subexpression elimination.
-        """
-
-        temporaries, leaves = tree_cse(state.exprs, numbered_symbols(_temp_prefix))
-        for i in range(len(state.exprs)):
-            leaves[i] = Eq(state.exprs[i].lhs, leaves[i].rhs)
-
-        # Restore some of the common sub-expressions that have potentially
-        # been collected: simple index calculations (eg, t - 1), IndexedBase,
-        # Indexed, binary Add, binary Mul.
-        revert = OrderedDict()
-        keep = OrderedDict()
-        for k, v in temporaries:
-            if isinstance(v, (IndexedBase, Indexed)):
-                revert[k] = v
-            elif v.is_Add and not set([t, x, y, z]).isdisjoint(set(v.args)):
-                revert[k] = v
-            elif is_binary_op(v):
-                revert[k] = v
-            else:
-                keep[k] = v
-        for k, v in revert.items():
-            mapper = {}
-            for i in preorder_traversal(v):
-                if isinstance(i, Indexed):
-                    new_indices = []
-                    for index in i.indices:
-                        if index in revert:
-                            new_indices.append(revert[index])
-                        else:
-                            new_indices.append(index)
-                    if i.base.label in revert:
-                        mapper[i] = Indexed(revert[i.base.label], *new_indices)
-                if i in revert:
-                    mapper[i] = revert[i]
-            revert[k] = v.xreplace(mapper)
-        mapper = {}
-        for e in leaves + list(keep.values()):
-            for i in preorder_traversal(e):
-                if isinstance(i, Indexed):
-                    new_indices = []
-                    for index in i.indices:
-                        if index in revert:
-                            new_indices.append(revert[index])
-                        else:
-                            new_indices.append(index)
-                    if i.base.label in revert:
-                        mapper[i] = Indexed(revert[i.base.label], *new_indices)
-                    elif tuple(new_indices) != i.indices:
-                        mapper[i] = Indexed(i.base, *new_indices)
-                if i in revert:
-                    mapper[i] = revert[i]
-        leaves = rxreplace(leaves, mapper)
-        kept = rxreplace([Eq(k, v) for k, v in keep.items()], mapper)
-
-        # If the RHS of a temporary variable is the LHS of a leaf,
-        # update the value of the temporary variable after the leaf
-        new_leaves = []
-        for leaf in leaves:
-            new_leaves.append(leaf)
-            for i in kept:
-                if leaf.lhs in preorder_traversal(i.rhs):
-                    new_leaves.append(i)
-                    break
-
-        # Reshuffle to make sure temporaries come later than their read values
-        processed = OrderedDict([(i.lhs, i) for i in kept + new_leaves])
-        temporaries = set(processed.keys())
-        ordered = OrderedDict()
-        while processed:
-            k, v = processed.popitem(last=False)
-            temporary_reads = terminals(v.rhs) & temporaries - {v.lhs}
-            if all(i in ordered for i in temporary_reads):
-                ordered[k] = v
-            else:
-                # Must wait for some earlier temporaries, push back into queue
-                processed[k] = v
-
-        return {'exprs': list(ordered.values())}
-
-    @dse_transformation
-    def _optimize_trigonometry(self, state, **kwargs):
+    @dse_pass
+    def _optimize_trigonometry(self, cluster, **kwargs):
         """
         Rebuild ``exprs`` replacing trigonometric functions with Bhaskara
         polynomials.
         """
 
         processed = []
-        for expr in state.exprs:
+        for expr in cluster.exprs:
             handle = expr.replace(sin, bhaskara_sin)
             handle = handle.replace(cos, bhaskara_cos)
             processed.append(handle)
 
-        return {'exprs': processed}
+        return cluster.rebuild(processed)
 
-    @dse_transformation
-    def _replace_time_invariants(self, state, **kwargs):
+    @dse_pass
+    def _eliminate_inter_stencil_redundancies(self, cluster, **kwargs):
         """
-        Create a new expr' given expr where the longest time-invariant
-        sub-expressions are replaced by temporaries. A mapper from the
-        introduced temporaries to the corresponding time-invariant
-        sub-expressions is also returned.
+        Search for redundancies across the expressions and expose them
+        to the later stages of the optimisation pipeline by introducing
+        new temporaries of suitable rank.
+
+        Two type of redundancies are sought:
+
+            * Time-invariants, and
+            * Across different space points
 
         Examples
         ========
+        Let ``t`` be the time dimension, ``x, y, z`` the space dimensions. Then:
 
-        (a+b)*c[t] + s*d[t] + v*(d + e[t] + r)
-            --> (t1*c[t] + s*d[t] + v*(e[t] + t2), {t1: (a+b), t2: (d+r)})
-        (a*b[t] + c*d[t])*v[t]
-            --> ((a*b[t] + c*d[t])*v[t], {})
+        1) temp = (a[x,y,z]+b[x,y,z])*c[t,x,y,z]
+           >>>
+           ti[x,y,z] = a[x,y,z] + b[x,y,z]
+           temp = ti[x,y,z]*c[t,x,y,z]
+
+        2) temp1 = 2.0*a[x,y,z]*b[x,y,z]
+           temp2 = 3.0*a[x,y,z+1]*b[x,y,z+1]
+           >>>
+           ti[x,y,z] = a[x,y,z]*b[x,y,z]
+           temp1 = 2.0*ti[x,y,z]
+           temp2 = 3.0*ti[x,y,z+1]
         """
+        if cluster.is_sparse:
+            return cluster
 
-        graph = temporaries_graph(state.exprs)
-        space_indices = graph.space_indices
-        template = lambda i: TensorFunction(name="ti%d" % i, shape=graph.space_shape,
-                                            dimensions=space_indices).indexed
+        # For more information about "aliases", refer to collect_aliases.__doc__
+        mapper, aliases = collect_aliases(cluster.exprs)
 
-        # What expressions is it worth transforming (cm=cost model)?
-        # Formula: ops(expr)*aliases(expr) > self.threshold <==> do it
-        # For more information about "aliases", check out collect_aliases.__doc__
-        aliases, clusters = collect_aliases([e.rhs for e in state.exprs])
-        cm = lambda e: estimate_cost(e, True)*len(aliases.get(e, [e])) >\
-            self.thresholds['expensive_expression']
+        # Redundancies will be stored in space-varying temporaries
+        g = cluster.trace
+        indices = g.space_indices
+        shape = g.space_shape
 
-        # Replace time invariants
-        processed = OrderedDict()
-        mapper = OrderedDict()
-        queue = graph.copy()
-        while queue:
-            k, v = queue.popitem(last=False)
+        # Template for captured redundancies
+        name = self.conventions['redundancy'] + "%d"
+        template = lambda i: TensorFunction(name=name % i, shape=shape,
+                                            dimensions=indices).indexed
 
-            make = lambda m: Indexed(template(len(m)+len(mapper)), *space_indices)
-            invariant = lambda e: is_time_invariant(e, graph)
-            handle, flag, mapped = replace_invariants(v, make, invariant, cm)
-
-            # To be replacable, must be time invariant and all of the depending
-            # expressions must have been replaced too
-            if flag and all(i not in processed for i in v.reads):
-                mapper.update(mapped)
-                for i in v.readby:
-                    graph[i] = graph[i].construct({k: handle.rhs})
-            else:
-                processed[v.lhs] = graph[v.lhs].rhs
-        processed = [Eq(i, j) for i, j in processed.items()]
-
-        # Squash aliases and tweak the affected indices accordingly
-        reducible = OrderedDict()
-        others = OrderedDict()
-        for k, v in mapper.items():
-            cluster = aliases.get(v)
-            if cluster:
-                index = clusters.index(cluster)
-                reducible.setdefault(index, []).append(k)
-            else:
-                others[k] = v
-        rule = {}
-        reduced_mapper = OrderedDict()
-        for i, cluster in enumerate(reducible.values()):
-            for k in cluster:
-                v, flipped = flip_indices(mapper[k], space_indices)
-                assert len(flipped) == 1
-                reduced_mapper[Indexed(template(i), *space_indices)] = v
-                rule[k] = Indexed(template(i), *flipped.pop())
-        handle, processed = list(processed), []
-        for e in handle:
-            processed.append(e.xreplace(rule))
-        for k, v in others.items():
-            reduced_mapper[k] = v.xreplace(rule)
-
-        return {'exprs': processed, 'mapper': reduced_mapper}
-
-    @dse_transformation
-    def _split_expressions(self, state, **kwargs):
-        """
-        Search for expressions whose size in number of operands is greater than
-        ``self.thresholds['max_operands']`` and split them into smaller
-        sub-expressions, exploiting associativity and commutativity of operators.
-        """
-
-        counter = 0
+        # Find the candidate expressions
         processed = []
-        for expr in state.exprs:
-            if len(terminals(expr)) < self.thresholds['max_operands'] or\
-                    not (expr.rhs.is_Add or expr.rhs.is_Mul):
-                processed.append(expr)
-                continue
+        candidates = OrderedDict()
+        for k, v in g.items():
+            # Cost check (to keep the memory footprint under control)
+            naliases = len(mapper.get(v.rhs, []))
+            cost = estimate_cost(v, True)*naliases
+            if cost >= self.thresholds['min-cost-time-hoist'] and g.time_invariant(v):
+                candidates[v.rhs] = k
+            elif cost >= self.thresholds['min-cost-space-hoist'] and naliases > 1:
+                candidates[v.rhs] = k
+            else:
+                processed.append(Eq(k, v.rhs))
 
-            chunks = expr.rhs.args
-            targets = [Symbol("ts%d" % (counter + i)) for i in range(len(chunks))]
-            chunks = [Eq(t, e) for t, e in zip(targets, chunks)]
-            counter += len(chunks)
-            chunks.append(Eq(expr.lhs, expr.rhs.func(expr.lhs, *targets)))
-            processed.extend(chunks)
+        # Create temporaries capturing redundant computation
+        found = []
+        rules = OrderedDict()
+        stencils = []
+        for c, (origin, alias) in enumerate(aliases.items()):
+            temporary = Indexed(template(c), *indices)
+            found.append(Eq(temporary, origin))
+            # Track the stencil of each TensorFunction introduced
+            stencils.append(alias.anti_stencil.anti(cluster.stencil))
+            for aliased, distance in alias.with_distance:
+                coordinates = [sum([i, j]) for i, j in distance.items() if i in indices]
+                rules[candidates[aliased]] = Indexed(template(c), *tuple(coordinates))
 
-        return {'exprs': processed}
+        # Create the alias clusters
+        alias_clusters = clusterize(found, stencils)
+        alias_clusters = sorted(alias_clusters, key=lambda i: i.is_dense)
 
-    def _finalize(self, state):
+        # Switch temporaries in the expression trees
+        processed = [e.xreplace(rules) for e in processed]
+
+        return alias_clusters + [cluster.rebuild(processed)]
+
+    @dse_pass
+    def _finalize(self, cluster, **kwargs):
         """
-        Make sure that any subsequent sympy operation applied to the expressions
-        in ``state.exprs`` does not alter the structure of the transformed objects.
-        """
-        exprs = [Eq(k, v) for k, v in state.mapper.items()] + state.exprs
-        state.update(exprs=[unevaluate_arithmetic(e) for e in exprs])
+        Finalize the DSE output: ::
 
-    def _summary(self, mode):
+            * Freezing. Make sure that subsequent SymPy operations applied to
+              the expressions in ``cluster.exprs`` will not alter the effect of
+              the DSE passes.
+        """
+        return cluster.rebuild([freeze_expression(e) for e in cluster.exprs])
+
+    def _summary(self):
         """
         Print a summary of the DSE transformations
         """
 
-        if mode.intersection({'basic', 'advanced'}):
-            summary = " --> ".join("(%s) %s" % (filter(lambda c: not c.isdigit(), k),
-                                                str(self.ops.get(k, "")))
-                                   for k, v in self.timings.items())
-            try:
-                # The state after CSE should be used as baseline for fairness
-                baseline = self.ops['_cse0']
-                gain = float(baseline) / list(self.ops.values())[-1]
-                summary = " %s flops; gain: %.2f X" % (summary, gain)
-            except (KeyError, ZeroDivisionError):
-                pass
+        if self.profile:
+            row = "%s [flops: %s, elapsed: %.2f]"
+            summary = " >>\n     ".join(row % (filter(lambda c: not c.isdigit(), k[1:]),
+                                               str(self.ops.get(k, "?")), v)
+                                        for k, v in self.timings.items())
             elapsed = sum(self.timings.values())
-            dse("%s [%.2f s]" % (summary, elapsed))
-
-
-def collect_nested(expr):
-    """
-    Collect terms appearing in expr, checking all levels of the expression tree.
-
-    :param expr: the expression to be factorized.
-    """
-
-    def run(expr):
-        # Return semantic (rebuilt expression, factorization candidates)
-
-        if expr.is_Float:
-            return expr.func(*expr.atoms()), [expr]
-        elif isinstance(expr, Indexed):
-            return expr.func(*expr.args), []
-        elif expr.is_Symbol:
-            return expr.func(expr.name), [expr]
-        elif expr in [S.Zero, S.One, S.NegativeOne, S.Half]:
-            return expr.func(), [expr]
-        elif expr.is_Atom:
-            return expr.func(*expr.atoms()), []
-        elif expr.is_Add:
-            rebuilt, candidates = zip(*[run(arg) for arg in expr.args])
-
-            w_numbers = [i for i in rebuilt if any(j.is_Number for j in i.args)]
-            wo_numbers = [i for i in rebuilt if i not in w_numbers]
-
-            w_numbers = collect_const(expr.func(*w_numbers))
-            wo_numbers = expr.func(*wo_numbers)
-
-            if wo_numbers:
-                for i in flatten(candidates):
-                    wo_numbers = collect(wo_numbers, i)
-
-            rebuilt = expr.func(w_numbers, wo_numbers)
-            return rebuilt, []
-        elif expr.is_Mul:
-            rebuilt, candidates = zip(*[run(arg) for arg in expr.args])
-            rebuilt = collect_const(expr.func(*rebuilt))
-            return rebuilt, flatten(candidates)
-        else:
-            rebuilt, candidates = zip(*[run(arg) for arg in expr.args])
-            return expr.func(*rebuilt), flatten(candidates)
-
-    return run(expr)[0]
-
-
-def replace_invariants(expr, make, invariant=lambda e: e, cm=lambda e: True):
-    """
-    Replace all sub-expressions of ``expr`` such that ``invariant(expr) == True``
-    with a temporary created through ``make(expr)``. A sub-expression ``e``
-    within ``expr`` is not visited if ``cm(e) == False``.
-    """
-
-    def run(expr, root, mapper):
-        # Return semantic: (rebuilt expr, True <==> invariant)
-
-        if expr.is_Float:
-            return expr.func(*expr.atoms()), True
-        elif expr in [S.Zero, S.One, S.NegativeOne, S.Half]:
-            return expr.func(), True
-        elif expr.is_Symbol:
-            return expr.func(expr.name), invariant(expr)
-        elif expr.is_Atom:
-            return expr.func(*expr.atoms()), True
-        elif isinstance(expr, Indexed):
-            return expr.func(*expr.args), invariant(expr)
-        elif expr.is_Equality:
-            handle, flag = run(expr.rhs, expr.rhs, mapper)
-            return expr.func(expr.lhs, handle, evaluate=False), flag
-        else:
-            children = [run(a, root, mapper) for a in expr.args]
-            invs = [a for a, flag in children if flag]
-            varying = [a for a, _ in children if a not in invs]
-            if not invs:
-                # Nothing is time-invariant
-                return (expr.func(*varying, evaluate=False), False)
-            elif len(invs) == len(children):
-                # Everything is time-invariant
-                if expr == root:
-                    if cm(expr):
-                        temporary = make(mapper)
-                        mapper[temporary] = expr.func(*invs, evaluate=False)
-                        return temporary, True
-                    else:
-                        return expr.func(*invs, evaluate=False), False
-                else:
-                    # Go look for longer expressions first
-                    return expr.func(*invs, evaluate=False), True
-            else:
-                # Some children are time-invariant, but expr is time-dependent
-                if cm(expr) and len(invs) > 1:
-                    temporary = make(mapper)
-                    mapper[temporary] = expr.func(*invs, evaluate=False)
-                    return expr.func(*(varying + [temporary]), evaluate=False), False
-                else:
-                    return expr.func(*(varying + invs), evaluate=False), False
-
-    mapper = OrderedDict()
-    handle, flag = run(expr, expr, mapper)
-    return handle, flag, mapper
+            dse("%s\n     [Total elapsed: %.2f s]" % (summary, elapsed))

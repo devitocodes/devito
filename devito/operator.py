@@ -8,23 +8,25 @@ from itertools import combinations
 
 import cgen as c
 import numpy as np
+import sympy
 
 from devito.cgen_utils import Allocator, blankline
 from devito.compiler import (get_compiler_from_env, jit_compile, load)
 from devito.dimension import BufferedDimension, Dimension, time
-from devito.dle import filter_iterations, transform
-from devito.dse import (estimate_cost, estimate_memory, indexify, rewrite)
+from devito.dle import compose_nodes, filter_iterations, transform
+from devito.dse import (clusterize, estimate_cost, estimate_memory, indexify,
+                        rewrite, q_indexed)
 from devito.interfaces import SymbolicData, Forward, Backward
 from devito.logger import bar, error, info, info_at
 from devito.nodes import (Element, Expression, Function, Iteration, List,
                           LocalExpression, TimedList)
 from devito.profiler import Profiler
-from devito.tools import (SetOrderedDict, as_tuple, filter_ordered, filter_sorted,
-                          flatten, partial_order)
+from devito.stencil import Stencil
+from devito.tools import as_tuple, filter_ordered, flatten
 from devito.visitors import (FindNodes, FindSections, FindSymbols, FindScopes,
-                             IsPerfectIteration, MergeOuterIterations,
-                             ResolveIterationVariable, SubstituteExpression, Transformer)
-from devito.exceptions import InvalidArgument
+                             IsPerfectIteration, ResolveIterationVariable,
+                             SubstituteExpression, Transformer)
+from devito.exceptions import InvalidArgument, InvalidOperator
 
 __all__ = ['Operator']
 
@@ -37,13 +39,13 @@ class OperatorBasic(Function):
     """A special :class:`Function` to generate and compile C code evaluating
     an ordered sequence of stencil expressions.
 
-    :param stencils: SymPy equation or list of equations that define the
-                     stencil used to create the kernel of this Operator.
+    :param expressions: SymPy equation or list of equations that define the
+                        the kernel of this Operator.
     :param kwargs: Accept the following entries: ::
 
         * name : Name of the kernel function - defaults to "Kernel".
-        * subs : Dict or list of dicts containing the SymPy symbol
-                 substitutions for each stencil respectively.
+        * subs : Dict or list of dicts containing SymPy symbol substitutions
+                 for each expression respectively.
         * time_axis : :class:`TimeAxis` object to indicate direction in which
                       to advance time during computation.
         * dse : Use the Devito Symbolic Engine to optimize the expressions -
@@ -54,7 +56,13 @@ class OperatorBasic(Function):
                     If not provided, the compiler will be inferred from the
                     environment variable DEVITO_ARCH, or default to GNUCompiler.
     """
-    def __init__(self, stencils, **kwargs):
+    def __init__(self, expressions, **kwargs):
+        expressions = as_tuple(expressions)
+
+        # Input check
+        if any(not isinstance(i, sympy.Eq) for i in expressions):
+            raise InvalidOperator("Only SymPy expressions are allowed.")
+
         self.name = kwargs.get("name", "Kernel")
         subs = kwargs.get("subs", {})
         time_axis = kwargs.get("time_axis", Forward)
@@ -70,18 +78,26 @@ class OperatorBasic(Function):
         # Set the direction of time acoording to the given TimeAxis
         time.reverse = time_axis == Backward
 
-        # Normalize the collection of stencils
-        stencils = [indexify(s) for s in as_tuple(stencils)]
-        stencils = [s.xreplace(subs) for s in stencils]
+        # Expression lowering
+        expressions = [indexify(s) for s in expressions]
+        expressions = [s.xreplace(subs) for s in expressions]
 
-        # Retrieve the data type of the Operator
-        self.dtype = self._retrieve_dtype(stencils)
+        # Analysis 1 - required *also after* the Operator construction
+        self.dtype = self._retrieve_dtype(expressions)
+        self.output = self._retrieve_output_fields(expressions)
+
+        # Analysis 2 - required *for* the Operator construction
+        ordering = self._retrieve_loop_ordering(expressions)
+        stencils = self._retrieve_stencils(expressions)
+
+        # Group expressions based on their Stencil
+        clusters = clusterize(expressions, stencils)
 
         # Apply the Devito Symbolic Engine for symbolic optimization
-        dse_state = rewrite(stencils, mode=dse)
+        clusters = rewrite(clusters, mode=dse)
 
         # Wrap expressions with Iterations according to dimensions
-        nodes = self._schedule_expressions(dse_state)
+        nodes = self._schedule_expressions(clusters, ordering)
 
         # Introduce C-level profiling infrastructure
         self.sections = OrderedDict()
@@ -108,8 +124,7 @@ class OperatorBasic(Function):
         nodes, elemental_functions = self._insert_declarations(dle_state, parameters)
         self.elemental_functions = elemental_functions
 
-        # Track the DSE and DLE output, as they may be useful later
-        self._dse_state = dse_state
+        # Track the DLE output, as it might be useful at execution time
         self._dle_state = dle_state
 
         # Finish instantiation
@@ -291,50 +306,48 @@ class OperatorBasic(Function):
         as if blocking were not applied (ie, unitary block size)."""
         pass
 
-    def _schedule_expressions(self, dse_state):
-        """Wrap :class:`Expression` objects within suitable hierarchies of
-        :class:`Iteration` according to dimensions.
-        """
-        functions = flatten(Expression(i).functions for i in dse_state.input)
-        ordering = partial_order([i.indices for i in functions])
+    def _schedule_expressions(self, clusters, ordering):
+        """Wrap :class:`Expression` objects, already grouped in :class:`Cluster`
+        objects, within nested :class:`Iteration` objects (representing loops),
+        according to dimensions and stencils."""
 
         processed = []
-        for cluster in dse_state.clusters:
-            # Build declarations or assignments
-            body = [Expression(v, np.int32 if cluster.is_index(k) else self.dtype)
-                    for k, v in cluster.items()]
-            offsets = SetOrderedDict.union(*[i.index_offsets for i in body])
+        schedule = OrderedDict()
+        for i in clusters:
+            # Build the Expression objects to be inserted within an Iteration tree
+            expressions = [Expression(v, np.int32 if i.trace.is_index(k) else self.dtype)
+                           for k, v in i.trace.items()]
 
-            # Filter out aliasing due to buffered dimensions
-            key = lambda d: d.parent if d.is_Buffered else d
-            dimensions = filter_ordered(list(offsets.keys()), key=key)
+            if not i.stencil.empty:
+                root = None
+                entries = i.stencil.entries
 
-            # Determine a total ordering for the dimensions
-            dimensions = filter_sorted(dimensions, key=lambda d: ordering.index(d))
-            for d in reversed(dimensions):
-                body = Iteration(body, dimension=d, limits=d.size, offsets=offsets[d])
-            processed.append(body)
+                # Can I reuse any of the previously scheduled Iterations ?
+                for index, j in enumerate(entries):
+                    if j not in schedule:
+                        break
+                    root = schedule[j]
+                needed = entries[index:]
 
-        # Merge Iterations iff outermost iterations agree
-        processed = MergeOuterIterations().visit(processed)
-
-        # Remove temporaries became redundat after squashing Iterations
-        mapper = {}
-        for k, v in FindSections().visit(processed).items():
-            candidate = k[-1]
-            if not IsPerfectIteration().visit(candidate):
-                continue
-            found = set()
-            trimmed = []
-            for n in v:
-                if n.is_Expression:
-                    if n.stencil not in found:
-                        trimmed.append(n)
-                        found.add(n.stencil)
+                # Build and insert the required Iterations
+                iters = [Iteration([], j.dim, j.dim.size, offsets=j.ofs) for j in needed]
+                body, tree = compose_nodes(iters + [expressions], retrieve=True)
+                scheduling = OrderedDict(zip(needed, tree))
+                if root is None:
+                    processed.append(body)
+                    schedule = scheduling
                 else:
-                    trimmed.append(n)
-            mapper[candidate] = Iteration(trimmed, **candidate.args_frozen)
-        processed = Transformer(mapper).visit(processed)
+                    nodes = list(root.nodes) + [body]
+                    mapper = {root: root._rebuild(nodes, **root.args_frozen)}
+                    transformer = Transformer(mapper)
+                    processed = list(transformer.visit(processed))
+                    schedule = OrderedDict(list(schedule.items())[:index] +
+                                           list(scheduling.items()))
+                    for k, v in list(schedule.items()):
+                        schedule[k] = transformer.rebuilt.get(v, v)
+            else:
+                # No Iterations are needed
+                processed.extend(expressions)
 
         return processed
 
@@ -386,16 +399,46 @@ class OperatorBasic(Function):
 
         return nodes, elemental_functions
 
-    def _retrieve_dtype(self, stencils):
+    def _retrieve_dtype(self, expressions):
         """
-        Retrieve the data type of a set of stencils. Raise an error if there
-        is no common data type (ie, if at least one stencil differs in the
+        Retrieve the data type of a set of expressions. Raise an error if there
+        is no common data type (ie, if at least one expression differs in the
         data type).
         """
-        lhss = set([s.lhs.base.function.dtype for s in stencils])
+        lhss = set([s.lhs.base.function.dtype for s in expressions])
         if len(lhss) != 1:
-            raise RuntimeError("Stencil types mismatch.")
+            raise RuntimeError("Expression types mismatch.")
         return lhss.pop()
+
+    def _retrieve_loop_ordering(self, expressions):
+        """
+        Establish a partial ordering for the loops that will appear in the code
+        generated by the Operator, based on the order in which dimensions
+        appear in the input expressions.
+        """
+        ordering = []
+        for i in flatten(Stencil(i).dimensions for i in expressions):
+            if i not in ordering:
+                ordering.extend([i, i.parent] if i.is_Buffered else [i])
+        return ordering
+
+    def _retrieve_output_fields(self, expressions):
+        """Retrieve the fields computed by the Operator."""
+        return [i.lhs.base.function for i in expressions if q_indexed(i.lhs)]
+
+    def _retrieve_stencils(self, expressions):
+        """Determine the :class:`Stencil` of each provided expression."""
+        stencils = [Stencil(i) for i in expressions]
+        dimensions = set.union(*[set(i.dimensions) for i in stencils])
+
+        # Filter out aliasing buffered dimensions
+        mapper = {d.parent: d for d in dimensions if d.is_Buffered}
+        for i in list(stencils):
+            for d in i.dimensions:
+                if d in mapper:
+                    i[mapper[d]] = i.pop(d).union(i.get(mapper[d], set()))
+
+        return stencils
 
     @property
     def _cparameters(self):
@@ -460,22 +503,22 @@ class OperatorCore(OperatorBasic):
     def _profile_sections(self, nodes):
         """Introduce C-level profiling nodes within the Iteration/Expression tree."""
         mapper = {}
-        for i, expr in enumerate(nodes):
-            for itspace in FindSections().visit(expr).keys():
-                for j in itspace:
-                    if IsPerfectIteration().visit(j) and j not in mapper:
+        for node in nodes:
+            for itspace in FindSections().visit(node).keys():
+                for i in itspace:
+                    if IsPerfectIteration().visit(i):
                         # Insert `TimedList` block. This should come from
                         # the profiler, but we do this manually for now.
-                        lname = 'loop_%s_%d' % (j.index, len(mapper))
-                        mapper[j] = TimedList(gname=self.profiler.t_name,
-                                              lname=lname, body=j)
+                        lname = 'loop_%s_%d' % (i.index, len(mapper))
+                        mapper[i] = TimedList(gname=self.profiler.t_name,
+                                              lname=lname, body=i)
                         self.profiler.t_fields += [(lname, c_double)]
 
                         # Estimate computational properties of the timed section
                         # (operational intensity, memory accesses)
-                        expressions = FindNodes(Expression).visit(j)
-                        ops = estimate_cost([e.stencil for e in expressions])
-                        memory = estimate_memory([e.stencil for e in expressions])
+                        expressions = FindNodes(Expression).visit(i)
+                        ops = estimate_cost([e.expr for e in expressions])
+                        memory = estimate_memory([e.expr for e in expressions])
                         self.sections[itspace] = Profile(lname, ops, memory)
                         break
         processed = Transformer(mapper).visit(List(body=nodes))
@@ -530,7 +573,7 @@ class OperatorCore(OperatorBasic):
         at_arguments = arguments.copy()
 
         # Output data must not be changed
-        output = [i.base.label.name for i in self._dse_state.output_fields]
+        output = [i.name for i in self.output]
         for k, v in arguments.items():
             if k in output:
                 at_arguments[k] = v.copy()

@@ -1,15 +1,14 @@
-import numpy as np
-from sympy import (Function, Indexed, Number, Symbol, cos, count_ops, lambdify,
+from collections import OrderedDict
+
+from sympy import (Function, Indexed, Number, Symbol, cos, lambdify,
                    preorder_traversal, sin)
 
 from devito.dimension import Dimension, t
-from devito.interfaces import SymbolicData
+from devito.dse.search import retrieve_indexed, retrieve_ops, search
 from devito.logger import warning
 from devito.tools import flatten
 
-__all__ = ['estimate_cost', 'estimate_memory', 'indexify', 'is_binary_op',
-           'is_indirect', 'retrieve_dimensions', 'retrieve_dtype', 'retrieve_symbols',
-           'retrieve_shape', 'retrieve_indexed', 'retrieve_trigonometry', 'as_symbol',
+__all__ = ['estimate_cost', 'estimate_memory', 'indexify', 'as_symbol',
            'terminals', 'tolambda']
 
 
@@ -33,82 +32,28 @@ def terminals(expr, discard_indexed=False):
         return indexed
 
 
-def collect_aliases(exprs):
+def count(exprs, query):
     """
-    Determine all expressions in ``exprs`` that alias to the same expression.
-
-    An expression A aliases an expression B if both A and B apply the same
-    operations to the same input operands, with the possibility for
-    :class:`Indexed` to index into locations at a fixed constant offset in
-    each dimension.
-
-    For example: ::
-
-        exprs = (a[i+1] + b[i+1], a[i+1] + b[j+1], a[i] + c[i],
-                 a[i+2] - b[i+2], a[i+2] + b[i], a[i-1] + b[i-1])
-
-    The following expressions in ``exprs`` alias to ``a[i] + b[i]``: ::
-
-        ``(a[i+1] + b[i+1], a[i-1] + b[i-1])``
-
-    Whereas the following do not: ::
-
-        ``a[i+1] + b[j+1]``: because at least one index differs
-        ``a[i] + c[i]``: because at least one of the operands differs
-        ``a[i+2] - b[i+2]``: because at least one operation differs
-        ``a[i+2] + b[i]``: because there are two offsets (+2 and +0)
+    Return a mapper ``{(k, v)}`` where ``k`` is a sub-expression in ``exprs``
+    matching ``query`` and ``v`` is the number of its occurrences.
     """
-
-    def check_ofs(e):
-        return len(set([i.indices for i in retrieve_indexed(e)])) <= 1
-
-    def compare_ops(e1, e2):
-        if type(e1) == type(e2) and len(e1.args) == len(e2.args):
-            if e1.is_Atom:
-                return True if e1 == e2 else False
-            elif isinstance(e1, Indexed) and isinstance(e2, Indexed):
-                return True if e1.base == e2.base else False
-            else:
-                for a1, a2 in zip(e1.args, e2.args):
-                    if not compare_ops(a1, a2):
-                        return False
-                return True
-        else:
-            return False
-
-    def compare(e1, e2):
-        return compare_ops(e1, e2) and check_ofs(e1) and check_ofs(e2)
-
-    found = {}
-    clusters = []
-    unseen = list(exprs)
-    while unseen:
-        handle = unseen[0]
-        alias = []
-        for e in list(unseen):
-            if compare(handle, e):
-                alias.append(e)
-                unseen.remove(e)
-        if alias:
-            cluster = tuple(alias)
-            for e in alias:
-                found[e] = cluster
-            clusters.append(cluster)
-        else:
-            unseen.remove(handle)
-            found[handle] = ()
-
-    return found, clusters
+    mapper = OrderedDict()
+    for expr in exprs:
+        found = search(expr, query, 'all', 'bfs')
+        for i in found:
+            mapper.setdefault(i, 0)
+            mapper[i] += 1
+    return mapper
 
 
-def estimate_cost(handle, estimate_external_functions=False):
+def estimate_cost(handle, estimate_functions=False):
     """Estimate the operation count of ``handle``.
 
     :param handle: a SymPy expression or an iterator of SymPy expressions.
-    :param estimate_external_functions: approximate the operation count of known
-                                        functions (eg, sin, cos).
+    :param estimate_functions: approximate the operation count of known
+                               functions (eg, sin, cos).
     """
-    internal_ops = {'trigonometry': 50}
+    external_functions = {sin: 50, cos: 50}
     try:
         # Is it a plain SymPy object ?
         iter(handle)
@@ -125,16 +70,21 @@ def estimate_cost(handle, estimate_external_functions=False):
             pass
     try:
         # At this point it must be a list of SymPy objects
-        # We don't count non floating point operations
+        # We don't use SymPy's count_ops because we do not count integer arithmetic
+        # (e.g., array index functions such as i+1 in A[i+1])
+        # Also, the routine below is *much* faster than count_ops
         handle = [i.rhs if i.is_Equality else i for i in handle]
-        total_ops = count_ops(handle)
-        indexed = flatten(retrieve_indexed(i, mode='all') for i in handle)
-        offsets = flatten(i.indices for i in indexed)
-        non_flops = [True for i in offsets if i.is_Add].count(True)
-        if estimate_external_functions:
-            costly_ops = [retrieve_trigonometry(i) for i in handle]
-            total_ops += sum([internal_ops['trigonometry']*len(i) for i in costly_ops])
-        return total_ops - non_flops
+        operations = flatten(retrieve_ops(i) for i in handle)
+        flops = 0
+        for op in operations:
+            if op.is_Function:
+                if estimate_functions:
+                    flops += external_functions.get(op.__class__, 1)
+                else:
+                    flops += 1
+            else:
+                flops += len(op.args) - (1 + sum(True for i in op.args if i.is_Integer))
+        return flops
     except:
         warning("Cannot estimate cost of %s" % str(handle))
 
@@ -182,125 +132,6 @@ def estimate_memory(handle, mode='realistic'):
         return len(reads) + len(writes)
 
 
-def retrieve_dimensions(expr):
-    """
-    Collect all function dimensions used in a sympy expression.
-    """
-    dimensions = []
-
-    for e in preorder_traversal(expr):
-        if isinstance(e, SymbolicData):
-            dimensions += [i for i in e.indices if i not in dimensions]
-
-    return dimensions
-
-
-def retrieve_symbols(expr):
-    """
-    Collect defined and undefined symbols used in a sympy expression.
-
-    Defined symbols are functions that have an associated :class
-    SymbolicData: object, or dimensions that are known to the devito
-    engine. Undefined symbols are generic `sympy.Function` or
-    `sympy.Symbol` objects that need to be substituted before generating
-    operator C code.
-    """
-    defined = set()
-    undefined = set()
-
-    for e in preorder_traversal(expr):
-        if isinstance(e, SymbolicData):
-            defined.add(e.func(*e.indices))
-        elif isinstance(e, Function):
-            undefined.add(e)
-        elif isinstance(e, Symbol):
-            undefined.add(e)
-
-    return list(defined), list(undefined)
-
-
-def retrieve_dtype(expr):
-    """
-    Try to infer the data type of an expression.
-    """
-    dtypes = [e.dtype for e in preorder_traversal(expr) if hasattr(e, 'dtype')]
-    return np.find_common_type(dtypes, [])
-
-
-def retrieve_shape(expr):
-    indexed = set([e for e in preorder_traversal(expr) if isinstance(e, Indexed)])
-    if not indexed:
-        return ()
-    indexed = sorted(indexed, key=lambda s: len(s.indices), reverse=True)
-    indices = [flatten([j.free_symbols for j in i.indices]) for i in indexed]
-    assert all(set(indices[0]).issuperset(set(i)) for i in indices)
-    return tuple(indices[0])
-
-
-def retrieve(expr, query, mode):
-    """
-    Find objects in an expression. This is much quicker than the more general
-    SymPy's find.
-
-    :param expr: The searched expression
-    :param query: Search query (accepted: 'indexed', 'trigonometry')
-    :param mode: either 'unique' or 'all' (catch all instances)
-    """
-
-    class Set(set):
-
-        @staticmethod
-        def wrap(obj):
-            return {obj}
-
-    class List(list):
-
-        @staticmethod
-        def wrap(obj):
-            return [obj]
-
-        def update(self, obj):
-            return self.extend(obj)
-
-    rules = {
-        'indexed': lambda e: isinstance(e, Indexed),
-        'trigonometry': lambda e: e.is_Function and e.func in [sin, cos]
-    }
-    modes = {
-        'unique': Set,
-        'all': List
-    }
-    assert mode in modes
-    collection = modes[mode]
-    assert query in rules, "Unknown query"
-    rule = rules[query]
-
-    def run(expr):
-        if rule(expr):
-            return collection.wrap(expr)
-        else:
-            found = collection()
-            for a in expr.args:
-                found.update(run(a))
-            return found
-
-    return run(expr)
-
-
-def retrieve_indexed(expr, mode='unique'):
-    """
-    Shorthand for ``retrieve(expr, 'indexed', 'unique')``.
-    """
-    return retrieve(expr, 'indexed', mode)
-
-
-def retrieve_trigonometry(expr, mode='unique'):
-    """
-    Shorthand for ``retrieve(expr, 'trigonometry', 'unique')``.
-    """
-    return retrieve(expr, 'trigonometry', mode)
-
-
 def as_symbol(expr):
     """
     Extract the "main" symbol from a SymPy object.
@@ -321,63 +152,6 @@ def as_symbol(expr):
         return Symbol(expr.name)
     else:
         raise TypeError("Cannot extract symbol from type %s" % type(expr))
-
-
-def is_time_invariant(expr, graph=None):
-    """
-    Check if expr is time invariant. A temporaries graph may be provided
-    to determine whether any of the symbols involved in the evaluation
-    of expr are time-dependent. If a symbol in expr does not appear in the
-    graph, then time invariance is inferred from its shape.
-    """
-    graph = graph or {}
-
-    if t in expr.free_symbols:
-        return False
-
-    if expr.is_Equality:
-        to_visit = [expr.rhs]
-    else:
-        to_visit = [expr]
-
-    while to_visit:
-        handle = to_visit.pop()
-        for i in retrieve_indexed(handle):
-            if t in i.free_symbols:
-                return False
-        temporaries = [i for i in handle.free_symbols if i in graph]
-        for i in temporaries:
-            to_visit.append(graph[i].rhs)
-
-    return True
-
-
-def is_binary_op(expr):
-    """
-    Return True if ``expr`` is a binary operation, False otherwise.
-    """
-
-    if not (expr.is_Add or expr.is_Mul) and not len(expr.args) == 2:
-        return False
-
-    return all(isinstance(a, (Number, Symbol, Indexed)) for a in expr.args)
-
-
-def is_indirect(indexed):
-    """
-    Return True if ``indexed`` has indirect accesses, False otherwise.
-
-    Examples
-    ========
-    a[i] --> False
-    a[b[i]] --> True
-    """
-    if not isinstance(indexed, Indexed):
-        return False
-    if any(retrieve_indexed(i) for i in indexed.indices):
-        return True
-    else:
-        return False
 
 
 def indexify(expr):

@@ -14,13 +14,13 @@ import cgen as c
 from sympy import Symbol
 
 from devito.dimension import LoweredDimension
-from devito.nodes import Iteration, List
+from devito.nodes import Iteration, List, Node
 from devito.tools import as_tuple, filter_ordered, filter_sorted, flatten
 
 
 __all__ = ['FindNodes', 'FindSections', 'FindSymbols', 'FindScopes',
-           'IsPerfectIteration', 'SubstituteExpression',
-           'ResolveIterationVariable', 'Transformer', 'printAST']
+           'IsPerfectIteration', 'SubstituteExpression', 'printAST',
+           'ResolveIterationVariable', 'Transformer', 'NestedTransformer']
 
 
 class Visitor(object):
@@ -206,7 +206,7 @@ class PrintAST(Visitor):
 
     def visit_Expression(self, o):
         if self.verbose:
-            body = "%s = %s" % (o.stencil.lhs, o.stencil.rhs)
+            body = "%s = %s" % (o.expr.lhs, o.expr.rhs)
             return self.indent + "<Expression %s>" % body
         else:
             return self.indent + str(o)
@@ -297,7 +297,7 @@ class FindSymbols(Visitor):
         'kernel-data': lambda e: [i for i in e.functions if i.is_SymbolicData],
         'symbolics': lambda e: e.functions,
         'symbolics-writes': lambda e: as_tuple(e.output_function),
-        'free-symbols': lambda e: e.stencil.free_symbols,
+        'free-symbols': lambda e: e.expr.free_symbols,
         'dimensions': lambda e: e.dimensions,
     }
 
@@ -387,11 +387,13 @@ class Transformer(Visitor):
 
     """Given an Iteration/Expression tree T and a mapper from nodes in T to
     a set of new nodes L, M : N --> L, build a new Iteration/Expression tree T'
-    where a node ``n`` in N is replaced with ``M[n]``."""
+    where a node ``n`` in N is replaced with ``M[n]``.
+    """
 
     def __init__(self, mapper={}):
         super(Transformer, self).__init__()
-        self.mapper = mapper
+        self.mapper = mapper.copy()
+        self.rebuilt = {}
 
     def visit_object(self, o, **kwargs):
         return o
@@ -409,6 +411,24 @@ class Transformer(Visitor):
             rebuilt = [self.visit(i, **kwargs) for i in o.children]
             return o._rebuild(*rebuilt, **o.args_frozen)
 
+    def visit(self, o, *args, **kwargs):
+        obj = super(Transformer, self).visit(o, *args, **kwargs)
+        if isinstance(o, Node) and obj is not o:
+            self.rebuilt[o] = obj
+        return obj
+
+
+class NestedTransformer(Transformer):
+    """
+    As opposed to a :class:`Transformer`, a :class:`NestedTransforer` applies
+    replacements in a depth-first fashion.
+    """
+
+    def visit_Node(self, o, **kwargs):
+        rebuilt = [self.visit(i, **kwargs) for i in o.children]
+        handle = self.mapper.get(o, o)
+        return handle._rebuild(*rebuilt, **handle.args_frozen)
+
 
 class SubstituteExpression(Transformer):
     """
@@ -424,7 +444,7 @@ class SubstituteExpression(Transformer):
 
     def visit_Expression(self, o):
         o.substitute(self.subs)
-        return o._rebuild(stencil=o.stencil)
+        return o._rebuild(expr=o.expr)
 
 
 class ResolveIterationVariable(Transformer):
@@ -465,7 +485,7 @@ class ResolveIterationVariable(Transformer):
 
     def visit_Expression(self, o, subs={}, offsets=defaultdict(set)):
         """Collect all offsets used with a dimension"""
-        for dim, offs in o.index_offsets.items():
+        for dim, offs in o.stencil.entries:
             offsets[dim].update(offs)
         return o
 
@@ -483,12 +503,13 @@ class MergeOuterIterations(Transformer):
         between the loops. A deeper analysis is required for this that
         will be added soon.
         """
-        equal = (iter1.dim == iter2.dim and
-                 iter1.index == iter2.index and
-                 iter1.limits == iter2.limits)
-        # Aliasing only works one-way because we left-merge
-        alias = iter1.dim.is_Buffered and iter1.dim.parent == iter2.dim
-        return equal or alias
+        if iter1.dim.is_Buffered:
+            # Aliasing only works one-way because we left-merge
+            if iter1.dim.parent == iter2.dim:
+                return True
+            if iter2.dim.is_Buffered and iter1.dim.parent == iter2.dim.parent:
+                return True
+        return iter1.dim == iter2.dim and iter1.bounds_symbolic == iter2.bounds_symbolic
 
     def merge(self, iter1, iter2):
         """Creates a new merged :class:`Iteration` object from two

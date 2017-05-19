@@ -7,15 +7,21 @@ from sympy import Expr, Float
 from sympy.core.basic import _aresame
 from sympy.functions.elementary.trigonometric import TrigonometricFunction
 
-__all__ = ['UnevaluatedExpr', 'Eq', 'Mul', 'Add', 'taylor_sin',
-           'taylor_cos', 'bhaskara_sin', 'bhaskara_cos']
+__all__ = ['FrozenExpr', 'Eq', 'Mul', 'Add', 'taylor_sin', 'taylor_cos',
+           'bhaskara_sin', 'bhaskara_cos']
 
 
-class UnevaluatedExpr(Expr):
+class FrozenExpr(Expr):
 
     """
-    Use :class:`UnevaluatedExpr` in place of :class:`sympy.Expr` to prevent
-    xreplace from unpicking factorizations.
+    Use :class:`FrozenExpr` in place of :class:`sympy.Expr` to make sure than
+    an expression is no longer transformable; that is, standard manipulations
+    such as xreplace, collect, expand, ... have no effect, thus building a
+    new expression identical to self.
+
+    Notes
+    =====
+    At the moment, only xreplace is overridded (to prevent unpicking factorizations)
     """
 
     def xreplace(self, rule):
@@ -34,15 +40,15 @@ class UnevaluatedExpr(Expr):
         return self
 
 
-class Eq(sympy.Eq, UnevaluatedExpr):
+class Eq(sympy.Eq, FrozenExpr):
     pass
 
 
-class Mul(sympy.Mul, UnevaluatedExpr):
+class Mul(sympy.Mul, FrozenExpr):
     pass
 
 
-class Add(sympy.Add, UnevaluatedExpr):
+class Add(sympy.Add, FrozenExpr):
     pass
 
 

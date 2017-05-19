@@ -63,9 +63,9 @@ class DevitoRewriter(BasicRewriter):
                     continue
 
                 functions = list(set.union(*[set(e.functions) for e in expressions]))
-                stencils = [e.stencil for e in expressions]
+                wrapped = [e.expr for e in expressions]
 
-                if not functions or not stencils:
+                if not functions or not wrapped:
                     # Heuristically avoided
                     continue
 
@@ -77,10 +77,10 @@ class DevitoRewriter(BasicRewriter):
                     # Dangerous for correctness
                     continue
 
-                stencils = promote_scalar_expressions(stencils, (size,), (dim,), True)
+                wrapped = promote_scalar_expressions(wrapped, (size,), (dim,), True)
 
-                assert len(stencils) == len(expressions)
-                rebuilt = [Expression(s, e.dtype) for s, e in zip(stencils, expressions)]
+                assert len(wrapped) == len(expressions)
+                rebuilt = [Expression(s, e.dtype) for s, e in zip(wrapped, expressions)]
 
                 # Group statements
                 # TODO: Need a heuristic here to maximize reuse

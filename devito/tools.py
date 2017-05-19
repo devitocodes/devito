@@ -195,20 +195,3 @@ class DefaultOrderedDict(OrderedDict):
 
     def __copy__(self):
         return type(self)(self.default_factory, self)
-
-
-class SetOrderedDict(DefaultOrderedDict):
-
-    def __init__(self, *args, **kwargs):
-        super(SetOrderedDict, self).__init__(set, *args, **kwargs)
-
-    @classmethod
-    def union(self, *dicts):
-        """
-        Compute the union of an iterable of :class:`SetOrderedDict`.
-        """
-        output = SetOrderedDict()
-        for i in dicts:
-            for k, v in i.items():
-                output[k] |= v
-        return output

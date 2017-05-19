@@ -281,8 +281,8 @@ def test_cache_blocking_edge_cases(shape, blockshape):
 
 
 def test_loop_nofission(simple_function):
-    old = Rewriter.thresholds['max_fission']
-    Rewriter.thresholds['max_fission'] = 0
+    old = Rewriter.thresholds['min_fission'], Rewriter.thresholds['max_fission']
+    Rewriter.thresholds['max_fission'], Rewriter.thresholds['min_fission'] = 0, 1
     handle = transform(simple_function, mode='fission')
     assert """\
   for (int i = 0; i < 3; i += 1)
@@ -296,12 +296,12 @@ def test_loop_nofission(simple_function):
       }
     }
   }""" in str(handle.nodes[0].ccode)
-    Rewriter.thresholds['max_fission'] = old
+    Rewriter.thresholds['min_fission'], Rewriter.thresholds['max_fission'] = old
 
 
 def test_loop_fission(simple_function_fissionable):
-    old = Rewriter.thresholds['max_fission']
-    Rewriter.thresholds['max_fission'] = 0
+    old = Rewriter.thresholds['min_fission'], Rewriter.thresholds['max_fission']
+    Rewriter.thresholds['max_fission'], Rewriter.thresholds['min_fission'] = 0, 1
     handle = transform(simple_function_fissionable, mode='fission')
     assert """\
  for (int i = 0; i < 3; i += 1)
@@ -318,7 +318,7 @@ def test_loop_fission(simple_function_fissionable):
       }
     }
   }""" in str(handle.nodes[0].ccode)
-    Rewriter.thresholds['max_fission'] = old
+    Rewriter.thresholds['min_fission'], Rewriter.thresholds['max_fission'] = old
 
 
 def test_padding(simple_function_with_paddable_arrays):
