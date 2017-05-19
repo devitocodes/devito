@@ -13,6 +13,8 @@
 
   
   
+  
+  
 
   
 
@@ -43,6 +45,7 @@
 
 <body class="wy-body-for-nav" role="document">
 
+   
   <div class="wy-grid-for-nav">
 
     
@@ -83,7 +86,10 @@
           
             
             
-                <ul>
+              
+            
+            
+              <ul>
 <li class="toctree-l1"><a class="reference internal" href="../../download.html">Download</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../tutorials.html">Tutorials</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../devito.html">API Documentation</a></li>
@@ -99,8 +105,10 @@
 
       
       <nav class="wy-nav-top" role="navigation" aria-label="top navigation">
-        <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
-        <a href="../../index.html">Devito</a>
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">Devito</a>
+        
       </nav>
 
 
@@ -113,21 +121,38 @@
 
 
 
+
+
+
+
+
+
+
+
+
+
 <div role="navigation" aria-label="breadcrumbs navigation">
+
   <ul class="wy-breadcrumbs">
-    <li><a href="../../index.html">Docs</a> &raquo;</li>
-      
+    
+      <li><a href="../../index.html">Docs</a> &raquo;</li>
+        
           <li><a href="../index.html">Module code</a> &raquo;</li>
-      
+        
           <li><a href="../devito.html">devito</a> &raquo;</li>
-      
-    <li>devito.finite_difference</li>
+        
+      <li>devito.finite_difference</li>
+    
+    
       <li class="wy-breadcrumbs-aside">
         
-          
+            
         
       </li>
+    
   </ul>
+
+  
   <hr/>
 </div>
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
@@ -142,29 +167,31 @@
 <span class="kn">from</span> <span class="nn">sympy</span> <span class="k">import</span> <span class="n">finite_diff_weights</span><span class="p">,</span> <span class="n">symbols</span>
 
 <span class="kn">from</span> <span class="nn">devito.dimension</span> <span class="k">import</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span>
+<span class="kn">from</span> <span class="nn">devito.logger</span> <span class="k">import</span> <span class="n">error</span>
 
 <span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;first_derivative&#39;</span><span class="p">,</span> <span class="s1">&#39;second_derivative&#39;</span><span class="p">,</span> <span class="s1">&#39;cross_derivative&#39;</span><span class="p">,</span>
            <span class="s1">&#39;left&#39;</span><span class="p">,</span> <span class="s1">&#39;right&#39;</span><span class="p">,</span> <span class="s1">&#39;centered&#39;</span><span class="p">]</span>
 
-
-<span class="c1"># Explicitly derived Finite Difference coefficients for</span>
-<span class="c1"># symmetric derivative stencils.</span>
-<span class="n">fd_coefficients</span> <span class="o">=</span> <span class="p">{</span>
-    <span class="mi">16</span><span class="p">:</span> <span class="p">[</span><span class="o">-</span><span class="mf">3.054844</span><span class="p">,</span> <span class="mf">1.777778</span><span class="p">,</span> <span class="o">-</span><span class="mf">0.311111</span><span class="p">,</span> <span class="mf">0.075421</span><span class="p">,</span> <span class="o">-</span><span class="mf">0.017677</span><span class="p">,</span> <span class="mf">0.003481</span><span class="p">,</span> <span class="o">-</span><span class="mf">0.000518</span><span class="p">,</span>
-         <span class="mf">0.000051</span><span class="p">,</span> <span class="o">-</span><span class="mf">0.000002</span><span class="p">],</span>
-    <span class="mi">14</span><span class="p">:</span> <span class="p">[</span><span class="o">-</span><span class="mf">3.023594</span><span class="p">,</span> <span class="mf">1.750000</span><span class="p">,</span> <span class="o">-</span><span class="mf">0.291667</span><span class="p">,</span> <span class="mf">0.064815</span><span class="p">,</span> <span class="o">-</span><span class="mf">0.013258</span><span class="p">,</span> <span class="mf">0.002121</span><span class="p">,</span> <span class="o">-</span><span class="mf">0.000227</span><span class="p">,</span>
-         <span class="mf">0.000012</span><span class="p">],</span>
-    <span class="mi">12</span><span class="p">:</span> <span class="p">[</span><span class="o">-</span><span class="mf">2.982778</span><span class="p">,</span> <span class="mf">1.714286</span><span class="p">,</span> <span class="o">-</span><span class="mf">0.267857</span><span class="p">,</span> <span class="mf">0.052910</span><span class="p">,</span> <span class="o">-</span><span class="mf">0.008929</span><span class="p">,</span> <span class="mf">0.001039</span><span class="p">,</span> <span class="o">-</span><span class="mf">0.000060</span><span class="p">],</span>
-    <span class="mi">10</span><span class="p">:</span> <span class="p">[</span><span class="o">-</span><span class="mf">2.927222</span><span class="p">,</span> <span class="mf">1.666667</span><span class="p">,</span> <span class="o">-</span><span class="mf">0.238095</span><span class="p">,</span> <span class="mf">0.039683</span><span class="p">,</span> <span class="o">-</span><span class="mf">0.004960</span><span class="p">,</span> <span class="mf">0.000317</span><span class="p">],</span>
-    <span class="mi">8</span><span class="p">:</span> <span class="p">[</span><span class="o">-</span><span class="mf">2.847222</span><span class="p">,</span> <span class="mf">1.600000</span><span class="p">,</span> <span class="o">-</span><span class="mf">0.200000</span><span class="p">,</span> <span class="mf">0.025397</span><span class="p">,</span> <span class="o">-</span><span class="mf">0.001786</span><span class="p">],</span>
-    <span class="mi">6</span><span class="p">:</span> <span class="p">[</span><span class="o">-</span><span class="mf">2.722222</span><span class="p">,</span> <span class="mf">1.500000</span><span class="p">,</span> <span class="o">-</span><span class="mf">0.150000</span><span class="p">,</span> <span class="mf">0.01111</span><span class="p">],</span>
-    <span class="mi">4</span><span class="p">:</span> <span class="p">[</span><span class="o">-</span><span class="mf">2.500000</span><span class="p">,</span> <span class="mf">1.333333</span><span class="p">,</span> <span class="o">-</span><span class="mf">0.08333</span><span class="p">],</span>
-    <span class="mi">2</span><span class="p">:</span> <span class="p">[</span><span class="o">-</span><span class="mf">2.</span><span class="p">,</span> <span class="mf">1.</span><span class="p">],</span>
-<span class="p">}</span>
-
-
 <span class="c1"># Default spacing symbol</span>
 <span class="n">h</span> <span class="o">=</span> <span class="n">symbols</span><span class="p">(</span><span class="s1">&#39;h&#39;</span><span class="p">)</span>
+
+
+<span class="k">class</span> <span class="nc">Transpose</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Class that defines if the derivative is itself or adjoint (transpose).</span>
+<span class="sd">    This only matter for odd order derivatives that requires</span>
+<span class="sd">    a minus sign for the transpose.&quot;&quot;&quot;</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">transpose</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_transpose</span> <span class="o">=</span> <span class="n">transpose</span>
+
+    <span class="k">def</span> <span class="nf">__eq__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_transpose</span> <span class="o">==</span> <span class="n">other</span><span class="o">.</span><span class="n">_transpose</span>
+
+    <span class="k">def</span> <span class="nf">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="p">{</span><span class="mi">1</span><span class="p">:</span> <span class="s1">&#39;direct&#39;</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">:</span> <span class="s1">&#39;transpose&#39;</span><span class="p">}[</span><span class="bp">self</span><span class="o">.</span><span class="n">_transpose</span><span class="p">]</span>
+
+
+<span class="n">direct</span> <span class="o">=</span> <span class="n">Transpose</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+<span class="n">transpose</span> <span class="o">=</span> <span class="n">Transpose</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span>
 
 
 <span class="k">class</span> <span class="nc">Side</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
@@ -178,6 +205,19 @@
 
     <span class="k">def</span> <span class="nf">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">return</span> <span class="p">{</span><span class="o">-</span><span class="mi">1</span><span class="p">:</span> <span class="s1">&#39;left&#39;</span><span class="p">,</span> <span class="mi">0</span><span class="p">:</span> <span class="s1">&#39;centered&#39;</span><span class="p">,</span> <span class="mi">1</span><span class="p">:</span> <span class="s1">&#39;right&#39;</span><span class="p">}[</span><span class="bp">self</span><span class="o">.</span><span class="n">_side</span><span class="p">]</span>
+
+    <span class="k">def</span> <span class="nf">adjoint</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">matvec</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">matvec</span> <span class="o">==</span> <span class="n">direct</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">if</span> <span class="bp">self</span> <span class="o">==</span> <span class="n">centered</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">centered</span>
+            <span class="k">elif</span> <span class="bp">self</span> <span class="o">==</span> <span class="n">right</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">left</span>
+            <span class="k">elif</span> <span class="bp">self</span> <span class="o">==</span> <span class="n">left</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">right</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">error</span><span class="p">(</span><span class="s2">&quot;Unsupported side value&quot;</span><span class="p">)</span>
 
 
 <span class="n">left</span> <span class="o">=</span> <span class="n">Side</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span>
@@ -205,21 +245,20 @@
     <span class="n">dim</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;dim&#39;</span><span class="p">,</span> <span class="n">x</span><span class="p">)</span>
     <span class="n">diff</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;diff&#39;</span><span class="p">,</span> <span class="n">h</span><span class="p">)</span>
 
-    <span class="k">assert</span><span class="p">(</span><span class="n">order</span> <span class="ow">in</span> <span class="n">fd_coefficients</span><span class="p">)</span>
+    <span class="n">ind</span> <span class="o">=</span> <span class="p">[(</span><span class="n">dim</span> <span class="o">+</span> <span class="n">i</span> <span class="o">*</span> <span class="n">diff</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="o">-</span><span class="nb">int</span><span class="p">(</span><span class="n">order</span> <span class="o">/</span> <span class="mi">2</span><span class="p">),</span>
+                                           <span class="nb">int</span><span class="p">(</span><span class="n">order</span> <span class="o">/</span> <span class="mi">2</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)]</span>
 
-    <span class="n">coeffs</span> <span class="o">=</span> <span class="n">fd_coefficients</span><span class="p">[</span><span class="n">order</span><span class="p">]</span>
-    <span class="n">deriv</span> <span class="o">=</span> <span class="n">coeffs</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">*</span> <span class="n">reduce</span><span class="p">(</span><span class="n">mul</span><span class="p">,</span> <span class="n">args</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="n">coeffs</span> <span class="o">=</span> <span class="n">finite_diff_weights</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="n">ind</span><span class="p">,</span> <span class="n">dim</span><span class="p">)[</span><span class="o">-</span><span class="mi">1</span><span class="p">][</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+    <span class="n">deriv</span> <span class="o">=</span> <span class="mi">0</span>
 
-    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="nb">int</span><span class="p">(</span><span class="n">order</span> <span class="o">/</span> <span class="mi">2</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span><span class="p">):</span>
-        <span class="n">aux1</span> <span class="o">=</span> <span class="p">[</span><span class="n">a</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">dim</span><span class="p">,</span> <span class="n">dim</span> <span class="o">+</span> <span class="n">i</span> <span class="o">*</span> <span class="n">diff</span><span class="p">)</span> <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="n">args</span><span class="p">]</span>
-        <span class="n">aux2</span> <span class="o">=</span> <span class="p">[</span><span class="n">a</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">dim</span><span class="p">,</span> <span class="n">dim</span> <span class="o">-</span> <span class="n">i</span> <span class="o">*</span> <span class="n">diff</span><span class="p">)</span> <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="n">args</span><span class="p">]</span>
-        <span class="n">deriv</span> <span class="o">+=</span> <span class="n">coeffs</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">*</span> <span class="p">(</span><span class="n">reduce</span><span class="p">(</span><span class="n">mul</span><span class="p">,</span> <span class="n">aux1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span> <span class="o">+</span> <span class="n">reduce</span><span class="p">(</span><span class="n">mul</span><span class="p">,</span> <span class="n">aux2</span><span class="p">,</span> <span class="mi">1</span><span class="p">))</span>
-
-    <span class="k">return</span> <span class="p">(</span><span class="mi">1</span> <span class="o">/</span> <span class="n">diff</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span> <span class="o">*</span> <span class="n">deriv</span></div>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">ind</span><span class="p">)):</span>
+            <span class="n">var</span> <span class="o">=</span> <span class="p">[</span><span class="n">a</span><span class="o">.</span><span class="n">subs</span><span class="p">({</span><span class="n">dim</span><span class="p">:</span> <span class="n">ind</span><span class="p">[</span><span class="n">i</span><span class="p">]})</span> <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="n">args</span><span class="p">]</span>
+            <span class="n">deriv</span> <span class="o">+=</span> <span class="n">coeffs</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">*</span> <span class="n">reduce</span><span class="p">(</span><span class="n">mul</span><span class="p">,</span> <span class="n">var</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">deriv</span></div>
 
 
 <div class="viewcode-block" id="cross_derivative"><a class="viewcode-back" href="../../devito.html#devito.finite_difference.cross_derivative">[docs]</a><span class="k">def</span> <span class="nf">cross_derivative</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;Derives corss derivative for a product of given functions.</span>
+    <span class="sd">&quot;&quot;&quot;Derives cross derivative for a product of given functions.</span>
 
 <span class="sd">    :param \*args: All positional arguments must be fully qualified</span>
 <span class="sd">       function objects, eg. `f(x, y)` or `g(t, x, y, z)`.</span>
@@ -275,15 +314,15 @@
 
 
 <div class="viewcode-block" id="first_derivative"><a class="viewcode-back" href="../../devito.html#devito.finite_difference.first_derivative">[docs]</a><span class="k">def</span> <span class="nf">first_derivative</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;Derives corss derivative for a product of given functions.</span>
+    <span class="sd">&quot;&quot;&quot;Derives first derivative for a product of given functions.</span>
 
 <span class="sd">    :param \*args: All positional arguments must be fully qualified</span>
 <span class="sd">       function objects, eg. `f(x, y)` or `g(t, x, y, z)`.</span>
-<span class="sd">    :param dims: 2-tuple of symbols defining the dimension wrt. which</span>
+<span class="sd">    :param dims: symbol defining the dimension wrt. which</span>
 <span class="sd">       to differentiate, eg. `x`, `y`, `z` or `t`.</span>
 <span class="sd">    :param diff: Finite Difference symbol to insert, default `h`.</span>
 <span class="sd">    :param side: Side of the shift for the first derivatives.</span>
-<span class="sd">    :returns: The cross derivative</span>
+<span class="sd">    :returns: The first derivative</span>
 
 <span class="sd">    Example: Deriving the first-derivative of f(x)*g(x) wrt. x via:</span>
 <span class="sd">       ``cross_derivative(f(x), g(x), dim=x, side=1, order=1)``</span>
@@ -292,10 +331,10 @@
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="n">dim</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;dim&#39;</span><span class="p">,</span> <span class="n">x</span><span class="p">)</span>
     <span class="n">diff</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;diff&#39;</span><span class="p">,</span> <span class="n">h</span><span class="p">)</span>
-    <span class="n">order</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;order&#39;</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
-    <span class="n">side</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;side&#39;</span><span class="p">,</span> <span class="n">centered</span><span class="p">)</span>
+    <span class="n">order</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;order&#39;</span><span class="p">,</span> <span class="mi">1</span><span class="p">))</span>
+    <span class="n">matvec</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;matvec&#39;</span><span class="p">,</span> <span class="n">direct</span><span class="p">)</span>
+    <span class="n">side</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;side&#39;</span><span class="p">,</span> <span class="n">centered</span><span class="p">)</span><span class="o">.</span><span class="n">adjoint</span><span class="p">(</span><span class="n">matvec</span><span class="p">)</span>
     <span class="n">deriv</span> <span class="o">=</span> <span class="mi">0</span>
-    <span class="n">sign</span> <span class="o">=</span> <span class="mi">1</span>
     <span class="c1"># Stencil positions for non-symmetric cross-derivatives with symmetric averaging</span>
     <span class="k">if</span> <span class="n">side</span> <span class="o">==</span> <span class="n">right</span><span class="p">:</span>
         <span class="n">ind</span> <span class="o">=</span> <span class="p">[(</span><span class="n">dim</span> <span class="o">+</span> <span class="n">i</span> <span class="o">*</span> <span class="n">diff</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="o">-</span><span class="nb">int</span><span class="p">(</span><span class="n">order</span> <span class="o">/</span> <span class="mi">2</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span> <span class="o">-</span> <span class="p">(</span><span class="n">order</span> <span class="o">%</span> <span class="mi">2</span><span class="p">),</span>
@@ -303,22 +342,23 @@
     <span class="k">elif</span> <span class="n">side</span> <span class="o">==</span> <span class="n">left</span><span class="p">:</span>
         <span class="n">ind</span> <span class="o">=</span> <span class="p">[(</span><span class="n">dim</span> <span class="o">-</span> <span class="n">i</span> <span class="o">*</span> <span class="n">diff</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="o">-</span><span class="nb">int</span><span class="p">(</span><span class="n">order</span> <span class="o">/</span> <span class="mi">2</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span> <span class="o">-</span> <span class="p">(</span><span class="n">order</span> <span class="o">%</span> <span class="mi">2</span><span class="p">),</span>
                                                <span class="nb">int</span><span class="p">((</span><span class="n">order</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span> <span class="o">/</span> <span class="mi">2</span><span class="p">)</span> <span class="o">+</span> <span class="mi">2</span> <span class="o">-</span> <span class="p">(</span><span class="n">order</span> <span class="o">%</span> <span class="mi">2</span><span class="p">))]</span>
-        <span class="n">sign</span> <span class="o">=</span> <span class="o">-</span><span class="mi">1</span>
     <span class="k">else</span><span class="p">:</span>
         <span class="n">ind</span> <span class="o">=</span> <span class="p">[(</span><span class="n">dim</span> <span class="o">+</span> <span class="n">i</span> <span class="o">*</span> <span class="n">diff</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="o">-</span><span class="nb">int</span><span class="p">(</span><span class="n">order</span> <span class="o">/</span> <span class="mi">2</span><span class="p">),</span>
                                                <span class="nb">int</span><span class="p">((</span><span class="n">order</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span> <span class="o">/</span> <span class="mi">2</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)]</span>
-        <span class="n">sign</span> <span class="o">=</span> <span class="mi">1</span>
     <span class="c1"># Finite difference weights from Taylor approximation with this positions</span>
     <span class="n">c</span> <span class="o">=</span> <span class="n">finite_diff_weights</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">ind</span><span class="p">,</span> <span class="n">dim</span><span class="p">)</span>
     <span class="n">c</span> <span class="o">=</span> <span class="n">c</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">][</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
 
-    <span class="c1"># Diagonal elements</span>
+    <span class="c1"># Loop through positions</span>
     <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">ind</span><span class="p">)):</span>
             <span class="n">var</span> <span class="o">=</span> <span class="p">[</span><span class="n">a</span><span class="o">.</span><span class="n">subs</span><span class="p">({</span><span class="n">dim</span><span class="p">:</span> <span class="n">ind</span><span class="p">[</span><span class="n">i</span><span class="p">]})</span> <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="n">args</span><span class="p">]</span>
             <span class="n">deriv</span> <span class="o">+=</span> <span class="n">c</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">*</span> <span class="n">reduce</span><span class="p">(</span><span class="n">mul</span><span class="p">,</span> <span class="n">var</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
-    <span class="k">return</span> <span class="o">-</span><span class="n">sign</span><span class="o">*</span><span class="n">deriv</span></div>
+    <span class="k">return</span> <span class="n">matvec</span><span class="o">.</span><span class="n">_transpose</span><span class="o">*</span><span class="n">deriv</span></div>
 </pre></div>
 
+           </div>
+           <div class="articleComments">
+            
            </div>
           </div>
           <footer>
@@ -353,13 +393,14 @@
             VERSION:'1',
             COLLAPSE_INDEX:false,
             FILE_SUFFIX:'.html',
-            HAS_SOURCE:  true
+            HAS_SOURCE:  true,
+            SOURCELINK_SUFFIX: '.txt'
         };
     </script>
       <script type="text/javascript" src="../../_static/jquery.js"></script>
       <script type="text/javascript" src="../../_static/underscore.js"></script>
       <script type="text/javascript" src="../../_static/doctools.js"></script>
-      <script type="text/javascript" src="https://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+      <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.0/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
 
   
 

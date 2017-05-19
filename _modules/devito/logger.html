@@ -13,6 +13,8 @@
 
   
   
+  
+  
 
   
 
@@ -43,6 +45,7 @@
 
 <body class="wy-body-for-nav" role="document">
 
+   
   <div class="wy-grid-for-nav">
 
     
@@ -83,7 +86,10 @@
           
             
             
-                <ul>
+              
+            
+            
+              <ul>
 <li class="toctree-l1"><a class="reference internal" href="../../download.html">Download</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../tutorials.html">Tutorials</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../devito.html">API Documentation</a></li>
@@ -99,8 +105,10 @@
 
       
       <nav class="wy-nav-top" role="navigation" aria-label="top navigation">
-        <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
-        <a href="../../index.html">Devito</a>
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">Devito</a>
+        
       </nav>
 
 
@@ -113,21 +121,38 @@
 
 
 
+
+
+
+
+
+
+
+
+
+
 <div role="navigation" aria-label="breadcrumbs navigation">
+
   <ul class="wy-breadcrumbs">
-    <li><a href="../../index.html">Docs</a> &raquo;</li>
-      
+    
+      <li><a href="../../index.html">Docs</a> &raquo;</li>
+        
           <li><a href="../index.html">Module code</a> &raquo;</li>
-      
+        
           <li><a href="../devito.html">devito</a> &raquo;</li>
-      
-    <li>devito.logger</li>
+        
+      <li>devito.logger</li>
+    
+    
       <li class="wy-breadcrumbs-aside">
         
-          
+            
         
       </li>
+    
   </ul>
+
+  
   <hr/>
 </div>
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
@@ -138,11 +163,14 @@
 
 <span class="kn">import</span> <span class="nn">logging</span>
 <span class="kn">import</span> <span class="nn">sys</span>
+<span class="kn">from</span> <span class="nn">contextlib</span> <span class="k">import</span> <span class="n">contextmanager</span>
+<span class="kn">from</span> <span class="nn">devito.parameters</span> <span class="k">import</span> <span class="n">parameters</span>
 
 <span class="n">__all__</span> <span class="o">=</span> <span class="p">(</span><span class="s1">&#39;set_log_level&#39;</span><span class="p">,</span> <span class="s1">&#39;set_log_noperf&#39;</span><span class="p">,</span> <span class="s1">&#39;log&#39;</span><span class="p">,</span>
-           <span class="s1">&#39;DEBUG&#39;</span><span class="p">,</span> <span class="s1">&#39;INFO&#39;</span><span class="p">,</span> <span class="s1">&#39;AUTOTUNER&#39;</span><span class="p">,</span> <span class="s1">&#39;PERF_OK&#39;</span><span class="p">,</span> <span class="s1">&#39;PERF_WARN&#39;</span><span class="p">,</span>
+           <span class="s1">&#39;DEBUG&#39;</span><span class="p">,</span> <span class="s1">&#39;INFO&#39;</span><span class="p">,</span> <span class="s1">&#39;AUTOTUNER&#39;</span><span class="p">,</span> <span class="s1">&#39;DSE&#39;</span><span class="p">,</span> <span class="s1">&#39;DSE_WARN&#39;</span><span class="p">,</span> <span class="s1">&#39;DLE&#39;</span><span class="p">,</span> <span class="s1">&#39;DLE_WARN&#39;</span><span class="p">,</span>
            <span class="s1">&#39;WARNING&#39;</span><span class="p">,</span> <span class="s1">&#39;ERROR&#39;</span><span class="p">,</span> <span class="s1">&#39;CRITICAL&#39;</span><span class="p">,</span>
-           <span class="s1">&#39;log&#39;</span><span class="p">,</span> <span class="s1">&#39;warning&#39;</span><span class="p">,</span> <span class="s1">&#39;error&#39;</span><span class="p">,</span> <span class="s1">&#39;info_at&#39;</span><span class="p">,</span>
+           <span class="s1">&#39;log&#39;</span><span class="p">,</span> <span class="s1">&#39;warning&#39;</span><span class="p">,</span> <span class="s1">&#39;error&#39;</span><span class="p">,</span> <span class="s1">&#39;info_at&#39;</span><span class="p">,</span> <span class="s1">&#39;dse&#39;</span><span class="p">,</span> <span class="s1">&#39;dse_warning&#39;</span><span class="p">,</span> <span class="s1">&#39;dle&#39;</span><span class="p">,</span>
+           <span class="s1">&#39;dle_warning&#39;</span><span class="p">,</span>
            <span class="s1">&#39;RED&#39;</span><span class="p">,</span> <span class="s1">&#39;GREEN&#39;</span><span class="p">,</span> <span class="s1">&#39;BLUE&#39;</span><span class="p">)</span>
 
 
@@ -150,21 +178,34 @@
 <span class="n">_ch</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">StreamHandler</span><span class="p">()</span>
 <span class="n">logger</span><span class="o">.</span><span class="n">addHandler</span><span class="p">(</span><span class="n">_ch</span><span class="p">)</span>
 
+<span class="n">log_level</span> <span class="o">=</span> <span class="s2">&quot;log_level&quot;</span>
+
+
+<span class="k">def</span> <span class="nf">parameters_updated</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
+    <span class="k">if</span> <span class="n">key</span> <span class="o">==</span> <span class="n">log_level</span><span class="p">:</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">setLevel</span><span class="p">(</span><span class="nb">eval</span><span class="p">(</span><span class="n">value</span><span class="p">))</span>
+
+
 <span class="c1"># Add extra levels between INFO (value=20) and WARNING (value=30)</span>
 <span class="n">DEBUG</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">DEBUG</span>
+<span class="n">AUTOTUNER</span> <span class="o">=</span> <span class="mi">19</span>
 <span class="n">INFO</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">INFO</span>
-<span class="n">AUTOTUNER</span> <span class="o">=</span> <span class="mi">27</span>
-<span class="n">PERF_OK</span> <span class="o">=</span> <span class="mi">28</span>
-<span class="n">PERF_WARN</span> <span class="o">=</span> <span class="mi">29</span>
+<span class="n">DSE</span> <span class="o">=</span> <span class="mi">28</span>
+<span class="n">DLE</span> <span class="o">=</span> <span class="n">DSE</span>
+<span class="n">DSE_WARN</span> <span class="o">=</span> <span class="mi">29</span>
+<span class="n">DLE_WARN</span> <span class="o">=</span> <span class="n">DSE_WARN</span>
 <span class="n">WARNING</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">WARNING</span>
 <span class="n">ERROR</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">ERROR</span>
 <span class="n">CRITICAL</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">CRITICAL</span>
 
 <span class="n">logging</span><span class="o">.</span><span class="n">addLevelName</span><span class="p">(</span><span class="n">AUTOTUNER</span><span class="p">,</span> <span class="s2">&quot;AUTOTUNER&quot;</span><span class="p">)</span>
-<span class="n">logging</span><span class="o">.</span><span class="n">addLevelName</span><span class="p">(</span><span class="n">PERF_OK</span><span class="p">,</span> <span class="s2">&quot;PERF_OK&quot;</span><span class="p">)</span>
-<span class="n">logging</span><span class="o">.</span><span class="n">addLevelName</span><span class="p">(</span><span class="n">PERF_WARN</span><span class="p">,</span> <span class="s2">&quot;PERF_WARN&quot;</span><span class="p">)</span>
+<span class="n">logging</span><span class="o">.</span><span class="n">addLevelName</span><span class="p">(</span><span class="n">DSE</span><span class="p">,</span> <span class="s2">&quot;DSE&quot;</span><span class="p">)</span>
+<span class="n">logging</span><span class="o">.</span><span class="n">addLevelName</span><span class="p">(</span><span class="n">DSE_WARN</span><span class="p">,</span> <span class="s2">&quot;DSE_WARN&quot;</span><span class="p">)</span>
+<span class="n">logging</span><span class="o">.</span><span class="n">addLevelName</span><span class="p">(</span><span class="n">DSE</span><span class="p">,</span> <span class="s2">&quot;DLE&quot;</span><span class="p">)</span>
+<span class="n">logging</span><span class="o">.</span><span class="n">addLevelName</span><span class="p">(</span><span class="n">DSE_WARN</span><span class="p">,</span> <span class="s2">&quot;DLE_WARN&quot;</span><span class="p">)</span>
 
-<span class="n">logger</span><span class="o">.</span><span class="n">setLevel</span><span class="p">(</span><span class="n">INFO</span><span class="p">)</span>
+<span class="n">parameters_updated</span><span class="p">(</span><span class="n">log_level</span><span class="p">,</span> <span class="n">parameters</span><span class="p">[</span><span class="n">log_level</span><span class="p">])</span>
+<span class="n">parameters</span><span class="o">.</span><span class="n">update_functions</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">parameters_updated</span><span class="p">)</span>
 
 <span class="n">NOCOLOR</span> <span class="o">=</span> <span class="s1">&#39;</span><span class="si">%s</span><span class="s1">&#39;</span>
 <span class="n">RED</span> <span class="o">=</span> <span class="s1">&#39;</span><span class="se">\033</span><span class="s1">[1;37;31m</span><span class="si">%s</span><span class="se">\033</span><span class="s1">[0m&#39;</span>
@@ -175,8 +216,10 @@
     <span class="n">DEBUG</span><span class="p">:</span> <span class="n">RED</span><span class="p">,</span>
     <span class="n">INFO</span><span class="p">:</span> <span class="n">NOCOLOR</span><span class="p">,</span>
     <span class="n">AUTOTUNER</span><span class="p">:</span> <span class="n">GREEN</span><span class="p">,</span>
-    <span class="n">PERF_OK</span><span class="p">:</span> <span class="n">GREEN</span><span class="p">,</span>
-    <span class="n">PERF_WARN</span><span class="p">:</span> <span class="n">BLUE</span><span class="p">,</span>
+    <span class="n">DSE</span><span class="p">:</span> <span class="n">NOCOLOR</span><span class="p">,</span>
+    <span class="n">DSE_WARN</span><span class="p">:</span> <span class="n">BLUE</span><span class="p">,</span>
+    <span class="n">DLE</span><span class="p">:</span> <span class="n">NOCOLOR</span><span class="p">,</span>
+    <span class="n">DLE_WARN</span><span class="p">:</span> <span class="n">BLUE</span><span class="p">,</span>
     <span class="n">WARNING</span><span class="p">:</span> <span class="n">BLUE</span><span class="p">,</span>
     <span class="n">ERROR</span><span class="p">:</span> <span class="n">RED</span><span class="p">,</span>
     <span class="n">CRITICAL</span><span class="p">:</span> <span class="n">RED</span>
@@ -187,8 +230,8 @@
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Set the log level of the Devito logger.</span>
 
-<span class="sd">    :param level: accepted values are: DEBUG, INFO, AUTOTUNER, PERF_OK, PERF_WARN,</span>
-<span class="sd">                  WARNING, ERROR, CRITICAL</span>
+<span class="sd">    :param level: accepted values are: DEBUG, INFO, AUTOTUNER, DSE, DSE_WARN,</span>
+<span class="sd">                  DLE, DLE_WARN, WARNING, ERROR, CRITICAL</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="n">logger</span><span class="o">.</span><span class="n">setLevel</span><span class="p">(</span><span class="n">level</span><span class="p">)</span></div>
 
@@ -204,10 +247,10 @@
 <span class="sd">    the severity &#39;level&#39;.</span>
 
 <span class="sd">    :param msg: the message to be printed.</span>
-<span class="sd">    :param level: accepted values are: DEBUG, INFO, AUTOTUNER, PERF_OK, PERF_WARN,</span>
-<span class="sd">                  WARNING, ERROR, CRITICAL</span>
+<span class="sd">    :param level: accepted values are: DEBUG, INFO, AUTOTUNER, DSE, DSE_WARN,</span>
+<span class="sd">                  DLE, DLE_WARN, WARNING, ERROR, CRITICAL</span>
 <span class="sd">    &quot;&quot;&quot;</span>
-    <span class="k">assert</span> <span class="n">level</span> <span class="ow">in</span> <span class="p">[</span><span class="n">DEBUG</span><span class="p">,</span> <span class="n">INFO</span><span class="p">,</span> <span class="n">AUTOTUNER</span><span class="p">,</span> <span class="n">PERF_OK</span><span class="p">,</span> <span class="n">PERF_WARN</span><span class="p">,</span>
+    <span class="k">assert</span> <span class="n">level</span> <span class="ow">in</span> <span class="p">[</span><span class="n">DEBUG</span><span class="p">,</span> <span class="n">INFO</span><span class="p">,</span> <span class="n">AUTOTUNER</span><span class="p">,</span> <span class="n">DSE</span><span class="p">,</span> <span class="n">DSE_WARN</span><span class="p">,</span> <span class="n">DLE</span><span class="p">,</span> <span class="n">DLE_WARN</span><span class="p">,</span>
                      <span class="n">WARNING</span><span class="p">,</span> <span class="n">ERROR</span><span class="p">,</span> <span class="n">CRITICAL</span><span class="p">]</span>
 
     <span class="n">color</span> <span class="o">=</span> <span class="n">COLORS</span><span class="p">[</span><span class="n">level</span><span class="p">]</span> <span class="k">if</span> <span class="n">sys</span><span class="o">.</span><span class="n">stdout</span><span class="o">.</span><span class="n">isatty</span><span class="p">()</span> <span class="ow">and</span> <span class="n">sys</span><span class="o">.</span><span class="n">stderr</span><span class="o">.</span><span class="n">isatty</span><span class="p">()</span> <span class="k">else</span> <span class="s1">&#39;</span><span class="si">%s</span><span class="s1">&#39;</span>
@@ -232,8 +275,34 @@
 
 <span class="k">def</span> <span class="nf">debug</span><span class="p">(</span><span class="n">msg</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
     <span class="n">log</span><span class="p">(</span><span class="n">msg</span><span class="p">,</span> <span class="n">DEBUG</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="dse"><a class="viewcode-back" href="../../devito.html#devito.logger.dse">[docs]</a><span class="k">def</span> <span class="nf">dse</span><span class="p">(</span><span class="n">msg</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+    <span class="n">log</span><span class="p">(</span><span class="s2">&quot;DSE: </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="n">msg</span><span class="p">,</span> <span class="n">DSE</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="dse_warning"><a class="viewcode-back" href="../../devito.html#devito.logger.dse_warning">[docs]</a><span class="k">def</span> <span class="nf">dse_warning</span><span class="p">(</span><span class="n">msg</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+    <span class="n">log</span><span class="p">(</span><span class="s2">&quot;DSE: </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="n">msg</span><span class="p">,</span> <span class="n">DSE_WARN</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="dle"><a class="viewcode-back" href="../../devito.html#devito.logger.dle">[docs]</a><span class="k">def</span> <span class="nf">dle</span><span class="p">(</span><span class="n">msg</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+    <span class="n">log</span><span class="p">(</span><span class="s2">&quot;DLE: </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="n">msg</span><span class="p">,</span> <span class="n">DLE</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="dle_warning"><a class="viewcode-back" href="../../devito.html#devito.logger.dle_warning">[docs]</a><span class="k">def</span> <span class="nf">dle_warning</span><span class="p">(</span><span class="n">msg</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+    <span class="n">log</span><span class="p">(</span><span class="s2">&quot;DLE: </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="n">msg</span><span class="p">,</span> <span class="n">DLE_WARN</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span></div>
+
+
+<span class="nd">@contextmanager</span>
+<span class="k">def</span> <span class="nf">bar</span><span class="p">():</span>
+    <span class="n">log</span><span class="p">(</span><span class="s1">&#39;=&#39;</span><span class="o">*</span><span class="mi">89</span><span class="p">,</span> <span class="n">INFO</span><span class="p">)</span>
+    <span class="k">yield</span>
+    <span class="n">log</span><span class="p">(</span><span class="s1">&#39;=&#39;</span><span class="o">*</span><span class="mi">89</span><span class="p">,</span> <span class="n">INFO</span><span class="p">)</span>
 </pre></div>
 
+           </div>
+           <div class="articleComments">
+            
            </div>
           </div>
           <footer>
@@ -268,13 +337,14 @@
             VERSION:'1',
             COLLAPSE_INDEX:false,
             FILE_SUFFIX:'.html',
-            HAS_SOURCE:  true
+            HAS_SOURCE:  true,
+            SOURCELINK_SUFFIX: '.txt'
         };
     </script>
       <script type="text/javascript" src="../../_static/jquery.js"></script>
       <script type="text/javascript" src="../../_static/underscore.js"></script>
       <script type="text/javascript" src="../../_static/doctools.js"></script>
-      <script type="text/javascript" src="https://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+      <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.0/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
 
   
 
