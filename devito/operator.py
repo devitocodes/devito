@@ -2,7 +2,7 @@ from __future__ import absolute_import
 
 import operator
 from collections import OrderedDict, namedtuple
-from ctypes import c_double, c_int
+from ctypes import c_int
 from functools import reduce
 from itertools import combinations
 
@@ -20,7 +20,7 @@ from devito.interfaces import SymbolicData, Forward, Backward
 from devito.logger import bar, error, info, info_at
 from devito.nodes import (Element, Expression, Function, Iteration, List,
                           LocalExpression, TimedList)
-from devito.profiler import Profiler
+from devito.profiling import Profiler
 from devito.stencil import Stencil
 from devito.tools import as_tuple, filter_ordered, flatten
 from devito.visitors import (FindNodes, FindSections, FindSymbols, FindScopes,
@@ -466,7 +466,7 @@ class OperatorCore(OperatorBasic):
     """
 
     def __init__(self, expressions, **kwargs):
-        self.profiler = Profiler(self.compiler.openmp)
+        self.profiler = Profiler()
         super(OperatorCore, self).__init__(expressions, **kwargs)
 
     def __call__(self, *args, **kwargs):
@@ -510,9 +510,9 @@ class OperatorCore(OperatorBasic):
                         # Insert `TimedList` block. This should come from
                         # the profiler, but we do this manually for now.
                         lname = 'loop_%s_%d' % (i.index, len(mapper))
-                        mapper[i] = TimedList(gname=self.profiler.t_name,
+                        mapper[i] = TimedList(gname=self.profiler.varname,
                                               lname=lname, body=i)
-                        self.profiler.t_fields += [(lname, c_double)]
+                        self.profiler.add(lname)
 
                         # Estimate computational properties of the timed section
                         # (operational intensity, memory accesses)
@@ -559,8 +559,7 @@ class OperatorCore(OperatorBasic):
         return summary
 
     def _extra_arguments(self):
-        return OrderedDict([(self.profiler.s_name,
-                             self.profiler.as_ctypes_pointer(Profiler.TIME))])
+        return OrderedDict([(self.profiler.typename, self.profiler.setup())])
 
     def _autotune(self, arguments):
         """Use auto-tuning on this Operator to determine empirically the
@@ -641,13 +640,13 @@ class OperatorCore(OperatorBasic):
     @property
     def _cparameters(self):
         cparameters = super(OperatorCore, self)._cparameters
-        cparameters += [c.Pointer(c.Value('struct %s' % self.profiler.s_name,
-                                          self.profiler.t_name))]
+        cparameters += [c.Pointer(c.Value('struct %s' % self.profiler.typename,
+                                          self.profiler.varname))]
         return cparameters
 
     @property
     def _cglobals(self):
-        return [self.profiler.as_cgen_struct(Profiler.TIME), blankline]
+        return [self.profiler.ctype, blankline]
 
 
 class Operator(object):
