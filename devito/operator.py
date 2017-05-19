@@ -454,6 +454,9 @@ class OperatorForeign(OperatorBasic):
     A special :class:`OperatorBasic` for use outside of Python.
     """
 
+    def __init__(self, stencils, **kwargs):
+        super(OperatorForeign, self).__init__(stencils, **kwargs)
+
     def arguments(self, *args, **kwargs):
         arguments, _ = super(OperatorForeign, self).arguments(*args, **kwargs)
         return arguments.items()
