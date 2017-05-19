@@ -42,17 +42,18 @@ We plug the stencil in an Operator, as shown, and define the values of the
 thermal conductivity :obj:`a`, the spacing between cells :obj:`h` and the
 temporal spacing :obj:`s`.::
 
-   op = Operator(
-           stencils = Eq(u.forward, stencil),
-           substitutions = {a: tc, h: dx, s: dt},
-           nt = timesteps,
-           shape = (nx, ny),
-           spc_border = 1,
-           time_border = 1)
+   op = Operator(Eq(u.forward, stencil),
+                 subs={h: spacing, s: dt, a: tc})
 
 
-To execute the generated Operator, we simply call :samp:`op.apply()`. The
-results will then be found in :obj:`u.data[1, :]`.
+To execute the generated Operator, we simply call :samp:`op.apply(u=u,
+t=timesteps)`. The results will then be found in :obj:`u.data[1, :]`.
 
-For a complete example of this code, check file `test_diffusion.py` in the
-`tests` folder.
+For a complete example of this code, please see
+`examples/diffusion/example_diffusion.py`. A more comprehensive set of
+CFD tutorials based on the excellent `12 steps to Navier-Stokes`__
+tutorial is currently under construction and will be published here soon.
+
+.. _cfdtutorial: http://lorenabarba.com/blog/cfd-python-12-steps-to-navier-stokes/
+
+__ cfdtutorial_
