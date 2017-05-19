@@ -58,7 +58,6 @@ class OperatorBasic(Function):
     """
     def __init__(self, expressions, **kwargs):
         expressions = as_tuple(expressions)
-
         # Input check
         if any(not isinstance(i, sympy.Eq) for i in expressions):
             raise InvalidOperator("Only SymPy expressions are allowed.")
@@ -89,7 +88,6 @@ class OperatorBasic(Function):
         # Analysis 2 - required *for* the Operator construction
         ordering = self._retrieve_loop_ordering(expressions)
         stencils = self._retrieve_stencils(expressions)
-
         # Group expressions based on their Stencil
         clusters = clusterize(expressions, stencils)
 
@@ -98,11 +96,9 @@ class OperatorBasic(Function):
 
         # Wrap expressions with Iterations according to dimensions
         nodes = self._schedule_expressions(clusters, ordering)
-
         # Introduce C-level profiling infrastructure
         self.sections = OrderedDict()
         nodes = self._profile_sections(nodes)
-
         # Parameters of the Operator (Dimensions necessary for data casts)
         parameters = FindSymbols('kernel-data').visit(nodes)
         dimensions = FindSymbols('dimensions').visit(nodes)
@@ -129,6 +125,7 @@ class OperatorBasic(Function):
 
         # Finish instantiation
         super(OperatorBasic, self).__init__(self.name, nodes, 'int', parameters, ())
+        print(self.parameters)
 
     def arguments(self, *args, **kwargs):
         """
@@ -291,7 +288,7 @@ class OperatorBasic(Function):
 
     def _profile_sections(self, nodes):
         """Introduce C-level profiling nodes within the Iteration/Expression tree."""
-        return nodes
+        return List(body=nodes)
 
     def _profile_summary(self, dim_sizes):
         """
@@ -453,7 +450,6 @@ class OperatorForeign(OperatorBasic):
     """
     A special :class:`OperatorBasic` for use outside of Python.
     """
-
     def __init__(self, stencils, **kwargs):
         super(OperatorForeign, self).__init__(stencils, **kwargs)
 
