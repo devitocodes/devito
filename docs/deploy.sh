@@ -5,8 +5,8 @@ SOURCE_BRANCH="master"
 TARGET_BRANCH="gh-pages"
 
 function doCompile {
-    pip install --user sphinx
-    pip install --user sphinx_rtd_theme
+    pip install sphinx
+    pip install sphinx_rtd_theme
     export PYTHONPATH=$(pwd):$PYTHONPATH
     cd docs && make html
     cp -r _build/html/* ../out/
