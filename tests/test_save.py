@@ -32,7 +32,7 @@ def run_simulation(save=False, dx=0.01, dy=0.01, a=0.5, timesteps=100):
     a, h, s = symbols('a h s')
     eqn = Eq(u.dt, a * (u.dx2 + u.dy2))
     stencil = solve(eqn, u.forward)[0]
-    op = Operator(stencils=Eq(u.forward, stencil),
+    op = Operator(Eq(u.forward, stencil),
                   subs={a: 0.5, h: dx, s: dt},
                   time_axis=Forward)
     op.apply()

@@ -148,4 +148,4 @@ def ForwardOperator(model, u, v, src, rec, data, time_order=2,
     stencils += rec.interpolate(expr=u, u_t=ti, offset=model.nbpml)
     stencils += rec.interpolate(expr=v, u_t=ti, offset=model.nbpml)
 
-    return Operator(stencils=stencils, subs=subs, dse=dse, dle=dle)
+    return Operator(stencils, subs=subs, dse=dse, dle=dle)

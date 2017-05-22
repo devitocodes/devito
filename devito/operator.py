@@ -291,7 +291,7 @@ class OperatorBasic(Function):
 
     def _profile_sections(self, nodes):
         """Introduce C-level profiling nodes within the Iteration/Expression tree."""
-        return nodes
+        return List(body=nodes)
 
     def _profile_summary(self, dim_sizes):
         """
@@ -465,9 +465,9 @@ class OperatorCore(OperatorBasic):
     C code evaluating stencil expressions, can also execute the computation.
     """
 
-    def __init__(self, stencils, **kwargs):
+    def __init__(self, expressions, **kwargs):
         self.profiler = Profiler(self.compiler.openmp)
-        super(OperatorCore, self).__init__(stencils, **kwargs)
+        super(OperatorCore, self).__init__(expressions, **kwargs)
 
     def __call__(self, *args, **kwargs):
         self.apply(*args, **kwargs)

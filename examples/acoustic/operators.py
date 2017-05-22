@@ -54,7 +54,7 @@ def ForwardOperator(model, source, receiver, time_order=2, space_order=4,
     # Create interpolation expression for receivers
     rec_term = rec.interpolate(expr=u, u_t=ti, offset=model.nbpml)
 
-    return Operator(stencils=eqn + src_term + rec_term,
+    return Operator(eqn + src_term + rec_term,
                     subs={s: dt, h: model.get_spacing()},
                     time_axis=Forward, name='Forward', **kwargs)
 
@@ -100,7 +100,7 @@ def AdjointOperator(model, source, receiver, time_order=2, space_order=4, **kwar
     # Create interpolation expression for the adjoint-source
     source_a = srca.interpolate(expr=v, u_t=ti, offset=model.nbpml)
 
-    return Operator(stencils=[eqn] + receivers + source_a,
+    return Operator([eqn] + receivers + source_a,
                     subs={s: dt, h: model.get_spacing()},
                     time_axis=Backward, name='Adjoint', **kwargs)
 
@@ -150,7 +150,7 @@ def GradientOperator(model, source, receiver, time_order=2, space_order=4, **kwa
     receivers = rec.inject(field=v, u_t=ti - 1, offset=model.nbpml,
                            expr=rec * dt * dt / m, p_t=time)
 
-    return Operator(stencils=[eqn] + [gradient_update] + receivers,
+    return Operator([eqn] + [gradient_update] + receivers,
                     subs={s: dt, h: model.get_spacing()},
                     time_axis=Backward, name='Gradient', **kwargs)
 
@@ -213,6 +213,6 @@ def BornOperator(model, source, receiver, time_order=2, space_order=4, **kwargs)
     # Create receiver interpolation expression from U
     receivers = rec.interpolate(expr=U, u_t=ti, offset=model.nbpml)
 
-    return Operator(stencils=[eqn1] + source + [eqn2] + receivers,
+    return Operator([eqn1] + source + [eqn2] + receivers,
                     subs={s: dt, h: model.get_spacing()},
                     time_axis=Forward, name='Born', **kwargs)
