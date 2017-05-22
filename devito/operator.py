@@ -453,8 +453,6 @@ class OperatorForeign(OperatorBasic):
     """
     A special :class:`OperatorBasic` for use outside of Python.
     """
-    def __init__(self, stencils, **kwargs):
-        super(OperatorForeign, self).__init__(stencils, **kwargs)
 
     def arguments(self, *args, **kwargs):
         arguments, _ = super(OperatorForeign, self).arguments(*args, **kwargs)
@@ -467,9 +465,9 @@ class OperatorCore(OperatorBasic):
     C code evaluating stencil expressions, can also execute the computation.
     """
 
-    def __init__(self, stencils, **kwargs):
+    def __init__(self, expressions, **kwargs):
         self.profiler = Profiler(self.compiler.openmp)
-        super(OperatorCore, self).__init__(stencils, **kwargs)
+        super(OperatorCore, self).__init__(expressions, **kwargs)
 
     def __call__(self, *args, **kwargs):
         self.apply(*args, **kwargs)
