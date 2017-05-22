@@ -8,7 +8,7 @@ from devito.dimension import t, x, y, z, time
 from devito.finite_difference import (centered, cross_derivative,
                                       first_derivative, left, right,
                                       second_derivative)
-from devito.logger import debug, error
+from devito.logger import debug, error, warning
 from devito.memmap_manager import MemmapManager
 from devito.memory import CMemory, first_touch
 
@@ -507,11 +507,16 @@ class TimeData(DenseData):
         if not self._cached():
             super(TimeData, self).__init__(*args, **kwargs)
             self._full_data = self._data.view() if self._data else None
-            time_dim = kwargs.get('time_dim')
+            time_dim = kwargs.get('time_dim', None)
             self.time_order = kwargs.get('time_order', 1)
             self.save = kwargs.get('save', False)
 
             if not self.save:
+                if time_dim is not None:
+                    warning('Explicit time dimension size (time_dim) found for '
+                            'TimeData symbol %s, despite \nusing a buffered time '
+                            'dimension (save=False). This value will be ignored!'
+                            % self.name)
                 time_dim = self.time_order + 1
                 self.indices[0].modulo = time_dim
             else:

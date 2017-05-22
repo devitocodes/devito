@@ -188,7 +188,7 @@ class TestArguments(object):
         i, j, k = dimify('i j k')
         shape = tuple([d.size for d in [i, j, k]])
         a = DenseData(name='a', shape=shape).indexed
-        b = TimeData(name='b', shape=shape, save=False, time_dim=nt).indexed
+        b = TimeData(name='b', shape=shape, save=False).indexed
         c = TimeData(name='c', shape=shape, save=True, time_dim=nt).indexed
         eqn1 = Eq(b[t, x, y, z], a[x, y, z])
         eqn2 = Eq(c[time, x, y, z], a[x, y, z])
