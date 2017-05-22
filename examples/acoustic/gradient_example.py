@@ -23,8 +23,7 @@ def source(t, f0):
 
 
 def run(dimensions=(50, 50, 50), spacing=(15.0, 15.0, 15.0), tn=750.0,
-        time_order=2, space_order=4, nbpml=40, dse='noop', dle='noop',
-        autotuning=False, compiler=None, cache_blocking=None):
+        time_order=2, space_order=4, nbpml=40, dse='noop', dle='noop'):
     ndim = len(dimensions)
     origin = tuple([0.] * ndim)
     f0 = .010
@@ -98,23 +97,20 @@ def run(dimensions=(50, 50, 50), spacing=(15.0, 15.0, 15.0), tn=750.0,
 
     # Forward Operators - one with save = True and one with save = False
     fw = ForwardOperator(model, u_save, src, rec_t, time_order=time_order,
-                         spc_order=space_order, save=True, cache_blocking=cache_blocking,
-                         dse=dse, dle=dle, compiler=compiler, profile=True)
+                         spc_order=space_order, save=True, dse=dse, dle=dle)
 
     fw_nosave = ForwardOperator(model, u_nosave, src, rec_t, time_order=time_order,
-                                spc_order=space_order, save=False,
-                                cache_blocking=cache_blocking, dse=dse, dle=dle,
-                                compiler=compiler, profile=True)
+                                spc_order=space_order, save=False, dse=dse, dle=dle)
 
     # Calculate receiver data for true velocity
-    fw_nosave.apply(autotuning=autotuning, rec_t=rec_t)
+    fw_nosave.apply(rec_t=rec_t)
 
     # Change to the smooth velocity
     model.m.data[:] = model.pad(1 / initial_vp ** 2)
 
     # Smooth velocity
     # This is the pass that needs checkpointing <----
-    fw.apply(autotuning=autotuning, rec_t=rec_s)
+    fw.apply(rec_t=rec_s)
 
     # Objective function value
     F0 = .5*linalg.norm(rec_s.data - rec_t.data)**2
@@ -131,8 +127,7 @@ def run(dimensions=(50, 50, 50), spacing=(15.0, 15.0, 15.0), tn=750.0,
     grad = DenseData(name="grad", shape=model.shape_domain, dtype=model.dtype)
     # Reusing u_nosave from above as the adjoint wavefield since it is a temp var anyway
     gradop = GradientOperator(model, u_nosave, grad, rec_g, u_save, time_order=time_order,
-                              spc_order=space_order, cache_blocking=cache_blocking,
-                              dse=dse, dle=dle, compiler=compiler, profile=True)
+                              spc_order=space_order, dse=dse, dle=dle)
 
     # Clear the wavefield variable to reuse it
     # This time it represents the adjoint field
