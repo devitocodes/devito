@@ -1,5 +1,7 @@
 """The parameters dictionary contains global parameter settings."""
 
+import os
+
 __all__ = ['Parameters', 'parameters']
 
 # Be EXTREMELY careful when writing to a Parameters dictionary
@@ -45,3 +47,4 @@ class Parameters(dict):
 parameters = Parameters()
 # Default log level set to INFO
 parameters["log_level"] = 'INFO'
+parameters["autotuning"] = os.environ.get('DEVITO_ATMODE', 'basic')

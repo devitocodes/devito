@@ -4,12 +4,12 @@ import operator
 from collections import OrderedDict, namedtuple
 from ctypes import c_int
 from functools import reduce
-from itertools import combinations
 
 import cgen as c
 import numpy as np
 import sympy
 
+from devito.autotuning import autotune
 from devito.cgen_utils import Allocator, blankline
 from devito.compiler import (get_compiler_from_env, jit_compile, load)
 from devito.dimension import BufferedDimension, Dimension, time
@@ -17,7 +17,7 @@ from devito.dle import compose_nodes, filter_iterations, transform
 from devito.dse import (clusterize, estimate_cost, estimate_memory, indexify,
                         rewrite, q_indexed)
 from devito.interfaces import SymbolicData, Forward, Backward
-from devito.logger import bar, error, info, info_at
+from devito.logger import bar, error, info
 from devito.nodes import (Element, Expression, Function, Iteration, List,
                           LocalExpression, TimedList)
 from devito.profiling import Profiler
@@ -209,7 +209,7 @@ class OperatorBasic(Function):
 
         # Might have been asked to auto-tune the block size
         if maybe_autotune:
-            self._autotune(arguments)
+            arguments = self._autotune(arguments)
 
         # Add profiler structs
         arguments.update(self._extra_arguments())
@@ -301,10 +301,8 @@ class OperatorBasic(Function):
 
     def _autotune(self, arguments):
         """Use auto-tuning on this Operator to determine empirically the
-        best block sizes (when loop blocking is in use). The block sizes tested
-        are those listed in ``options['at_blocksizes']``, plus the case that is
-        as if blocking were not applied (ie, unitary block size)."""
-        pass
+        best block sizes when loop blocking is in use."""
+        return arguments
 
     def _schedule_expressions(self, clusters, ordering):
         """Wrap :class:`Expression` objects, already grouped in :class:`Cluster`
@@ -563,79 +561,11 @@ class OperatorCore(OperatorBasic):
 
     def _autotune(self, arguments):
         """Use auto-tuning on this Operator to determine empirically the
-        best block sizes (when loop blocking is in use). The block sizes tested
-        are those listed in ``options['at_blocksizes']``, plus the case that is
-        as if blocking were not applied (ie, unitary block size)."""
-        if not self._dle_state.has_applied_blocking:
-            return
-
-        at_arguments = arguments.copy()
-
-        # Output data must not be changed
-        output = [i.name for i in self.output]
-        for k, v in arguments.items():
-            if k in output:
-                at_arguments[k] = v.copy()
-
-        # Squeeze dimensions to minimize auto-tuning time
-        iterations = FindNodes(Iteration).visit(self.body)
-        squeezable = [i.dim.parent.name for i in iterations
-                      if i.is_Sequential and i.dim.is_Buffered]
-
-        # Attempted block sizes
-        mapper = OrderedDict([(i.argument.name, i) for i in self._dle_state.arguments])
-        blocksizes = [OrderedDict([(i, v) for i in mapper])
-                      for v in options['at_blocksize']]
-        if self._dle_state.needs_aggressive_autotuning:
-            elaborated = []
-            for blocksize in list(blocksizes)[:3]:
-                for i in list(blocksizes):
-                    elaborated.append(OrderedDict(list(blocksize.items())[:-1] +
-                                                  [list(i.items())[-1]]))
-            for blocksize in list(blocksizes):
-                ncombs = len(blocksize)
-                for i in range(ncombs):
-                    for j in combinations(blocksize, i+1):
-                        handle = [(k, blocksize[k]*2 if k in j else v)
-                                  for k, v in blocksize.items()]
-                        elaborated.append(OrderedDict(handle))
-            blocksizes.extend(elaborated)
-
-        # Note: there is only a single loop over 'blocksize' because only
-        # square blocks are tested
-        timings = OrderedDict()
-        for blocksize in blocksizes:
-            illegal = False
-            for k, v in at_arguments.items():
-                if k in blocksize:
-                    val = blocksize[k]
-                    handle = at_arguments.get(mapper[k].original_dim.name)
-                    if val <= mapper[k].iteration.end(handle):
-                        at_arguments[k] = val
-                    else:
-                        # Block size cannot be larger than actual dimension
-                        illegal = True
-                        break
-                elif k in squeezable:
-                    at_arguments[k] = options['at_squeezer']
-            if illegal:
-                continue
-
-            # Add profiler structs
-            at_arguments.update(self._extra_arguments())
-
-            self.cfunction(*list(at_arguments.values()))
-            elapsed = sum(self.profiler.timings.values())
-            timings[tuple(blocksize.items())] = elapsed
-            info_at("<%s>: %f" %
-                    (','.join('%d' % i for i in blocksize.values()), elapsed))
-
-        best = dict(min(timings, key=timings.get))
-        for k, v in arguments.items():
-            if k in mapper:
-                arguments[k] = best[k]
-
-        info('Auto-tuned block shape: %s' % best)
+        best block sizes when loop blocking is in use."""
+        if self._dle_state.has_applied_blocking:
+            return autotune(self, arguments, self._dle_state.arguments)
+        else:
+            return arguments
 
     @property
     def _cparameters(self):
@@ -700,14 +630,6 @@ A dict of standard names to be used for code generation
 cnames = {
     'loc_timer': 'loc_timer',
     'glb_timer': 'glb_timer'
-}
-
-"""
-Operator options
-"""
-options = {
-    'at_squeezer': 3,
-    'at_blocksize': [8, 16, 24, 32, 40, 64, 128]
 }
 
 """

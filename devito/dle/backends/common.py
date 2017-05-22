@@ -62,10 +62,6 @@ class State(object):
         """Return a mapper from elemental function names to :class:`Function`."""
         return OrderedDict([(i.name, i) for i in self.elemental_functions])
 
-    @property
-    def needs_aggressive_autotuning(self):
-        return True
-
 
 class Arg(object):
 
