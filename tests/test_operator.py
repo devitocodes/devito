@@ -200,6 +200,23 @@ class TestArguments(object):
         assert(op1_dim_sizes[time] == 2)
         assert(op2_dim_sizes[time] == nt)
 
+    def test_dimension_size_override(self, nt=100):
+        """Test explicit overrides for the leading time dimension"""
+        i, j, k = dimify('i j k')
+        a = TimeData(name='a', dimensions=(i, j, k))
+        one = symbol(name='one', dimensions=(i, j, k), value=1.)
+        op = Operator(Eq(a.forward, a + one))
+
+        # Test dimension override via the buffered dimenions
+        a.data[0] = 0.
+        op(a=a, t=6)
+        assert(np.allclose(a.data[1], 5.))
+
+        # Test dimension override via the parent dimenions
+        a.data[0] = 0.
+        op(a=a, time=5)
+        assert(np.allclose(a.data[0], 4.))
+
 
 class TestDeclarator(object):
 
