@@ -170,6 +170,26 @@ class TestArguments(object):
         assert(np.allclose(a1.data, np.zeros(shape) + 6))
         assert(np.allclose(a2.data, np.zeros(shape) + 7))
 
+    def test_override_noalias(self):
+        """Test that the call-time overriding of Operator arguments works"""
+        i, j, k, l = dimify('i j k l')
+        a = symbol(name='a', dimensions=(i, j, k, l), value=2.,
+                   mode='indexed').base.function
+        a1 = symbol(name='a1', dimensions=(i, j, k, l), value=3.,
+                    mode='indexed').base.function
+        a2 = symbol(name='a2', dimensions=(i, j, k, l), value=4.,
+                    mode='indexed').base.function
+        eqn = Eq(a, a+3)
+        op = Operator(eqn)
+        op()
+        op(a=a1)
+        op(a=a2)
+        shape = [d.size for d in [i, j, k, l]]
+
+        assert(np.allclose(a.data, np.zeros(shape) + 5))
+        assert(np.allclose(a1.data, np.zeros(shape) + 6))
+        assert(np.allclose(a2.data, np.zeros(shape) + 7))
+
     def test_dimension_size_infer(self, nt=100):
         """Test that the dimension sizes are being inferred correctly"""
         i, j, k = dimify('i j k')
