@@ -54,7 +54,7 @@ def ForwardOperator(model, source, receiver, time_order=2, space_order=4,
     # Create interpolation expression for receivers
     rec_term = rec.interpolate(expr=u, u_t=ti, offset=model.nbpml)
 
-    return Operator(eqn + src_term + rec_term, external=True,
+    return Operator(eqn + src_term + rec_term,
                     subs={s: dt, h: model.get_spacing()},
                     time_axis=Forward, name='Forward', **kwargs)
 
