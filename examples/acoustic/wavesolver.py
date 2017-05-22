@@ -156,7 +156,7 @@ class AcousticWaveSolver(object):
                                     **kwargs)
         return srca, v, summary
 
-    def gradient(self, recin, u, v=None, grad=None, m=None, **kwargs):
+    def gradient(self, rec, u, v=None, grad=None, m=None, **kwargs):
         """
         Gradient modelling function for computing the adjoint of the
         Linearized Born modelling function, ie. the action of the
