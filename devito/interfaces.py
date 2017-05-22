@@ -482,6 +482,8 @@ class TimeData(DenseData):
 
     :param name: Name of the resulting :class:`sympy.Function` symbol
     :param shape: Shape of the spatial data grid
+    :param dimensions: The symbolic dimensions of the function in addition
+                       to time.
     :param dtype: Data type of the buffered data
     :param save: Save the intermediate results to the data buffer. Defaults
                  to `False`, indicating the use of alternating buffers.
@@ -494,7 +496,9 @@ class TimeData(DenseData):
     Note: The parameter :shape: should only define the spatial shape of the
     grid. The temporal dimension will be inserted automatically as the
     leading dimension, according to the :param time_dim:, :param time_order:
-    and whether we want to write intermediate timesteps in the buffer.
+    and whether we want to write intermediate timesteps in the buffer. The
+    same is true for explicitly provided dimensions, which will be added to
+    the automatically derived time dimensions symbol.
     """
 
     is_TimeData = True
@@ -533,15 +537,10 @@ class TimeData(DenseData):
                       automatically infer dimension symbols.
         :return: Dimension indices used for each axis.
         """
-        dimensions = kwargs.get('dimensions', None)
-        if dimensions is None:
-            # Infer dimensions from default and data shape
-            save = kwargs.get('save', None)
-            tidx = time if save else t
-            _indices = [tidx, x, y, z]
-            shape = kwargs.get('shape')
-            dimensions = _indices[:len(shape) + 1]
-        return dimensions
+        save = kwargs.get('save', None)
+        tidx = time if save else t
+        _indices = DenseData._indices(**kwargs)
+        return tuple([tidx] + list(_indices))
 
     def _allocate_memory(self):
         """function to allocate memmory in terms of numpy ndarrays."""
