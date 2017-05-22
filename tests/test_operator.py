@@ -150,17 +150,13 @@ class TestArguments(object):
     def setup_class(cls):
         clear_cache()
 
-    def test_override(self):
-        """Test that the call-time overriding of Operator arguments works"""
+    def test_override_symbol(self):
+        """Test call-time symbols overrides with other symbols"""
         i, j, k, l = dimify('i j k l')
-        a = symbol(name='a', dimensions=(i, j, k, l), value=2.,
-                   mode='indexed').base.function
-        a1 = symbol(name='a', dimensions=(i, j, k, l), value=3.,
-                    mode='indexed').base.function
-        a2 = symbol(name='a', dimensions=(i, j, k, l), value=4.,
-                    mode='indexed').base.function
-        eqn = Eq(a, a+3)
-        op = Operator(eqn)
+        a = symbol(name='a', dimensions=(i, j, k, l), value=2.)
+        a1 = symbol(name='a', dimensions=(i, j, k, l), value=3.)
+        a2 = symbol(name='a', dimensions=(i, j, k, l), value=4.)
+        op = Operator(Eq(a, a + 3))
         op()
         op(a=a1)
         op(a=a2)
@@ -169,6 +165,23 @@ class TestArguments(object):
         assert(np.allclose(a.data, np.zeros(shape) + 5))
         assert(np.allclose(a1.data, np.zeros(shape) + 6))
         assert(np.allclose(a2.data, np.zeros(shape) + 7))
+
+    def test_override_array(self):
+        """Test call-time symbols overrides with numpy arrays"""
+        i, j, k, l = dimify('i j k l')
+        shape = tuple(d.size for d in (i, j, k, l))
+        a = symbol(name='a', dimensions=(i, j, k, l), value=2.)
+        a1 = np.zeros(shape=shape, dtype=np.float32) + 3.
+        a2 = np.zeros(shape=shape, dtype=np.float32) + 4.
+        op = Operator(Eq(a, a + 3))
+        op()
+        op(a=a1)
+        op(a=a2)
+        shape = [d.size for d in [i, j, k, l]]
+
+        assert(np.allclose(a.data, np.zeros(shape) + 5))
+        assert(np.allclose(a1, np.zeros(shape) + 6))
+        assert(np.allclose(a2, np.zeros(shape) + 7))
 
     def test_dimension_size_infer(self, nt=100):
         """Test that the dimension sizes are being inferred correctly"""
