@@ -1,8 +1,8 @@
 import numpy as np
 from examples.seismic import Model
-from devito import Dimension, time, TimeData, DenseData
-from examples.source_type import SourceLike
-from examples.acoustic.fwi_operators import ForwardOperator, GradientOperator
+from devito import time, TimeData, DenseData
+from examples.acoustic import AcousticWaveSolver
+from examples.seismic.source import PointSource, Receiver
 from numpy import linalg
 
 
@@ -41,6 +41,7 @@ def run(dimensions=(50, 50, 50), spacing=(15.0, 15.0, 15.0), tn=750.0,
     # Model perturbation
     dm = true_vp**-2 - initial_vp**-2
     model = Model(origin, spacing, true_vp.shape, true_vp, nbpml=nbpml)
+    model0 = Model(origin, spacing, true_vp.shape, initial_vp, nbpml=nbpml)
     dt = model.critical_dt
     if time_order == 4:
         dt *= 1.73
@@ -65,76 +66,38 @@ def run(dimensions=(50, 50, 50), spacing=(15.0, 15.0, 15.0), tn=750.0,
     receiver_coords[:, 2] = location[0, 2]
 
     # Create source symbol
-    p_src = Dimension('p_src', size=nsrc)
-    src = SourceLike(name="src", dimensions=[time, p_src], npoint=nsrc, nt=nt,
-                     dt=dt, h=h, ndim=ndim, nbpml=nbpml, dtype=dtype,
-                     coordinates=location)
-    src.data[:] = time_series
-
-    # Create receiver symbol
-    p_rec = Dimension('p_rec', size=nrec)
+    src = PointSource(name="src", data=time_series, coordinates=location)
 
     # Receiver for true model
-    rec_t = SourceLike(name="rec_t", dimensions=[time, p_rec], npoint=nrec, nt=nt, dt=dt,
-                       h=h, ndim=ndim, nbpml=nbpml, dtype=dtype,
-                       coordinates=receiver_coords)
+    recT = Receiver(name="rec", ntime=nt, coordinates=receiver_coords)
     # Receiver for smoothed model
-    rec_s = SourceLike(name="rec_s", dimensions=[time, p_rec], npoint=nrec, nt=nt, dt=dt,
-                       h=h, ndim=ndim, nbpml=nbpml, dtype=dtype,
-                       coordinates=receiver_coords)
+    rec0 = Receiver(name="rec", ntime=nt, coordinates=receiver_coords)
 
-    # Create the forward wavefield to use (only 3 timesteps)
-    # Once checkpointing is in, this will be the only wavefield we need
-    u_nosave = TimeData(name="u_ns", shape=model.shape_domain, time_dim=nt,
-                        time_order=time_order, space_order=space_order, save=False,
-                        dtype=model.dtype)
-
-    # Forward wavefield where all timesteps are stored
-    # With checkpointing this should go away <----
-    u_save = TimeData(name="u_s", shape=model.shape_domain, time_dim=nt,
-                      time_order=time_order, space_order=space_order, save=True,
-                      dtype=model.dtype)
-
-    # Forward Operators - one with save = True and one with save = False
-    fw = ForwardOperator(model, u_save, src, rec_t, time_order=time_order,
-                         spc_order=space_order, save=True, dse=dse, dle=dle)
-
-    fw_nosave = ForwardOperator(model, u_nosave, src, rec_t, time_order=time_order,
-                                spc_order=space_order, save=False, dse=dse, dle=dle)
+    # Create wave solver from model, source and receiver definitions
+    solver = AcousticWaveSolver(model, source=src, receiver=recT,
+                                time_order=time_order,
+                                space_order=space_order)
 
     # Calculate receiver data for true velocity
-    fw_nosave.apply(rec_t=rec_t)
-
-    # Change to the smooth velocity
-    model.m.data[:] = model.pad(1 / initial_vp ** 2)
+    recT, _, _ = solver.forward(rec=recT, m=model.m, save=False)
 
     # Smooth velocity
     # This is the pass that needs checkpointing <----
-    fw.apply(rec_t=rec_s)
+    rec0, u0, _ = solver.forward(rec=rec0, m=model0.m, save=True)
 
     # Objective function value
-    F0 = .5*linalg.norm(rec_s.data - rec_t.data)**2
-
+    F0 = .5*linalg.norm(rec0.data - recT.data)**2
     # Receiver for Gradient
     # Confusing nomenclature because this is actually the source for the adjoint
     # mode
-    rec_g = SourceLike(name="rec_g", dimensions=[time, p_rec], npoint=nrec, nt=nt, dt=dt,
-                       h=h, ndim=ndim, nbpml=nbpml, dtype=dtype,
-                       coordinates=receiver_coords)
-    rec_g.data[:] = rec_s.data - rec_t.data
+    rec_g = Receiver(name="rec", data=rec0.data - recT.data,
+                     coordinates=receiver_coords)
 
     # Gradient symbol
     grad = DenseData(name="grad", shape=model.shape_domain, dtype=model.dtype)
-    # Reusing u_nosave from above as the adjoint wavefield since it is a temp var anyway
-    gradop = GradientOperator(model, u_nosave, grad, rec_g, u_save, time_order=time_order,
-                              spc_order=space_order, dse=dse, dle=dle)
-
-    # Clear the wavefield variable to reuse it
-    # This time it represents the adjoint field
-    u_nosave.data.fill(0)
     # Apply the gradient operator to calculate the gradient
     # This is the pass that requires the checkpointed data
-    gradop.apply()
+    grad, _ = solver.gradient(rec_g, u0, grad=grad)
     # The result is in grad
     gradient = grad.data
 
@@ -147,22 +110,18 @@ def run(dimensions=(50, 50, 50), spacing=(15.0, 15.0, 15.0), tn=750.0,
 
     for i in range(0, 7):
         # Add the perturbation to the model
-        model.m.data[:] = model.pad(m0 + H[i] * dm)
-        # Set field to zero (we're re-using it)
-        u_nosave.data.fill(0)
+        model0.m.data[:] = model.pad(m0 + H[i] * dm)
         # Receiver data for the new model
-        # Results will be in rec_s
-        fw_nosave.apply(rec_t=rec_s)
-        d = rec_s.data
+        d, _, _ = solver.forward(m=model0.m, save=False)
         # First order error Phi(m0+dm) - Phi(m0)
-        error1[i] = np.absolute(.5*linalg.norm(d - rec_t.data)**2 - F0)
+        error1[i] = np.absolute(.5*linalg.norm(d.data - recT.data)**2 - F0)
         # Second order term r Phi(m0+dm) - Phi(m0) - <J(m0)^T \delta d, dm>
-        error2[i] = np.absolute(.5*linalg.norm(d - rec_t.data)**2 - F0 - H[i] * G)
+        error2[i] = np.absolute(.5*linalg.norm(d.data - recT.data)**2 - F0 - H[i] * G)
 
     # Test slope of the  tests
     p1 = np.polyfit(np.log10(H), np.log10(error1), 1)
     p2 = np.polyfit(np.log10(H), np.log10(error2), 1)
-
+    print(p1, p2)
     assert np.isclose(p1[0], 1.0, rtol=0.1)
     assert np.isclose(p2[0], 2.0, rtol=0.1)
 

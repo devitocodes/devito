@@ -5,9 +5,8 @@ from numpy import linalg
 from devito.logger import log
 from devito import TimeData
 from examples.acoustic import AcousticWaveSolver
-from examples.containers import IShot
 from examples.seismic import Model, PointSource, Receiver
-from examples.tti.TTI_codegen import TTI_cg
+from examples.tti import AnisotropicWaveSolver
 
 
 @pytest.mark.parametrize('dimensions', [(120, 140), (120, 140, 150)])
@@ -59,16 +58,14 @@ def test_tti(dimensions, space_order):
                   theta=0.0 * true_vp,
                   phi=0.0 * true_vp)
     # Define seismic data.
-    data = IShot()
-    src = IShot()
 
     f0 = .010
     dt = model.critical_dt
     t0 = 0.0
     tn = 350.0
     nt = int(1+(tn-t0)/dt)
-    last = (nt - 1) % 3
-    indlast = [(last + 1) % 3, (last+2) % 3, last % 3]
+    last = (nt - 2) % 3
+    indlast = [(last + 1) % 3, last % 3, (last-1) % 3]
 
     # Set up the source as Ricker wavelet for f0
     def ricker_source(t, f0):
@@ -78,13 +75,6 @@ def test_tti(dimensions, space_order):
     # Source geometry
     time_series = np.zeros((nt, 1))
     time_series[:, 0] = ricker_source(np.linspace(t0, tn, nt), f0)
-    src.set_receiver_pos(location)
-    src.set_shape(nt, 1)
-    src.set_traces(time_series)
-
-    data.set_receiver_pos(receiver_coords)
-    data.set_shape(nt, 101)
-
     # Adjoint test
     source = PointSource(name='src', data=time_series, coordinates=location)
     receiver = Receiver(name='rec', ntime=nt, coordinates=receiver_coords)
@@ -97,31 +87,35 @@ def test_tti(dimensions, space_order):
     # Source geometry
     time_series = np.zeros((nt, 1))
     time_series[:, 0] = 0*ricker_source(np.linspace(t0, tn, nt), f0)
-    src.set_shape(nt, 1)
-    src.set_traces(time_series)
-    data.set_shape(nt, 101)
 
     source = PointSource(name='src', data=time_series, coordinates=location)
     receiver = Receiver(name='rec', ntime=nt, coordinates=receiver_coords)
     acoustic = AcousticWaveSolver(model, source=source, receiver=receiver,
                                   time_order=2, space_order=space_order)
 
-    wave_tti = TTI_cg(model, data, src, t_order=2, s_order=space_order)
+    solver_tti = AnisotropicWaveSolver(model, source=source, receiver=receiver,
+                                       time_order=2, space_order=space_order)
 
     # Create new wavefield object restart forward computation
     u = TimeData(name='u', shape=model.shape_domain, save=False,
                  time_order=2, space_order=space_order, dtype=model.dtype)
     u.data[0:3, :] = u1.data[indlast, :]
     rec, _, _ = acoustic.forward(save=False, u=u)
-    rec_tti, u_tti, v_tti, _, _, _ = wave_tti.Forward(save=False,
-                                                      u_ini=u1.data[indlast, :])
+
+    utti = TimeData(name='u', shape=model.shape_domain, save=False,
+                    time_order=2, space_order=space_order, dtype=model.dtype)
+    vtti = TimeData(name='v', shape=model.shape_domain, save=False,
+                    time_order=2, space_order=space_order, dtype=model.dtype)
+    utti.data[0:3, :] = u1.data[indlast, :]
+    vtti.data[0:3, :] = u1.data[indlast, :]
+    rec_tti, u_tti, v_tti, _ = solver_tti.forward(u=utti, v=vtti)
 
     res = linalg.norm(u.data.reshape(-1) -
-                      .5 * u_tti.reshape(-1) - .5 * v_tti.reshape(-1))
+                      .5 * u_tti.data.reshape(-1) - .5 * v_tti.data.reshape(-1))
     res /= linalg.norm(u.data.reshape(-1))
     log("Difference between acoustic and TTI with all coefficients to 0 %f" % res)
     assert np.isclose(res, 0.0, atol=1e-1)
 
 
 if __name__ == "__main__":
-    test_tti((120, 140, 130), 4)
+    test_tti((120, 140), 4)
