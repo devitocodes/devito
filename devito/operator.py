@@ -12,7 +12,7 @@ import sympy
 from devito.autotuning import autotune
 from devito.cgen_utils import Allocator, blankline
 from devito.compiler import jit_compile, load
-from devito.dimension import BufferedDimension, Dimension, time
+from devito.dimension import Dimension, time
 from devito.dle import compose_nodes, filter_iterations, transform
 from devito.dse import (clusterize, estimate_cost, estimate_memory, indexify,
                         rewrite, q_indexed)

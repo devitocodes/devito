@@ -7,7 +7,7 @@ import pytest
 from sympy import Eq  # noqa
 
 from devito import (clear_cache, Operator, DenseData, TimeData,
-                    time, t, x, y, z)
+                    time, x, y, z)
 from devito.dle import retrieve_iteration_tree
 from devito.visitors import IsPerfectIteration
 
@@ -188,17 +188,12 @@ class TestArguments(object):
         i, j, k = dimify('i j k')
         shape = tuple([d.size for d in [i, j, k]])
         a = DenseData(name='a', shape=shape).indexed
-        b = TimeData(name='b', shape=shape, save=False).indexed
-        c = TimeData(name='c', shape=shape, save=True, time_dim=nt).indexed
-        eqn1 = Eq(b[t, x, y, z], a[x, y, z])
-        eqn2 = Eq(c[time, x, y, z], a[x, y, z])
-        op1 = Operator(eqn1)
-        op2 = Operator(eqn2)
+        b = TimeData(name='b', shape=shape, save=True, time_dim=nt).indexed
+        eqn = Eq(b[time, x, y, z], a[x, y, z])
+        op = Operator(eqn)
 
-        _, op1_dim_sizes = op1.arguments()
-        _, op2_dim_sizes = op2.arguments()
-        assert(op1_dim_sizes[time] == 2)
-        assert(op2_dim_sizes[time] == nt)
+        _, op_dim_sizes = op.arguments()
+        assert(op_dim_sizes[time.name] == nt)
 
     def test_dimension_size_override(self, nt=100):
         """Test explicit overrides for the leading time dimension"""
