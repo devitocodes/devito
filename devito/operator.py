@@ -11,7 +11,7 @@ import sympy
 
 from devito.autotuning import autotune
 from devito.cgen_utils import Allocator, blankline
-from devito.compiler import (get_compiler_from_env, jit_compile, load)
+from devito.compiler import jit_compile, load
 from devito.dimension import BufferedDimension, Dimension, time
 from devito.dle import compose_nodes, filter_iterations, transform
 from devito.dse import (clusterize, estimate_cost, estimate_memory, indexify,
@@ -20,6 +20,7 @@ from devito.interfaces import SymbolicData, Forward, Backward
 from devito.logger import bar, error, info
 from devito.nodes import (Element, Expression, Function, Iteration, List,
                           LocalExpression, TimedList)
+from devito.parameters import configuration
 from devito.profiling import Profiler
 from devito.stencil import Stencil
 from devito.tools import as_tuple, filter_ordered, flatten
@@ -49,12 +50,9 @@ class OperatorBasic(Function):
         * time_axis : :class:`TimeAxis` object to indicate direction in which
                       to advance time during computation.
         * dse : Use the Devito Symbolic Engine to optimize the expressions -
-                defaults to "advanced".
+                defaults to ``configuration['dse']``.
         * dle : Use the Devito Loop Engine to optimize the loops -
-                defaults to "advanced".
-        * compiler: Compiler class used to perform JIT compilation.
-                    If not provided, the compiler will be inferred from the
-                    environment variable DEVITO_ARCH, or default to GNUCompiler.
+                defaults to ``configuration['dle']``.
     """
     def __init__(self, expressions, **kwargs):
         expressions = as_tuple(expressions)
@@ -66,8 +64,8 @@ class OperatorBasic(Function):
         self.name = kwargs.get("name", "Kernel")
         subs = kwargs.get("subs", {})
         time_axis = kwargs.get("time_axis", Forward)
-        dse = kwargs.get("dse", "advanced")
-        dle = kwargs.get("dle", "advanced")
+        dse = kwargs.get("dse", configuration['dse'])
+        dle = kwargs.get("dle", configuration['dle'])
 
         # Default attributes required for compilation
         self._headers = list(self._default_headers)
@@ -116,7 +114,7 @@ class OperatorBasic(Function):
         nodes = SubstituteExpression(subs=subs).visit(nodes)
 
         # Apply the Devito Loop Engine for loop optimization
-        dle_state = transform(nodes, *set_dle_mode(dle, self.compiler))
+        dle_state = transform(nodes, *set_dle_mode(dle))
         parameters += [i.argument for i in dle_state.arguments]
         self._includes.extend(list(dle_state.includes))
 
@@ -248,18 +246,17 @@ class OperatorBasic(Function):
     @property
     def compile(self):
         """
-        JIT-compile the Operator.
+        JIT-compile the Operator using the compiler specified in the global
+        configuration dictionary (``configuration['compiler']``).
 
-        Note that this invokes the JIT compilation toolchain with the compiler
-        class derived in the constructor. Also, JIT compilation it is ensured that
-        JIT compilation will only be performed once per Operator, reagardless of
-        how many times this method is invoked.
+        It is ensured that JIT compilation will only be performed once per
+        :class:`Operator`, reagardless of how many times this method is invoked.
 
         :returns: The file name of the JIT-compiled function.
         """
         if self._lib is None:
             # No need to recompile if a shared object has already been loaded.
-            return jit_compile(self.ccode, self.compiler)
+            return jit_compile(self.ccode, configuration['compiler'])
         else:
             return self._lib.name
 
@@ -268,7 +265,7 @@ class OperatorBasic(Function):
         """Returns the JIT-compiled C function as a ctypes.FuncPtr object."""
         if self._lib is None:
             basename = self.compile
-            self._lib = load(basename, self.compiler)
+            self._lib = load(basename, configuration['compiler'])
             self._lib.name = basename
 
         if self._cfunction is None:
@@ -563,7 +560,8 @@ class OperatorCore(OperatorBasic):
         """Use auto-tuning on this Operator to determine empirically the
         best block sizes when loop blocking is in use."""
         if self._dle_state.has_applied_blocking:
-            return autotune(self, arguments, self._dle_state.arguments)
+            return autotune(self, arguments, self._dle_state.arguments,
+                            mode=configuration['autotuning'])
         else:
             return arguments
 
@@ -587,17 +585,14 @@ class Operator(object):
 
         # Trigger instantiation
         obj = cls.__new__(cls, *args, **kwargs)
-        obj.compiler = kwargs.pop("compiler", get_compiler_from_env())
         obj.__init__(*args, **kwargs)
         return obj
 
 
 # Helpers for performance tracking
 
-"""
-A helper to return structured performance data.
-"""
 PerfEntry = namedtuple('PerfEntry', 'time gflopss oi itershape datashape')
+"""A helper to return structured performance data."""
 
 
 class PerformanceSummary(OrderedDict):
@@ -622,37 +617,29 @@ class PerformanceSummary(OrderedDict):
         return OrderedDict([(k, v.time) for k, v in self.items()])
 
 
-# Operator options and name conventions
+# Misc helpers
 
-"""
-A dict of standard names to be used for code generation
-"""
 cnames = {
     'loc_timer': 'loc_timer',
     'glb_timer': 'glb_timer'
 }
+"""A dict of standard names to be used for code generation."""
 
-"""
-A helper to track profiled sections of code.
-"""
 Profile = namedtuple('Profile', 'timer ops memory')
+"""A helper to track profiled sections of code."""
 
 
-# Helpers to use a Operator
-
-def set_dle_mode(mode, compiler):
+def set_dle_mode(mode):
     """
     Transform :class:`Operator` input in a format understandable by the DLE.
     """
     if not mode:
-        return 'noop', {}, compiler
+        return 'noop', {}
     elif isinstance(mode, str):
-        return mode, {'openmp': compiler.openmp}, compiler
+        return mode, {}
     elif isinstance(mode, tuple):
         if len(mode) == 1:
-            return mode[0], {'openmp': compiler.openmp}, compiler
+            return mode[0], {}
         elif len(mode) == 2 and isinstance(mode[1], dict):
-            mode, params = mode
-            params['openmp'] = compiler.openmp
-            return mode, params, compiler
+            return mode
     raise TypeError("Illegal DLE mode %s." % str(mode))

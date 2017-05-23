@@ -3,7 +3,6 @@
 import logging
 import sys
 from contextlib import contextmanager
-from devito.parameters import parameters
 
 __all__ = ('set_log_level', 'set_log_noperf', 'log',
            'DEBUG', 'INFO', 'AUTOTUNER', 'DSE', 'DSE_WARN', 'DLE', 'DLE_WARN',
@@ -16,14 +15,6 @@ __all__ = ('set_log_level', 'set_log_noperf', 'log',
 logger = logging.getLogger('Devito')
 _ch = logging.StreamHandler()
 logger.addHandler(_ch)
-
-log_level = "log_level"
-
-
-def parameters_updated(key, value):
-    if key == log_level:
-        logger.setLevel(eval(value))
-
 
 # Add extra levels between INFO (value=20) and WARNING (value=30)
 DEBUG = logging.DEBUG
@@ -43,8 +34,18 @@ logging.addLevelName(DSE_WARN, "DSE_WARN")
 logging.addLevelName(DSE, "DLE")
 logging.addLevelName(DSE_WARN, "DLE_WARN")
 
-parameters_updated(log_level, parameters[log_level])
-parameters.update_functions.append(parameters_updated)
+logger_registry = {
+    'DEBUG': DEBUG,
+    'AUTOTUNER': AUTOTUNER,
+    'INFO': INFO,
+    'DSE': DSE,
+    'DLE': DSE,
+    'DSE_WARN': DSE_WARN,
+    'DLE_WARN': DSE_WARN,
+    'WARNING': WARNING,
+    'ERROR': ERROR,
+    'CRITICAL': CRITICAL
+}
 
 NOCOLOR = '%s'
 RED = '\033[1;37;31m%s\033[0m'
@@ -72,6 +73,8 @@ def set_log_level(level):
     :param level: accepted values are: DEBUG, INFO, AUTOTUNER, DSE, DSE_WARN,
                   DLE, DLE_WARN, WARNING, ERROR, CRITICAL
     """
+    if level not in logger_registry:
+        raise ValueError("Illegal logging level %s" % level)
     logger.setLevel(level)
 
 

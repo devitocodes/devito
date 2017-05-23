@@ -112,9 +112,6 @@ class BasicRewriter(AbstractRewriter):
         return {'nodes': processed, 'elemental_functions': functions}
 
     def _compiler_decoration(self, name, default=None):
-        if self.compiler:
-            key = self.compiler.__class__.__name__
-            complang = complang_ALL.get(key, {})
-        else:
-            complang = {}
+        key = self.params['compiler'].__class__.__name__
+        complang = complang_ALL.get(key, {})
         return complang.get(name, default)

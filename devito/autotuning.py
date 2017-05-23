@@ -3,13 +3,12 @@ from itertools import combinations
 
 from devito.logger import info, info_at
 from devito.nodes import Iteration
-from devito.parameters import parameters
 from devito.visitors import FindNodes
 
 __all__ = ['autotune']
 
 
-def autotune(operator, arguments, tunable):
+def autotune(operator, arguments, tunable, mode='basic'):
     """
     Acting as a high-order function, take as input an operator and a list of
     operator arguments to perform empirical autotuning. Some of the operator
@@ -32,7 +31,7 @@ def autotune(operator, arguments, tunable):
     mapper = OrderedDict([(i.argument.name, i) for i in tunable])
     blocksizes = [OrderedDict([(i, v) for i in mapper])
                   for v in options['at_blocksize']]
-    if parameters['autotuning'] == 'aggressive':
+    if mode == 'aggressive':
         blocksizes = more_heuristic_attempts(blocksizes)
 
     # Note: there is only a single loop over 'blocksize' because only
@@ -99,10 +98,10 @@ def more_heuristic_attempts(blocksizes):
     return unique
 
 
-"""
-Autotuning options
-"""
 options = {
     'at_squeezer': 3,
     'at_blocksize': [8, 16, 24, 32, 40, 64, 128]
 }
+"""Autotuning options."""
+
+autotuning_registry = ('none', 'basic', 'aggressive')

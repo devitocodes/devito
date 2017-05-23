@@ -122,10 +122,9 @@ class AbstractRewriter(object):
         'min_fission': 20  # Statements
     }
 
-    def __init__(self, nodes, params, compiler):
+    def __init__(self, nodes, params):
         self.nodes = nodes
         self.params = params
-        self.compiler = compiler
 
         self.timings = OrderedDict()
 
