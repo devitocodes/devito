@@ -158,9 +158,10 @@ class OperatorBasic(Function):
             arguments[argname] = o_vals[argname]
 
         # Traverse positional args and infer loop sizes for open dimensions
-        f_args = [f for f in arguments.values() if isinstance(f, SymbolicData)]
-        for f in f_args:
-            arguments[f.name] = self._arg_data(f)
+        f_args = [(name, f) for name, f in arguments.items()
+                  if isinstance(f, SymbolicData)]
+        for fname, f in f_args:
+            arguments[fname] = self._arg_data(f)
             shape = self._arg_shape(f)
 
             # Ensure data dimensions match symbol dimensions
@@ -174,7 +175,7 @@ class OperatorBasic(Function):
                 if dim.size is not None:
                     if not shape[i] <= dim.size:
                         error('Size of data argument for %s is greater than the size '
-                              'of dimension %s: %d' % (f.name, dim.name, dim.size))
+                              'of dimension %s: %d' % (fname, dim.name, dim.size))
                         raise InvalidArgument('Wrong data shape encountered')
                     else:
                         continue
@@ -188,7 +189,7 @@ class OperatorBasic(Function):
                     if not dim_sizes[dim.name] <= shape[i]:
                         error('Size of dimension %s was determined to be %d, '
                               'but data for symbol %s has shape %d.'
-                              % (dim.name, dim_sizes[dim.name], f.name, shape[i]))
+                              % (dim.name, dim_sizes[dim.name], fname, shape[i]))
                         raise InvalidArgument('Wrong data shape encountered')
 
         # Make sure we have defined all buffered dimensions and their parents,

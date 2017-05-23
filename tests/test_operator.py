@@ -154,8 +154,8 @@ class TestArguments(object):
         """Test call-time symbols overrides with other symbols"""
         i, j, k, l = dimify('i j k l')
         a = symbol(name='a', dimensions=(i, j, k, l), value=2.)
-        a1 = symbol(name='a', dimensions=(i, j, k, l), value=3.)
-        a2 = symbol(name='a', dimensions=(i, j, k, l), value=4.)
+        a1 = symbol(name='a1', dimensions=(i, j, k, l), value=3.)
+        a2 = symbol(name='a2', dimensions=(i, j, k, l), value=4.)
         op = Operator(Eq(a, a + 3))
         op()
         op(a=a1)
