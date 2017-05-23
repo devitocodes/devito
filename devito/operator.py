@@ -138,8 +138,15 @@ class OperatorBasic(Function):
         # Will perform auto-tuning if the user requested it and loop blocking was used
         maybe_autotune = kwargs.get('autotune', False)
 
+        # Initialise argument map and a map of dimension names to values
         arguments = OrderedDict([(arg.name, arg) for arg in self.parameters])
-        dim_sizes = {}
+        dim_sizes = dict([(arg.name, arg.size) for arg in self.parameters
+                          if isinstance(arg, Dimension)])
+
+        # Override explicitly provided dim sizes from **kwargs
+        for name, value in kwargs.items():
+            if name in dim_sizes:
+                dim_sizes[name] = value
 
         # Have we been provided substitutes for symbol data?
         # Only SymbolicData can be overridden with this route
@@ -148,9 +155,6 @@ class OperatorBasic(Function):
 
         # Replace the overridden values with the provided ones
         for argname in o_vals.keys():
-            if not arguments[argname].shape == o_vals[argname].shape:
-                raise InvalidArgument("Shapes must match")
-
             arguments[argname] = o_vals[argname]
 
         # Traverse positional args and infer loop sizes for open dimensions
@@ -161,49 +165,65 @@ class OperatorBasic(Function):
 
             # Ensure data dimensions match symbol dimensions
             for i, dim in enumerate(f.indices):
-                # Infer open loop limits
-                if dim.size is None:
-                    # First, try to find dim size in kwargs
-                    if dim.name in kwargs:
-                        dim_sizes[dim] = kwargs[dim.name]
+                # We don't need to check sizes for buffered dimensions
+                # against data shapes, all we need is the size of the parent.
+                if dim.is_Buffered:
+                    continue
 
-                    if dim in dim_sizes:
-                        # Ensure size matches previously defined size
-                        if not dim.is_Buffered:
-                            assert dim_sizes[dim] <= shape[i]
+                # Check data sizes for dimensions with a fixed size
+                if dim.size is not None:
+                    if not shape[i] <= dim.size:
+                        error('Size of data argument for %s is greater than the size '
+                              'of dimension %s: %d' % (f.name, dim.name, dim.size))
+                        raise InvalidArgument('Wrong data shape encountered')
                     else:
-                        # Derive size from grid data shape and store
-                        dim_sizes[dim] = shape[i]
-                else:
-                    if not isinstance(dim, BufferedDimension):
-                        assert dim.size == shape[i]
+                        continue
 
-        # Ensure parent for buffered dims is defined
-        buf_dims = [d for d in dim_sizes if d.is_Buffered]
-        for dim in buf_dims:
-            if dim.parent not in dim_sizes:
-                dim_sizes[dim.parent] = dim_sizes[dim]
+                if dim_sizes[dim.name] is None:
+                    # We haven't determined the size of this dimension yet,
+                    # try to infer it from the data shape.
+                    dim_sizes[dim.name] = shape[i]
+                else:
+                    # We know the dimension size, check if data shape agrees
+                    if not dim_sizes[dim.name] <= shape[i]:
+                        error('Size of dimension %s was determined to be %d, '
+                              'but data for symbol %s has shape %d.'
+                              % (dim.name, dim_sizes[dim.name], f.name, shape[i]))
+                        raise InvalidArgument('Wrong data shape encountered')
+
+        # Make sure we have defined all buffered dimensions and their parents,
+        # even if they are not explicitly given or used.
+        d_args = [d for d in arguments.values() if isinstance(d, Dimension)]
+        for d in d_args:
+            if d.is_Buffered:
+                if dim_sizes[d.parent.name] is None:
+                    dim_sizes[d.parent.name] = dim_sizes[d.name]
+                if dim_sizes[d.name] is None:
+                    dim_sizes[d.name] = dim_sizes[d.parent.name]
 
         # Add user-provided block sizes, if any
         dle_arguments = OrderedDict()
         for i in self._dle_state.arguments:
-            dim_size = dim_sizes.get(i.original_dim, i.original_dim.size)
-            assert dim_size is not None, "Unable to match arguments and values"
+            dim_size = dim_sizes.get(i.original_dim.name, i.original_dim.size)
+            if dim_size is None:
+                error('Unable to derive size of dimension %s from defaults. '
+                      'Please provide an explicit value.' % i.original_dim.name)
+                raise InvalidArgument('Unknown dimension size')
             if i.value:
                 try:
-                    dle_arguments[i.argument] = i.value(dim_size)
+                    dle_arguments[i.argument.name] = i.value(dim_size)
                 except TypeError:
-                    dle_arguments[i.argument] = i.value
+                    dle_arguments[i.argument.name] = i.value
                     # User-provided block size available, do not autotune
                     maybe_autotune = False
             else:
-                dle_arguments[i.argument] = dim_size
+                dle_arguments[i.argument.name] = dim_size
         dim_sizes.update(dle_arguments)
 
         # Insert loop size arguments from dimension values
         d_args = [d for d in arguments.values() if isinstance(d, Dimension)]
         for d in d_args:
-            arguments[d.name] = dim_sizes[d]
+            arguments[d.name] = dim_sizes[d.name]
 
         # Might have been asked to auto-tune the block size
         if maybe_autotune:
@@ -531,13 +551,13 @@ class OperatorCore(OperatorBasic):
             time = self.profiler.timings[profile.timer]
 
             # Flops
-            itershape = [i.extent(finish=dim_sizes.get(dims[i])) for i in itspace]
+            itershape = [i.extent(finish=dim_sizes.get(dims[i].name)) for i in itspace]
             iterspace = reduce(operator.mul, itershape)
             flops = float(profile.ops*iterspace)
             gflops = flops/10**9
 
             # Compulsory traffic
-            datashape = [i.dim.size or dim_sizes[dims[i]] for i in itspace]
+            datashape = [i.dim.size or dim_sizes[dims[i].name] for i in itspace]
             dataspace = reduce(operator.mul, datashape)
             traffic = profile.memory*dataspace*self.dtype().itemsize
 
