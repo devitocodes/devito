@@ -6,14 +6,12 @@ from time import time
 from sys import platform
 
 import numpy.ctypeslib as npct
-from cgen import Pragma
 from codepy.jit import extension_file_from_string
 from codepy.toolchain import GCCToolchain
 
 from devito.logger import log
 
-__all__ = ['get_tmp_dir', 'get_compiler_from_env', 'jit_compile', 'load',
-           'GNUCompiler']
+__all__ = ['get_tmp_dir', 'get_compiler_from_env', 'jit_compile', 'load', 'GNUCompiler']
 
 
 class Compiler(GCCToolchain):
@@ -41,8 +39,6 @@ class Compiler(GCCToolchain):
         * :data:`self.src_ext`
         * :data:`self.lib_ext`
         * :data:`self.undefines`
-        * :data:`self.pragma_ivdep`
-
     """
 
     fields = ['cc', 'ld']
@@ -59,11 +55,7 @@ class Compiler(GCCToolchain):
         self.undefines = []
         self.src_ext = 'c'
         self.lib_ext = 'so'
-        # Devito-specific flags and properties
         self.openmp = openmp
-        self.pragma_ivdep = [Pragma('ivdep')]
-        self.pragma_nontemporal = []
-        self.pragma_aligned = "omp simd aligned"
 
     def __str__(self):
         return self.__class__.__name__
@@ -86,7 +78,6 @@ class GNUCompiler(Compiler):
 
         if self.openmp:
             self.ldflags += ['-fopenmp']
-        self.pragma_ivdep = [Pragma('GCC ivdep')]
 
 
 class GNUCompilerNoAVX(GNUCompiler):
@@ -138,7 +129,6 @@ class IntelCompiler(Compiler):
 
         if self.openmp:
             self.ldflags += ['-qopenmp']
-        self.pragma_nontemporal = [Pragma('vector nontemporal')]
 
 
 class IntelMICCompiler(Compiler):
@@ -195,7 +185,6 @@ class CustomCompiler(Compiler):
         default = '-O3 -g -march=native -fPIC -Wall -std=c99'
         self.cflags = environ.get('CFLAGS', default).split(' ')
         self.ldflags = environ.get('LDFLAGS', '-shared').split(' ')
-        self.pragma_ivdep = [Pragma(environ.get('DEVITO_IVDEP', 'GCC ivdep'))]
         if self.openmp:
             self.ldflags += environ.get('OMP_LDFLAGS', '-fopenmp').split(' ')
 

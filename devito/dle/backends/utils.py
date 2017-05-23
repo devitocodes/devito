@@ -19,6 +19,7 @@ omplang = {
 Compiler-specific language
 """
 complang_ALL = {
+    'GNUCompiler': {'ignore-deps': c.Pragma('GCC ivdep')},
     'IntelCompiler': {'ignore-deps': c.Pragma('ivdep'),
                       'ntstores': c.Pragma('vector nontemporal'),
                       'storefence': c.Statement('_mm_sfence()'),
