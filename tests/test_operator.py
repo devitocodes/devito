@@ -346,3 +346,20 @@ class TestLoopScheduler(object):
         assert len(trees) == 2
         assert trees[0][-1].nodes[0].expr.rhs == eq1.rhs
         assert trees[1][-1].nodes[0].expr.rhs == eq2.rhs
+
+
+class TestForeign(object):
+    def test_code(self):
+        shape = (11, 11)
+        a = TimeData(name='a', shape=shape, time_order=1,
+                     time_dim=6, save=True)
+        eqn = Eq(a.forward, a + 1.)
+        b = TimeData(name='a', shape=shape, time_order=1,
+                     time_dim=6, save=True)
+        eqn2 = Eq(b.forward, b + 1.)
+        op = Operator(eqn)
+        op()
+        op2 = Operator(eqn2, external=True)
+        arg, _ = op.arguments(a=b)
+        op2.cfunction(*list(arg.values()))
+        assert(np.allclose(a.data[:], b.data[:]))
