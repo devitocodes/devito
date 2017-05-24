@@ -100,8 +100,7 @@ def tti_operator(dse=False):
 
     handle = ForwardOperator(problem.model, u, v, src, rec,
                              problem.data, time_order=problem.t_order,
-                             spc_order=problem.s_order, save=False,
-                             cache_blocking=None, dse=dse)
+                             spc_order=problem.s_order, save=False, dse=dse)
     return handle, v, rec
 
 

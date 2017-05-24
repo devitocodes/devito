@@ -2,25 +2,26 @@ from __future__ import absolute_import
 
 import operator
 from collections import OrderedDict, namedtuple
-from ctypes import c_double, c_int
+from ctypes import c_int
 from functools import reduce
-from itertools import combinations
 
 import cgen as c
 import numpy as np
 import sympy
 
+from devito.autotuning import autotune
 from devito.cgen_utils import Allocator, blankline
-from devito.compiler import (get_compiler_from_env, jit_compile, load)
+from devito.compiler import jit_compile, load
 from devito.dimension import BufferedDimension, Dimension, time
 from devito.dle import compose_nodes, filter_iterations, transform
 from devito.dse import (clusterize, estimate_cost, estimate_memory, indexify,
                         rewrite, q_indexed)
 from devito.interfaces import SymbolicData, Forward, Backward
-from devito.logger import bar, error, info, info_at
+from devito.logger import bar, error, info
 from devito.nodes import (Element, Expression, Function, Iteration, List,
                           LocalExpression, TimedList)
-from devito.profiler import Profiler
+from devito.parameters import configuration
+from devito.profiling import Profiler
 from devito.stencil import Stencil
 from devito.tools import as_tuple, filter_ordered, flatten
 from devito.visitors import (FindNodes, FindSections, FindSymbols, FindScopes,
@@ -49,12 +50,9 @@ class OperatorBasic(Function):
         * time_axis : :class:`TimeAxis` object to indicate direction in which
                       to advance time during computation.
         * dse : Use the Devito Symbolic Engine to optimize the expressions -
-                defaults to "advanced".
+                defaults to ``configuration['dse']``.
         * dle : Use the Devito Loop Engine to optimize the loops -
-                defaults to "advanced".
-        * compiler: Compiler class used to perform JIT compilation.
-                    If not provided, the compiler will be inferred from the
-                    environment variable DEVITO_ARCH, or default to GNUCompiler.
+                defaults to ``configuration['dle']``.
     """
     def __init__(self, expressions, **kwargs):
         expressions = as_tuple(expressions)
@@ -66,8 +64,8 @@ class OperatorBasic(Function):
         self.name = kwargs.get("name", "Kernel")
         subs = kwargs.get("subs", {})
         time_axis = kwargs.get("time_axis", Forward)
-        dse = kwargs.get("dse", "advanced")
-        dle = kwargs.get("dle", "advanced")
+        dse = kwargs.get("dse", configuration['dse'])
+        dle = kwargs.get("dle", configuration['dle'])
 
         # Default attributes required for compilation
         self._headers = list(self._default_headers)
@@ -116,7 +114,7 @@ class OperatorBasic(Function):
         nodes = SubstituteExpression(subs=subs).visit(nodes)
 
         # Apply the Devito Loop Engine for loop optimization
-        dle_state = transform(nodes, *set_dle_mode(dle, self.compiler))
+        dle_state = transform(nodes, *set_dle_mode(dle))
         parameters += [i.argument for i in dle_state.arguments]
         self._includes.extend(list(dle_state.includes))
 
@@ -209,7 +207,7 @@ class OperatorBasic(Function):
 
         # Might have been asked to auto-tune the block size
         if maybe_autotune:
-            self._autotune(arguments)
+            arguments = self._autotune(arguments)
 
         # Add profiler structs
         arguments.update(self._extra_arguments())
@@ -248,18 +246,17 @@ class OperatorBasic(Function):
     @property
     def compile(self):
         """
-        JIT-compile the Operator.
+        JIT-compile the Operator using the compiler specified in the global
+        configuration dictionary (``configuration['compiler']``).
 
-        Note that this invokes the JIT compilation toolchain with the compiler
-        class derived in the constructor. Also, JIT compilation it is ensured that
-        JIT compilation will only be performed once per Operator, reagardless of
-        how many times this method is invoked.
+        It is ensured that JIT compilation will only be performed once per
+        :class:`Operator`, reagardless of how many times this method is invoked.
 
         :returns: The file name of the JIT-compiled function.
         """
         if self._lib is None:
             # No need to recompile if a shared object has already been loaded.
-            return jit_compile(self.ccode, self.compiler)
+            return jit_compile(self.ccode, configuration['compiler'])
         else:
             return self._lib.name
 
@@ -268,7 +265,7 @@ class OperatorBasic(Function):
         """Returns the JIT-compiled C function as a ctypes.FuncPtr object."""
         if self._lib is None:
             basename = self.compile
-            self._lib = load(basename, self.compiler)
+            self._lib = load(basename, configuration['compiler'])
             self._lib.name = basename
 
         if self._cfunction is None:
@@ -301,10 +298,8 @@ class OperatorBasic(Function):
 
     def _autotune(self, arguments):
         """Use auto-tuning on this Operator to determine empirically the
-        best block sizes (when loop blocking is in use). The block sizes tested
-        are those listed in ``options['at_blocksizes']``, plus the case that is
-        as if blocking were not applied (ie, unitary block size)."""
-        pass
+        best block sizes when loop blocking is in use."""
+        return arguments
 
     def _schedule_expressions(self, clusters, ordering):
         """Wrap :class:`Expression` objects, already grouped in :class:`Cluster`
@@ -466,7 +461,7 @@ class OperatorCore(OperatorBasic):
     """
 
     def __init__(self, expressions, **kwargs):
-        self.profiler = Profiler(self.compiler.openmp)
+        self.profiler = Profiler()
         super(OperatorCore, self).__init__(expressions, **kwargs)
 
     def __call__(self, *args, **kwargs):
@@ -510,9 +505,9 @@ class OperatorCore(OperatorBasic):
                         # Insert `TimedList` block. This should come from
                         # the profiler, but we do this manually for now.
                         lname = 'loop_%s_%d' % (i.index, len(mapper))
-                        mapper[i] = TimedList(gname=self.profiler.t_name,
+                        mapper[i] = TimedList(gname=self.profiler.varname,
                                               lname=lname, body=i)
-                        self.profiler.t_fields += [(lname, c_double)]
+                        self.profiler.add(lname)
 
                         # Estimate computational properties of the timed section
                         # (operational intensity, memory accesses)
@@ -559,95 +554,27 @@ class OperatorCore(OperatorBasic):
         return summary
 
     def _extra_arguments(self):
-        return OrderedDict([(self.profiler.s_name,
-                             self.profiler.as_ctypes_pointer(Profiler.TIME))])
+        return OrderedDict([(self.profiler.typename, self.profiler.setup())])
 
     def _autotune(self, arguments):
         """Use auto-tuning on this Operator to determine empirically the
-        best block sizes (when loop blocking is in use). The block sizes tested
-        are those listed in ``options['at_blocksizes']``, plus the case that is
-        as if blocking were not applied (ie, unitary block size)."""
-        if not self._dle_state.has_applied_blocking:
-            return
-
-        at_arguments = arguments.copy()
-
-        # Output data must not be changed
-        output = [i.name for i in self.output]
-        for k, v in arguments.items():
-            if k in output:
-                at_arguments[k] = v.copy()
-
-        # Squeeze dimensions to minimize auto-tuning time
-        iterations = FindNodes(Iteration).visit(self.body)
-        squeezable = [i.dim.parent.name for i in iterations
-                      if i.is_Sequential and i.dim.is_Buffered]
-
-        # Attempted block sizes
-        mapper = OrderedDict([(i.argument.name, i) for i in self._dle_state.arguments])
-        blocksizes = [OrderedDict([(i, v) for i in mapper])
-                      for v in options['at_blocksize']]
-        if self._dle_state.needs_aggressive_autotuning:
-            elaborated = []
-            for blocksize in list(blocksizes)[:3]:
-                for i in list(blocksizes):
-                    elaborated.append(OrderedDict(list(blocksize.items())[:-1] +
-                                                  [list(i.items())[-1]]))
-            for blocksize in list(blocksizes):
-                ncombs = len(blocksize)
-                for i in range(ncombs):
-                    for j in combinations(blocksize, i+1):
-                        handle = [(k, blocksize[k]*2 if k in j else v)
-                                  for k, v in blocksize.items()]
-                        elaborated.append(OrderedDict(handle))
-            blocksizes.extend(elaborated)
-
-        # Note: there is only a single loop over 'blocksize' because only
-        # square blocks are tested
-        timings = OrderedDict()
-        for blocksize in blocksizes:
-            illegal = False
-            for k, v in at_arguments.items():
-                if k in blocksize:
-                    val = blocksize[k]
-                    handle = at_arguments.get(mapper[k].original_dim.name)
-                    if val <= mapper[k].iteration.end(handle):
-                        at_arguments[k] = val
-                    else:
-                        # Block size cannot be larger than actual dimension
-                        illegal = True
-                        break
-                elif k in squeezable:
-                    at_arguments[k] = options['at_squeezer']
-            if illegal:
-                continue
-
-            # Add profiler structs
-            at_arguments.update(self._extra_arguments())
-
-            self.cfunction(*list(at_arguments.values()))
-            elapsed = sum(self.profiler.timings.values())
-            timings[tuple(blocksize.items())] = elapsed
-            info_at("<%s>: %f" %
-                    (','.join('%d' % i for i in blocksize.values()), elapsed))
-
-        best = dict(min(timings, key=timings.get))
-        for k, v in arguments.items():
-            if k in mapper:
-                arguments[k] = best[k]
-
-        info('Auto-tuned block shape: %s' % best)
+        best block sizes when loop blocking is in use."""
+        if self._dle_state.has_applied_blocking:
+            return autotune(self, arguments, self._dle_state.arguments,
+                            mode=configuration['autotuning'])
+        else:
+            return arguments
 
     @property
     def _cparameters(self):
         cparameters = super(OperatorCore, self)._cparameters
-        cparameters += [c.Pointer(c.Value('struct %s' % self.profiler.s_name,
-                                          self.profiler.t_name))]
+        cparameters += [c.Pointer(c.Value('struct %s' % self.profiler.typename,
+                                          self.profiler.varname))]
         return cparameters
 
     @property
     def _cglobals(self):
-        return [self.profiler.as_cgen_struct(Profiler.TIME), blankline]
+        return [self.profiler.ctype, blankline]
 
 
 class Operator(object):
@@ -658,17 +585,14 @@ class Operator(object):
 
         # Trigger instantiation
         obj = cls.__new__(cls, *args, **kwargs)
-        obj.compiler = kwargs.pop("compiler", get_compiler_from_env())
         obj.__init__(*args, **kwargs)
         return obj
 
 
 # Helpers for performance tracking
 
-"""
-A helper to return structured performance data.
-"""
 PerfEntry = namedtuple('PerfEntry', 'time gflopss oi itershape datashape')
+"""A helper to return structured performance data."""
 
 
 class PerformanceSummary(OrderedDict):
@@ -693,45 +617,29 @@ class PerformanceSummary(OrderedDict):
         return OrderedDict([(k, v.time) for k, v in self.items()])
 
 
-# Operator options and name conventions
+# Misc helpers
 
-"""
-A dict of standard names to be used for code generation
-"""
 cnames = {
     'loc_timer': 'loc_timer',
     'glb_timer': 'glb_timer'
 }
+"""A dict of standard names to be used for code generation."""
 
-"""
-Operator options
-"""
-options = {
-    'at_squeezer': 3,
-    'at_blocksize': [8, 16, 24, 32, 40, 64, 128]
-}
-
-"""
-A helper to track profiled sections of code.
-"""
 Profile = namedtuple('Profile', 'timer ops memory')
+"""A helper to track profiled sections of code."""
 
 
-# Helpers to use a Operator
-
-def set_dle_mode(mode, compiler):
+def set_dle_mode(mode):
     """
     Transform :class:`Operator` input in a format understandable by the DLE.
     """
     if not mode:
-        return 'noop', {}, compiler
+        return 'noop', {}
     elif isinstance(mode, str):
-        return mode, {'openmp': compiler.openmp}, compiler
+        return mode, {}
     elif isinstance(mode, tuple):
         if len(mode) == 1:
-            return mode[0], {'openmp': compiler.openmp}, compiler
+            return mode[0], {}
         elif len(mode) == 2 and isinstance(mode[1], dict):
-            mode, params = mode
-            params['openmp'] = compiler.openmp
-            return mode, params, compiler
+            return mode
     raise TypeError("Illegal DLE mode %s." % str(mode))
