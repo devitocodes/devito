@@ -1,6 +1,6 @@
 from __future__ import absolute_import
 
-from conftest import dims
+from conftest import EVAL, dims
 
 import numpy as np
 import pytest
@@ -372,8 +372,26 @@ class TestLoopScheduler(object):
         assert trees[0][-1].nodes[0].expr.rhs == eq1.rhs
         assert trees[1][-1].nodes[0].expr.rhs == eq2.rhs
 
+    @pytest.mark.parametrize('exprs', [
+        ['Eq(ti0[x,y,z], ti0[x,y,z] + t0*2.)', 'Eq(ti0[0,0,z], 0.)'],
+        ['Eq(ti0[x,y,z], ti0[x,y,z-1] + t0*2.)', 'Eq(ti0[0,0,z], 0.)'],
+        ['Eq(ti0[x,y,z], ti0[x,y,z] + t0*2.)', 'Eq(ti0[0,y,0], 0.)'],
+        ['Eq(ti0[x,y,z], ti0[x,y,z] + t0*2.)', 'Eq(ti0[0,y,z], 0.)'],
+    ])
+    def test_directly_indexed_expression(self, fa, ti0, t0, exprs):
+        """
+        Emulates a potential implementation of boundary condition loops
+        """
+        eqs = EVAL(exprs, ti0.base, t0)
+        op = Operator(eqs, dse='noop', dle='noop')
+        trees = retrieve_iteration_tree(op)
+        assert len(trees) == 2
+        assert trees[0][-1].nodes[0].expr.rhs == eqs[0].rhs
+        assert trees[1][-1].nodes[0].expr.rhs == eqs[1].rhs
+
 
 class TestForeign(object):
+
     def test_code(self):
         shape = (11, 11)
         a = TimeData(name='a', shape=shape, time_order=1,
