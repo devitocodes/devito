@@ -36,14 +36,17 @@ def test_gradientFWI(dimensions, time_order, space_order):
     dm = np.float32(wave.model.m.data - m0)
 
     # Compute receiver data for the true velocity
-    rec, _, _ = wave.forward()
-
+    rec, u, _ = wave.forward()
+    import matplotlib.pyplot as plt
+    plt.figure()
+    plt.imshow(u.data[1, :, :], vmin=-1, vmax=1, aspect=.25)
+    plt.show()
     # Compute receiver data and full wavefield for the smooth velocity
     rec0, u0, _ = wave.forward(m=m0, save=True)
 
     # Objective function value
     F0 = .5*linalg.norm(rec0.data - rec.data)**2
-
+    print(F0)
     # Gradient: <J^T \delta d, dm>
     gradient, _ = wave.gradient(rec0.data - rec.data, u0, m=m0)
     G = np.dot(gradient.data.reshape(-1), dm.reshape(-1))
@@ -97,17 +100,19 @@ def test_gradientJ(dimensions, time_order, space_order):
     :return: assertion that the Taylor properties are satisfied
     """
     wave = setup(dimensions=dimensions, time_order=time_order,
-                 space_order=space_order)
+                 space_order=space_order, tn=450.)
     m0 = smooth10(wave.model.m.data, wave.model.shape_domain)
     dm = np.float32(wave.model.m.data - m0)
-    linrec = Receiver(name='rec', ntime=wave.receiver.ntime,
+    linrec = Receiver(name='rec', ntime=wave.receiver.nt,
                       coordinates=wave.receiver.coordinates.data)
-
     # Compute receiver data and full wavefield for the smooth velocity
     rec, u0, _ = wave.forward(m=m0, save=False)
-
+    import matplotlib.pyplot as plt
+    plt.figure()
+    plt.imshow(rec.data[:, :], vmin=-1, vmax=1, aspect=.25)
+    plt.show()
     # Gradient: J dm
-    Jdm, _ , _, _ = wave.born(dm, rec=linrec, m=m0)
+    Jdm, _, _, _ = wave.born(dm, rec=linrec, m=m0)
     # FWI Gradient test
     H = [0.5, 0.25, .125, 0.0625, 0.0312, 0.015625, 0.0078125]
     error1 = np.zeros(7)
@@ -123,7 +128,7 @@ def test_gradientJ(dimensions, time_order, space_order):
         error2[i] = np.linalg.norm(d.data - rec.data - H[i] * Jdm, 1)
         # print(F0, .5*linalg.norm(d - rec)**2, error1[i], H[i] *G, error2[i])
         # print('For h = ', H[i], '\nFirst order errors is : ', error1[i],
-              # '\nSecond order errors is ', error2[i])
+        #       '\nSecond order errors is ', error2[i])
 
     hh = np.zeros(7)
     for i in range(0, 7):
@@ -136,6 +141,7 @@ def test_gradientJ(dimensions, time_order, space_order):
     print(p2)
     assert np.isclose(p1[0], 1.0, rtol=0.1)
     assert np.isclose(p2[0], 2.0, rtol=0.1)
+
 
 if __name__ == "__main__":
     test_gradientJ(dimensions=(60, 70), time_order=2, space_order=4)

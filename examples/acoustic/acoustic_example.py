@@ -8,11 +8,14 @@ from examples.seismic import Model, PointSource, Receiver
 # Velocity models
 def smooth10(vel, shape):
     out = np.ones(shape, dtype=np.float32)
-    out[:, :] = vel[:, :]
-    nx = shape[0]
+    out[:] = vel[:]
+    nz = shape[-1]
 
-    for a in range(5, nx-6):
-        out[a, :] = np.sum(vel[a - 5:a + 5, :], axis=0) / 10
+    for a in range(5, nz-6):
+        if len(shape) == 2:
+            out[:, a] = np.sum(vel[:, a - 5:a + 5], axis=1) / 10
+        else:
+            out[:, :, a] = np.sum(vel[:, :, a - 5:a + 5], axis=2) / 10
 
     return out
 
@@ -34,7 +37,7 @@ def setup(dimensions=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=500.,
 
         # True velocity
         true_vp = np.ones(dimensions) + .5
-        true_vp[:, int(dimensions[0] / 3):dimensions[0]] = 2.5
+        true_vp[:, int(dimensions[1] / 3):dimensions[1]] = 2.5
 
         # Source location
         location = np.zeros((1, 2))
@@ -55,7 +58,7 @@ def setup(dimensions=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=500.,
 
         # True velocity
         true_vp = np.ones(dimensions) + .5
-        true_vp[:, :, int(dimensions[0] / 3):dimensions[0]] = 2.5
+        true_vp[:, :, int(dimensions[2] / 3):dimensions[2]] = 2.5
 
         # Source location
         location = np.zeros((1, 3))
@@ -114,7 +117,10 @@ def run(dimensions=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=1000.0,
     dm = np.float32(initial_vp**2 - solver.model.m.data)
     info("Applying Forward")
     rec, u, summary = solver.forward(save=full_run, **kwargs)
-
+    import matplotlib.pyplot as plt
+    plt.figure()
+    plt.imshow(rec.data[:, :], vmin=-1, vmax=1, aspect=.25)
+    plt.show()
     if not full_run:
         return summary.gflopss, summary.oi, summary.timings, [rec, u.data]
 
