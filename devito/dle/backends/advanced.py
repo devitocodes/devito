@@ -33,7 +33,7 @@ class DevitoRewriter(BasicRewriter):
         self._create_elemental_functions(state)
         self._loop_blocking(state)
         self._simdize(state)
-        if self.params.get('openmp') is True:
+        if self.params['openmp'] is True:
             self._ompize(state)
 
     @dle_pass
@@ -315,7 +315,7 @@ class DevitoSpeculativeRewriter(DevitoRewriter):
         self._loop_blocking(state)
         self._simdize(state)
         self._nontemporal_stores(state)
-        if self.params.get('openmp') is True:
+        if self.params['openmp'] is True:
             self._ompize(state)
 
     @dle_pass
@@ -419,7 +419,7 @@ class DevitoCustomRewriter(DevitoSpeculativeRewriter):
         'split': DevitoSpeculativeRewriter._create_elemental_functions
     }
 
-    def __init__(self, nodes, passes, params, compiler):
+    def __init__(self, nodes, passes, params):
         try:
             passes = passes.split(',')
         except AttributeError:
@@ -427,7 +427,7 @@ class DevitoCustomRewriter(DevitoSpeculativeRewriter):
         if not all(i in DevitoCustomRewriter.passes_mapper for i in passes):
             raise DLEException
         self.passes = passes
-        super(DevitoCustomRewriter, self).__init__(nodes, params, compiler)
+        super(DevitoCustomRewriter, self).__init__(nodes, params)
 
     def _pipeline(self, state):
         for i in self.passes:

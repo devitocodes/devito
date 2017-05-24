@@ -5,6 +5,8 @@ from devito.dle.backends import (State, BasicRewriter, DevitoCustomRewriter,
 from devito.exceptions import DLEException
 from devito.logger import dle_warning
 
+__all__ = ['transform', 'modes']
+
 
 modes = {
     'basic': BasicRewriter,
@@ -12,9 +14,10 @@ modes = {
     'speculative': DevitoSpeculativeRewriter,
     'yask': YaskRewriter
 }
+"""The DLE transformation modes."""
 
 
-def transform(node, mode='basic', options=None, compiler=None):
+def transform(node, mode='basic', options=None):
     """
     Transform Iteration/Expression trees to generate highly optimized C code.
 
@@ -42,11 +45,10 @@ def transform(node, mode='basic', options=None, compiler=None):
                                         innermost dimension of an Iteration/Expression
                                         tree to maximize vectorization. Set this flag to
                                         True to override this heuristic.
-                        * 'openmp': True to emit OpenMP code, False otherwise.
-    :param compiler: Compiler class used to perform JIT compilation. Useful to
-                     introduce compiler-specific vectorization pragmas.
     """
-    # Check input options
+    from devito.parameters import configuration
+
+    # Check input parameters
     if not (mode is None or isinstance(mode, str)):
         raise ValueError("Parameter 'mode' should be a string, not %s." % type(mode))
 
@@ -58,12 +60,15 @@ def transform(node, mode='basic', options=None, compiler=None):
     else:
         raise ValueError("Got illegal node of type %s." % type(node))
 
+    # Parse options
     options = options or {}
     params = options.copy()
     for i in options:
-        if i not in ('blockshape', 'blockinner', 'openmp'):
+        if i not in ('blockshape', 'blockinner'):
             dle_warning("Illegal DLE parameter '%s'" % i)
             params.pop(i)
+    params['compiler'] = configuration['compiler']
+    params['openmp'] = configuration['openmp']
 
     # Process the Iteration/Expression tree through the DLE
     if mode is None or mode == 'noop':
@@ -73,11 +78,11 @@ def transform(node, mode='basic', options=None, compiler=None):
         mode = 'advanced'
     elif mode not in modes:
         try:
-            rewriter = DevitoCustomRewriter(node, mode, params, compiler)
+            rewriter = DevitoCustomRewriter(node, mode, params)
             return rewriter.run()
         except DLEException:
             dle_warning("Unknown transformer mode(s) %s" % mode)
             return State(node)
     else:
-        rewriter = modes[mode](node, params, compiler)
+        rewriter = modes[mode](node, params)
         return rewriter.run()
