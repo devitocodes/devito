@@ -31,16 +31,12 @@ def test_gradientFWI(dimensions, time_order, space_order):
     :return: assertion that the Taylor properties are satisfied
     """
     wave = setup(dimensions=dimensions, time_order=time_order,
-                 space_order=space_order)
+                 space_order=space_order, nbpml=10)
     m0 = smooth10(wave.model.m.data, wave.model.shape_domain)
     dm = np.float32(wave.model.m.data - m0)
 
     # Compute receiver data for the true velocity
     rec, u, _ = wave.forward()
-    import matplotlib.pyplot as plt
-    plt.figure()
-    plt.imshow(u.data[1, :, :], vmin=-1, vmax=1, aspect=.25)
-    plt.show()
     # Compute receiver data and full wavefield for the smooth velocity
     rec0, u0, _ = wave.forward(m=m0, save=True)
 
@@ -100,17 +96,13 @@ def test_gradientJ(dimensions, time_order, space_order):
     :return: assertion that the Taylor properties are satisfied
     """
     wave = setup(dimensions=dimensions, time_order=time_order,
-                 space_order=space_order, tn=450.)
+                 space_order=space_order, tn=1000.)
     m0 = smooth10(wave.model.m.data, wave.model.shape_domain)
     dm = np.float32(wave.model.m.data - m0)
     linrec = Receiver(name='rec', ntime=wave.receiver.nt,
                       coordinates=wave.receiver.coordinates.data)
     # Compute receiver data and full wavefield for the smooth velocity
     rec, u0, _ = wave.forward(m=m0, save=False)
-    import matplotlib.pyplot as plt
-    plt.figure()
-    plt.imshow(rec.data[:, :], vmin=-1, vmax=1, aspect=.25)
-    plt.show()
     # Gradient: J dm
     Jdm, _, _, _ = wave.born(dm, rec=linrec, m=m0)
     # FWI Gradient test
@@ -144,4 +136,4 @@ def test_gradientJ(dimensions, time_order, space_order):
 
 
 if __name__ == "__main__":
-    test_gradientJ(dimensions=(60, 70), time_order=2, space_order=4)
+    test_gradientFWI(dimensions=(60, 70), time_order=2, space_order=4)

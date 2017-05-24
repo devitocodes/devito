@@ -24,9 +24,9 @@ def ForwardOperator(model, source, receiver, time_order=2, space_order=4,
                  time_order=time_order, space_order=space_order, save=save,
                  dtype=model.dtype)
     src = PointSource(name='src', ntime=source.nt, ndim=source.ndim,
-                      npoint=source.npoint)
+                      npoint=source.npoint, coordinates=source.coordinates.data)
     rec = Receiver(name='rec', ntime=receiver.nt, ndim=receiver.ndim,
-                   npoint=receiver.npoint)
+                   npoint=receiver.npoint, coordinates=receiver.coordinates.data)
 
     if time_order == 2:
         biharmonic = 0
@@ -75,9 +75,9 @@ def AdjointOperator(model, source, receiver, time_order=2, space_order=4, **kwar
                  time_order=time_order, space_order=space_order,
                  dtype=model.dtype)
     srca = PointSource(name='srca', ntime=source.nt, ndim=source.ndim,
-                       npoint=source.npoint)
+                       npoint=source.npoint, coordinates=source.coordinates.data)
     rec = Receiver(name='rec', ntime=receiver.nt, ndim=receiver.ndim,
-                   npoint=receiver.npoint)
+                   npoint=receiver.npoint, coordinates=receiver.coordinates.data)
 
     if time_order == 2:
         biharmonic = 0
@@ -127,7 +127,7 @@ def GradientOperator(model, source, receiver, time_order=2, space_order=4, **kwa
                  time_order=time_order, space_order=space_order,
                  dtype=model.dtype)
     rec = Receiver(name='rec', ntime=receiver.nt, ndim=receiver.ndim,
-                   npoint=receiver.npoint)
+                   npoint=receiver.npoint, coordinates=receiver.coordinates.data)
 
     if time_order == 2:
         biharmonic = 0
@@ -169,9 +169,9 @@ def BornOperator(model, source, receiver, time_order=2, space_order=4, **kwargs)
 
     # Create source and receiver symbols
     src = PointSource(name='src', ntime=source.nt, ndim=source.ndim,
-                      npoint=source.npoint)
+                      npoint=source.npoint, coordinates=source.coordinates.data)
     rec = Receiver(name='rec', ntime=receiver.nt, ndim=receiver.ndim,
-                   npoint=receiver.npoint)
+                   npoint=receiver.npoint, coordinates=receiver.coordinates.data)
 
     # Create wavefields and a dm field
     u = TimeData(name="u", shape=model.shape_domain, save=False,

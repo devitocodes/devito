@@ -17,10 +17,6 @@ def test_acoustic(dimensions, time_order, space_order):
 
     # Run forward and adjoint operators
     rec, _, _ = solver.forward(save=False)
-    import matplotlib.pyplot as plt
-    plt.figure()
-    plt.imshow(rec.data[:, :], vmin=-1, vmax=1, aspect=.25)
-    plt.show()
     solver.adjoint(rec=rec.data, srca=srca)
 
     # Actual adjoint test

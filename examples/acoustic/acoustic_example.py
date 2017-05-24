@@ -117,10 +117,7 @@ def run(dimensions=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=1000.0,
     dm = np.float32(initial_vp**2 - solver.model.m.data)
     info("Applying Forward")
     rec, u, summary = solver.forward(save=full_run, **kwargs)
-    import matplotlib.pyplot as plt
-    plt.figure()
-    plt.imshow(rec.data[:, :], vmin=-1, vmax=1, aspect=.25)
-    plt.show()
+
     if not full_run:
         return summary.gflopss, summary.oi, summary.timings, [rec, u.data]
 
