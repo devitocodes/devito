@@ -16,7 +16,12 @@ from devito.interfaces import ScalarFunction, TensorFunction
 from devito.logger import dse, dse_warning
 from devito.tools import flatten
 
-__all__ = ['rewrite']
+__all__ = ['rewrite', 'modes']
+
+
+modes = ('noop', 'basic', 'advanced',
+         'factorize', 'approx-trigonometry', 'glicm')
+"""The DSE transformation modes."""
 
 
 def rewrite(clusters, mode='advanced'):
@@ -49,7 +54,7 @@ def rewrite(clusters, mode='advanced'):
 
     if 'noop' in mode:
         return clusters
-    elif mode.isdisjoint(set(Rewriter.modes)):
+    elif mode.isdisjoint(set(modes)):
         dse_warning("Unknown rewrite mode(s) %s" % str(mode))
         return clusters
     else:
@@ -97,12 +102,6 @@ class Rewriter(object):
     """
     Transform expressions to reduce their operation count.
     """
-
-    """
-    All DSE transformation modes.
-    """
-    modes = ('noop', 'basic', 'advanced',
-             'factorize', 'approx-trigonometry', 'glicm')
 
     """
     Name conventions for new temporaries.
