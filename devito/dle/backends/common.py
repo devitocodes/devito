@@ -62,10 +62,6 @@ class State(object):
         """Return a mapper from elemental function names to :class:`Function`."""
         return OrderedDict([(i.name, i) for i in self.elemental_functions])
 
-    @property
-    def needs_aggressive_autotuning(self):
-        return True
-
 
 class Arg(object):
 
@@ -126,10 +122,9 @@ class AbstractRewriter(object):
         'min_fission': 20  # Statements
     }
 
-    def __init__(self, nodes, params, compiler):
+    def __init__(self, nodes, params):
         self.nodes = nodes
         self.params = params
-        self.compiler = compiler
 
         self.timings = OrderedDict()
 

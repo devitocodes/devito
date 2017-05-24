@@ -6,14 +6,12 @@ from time import time
 from sys import platform
 
 import numpy.ctypeslib as npct
-from cgen import Pragma
 from codepy.jit import extension_file_from_string
 from codepy.toolchain import GCCToolchain
 
 from devito.logger import log
 
-__all__ = ['get_tmp_dir', 'get_compiler_from_env', 'jit_compile', 'load',
-           'GNUCompiler']
+__all__ = ['get_tmp_dir', 'set_compiler', 'jit_compile', 'load', 'GNUCompiler']
 
 
 class Compiler(GCCToolchain):
@@ -41,8 +39,6 @@ class Compiler(GCCToolchain):
         * :data:`self.src_ext`
         * :data:`self.lib_ext`
         * :data:`self.undefines`
-        * :data:`self.pragma_ivdep`
-
     """
 
     fields = ['cc', 'ld']
@@ -59,14 +55,13 @@ class Compiler(GCCToolchain):
         self.undefines = []
         self.src_ext = 'c'
         self.lib_ext = 'so'
-        # Devito-specific flags and properties
         self.openmp = openmp
-        self.pragma_ivdep = [Pragma('ivdep')]
-        self.pragma_nontemporal = []
-        self.pragma_aligned = "omp simd aligned"
 
     def __str__(self):
         return self.__class__.__name__
+
+    def __repr__(self):
+        return "DevitoJITCompiler[%s]" % self.__class__.__name__
 
 
 class GNUCompiler(Compiler):
@@ -86,7 +81,6 @@ class GNUCompiler(Compiler):
 
         if self.openmp:
             self.ldflags += ['-fopenmp']
-        self.pragma_ivdep = [Pragma('GCC ivdep')]
 
 
 class GNUCompilerNoAVX(GNUCompiler):
@@ -138,7 +132,6 @@ class IntelCompiler(Compiler):
 
         if self.openmp:
             self.ldflags += ['-qopenmp']
-        self.pragma_nontemporal = [Pragma('vector nontemporal')]
 
 
 class IntelMICCompiler(Compiler):
@@ -195,16 +188,14 @@ class CustomCompiler(Compiler):
         default = '-O3 -g -march=native -fPIC -Wall -std=c99'
         self.cflags = environ.get('CFLAGS', default).split(' ')
         self.ldflags = environ.get('LDFLAGS', '-shared').split(' ')
-        self.pragma_ivdep = [Pragma(environ.get('DEVITO_IVDEP', 'GCC ivdep'))]
         if self.openmp:
             self.ldflags += environ.get('OMP_LDFLAGS', '-fopenmp').split(' ')
 
 
-# Registry dict for deriving Compiler classes according to
-# environment variable DEVITO_ARCH. Developers should add
-# new compiler classes here and provide a description in
-# the docstring of get_compiler_from_env().
+# Registry dict for deriving Compiler classes according to the environment variable
+# DEVITO_ARCH. Developers should add new compiler classes here.
 compiler_registry = {
+    'custom': CustomCompiler,
     'gcc': GNUCompiler, 'gnu': GNUCompiler,
     'gcc-4.9': partial(GNUCompiler, version='4.9'),
     'gcc-5': partial(GNUCompiler, version='5'),
@@ -217,28 +208,11 @@ compiler_registry = {
 }
 
 
-def get_compiler_from_env():
-    """Derive compiler class and settings from environment variables
-
-    :return: The compiler indicated by the environment variable.
-
-    The key environment variable DEVITO_ARCH supports the following values:
-     * 'gcc' or 'gnu' - (Default) Standard GNU compiler toolchain
-     * 'gcc-4.9' - GNU compiler toolchain version 4.9
-     * 'gcc-5' - GNU compiler toolchain version 5
-     * 'clang' or 'osx' - Clang compiler toolchain for Mac OSX
-     * 'intel' or 'icpc' - Intel compiler toolchain via icpc
-     * 'intel-mic' or 'mic' - Intel MIC using offload mode via pymic
-
-    Additionally, the variable DEVITO_OPENMP can be used to enable OpenMP
-    parallelisation on by setting it to "1".
+def set_compiler(key, openmp=False):
+    """Derive compiler class and settings. ``key`` supports the values in
+    ``compiler_registry``.
     """
-    key = environ.get('DEVITO_ARCH', None)
-    openmp = environ.get('DEVITO_OPENMP', "0") == "1"
-    if key is None:
-        return CustomCompiler(openmp=openmp)
-    else:
-        return compiler_registry[key.lower()](openmp=openmp)
+    return compiler_registry[key](openmp=openmp)
 
 
 def get_tmp_dir():
