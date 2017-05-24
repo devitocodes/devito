@@ -132,7 +132,7 @@ devito.tools module
 devito.visitor module
 -------------------
 
-.. automodule:: devito.visitor
+.. automodule:: devito.visitors
     :members:
     :undoc-members:
     :show-inheritance:
