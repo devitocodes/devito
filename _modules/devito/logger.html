@@ -164,7 +164,6 @@
 <span class="kn">import</span> <span class="nn">logging</span>
 <span class="kn">import</span> <span class="nn">sys</span>
 <span class="kn">from</span> <span class="nn">contextlib</span> <span class="k">import</span> <span class="n">contextmanager</span>
-<span class="kn">from</span> <span class="nn">devito.parameters</span> <span class="k">import</span> <span class="n">parameters</span>
 
 <span class="n">__all__</span> <span class="o">=</span> <span class="p">(</span><span class="s1">&#39;set_log_level&#39;</span><span class="p">,</span> <span class="s1">&#39;set_log_noperf&#39;</span><span class="p">,</span> <span class="s1">&#39;log&#39;</span><span class="p">,</span>
            <span class="s1">&#39;DEBUG&#39;</span><span class="p">,</span> <span class="s1">&#39;INFO&#39;</span><span class="p">,</span> <span class="s1">&#39;AUTOTUNER&#39;</span><span class="p">,</span> <span class="s1">&#39;DSE&#39;</span><span class="p">,</span> <span class="s1">&#39;DSE_WARN&#39;</span><span class="p">,</span> <span class="s1">&#39;DLE&#39;</span><span class="p">,</span> <span class="s1">&#39;DLE_WARN&#39;</span><span class="p">,</span>
@@ -177,14 +176,6 @@
 <span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="s1">&#39;Devito&#39;</span><span class="p">)</span>
 <span class="n">_ch</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">StreamHandler</span><span class="p">()</span>
 <span class="n">logger</span><span class="o">.</span><span class="n">addHandler</span><span class="p">(</span><span class="n">_ch</span><span class="p">)</span>
-
-<span class="n">log_level</span> <span class="o">=</span> <span class="s2">&quot;log_level&quot;</span>
-
-
-<span class="k">def</span> <span class="nf">parameters_updated</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
-    <span class="k">if</span> <span class="n">key</span> <span class="o">==</span> <span class="n">log_level</span><span class="p">:</span>
-        <span class="n">logger</span><span class="o">.</span><span class="n">setLevel</span><span class="p">(</span><span class="nb">eval</span><span class="p">(</span><span class="n">value</span><span class="p">))</span>
-
 
 <span class="c1"># Add extra levels between INFO (value=20) and WARNING (value=30)</span>
 <span class="n">DEBUG</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">DEBUG</span>
@@ -204,8 +195,18 @@
 <span class="n">logging</span><span class="o">.</span><span class="n">addLevelName</span><span class="p">(</span><span class="n">DSE</span><span class="p">,</span> <span class="s2">&quot;DLE&quot;</span><span class="p">)</span>
 <span class="n">logging</span><span class="o">.</span><span class="n">addLevelName</span><span class="p">(</span><span class="n">DSE_WARN</span><span class="p">,</span> <span class="s2">&quot;DLE_WARN&quot;</span><span class="p">)</span>
 
-<span class="n">parameters_updated</span><span class="p">(</span><span class="n">log_level</span><span class="p">,</span> <span class="n">parameters</span><span class="p">[</span><span class="n">log_level</span><span class="p">])</span>
-<span class="n">parameters</span><span class="o">.</span><span class="n">update_functions</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">parameters_updated</span><span class="p">)</span>
+<span class="n">logger_registry</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;DEBUG&#39;</span><span class="p">:</span> <span class="n">DEBUG</span><span class="p">,</span>
+    <span class="s1">&#39;AUTOTUNER&#39;</span><span class="p">:</span> <span class="n">AUTOTUNER</span><span class="p">,</span>
+    <span class="s1">&#39;INFO&#39;</span><span class="p">:</span> <span class="n">INFO</span><span class="p">,</span>
+    <span class="s1">&#39;DSE&#39;</span><span class="p">:</span> <span class="n">DSE</span><span class="p">,</span>
+    <span class="s1">&#39;DLE&#39;</span><span class="p">:</span> <span class="n">DSE</span><span class="p">,</span>
+    <span class="s1">&#39;DSE_WARN&#39;</span><span class="p">:</span> <span class="n">DSE_WARN</span><span class="p">,</span>
+    <span class="s1">&#39;DLE_WARN&#39;</span><span class="p">:</span> <span class="n">DSE_WARN</span><span class="p">,</span>
+    <span class="s1">&#39;WARNING&#39;</span><span class="p">:</span> <span class="n">WARNING</span><span class="p">,</span>
+    <span class="s1">&#39;ERROR&#39;</span><span class="p">:</span> <span class="n">ERROR</span><span class="p">,</span>
+    <span class="s1">&#39;CRITICAL&#39;</span><span class="p">:</span> <span class="n">CRITICAL</span>
+<span class="p">}</span>
 
 <span class="n">NOCOLOR</span> <span class="o">=</span> <span class="s1">&#39;</span><span class="si">%s</span><span class="s1">&#39;</span>
 <span class="n">RED</span> <span class="o">=</span> <span class="s1">&#39;</span><span class="se">\033</span><span class="s1">[1;37;31m</span><span class="si">%s</span><span class="se">\033</span><span class="s1">[0m&#39;</span>
@@ -233,6 +234,8 @@
 <span class="sd">    :param level: accepted values are: DEBUG, INFO, AUTOTUNER, DSE, DSE_WARN,</span>
 <span class="sd">                  DLE, DLE_WARN, WARNING, ERROR, CRITICAL</span>
 <span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">level</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">logger_registry</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Illegal logging level </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="n">level</span><span class="p">)</span>
     <span class="n">logger</span><span class="o">.</span><span class="n">setLevel</span><span class="p">(</span><span class="n">level</span><span class="p">)</span></div>
 
 

@@ -163,25 +163,26 @@
 
 <span class="kn">import</span> <span class="nn">operator</span>
 <span class="kn">from</span> <span class="nn">collections</span> <span class="k">import</span> <span class="n">OrderedDict</span><span class="p">,</span> <span class="n">namedtuple</span>
-<span class="kn">from</span> <span class="nn">ctypes</span> <span class="k">import</span> <span class="n">c_double</span><span class="p">,</span> <span class="n">c_int</span>
+<span class="kn">from</span> <span class="nn">ctypes</span> <span class="k">import</span> <span class="n">c_int</span>
 <span class="kn">from</span> <span class="nn">functools</span> <span class="k">import</span> <span class="n">reduce</span>
-<span class="kn">from</span> <span class="nn">itertools</span> <span class="k">import</span> <span class="n">combinations</span>
 
 <span class="kn">import</span> <span class="nn">cgen</span> <span class="k">as</span> <span class="nn">c</span>
 <span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
 <span class="kn">import</span> <span class="nn">sympy</span>
 
+<span class="kn">from</span> <span class="nn">devito.autotuning</span> <span class="k">import</span> <span class="n">autotune</span>
 <span class="kn">from</span> <span class="nn">devito.cgen_utils</span> <span class="k">import</span> <span class="n">Allocator</span><span class="p">,</span> <span class="n">blankline</span>
-<span class="kn">from</span> <span class="nn">devito.compiler</span> <span class="k">import</span> <span class="p">(</span><span class="n">get_compiler_from_env</span><span class="p">,</span> <span class="n">jit_compile</span><span class="p">,</span> <span class="n">load</span><span class="p">)</span>
+<span class="kn">from</span> <span class="nn">devito.compiler</span> <span class="k">import</span> <span class="n">jit_compile</span><span class="p">,</span> <span class="n">load</span>
 <span class="kn">from</span> <span class="nn">devito.dimension</span> <span class="k">import</span> <span class="n">BufferedDimension</span><span class="p">,</span> <span class="n">Dimension</span><span class="p">,</span> <span class="n">time</span>
 <span class="kn">from</span> <span class="nn">devito.dle</span> <span class="k">import</span> <span class="n">compose_nodes</span><span class="p">,</span> <span class="n">filter_iterations</span><span class="p">,</span> <span class="n">transform</span>
 <span class="kn">from</span> <span class="nn">devito.dse</span> <span class="k">import</span> <span class="p">(</span><span class="n">clusterize</span><span class="p">,</span> <span class="n">estimate_cost</span><span class="p">,</span> <span class="n">estimate_memory</span><span class="p">,</span> <span class="n">indexify</span><span class="p">,</span>
                         <span class="n">rewrite</span><span class="p">,</span> <span class="n">q_indexed</span><span class="p">)</span>
 <span class="kn">from</span> <span class="nn">devito.interfaces</span> <span class="k">import</span> <span class="n">SymbolicData</span><span class="p">,</span> <span class="n">Forward</span><span class="p">,</span> <span class="n">Backward</span>
-<span class="kn">from</span> <span class="nn">devito.logger</span> <span class="k">import</span> <span class="n">bar</span><span class="p">,</span> <span class="n">error</span><span class="p">,</span> <span class="n">info</span><span class="p">,</span> <span class="n">info_at</span>
+<span class="kn">from</span> <span class="nn">devito.logger</span> <span class="k">import</span> <span class="n">bar</span><span class="p">,</span> <span class="n">error</span><span class="p">,</span> <span class="n">info</span>
 <span class="kn">from</span> <span class="nn">devito.nodes</span> <span class="k">import</span> <span class="p">(</span><span class="n">Element</span><span class="p">,</span> <span class="n">Expression</span><span class="p">,</span> <span class="n">Function</span><span class="p">,</span> <span class="n">Iteration</span><span class="p">,</span> <span class="n">List</span><span class="p">,</span>
                           <span class="n">LocalExpression</span><span class="p">,</span> <span class="n">TimedList</span><span class="p">)</span>
-<span class="kn">from</span> <span class="nn">devito.profiler</span> <span class="k">import</span> <span class="n">Profiler</span>
+<span class="kn">from</span> <span class="nn">devito.parameters</span> <span class="k">import</span> <span class="n">configuration</span>
+<span class="kn">from</span> <span class="nn">devito.profiling</span> <span class="k">import</span> <span class="n">Profiler</span>
 <span class="kn">from</span> <span class="nn">devito.stencil</span> <span class="k">import</span> <span class="n">Stencil</span>
 <span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">as_tuple</span><span class="p">,</span> <span class="n">filter_ordered</span><span class="p">,</span> <span class="n">flatten</span>
 <span class="kn">from</span> <span class="nn">devito.visitors</span> <span class="k">import</span> <span class="p">(</span><span class="n">FindNodes</span><span class="p">,</span> <span class="n">FindSections</span><span class="p">,</span> <span class="n">FindSymbols</span><span class="p">,</span> <span class="n">FindScopes</span><span class="p">,</span>
@@ -210,12 +211,9 @@
 <span class="sd">        * time_axis : :class:`TimeAxis` object to indicate direction in which</span>
 <span class="sd">                      to advance time during computation.</span>
 <span class="sd">        * dse : Use the Devito Symbolic Engine to optimize the expressions -</span>
-<span class="sd">                defaults to &quot;advanced&quot;.</span>
+<span class="sd">                defaults to ``configuration[&#39;dse&#39;]``.</span>
 <span class="sd">        * dle : Use the Devito Loop Engine to optimize the loops -</span>
-<span class="sd">                defaults to &quot;advanced&quot;.</span>
-<span class="sd">        * compiler: Compiler class used to perform JIT compilation.</span>
-<span class="sd">                    If not provided, the compiler will be inferred from the</span>
-<span class="sd">                    environment variable DEVITO_ARCH, or default to GNUCompiler.</span>
+<span class="sd">                defaults to ``configuration[&#39;dle&#39;]``.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">expressions</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
         <span class="n">expressions</span> <span class="o">=</span> <span class="n">as_tuple</span><span class="p">(</span><span class="n">expressions</span><span class="p">)</span>
@@ -227,8 +225,8 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">name</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;name&quot;</span><span class="p">,</span> <span class="s2">&quot;Kernel&quot;</span><span class="p">)</span>
         <span class="n">subs</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;subs&quot;</span><span class="p">,</span> <span class="p">{})</span>
         <span class="n">time_axis</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;time_axis&quot;</span><span class="p">,</span> <span class="n">Forward</span><span class="p">)</span>
-        <span class="n">dse</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;dse&quot;</span><span class="p">,</span> <span class="s2">&quot;advanced&quot;</span><span class="p">)</span>
-        <span class="n">dle</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;dle&quot;</span><span class="p">,</span> <span class="s2">&quot;advanced&quot;</span><span class="p">)</span>
+        <span class="n">dse</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;dse&quot;</span><span class="p">,</span> <span class="n">configuration</span><span class="p">[</span><span class="s1">&#39;dse&#39;</span><span class="p">])</span>
+        <span class="n">dle</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;dle&quot;</span><span class="p">,</span> <span class="n">configuration</span><span class="p">[</span><span class="s1">&#39;dle&#39;</span><span class="p">])</span>
 
         <span class="c1"># Default attributes required for compilation</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_headers</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_default_headers</span><span class="p">)</span>
@@ -277,7 +275,7 @@
         <span class="n">nodes</span> <span class="o">=</span> <span class="n">SubstituteExpression</span><span class="p">(</span><span class="n">subs</span><span class="o">=</span><span class="n">subs</span><span class="p">)</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">nodes</span><span class="p">)</span>
 
         <span class="c1"># Apply the Devito Loop Engine for loop optimization</span>
-        <span class="n">dle_state</span> <span class="o">=</span> <span class="n">transform</span><span class="p">(</span><span class="n">nodes</span><span class="p">,</span> <span class="o">*</span><span class="n">set_dle_mode</span><span class="p">(</span><span class="n">dle</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">compiler</span><span class="p">))</span>
+        <span class="n">dle_state</span> <span class="o">=</span> <span class="n">transform</span><span class="p">(</span><span class="n">nodes</span><span class="p">,</span> <span class="o">*</span><span class="n">set_dle_mode</span><span class="p">(</span><span class="n">dle</span><span class="p">))</span>
         <span class="n">parameters</span> <span class="o">+=</span> <span class="p">[</span><span class="n">i</span><span class="o">.</span><span class="n">argument</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">dle_state</span><span class="o">.</span><span class="n">arguments</span><span class="p">]</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_includes</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="n">dle_state</span><span class="o">.</span><span class="n">includes</span><span class="p">))</span>
 
@@ -370,7 +368,7 @@
 
         <span class="c1"># Might have been asked to auto-tune the block size</span>
         <span class="k">if</span> <span class="n">maybe_autotune</span><span class="p">:</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">_autotune</span><span class="p">(</span><span class="n">arguments</span><span class="p">)</span>
+            <span class="n">arguments</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_autotune</span><span class="p">(</span><span class="n">arguments</span><span class="p">)</span>
 
         <span class="c1"># Add profiler structs</span>
         <span class="n">arguments</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_extra_arguments</span><span class="p">())</span>
@@ -409,18 +407,17 @@
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">compile</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        JIT-compile the Operator.</span>
+<span class="sd">        JIT-compile the Operator using the compiler specified in the global</span>
+<span class="sd">        configuration dictionary (``configuration[&#39;compiler&#39;]``).</span>
 
-<span class="sd">        Note that this invokes the JIT compilation toolchain with the compiler</span>
-<span class="sd">        class derived in the constructor. Also, JIT compilation it is ensured that</span>
-<span class="sd">        JIT compilation will only be performed once per Operator, reagardless of</span>
-<span class="sd">        how many times this method is invoked.</span>
+<span class="sd">        It is ensured that JIT compilation will only be performed once per</span>
+<span class="sd">        :class:`Operator`, reagardless of how many times this method is invoked.</span>
 
 <span class="sd">        :returns: The file name of the JIT-compiled function.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_lib</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
             <span class="c1"># No need to recompile if a shared object has already been loaded.</span>
-            <span class="k">return</span> <span class="n">jit_compile</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">ccode</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">compiler</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">jit_compile</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">ccode</span><span class="p">,</span> <span class="n">configuration</span><span class="p">[</span><span class="s1">&#39;compiler&#39;</span><span class="p">])</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_lib</span><span class="o">.</span><span class="n">name</span>
 
@@ -429,7 +426,7 @@
         <span class="sd">&quot;&quot;&quot;Returns the JIT-compiled C function as a ctypes.FuncPtr object.&quot;&quot;&quot;</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_lib</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
             <span class="n">basename</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">compile</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">_lib</span> <span class="o">=</span> <span class="n">load</span><span class="p">(</span><span class="n">basename</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">compiler</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_lib</span> <span class="o">=</span> <span class="n">load</span><span class="p">(</span><span class="n">basename</span><span class="p">,</span> <span class="n">configuration</span><span class="p">[</span><span class="s1">&#39;compiler&#39;</span><span class="p">])</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_lib</span><span class="o">.</span><span class="n">name</span> <span class="o">=</span> <span class="n">basename</span>
 
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cfunction</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
@@ -462,10 +459,8 @@
 
     <span class="k">def</span> <span class="nf">_autotune</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">arguments</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;Use auto-tuning on this Operator to determine empirically the</span>
-<span class="sd">        best block sizes (when loop blocking is in use). The block sizes tested</span>
-<span class="sd">        are those listed in ``options[&#39;at_blocksizes&#39;]``, plus the case that is</span>
-<span class="sd">        as if blocking were not applied (ie, unitary block size).&quot;&quot;&quot;</span>
-        <span class="k">pass</span>
+<span class="sd">        best block sizes when loop blocking is in use.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">arguments</span>
 
     <span class="k">def</span> <span class="nf">_schedule_expressions</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">clusters</span><span class="p">,</span> <span class="n">ordering</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;Wrap :class:`Expression` objects, already grouped in :class:`Cluster`</span>
@@ -627,7 +622,7 @@
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">expressions</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">profiler</span> <span class="o">=</span> <span class="n">Profiler</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">compiler</span><span class="o">.</span><span class="n">openmp</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">profiler</span> <span class="o">=</span> <span class="n">Profiler</span><span class="p">()</span>
         <span class="nb">super</span><span class="p">(</span><span class="n">OperatorCore</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">expressions</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
 
     <span class="k">def</span> <span class="nf">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
@@ -671,9 +666,9 @@
                         <span class="c1"># Insert `TimedList` block. This should come from</span>
                         <span class="c1"># the profiler, but we do this manually for now.</span>
                         <span class="n">lname</span> <span class="o">=</span> <span class="s1">&#39;loop_</span><span class="si">%s</span><span class="s1">_</span><span class="si">%d</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">index</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">mapper</span><span class="p">))</span>
-                        <span class="n">mapper</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">TimedList</span><span class="p">(</span><span class="n">gname</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">profiler</span><span class="o">.</span><span class="n">t_name</span><span class="p">,</span>
+                        <span class="n">mapper</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">TimedList</span><span class="p">(</span><span class="n">gname</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">profiler</span><span class="o">.</span><span class="n">varname</span><span class="p">,</span>
                                               <span class="n">lname</span><span class="o">=</span><span class="n">lname</span><span class="p">,</span> <span class="n">body</span><span class="o">=</span><span class="n">i</span><span class="p">)</span>
-                        <span class="bp">self</span><span class="o">.</span><span class="n">profiler</span><span class="o">.</span><span class="n">t_fields</span> <span class="o">+=</span> <span class="p">[(</span><span class="n">lname</span><span class="p">,</span> <span class="n">c_double</span><span class="p">)]</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">profiler</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">lname</span><span class="p">)</span>
 
                         <span class="c1"># Estimate computational properties of the timed section</span>
                         <span class="c1"># (operational intensity, memory accesses)</span>
@@ -720,95 +715,27 @@
         <span class="k">return</span> <span class="n">summary</span>
 
     <span class="k">def</span> <span class="nf">_extra_arguments</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">return</span> <span class="n">OrderedDict</span><span class="p">([(</span><span class="bp">self</span><span class="o">.</span><span class="n">profiler</span><span class="o">.</span><span class="n">s_name</span><span class="p">,</span>
-                             <span class="bp">self</span><span class="o">.</span><span class="n">profiler</span><span class="o">.</span><span class="n">as_ctypes_pointer</span><span class="p">(</span><span class="n">Profiler</span><span class="o">.</span><span class="n">TIME</span><span class="p">))])</span>
+        <span class="k">return</span> <span class="n">OrderedDict</span><span class="p">([(</span><span class="bp">self</span><span class="o">.</span><span class="n">profiler</span><span class="o">.</span><span class="n">typename</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">profiler</span><span class="o">.</span><span class="n">setup</span><span class="p">())])</span>
 
     <span class="k">def</span> <span class="nf">_autotune</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">arguments</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;Use auto-tuning on this Operator to determine empirically the</span>
-<span class="sd">        best block sizes (when loop blocking is in use). The block sizes tested</span>
-<span class="sd">        are those listed in ``options[&#39;at_blocksizes&#39;]``, plus the case that is</span>
-<span class="sd">        as if blocking were not applied (ie, unitary block size).&quot;&quot;&quot;</span>
-        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_dle_state</span><span class="o">.</span><span class="n">has_applied_blocking</span><span class="p">:</span>
-            <span class="k">return</span>
-
-        <span class="n">at_arguments</span> <span class="o">=</span> <span class="n">arguments</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
-
-        <span class="c1"># Output data must not be changed</span>
-        <span class="n">output</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span><span class="o">.</span><span class="n">name</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">output</span><span class="p">]</span>
-        <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">arguments</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
-            <span class="k">if</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">output</span><span class="p">:</span>
-                <span class="n">at_arguments</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="n">v</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
-
-        <span class="c1"># Squeeze dimensions to minimize auto-tuning time</span>
-        <span class="n">iterations</span> <span class="o">=</span> <span class="n">FindNodes</span><span class="p">(</span><span class="n">Iteration</span><span class="p">)</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">body</span><span class="p">)</span>
-        <span class="n">squeezable</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span><span class="o">.</span><span class="n">dim</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">name</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">iterations</span>
-                      <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">is_Sequential</span> <span class="ow">and</span> <span class="n">i</span><span class="o">.</span><span class="n">dim</span><span class="o">.</span><span class="n">is_Buffered</span><span class="p">]</span>
-
-        <span class="c1"># Attempted block sizes</span>
-        <span class="n">mapper</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">([(</span><span class="n">i</span><span class="o">.</span><span class="n">argument</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_dle_state</span><span class="o">.</span><span class="n">arguments</span><span class="p">])</span>
-        <span class="n">blocksizes</span> <span class="o">=</span> <span class="p">[</span><span class="n">OrderedDict</span><span class="p">([(</span><span class="n">i</span><span class="p">,</span> <span class="n">v</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">mapper</span><span class="p">])</span>
-                      <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">options</span><span class="p">[</span><span class="s1">&#39;at_blocksize&#39;</span><span class="p">]]</span>
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_dle_state</span><span class="o">.</span><span class="n">needs_aggressive_autotuning</span><span class="p">:</span>
-            <span class="n">elaborated</span> <span class="o">=</span> <span class="p">[]</span>
-            <span class="k">for</span> <span class="n">blocksize</span> <span class="ow">in</span> <span class="nb">list</span><span class="p">(</span><span class="n">blocksizes</span><span class="p">)[:</span><span class="mi">3</span><span class="p">]:</span>
-                <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">list</span><span class="p">(</span><span class="n">blocksizes</span><span class="p">):</span>
-                    <span class="n">elaborated</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">OrderedDict</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="n">blocksize</span><span class="o">.</span><span class="n">items</span><span class="p">())[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span>
-                                                  <span class="p">[</span><span class="nb">list</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">items</span><span class="p">())[</span><span class="o">-</span><span class="mi">1</span><span class="p">]]))</span>
-            <span class="k">for</span> <span class="n">blocksize</span> <span class="ow">in</span> <span class="nb">list</span><span class="p">(</span><span class="n">blocksizes</span><span class="p">):</span>
-                <span class="n">ncombs</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">blocksize</span><span class="p">)</span>
-                <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">ncombs</span><span class="p">):</span>
-                    <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="n">combinations</span><span class="p">(</span><span class="n">blocksize</span><span class="p">,</span> <span class="n">i</span><span class="o">+</span><span class="mi">1</span><span class="p">):</span>
-                        <span class="n">handle</span> <span class="o">=</span> <span class="p">[(</span><span class="n">k</span><span class="p">,</span> <span class="n">blocksize</span><span class="p">[</span><span class="n">k</span><span class="p">]</span><span class="o">*</span><span class="mi">2</span> <span class="k">if</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">j</span> <span class="k">else</span> <span class="n">v</span><span class="p">)</span>
-                                  <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">blocksize</span><span class="o">.</span><span class="n">items</span><span class="p">()]</span>
-                        <span class="n">elaborated</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">OrderedDict</span><span class="p">(</span><span class="n">handle</span><span class="p">))</span>
-            <span class="n">blocksizes</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">elaborated</span><span class="p">)</span>
-
-        <span class="c1"># Note: there is only a single loop over &#39;blocksize&#39; because only</span>
-        <span class="c1"># square blocks are tested</span>
-        <span class="n">timings</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">()</span>
-        <span class="k">for</span> <span class="n">blocksize</span> <span class="ow">in</span> <span class="n">blocksizes</span><span class="p">:</span>
-            <span class="n">illegal</span> <span class="o">=</span> <span class="kc">False</span>
-            <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">at_arguments</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
-                <span class="k">if</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">blocksize</span><span class="p">:</span>
-                    <span class="n">val</span> <span class="o">=</span> <span class="n">blocksize</span><span class="p">[</span><span class="n">k</span><span class="p">]</span>
-                    <span class="n">handle</span> <span class="o">=</span> <span class="n">at_arguments</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">mapper</span><span class="p">[</span><span class="n">k</span><span class="p">]</span><span class="o">.</span><span class="n">original_dim</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
-                    <span class="k">if</span> <span class="n">val</span> <span class="o">&lt;=</span> <span class="n">mapper</span><span class="p">[</span><span class="n">k</span><span class="p">]</span><span class="o">.</span><span class="n">iteration</span><span class="o">.</span><span class="n">end</span><span class="p">(</span><span class="n">handle</span><span class="p">):</span>
-                        <span class="n">at_arguments</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="n">val</span>
-                    <span class="k">else</span><span class="p">:</span>
-                        <span class="c1"># Block size cannot be larger than actual dimension</span>
-                        <span class="n">illegal</span> <span class="o">=</span> <span class="kc">True</span>
-                        <span class="k">break</span>
-                <span class="k">elif</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">squeezable</span><span class="p">:</span>
-                    <span class="n">at_arguments</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="n">options</span><span class="p">[</span><span class="s1">&#39;at_squeezer&#39;</span><span class="p">]</span>
-            <span class="k">if</span> <span class="n">illegal</span><span class="p">:</span>
-                <span class="k">continue</span>
-
-            <span class="c1"># Add profiler structs</span>
-            <span class="n">at_arguments</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_extra_arguments</span><span class="p">())</span>
-
-            <span class="bp">self</span><span class="o">.</span><span class="n">cfunction</span><span class="p">(</span><span class="o">*</span><span class="nb">list</span><span class="p">(</span><span class="n">at_arguments</span><span class="o">.</span><span class="n">values</span><span class="p">()))</span>
-            <span class="n">elapsed</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">profiler</span><span class="o">.</span><span class="n">timings</span><span class="o">.</span><span class="n">values</span><span class="p">())</span>
-            <span class="n">timings</span><span class="p">[</span><span class="nb">tuple</span><span class="p">(</span><span class="n">blocksize</span><span class="o">.</span><span class="n">items</span><span class="p">())]</span> <span class="o">=</span> <span class="n">elapsed</span>
-            <span class="n">info_at</span><span class="p">(</span><span class="s2">&quot;&lt;</span><span class="si">%s</span><span class="s2">&gt;: </span><span class="si">%f</span><span class="s2">&quot;</span> <span class="o">%</span>
-                    <span class="p">(</span><span class="s1">&#39;,&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="s1">&#39;</span><span class="si">%d</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">blocksize</span><span class="o">.</span><span class="n">values</span><span class="p">()),</span> <span class="n">elapsed</span><span class="p">))</span>
-
-        <span class="n">best</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="nb">min</span><span class="p">(</span><span class="n">timings</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="n">timings</span><span class="o">.</span><span class="n">get</span><span class="p">))</span>
-        <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">arguments</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
-            <span class="k">if</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">mapper</span><span class="p">:</span>
-                <span class="n">arguments</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="n">best</span><span class="p">[</span><span class="n">k</span><span class="p">]</span>
-
-        <span class="n">info</span><span class="p">(</span><span class="s1">&#39;Auto-tuned block shape: </span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="n">best</span><span class="p">)</span>
+<span class="sd">        best block sizes when loop blocking is in use.&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_dle_state</span><span class="o">.</span><span class="n">has_applied_blocking</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">autotune</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">arguments</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_dle_state</span><span class="o">.</span><span class="n">arguments</span><span class="p">,</span>
+                            <span class="n">mode</span><span class="o">=</span><span class="n">configuration</span><span class="p">[</span><span class="s1">&#39;autotuning&#39;</span><span class="p">])</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">arguments</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">_cparameters</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="n">cparameters</span> <span class="o">=</span> <span class="nb">super</span><span class="p">(</span><span class="n">OperatorCore</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">_cparameters</span>
-        <span class="n">cparameters</span> <span class="o">+=</span> <span class="p">[</span><span class="n">c</span><span class="o">.</span><span class="n">Pointer</span><span class="p">(</span><span class="n">c</span><span class="o">.</span><span class="n">Value</span><span class="p">(</span><span class="s1">&#39;struct </span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">profiler</span><span class="o">.</span><span class="n">s_name</span><span class="p">,</span>
-                                          <span class="bp">self</span><span class="o">.</span><span class="n">profiler</span><span class="o">.</span><span class="n">t_name</span><span class="p">))]</span>
+        <span class="n">cparameters</span> <span class="o">+=</span> <span class="p">[</span><span class="n">c</span><span class="o">.</span><span class="n">Pointer</span><span class="p">(</span><span class="n">c</span><span class="o">.</span><span class="n">Value</span><span class="p">(</span><span class="s1">&#39;struct </span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">profiler</span><span class="o">.</span><span class="n">typename</span><span class="p">,</span>
+                                          <span class="bp">self</span><span class="o">.</span><span class="n">profiler</span><span class="o">.</span><span class="n">varname</span><span class="p">))]</span>
         <span class="k">return</span> <span class="n">cparameters</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">_cglobals</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">return</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">profiler</span><span class="o">.</span><span class="n">as_cgen_struct</span><span class="p">(</span><span class="n">Profiler</span><span class="o">.</span><span class="n">TIME</span><span class="p">),</span> <span class="n">blankline</span><span class="p">]</span>
+        <span class="k">return</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">profiler</span><span class="o">.</span><span class="n">ctype</span><span class="p">,</span> <span class="n">blankline</span><span class="p">]</span>
 
 
 <div class="viewcode-block" id="Operator"><a class="viewcode-back" href="../../devito.html#devito.operator.Operator">[docs]</a><span class="k">class</span> <span class="nc">Operator</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
@@ -819,17 +746,14 @@
 
         <span class="c1"># Trigger instantiation</span>
         <span class="n">obj</span> <span class="o">=</span> <span class="bp">cls</span><span class="o">.</span><span class="fm">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
-        <span class="n">obj</span><span class="o">.</span><span class="n">compiler</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s2">&quot;compiler&quot;</span><span class="p">,</span> <span class="n">get_compiler_from_env</span><span class="p">())</span>
         <span class="n">obj</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
         <span class="k">return</span> <span class="n">obj</span></div>
 
 
 <span class="c1"># Helpers for performance tracking</span>
 
-<span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">A helper to return structured performance data.</span>
-<span class="sd">&quot;&quot;&quot;</span>
 <span class="n">PerfEntry</span> <span class="o">=</span> <span class="n">namedtuple</span><span class="p">(</span><span class="s1">&#39;PerfEntry&#39;</span><span class="p">,</span> <span class="s1">&#39;time gflopss oi itershape datashape&#39;</span><span class="p">)</span>
+<span class="sd">&quot;&quot;&quot;A helper to return structured performance data.&quot;&quot;&quot;</span>
 
 
 <span class="k">class</span> <span class="nc">PerformanceSummary</span><span class="p">(</span><span class="n">OrderedDict</span><span class="p">):</span>
@@ -854,47 +778,31 @@
         <span class="k">return</span> <span class="n">OrderedDict</span><span class="p">([(</span><span class="n">k</span><span class="p">,</span> <span class="n">v</span><span class="o">.</span><span class="n">time</span><span class="p">)</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">items</span><span class="p">()])</span>
 
 
-<span class="c1"># Operator options and name conventions</span>
+<span class="c1"># Misc helpers</span>
 
-<span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">A dict of standard names to be used for code generation</span>
-<span class="sd">&quot;&quot;&quot;</span>
 <span class="n">cnames</span> <span class="o">=</span> <span class="p">{</span>
     <span class="s1">&#39;loc_timer&#39;</span><span class="p">:</span> <span class="s1">&#39;loc_timer&#39;</span><span class="p">,</span>
     <span class="s1">&#39;glb_timer&#39;</span><span class="p">:</span> <span class="s1">&#39;glb_timer&#39;</span>
 <span class="p">}</span>
+<span class="sd">&quot;&quot;&quot;A dict of standard names to be used for code generation.&quot;&quot;&quot;</span>
 
-<span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">Operator options</span>
-<span class="sd">&quot;&quot;&quot;</span>
-<span class="n">options</span> <span class="o">=</span> <span class="p">{</span>
-    <span class="s1">&#39;at_squeezer&#39;</span><span class="p">:</span> <span class="mi">3</span><span class="p">,</span>
-    <span class="s1">&#39;at_blocksize&#39;</span><span class="p">:</span> <span class="p">[</span><span class="mi">8</span><span class="p">,</span> <span class="mi">16</span><span class="p">,</span> <span class="mi">24</span><span class="p">,</span> <span class="mi">32</span><span class="p">,</span> <span class="mi">40</span><span class="p">,</span> <span class="mi">64</span><span class="p">,</span> <span class="mi">128</span><span class="p">]</span>
-<span class="p">}</span>
-
-<span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">A helper to track profiled sections of code.</span>
-<span class="sd">&quot;&quot;&quot;</span>
 <span class="n">Profile</span> <span class="o">=</span> <span class="n">namedtuple</span><span class="p">(</span><span class="s1">&#39;Profile&#39;</span><span class="p">,</span> <span class="s1">&#39;timer ops memory&#39;</span><span class="p">)</span>
+<span class="sd">&quot;&quot;&quot;A helper to track profiled sections of code.&quot;&quot;&quot;</span>
 
 
-<span class="c1"># Helpers to use a Operator</span>
-
-<span class="k">def</span> <span class="nf">set_dle_mode</span><span class="p">(</span><span class="n">mode</span><span class="p">,</span> <span class="n">compiler</span><span class="p">):</span>
+<span class="k">def</span> <span class="nf">set_dle_mode</span><span class="p">(</span><span class="n">mode</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Transform :class:`Operator` input in a format understandable by the DLE.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="k">if</span> <span class="ow">not</span> <span class="n">mode</span><span class="p">:</span>
-        <span class="k">return</span> <span class="s1">&#39;noop&#39;</span><span class="p">,</span> <span class="p">{},</span> <span class="n">compiler</span>
+        <span class="k">return</span> <span class="s1">&#39;noop&#39;</span><span class="p">,</span> <span class="p">{}</span>
     <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">mode</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
-        <span class="k">return</span> <span class="n">mode</span><span class="p">,</span> <span class="p">{</span><span class="s1">&#39;openmp&#39;</span><span class="p">:</span> <span class="n">compiler</span><span class="o">.</span><span class="n">openmp</span><span class="p">},</span> <span class="n">compiler</span>
+        <span class="k">return</span> <span class="n">mode</span><span class="p">,</span> <span class="p">{}</span>
     <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">mode</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">):</span>
         <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">mode</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
-            <span class="k">return</span> <span class="n">mode</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="p">{</span><span class="s1">&#39;openmp&#39;</span><span class="p">:</span> <span class="n">compiler</span><span class="o">.</span><span class="n">openmp</span><span class="p">},</span> <span class="n">compiler</span>
+            <span class="k">return</span> <span class="n">mode</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="p">{}</span>
         <span class="k">elif</span> <span class="nb">len</span><span class="p">(</span><span class="n">mode</span><span class="p">)</span> <span class="o">==</span> <span class="mi">2</span> <span class="ow">and</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">mode</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="nb">dict</span><span class="p">):</span>
-            <span class="n">mode</span><span class="p">,</span> <span class="n">params</span> <span class="o">=</span> <span class="n">mode</span>
-            <span class="n">params</span><span class="p">[</span><span class="s1">&#39;openmp&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">compiler</span><span class="o">.</span><span class="n">openmp</span>
-            <span class="k">return</span> <span class="n">mode</span><span class="p">,</span> <span class="n">params</span><span class="p">,</span> <span class="n">compiler</span>
+            <span class="k">return</span> <span class="n">mode</span>
     <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s2">&quot;Illegal DLE mode </span><span class="si">%s</span><span class="s2">.&quot;</span> <span class="o">%</span> <span class="nb">str</span><span class="p">(</span><span class="n">mode</span><span class="p">))</span>
 </pre></div>
 

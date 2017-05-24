@@ -185,23 +185,17 @@
   <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="devito.html#devito.stencil.Stencil.add">add() (devito.stencil.Stencil method)</a>
 </li>
-      <li><a href="devito.html#devito.profiler.Profiler.add_profiling">add_profiling() (devito.profiler.Profiler method)</a>
-</li>
       <li><a href="devito.html#devito.tools.aligned">aligned() (in module devito.tools)</a>
 </li>
       <li><a href="devito.html#devito.cgen_utils.Allocator">Allocator (class in devito.cgen_utils)</a>
 </li>
-      <li><a href="devito.html#devito.stencil.Stencil.anti">anti() (devito.stencil.Stencil method)</a>
-</li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="devito.html#devito.stencil.Stencil.anti">anti() (devito.stencil.Stencil method)</a>
+</li>
       <li><a href="devito.html#devito.nodes.Node.args">args (devito.nodes.Node attribute)</a>
 </li>
       <li><a href="devito.html#devito.nodes.Node.args_frozen">args_frozen (devito.nodes.Node attribute)</a>
-</li>
-      <li><a href="devito.html#devito.profiler.Profiler.as_cgen_struct">as_cgen_struct() (devito.profiler.Profiler method)</a>
-</li>
-      <li><a href="devito.html#devito.profiler.Profiler.as_ctypes_pointer">as_ctypes_pointer() (devito.profiler.Profiler method)</a>
 </li>
       <li><a href="devito.html#devito.tools.as_tuple">as_tuple() (in module devito.tools)</a>
 </li>
@@ -264,6 +258,8 @@
       <li><a href="devito.html#devito.cgen_utils.CodePrinter">CodePrinter (class in devito.cgen_utils)</a>
 </li>
       <li><a href="devito.html#devito.pointdata.PointData.coefficients">coefficients (devito.pointdata.PointData attribute)</a>
+</li>
+      <li><a href="devito.html#devito.parameters.configuration">configuration (in module devito.parameters)</a>
 </li>
       <li><a href="devito.html#devito.tools.convert_dtype_to_ctype">convert_dtype_to_ctype() (in module devito.tools)</a>
 </li>
@@ -336,8 +332,6 @@
       <li><a href="devito.html#module-devito.parameters">devito.parameters (module)</a>
 </li>
       <li><a href="devito.html#module-devito.pointdata">devito.pointdata (module)</a>
-</li>
-      <li><a href="devito.html#module-devito.profiler">devito.profiler (module)</a>
 </li>
       <li><a href="devito.html#module-devito.stencil">devito.stencil (module)</a>
 </li>
@@ -479,14 +473,10 @@
   <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="devito.html#devito.stencil.Stencil.get">get() (devito.stencil.Stencil method)</a>
 </li>
-      <li><a href="devito.html#devito.profiler.Profiler.get_class">get_class() (devito.profiler.Profiler method)</a>
-</li>
-      <li><a href="devito.html#devito.compiler.get_compiler_from_env">get_compiler_from_env() (in module devito.compiler)</a>
+      <li><a href="devito.html#devito.compiler.get_tmp_dir">get_tmp_dir() (in module devito.compiler)</a>
 </li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="devito.html#devito.compiler.get_tmp_dir">get_tmp_dir() (in module devito.compiler)</a>
-</li>
       <li><a href="devito.html#devito.compiler.GNUCompiler">GNUCompiler (class in devito.compiler)</a>
 </li>
       <li><a href="devito.html#devito.tools.grouper">grouper() (in module devito.tools)</a>
@@ -659,8 +649,6 @@
 <h2 id="P">P</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="devito.html#devito.parameters.Parameters">Parameters (class in devito.parameters)</a>
-</li>
       <li><a href="devito.html#devito.tools.partial_order">partial_order() (in module devito.tools)</a>
 </li>
       <li><a href="devito.html#devito.pointdata.PointData.point_increments">point_increments (devito.pointdata.PointData attribute)</a>
@@ -669,13 +657,15 @@
 </li>
       <li><a href="devito.html#devito.pointdata.PointData">PointData (class in devito.pointdata)</a>
 </li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="devito.html#devito.tools.pprint">pprint() (in module devito.tools)</a>
 </li>
-      <li><a href="devito.html#devito.visitors.printAST">printAST() (in module devito.visitors)</a>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="devito.html#devito.parameters.print_defaults">print_defaults() (in module devito.parameters)</a>
 </li>
-      <li><a href="devito.html#devito.profiler.Profiler">Profiler (class in devito.profiler)</a>
+      <li><a href="devito.html#devito.parameters.print_state">print_state() (in module devito.parameters)</a>
+</li>
+      <li><a href="devito.html#devito.visitors.printAST">printAST() (in module devito.visitors)</a>
 </li>
       <li><a href="devito.html#devito.cgen_utils.Allocator.push_heap">push_heap() (devito.cgen_utils.Allocator method)</a>
 </li>
@@ -707,11 +697,11 @@
 <h2 id="S">S</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="devito.html#devito.profiler.Profiler.s_name">s_name (devito.profiler.Profiler attribute)</a>
-</li>
       <li><a href="devito.html#devito.finite_difference.second_derivative">second_derivative() (in module devito.finite_difference)</a>
 </li>
       <li><a href="devito.html#devito.stencil.Stencil.section">section() (devito.stencil.Stencil method)</a>
+</li>
+      <li><a href="devito.html#devito.compiler.set_compiler">set_compiler() (in module devito.compiler)</a>
 </li>
       <li><a href="devito.html#devito.memmap_manager.MemmapManager.set_default_disk_path">set_default_disk_path() (devito.memmap_manager.MemmapManager static method)</a>
 </li>
@@ -753,17 +743,11 @@
 <h2 id="T">T</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="devito.html#devito.profiler.Profiler.t_name">t_name (devito.profiler.Profiler attribute)</a>
-</li>
-      <li><a href="devito.html#devito.profiler.Profiler.TIME">TIME (devito.profiler.Profiler attribute)</a>
-</li>
       <li><a href="devito.html#devito.interfaces.TimeData">TimeData (class in devito.interfaces)</a>
 </li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="devito.html#devito.nodes.TimedList">TimedList (class in devito.nodes)</a>
-</li>
-      <li><a href="devito.html#devito.profiler.Profiler.timings">timings (devito.profiler.Profiler attribute)</a>
 </li>
       <li><a href="devito.html#devito.visitors.Transformer">Transformer (class in devito.visitors)</a>
 </li>

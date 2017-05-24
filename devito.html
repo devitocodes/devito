@@ -105,7 +105,7 @@
 <li class="toctree-l2"><a class="reference internal" href="#module-devito.nodes">devito.nodes module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#module-devito.parameters">devito.parameters module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#module-devito.pointdata">devito.pointdata module</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#module-devito.profiler">devito.profiler module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#devito-profiler-module">devito.profiler module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#module-devito.stencil">devito.stencil module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#module-devito.tools">devito.tools module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#devito-visitor-module">devito.visitor module</a></li>
@@ -291,31 +291,10 @@
 </dd></dl>
 
 <dl class="function">
-<dt id="devito.compiler.get_compiler_from_env">
-<code class="descclassname">devito.compiler.</code><code class="descname">get_compiler_from_env</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/compiler.html#get_compiler_from_env"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.compiler.get_compiler_from_env" title="Permalink to this definition">¶</a></dt>
-<dd><p>Derive compiler class and settings from environment variables</p>
-<table class="docutils field-list" frame="void" rules="none">
-<col class="field-name" />
-<col class="field-body" />
-<tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Returns:</th><td class="field-body">The compiler indicated by the environment variable.</td>
-</tr>
-</tbody>
-</table>
-<dl class="docutils">
-<dt>The key environment variable DEVITO_ARCH supports the following values:</dt>
-<dd><ul class="first last simple">
-<li>‘gcc’ or ‘gnu’ - (Default) Standard GNU compiler toolchain</li>
-<li>‘gcc-4.9’ - GNU compiler toolchain version 4.9</li>
-<li>‘gcc-5’ - GNU compiler toolchain version 5</li>
-<li>‘clang’ or ‘osx’ - Clang compiler toolchain for Mac OSX</li>
-<li>‘intel’ or ‘icpc’ - Intel compiler toolchain via icpc</li>
-<li>‘intel-mic’ or ‘mic’ - Intel MIC using offload mode via pymic</li>
-</ul>
-</dd>
-</dl>
-<p>Additionally, the variable DEVITO_OPENMP can be used to enable OpenMP
-parallelisation on by setting it to “1”.</p>
+<dt id="devito.compiler.set_compiler">
+<code class="descclassname">devito.compiler.</code><code class="descname">set_compiler</code><span class="sig-paren">(</span><em>key</em>, <em>openmp=False</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/compiler.html#set_compiler"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.compiler.set_compiler" title="Permalink to this definition">¶</a></dt>
+<dd><p>Derive compiler class and settings. <code class="docutils literal"><span class="pre">key</span></code> supports the values in
+<code class="docutils literal"><span class="pre">compiler_registry</span></code>.</p>
 </dd></dl>
 
 <dl class="function">
@@ -1375,13 +1354,23 @@ if a limit is unknown.</p>
 <div class="section" id="module-devito.parameters">
 <span id="devito-parameters-module"></span><h2>devito.parameters module<a class="headerlink" href="#module-devito.parameters" title="Permalink to this headline">¶</a></h2>
 <p>The parameters dictionary contains global parameter settings.</p>
-<dl class="class">
-<dt id="devito.parameters.Parameters">
-<em class="property">class </em><code class="descclassname">devito.parameters.</code><code class="descname">Parameters</code><span class="sig-paren">(</span><em>name=None</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/parameters.html#Parameters"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.parameters.Parameters" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">dict</span></code></p>
-<p>A dictionary-like class to hold global configuration parameters for devito
-On top of a normal dict, this provides the option to provide callback functions
-so that any interested module can be informed when the configuration changes.</p>
+<dl class="data">
+<dt id="devito.parameters.configuration">
+<code class="descclassname">devito.parameters.</code><code class="descname">configuration</code><em class="property"> = Parameters([(‘compiler’, DevitoJITCompiler[GNUCompiler]), (‘autotuning’, ‘basic’), (‘dle’, ‘advanced’), (‘dse’, ‘advanced’), (‘log_level’, ‘DEBUG’), (‘openmp’, False)])</em><a class="headerlink" href="#devito.parameters.configuration" title="Permalink to this definition">¶</a></dt>
+<dd><p>The Devito configuration parameters.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="devito.parameters.print_defaults">
+<code class="descclassname">devito.parameters.</code><code class="descname">print_defaults</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/parameters.html#print_defaults"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.parameters.print_defaults" title="Permalink to this definition">¶</a></dt>
+<dd><p>Print the environment variables accepted by Devito, their default value,
+as well as all of the accepted values.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="devito.parameters.print_state">
+<code class="descclassname">devito.parameters.</code><code class="descname">print_state</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/parameters.html#print_state"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.parameters.print_state" title="Permalink to this definition">¶</a></dt>
+<dd><p>Print the current configuration state.</p>
 </dd></dl>
 
 </div>
@@ -1513,122 +1502,8 @@ the sparse point data.</li>
 </dd></dl>
 
 </div>
-<div class="section" id="module-devito.profiler">
-<span id="devito-profiler-module"></span><h2>devito.profiler module<a class="headerlink" href="#module-devito.profiler" title="Permalink to this headline">¶</a></h2>
-<dl class="class">
-<dt id="devito.profiler.Profiler">
-<em class="property">class </em><code class="descclassname">devito.profiler.</code><code class="descname">Profiler</code><span class="sig-paren">(</span><em>openmp=False</em>, <em>dtype=&lt;type ‘numpy.float32’&gt;</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/profiler.html#Profiler"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.profiler.Profiler" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">object</span></code></p>
-<p>The Profiler class is used to manage profiling information for Devito
-generated C code.</p>
-<table class="docutils field-list" frame="void" rules="none">
-<col class="field-name" />
-<col class="field-body" />
-<tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>openmp</strong> – True if OpenMP is on.</td>
-</tr>
-</tbody>
-</table>
-<dl class="attribute">
-<dt id="devito.profiler.Profiler.TIME">
-<code class="descname">TIME</code><em class="property"> = 0</em><a class="headerlink" href="#devito.profiler.Profiler.TIME" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="method">
-<dt id="devito.profiler.Profiler.add_profiling">
-<code class="descname">add_profiling</code><span class="sig-paren">(</span><em>code</em>, <em>name</em>, <em>omp_flag=None</em>, <em>to_ignore=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/profiler.html#Profiler.add_profiling"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.profiler.Profiler.add_profiling" title="Permalink to this definition">¶</a></dt>
-<dd><p>Function to add profiling code to the given <code class="xref py py-class docutils literal"><span class="pre">cgen.Block</span></code>.</p>
-<table class="docutils field-list" frame="void" rules="none">
-<col class="field-name" />
-<col class="field-body" />
-<tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
-<li><strong>code</strong> – A list of <code class="xref py py-class docutils literal"><span class="pre">cgen.Generable</span></code> with the code to be
-profiled.</li>
-<li><strong>name</strong> – The name of the field that will contain the timings.</li>
-<li><strong>byte_size</strong> – The size in bytes of the values used in the code.
-Defaults to 4.</li>
-<li><strong>omp_flag</strong> – OpenMP flag to add before profiling operations,
-if needed.</li>
-<li><strong>to_ignore</strong> – List of strings containing the labels of
-symbols used as loop variables</li>
-</ul>
-</td>
-</tr>
-<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first last">A list of <code class="xref py py-class docutils literal"><span class="pre">cgen.Generable</span></code> with the added profiling
-code.</p>
-</td>
-</tr>
-</tbody>
-</table>
-</dd></dl>
-
-<dl class="method">
-<dt id="devito.profiler.Profiler.as_cgen_struct">
-<code class="descname">as_cgen_struct</code><span class="sig-paren">(</span><em>choice</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/profiler.html#Profiler.as_cgen_struct"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.profiler.Profiler.as_cgen_struct" title="Permalink to this definition">¶</a></dt>
-<dd><p>Returns the <code class="xref py py-class docutils literal"><span class="pre">cgen.Struct</span></code> relative to the profiler</p>
-<table class="docutils field-list" frame="void" rules="none">
-<col class="field-name" />
-<col class="field-body" />
-<tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Returns:</th><td class="field-body">The struct</td>
-</tr>
-</tbody>
-</table>
-</dd></dl>
-
-<dl class="method">
-<dt id="devito.profiler.Profiler.as_ctypes_pointer">
-<code class="descname">as_ctypes_pointer</code><span class="sig-paren">(</span><em>choice</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/profiler.html#Profiler.as_ctypes_pointer"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.profiler.Profiler.as_ctypes_pointer" title="Permalink to this definition">¶</a></dt>
-<dd><p>Returns a pointer to the ctypes structure for the chosen
-metric</p>
-<table class="docutils field-list" frame="void" rules="none">
-<col class="field-name" />
-<col class="field-body" />
-<tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>choice</strong> – The structure needed</td>
-</tr>
-<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body">The pointer</td>
-</tr>
-</tbody>
-</table>
-</dd></dl>
-
-<dl class="method">
-<dt id="devito.profiler.Profiler.get_class">
-<code class="descname">get_class</code><span class="sig-paren">(</span><em>choice</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/profiler.html#Profiler.get_class"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.profiler.Profiler.get_class" title="Permalink to this definition">¶</a></dt>
-<dd><p>Returns a <code class="xref py py-class docutils literal"><span class="pre">ctypes.Structure</span></code> subclass defining our structure
-for Ois or Timings</p>
-<table class="docutils field-list" frame="void" rules="none">
-<col class="field-name" />
-<col class="field-body" />
-<tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>choice</strong> – Profiler.OIS or Profiler.TIMINGS</td>
-</tr>
-<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body">A class definition</td>
-</tr>
-</tbody>
-</table>
-</dd></dl>
-
-<dl class="attribute">
-<dt id="devito.profiler.Profiler.s_name">
-<code class="descname">s_name</code><em class="property"> = ‘profiler’</em><a class="headerlink" href="#devito.profiler.Profiler.s_name" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="attribute">
-<dt id="devito.profiler.Profiler.t_name">
-<code class="descname">t_name</code><em class="property"> = ‘timings’</em><a class="headerlink" href="#devito.profiler.Profiler.t_name" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="attribute">
-<dt id="devito.profiler.Profiler.timings">
-<code class="descname">timings</code><a class="headerlink" href="#devito.profiler.Profiler.timings" title="Permalink to this definition">¶</a></dt>
-<dd><p>Return the timings, up to microseconds, as a python dictionary.</p>
-</dd></dl>
-
-</dd></dl>
-
+<div class="section" id="devito-profiler-module">
+<h2>devito.profiler module<a class="headerlink" href="#devito-profiler-module" title="Permalink to this headline">¶</a></h2>
 </div>
 <div class="section" id="module-devito.stencil">
 <span id="devito-stencil-module"></span><h2>devito.stencil module<a class="headerlink" href="#module-devito.stencil" title="Permalink to this headline">¶</a></h2>

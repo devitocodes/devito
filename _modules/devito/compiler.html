@@ -167,14 +167,12 @@
 <span class="kn">from</span> <span class="nn">sys</span> <span class="k">import</span> <span class="n">platform</span>
 
 <span class="kn">import</span> <span class="nn">numpy.ctypeslib</span> <span class="k">as</span> <span class="nn">npct</span>
-<span class="kn">from</span> <span class="nn">cgen</span> <span class="k">import</span> <span class="n">Pragma</span>
 <span class="kn">from</span> <span class="nn">codepy.jit</span> <span class="k">import</span> <span class="n">extension_file_from_string</span>
 <span class="kn">from</span> <span class="nn">codepy.toolchain</span> <span class="k">import</span> <span class="n">GCCToolchain</span>
 
 <span class="kn">from</span> <span class="nn">devito.logger</span> <span class="k">import</span> <span class="n">log</span>
 
-<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;get_tmp_dir&#39;</span><span class="p">,</span> <span class="s1">&#39;get_compiler_from_env&#39;</span><span class="p">,</span> <span class="s1">&#39;jit_compile&#39;</span><span class="p">,</span> <span class="s1">&#39;load&#39;</span><span class="p">,</span>
-           <span class="s1">&#39;GNUCompiler&#39;</span><span class="p">]</span>
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;get_tmp_dir&#39;</span><span class="p">,</span> <span class="s1">&#39;set_compiler&#39;</span><span class="p">,</span> <span class="s1">&#39;jit_compile&#39;</span><span class="p">,</span> <span class="s1">&#39;load&#39;</span><span class="p">,</span> <span class="s1">&#39;GNUCompiler&#39;</span><span class="p">]</span>
 
 
 <span class="k">class</span> <span class="nc">Compiler</span><span class="p">(</span><span class="n">GCCToolchain</span><span class="p">):</span>
@@ -202,8 +200,6 @@
 <span class="sd">        * :data:`self.src_ext`</span>
 <span class="sd">        * :data:`self.lib_ext`</span>
 <span class="sd">        * :data:`self.undefines`</span>
-<span class="sd">        * :data:`self.pragma_ivdep`</span>
-
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">fields</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;cc&#39;</span><span class="p">,</span> <span class="s1">&#39;ld&#39;</span><span class="p">]</span>
@@ -220,14 +216,13 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">undefines</span> <span class="o">=</span> <span class="p">[]</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">src_ext</span> <span class="o">=</span> <span class="s1">&#39;c&#39;</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">lib_ext</span> <span class="o">=</span> <span class="s1">&#39;so&#39;</span>
-        <span class="c1"># Devito-specific flags and properties</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">openmp</span> <span class="o">=</span> <span class="n">openmp</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">pragma_ivdep</span> <span class="o">=</span> <span class="p">[</span><span class="n">Pragma</span><span class="p">(</span><span class="s1">&#39;ivdep&#39;</span><span class="p">)]</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">pragma_nontemporal</span> <span class="o">=</span> <span class="p">[]</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">pragma_aligned</span> <span class="o">=</span> <span class="s2">&quot;omp simd aligned&quot;</span>
 
     <span class="k">def</span> <span class="nf">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="vm">__class__</span><span class="o">.</span><span class="vm">__name__</span>
+
+    <span class="k">def</span> <span class="nf">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="s2">&quot;DevitoJITCompiler[</span><span class="si">%s</span><span class="s2">]&quot;</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="vm">__class__</span><span class="o">.</span><span class="vm">__name__</span>
 
 
 <div class="viewcode-block" id="GNUCompiler"><a class="viewcode-back" href="../../devito.html#devito.compiler.GNUCompiler">[docs]</a><span class="k">class</span> <span class="nc">GNUCompiler</span><span class="p">(</span><span class="n">Compiler</span><span class="p">):</span>
@@ -246,8 +241,7 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">ldflags</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;-shared&#39;</span><span class="p">]</span>
 
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">openmp</span><span class="p">:</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">ldflags</span> <span class="o">+=</span> <span class="p">[</span><span class="s1">&#39;-fopenmp&#39;</span><span class="p">]</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">pragma_ivdep</span> <span class="o">=</span> <span class="p">[</span><span class="n">Pragma</span><span class="p">(</span><span class="s1">&#39;GCC ivdep&#39;</span><span class="p">)]</span></div>
+            <span class="bp">self</span><span class="o">.</span><span class="n">ldflags</span> <span class="o">+=</span> <span class="p">[</span><span class="s1">&#39;-fopenmp&#39;</span><span class="p">]</span></div>
 
 
 <span class="k">class</span> <span class="nc">GNUCompilerNoAVX</span><span class="p">(</span><span class="n">GNUCompiler</span><span class="p">):</span>
@@ -299,7 +293,6 @@
 
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">openmp</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">ldflags</span> <span class="o">+=</span> <span class="p">[</span><span class="s1">&#39;-qopenmp&#39;</span><span class="p">]</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">pragma_nontemporal</span> <span class="o">=</span> <span class="p">[</span><span class="n">Pragma</span><span class="p">(</span><span class="s1">&#39;vector nontemporal&#39;</span><span class="p">)]</span>
 
 
 <span class="k">class</span> <span class="nc">IntelMICCompiler</span><span class="p">(</span><span class="n">Compiler</span><span class="p">):</span>
@@ -356,16 +349,14 @@
         <span class="n">default</span> <span class="o">=</span> <span class="s1">&#39;-O3 -g -march=native -fPIC -Wall -std=c99&#39;</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">cflags</span> <span class="o">=</span> <span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;CFLAGS&#39;</span><span class="p">,</span> <span class="n">default</span><span class="p">)</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39; &#39;</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">ldflags</span> <span class="o">=</span> <span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;LDFLAGS&#39;</span><span class="p">,</span> <span class="s1">&#39;-shared&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39; &#39;</span><span class="p">)</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">pragma_ivdep</span> <span class="o">=</span> <span class="p">[</span><span class="n">Pragma</span><span class="p">(</span><span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;DEVITO_IVDEP&#39;</span><span class="p">,</span> <span class="s1">&#39;GCC ivdep&#39;</span><span class="p">))]</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">openmp</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">ldflags</span> <span class="o">+=</span> <span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;OMP_LDFLAGS&#39;</span><span class="p">,</span> <span class="s1">&#39;-fopenmp&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39; &#39;</span><span class="p">)</span>
 
 
-<span class="c1"># Registry dict for deriving Compiler classes according to</span>
-<span class="c1"># environment variable DEVITO_ARCH. Developers should add</span>
-<span class="c1"># new compiler classes here and provide a description in</span>
-<span class="c1"># the docstring of get_compiler_from_env().</span>
+<span class="c1"># Registry dict for deriving Compiler classes according to the environment variable</span>
+<span class="c1"># DEVITO_ARCH. Developers should add new compiler classes here.</span>
 <span class="n">compiler_registry</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;custom&#39;</span><span class="p">:</span> <span class="n">CustomCompiler</span><span class="p">,</span>
     <span class="s1">&#39;gcc&#39;</span><span class="p">:</span> <span class="n">GNUCompiler</span><span class="p">,</span> <span class="s1">&#39;gnu&#39;</span><span class="p">:</span> <span class="n">GNUCompiler</span><span class="p">,</span>
     <span class="s1">&#39;gcc-4.9&#39;</span><span class="p">:</span> <span class="n">partial</span><span class="p">(</span><span class="n">GNUCompiler</span><span class="p">,</span> <span class="n">version</span><span class="o">=</span><span class="s1">&#39;4.9&#39;</span><span class="p">),</span>
     <span class="s1">&#39;gcc-5&#39;</span><span class="p">:</span> <span class="n">partial</span><span class="p">(</span><span class="n">GNUCompiler</span><span class="p">,</span> <span class="n">version</span><span class="o">=</span><span class="s1">&#39;5&#39;</span><span class="p">),</span>
@@ -378,28 +369,11 @@
 <span class="p">}</span>
 
 
-<div class="viewcode-block" id="get_compiler_from_env"><a class="viewcode-back" href="../../devito.html#devito.compiler.get_compiler_from_env">[docs]</a><span class="k">def</span> <span class="nf">get_compiler_from_env</span><span class="p">():</span>
-    <span class="sd">&quot;&quot;&quot;Derive compiler class and settings from environment variables</span>
-
-<span class="sd">    :return: The compiler indicated by the environment variable.</span>
-
-<span class="sd">    The key environment variable DEVITO_ARCH supports the following values:</span>
-<span class="sd">     * &#39;gcc&#39; or &#39;gnu&#39; - (Default) Standard GNU compiler toolchain</span>
-<span class="sd">     * &#39;gcc-4.9&#39; - GNU compiler toolchain version 4.9</span>
-<span class="sd">     * &#39;gcc-5&#39; - GNU compiler toolchain version 5</span>
-<span class="sd">     * &#39;clang&#39; or &#39;osx&#39; - Clang compiler toolchain for Mac OSX</span>
-<span class="sd">     * &#39;intel&#39; or &#39;icpc&#39; - Intel compiler toolchain via icpc</span>
-<span class="sd">     * &#39;intel-mic&#39; or &#39;mic&#39; - Intel MIC using offload mode via pymic</span>
-
-<span class="sd">    Additionally, the variable DEVITO_OPENMP can be used to enable OpenMP</span>
-<span class="sd">    parallelisation on by setting it to &quot;1&quot;.</span>
+<div class="viewcode-block" id="set_compiler"><a class="viewcode-back" href="../../devito.html#devito.compiler.set_compiler">[docs]</a><span class="k">def</span> <span class="nf">set_compiler</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">openmp</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Derive compiler class and settings. ``key`` supports the values in</span>
+<span class="sd">    ``compiler_registry``.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
-    <span class="n">key</span> <span class="o">=</span> <span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;DEVITO_ARCH&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
-    <span class="n">openmp</span> <span class="o">=</span> <span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;DEVITO_OPENMP&#39;</span><span class="p">,</span> <span class="s2">&quot;0&quot;</span><span class="p">)</span> <span class="o">==</span> <span class="s2">&quot;1&quot;</span>
-    <span class="k">if</span> <span class="n">key</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-        <span class="k">return</span> <span class="n">CustomCompiler</span><span class="p">(</span><span class="n">openmp</span><span class="o">=</span><span class="n">openmp</span><span class="p">)</span>
-    <span class="k">else</span><span class="p">:</span>
-        <span class="k">return</span> <span class="n">compiler_registry</span><span class="p">[</span><span class="n">key</span><span class="o">.</span><span class="n">lower</span><span class="p">()](</span><span class="n">openmp</span><span class="o">=</span><span class="n">openmp</span><span class="p">)</span></div>
+    <span class="k">return</span> <span class="n">compiler_registry</span><span class="p">[</span><span class="n">key</span><span class="p">](</span><span class="n">openmp</span><span class="o">=</span><span class="n">openmp</span><span class="p">)</span></div>
 
 
 <div class="viewcode-block" id="get_tmp_dir"><a class="viewcode-back" href="../../devito.html#devito.compiler.get_tmp_dir">[docs]</a><span class="k">def</span> <span class="nf">get_tmp_dir</span><span class="p">():</span>
