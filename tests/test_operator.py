@@ -1,6 +1,6 @@
 from __future__ import absolute_import
 
-from conftest import dims
+from conftest import EVAL, dims
 
 import numpy as np
 import pytest
@@ -149,6 +149,26 @@ class TestArguments(object):
     @classmethod
     def setup_class(cls):
         clear_cache()
+
+    def test_override_cache_aliasing(self):
+        """Test that the call-time overriding of Operator arguments works"""
+        i, j, k, l = dimify('i j k l')
+        a = symbol(name='a', dimensions=(i, j, k, l), value=2.,
+                   mode='indexed').base.function
+        a1 = symbol(name='a', dimensions=(i, j, k, l), value=3.,
+                    mode='indexed').base.function
+        a2 = symbol(name='a', dimensions=(i, j, k, l), value=4.,
+                    mode='indexed').base.function
+        eqn = Eq(a, a+3)
+        op = Operator(eqn)
+        op()
+        op(a=a1)
+        op(a=a2)
+        shape = [d.size for d in [i, j, k, l]]
+
+        assert(np.allclose(a.data, np.zeros(shape) + 5))
+        assert(np.allclose(a1.data, np.zeros(shape) + 6))
+        assert(np.allclose(a2.data, np.zeros(shape) + 7))
 
     def test_override_symbol(self):
         """Test call-time symbols overrides with other symbols"""
@@ -372,8 +392,26 @@ class TestLoopScheduler(object):
         assert trees[0][-1].nodes[0].expr.rhs == eq1.rhs
         assert trees[1][-1].nodes[0].expr.rhs == eq2.rhs
 
+    @pytest.mark.parametrize('exprs', [
+        ['Eq(ti0[x,y,z], ti0[x,y,z] + t0*2.)', 'Eq(ti0[0,0,z], 0.)'],
+        ['Eq(ti0[x,y,z], ti0[x,y,z-1] + t0*2.)', 'Eq(ti0[0,0,z], 0.)'],
+        ['Eq(ti0[x,y,z], ti0[x,y,z] + t0*2.)', 'Eq(ti0[0,y,0], 0.)'],
+        ['Eq(ti0[x,y,z], ti0[x,y,z] + t0*2.)', 'Eq(ti0[0,y,z], 0.)'],
+    ])
+    def test_directly_indexed_expression(self, fa, ti0, t0, exprs):
+        """
+        Emulates a potential implementation of boundary condition loops
+        """
+        eqs = EVAL(exprs, ti0.base, t0)
+        op = Operator(eqs, dse='noop', dle='noop')
+        trees = retrieve_iteration_tree(op)
+        assert len(trees) == 2
+        assert trees[0][-1].nodes[0].expr.rhs == eqs[0].rhs
+        assert trees[1][-1].nodes[0].expr.rhs == eqs[1].rhs
+
 
 class TestForeign(object):
+
     def test_code(self):
         shape = (11, 11)
         a = TimeData(name='a', shape=shape, time_order=1,

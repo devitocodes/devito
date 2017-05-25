@@ -77,7 +77,7 @@ class Stencil(DefaultOrderedDict):
                 if isinstance(a, Dimension):
                     stencil[a].update([0])
                 d = None
-                off = []
+                off = [0]
                 for idx in a.args:
                     if isinstance(idx, Dimension):
                         d = idx
