@@ -1,10 +1,10 @@
 from cached_property import cached_property
 
 from devito.interfaces import DenseData, TimeData
-from examples.acoustic.operators import (
+from examples.seismic import PointSource, Receiver
+from seismic.acoustic.operators import (
     ForwardOperator, AdjointOperator, GradientOperator, BornOperator
 )
-from examples.seismic import PointSource, Receiver
 
 
 class AcousticWaveSolver(object):

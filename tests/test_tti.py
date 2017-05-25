@@ -2,11 +2,11 @@ import numpy as np
 import pytest
 from numpy import linalg
 
-from devito.logger import log
 from devito import TimeData
-from examples.acoustic import AcousticWaveSolver
+from devito.logger import log
 from examples.seismic import Model, PointSource, Receiver
-from examples.tti import AnisotropicWaveSolver
+from seismic.acoustic import AcousticWaveSolver
+from seismic.tti import AnisotropicWaveSolver
 
 
 @pytest.mark.parametrize('dimensions', [(120, 140), (120, 140, 150)])

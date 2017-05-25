@@ -8,9 +8,8 @@ import numpy as np
 from devito import clear_cache
 from devito.compiler import compiler_registry
 from devito.logger import warning
-from examples.acoustic.acoustic_example import run as acoustic_run
-from examples.tti.tti_example import run as tti_run
-
+from seismic.acoustic.acoustic_example import run as acoustic_run
+from seismic.tti.tti_example import run as tti_run
 
 if __name__ == "__main__":
     description = ("Benchmarking script for TTI example.\n\n" +

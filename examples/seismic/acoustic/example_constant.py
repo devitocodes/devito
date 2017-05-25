@@ -1,8 +1,8 @@
 import numpy as np
 
 from devito.logger import info
-from examples.acoustic.wavesolver import AcousticWaveSolver
 from examples.seismic import Model, PointSource, Receiver
+from seismic.acoustic.wavesolver import AcousticWaveSolver
 
 
 # Velocity models
@@ -33,7 +33,7 @@ def run(dimensions=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=1000.0,
         spacing = (15., 15.)
 
         # True velocity
-        true_vp = 1.5*np.ones(dimensions, dtype=np.float32)
+        true_vp = 1.5
 
         # Source location
         location = np.zeros((1, 2))
@@ -53,7 +53,7 @@ def run(dimensions=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=1000.0,
         spacing = (15., 15., 15.)
 
         # True velocity
-        true_vp = 1.5 * np.ones(dimensions, dtype=np.float32)
+        true_vp = 1.5
 
         # Source location
         location = np.zeros((1, 3))
@@ -102,7 +102,7 @@ def run(dimensions=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=1000.0,
     info("Applying Born")
     solver.born(dm, **kwargs)
     info("Applying Gradient")
-    solver.gradient(rec.data, u0, **kwargs)
+    solver.gradient(rec, u0, **kwargs)
 
 
 if __name__ == "__main__":

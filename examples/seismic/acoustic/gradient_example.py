@@ -1,9 +1,10 @@
 import numpy as np
-from examples.seismic import Model
-from devito import Dimension, time, TimeData, DenseData
 from examples.source_type import SourceLike
-from examples.acoustic.fwi_operators import ForwardOperator, GradientOperator
 from numpy import linalg
+
+from devito import Dimension, time, TimeData, DenseData
+from examples.seismic import Model
+from seismic.acoustic import ForwardOperator, GradientOperator
 
 
 def smooth10(vel, dimensions):

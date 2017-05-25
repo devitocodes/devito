@@ -1,7 +1,7 @@
 import numpy as np
 
-from examples.tti import AnisotropicWaveSolver
 from examples.seismic import Model, PointSource, Receiver
+from seismic.tti import AnisotropicWaveSolver
 
 dimensions = (150, 150)
 origin = (0., 0.)

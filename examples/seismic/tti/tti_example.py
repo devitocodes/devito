@@ -1,8 +1,8 @@
 import numpy as np
 
-from examples.tti import AnisotropicWaveSolver
-from examples.seismic import Model, PointSource, Receiver
 from devito.logger import warning
+from examples.seismic import Model, PointSource, Receiver
+from seismic.tti import AnisotropicWaveSolver
 
 
 def source(t, f0):
