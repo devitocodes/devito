@@ -71,7 +71,7 @@ def run(dimensions=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=1000.0,
                                 time_order=time_order, space_order=space_order)
 
     info("Applying Forward")
-    rec, u, summary = solver.forward(save=full_run, dse='basic', dle=dle)
+    rec, u, summary = solver.forward(save=full_run, dse=dse, dle=dle)
 
     if not full_run:
         return summary.gflopss, summary.oi, summary.timings, [rec, u.data]

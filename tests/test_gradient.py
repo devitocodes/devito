@@ -43,7 +43,9 @@ def test_gradientFWI(dimensions, time_order, space_order):
     # Objective function value
     F0 = .5*linalg.norm(rec0.data - rec.data)**2
     # Gradient: <J^T \delta d, dm>
-    gradient, _ = wave.gradient(rec0.data - rec.data, u0, m=m0)
+    residual = Receiver(name='rec', data=rec0.data - rec.data,
+                        coordinates=rec0.coordinates.data)
+    gradient, _ = wave.gradient(residual, u0, m=m0)
     G = np.dot(gradient.data.reshape(-1), dm.reshape(-1))
 
     # FWI Gradient test

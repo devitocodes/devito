@@ -187,7 +187,7 @@ class AcousticWaveSolver(object):
         if m is None:
             m = m or self.model.m
 
-        summary = self.op_grad.apply(rec=recin.data, grad=grad, v=v, u=u,
+        summary = self.op_grad.apply(rec=recin, grad=grad, v=v, u=u,
                                      rec_coords=recin.coordinates, m=m,
                                      **kwargs)
         return grad, summary
