@@ -79,9 +79,9 @@ def run(dimensions=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=1000.0,
     info("Applying Adjoint")
     solver.adjoint(rec, dse=dse, dle=dle)
     info("Applying Born")
-    solver.born(dm, dse=None, dle=dle)
+    solver.born(dm, dse=dse, dle=dle)
     info("Applying Gradient")
-    solver.gradient(rec.data, u, dse=dse, dle=dle)
+    solver.gradient(rec, u, dse=dse, dle=dle)
 
 
 if __name__ == "__main__":
