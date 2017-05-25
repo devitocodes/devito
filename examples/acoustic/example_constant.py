@@ -70,7 +70,6 @@ def run(dimensions=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=1000.0,
     solver = AcousticWaveSolver(model, source=src, receiver=rec,
                                 time_order=time_order, space_order=space_order)
 
-
     info("Applying Forward")
     rec, u, summary = solver.forward(save=full_run, dse='basic', dle=dle)
 
