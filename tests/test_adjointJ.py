@@ -22,7 +22,7 @@ def test_acousticJ(dimensions, space_order):
 
     # Actual adjoint test
     term1 = np.dot(im.data.reshape(-1), dm.reshape(-1))
-    term2 = linalg.norm(du)**2
+    term2 = linalg.norm(du.data)**2
     print(term1, term2, term1 - term2, term1 / term2)
     assert np.isclose(term1 / term2, 1.0, atol=0.001)
 
