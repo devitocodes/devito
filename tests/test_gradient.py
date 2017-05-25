@@ -116,7 +116,7 @@ def test_gradientJ(dimensions, time_order, space_order):
         # First order error F(m0 + hdm) - F(m0)
         error1[i] = np.linalg.norm(d.data - rec.data, 1)
         # Second order term F(m0 + hdm) - F(m0) - J dm
-        error2[i] = np.linalg.norm(d.data - rec.data - H[i] * Jdm, 1)
+        error2[i] = np.linalg.norm(d.data - rec.data - H[i] * Jdm.data, 1)
         # print(F0, .5*linalg.norm(d - rec)**2, error1[i], H[i] *G, error2[i])
         # print('For h = ', H[i], '\nFirst order errors is : ', error1[i],
         #       '\nSecond order errors is ', error2[i])

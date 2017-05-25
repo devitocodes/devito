@@ -17,7 +17,7 @@ def test_acoustic(dimensions, time_order, space_order):
 
     # Run forward and adjoint operators
     rec, _, _ = solver.forward(save=False)
-    solver.adjoint(rec=rec.data, srca=srca)
+    solver.adjoint(rec=rec, srca=srca)
 
     # Actual adjoint test
     term1 = np.dot(srca.data.reshape(-1), solver.source.data)

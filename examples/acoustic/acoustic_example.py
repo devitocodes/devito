@@ -40,12 +40,12 @@ def setup(dimensions=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=500.,
         true_vp[:, int(dimensions[1] / 3):dimensions[1]] = 2.5
 
         # Source location
-        location = np.zeros((1, 2))
+        location = np.zeros((1, 2), dtype=np.float32)
         location[0, 0] = origin[0] + dimensions[0] * spacing[0] * 0.5
         location[0, 1] = origin[1] + 2 * spacing[1]
 
         # Receiver coordinates
-        receiver_coords = np.zeros((dimensions[0], 2))
+        receiver_coords = np.zeros((dimensions[0], 2), dtype=np.float32)
         receiver_coords[:, 0] = np.linspace(0, origin[0] +
                                             (dimensions[0]-1) * spacing[0],
                                             num=dimensions[0])
@@ -61,13 +61,13 @@ def setup(dimensions=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=500.,
         true_vp[:, :, int(dimensions[2] / 3):dimensions[2]] = 2.5
 
         # Source location
-        location = np.zeros((1, 3))
+        location = np.zeros((1, 3), dtype=np.float32)
         location[0, 0] = origin[0] + dimensions[0] * spacing[0] * 0.5
         location[0, 1] = origin[1] + dimensions[1] * spacing[1] * 0.5
         location[0, 2] = origin[1] + 2 * spacing[2]
 
         # Receiver coordinates
-        receiver_coords = np.zeros((dimensions[0], 3))
+        receiver_coords = np.zeros((dimensions[0], 3), dtype=np.float32)
         receiver_coords[:, 0] = np.linspace(0, origin[0] +
                                             (dimensions[0] - 1) * spacing[0],
                                             num=dimensions[0])
@@ -126,7 +126,7 @@ def run(dimensions=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=1000.0,
     info("Applying Born")
     solver.born(dm, **kwargs)
     info("Applying Gradient")
-    solver.gradient(rec.data, u, **kwargs)
+    solver.gradient(rec, u, **kwargs)
 
 
 if __name__ == "__main__":

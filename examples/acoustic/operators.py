@@ -24,9 +24,9 @@ def ForwardOperator(model, source, receiver, time_order=2, space_order=4,
                  time_order=time_order, space_order=space_order, save=save,
                  dtype=model.dtype)
     src = PointSource(name='src', ntime=source.nt, ndim=source.ndim,
-                      npoint=source.npoint, coordinates=source.coordinates.data)
+                      npoint=source.npoint)
     rec = Receiver(name='rec', ntime=receiver.nt, ndim=receiver.ndim,
-                   npoint=receiver.npoint, coordinates=receiver.coordinates.data)
+                   npoint=receiver.npoint)
 
     if time_order == 2:
         biharmonic = 0
@@ -75,7 +75,7 @@ def AdjointOperator(model, source, receiver, time_order=2, space_order=4, **kwar
                  time_order=time_order, space_order=space_order,
                  dtype=model.dtype)
     srca = PointSource(name='srca', ntime=source.nt, ndim=source.ndim,
-                       npoint=source.npoint, coordinates=source.coordinates.data)
+                       npoint=source.npoint)
     rec = Receiver(name='rec', ntime=receiver.nt, ndim=receiver.ndim,
                    npoint=receiver.npoint, coordinates=receiver.coordinates.data)
 
@@ -169,7 +169,7 @@ def BornOperator(model, source, receiver, time_order=2, space_order=4, **kwargs)
 
     # Create source and receiver symbols
     src = PointSource(name='src', ntime=source.nt, ndim=source.ndim,
-                      npoint=source.npoint, coordinates=source.coordinates.data)
+                      npoint=source.npoint)
     rec = Receiver(name='rec', ntime=receiver.nt, ndim=receiver.ndim,
                    npoint=receiver.npoint, coordinates=receiver.coordinates.data)
 
