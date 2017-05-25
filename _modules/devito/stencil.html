@@ -238,7 +238,7 @@
                 <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">Dimension</span><span class="p">):</span>
                     <span class="n">stencil</span><span class="p">[</span><span class="n">a</span><span class="p">]</span><span class="o">.</span><span class="n">update</span><span class="p">([</span><span class="mi">0</span><span class="p">])</span>
                 <span class="n">d</span> <span class="o">=</span> <span class="kc">None</span>
-                <span class="n">off</span> <span class="o">=</span> <span class="p">[]</span>
+                <span class="n">off</span> <span class="o">=</span> <span class="p">[</span><span class="mi">0</span><span class="p">]</span>
                 <span class="k">for</span> <span class="n">idx</span> <span class="ow">in</span> <span class="n">a</span><span class="o">.</span><span class="n">args</span><span class="p">:</span>
                     <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">idx</span><span class="p">,</span> <span class="n">Dimension</span><span class="p">):</span>
                         <span class="n">d</span> <span class="o">=</span> <span class="n">idx</span>
