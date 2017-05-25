@@ -339,10 +339,12 @@ class OperatorBasic(Function):
                 entries = i.stencil.entries
 
                 # Can I reuse any of the previously scheduled Iterations ?
-                for index, j in enumerate(entries):
-                    if j not in schedule:
+                index = 0
+                for j0, j1 in zip(entries, list(schedule)):
+                    if j0 != j1:
                         break
-                    root = schedule[j]
+                    root = schedule[j1]
+                    index += 1
                 needed = entries[index:]
 
                 # Build and insert the required Iterations
