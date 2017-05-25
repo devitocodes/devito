@@ -105,7 +105,7 @@
 <li class="toctree-l2"><a class="reference internal" href="#module-devito.nodes">devito.nodes module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#module-devito.parameters">devito.parameters module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#module-devito.pointdata">devito.pointdata module</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#devito-profiler-module">devito.profiler module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#module-devito.profiling">devito.profiling module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#module-devito.stencil">devito.stencil module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#module-devito.tools">devito.tools module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#devito-visitor-module">devito.visitor module</a></li>
@@ -727,6 +727,8 @@ time-varying grid data.</p>
 <tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
 <li><strong>name</strong> – Name of the resulting <code class="xref py py-class docutils literal"><span class="pre">sympy.Function</span></code> symbol</li>
 <li><strong>shape</strong> – Shape of the spatial data grid</li>
+<li><strong>dimensions</strong> – The symbolic dimensions of the function in addition
+to time.</li>
 <li><strong>dtype</strong> – Data type of the buffered data</li>
 <li><strong>save</strong> – Save the intermediate results to the data buffer. Defaults
 to <cite>False</cite>, indicating the use of alternating buffers.</li>
@@ -743,7 +745,9 @@ data buffer.</li>
 <p>Note: The parameter :shape: should only define the spatial shape of the
 grid. The temporal dimension will be inserted automatically as the
 leading dimension, according to the :param time_dim:, :param time_order:
-and whether we want to write intermediate timesteps in the buffer.</p>
+and whether we want to write intermediate timesteps in the buffer. The
+same is true for explicitly provided dimensions, which will be added to
+the automatically derived time dimensions symbol.</p>
 <dl class="attribute">
 <dt id="devito.interfaces.TimeData.backward">
 <code class="descname">backward</code><a class="headerlink" href="#devito.interfaces.TimeData.backward" title="Permalink to this definition">¶</a></dt>
@@ -1502,8 +1506,50 @@ the sparse point data.</li>
 </dd></dl>
 
 </div>
-<div class="section" id="devito-profiler-module">
-<h2>devito.profiler module<a class="headerlink" href="#devito-profiler-module" title="Permalink to this headline">¶</a></h2>
+<div class="section" id="module-devito.profiling">
+<span id="devito-profiling-module"></span><h2>devito.profiling module<a class="headerlink" href="#module-devito.profiling" title="Permalink to this headline">¶</a></h2>
+<dl class="class">
+<dt id="devito.profiling.Profiler">
+<em class="property">class </em><code class="descclassname">devito.profiling.</code><code class="descname">Profiler</code><a class="reference internal" href="_modules/devito/profiling.html#Profiler"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.profiling.Profiler" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">object</span></code></p>
+<p>A Profiler is used to manage profiling information for Devito generated C code.</p>
+<dl class="method">
+<dt id="devito.profiling.Profiler.add">
+<code class="descname">add</code><span class="sig-paren">(</span><em>name</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/profiling.html#Profiler.add"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.profiling.Profiler.add" title="Permalink to this definition">¶</a></dt>
+<dd><p>Add a C-level timer.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="devito.profiling.Profiler.ctype">
+<code class="descname">ctype</code><a class="headerlink" href="#devito.profiling.Profiler.ctype" title="Permalink to this definition">¶</a></dt>
+<dd><p>Returns a <code class="xref py py-class docutils literal"><span class="pre">cgen.Struct</span></code> relative to the profiler.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="devito.profiling.Profiler.setup">
+<code class="descname">setup</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/profiling.html#Profiler.setup"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.profiling.Profiler.setup" title="Permalink to this definition">¶</a></dt>
+<dd><p>Allocate and return a pointer to the timers C-level Struct, which includes
+all timers added to <code class="docutils literal"><span class="pre">self</span></code> through <code class="docutils literal"><span class="pre">self.add(...)</span></code>.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="devito.profiling.Profiler.timings">
+<code class="descname">timings</code><a class="headerlink" href="#devito.profiling.Profiler.timings" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return the timings, up to microseconds, as a dictionary.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="devito.profiling.Profiler.typename">
+<code class="descname">typename</code><em class="property"> = ‘profiler’</em><a class="headerlink" href="#devito.profiling.Profiler.typename" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="devito.profiling.Profiler.varname">
+<code class="descname">varname</code><em class="property"> = ‘timings’</em><a class="headerlink" href="#devito.profiling.Profiler.varname" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
 </div>
 <div class="section" id="module-devito.stencil">
 <span id="devito-stencil-module"></span><h2>devito.stencil module<a class="headerlink" href="#module-devito.stencil" title="Permalink to this headline">¶</a></h2>
