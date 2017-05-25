@@ -26,7 +26,7 @@ def run_simulation(save=False, dx=0.01, dy=0.01, a=0.5, timesteps=100):
 
     u = TimeData(
         name='u', shape=(nx, ny), time_dim=timesteps, initializer=initializer,
-        time_order=1, space_order=2, save=save, pad_time=save
+        time_order=1, space_order=2, save=save
     )
 
     a, h, s = symbols('a h s')
@@ -35,7 +35,7 @@ def run_simulation(save=False, dx=0.01, dy=0.01, a=0.5, timesteps=100):
     op = Operator(Eq(u.forward, stencil),
                   subs={a: 0.5, h: dx, s: dt},
                   time_axis=Forward)
-    op.apply()
+    op.apply(time=timesteps)
 
     if save:
         return u.data[timesteps - 1, :]

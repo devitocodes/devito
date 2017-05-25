@@ -17,17 +17,17 @@ def a(shape=(11, 11)):
 
 def unit_box(name='a', shape=(11, 11)):
     """Create a field with value 0. to 1. in each dimension"""
-    a = DenseData(name='a', shape=shape)
+    a = DenseData(name=name, shape=shape)
     dims = tuple([np.linspace(0., 1., d) for d in shape])
     a.data[:] = np.meshgrid(*dims)[1]
     return a
 
 
-def points(ranges, npoints):
+def points(ranges, npoints, name='points'):
     """Create a set of sparse points from a set of coordinate
     ranges for each spatial dimension.
     """
-    points = PointData(name='points', nt=1, npoint=npoints, ndim=len(ranges))
+    points = PointData(name=name, nt=1, npoint=npoints, ndim=len(ranges))
     for i, r in enumerate(ranges):
         points.coordinates.data[:, i] = np.linspace(r[0], r[1], npoints)
     return points
@@ -94,3 +94,33 @@ def test_inject_from_field(shape, coords, result, npoints=19):
     indices = [slice(4, 6, 1) for _ in coords]
     indices[0] = slice(1, -1, 1)
     assert np.allclose(a.data[indices], result, rtol=1.e-5)
+
+
+@pytest.mark.parametrize('shape, coords', [
+    ((11, 11), [(.05, .9), (.01, .8)]),
+    ((11, 11, 11), [(.05, .9), (.01, .8), (0.07, 0.84)])
+])
+def test_adjoint_inject_interpolate(shape, coords,
+                                    npoints=19):
+
+    a = unit_box(shape=shape)
+    spacing = a.data[tuple([1 for _ in shape])]
+    a.data[:] = 0.
+    c = unit_box(shape=shape, name='c')
+    c.data[:] = 27.
+    # Inject receiver
+    p = points(ranges=coords, npoints=npoints)
+    p.data[:] = 1.2
+    expr = p.inject(field=a, expr=p)
+    # Read receiver
+    p2 = points(name='points2', ranges=coords, npoints=npoints)
+    expr2 = p2.interpolate(expr=c)
+    Operator(expr + expr2, subs={h: spacing})(a=a, c=c, t=1)
+    # < P x, y > - < x, P^T y>
+    # Px => p2
+    # y => p
+    # x => c
+    # P^T y => a
+    term1 = np.dot(p2.data.reshape(-1), p.data.reshape(-1))
+    term2 = np.dot(c.data.reshape(-1), a.data.reshape(-1))
+    assert np.isclose((term1-term2)/term1, 0., atol=np.finfo(np.float32).eps)

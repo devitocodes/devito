@@ -105,10 +105,10 @@ devito.pointdata module
     :undoc-members:
     :show-inheritance:
 
-devito.profiler module
+devito.profiling module
 ------------------------
 
-.. automodule:: devito.profiler
+.. automodule:: devito.profiling
     :members:
     :undoc-members:
     :show-inheritance:

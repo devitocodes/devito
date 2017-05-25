@@ -7,7 +7,7 @@ import pytest
 from sympy import Eq  # noqa
 
 from devito import (clear_cache, Operator, DenseData, TimeData,
-                    time, t, x, y, z)
+                    time, x, y, z)
 from devito.dle import retrieve_iteration_tree
 from devito.visitors import IsPerfectIteration
 
@@ -150,17 +150,13 @@ class TestArguments(object):
     def setup_class(cls):
         clear_cache()
 
-    def test_override(self):
-        """Test that the call-time overriding of Operator arguments works"""
+    def test_override_symbol(self):
+        """Test call-time symbols overrides with other symbols"""
         i, j, k, l = dimify('i j k l')
-        a = symbol(name='a', dimensions=(i, j, k, l), value=2.,
-                   mode='indexed').base.function
-        a1 = symbol(name='a', dimensions=(i, j, k, l), value=3.,
-                    mode='indexed').base.function
-        a2 = symbol(name='a', dimensions=(i, j, k, l), value=4.,
-                    mode='indexed').base.function
-        eqn = Eq(a, a+3)
-        op = Operator(eqn)
+        a = symbol(name='a', dimensions=(i, j, k, l), value=2.)
+        a1 = symbol(name='a1', dimensions=(i, j, k, l), value=3.)
+        a2 = symbol(name='a2', dimensions=(i, j, k, l), value=4.)
+        op = Operator(Eq(a, a + 3))
         op()
         op(a=a1)
         op(a=a2)
@@ -170,22 +166,51 @@ class TestArguments(object):
         assert(np.allclose(a1.data, np.zeros(shape) + 6))
         assert(np.allclose(a2.data, np.zeros(shape) + 7))
 
+    def test_override_array(self):
+        """Test call-time symbols overrides with numpy arrays"""
+        i, j, k, l = dimify('i j k l')
+        shape = tuple(d.size for d in (i, j, k, l))
+        a = symbol(name='a', dimensions=(i, j, k, l), value=2.)
+        a1 = np.zeros(shape=shape, dtype=np.float32) + 3.
+        a2 = np.zeros(shape=shape, dtype=np.float32) + 4.
+        op = Operator(Eq(a, a + 3))
+        op()
+        op(a=a1)
+        op(a=a2)
+        shape = [d.size for d in [i, j, k, l]]
+
+        assert(np.allclose(a.data, np.zeros(shape) + 5))
+        assert(np.allclose(a1, np.zeros(shape) + 6))
+        assert(np.allclose(a2, np.zeros(shape) + 7))
+
     def test_dimension_size_infer(self, nt=100):
         """Test that the dimension sizes are being inferred correctly"""
         i, j, k = dimify('i j k')
         shape = tuple([d.size for d in [i, j, k]])
         a = DenseData(name='a', shape=shape).indexed
-        b = TimeData(name='b', shape=shape, save=False, time_dim=nt).indexed
-        c = TimeData(name='c', shape=shape, save=True, time_dim=nt).indexed
-        eqn1 = Eq(b[t, x, y, z], a[x, y, z])
-        eqn2 = Eq(c[time, x, y, z], a[x, y, z])
-        op1 = Operator(eqn1)
-        op2 = Operator(eqn2)
+        b = TimeData(name='b', shape=shape, save=True, time_dim=nt).indexed
+        eqn = Eq(b[time, x, y, z], a[x, y, z])
+        op = Operator(eqn)
 
-        _, op1_dim_sizes = op1.arguments()
-        _, op2_dim_sizes = op2.arguments()
-        assert(op1_dim_sizes[time] == 2)
-        assert(op2_dim_sizes[time] == nt)
+        _, op_dim_sizes = op.arguments()
+        assert(op_dim_sizes[time.name] == nt)
+
+    def test_dimension_size_override(self, nt=100):
+        """Test explicit overrides for the leading time dimension"""
+        i, j, k = dimify('i j k')
+        a = TimeData(name='a', dimensions=(i, j, k))
+        one = symbol(name='one', dimensions=(i, j, k), value=1.)
+        op = Operator(Eq(a.forward, a + one))
+
+        # Test dimension override via the buffered dimenions
+        a.data[0] = 0.
+        op(a=a, t=6)
+        assert(np.allclose(a.data[1], 5.))
+
+        # Test dimension override via the parent dimenions
+        a.data[0] = 0.
+        op(a=a, time=5)
+        assert(np.allclose(a.data[0], 4.))
 
 
 class TestDeclarator(object):

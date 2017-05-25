@@ -8,7 +8,7 @@ from devito.dimension import t, x, y, z, time
 from devito.finite_difference import (centered, cross_derivative,
                                       first_derivative, left, right,
                                       second_derivative)
-from devito.logger import debug, error
+from devito.logger import debug, error, warning
 from devito.memmap_manager import MemmapManager
 from devito.memory import CMemory, first_touch
 
@@ -482,6 +482,8 @@ class TimeData(DenseData):
 
     :param name: Name of the resulting :class:`sympy.Function` symbol
     :param shape: Shape of the spatial data grid
+    :param dimensions: The symbolic dimensions of the function in addition
+                       to time.
     :param dtype: Data type of the buffered data
     :param save: Save the intermediate results to the data buffer. Defaults
                  to `False`, indicating the use of alternating buffers.
@@ -494,7 +496,9 @@ class TimeData(DenseData):
     Note: The parameter :shape: should only define the spatial shape of the
     grid. The temporal dimension will be inserted automatically as the
     leading dimension, according to the :param time_dim:, :param time_order:
-    and whether we want to write intermediate timesteps in the buffer.
+    and whether we want to write intermediate timesteps in the buffer. The
+    same is true for explicitly provided dimensions, which will be added to
+    the automatically derived time dimensions symbol.
     """
 
     is_TimeData = True
@@ -503,11 +507,16 @@ class TimeData(DenseData):
         if not self._cached():
             super(TimeData, self).__init__(*args, **kwargs)
             self._full_data = self._data.view() if self._data else None
-            time_dim = kwargs.get('time_dim')
+            time_dim = kwargs.get('time_dim', None)
             self.time_order = kwargs.get('time_order', 1)
             self.save = kwargs.get('save', False)
 
             if not self.save:
+                if time_dim is not None:
+                    warning('Explicit time dimension size (time_dim) found for '
+                            'TimeData symbol %s, despite \nusing a buffered time '
+                            'dimension (save=False). This value will be ignored!'
+                            % self.name)
                 time_dim = self.time_order + 1
                 self.indices[0].modulo = time_dim
             else:
@@ -533,15 +542,10 @@ class TimeData(DenseData):
                       automatically infer dimension symbols.
         :return: Dimension indices used for each axis.
         """
-        dimensions = kwargs.get('dimensions', None)
-        if dimensions is None:
-            # Infer dimensions from default and data shape
-            save = kwargs.get('save', None)
-            tidx = time if save else t
-            _indices = [tidx, x, y, z]
-            shape = kwargs.get('shape')
-            dimensions = _indices[:len(shape) + 1]
-        return dimensions
+        save = kwargs.get('save', None)
+        tidx = time if save else t
+        _indices = DenseData._indices(**kwargs)
+        return tuple([tidx] + list(_indices))
 
     def _allocate_memory(self):
         """function to allocate memmory in terms of numpy ndarrays."""
