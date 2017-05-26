@@ -1,8 +1,8 @@
 import numpy as np
 
 from devito.logger import info
+from examples.acoustic.wavesolver import AcousticWaveSolver
 from examples.seismic import Model, PointSource, Receiver
-from seismic.acoustic.wavesolver import AcousticWaveSolver
 
 
 # Velocity models
@@ -25,53 +25,21 @@ def source(t, f0):
 
 
 def run(dimensions=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=1000.0,
-        time_order=2, space_order=4, nbpml=40, full_run=False, **kwargs):
+        time_order=2, space_order=4, nbpml=40, dse='advanced', dle='advanced',
+        full_run=False):
 
-    if len(dimensions) == 2:
-        # Dimensions in 2D are (x, z)
-        origin = (0., 0.)
-        spacing = (15., 15.)
+    origin = (0., 0., 0.)
 
-        # True velocity
-        true_vp = 1.5
+    # True velocity
+    true_vp = 2.
 
-        # Source location
-        location = np.zeros((1, 2))
-        location[0, 0] = origin[0] + dimensions[0] * spacing[0] * 0.5
-        location[0, 1] = origin[1] + 2 * spacing[1]
+    # Smooth velocity
+    initial_vp = 1.8
 
-        # Receiver coordinates
-        receiver_coords = np.zeros((dimensions[0], 2))
-        receiver_coords[:, 0] = np.linspace(0, origin[0] +
-                                            (dimensions[0]-1) * spacing[0],
-                                            num=dimensions[0])
-        receiver_coords[:, 1] = location[0, 1]
-
-    elif len(dimensions) == 3:
-        # Dimensions in 3D are (x, y, z)
-        origin = (0., 0., 0.)
-        spacing = (15., 15., 15.)
-
-        # True velocity
-        true_vp = 1.5
-
-        # Source location
-        location = np.zeros((1, 3))
-        location[0, 0] = origin[0] + dimensions[0] * spacing[0] * 0.5
-        location[0, 1] = origin[1] + dimensions[1] * spacing[1] * 0.5
-        location[0, 2] = origin[1] + 2 * spacing[2]
-
-        # Receiver coordinates
-        receiver_coords = np.zeros((dimensions[0], 3))
-        receiver_coords[:, 0] = np.linspace(0, origin[0] +
-                                            (dimensions[0] - 1) * spacing[0],
-                                            num=dimensions[0])
-        receiver_coords[:, 1] = origin[1] + dimensions[1] * spacing[1] * 0.5
-        receiver_coords[:, 2] = location[0, 2]
-
-    # Define seismic data
+    dm = 1. / (true_vp * true_vp) - 1. / (initial_vp * initial_vp)
     model = Model(origin, spacing, dimensions, true_vp, nbpml=nbpml)
-    dm = model.pad(.01*np.ones(dimensions, dtype=np.float32))
+    dm = np.ones(model.shape_domain, dtype=np.float32)*dm
+
     # Define seismic data.
     f0 = .010
     dt = model.critical_dt
@@ -82,28 +50,39 @@ def run(dimensions=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=1000.0,
 
     # Source geometry
     time_series = np.zeros((nt, 1))
+
     time_series[:, 0] = source(np.linspace(t0, tn, nt), f0)
+
+    location = np.zeros((1, 3))
+    location[0, 0] = origin[0] + dimensions[0] * spacing[0] * 0.5
+    location[0, 1] = origin[1] + dimensions[1] * spacing[1] * 0.5
+    location[0, 2] = origin[1] + 2 * spacing[2]
     src = PointSource(name='src', data=time_series, coordinates=location)
+
+    # Receiver geometry
+    receiver_coords = np.zeros((101, 3))
+    receiver_coords[:, 0] = np.linspace(0, origin[0] +
+                                        dimensions[0] * spacing[0], num=101)
+    receiver_coords[:, 1] = origin[1] + dimensions[1] * spacing[1] * 0.5
+    receiver_coords[:, 2] = location[0, 1]
     rec = Receiver(name='rec', ntime=nt, coordinates=receiver_coords)
 
-    # Create wave solver from model, source and receiver definitions
     solver = AcousticWaveSolver(model, source=src, receiver=rec,
-                                time_order=time_order,
-                                space_order=space_order, **kwargs)
+                                time_order=time_order, space_order=space_order)
 
     info("Applying Forward")
-    rec, u0, summary = solver.forward(save=full_run, **kwargs)
+    rec, u, summary = solver.forward(save=full_run, dse=dse, dle=dle)
 
     if not full_run:
         return summary.gflopss, summary.oi, summary.timings, [rec, u.data]
 
     info("Applying Adjoint")
-    solver.adjoint(rec, **kwargs)
+    solver.adjoint(rec, dse=dse, dle=dle)
     info("Applying Born")
-    solver.born(dm, **kwargs)
+    solver.born(dm, dse=dse, dle=dle)
     info("Applying Gradient")
-    solver.gradient(rec, u0, **kwargs)
+    solver.gradient(rec, u, dse=dse, dle=dle)
 
 
 if __name__ == "__main__":
-    run(full_run=True, space_order=6, time_order=2, dimensions=(50, 50))
+    run(full_run=True, space_order=6, time_order=2)

@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 from numpy import linalg
 
-from examples.acoustic.acoustic_example import setup
+from examples.seismic.acoustic.acoustic_example import setup
 from examples.seismic import PointSource
 
 
@@ -27,4 +27,4 @@ def test_acoustic(dimensions, time_order, space_order):
 
 
 if __name__ == "__main__":
-    test_acoustic(dimensions=(60, 70), time_order=2, space_order=4)
+    test_acoustic(dimensions=(60, 70, 80), time_order=2, space_order=4)
