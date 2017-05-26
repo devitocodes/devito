@@ -203,17 +203,11 @@ class TemporariesGraph(OrderedDict):
         """
         if key not in self:
             return False
-        seen = set()
-        queue = [self[key]]
-        while queue:
-            item = queue.pop(0)
-            seen.add(item)
-            if any(key in i.atoms() for i in retrieve_indexed(item)):
-                # /key/ appears amongst the indices of /item/
-                return True
-            else:
-                queue.extend([i for i in self.extract(item.lhs, readby=True)
-                              if i not in seen])
+        match = key.base.label if self[key].is_tensor else key
+        for i in self.extract(key, readby=True):
+            for e in retrieve_indexed(i):
+                if any(match in idx.free_symbols for idx in e.indices):
+                    return True
         return False
 
     def extract(self, key, readby=False):
