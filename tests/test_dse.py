@@ -13,7 +13,7 @@ from devito.stencil import Stencil
 from devito.visitors import FindNodes
 from examples.seismic.acoustic import AcousticWaveSolver
 from examples.seismic import Model, PointSource, Receiver
-from examples.seismic.tti.tti_example import setup
+from examples.seismic.tti.tti_example3D import setup
 from examples.seismic.tti.operators import ForwardOperator
 
 

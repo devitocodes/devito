@@ -9,15 +9,15 @@ from devito import clear_cache
 from devito.compiler import compiler_registry
 from devito.logger import warning
 from seismic.acoustic.acoustic_example import run as acoustic_run
-from seismic.tti.tti_example import run as tti_run
+from seismic.tti.tti_example3D import run as tti_run
 
 if __name__ == "__main__":
     description = ("Benchmarking script for TTI example.\n\n" +
                    "Exec modes:\n" +
-                   "\trun:   executes tti_example.py once " +
+                   "\trun:   executes tti_example3D.py once " +
                    "with the provided parameters\n" +
                    "\ttest:  tests numerical correctness with different parameters\n"
-                   "\tbench: runs a benchmark of tti_example.py\n" +
+                   "\tbench: runs a benchmark of tti_example3D.py\n" +
                    "\tplot:  plots a roofline plot using the results from the benchmark\n"
                    )
     parser = ArgumentParser(description=description,
