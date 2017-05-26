@@ -28,7 +28,7 @@ from devito.dimension import x, y, z, t, time
 from devito.dse.extended_sympy import Eq
 from devito.dse.search import retrieve_indexed
 from devito.dse.inspection import as_symbol, terminals
-from devito.dse.queries import q_indirect
+from devito.dse.queries import q_indexed, q_indirect
 from devito.exceptions import DSEException
 from devito.tools import flatten
 
@@ -283,9 +283,22 @@ def temporaries_graph(temporaries):
     mapper = OrderedDict()
     for i in nodes:
         mapper.setdefault(as_symbol(i), []).append(i)
+
     for k, v in graph.items():
+        # Scalars
         handle = terminals(v.rhs)
-        v.reads.update(set(flatten([mapper.get(as_symbol(i), []) for i in handle])))
+
+        # Tensors (does not inspect indirections such as A[B[i]])
+        for i in list(handle):
+            if q_indexed(i):
+                for idx in i.indices:
+                    handle |= terminals(idx)
+
+        # Derive actual reads
+        reads = set(flatten([mapper.get(as_symbol(i), []) for i in handle]))
+
+        # Propagate information
+        v.reads.update(reads)
         for i in v.reads:
             graph[i].readby.add(k)
 
