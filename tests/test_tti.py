@@ -21,7 +21,8 @@ def test_tti(dimensions, space_order):
     true_vp[..., int(dimensions[-1] / 3):dimensions[-1]] = 2.5
     # Source location
     location = np.zeros((1, ndim), dtype=np.float32)
-    location[0, :-1] = [origin[i] + dimensions[i] * spacing[i] * .5 for i in range(ndim-1)]
+    location[0, :-1] = [origin[i] + dimensions[i] * spacing[i] * .5
+                        for i in range(ndim-1)]
     location[0, -1] = origin[-1] + 2 * spacing[-1]
     # Receivers locations
     receiver_coords = np.zeros((dimensions[0], ndim), dtype=np.float32)

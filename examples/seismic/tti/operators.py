@@ -6,6 +6,7 @@ from examples.seismic import PointSource, Receiver
 from devito.finite_difference import centered, first_derivative, right, transpose
 from devito.dimension import x, y, z
 
+
 def ForwardOperator(model, source, receiver, time_order=2, space_order=4,
                     save=False, **kwargs):
     """

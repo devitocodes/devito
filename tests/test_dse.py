@@ -104,7 +104,7 @@ def tti_nodse():
 
 
 def test_tti_clusters_to_graph():
-    operator, _, _ = tti_operator()
+    solver, _, _ = tti_operator()
 
     nodes = FindNodes(Expression).visit(operator.elemental_functions)
     expressions = [n.expr for n in nodes]

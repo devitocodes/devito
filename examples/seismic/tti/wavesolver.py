@@ -1,9 +1,9 @@
 # coding: utf-8
 from cached_property import cached_property
 
-from devito.interfaces import DenseData, TimeData
-from examples.tti.operators import ForwardOperator
-from examples.seismic import PointSource, Receiver
+from devito.interfaces import TimeData
+from examples.seismic.tti.operators import ForwardOperator
+from examples.seismic import Receiver
 
 
 class AnisotropicWaveSolver(object):
@@ -110,4 +110,3 @@ class AnisotropicWaveSolver(object):
                                         epsilon=epsilon, delta=delta,
                                         theta=theta, phi=phi, **kwargs)
         return rec, u, v, summary
-
