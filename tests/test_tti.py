@@ -13,40 +13,22 @@ from seismic.tti import AnisotropicWaveSolver
 @pytest.mark.parametrize('space_order', [4, 8])
 def test_tti(dimensions, space_order):
     nbpml = 10
-
-    if len(dimensions) == 2:
-        # Dimensions in 2D are (x, z)
-        origin = (0., 0.)
-        spacing = (10., 10.)
-
-        # Source location
-        location = np.zeros((1, 2))
-        location[0, 0] = origin[0] + dimensions[0] * spacing[0] * 0.5
-        location[0, 1] = origin[1] + dimensions[1] * spacing[1] * 0.5
-
-        # Receiver coordinates
-        receiver_coords = np.zeros((101, 2))
-        receiver_coords[:, 0] = np.linspace(0, origin[0] +
-                                            dimensions[0] * spacing[0], num=101)
-        receiver_coords[:, 1] = origin[1] + 50 * spacing[1]
-
-    elif len(dimensions) == 3:
-        # Dimensions in 3D are (x, y, z)
-        origin = (0., 0., 0.)
-        spacing = (10., 10., 10.)
-
-        # Source location
-        location = np.zeros((1, 3))
-        location[0, 0] = origin[0] + dimensions[0] * spacing[0] * 0.5
-        location[0, 1] = origin[1] + dimensions[1] * spacing[1] * 0.5
-        location[0, 2] = origin[2] + dimensions[2] * spacing[2] * 0.5
-
-        # Receiver coordinates
-        receiver_coords = np.zeros((101, 3))
-        receiver_coords[:, 0] = np.linspace(0, origin[0] +
-                                            dimensions[0] * spacing[0], num=101)
-        receiver_coords[:, 1] = origin[1] + dimensions[1] * spacing[1] * 0.5
-        receiver_coords[:, 2] = origin[2] + 50 * spacing[2]
+    ndim = len(dimensions)
+    origin = tuple([0.]*ndim)
+    spacing = tuple([10.]*ndim)
+    # Velocity model, two layers
+    true_vp = np.ones(dimensions) + .5
+    true_vp[..., int(dimensions[-1] / 3):dimensions[-1]] = 2.5
+    # Source location
+    location = np.zeros((1, ndim), dtype=np.float32)
+    location[0, :-1] = [origin[i] + dimensions[i] * spacing[i] * .5 for i in range(ndim-1)]
+    location[0, -1] = origin[-1] + 2 * spacing[-1]
+    # Receivers locations
+    receiver_coords = np.zeros((dimensions[0], ndim), dtype=np.float32)
+    receiver_coords[:, 0] = np.linspace(0, origin[0] +
+                                        (dimensions[0]-1) * spacing[0],
+                                        num=dimensions[0])
+    receiver_coords[:, 1:] = location[0, 1:]
 
     # True velocity
     true_vp = np.ones(dimensions) + .5

@@ -45,7 +45,7 @@ def setup(dimensions=(50, 50, 50), spacing=(15.0, 15.0, 15.0), tn=500.,
     receiver_coords[:, 0] = np.linspace(0, origin[0] +
                                         (dimensions[0]-1) * spacing[0],
                                         num=dimensions[0])
-    receiver_coords[:,1:] = location[0, 1:]
+    receiver_coords[:, 1:] = location[0, 1:]
 
     # Define seismic data
     model = Model(origin, spacing, dimensions, true_vp, nbpml=nbpml)
