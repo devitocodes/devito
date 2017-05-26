@@ -19,11 +19,7 @@ from examples.tti.tti_operators import ForwardOperator
 
 # Acoustic
 
-
 def run_acoustic_forward(dse=None):
-    # TODO: temporary work around to issue #225 on GitHub
-    clear_cache()
-
     dimensions = (50, 50, 50)
     origin = (0., 0., 0.)
     spacing = (10., 10., 10.)
@@ -65,24 +61,20 @@ def run_acoustic_forward(dse=None):
     acoustic = AcousticWaveSolver(model, source=src, receiver=rec)
     rec, u, _ = acoustic.forward(save=False, dse=dse, dle='basic')
 
-    # FIXME: note that np.copy is necessary because of the broken caching system
-    return np.copy(rec.data), np.copy(u.data)
+    return u, rec
 
 
 def test_acoustic_rewrite_basic():
     ret1 = run_acoustic_forward(dse=None)
     ret2 = run_acoustic_forward(dse='basic')
 
-    assert np.allclose(ret1[0], ret2[0], atol=10e-5)
-    assert np.allclose(ret1[1], ret2[1], atol=10e-5)
+    assert np.allclose(ret1[0].data, ret2[0].data, atol=10e-5)
+    assert np.allclose(ret1[1].data, ret2[1].data, atol=10e-5)
 
 
 # TTI
 
 def tti_operator(dse=False):
-    # TODO: temporary work around to issue #225 on GitHub
-    clear_cache()
-
     problem = setup(dimensions=(50, 50, 50), time_order=2, space_order=4, tn=250.0)
     nt, nrec = problem.data.shape
     dtype = problem.model.dtype
@@ -106,10 +98,9 @@ def tti_operator(dse=False):
 
 @pytest.fixture(scope="session")
 def tti_nodse():
-    # FIXME: note that np.copy is necessary because of the broken caching system
     operator, v, rec = tti_operator(dse=None)
     operator.apply()
-    return (np.copy(v.data), np.copy(rec.data))
+    return v, rec
 
 
 def test_tti_clusters_to_graph():
@@ -137,24 +128,24 @@ def test_tti_rewrite_basic(tti_nodse):
     operator, v, rec = tti_operator(dse='basic')
     operator.apply()
 
-    assert np.allclose(tti_nodse[0], v.data, atol=10e-3)
-    assert np.allclose(tti_nodse[1], rec.data, atol=10e-3)
+    assert np.allclose(tti_nodse[0].data, v.data, atol=10e-3)
+    assert np.allclose(tti_nodse[1].data, rec.data, atol=10e-3)
 
 
 def test_tti_rewrite_factorizer(tti_nodse):
     operator, v, rec = tti_operator(dse=('basic', 'factorize'))
     operator.apply()
 
-    assert np.allclose(tti_nodse[0], v.data, atol=10e-3)
-    assert np.allclose(tti_nodse[1], rec.data, atol=10e-3)
+    assert np.allclose(tti_nodse[0].data, v.data, atol=10e-3)
+    assert np.allclose(tti_nodse[1].data, rec.data, atol=10e-3)
 
 
 def test_tti_rewrite_advanced(tti_nodse):
     operator, v, rec = tti_operator(dse='advanced')
     operator.apply()
 
-    assert np.allclose(tti_nodse[0], v.data, atol=10e-1)
-    assert np.allclose(tti_nodse[1], rec.data, atol=10e-1)
+    assert np.allclose(tti_nodse[0].data, v.data, atol=10e-1)
+    assert np.allclose(tti_nodse[1].data, rec.data, atol=10e-1)
 
 
 # DSE manipulation
