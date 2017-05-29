@@ -228,6 +228,30 @@ def test_graph_trace(tu, tv, tw, ti0, ti1, t0, t1, exprs, expected):
 
 
 @pytest.mark.parametrize('exprs,expected', [
+    # trivial
+    (['Eq(t0, 1.)', 'Eq(t1, fa[x] + fb[x])'],
+     '{t0: False, t1: False}'),
+    # trivial
+    (['Eq(t0, 1)', 'Eq(t1, fa[t0] + fb[x])'],
+     '{t0: True, t1: False}'),
+    # simple
+    (['Eq(t0, 1)', 'Eq(t1, fa[t0*4 + 1] + fb[x])'],
+     '{t0: True, t1: False}'),
+    # two-steps
+    (['Eq(t0, 1.)', 'Eq(t1, t0 + 4)', 'Eq(t2, fa[t1*4 + 1] + fb[x])'],
+     '{t0: False, t1: True, t2: False}'),
+    # indirect
+    pytest.mark.xfail((['Eq(t0, 1)', 'Eq(t1, fa[fb[t0]] + fb[x])'],
+                      '{t0: True, t1: False}')),
+])
+def test_graph_isindex(fa, fb, fc, t0, t1, t2, exprs, expected):
+    g = temporaries_graph(EVAL(exprs, fa, fb, fc, t0, t1, t2))
+    mapper = eval(expected)
+    for k, v in mapper.items():
+        assert g.is_index(k) == v
+
+
+@pytest.mark.parametrize('exprs,expected', [
     # none (different distance)
     (['Eq(t0, fa[x] + fb[x])', 'Eq(t1, fa[x+1] + fb[x])'],
      {}),
