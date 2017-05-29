@@ -49,7 +49,7 @@ def setup(dimensions=(50, 50, 50), spacing=(15.0, 15.0, 15.0), tn=500.,
     receiver_coords[:, 1:] = location[0, 1:]
 
     # Define seismic data
-    model = Model(origin, spacing, dimensions, true_vp, nbpml=nbpml)
+    model = Model(origin, spacing, dimensions, true_vp, nbpml=int(nbpml))
 
     f0 = .010
     dt = model.critical_dt
