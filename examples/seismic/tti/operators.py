@@ -1,7 +1,7 @@
 from sympy import Eq, cos, sin
 from sympy.abc import h, s
 
-from devito import Operator, Forward, TimeData
+from devito import Operator, TimeData
 from examples.seismic import PointSource, Receiver
 from devito.finite_difference import centered, first_derivative, right, transpose
 from devito.dimension import x, y, z

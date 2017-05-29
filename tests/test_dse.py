@@ -14,7 +14,6 @@ from devito.visitors import FindNodes
 from examples.seismic.acoustic import AcousticWaveSolver
 from examples.seismic import Model, PointSource, Receiver
 from examples.seismic.tti.tti_example3D import setup
-from examples.seismic.tti.operators import ForwardOperator
 
 
 # Acoustic
@@ -90,9 +89,9 @@ def tti_nodse():
 def test_tti_clusters_to_graph():
     solver = tti_operator()
 
-    nodes = FindNodes(Expression).visit(solver.elemental_functions)
+    nodes = FindNodes(Expression).visit(solver.op_fwd.elemental_functions)
     expressions = [n.expr for n in nodes]
-    stencils = solver._retrieve_stencils(expressions)
+    stencils = solver.op_fwd._retrieve_stencils(expressions)
     clusters = clusterize(expressions, stencils)
     assert len(clusters) == 3
 

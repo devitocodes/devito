@@ -87,9 +87,12 @@ class AcousticWaveSolver(object):
         :returns: Receiver, wavefield and performance summary
         """
         # Source term is read-only, so re-use the default
-        src = src or self.source
+        if src is None:
+            src = self.source
         # Create a new receiver object to store the result
-        rec = rec or self.receiver
+        if rec is None:
+            rec = Receiver(name='rec', ntime=self.receiver.nt,
+                           coordinates=self.receiver.coordinates.data)
 
         # Create the forward wavefield if not provided
         if u is None:
@@ -100,7 +103,8 @@ class AcousticWaveSolver(object):
                          dtype=self.model.dtype)
 
         # Pick m from model unless explicitly provided
-        m = m or self.model.m
+        if m is None:
+            m = m or self.model.m
 
         # Execute operator and return wavefield and receiver data
         if save:
@@ -142,7 +146,8 @@ class AcousticWaveSolver(object):
                          dtype=self.model.dtype)
 
         # Pick m from model unless explicitly provided
-        m = self.model.m
+        if m is None:
+            m = self.model.m
 
         # Execute operator and return wavefield and receiver data
         summary = self.op_adj.apply(srca=srca, rec=rec, v=v, m=m,
@@ -179,7 +184,8 @@ class AcousticWaveSolver(object):
                          dtype=self.model.dtype)
 
         # Pick m from model unless explicitly provided
-        m = m or self.model.m
+        if m is None:
+            m = m or self.model.m
 
         summary = self.op_grad.apply(rec=rec, grad=grad, v=v, u=u,
                                      rec_coords=rec.coordinates, m=m,
@@ -198,7 +204,8 @@ class AcousticWaveSolver(object):
         :param m: (Optional) Symbol for the time-constant square slowness
         """
         # Source term is read-only, so re-use the default
-        src = src or self.source
+        if src is None:
+            src = self.source
         # Create a new receiver object to store the result
         if rec is None:
             rec = rec or Receiver(name='rec', ntime=self.receiver.nt,
@@ -216,7 +223,8 @@ class AcousticWaveSolver(object):
                          space_order=self.space_order, dtype=self.model.dtype)
 
         # Pick m from model unless explicitly provided
-        m = self.model.m
+        if m is None:
+            m = self.model.m
 
         # Execute operator and return wavefield and receiver data
         summary = self.op_born.apply(dm=dmin, u=u, U=U, src=src, rec=rec,

@@ -138,4 +138,4 @@ def test_gradientJ(dimensions, time_order, space_order):
 
 
 if __name__ == "__main__":
-    test_gradientFWI(dimensions=(60, 70), time_order=2, space_order=4)
+    test_gradientJ(dimensions=(60, 70), time_order=2, space_order=4)

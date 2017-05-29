@@ -1,7 +1,7 @@
 import numpy as np
 from numpy import linalg
 
-from devito import Dimension, time, TimeData, DenseData
+from devito import TimeData, DenseData
 from examples.seismic import Model, PointSource, Receiver
 from examples.seismic.acoustic import ForwardOperator, GradientOperator
 
