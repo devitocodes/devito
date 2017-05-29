@@ -10,8 +10,8 @@ from devito.visitors import FindSymbols
 try:
     import yask_compiler as yask
     # Factories to interact with YASK
-    cfac = yask.yask_compiler_factory()
-    fac = yask.node_factory()
+    cfac = yask.yc_factory()
+    fac = yask.yc_node_factory()
 except ImportError:
     yask = None
 
@@ -43,7 +43,7 @@ class YaskRewriter(BasicRewriter):
                 candidate = tree[-1]
 
                 # Set up the YASK solution
-                soln = cfac.new_stencil_solution("solution")
+                soln = cfac.new_solution("solution")
 
                 # Set up the YASK grids
                 grids = FindSymbols(mode='symbolics').visit(candidate)
@@ -55,13 +55,17 @@ class YaskRewriter(BasicRewriter):
                 soln.set_fold_len('y', 1)
                 soln.set_fold_len('z', 8)
 
+                # Set necessary run-time parameters
+                soln.set_step_dim("t")
+                soln.set_elem_bytes(4)
+
                 # Perform the translation on an expression basis
                 transformer = sympy2yask(grids)
                 expressions = [e for e in candidate.nodes if e.is_Expression]
                 # yaskASTs = [transformer(e.stencil) for e in expressions]
                 for i in expressions:
                     try:
-                        ast = transformer(i.stencil)
+                        ast = transformer(i.expr)
                         # Scalar
                         # print(ast.format_simple())
 
