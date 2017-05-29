@@ -15,8 +15,8 @@ from devito.interfaces import IndexedData, SymbolicData, TensorFunction
 from devito.stencil import Stencil
 from devito.tools import as_tuple, filter_ordered
 
-__all__ = ['Node', 'Block', 'Expression', 'Function', 'Iteration', 'List',
-           'TimedList']
+__all__ = ['Node', 'Block', 'Denormals', 'Expression', 'Function', 'FunCall',
+           'Iteration', 'IterationFold', 'List', 'LocalExpression', 'TimedList']
 
 
 class Node(object):
@@ -24,6 +24,7 @@ class Node(object):
     is_Node = True
     is_Block = False
     is_Iteration = False
+    is_IterationFold = False
     is_Expression = False
     is_Function = False
     is_FunCall = False
@@ -504,6 +505,75 @@ class Function(Node):
     @property
     def children(self):
         return (self.body,)
+
+
+# Special nodes useful for AST manipulation
+
+class IterationFold(Iteration):
+
+    """
+    An IterationFold is a sequence of :class:`Iteration` objects having same
+    dimension, limits and properties, but different offsets and bodies. In particular,
+    earlier :class:`Iteration` objects in the sequence have an iteration range
+    which is greater or equal than that of the later :class:`Iteration` objects.
+
+    An IterationFold, however, acts as a plain :class:`Iteration`; in other words,
+    its folds are "hidden" when the object is visited.
+
+    For example, an IterationFold could be used to represent the following sequence
+    of loops: ::
+
+        for i = 1 to N-1;
+          ...
+        for i = 2 to N-2;
+          ...
+        for i = 4 to N-4:
+          ...
+
+    In addition to the same :class:`Iteration` parameters, an :class:`IterationFold`
+    accepts the parameter ``folds``, an iterable of :class:`Iteration` objects from
+    which folds metadata is derived. In the example above, ``folds`` would be a list
+    of two items, the Iterations ``for i = 2 ..`` and ``for i = 4 ..``.
+    """
+
+    is_IterationFold = True
+
+    def __init__(self, nodes, dimension, limits, index=None, offsets=None,
+                 properties=None, folds=None):
+        super(IterationFold, self).__init__(nodes, dimension, limits, index,
+                                            offsets, properties)
+        self.folds = folds
+
+    def __repr__(self):
+        properties = ""
+        if self.properties:
+            properties = "WithProperties[%s]::" % ",".join(self.properties)
+        length = "Length %d" % len(self.folds)
+        return "<%sIterationFold %s; %s; %s>" % (properties, self.index,
+                                                 self.limits, length)
+
+    @property
+    def ccode(self):
+        comment = c.Comment('This IterationFold is "hiding" ore or more Iterations')
+        code = super(IterationFold, self).ccode
+        return c.Module([comment, code])
+
+    def unfold(self):
+        """
+        Return the corresponding :class:`Iteration` objects from each fold in ``self``.
+        """
+        args = self.args
+        args.pop('folds')
+
+        # Construct the root Iteration
+        root = Iteration(**args)
+
+        # Construct the folds
+        args.pop('nodes')
+        args.pop('offsets')
+        folds = tuple(Iteration(nodes, offsets=ofs, **args) for ofs, nodes in self.folds)
+
+        return as_tuple(root) + folds
 
 
 # Utilities
