@@ -363,8 +363,9 @@ class FindNodes(Visitor):
 
 class IsPerfectIteration(Visitor):
 
-    """Return True if an :class:`Iteration` defines a perfect loop nest,
-    False otherwise."""
+    """
+    Return True if an :class:`Iteration` defines a perfect loop nest, False otherwise.
+    """
 
     def visit_object(self, o, **kwargs):
         return False
@@ -385,7 +386,8 @@ class IsPerfectIteration(Visitor):
 
 class Transformer(Visitor):
 
-    """Given an Iteration/Expression tree T and a mapper from nodes in T to
+    """
+    Given an Iteration/Expression tree T and a mapper from nodes in T to
     a set of new nodes L, M : N --> L, build a new Iteration/Expression tree T'
     where a node ``n`` in N is replaced with ``M[n]``.
     """
@@ -419,8 +421,9 @@ class Transformer(Visitor):
 
 
 class NestedTransformer(Transformer):
+
     """
-    As opposed to a :class:`Transformer`, a :class:`NestedTransforer` applies
+    Unlike a :class:`Transformer`, a :class:`NestedTransforer` applies
     replacements in a depth-first fashion.
     """
 

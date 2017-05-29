@@ -236,11 +236,9 @@ class Expression(Node):
 
 
 class Iteration(Node):
-    """Iteration object that encapsualtes a single loop over nodes, possibly
-    just SymPy expressions.
+    """Iteration object that encapsualtes a single loop over nodes.
 
-    :param nodes: Single or list of :class:`Node` objects that
-                        define the loop body.
+    :param nodes: Single or list of :class:`Node` objects defining the loop body.
     :param dimension: :class:`Dimension` object over which to iterate.
     :param limits: Limits for the iteration space, either the loop size or a
                    tuple of the form (start, finish, stepping).

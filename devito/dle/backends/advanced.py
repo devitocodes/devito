@@ -101,25 +101,23 @@ class DevitoRewriter(BasicRewriter):
         """
         Apply loop blocking to :class:`Iteration` trees.
 
-        By default, the blocked :class:`Iteration` objects and the block size are
-        determined heuristically. The heuristic consists of searching the deepest
-        Iteration/Expression tree and blocking all dimensions except:
+        Blocking is applied to parallel iteration trees. Heuristically, innermost
+        dimensions are not blocked to maximize the trip count of the SIMD loops.
 
-            * The innermost (eg, to retain SIMD vectorization);
-            * Those dimensions inducing loop-carried dependencies.
-
-        The caller may take over the heuristic through ``kwargs['blocking']``,
-        a dictionary indicating the block size of each blocked dimension. For
-        example, for the :class:`Iteration` tree below: ::
+        Different heuristics may be specified via ``kwargs['blockshape']`` and
+        ``kwargs['blockinner']``. The former, a dictionary, is used to indicate
+        a specific block size for each blocked dimension. For example, for the
+        :class:`Iteration` tree: ::
 
             for i
               for j
                 for k
                   ...
 
-        one may pass in ``kwargs['blocking'] = {i: 4, j: 7}``, in which case the
-        two outer loops would be blocked, and the resulting 2-dimensional block
-        would be of size 4x7.
+        one may provide ``kwargs['blockshape'] = {i: 4, j: 7}``, in which case the
+        two outer loops will blocked, and the resulting 2-dimensional block will
+        have size 4x7. The latter may be set to True to also block innermost parallel
+        :class:`Iteration` objects.
         """
         Region = namedtuple('Region', 'main leftover')
 

@@ -22,10 +22,10 @@ class BasicRewriter(AbstractRewriter):
     @dle_pass
     def _avoid_denormals(self, state, **kwargs):
         """
-        Introduce nodes in the Iteration/Expression tree that will generate macros
-        to avoid computing with denormal numbers. These are normally flushed away
-        when using SSE-like instruction sets in a complete C program, but when
-        compiling shared objects specific instructions must instead be inserted.
+        Introduce nodes in the Iteration/Expression tree that will expand to C
+        macros telling the CPU to flush denormal numbers in hardware. Denormals
+        are normally flushed when using SSE-based instruction sets, except when
+        compiling shared objects.
         """
         return {'nodes': (Denormals(),) + state.nodes,
                 'includes': ('xmmintrin.h', 'pmmintrin.h')}

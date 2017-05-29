@@ -48,11 +48,6 @@ class State(object):
         self.flags += as_tuple(flags)
 
     @property
-    def has_applied_nontemporal_stores(self):
-        """True if nontemporal stores will be generated, False otherwise."""
-        return 'ntstores' in self.flags
-
-    @property
     def has_applied_blocking(self):
         """True if loop blocking was applied, False otherwise."""
         return 'blocking' in self.flags
@@ -67,8 +62,6 @@ class Arg(object):
 
     """A DLE-produced argument."""
 
-    from_Blocking = False
-
     def __init__(self, argument, value):
         self.argument = argument
         self.value = value
@@ -78,8 +71,6 @@ class Arg(object):
 
 
 class BlockingArg(Arg):
-
-    from_Blocking = True
 
     def __init__(self, blocked_dim, iteration, value):
         """
@@ -107,7 +98,7 @@ class AbstractRewriter(object):
     Transform Iteration/Expression trees to generate high performance C.
 
     This is just an abstract class. Actual transformers should implement the
-    abstract method ``_pipeline``, that is a sequence of AST transformations.
+    abstract method ``_pipeline``, which performs a sequence of AST transformations.
     """
 
     __metaclass__ = abc.ABCMeta
@@ -146,19 +137,17 @@ class AbstractRewriter(object):
         Analyze the Iteration/Expression trees in ``state.nodes`` to detect
         information useful to the subsequent DLE passes.
 
-        In particular, the presence of fully-parallel or "outermost-sequential
-        inner-parallel" (OSIP) :class:`Iteration` trees is tracked. In an OSIP
-        :class:`Iteration` tree, outermost :class:`Iteration` objects represent
-        an inherently sequential dimension, whereas all inner :class:`Iteration`
-        objects represent parallelizable dimensions.
+        In particular, fully-parallel or "outermost-sequential inner-parallel"
+        (OSIP) :class:`Iteration` trees are searched tracked. In an OSIP
+        :class:`Iteration` tree, the outermost :class:`Iteration` represents
+        a sequential dimension, whereas all inner :class:`Iteration` objects
+        represent parallel dimensions.
         """
-
         nodes = state.nodes
 
         sections = FindSections().visit(nodes)
-        trees = sections.keys()
-        candidate = max(trees, key=lambda i: len(i))
-        candidates = [i for i in trees if len(i) == len(candidate)]
+        candidate = max(list(sections), key=lambda i: len(i))
+        candidates = [i for i in sections if len(i) == len(candidate)]
 
         # The analysis below may return "false positives" (ie, absence of fully-
         # parallel or OSIP trees when this is actually false), but this should
@@ -205,7 +194,7 @@ class AbstractRewriter(object):
         # Introduce the discovered properties in the Iteration/Expression tree
         for k, v in list(mapper.items()):
             args = k.args
-            # 'sequential' has obviously precedence over 'parallel'
+            # 'sequential' kills 'parallel'
             properties = ('sequential',) if 'sequential' in v else tuple(v)
             properties = as_tuple(args.pop('properties')) + properties
             mapper[k] = Iteration(properties=properties, **args)
