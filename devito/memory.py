@@ -10,7 +10,6 @@ from sympy import Eq
 
 from devito.dimension import t
 from devito.logger import error
-from devito.parameters import parameters
 from devito.tools import convert_dtype_to_ctype
 
 
@@ -24,8 +23,10 @@ class CMemory(object):
         """
         Pick a different ndarray type depending on how the backend will access the data.
         """
-        if parameters['dle']['mode'] == 'yask':
-            from devito.dle import yaskarray
+        from devito.parameters import configuration
+        from devito.dle import yaskarray
+
+        if configuration['dle'] == 'yask':
             return yaskarray(ndpointer)
         else:
             return ndpointer

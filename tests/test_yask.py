@@ -3,16 +3,17 @@ from sympy import Eq
 
 import pytest
 
-from devito import DLE_DEFAULT, Operator, DenseData, parameters, x, y, z
+from devito import Operator, DenseData, x, y, z
+from devito.parameters import configuration, defaults
 from devito.dle.backends import yaskarray
 
 
 def setup_module(module):
-    parameters['dle']['mode'] = 'yask'
+    configuration['dle'] = 'yask'
 
 
 def teardown_module(module):
-    parameters['dle']['mode'] = DLE_DEFAULT
+    configuration['dle'] = defaults['dle']
 
 
 def test_data_type():
