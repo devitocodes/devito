@@ -67,12 +67,9 @@ class AnisotropicWaveSolver(object):
         :returns: Receiver, wavefield and performance summary
         """
         # Source term is read-only, so re-use the default
-        if src is None:
-            src = self.source
+        src = src or self.source
         # Create a new receiver object to store the result
-        if rec is None:
-            rec = Receiver(name='rec', ntime=self.receiver.nt,
-                           coordinates=self.receiver.coordinates.data)
+        rec = rec or self.receiver
 
         # Create the forward wavefield if not provided
         if u is None:
@@ -89,16 +86,11 @@ class AnisotropicWaveSolver(object):
                          space_order=self.space_order,
                          dtype=self.model.dtype)
         # Pick m from model unless explicitly provided
-        if m is None:
-            m = m or self.model.m
-        if epsilon is None:
-            epsilon = epsilon or self.model.epsilon
-        if delta is None:
-            delta = delta or self.model.delta
-        if theta is None:
-            theta = theta or self.model.theta
-        if phi is None:
-            phi = phi or self.model.phi
+        m = m or self.model.m
+        epsilon = epsilon or self.model.epsilon
+        delta = delta or self.model.delta
+        theta = theta or self.model.theta
+        phi = phi or self.model.phi
 
         # Execute operator and return wavefield and receiver data
         if save:

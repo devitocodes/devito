@@ -2,7 +2,7 @@ import numpy as np
 
 from devito.logger import warning
 from examples.seismic import Model, PointSource, Receiver
-from seismic.tti import AnisotropicWaveSolver
+from examples.seismic.tti import AnisotropicWaveSolver
 
 
 def source(t, f0):
