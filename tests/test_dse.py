@@ -90,9 +90,9 @@ def tti_nodse():
 def test_tti_clusters_to_graph():
     solver = tti_operator()
 
-    nodes = FindNodes(Expression).visit(operator.elemental_functions)
+    nodes = FindNodes(Expression).visit(solver.elemental_functions)
     expressions = [n.expr for n in nodes]
-    stencils = operator._retrieve_stencils(expressions)
+    stencils = solver._retrieve_stencils(expressions)
     clusters = clusterize(expressions, stencils)
     assert len(clusters) == 3
 
