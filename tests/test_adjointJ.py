@@ -2,14 +2,15 @@ import numpy as np
 import pytest
 from numpy import linalg
 
-from examples.acoustic.acoustic_example import setup
+from examples.seismic.acoustic.acoustic_example import setup
 
 
 @pytest.mark.parametrize('space_order', [4, 8, 12])
 @pytest.mark.parametrize('dimensions', [(60, 70), (40, 50, 30)])
 def test_acousticJ(dimensions, space_order):
     solver = setup(dimensions=dimensions,
-                   space_order=space_order)
+                   space_order=space_order,
+                   nbpml=10+space_order/2)
     initial_vp = np.ones(solver.model.shape_domain) + .5
     m0 = np.float32(initial_vp**-2)
     dm = np.float32(solver.model.m.data - m0)

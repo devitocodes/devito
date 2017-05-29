@@ -1,9 +1,8 @@
 import numpy as np
 
-from examples.containers import IShot
-from examples.tti.TTI_codegen import TTI_cg
-from examples.seismic import Model
 from devito.logger import warning
+from examples.seismic import Model, PointSource, Receiver
+from examples.seismic.tti import AnisotropicWaveSolver
 
 
 def source(t, f0):
@@ -14,7 +13,7 @@ def source(t, f0):
 
 
 def setup(dimensions=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=250.0,
-          time_order=2, space_order=4, nbpml=10):
+          time_order=2, space_order=4, nbpml=10, dse=None):
 
     origin = (0., 0., 0.)
 
@@ -31,8 +30,6 @@ def setup(dimensions=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=250.0,
                   phi=np.pi/5*np.ones(dimensions))
 
     # Define seismic data.
-    data = IShot()
-    src = IShot()
 
     f0 = .010
     dt = model.critical_dt
@@ -49,9 +46,7 @@ def setup(dimensions=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=250.0,
     location[0, 0] = origin[0] + dimensions[0] * spacing[0] * 0.5
     location[0, 1] = origin[1] + dimensions[1] * spacing[1] * 0.5
     location[0, 2] = origin[1] + 2 * spacing[2]
-    src.set_receiver_pos(location)
-    src.set_shape(nt, 1)
-    src.set_traces(time_series)
+    src = PointSource(name='src', data=time_series, coordinates=location)
 
     # Receiver geometry
     receiver_coords = np.zeros((101, 3))
@@ -59,24 +54,24 @@ def setup(dimensions=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=250.0,
                                         dimensions[0] * spacing[0], num=101)
     receiver_coords[:, 1] = origin[1] + dimensions[1] * spacing[1] * 0.5
     receiver_coords[:, 2] = location[0, 1]
-    data.set_receiver_pos(receiver_coords)
-    data.set_shape(nt, 101)
+    rec = Receiver(name='rec', ntime=nt, coordinates=receiver_coords)
 
-    return TTI_cg(model, data, src, t_order=time_order, s_order=space_order)
+    return AnisotropicWaveSolver(model, source=src, time_order=time_order,
+                                 space_order=space_order, receiver=rec, dse=dse)
 
 
 def run(dimensions=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=250.0,
         time_order=2, space_order=4, nbpml=10, **kwargs):
 
-    TTI = setup(dimensions, spacing, tn, time_order, space_order, nbpml)
+    solver = setup(dimensions, spacing, tn, time_order, space_order, nbpml)
 
     if space_order % 4 != 0:
         warning('WARNING: TTI requires a space_order that is a multiple of 4!')
 
-    rec, u, v, gflopss, oi, timings = TTI.Forward(**kwargs)
+    rec, u, v, summary = solver.forward(**kwargs)
 
-    return gflopss, oi, timings, [rec, u, v]
+    return summary.gflopss, summary.oi, summary.timings, [rec, u, v]
 
 
 if __name__ == "__main__":
-    run(autotune=True)
+    run()

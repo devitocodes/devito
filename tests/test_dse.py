@@ -11,10 +11,9 @@ from devito import Dimension, x, y, z, time, TimeData, clear_cache  # noqa
 from devito.nodes import Expression
 from devito.stencil import Stencil
 from devito.visitors import FindNodes
-from examples.acoustic import AcousticWaveSolver
+from examples.seismic.acoustic import AcousticWaveSolver
 from examples.seismic import Model, PointSource, Receiver
-from examples.tti.tti_example import setup
-from examples.tti.tti_operators import ForwardOperator
+from examples.seismic.tti.tti_example3D import setup
 
 
 # Acoustic
@@ -75,40 +74,24 @@ def test_acoustic_rewrite_basic():
 # TTI
 
 def tti_operator(dse=False):
-    problem = setup(dimensions=(50, 50, 50), time_order=2, space_order=4, tn=250.0)
-    nt, nrec = problem.data.shape
-    dtype = problem.model.dtype
-
-    u = TimeData(name="u", shape=problem.model.shape_domain,
-                 time_dim=nt, time_order=2, space_order=4, dtype=dtype)
-    v = TimeData(name="v", shape=problem.model.shape_domain,
-                 time_dim=nt, time_order=2, space_order=4, dtype=dtype)
-
-    # Create source and receiver symbol
-    src = PointSource(name='src', data=0.5 * problem.source.traces,
-                      coordinates=problem.source.receiver_coords)
-    rec = Receiver(name='rec', ntime=nt,
-                   coordinates=problem.data.receiver_coords)
-
-    handle = ForwardOperator(problem.model, u, v, src, rec,
-                             problem.data, time_order=problem.t_order,
-                             spc_order=problem.s_order, save=False, dse=dse)
-    return handle, v, rec
+    handle = setup(dimensions=(50, 50, 50), time_order=2, space_order=4, tn=250.0,
+                   dse=dse)
+    return handle
 
 
 @pytest.fixture(scope="session")
 def tti_nodse():
-    operator, v, rec = tti_operator(dse=None)
-    operator.apply()
+    operator = tti_operator(dse=None)
+    rec, u, v, _ = operator.forward()
     return v, rec
 
 
 def test_tti_clusters_to_graph():
-    operator, _, _ = tti_operator()
+    solver = tti_operator()
 
-    nodes = FindNodes(Expression).visit(operator.elemental_functions)
+    nodes = FindNodes(Expression).visit(solver.op_fwd.elemental_functions)
     expressions = [n.expr for n in nodes]
-    stencils = operator._retrieve_stencils(expressions)
+    stencils = solver.op_fwd._retrieve_stencils(expressions)
     clusters = clusterize(expressions, stencils)
     assert len(clusters) == 3
 
@@ -125,24 +108,24 @@ def test_tti_clusters_to_graph():
 
 
 def test_tti_rewrite_basic(tti_nodse):
-    operator, v, rec = tti_operator(dse='basic')
-    operator.apply()
+    operator = tti_operator(dse='basic')
+    rec, u, v, _ = operator.forward()
 
     assert np.allclose(tti_nodse[0].data, v.data, atol=10e-3)
     assert np.allclose(tti_nodse[1].data, rec.data, atol=10e-3)
 
 
 def test_tti_rewrite_factorizer(tti_nodse):
-    operator, v, rec = tti_operator(dse=('basic', 'factorize'))
-    operator.apply()
+    operator = tti_operator(dse=('basic', 'factorize'))
+    rec, u, v, _ = operator.forward()
 
     assert np.allclose(tti_nodse[0].data, v.data, atol=10e-3)
     assert np.allclose(tti_nodse[1].data, rec.data, atol=10e-3)
 
 
 def test_tti_rewrite_advanced(tti_nodse):
-    operator, v, rec = tti_operator(dse='advanced')
-    operator.apply()
+    operator = tti_operator(dse='advanced')
+    rec, u, v, _ = operator.forward()
 
     assert np.allclose(tti_nodse[0].data, v.data, atol=10e-1)
     assert np.allclose(tti_nodse[1].data, rec.data, atol=10e-1)
