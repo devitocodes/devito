@@ -155,5 +155,4 @@ def ForwardOperator(model, source, receiver, time_order=2, space_order=4,
     stencils += rec.interpolate(expr=u, u_t=ti, offset=model.nbpml)
     stencils += rec.interpolate(expr=v, u_t=ti, offset=model.nbpml)
 
-    return Operator(stencils=stencils, subs=subs,
-                    time_axis=Forward, name='ForwardTTI', **kwargs)
+    return Operator(stencils=stencils, subs=subs, name='ForwardTTI', **kwargs)

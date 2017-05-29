@@ -56,9 +56,8 @@ def setup(dimensions=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=250.0,
     receiver_coords[:, 2] = location[0, 1]
     rec = Receiver(name='rec', ntime=nt, coordinates=receiver_coords)
 
-    return AnisotropicWaveSolver(model, source=src, receiver=rec,
-                                 time_order=time_order,
-                                 space_order=space_order)
+    return AnisotropicWaveSolver(model, source=src, time_order=time_order,
+                                 space_order=space_order, receiver=rec)
 
 
 def run(dimensions=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=250.0,
