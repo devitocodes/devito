@@ -4,7 +4,7 @@ Routines to construct new SymPy expressions transforming the provided input.
 
 from collections import OrderedDict
 
-from sympy import Indexed, S, collect, collect_const, flatten
+from sympy import Indexed, collect, collect_const, flatten
 
 from devito.dse.extended_sympy import Add, Eq, Mul
 from devito.dse.inspection import count, estimate_cost
@@ -22,16 +22,8 @@ def freeze_expression(expr):
     Reconstruct ``expr`` turning all :class:`sympy.Mul` and :class:`sympy.Add`
     into, respectively, :class:`devito.Mul` and :class:`devito.Add`.
     """
-    if expr.is_Float:
-        return expr.func(*expr.atoms())
-    elif isinstance(expr, Indexed):
-        return expr.func(*expr.args)
-    elif expr.is_Symbol:
-        return expr.func(expr.name)
-    elif expr in [S.Zero, S.One, S.NegativeOne, S.Half]:
-        return expr.func()
-    elif expr.is_Atom:
-        return expr.func(*expr.atoms())
+    if expr.is_Atom or isinstance(expr, Indexed):
+        return expr
     elif expr.is_Add:
         rebuilt_args = [freeze_expression(e) for e in expr.args]
         return Add(*rebuilt_args, evaluate=False)
@@ -81,16 +73,10 @@ def collect_nested(expr, aggressive=False):
     def run(expr):
         # Return semantic (rebuilt expression, factorization candidates)
 
-        if expr.is_Float:
-            return expr.func(*expr.atoms()), [expr]
-        elif isinstance(expr, Indexed):
-            return expr.func(*expr.args), []
-        elif expr.is_Symbol:
-            return expr.func(expr.name), [expr]
-        elif expr in [S.Zero, S.One, S.NegativeOne, S.Half]:
-            return expr.func(), [expr]
-        elif expr.is_Atom:
-            return expr.func(*expr.atoms()), []
+        if expr.is_Number or expr.is_Symbol:
+            return expr, [expr]
+        elif isinstance(expr, Indexed) or expr.is_Atom:
+            return expr, []
         elif expr.is_Add:
             rebuilt, candidates = zip(*[run(arg) for arg in expr.args])
 
