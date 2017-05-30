@@ -10,7 +10,23 @@ from devito.logger import error
 __all__ = ['PointData']
 
 
-class PointData(DenseData):
+class CompositeData(DenseData):
+    """
+    Base class for DenseData classes that have DenseData children
+    """
+
+    is_CompositeData = True
+
+    def __init__(self, *args, **kwargs):
+        super(CompositeData, self).__init__(self, *args, **kwargs)
+        self._children = []
+
+    @property
+    def children(self):
+        return self._children
+
+
+class PointData(CompositeData):
     """
     Data object for sparse point data that acts as a Function symbol
 
@@ -36,6 +52,7 @@ class PointData(DenseData):
             self.coordinates = DenseData(name='%s_coords' % self.name,
                                          dimensions=[self.indices[1], d],
                                          shape=(self.npoint, self.ndim))
+            self._children.append(self.coordinates)
             coordinates = kwargs.get('coordinates', None)
             if coordinates is not None:
                 self.coordinates.data[:] = coordinates[:]

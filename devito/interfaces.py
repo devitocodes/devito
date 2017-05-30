@@ -102,7 +102,7 @@ class AbstractSymbol(Function, CachedSymbol):
     is_TensorFunction = False
     is_DenseData = False
     is_TimeData = False
-    is_Coordinates = False
+    is_CompositeData = False
     is_PointData = False
 
     def __new__(cls, *args, **kwargs):

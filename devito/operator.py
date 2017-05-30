@@ -153,6 +153,11 @@ class OperatorBasic(Function):
         r_args = [f_n for f_n, f in arguments.items() if isinstance(f, SymbolicData)]
         o_vals = OrderedDict([arg for arg in kwargs.items() if arg[0] in r_args])
 
+        # Are any passed symbols composite? i.e. are they composed of other symbols?
+        for sym in o_vals.values():
+            if isinstance(sym, SymbolicData) and sym.is_CompositeData:
+                o_vals.update(OrderedDict([(c.name, c) for c in sym.children]))
+
         # Replace the overridden values with the provided ones
         for argname in o_vals.keys():
             arguments[argname] = o_vals[argname]
