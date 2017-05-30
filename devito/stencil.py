@@ -119,8 +119,8 @@ class Stencil(DefaultOrderedDict):
         """
         Return the null Stencil of ``self``.
 
-        Examples
-        ========
+        Examples:
+
         self = {i: {-1, 0, 1}, j: {-2, -1, 0, 1, 2}}
         self.null() >> {i: {0}, j: {0}}
         """
@@ -186,8 +186,8 @@ class Stencil(DefaultOrderedDict):
         """
         Compute the anti-Stencil of ``self`` constrained by ``o``.
 
-        Examples
-        ========
+        Examples:
+
         Assuming one single dimension (omitted for brevity)
 
         self = {-3, -2, -1, 0, 1, 2, 3}

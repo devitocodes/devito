@@ -149,5 +149,5 @@ class Model(object):
         absorbing boundary conditions.
 
         :param data : Data array to be padded"""
-        pad_list = [(self.nbpml, self.nbpml) for _ in self.vp.shape]
+        pad_list = [(self.nbpml, self.nbpml) for _ in self.shape]
         return np.pad(data, pad_list, 'edge')
