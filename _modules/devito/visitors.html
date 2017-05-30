@@ -616,11 +616,12 @@
 <span class="sd">    also inserts the relevant definitions for buffer index variables,</span>
 <span class="sd">    for exaple.:</span>
 
-<span class="sd">        .. code-block::</span>
-<span class="sd">      for (int t = 0; t &lt; t_size; t += 1)</span>
-<span class="sd">      {</span>
-<span class="sd">          int t0 = (t) % 2;</span>
-<span class="sd">          int t1 = (t + 1) % 2;</span>
+<span class="sd">        .. code-block:: c</span>
+
+<span class="sd">           for (int t = 0; t &lt; t_size; t += 1)</span>
+<span class="sd">           {</span>
+<span class="sd">               int t0 = (t) % 2;</span>
+<span class="sd">               int t1 = (t + 1) % 2;</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
 <div class="viewcode-block" id="ResolveIterationVariable.visit_Iteration"><a class="viewcode-back" href="../../devito.html#devito.visitors.ResolveIterationVariable.visit_Iteration">[docs]</a>    <span class="k">def</span> <span class="nf">visit_Iteration</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">o</span><span class="p">,</span> <span class="n">subs</span><span class="o">=</span><span class="p">{},</span> <span class="n">offsets</span><span class="o">=</span><span class="n">defaultdict</span><span class="p">(</span><span class="nb">set</span><span class="p">)):</span>

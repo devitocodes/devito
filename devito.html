@@ -100,15 +100,16 @@
 <li class="toctree-l2"><a class="reference internal" href="#module-devito.finite_difference">devito.finite_difference module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#module-devito.interfaces">devito.interfaces module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#module-devito.logger">devito.logger module</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#devito-memmap-manager-module">devito.memmap_manager module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#module-devito.memmap_manager">devito.memmap_manager module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#module-devito.memory">devito.memory module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#module-devito.nodes">devito.nodes module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#module-devito.operator">devito.operator module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#module-devito.parameters">devito.parameters module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#module-devito.pointdata">devito.pointdata module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#module-devito.profiling">devito.profiling module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#module-devito.stencil">devito.stencil module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#module-devito.tools">devito.tools module</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#devito-visitor-module">devito.visitor module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#module-devito.visitors">devito.visitor module</a></li>
 </ul>
 </li>
 </ul>
@@ -896,9 +897,9 @@ DLE, DLE_WARN, WARNING, ERROR, CRITICAL</li>
 <dd></dd></dl>
 
 </div>
-<div class="section" id="devito-memmap-manager-module">
-<h2>devito.memmap_manager module<a class="headerlink" href="#devito-memmap-manager-module" title="Permalink to this headline">¶</a></h2>
-<span class="target" id="module-devito.memmap_manager"></span><dl class="class">
+<div class="section" id="module-devito.memmap_manager">
+<span id="devito-memmap-manager-module"></span><h2>devito.memmap_manager module<a class="headerlink" href="#module-devito.memmap_manager" title="Permalink to this headline">¶</a></h2>
+<dl class="class">
 <dt id="devito.memmap_manager.MemmapManager">
 <em class="property">class </em><code class="descclassname">devito.memmap_manager.</code><code class="descname">MemmapManager</code><a class="reference internal" href="_modules/devito/memmap_manager.html#MemmapManager"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.memmap_manager.MemmapManager" title="Permalink to this definition">¶</a></dt>
 <dd><p>Class for managing all memmap related settings</p>
@@ -991,8 +992,6 @@ needed only for the call to free.</p>
 <div class="section" id="module-devito.nodes">
 <span id="devito-nodes-module"></span><h2>devito.nodes module<a class="headerlink" href="#module-devito.nodes" title="Permalink to this headline">¶</a></h2>
 <p>The Iteration/Expression hierarchy.</p>
-<blockquote>
-<div>devito.operator module</div></blockquote>
 <dl class="class">
 <dt id="devito.nodes.Node">
 <em class="property">class </em><code class="descclassname">devito.nodes.</code><code class="descname">Node</code><a class="reference internal" href="_modules/devito/nodes.html#Node"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.nodes.Node" title="Permalink to this definition">¶</a></dt>
@@ -1347,8 +1346,10 @@ if a limit is unknown.</p>
 
 </dd></dl>
 
-<hr class="docutils" />
-<span class="target" id="module-devito.operator"></span><dl class="class">
+</div>
+<div class="section" id="module-devito.operator">
+<span id="devito-operator-module"></span><h2>devito.operator module<a class="headerlink" href="#module-devito.operator" title="Permalink to this headline">¶</a></h2>
+<dl class="class">
 <dt id="devito.operator.Operator">
 <em class="property">class </em><code class="descclassname">devito.operator.</code><code class="descname">Operator</code><a class="reference internal" href="_modules/devito/operator.html#Operator"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.operator.Operator" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">object</span></code></p>
@@ -1574,6 +1575,7 @@ Dimension in <code class="docutils literal"><span class="pre">o</span></code>.</
 <dt id="devito.stencil.Stencil.anti">
 <code class="descname">anti</code><span class="sig-paren">(</span><em>o</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/stencil.html#Stencil.anti"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.stencil.Stencil.anti" title="Permalink to this definition">¶</a></dt>
 <dd><p>Compute the anti-Stencil of <code class="docutils literal"><span class="pre">self</span></code> constrained by <code class="docutils literal"><span class="pre">o</span></code>.</p>
+<p>Examples:</p>
 <p>Assuming one single dimension (omitted for brevity)</p>
 <p>self = {-3, -2, -1, 0, 1, 2, 3}
 o = {-3, -2, -1, 0, 1, 2, 3}
@@ -1621,6 +1623,7 @@ self.anti(o) &gt;&gt; {-1, 0, 1}</p>
 <dt id="devito.stencil.Stencil.null">
 <code class="descname">null</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/stencil.html#Stencil.null"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.stencil.Stencil.null" title="Permalink to this definition">¶</a></dt>
 <dd><p>Return the null Stencil of <code class="docutils literal"><span class="pre">self</span></code>.</p>
+<p>Examples:</p>
 <p>self = {i: {-1, 0, 1}, j: {-2, -1, 0, 1, 2}}
 self.null() &gt;&gt; {i: {0}, j: {0}}</p>
 </dd></dl>
@@ -1797,9 +1800,9 @@ possible, determinism in ensured.</p>
 </dd></dl>
 
 </div>
-<div class="section" id="devito-visitor-module">
-<h2>devito.visitor module<a class="headerlink" href="#devito-visitor-module" title="Permalink to this headline">¶</a></h2>
-<span class="target" id="module-devito.visitors"></span><p>Visitor hierarchy to inspect and/or create Expression/Iteration trees.</p>
+<div class="section" id="module-devito.visitors">
+<span id="devito-visitor-module"></span><h2>devito.visitor module<a class="headerlink" href="#module-devito.visitors" title="Permalink to this headline">¶</a></h2>
+<p>Visitor hierarchy to inspect and/or create Expression/Iteration trees.</p>
 <p>The main Visitor class is extracted from <a class="reference external" href="https://github.com/coneoproject/COFFEE">https://github.com/coneoproject/COFFEE</a>.</p>
 <dl class="class">
 <dt id="devito.visitors.FindNodes">
@@ -1994,13 +1997,12 @@ variables in <code class="xref py py-class docutils literal"><span class="pre">I
 also inserts the relevant definitions for buffer index variables,
 for exaple.:</p>
 <blockquote>
-<div><blockquote>
-<div></div></blockquote>
-<p>for (int t = 0; t &lt; t_size; t += 1)
-{</p>
-<blockquote>
-<div>int t0 = (t) % 2;
-int t1 = (t + 1) % 2;</div></blockquote>
+<div><div class="highlight-c"><div class="highlight"><pre><span></span><span class="k">for</span> <span class="p">(</span><span class="kt">int</span> <span class="n">t</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span> <span class="n">t</span> <span class="o">&lt;</span> <span class="n">t_size</span><span class="p">;</span> <span class="n">t</span> <span class="o">+=</span> <span class="mi">1</span><span class="p">)</span>
+<span class="p">{</span>
+    <span class="kt">int</span> <span class="n">t0</span> <span class="o">=</span> <span class="p">(</span><span class="n">t</span><span class="p">)</span> <span class="o">%</span> <span class="mi">2</span><span class="p">;</span>
+    <span class="kt">int</span> <span class="n">t1</span> <span class="o">=</span> <span class="p">(</span><span class="n">t</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span> <span class="o">%</span> <span class="mi">2</span><span class="p">;</span>
+</pre></div>
+</div>
 </div></blockquote>
 <dl class="method">
 <dt id="devito.visitors.ResolveIterationVariable.visit_Expression">

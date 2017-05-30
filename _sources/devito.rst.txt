@@ -10,7 +10,7 @@ Submodules
 ----------
 
 devito.cgen_utils module
---------------------------
+------------------------
 
 .. automodule:: devito.cgen_utils
     :members:
@@ -26,7 +26,7 @@ devito.compiler module
     :show-inheritance:
 
 devito.dimension module
---------------------------
+-----------------------
 
 .. automodule:: devito.dimension
     :members:
@@ -58,7 +58,7 @@ devito.logger module
     :show-inheritance:
 
 devito.memmap_manager module
-------------------------
+----------------------------
 
 .. automodule:: devito.memmap_manager
     :members:
@@ -66,7 +66,7 @@ devito.memmap_manager module
     :show-inheritance:
 
 devito.memory module
-------------------------
+--------------------
 
 .. automodule:: devito.memory
     :members:
@@ -81,7 +81,7 @@ devito.nodes module
     :undoc-members:
     :show-inheritance:
 
-       devito.operator module
+devito.operator module
 ----------------------
 
 .. automodule:: devito.operator
@@ -98,7 +98,7 @@ devito.parameters module
     :show-inheritance:
 
 devito.pointdata module
-------------------------
+-----------------------
 
 .. automodule:: devito.pointdata
     :members:
@@ -106,7 +106,7 @@ devito.pointdata module
     :show-inheritance:
 
 devito.profiling module
-------------------------
+-----------------------
 
 .. automodule:: devito.profiling
     :members:
@@ -114,7 +114,7 @@ devito.profiling module
     :show-inheritance:
 
 devito.stencil module
-------------------------
+---------------------
 
 .. automodule:: devito.stencil
     :members:
@@ -130,7 +130,7 @@ devito.tools module
     :show-inheritance:
 
 devito.visitor module
--------------------
+---------------------
 
 .. automodule:: devito.visitors
     :members:
