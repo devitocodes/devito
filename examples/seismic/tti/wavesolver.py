@@ -103,10 +103,14 @@ class AnisotropicWaveSolver(object):
         # Execute operator and return wavefield and receiver data
         if save:
             summary = self.op_fwd_save.apply(src=src, rec=rec, u=u, v=v, m=m,
+                                             src_coords=src.coordinates,
+                                             rec_coords=rec.coordinates,
                                              epsilon=epsilon, delta=delta,
                                              theta=theta, phi=phi, **kwargs)
         else:
             summary = self.op_fwd.apply(src=src, rec=rec, u=u, v=v, m=m,
+                                        src_coords=src.coordinates,
+                                        rec_coords=rec.coordinates,
                                         epsilon=epsilon, delta=delta,
                                         theta=theta, phi=phi, **kwargs)
         return rec, u, v, summary
