@@ -10,6 +10,8 @@ from devito import (clear_cache, Operator, DenseData, TimeData,
                     time, x, y, z)
 from devito.dle import retrieve_iteration_tree
 from devito.visitors import IsPerfectIteration
+from examples.seismic.acoustic.acoustic_example import setup
+from examples.seismic import PointSource
 
 
 def dimify(dimensions):
@@ -231,6 +233,48 @@ class TestArguments(object):
         a.data[0] = 0.
         op(a=a, time=5)
         assert(np.allclose(a.data[0], 4.))
+
+    def test_override_composite_data(self):
+        dimensions = (100, 100)
+        time_order = 2
+        space_order = 4
+        solver = setup(dimensions=dimensions, time_order=time_order,
+                       space_order=space_order, nbpml=10+space_order/2)
+
+        # Move the source from the location where the setup put it so we can test
+        # whether the override picks up the original coordinates or the changed ones
+        original_coords = solver.source.coordinates.data
+        new_coords = original_coords + 1
+        srca = PointSource(name='srca', ntime=solver.source.nt,
+                           coordinates=new_coords)
+
+        # Run forward and adjoint operators
+        rec, _, _ = solver.forward(save=False)
+
+        # Operator.arguments() returns a tuple of (data, dimension_sizes)
+        args = solver.op_adj.arguments(rec=rec, srca=srca)[0]
+        arg_name = srca.name + "_coords"
+        assert(np.array_equal(args[arg_name], new_coords))
+
+    @pytest.mark.skip(reason="Need to find a better way to pick paramters during op init")
+    def test_override_composite_data_noalias(self):
+        dimensions = (100, 100)
+        time_order = 2
+        space_order = 4
+        solver = setup(dimensions=dimensions, time_order=time_order,
+                       space_order=space_order, nbpml=10+space_order/2)
+
+        # Move the source from the location where the setup put it so we can test
+        # whether the override picks up the original coordinates or the changed ones
+        original_coords = solver.source.coordinates.data
+        new_coords = original_coords + 1
+        srca = PointSource(name='srca1', ntime=solver.source.nt,
+                           coordinates=new_coords)
+
+        # Operator.arguments() returns a tuple of (data, dimension_sizes)
+        args = solver.op_adj.arguments(srca=srca)[0]
+        arg_name = srca.name + "_coords"
+        assert(np.array_equal(args[arg_name], new_coords))
 
 
 class TestDeclarator(object):
