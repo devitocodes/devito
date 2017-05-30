@@ -1,3 +1,5 @@
 *.pyc
 *.json
 *.pdf
+
+docs/_build
