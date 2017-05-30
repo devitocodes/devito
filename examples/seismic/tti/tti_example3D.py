@@ -13,7 +13,7 @@ def source(t, f0):
 
 
 def setup(dimensions=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=250.0,
-          time_order=2, space_order=4, nbpml=10, dse=None):
+          time_order=2, space_order=4, nbpml=10, dse='advanced'):
 
     origin = (0., 0., 0.)
 
