@@ -145,8 +145,6 @@ def run(dimensions=(50, 50, 50), tn=750.0,
     # Test slope of the  tests
     p1 = np.polyfit(np.log10(H), np.log10(error1), 1)
     p2 = np.polyfit(np.log10(H), np.log10(error2), 1)
-    print(p1)
-    print(p2)
     assert np.isclose(p1[0], 1.0, rtol=0.1)
     assert np.isclose(p2[0], 2.0, rtol=0.1)
 
