@@ -1,10 +1,10 @@
 from cached_property import cached_property
 
 from devito.interfaces import DenseData, TimeData
-from examples.acoustic.operators import (
+from examples.seismic import PointSource, Receiver
+from examples.seismic.acoustic.operators import (
     ForwardOperator, AdjointOperator, GradientOperator, BornOperator
 )
-from examples.seismic import PointSource, Receiver
 
 
 class AcousticWaveSolver(object):
@@ -156,7 +156,7 @@ class AcousticWaveSolver(object):
                                     **kwargs)
         return srca, v, summary
 
-    def gradient(self, recin, u, v=None, grad=None, m=None, **kwargs):
+    def gradient(self, rec, u, v=None, grad=None, m=None, **kwargs):
         """
         Gradient modelling function for computing the adjoint of the
         Linearized Born modelling function, ie. the action of the
@@ -187,8 +187,8 @@ class AcousticWaveSolver(object):
         if m is None:
             m = m or self.model.m
 
-        summary = self.op_grad.apply(rec=recin, grad=grad, v=v, u=u,
-                                     rec_coords=recin.coordinates, m=m,
+        summary = self.op_grad.apply(rec=rec, grad=grad, v=v, u=u,
+                                     rec_coords=rec.coordinates, m=m,
                                      **kwargs)
         return grad, summary
 

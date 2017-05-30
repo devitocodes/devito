@@ -1,7 +1,7 @@
 import numpy as np
 
 from devito.logger import info
-from examples.acoustic.wavesolver import AcousticWaveSolver
+from examples.seismic.acoustic.wavesolver import AcousticWaveSolver
 from examples.seismic import Model, PointSource, Receiver
 
 
