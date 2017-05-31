@@ -79,7 +79,7 @@ def setup(dimensions=(50, 50, 50), spacing=(15.0, 15.0, 15.0), tn=500.,
 def run(dimensions=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=1000.0,
         time_order=2, space_order=4, nbpml=40, full_run=False, **kwargs):
 
-    solver = setup(diemnsions=dimensions, spacing=spacing, nbpml=nbpml, tn=tn,
+    solver = setup(dimensions=dimensions, spacing=spacing, nbpml=nbpml, tn=tn,
                    space_order=space_order, time_order=time_order, **kwargs)
 
     initial_vp = smooth10(solver.model.m.data, solver.model.shape_domain)
