@@ -7,11 +7,9 @@ import pytest
 from sympy import Eq  # noqa
 
 from devito import (clear_cache, Operator, DenseData, TimeData,
-                    time, x, y, z)
+                    PointData, Dimension, time, x, y, z)
 from devito.dle import retrieve_iteration_tree
 from devito.visitors import IsPerfectIteration
-from examples.seismic.acoustic.acoustic_example import setup
-from examples.seismic import PointSource
 
 
 def dimify(dimensions):
@@ -235,46 +233,24 @@ class TestArguments(object):
         assert(np.allclose(a.data[0], 4.))
 
     def test_override_composite_data(self):
-        dimensions = (100, 100)
-        time_order = 2
-        space_order = 4
-        solver = setup(dimensions=dimensions, time_order=time_order,
-                       space_order=space_order, nbpml=10+space_order/2)
+        original_coords = (1., 1.)
+        new_coords = (2., 2.)
+        p_dim = Dimension('p_src')
+        ndim = len(original_coords)
+        u = TimeData(name='u', time_order=2, space_order=2, shape=(10, 10))
+        src1 = PointData(name='src1', dimensions=[time, p_dim], npoint=1, nt=10,
+                         ndim=ndim, coordinates=original_coords)
+        src2 = PointData(name='src1', dimensions=[time, p_dim], npoint=1, nt=10,
+                         ndim=ndim, coordinates=new_coords)
+        op = Operator(src1.inject(u, src1))
 
         # Move the source from the location where the setup put it so we can test
         # whether the override picks up the original coordinates or the changed ones
-        original_coords = solver.source.coordinates.data
-        new_coords = original_coords + 1
-        srca = PointSource(name='srca', ntime=solver.source.nt,
-                           coordinates=new_coords)
-
-        # Run forward and adjoint operators
-        rec, _, _ = solver.forward(save=False)
 
         # Operator.arguments() returns a tuple of (data, dimension_sizes)
-        args = solver.op_adj.arguments(rec=rec, srca=srca)[0]
-        arg_name = srca.name + "_coords"
-        assert(np.array_equal(args[arg_name], new_coords))
-
-    @pytest.mark.skip(reason="Need to find a better way to pick paramters during op init")
-    def test_override_composite_data_noalias(self):
-        dimensions = (100, 100)
-        time_order = 2
-        space_order = 4
-        solver = setup(dimensions=dimensions, time_order=time_order,
-                       space_order=space_order, nbpml=10+space_order/2)
-
-        # Move the source from the location where the setup put it so we can test
-        # whether the override picks up the original coordinates or the changed ones
-        original_coords = solver.source.coordinates.data
-        new_coords = original_coords + 1
-        srca = PointSource(name='srca1', ntime=solver.source.nt,
-                           coordinates=new_coords)
-
-        # Operator.arguments() returns a tuple of (data, dimension_sizes)
-        args = solver.op_adj.arguments(srca=srca)[0]
-        arg_name = srca.name + "_coords"
-        assert(np.array_equal(args[arg_name], new_coords))
+        args = op.arguments(src1=src2)[0]
+        arg_name = src1.name + "_coords"
+        assert(np.array_equal(args[arg_name], np.asarray((new_coords,))))
 
 
 class TestDeclarator(object):

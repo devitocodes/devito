@@ -8,7 +8,7 @@ from functools import reduce
 import cgen as c
 import numpy as np
 import sympy
-import inspect
+
 from devito.autotuning import autotune
 from devito.cgen_utils import Allocator, blankline
 from devito.compiler import jit_compile, load
@@ -150,7 +150,7 @@ class OperatorBasic(Function):
                 dim_sizes[name] = arg
 
             # Override explicitly provided SymbolicData
-            if name in arguments and isinstance(arguments[name],SymbolicData):
+            if name in arguments and isinstance(arguments[name], SymbolicData):
                 # Override the original symbol
                 o_vals[name] = arg
 
