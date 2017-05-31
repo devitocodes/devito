@@ -1,10 +1,12 @@
+import os
+
 import numpy as np
 from sympy import Indexed
 
 from devito.dimension import LoweredDimension
 from devito.dle import retrieve_iteration_tree
 from devito.dle.backends import BasicRewriter, dle_pass
-from devito.logger import dle_warning
+from devito.logger import dle, dle_warning
 from devito.visitors import FindSymbols
 
 try:
@@ -43,41 +45,47 @@ class YaskRewriter(BasicRewriter):
                 candidate = tree[-1]
 
                 # Set up the YASK solution
-                soln = cfac.new_solution("solution")
+                soln = cfac.new_solution("devito-test-solution")
 
                 # Set up the YASK grids
                 grids = FindSymbols(mode='symbolics').visit(candidate)
                 grids = {g.name: soln.new_grid(g.name, *[str(i) for i in g.indices])
                          for g in grids}
 
+                # Perform the translation on an expression basis
+                transform = sympy2yask(grids)
+                expressions = [e for e in candidate.nodes if e.is_Expression]
+                try:
+                    for i in expressions:
+                        transform(i.expr)
+                        dle("Converted %s into YASK format", str(i.expr))
+                except:
+                    dle_warning("Cannot convert %s into YASK format", str(i.expr))
+                    continue
+
+                # Print some useful information to screen about the YASK conversion
+                dle("Solution '" + soln.get_name() + "' contains " +
+                    str(soln.get_num_grids()) + " grid(s), and " +
+                    str(soln.get_num_equations()) + " equation(s).")
+
+                # Provide stuff to YASK-land
+                # ==========================
+                #          Scalar: print(ast.format_simple())
+                # AVX2 intrinsics: print soln.format('avx2')
+                # AVX2 intrinsics to file (active now)
+                path = os.path.join(os.environ.get('YASK_HOME', '.'),
+                                    'src', 'kernel', 'gen')
+                soln.write(os.path.join(path, 'yask_stencil_code.hpp'), 'avx2', True)
+
+                # Set kernel parameters
+                # =====================
                 # Vector folding API usage example
                 soln.set_fold_len('x', 1)
                 soln.set_fold_len('y', 1)
                 soln.set_fold_len('z', 8)
-
                 # Set necessary run-time parameters
                 soln.set_step_dim("t")
-                soln.set_elem_bytes(4)
-
-                # Perform the translation on an expression basis
-                transformer = sympy2yask(grids)
-                expressions = [e for e in candidate.nodes if e.is_Expression]
-                # yaskASTs = [transformer(e.stencil) for e in expressions]
-                for i in expressions:
-                    try:
-                        ast = transformer(i.expr)
-                        # Scalar
-                        # print(ast.format_simple())
-
-                        # AVX2 intrinsics
-                        # print soln.format('avx2')
-
-                        # AVX2 intrinsics to file
-                        import os
-                        path = os.path.join(os.environ.get('YASK_HOME', '.'), 'src')
-                        soln.write(os.path.join(path, 'stencil_code.hpp'), 'avx2')
-                    except:
-                        pass
+                soln.set_element_bytes(4)
 
         dle_warning("Falling back to basic DLE optimizations...")
 
@@ -91,6 +99,7 @@ class sympy2yask(object):
 
     def __init__(self, grids):
         self.grids = grids
+        self.mapper = {}
 
     def __call__(self, expr):
 
@@ -103,6 +112,9 @@ class sympy2yask(object):
                 return fac.new_const_number_node(int(expr))
             elif expr.is_Float:
                 return fac.new_const_number_node(float(expr))
+            elif expr.is_Symbol:
+                assert expr in self.mapper
+                return self.mapper[expr]
             elif isinstance(expr, Indexed):
                 function = expr.base.function
                 assert function.name in self.grids
@@ -118,7 +130,11 @@ class sympy2yask(object):
                 if num == 1:
                     return fac.new_divide_node(run(num), run(den))
             elif expr.is_Equality:
-                return fac.new_equation_node(*[run(i) for i in expr.args])
+                if expr.lhs.is_Symbol:
+                    assert expr.lhs not in self.mapper
+                    self.mapper[expr.lhs] = run(expr.rhs)
+                else:
+                    return fac.new_equation_node(*[run(i) for i in expr.args])
             else:
                 dle_warning("Missing handler in Devito-YASK translation")
                 raise NotImplementedError
