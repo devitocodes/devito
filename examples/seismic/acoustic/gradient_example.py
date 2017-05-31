@@ -89,13 +89,11 @@ def run(dimensions=(50, 50, 50), tn=750.0,
                                 spc_order=space_order, save=False, dse=dse, dle=dle)
 
     # Calculate receiver data for true velocity
-    fw_nosave.apply(u=u_nosave, rec=rec_t, rec_coords=rec_t.coordinates,
-                    src=src, src_coords=location)
+    fw_nosave.apply(u=u_nosave, rec=rec_t, src=src)
 
     # Smooth velocity
     # This is the pass that needs checkpointing <----
-    fw.apply(u=u_save, rec=rec_s, m=m0, rec_coords=rec_s.coordinates,
-             src=src, src_coords=location)
+    fw.apply(u=u_save, rec=rec_s, m=m0, src=src)
 
     # Objective function value
     F0 = .5*linalg.norm(rec_s.data - rec_t.data)**2
@@ -116,7 +114,7 @@ def run(dimensions=(50, 50, 50), tn=750.0,
     # Apply the gradient operator to calculate the gradient
     # This is the pass that requires the checkpointed data
     gradop.apply(u=u_save, v=u_nosave, m=m0, rec=rec_g,
-                 rec_coords=rec_g.coordinates, grad=grad)
+                 grad=grad)
     # The result is in grad
     gradient = grad.data
 
@@ -134,8 +132,7 @@ def run(dimensions=(50, 50, 50), tn=750.0,
         u_nosave.data.fill(0)
         # Receiver data for the new model
         # Results will be in rec_s
-        fw_nosave.apply(u=u_nosave, rec=rec_s, m=mloc, src=src,
-                        src_coords=location, rec_coords=rec_s.coordinates)
+        fw_nosave.apply(u=u_nosave, rec=rec_s, m=mloc, src=src)
         d = rec_s.data
         # First order error Phi(m0+dm) - Phi(m0)
         error1[i] = np.absolute(.5*linalg.norm(d - rec_t.data)**2 - F0)

@@ -109,13 +109,9 @@ class AcousticWaveSolver(object):
         # Execute operator and return wavefield and receiver data
         if save:
             summary = self.op_fwd_save.apply(src=src, rec=rec, u=u, m=m,
-                                             src_coords=src.coordinates,
-                                             rec_coords=rec.coordinates,
                                              **kwargs)
         else:
             summary = self.op_fwd.apply(src=src, rec=rec, u=u, m=m,
-                                        src_coords=src.coordinates,
-                                        rec_coords=rec.coordinates,
                                         **kwargs)
         return rec, u, summary
 
@@ -151,8 +147,6 @@ class AcousticWaveSolver(object):
 
         # Execute operator and return wavefield and receiver data
         summary = self.op_adj.apply(srca=srca, rec=rec, v=v, m=m,
-                                    srca_coords=srca.coordinates,
-                                    rec_coords=rec.coordinates,
                                     **kwargs)
         return srca, v, summary
 
@@ -188,8 +182,7 @@ class AcousticWaveSolver(object):
             m = m or self.model.m
 
         summary = self.op_grad.apply(rec=rec, grad=grad, v=v, u=u,
-                                     rec_coords=rec.coordinates, m=m,
-                                     **kwargs)
+                                     m=m, **kwargs)
         return grad, summary
 
     def born(self, dmin, src=None, rec=None, u=None, U=None, m=None, **kwargs):
@@ -228,6 +221,5 @@ class AcousticWaveSolver(object):
 
         # Execute operator and return wavefield and receiver data
         summary = self.op_born.apply(dm=dmin, u=u, U=U, src=src, rec=rec,
-                                     m=m, src_coords=src.coordinates,
-                                     rec_coords=rec.coordinates, **kwargs)
+                                     m=m, **kwargs)
         return rec, u, U, summary

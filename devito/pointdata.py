@@ -4,26 +4,10 @@ from sympy.abc import h
 from collections import OrderedDict
 from devito.dimension import d, p, t, time
 from devito.dse.inspection import indexify, retrieve_indexed
-from devito.interfaces import DenseData
+from devito.interfaces import DenseData, CompositeData
 from devito.logger import error
 
 __all__ = ['PointData']
-
-
-class CompositeData(DenseData):
-    """
-    Base class for DenseData classes that have DenseData children
-    """
-
-    is_CompositeData = True
-
-    def __init__(self, *args, **kwargs):
-        super(CompositeData, self).__init__(self, *args, **kwargs)
-        self._children = []
-
-    @property
-    def children(self):
-        return self._children
 
 
 class PointData(CompositeData):
