@@ -251,9 +251,11 @@ class DenseData(SymbolicData):
     :param space_order: Discretisation order for space derivatives
     :param initializer: Function to initialize the data, optional
 
-    Note: :class:`DenseData` objects are assumed to be constant in time and
-    therefore do not support time derivatives. Use :class:`TimeData` for
-    time-varying grid data.
+    .. note::
+
+       :class:`DenseData` objects are assumed to be constant in time
+       and therefore do not support time derivatives. Use
+       :class:`TimeData` for time-varying grid data.
     """
 
     is_DenseData = True
@@ -478,7 +480,8 @@ class DenseData(SymbolicData):
 
 
 class TimeData(DenseData):
-    """Data object for time-varying data that acts as a Function symbol
+    """
+    Data object for time-varying data that acts as a Function symbol
 
     :param name: Name of the resulting :class:`sympy.Function` symbol
     :param shape: Shape of the spatial data grid
@@ -493,12 +496,24 @@ class TimeData(DenseData):
                        final size of the leading time dimension of the
                        data buffer.
 
-    Note: The parameter :shape: should only define the spatial shape of the
-    grid. The temporal dimension will be inserted automatically as the
-    leading dimension, according to the :param time_dim:, :param time_order:
-    and whether we want to write intermediate timesteps in the buffer. The
-    same is true for explicitly provided dimensions, which will be added to
-    the automatically derived time dimensions symbol.
+    .. note::
+
+       The parameter ``shape`` should only define the spatial shape of
+       the grid. The temporal dimension will be inserted automatically
+       as the leading dimension, according to the ``time_dim``,
+       ``time_order`` and whether we want to write intermediate
+       timesteps in the buffer. The same is true for explicitly
+       provided dimensions, which will be added to the automatically
+       derived time dimensions symbol. For example:
+
+       .. code-block:: python
+
+          In []: TimeData(name="a", dimensions=(x, y, z))
+          Out[]: a(t, x, y, z)
+
+          In []: TimeData(name="a", shape=(20, 30))
+          Out[]: a(t, x, y)
+
     """
 
     is_TimeData = True
