@@ -12,6 +12,7 @@ import cgen as c
 
 from devito.dimension import Dimension
 from devito.dle import (compose_nodes, copy_arrays, filter_iterations,
+                        fold_blockable_tree, unfold_blocked_tree,
                         retrieve_iteration_tree)
 from devito.dle.backends import (BasicRewriter, BlockingArg, dle_pass, omplang,
                                  simdinfo, get_simd_flag, get_simd_items)
@@ -124,8 +125,11 @@ class DevitoRewriter(BasicRewriter):
         blocked = OrderedDict()
         processed = []
         for node in state.nodes:
+            # Make sure loop blocking will span as many Iterations as possible
+            fold = fold_blockable_tree(node)
+
             mapper = {}
-            for tree in retrieve_iteration_tree(node):
+            for tree in retrieve_iteration_tree(fold):
                 # Is the Iteration tree blockable ?
                 iterations = [i for i in tree if i.is_Parallel]
                 if 'blockinner' not in self.params:
@@ -155,8 +159,8 @@ class DevitoRewriter(BasicRewriter):
                     start = inter_block.dim
                     finish = start + block_size
                     properties = 'vector-dim' if i.is_Vectorizable else None
-                    intra_block = Iteration([], i.dim, [start, finish, 1], i.index,
-                                            properties=as_tuple(properties))
+                    intra_block = i._rebuild([], limits=[start, finish, 1], offsets=None,
+                                             properties=as_tuple(properties))
 
                     blocked_iterations.append((inter_block, intra_block))
 
@@ -165,16 +169,16 @@ class DevitoRewriter(BasicRewriter):
                     # non-blocked ("remainder") iterations.
                     start = inter_block.limits[0]
                     finish = inter_block.limits[1]
-                    main = Iteration([], i.dim, [start, finish, 1], i.index,
-                                     properties=i.properties)
+                    main = i._rebuild([], limits=[start, finish, 1], offsets=None,
+                                      properties=i.properties)
 
                     # Build unitary-increment Iteration over the 'leftover' region:
                     # again as above, this may be necessary when the dimension size
                     # is not a multiple of the block size.
                     start = inter_block.limits[1]
                     finish = iter_size - i.offsets[1]
-                    leftover = Iteration([], i.dim, [start, finish, 1], i.index,
-                                         properties=i.properties)
+                    leftover = i._rebuild([], limits=[start, finish, 1], offsets=None,
+                                          properties=i.properties)
 
                     regions[i] = Region(main, leftover)
 
@@ -193,9 +197,10 @@ class DevitoRewriter(BasicRewriter):
                 # Will replace with blocked loop tree
                 mapper[root] = List(body=[blocked_tree] + remainder_tree)
 
-            rebuilt = Transformer(mapper).visit(node)
+            rebuilt = Transformer(mapper).visit(fold)
 
-            processed.append(rebuilt)
+            # Finish unrolling any previously folded Iterations
+            processed.append(unfold_blocked_tree(rebuilt))
 
         # All blocked dimensions
         if not blocked:
