@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 from numpy import linalg
 
-from examples.acoustic.acoustic_example import setup, smooth10
+from examples.seismic.acoustic.acoustic_example import setup, smooth10
 from examples.seismic import Receiver
 
 
@@ -31,7 +31,7 @@ def test_gradientFWI(dimensions, time_order, space_order):
     :return: assertion that the Taylor properties are satisfied
     """
     wave = setup(dimensions=dimensions, time_order=time_order,
-                 space_order=space_order, nbpml=10)
+                 space_order=space_order, nbpml=10+space_order/2)
     m0 = smooth10(wave.model.m.data, wave.model.shape_domain)
     dm = np.float32(wave.model.m.data - m0)
 
@@ -97,7 +97,8 @@ def test_gradientJ(dimensions, time_order, space_order):
     :return: assertion that the Taylor properties are satisfied
     """
     wave = setup(dimensions=dimensions, time_order=time_order,
-                 space_order=space_order, tn=1000.)
+                 space_order=space_order, tn=1000.,
+                 nbpml=10+space_order/2)
     m0 = smooth10(wave.model.m.data, wave.model.shape_domain)
     dm = np.float32(wave.model.m.data - m0)
     linrec = Receiver(name='rec', ntime=wave.receiver.nt,
@@ -137,4 +138,4 @@ def test_gradientJ(dimensions, time_order, space_order):
 
 
 if __name__ == "__main__":
-    test_gradientFWI(dimensions=(60, 70), time_order=2, space_order=4)
+    test_gradientJ(dimensions=(60, 70), time_order=2, space_order=4)

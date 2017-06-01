@@ -455,11 +455,12 @@ class ResolveIterationVariable(Transformer):
     also inserts the relevant definitions for buffer index variables,
     for exaple.:
 
-        .. code-block::
-      for (int t = 0; t < t_size; t += 1)
-      {
-          int t0 = (t) % 2;
-          int t1 = (t + 1) % 2;
+        .. code-block:: c
+
+           for (int t = 0; t < t_size; t += 1)
+           {
+               int t0 = (t) % 2;
+               int t1 = (t + 1) % 2;
     """
 
     def visit_Iteration(self, o, subs={}, offsets=defaultdict(set)):
