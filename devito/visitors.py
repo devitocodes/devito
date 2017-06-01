@@ -21,7 +21,8 @@ from devito.tools import as_tuple, filter_ordered, filter_sorted, flatten
 
 __all__ = ['FindNodes', 'FindSections', 'FindSymbols', 'FindScopes',
            'IsPerfectIteration', 'SubstituteExpression', 'printAST',
-           'ResolveIterationVariable', 'Transformer', 'NestedTransformer']
+           'ResolveIterationVariable', 'Transformer', 'NestedTransformer',
+           'FindAdjacentIterations']
 
 
 class Visitor(object):
@@ -363,6 +364,55 @@ class FindNodes(Visitor):
             ret.append(o)
         for i in o.children:
             ret = self.visit(i, ret=ret)
+        return ret
+
+
+class FindAdjacentIterations(Visitor):
+
+    @classmethod
+    def default_retval(cls):
+        return OrderedDict([('seen_iteration', False)])
+
+    """
+    Return a mapper from nodes N in an Expression/Iteration tree to sequences of
+    :class:`Iteration` objects I = [I_0, I_1, ...], where N is the direct ancestor of
+    the items in I and all items in I are adjacent nodes in the tree.
+    """
+
+    def handler(self, o, parent=None, ret=None):
+        if ret is None:
+            ret = self.default_retval()
+        if parent is None:
+            return ret
+        group = []
+        for i in o:
+            ret = self.visit(i, parent=parent, ret=ret)
+            if ret['seen_iteration'] is True:
+                group.append(i)
+            else:
+                if len(group) > 1:
+                    ret.setdefault(parent, []).append(tuple(group))
+                # Reset the group, Iterations no longer adjacent
+                group = []
+        # Potential leftover
+        if len(group) > 1:
+            ret.setdefault(parent, []).append(tuple(group))
+        return ret
+
+    def visit_object(self, o, parent=None, ret=None):
+        return ret
+
+    def visit_tuple(self, o, parent=None, ret=None):
+        return self.handler(o, parent=parent, ret=ret)
+
+    def visit_Node(self, o, parent=None, ret=None):
+        ret = self.handler(o.children, parent=o, ret=ret)
+        ret['seen_iteration'] = False
+        return ret
+
+    def visit_Iteration(self, o, parent=None, ret=None):
+        ret = self.handler(o.children, parent=o, ret=ret)
+        ret['seen_iteration'] = True
         return ret
 
 
