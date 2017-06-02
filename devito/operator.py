@@ -143,15 +143,21 @@ class OperatorBasic(Function):
         dim_sizes = dict([(arg.name, arg.size) for arg in self.parameters
                           if isinstance(arg, Dimension)])
 
-        # Override explicitly provided dim sizes from **kwargs
-        for name, value in kwargs.items():
+        o_vals = {}
+        for name, arg in kwargs.items():
+            # Override explicitly provided dim sizes from **kwargs
             if name in dim_sizes:
-                dim_sizes[name] = value
+                dim_sizes[name] = arg
 
-        # Have we been provided substitutes for symbol data?
-        # Only SymbolicData can be overridden with this route
-        r_args = [f_n for f_n, f in arguments.items() if isinstance(f, SymbolicData)]
-        o_vals = OrderedDict([arg for arg in kwargs.items() if arg[0] in r_args])
+            # Override explicitly provided SymbolicData
+            if name in arguments and isinstance(arguments[name], SymbolicData):
+                # Override the original symbol
+                o_vals[name] = arg
+
+                original = arguments[name]
+                if original.is_CompositeData:
+                    for orig, child in zip(original.children, arg.children):
+                        o_vals[orig.name] = child
 
         # Replace the overridden values with the provided ones
         for argname in o_vals.keys():

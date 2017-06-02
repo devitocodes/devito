@@ -4,13 +4,13 @@ from sympy.abc import h
 from collections import OrderedDict
 from devito.dimension import d, p, t, time
 from devito.dse.inspection import indexify, retrieve_indexed
-from devito.interfaces import DenseData
+from devito.interfaces import DenseData, CompositeData
 from devito.logger import error
 
 __all__ = ['PointData']
 
 
-class PointData(DenseData):
+class PointData(CompositeData):
     """
     Data object for sparse point data that acts as a Function symbol
 
@@ -36,6 +36,7 @@ class PointData(DenseData):
             self.coordinates = DenseData(name='%s_coords' % self.name,
                                          dimensions=[self.indices[1], d],
                                          shape=(self.npoint, self.ndim))
+            self._children.append(self.coordinates)
             coordinates = kwargs.get('coordinates', None)
             if coordinates is not None:
                 self.coordinates.data[:] = coordinates[:]

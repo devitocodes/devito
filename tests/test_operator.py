@@ -7,7 +7,7 @@ import pytest
 from sympy import Eq  # noqa
 
 from devito import (clear_cache, Operator, DenseData, TimeData,
-                    time, x, y, z)
+                    PointData, Dimension, time, x, y, z)
 from devito.dle import retrieve_iteration_tree
 from devito.visitors import IsPerfectIteration
 
@@ -231,6 +231,26 @@ class TestArguments(object):
         a.data[0] = 0.
         op(a=a, time=5)
         assert(np.allclose(a.data[0], 4.))
+
+    def test_override_composite_data(self):
+        original_coords = (1., 1.)
+        new_coords = (2., 2.)
+        p_dim = Dimension('p_src')
+        ndim = len(original_coords)
+        u = TimeData(name='u', time_order=2, space_order=2, shape=(10, 10))
+        src1 = PointData(name='src1', dimensions=[time, p_dim], npoint=1, nt=10,
+                         ndim=ndim, coordinates=original_coords)
+        src2 = PointData(name='src1', dimensions=[time, p_dim], npoint=1, nt=10,
+                         ndim=ndim, coordinates=new_coords)
+        op = Operator(src1.inject(u, src1))
+
+        # Move the source from the location where the setup put it so we can test
+        # whether the override picks up the original coordinates or the changed ones
+
+        # Operator.arguments() returns a tuple of (data, dimension_sizes)
+        args = op.arguments(src1=src2)[0]
+        arg_name = src1.name + "_coords"
+        assert(np.array_equal(args[arg_name], np.asarray((new_coords,))))
 
 
 class TestDeclarator(object):
