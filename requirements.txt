@@ -2,6 +2,7 @@ numpy>=1.11.1
 sympy>=0.7.6
 mpmath>=0.19
 pytest
+pytest-ipynb
 flake8>=2.1.0
 cached_property
 isort
@@ -9,3 +10,4 @@ py-cpuinfo
 psutil>=5.1.0
 git+git://github.com/inducer/cgen
 git+git://github.com/inducer/codepy
+matplotlib
