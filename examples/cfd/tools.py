@@ -32,6 +32,8 @@ def plot_field(field, xmax=2., ymax=2., zmax=None, view=None, linewidth=0):
     ax.set_xlabel('$x$')
     ax.set_ylabel('$y$')
 
+    pyplot.show()
+
 
 def init_hat(field, dx, dy, value=2., bgvalue=1.):
     """Set "hat function" initial condition on an array:
