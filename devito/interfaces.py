@@ -639,3 +639,19 @@ class EmptyIndexed(Symbol):
 
     def func(self, *args):
         return super(EmptyIndexed, self).func(self.base.func(*self.base.args))
+
+
+class CompositeData(DenseData):
+    """
+    Base class for DenseData classes that have DenseData children
+    """
+
+    is_CompositeData = True
+
+    def __init__(self, *args, **kwargs):
+        super(CompositeData, self).__init__(self, *args, **kwargs)
+        self._children = []
+
+    @property
+    def children(self):
+        return self._children

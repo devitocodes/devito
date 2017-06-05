@@ -2,4 +2,9 @@
 *.json
 *.pdf
 
+.cache
+
+_site
 docs/_build
+
+.ipynb_checkpoints
