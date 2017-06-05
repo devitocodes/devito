@@ -31,7 +31,7 @@ class DevitoRewriter(BasicRewriter):
     def _pipeline(self, state):
         self._avoid_denormals(state)
         self._loop_fission(state)
-        self._create_elemental_functions(state)
+        #self._create_elemental_functions(state)
         self._loop_blocking(state)
         self._simdize(state)
         if self.params['openmp'] is True:
@@ -121,18 +121,19 @@ class DevitoRewriter(BasicRewriter):
         :class:`Iteration` objects.
         """
         Region = namedtuple('Region', 'main leftover')
+        exclude_innermost = 'blockinner' not in self.params
 
         blocked = OrderedDict()
         processed = []
         for node in state.nodes:
             # Make sure loop blocking will span as many Iterations as possible
-            fold = fold_blockable_tree(node)
+            fold = fold_blockable_tree(node, exclude_innermost)
 
             mapper = {}
             for tree in retrieve_iteration_tree(fold):
                 # Is the Iteration tree blockable ?
                 iterations = [i for i in tree if i.is_Parallel]
-                if 'blockinner' not in self.params:
+                if exclude_innermost:
                     iterations = [i for i in iterations if not i.is_Vectorizable]
                 if not iterations:
                     continue

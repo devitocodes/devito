@@ -1,15 +1,18 @@
 import cgen as c
+from sympy import Eq, Symbol
+import numpy as np
 
 from devito.dle import compose_nodes, is_foldable, retrieve_iteration_tree
-from devito.nodes import Iteration, List
-from devito.visitors import (FindAdjacentIterations, IsPerfectIteration,
+from devito.dse import retrieve_indexed
+from devito.nodes import Expression, Iteration, List, LocalExpression
+from devito.visitors import (FindAdjacentIterations, FindNodes, IsPerfectIteration,
                              NestedTransformer, Transformer)
-from devito.tools import as_tuple
+from devito.tools import as_tuple, flatten
 
 __all__ = ['fold_blockable_tree', 'unfold_blocked_tree']
 
 
-def fold_blockable_tree(node):
+def fold_blockable_tree(node, exclude_innermost=False):
     """
     Create :class:`IterationFold`s from sequences of nested :class:`Iteration`.
     """
@@ -19,17 +22,26 @@ def fold_blockable_tree(node):
     mapper = {}
     for k, v in found.items():
         for i in v:
-            # Check if the Iterations in /i/ are foldable or not
+            # Pre-condition: they all must be perfect iterations
             assert len(i) > 1
             if any(not IsPerfectIteration().visit(j) for j in i):
                 continue
+            # Only retain consecutive trees having same depth
             trees = [retrieve_iteration_tree(j)[0] for j in i]
-            if any(len(trees[0]) != len(j) for j in trees):
+            handle = []
+            for j in trees:
+                if len(j) != len(trees[0]):
+                    break
+                handle.append(j)
+            trees = handle
+            if not trees:
                 continue
+            # Check foldability
             pairwise_folds = zip(*reversed(trees))
             if any(not is_foldable(j) for j in pairwise_folds):
                 continue
-            for j in pairwise_folds:
+            # Perform folding
+            for j in pairwise_folds[:-exclude_innermost]:
                 root, remainder = j[0], j[1:]
                 folds = [(tuple(y-x for x, y in zip(i.offsets, root.offsets)), i.nodes)
                          for i in remainder]
@@ -76,14 +88,74 @@ def unfold_blocked_tree(node):
     # Perform unfolding
     mapper = {}
     for tree in candidates:
-        unfolded = zip(*[i.unfold() for i in tree])
-        unfolded = [compose_nodes(i) for i in unfolded]
-        mapper[tree[0]] = List(body=unfolded)
+        trees = zip(*[i.unfold() for i in tree])
+        trees = optimize_unfolded_tree(trees[:-1], trees[-1])
+        trees = [compose_nodes(i) for i in trees]
+        mapper[tree[0]] = List(body=trees)
 
     # Insert the unfolded Iterations in the Iteration/Expression tree
     processed = Transformer(mapper).visit(node)
 
     return processed
+
+
+def optimize_unfolded_tree(unfolded, root):
+    """
+    Transform folded trees to reduce the memory footprint.
+
+    Examples
+    ========
+    Given:
+
+        .. code-block::
+            for i = 1 to N - 1  # Folded tree
+              for j = 1 to N - 1
+                tmp[i,j] = ...
+            for i = 2 to N - 2  # Root
+              for j = 2 to N - 2
+                ... = ... tmp[i,j] ...
+
+    The temporary ``tmp`` has shape ``(N-1, N-1)``. However, as soon as the
+    iteration space is blocked, with blocks of shape ``(i_bs, j_bs)``, the
+    ``tmp`` shape can be shrunk to ``(i_bs-1, j_bs-1)``. The resulting
+    iteration tree becomes:
+
+        .. code-block::
+            for i = 1 to i_bs + 1  # Folded tree
+              for j = 1 to j_bs + 1
+                i' = i + i_block - 2
+                j' = j + j_block - 2
+                tmp[i,j] = ... # use i' and j'
+            for i = i_block to i_block + i_bs  # Root
+              for j = j_block to j_block + j_bs
+                i' = i - x_block
+                j' = j - j_block
+                ... = ... tmp[i',j'] ...
+    """
+    processed = []
+    for i, tree in enumerate(unfolded):
+        otree = []
+        stmts = []
+        mapper = {}
+
+        # "Shrink" the iteration space
+        for j in tree:
+            start, end, incr = j.args['limits']
+            otree.append(j._rebuild(limits=[0, end-start, incr]))
+            index = Symbol('%ss%d' % (j.index, i))
+            stmts.append(LocalExpression(Eq(index, j.dim + start), np.int32))
+            mapper[j.dim] = index
+
+        # Substitute iteration variables within the folded trees
+        expressions = FindNodes(Expression).visit(otree[-1])
+        substituted = [i._rebuild(expr=Eq(i.expr.lhs, i.expr.rhs.xreplace(mapper)))
+                       for i in expressions]
+
+        handle = Transformer(dict(zip(expressions, substituted))).visit(otree[-1])
+        handle = handle._rebuild(nodes=(stmts + list(handle.nodes)))
+        processed.append(tuple(otree[:-1]) + (handle,))
+
+    return processed + [root]
 
 
 class IterationFold(Iteration):
