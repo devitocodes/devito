@@ -9,22 +9,33 @@ from devito.dle.backends import BasicRewriter, dle_pass
 from devito.logger import dle, dle_warning
 from devito.visitors import FindSymbols
 
-try:
-    import yask_compiler as yask
-    # Factories to interact with YASK
-    cfac = yask.yc_factory()
-    fac = yask.yc_node_factory()
-except ImportError:
-    yask = None
-
 __all__ = ['YaskRewriter', 'yaskarray']
+
+
+# Init
+
+try:
+    import yask_compiler as yc
+    # Factories to interact with YASK
+    cfac = yc.yc_factory()
+    fac = yc.yc_node_factory()
+except ImportError:
+    yc, emsg = None, "[Python bindings]"
+
+try:
+    # Set directory for generated code
+    path = os.path.join(os.environ['YASK_HOME'], 'src', 'kernel', 'gen')
+    if not os.path.exists(path):
+        os.makedirs(path)
+except KeyError:
+    yc, emsg = None, "[Missing YASK_HOME]"
 
 
 class YaskRewriter(BasicRewriter):
 
     def _pipeline(self, state):
-        if yask is None:
-            dle_warning("Cannot find YASK. Skipping DLE optimizations...")
+        if yc is None:
+            dle_warning("Cannot find YASK %s. Skipping DLE optimizations..." % emsg)
             super(YaskRewriter, self)._pipeline(state)
             return
         self._avoid_denormals(state)
@@ -73,8 +84,6 @@ class YaskRewriter(BasicRewriter):
                 #          Scalar: print(ast.format_simple())
                 # AVX2 intrinsics: print soln.format('avx2')
                 # AVX2 intrinsics to file (active now)
-                path = os.path.join(os.environ.get('YASK_HOME', '.'),
-                                    'src', 'kernel', 'gen')
                 soln.write(os.path.join(path, 'yask_stencil_code.hpp'), 'avx2', True)
 
                 # Set kernel parameters
@@ -161,7 +170,8 @@ class yaskarray(np.ndarray):
         return np.asarray(array).view(cls)
 
     def __array_finalize__(self, obj):
-        if obj is None: return
+        if obj is None:
+            return
 
     def __getitem__(self, index):
         expected_layout = self.transpose()

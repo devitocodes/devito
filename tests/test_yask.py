@@ -1,7 +1,7 @@
 import numpy as np
 from sympy import Eq
 
-import pytest
+import pytest  # noqa
 
 from devito import Operator, DenseData, x, y, z
 from devito.parameters import configuration, defaults
