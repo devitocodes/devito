@@ -224,7 +224,7 @@ def common_subexprs_elimination(exprs, make, mode='default'):
         # Apply repleacements
         processed = [e.xreplace(mapper) for e in processed]
         mapped = [e.xreplace(mapper) for e in mapped]
-        mapped = [Eq(v, k) for k, v in reversed(mapper.items())] + mapped
+        mapped = [Eq(v, k) for k, v in reversed(list(mapper.items()))] + mapped
 
         # Prepare for the next round
         for k in picked:
