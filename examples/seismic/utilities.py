@@ -24,9 +24,9 @@ def modelling(model, src, rec, save=False):
 
     # Create interpolation expression for receivers
     rec_term = rec.interpolate(expr=u, u_t=u.indices[0], p_t=time, offset=model.nbpml)
-    print(rec_term)
 
     op = Operator([stencil] + src_term + rec_term,
-                  subs={s: model.critical_dt, h: model.spacing[0]})
+                  subs={s: model.critical_dt, h: model.spacing[0]},
+                  time_axis=Forward)
 
     return op
