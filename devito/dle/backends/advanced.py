@@ -159,9 +159,7 @@ class DevitoRewriter(BasicRewriter):
                     # Build Iteration within a block
                     start = inter_block.dim
                     finish = start + block_size
-                    properties = 'vector-dim' if i.is_Vectorizable else None
-                    intra_block = i._rebuild([], limits=[start, finish, 1], offsets=None,
-                                             properties=as_tuple(properties))
+                    intra_block = i._rebuild([], limits=[start, finish, 1], offsets=None)
 
                     blocked_iterations.append((inter_block, intra_block))
 
@@ -170,16 +168,14 @@ class DevitoRewriter(BasicRewriter):
                     # non-blocked ("remainder") iterations.
                     start = inter_block.limits[0]
                     finish = inter_block.limits[1]
-                    main = i._rebuild([], limits=[start, finish, 1], offsets=None,
-                                      properties=i.properties)
+                    main = i._rebuild([], limits=[start, finish, 1], offsets=None)
 
                     # Build unitary-increment Iteration over the 'leftover' region:
                     # again as above, this may be necessary when the dimension size
                     # is not a multiple of the block size.
                     start = inter_block.limits[1]
                     finish = iter_size - i.offsets[1]
-                    leftover = i._rebuild([], limits=[start, finish, 1], offsets=None,
-                                          properties=i.properties)
+                    leftover = i._rebuild([], limits=[start, finish, 1], offsets=None)
 
                     regions[i] = Region(main, leftover)
 
