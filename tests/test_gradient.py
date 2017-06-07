@@ -98,7 +98,7 @@ def test_gradientJ(dimensions, time_order, space_order):
     """
     wave = setup(dimensions=dimensions, time_order=time_order,
                  space_order=space_order, tn=1000.,
-                 nbpml=10+space_order/2)
+                 nbpml=10+space_order/2, dse='noop', dle='noop')
     m0 = smooth10(wave.model.m.data, wave.model.shape_domain)
     dm = np.float32(wave.model.m.data - m0)
     linrec = Receiver(name='rec', ntime=wave.receiver.nt,

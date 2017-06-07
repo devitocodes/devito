@@ -31,7 +31,6 @@ class PointData(CompositeData):
             self.ndim = kwargs.get('ndim')
             kwargs['shape'] = (self.nt, self.npoint)
             super(PointData, self).__init__(self, *args, **kwargs)
-
             # Allocate and copy coordinate data
             self.coordinates = DenseData(name='%s_coords' % self.name,
                                          dimensions=[self.indices[1], d],

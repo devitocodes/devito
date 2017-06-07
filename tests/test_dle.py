@@ -34,6 +34,7 @@ def simple_function(a, b, c, d, exprs, iters):
     #         expr0
     #         expr1
     symbols = [i.base.function for i in [a, b, c, d]]
+    print(symbols)
     body = iters[0](iters[1](iters[2]([exprs[0], exprs[1]])))
     f = Function('foo', body, 'void', symbols, ())
     subs = {}

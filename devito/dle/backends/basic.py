@@ -94,11 +94,14 @@ class BasicRewriter(AbstractRewriter):
                 call, parameters = zip(*args)
                 mapper[view] = (List(header=noinline, body=FunCall(name, call)), [root])
 
+                args = flatten([p.rtargs for p in parameters])
+
                 # Produce the new function
-                functions.append(Function(name, root, 'void', parameters, ('static',)))
+                functions.append(Function(name, root, 'void', args, ('static',)))
 
             # Transform the main tree
             imapper = {}
+
             for v, keys in mapper.values():
                 imapper.update({k: v for k in keys})
             processed.append(Transformer(imapper).visit(node))

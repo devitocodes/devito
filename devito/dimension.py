@@ -2,11 +2,12 @@ import cgen
 
 import numpy as np
 from sympy import Number, Symbol
+from devito.arguments import DimensionArgProvider
 
 __all__ = ['Dimension', 'x', 'y', 'z', 't', 'p', 'd', 'time']
 
 
-class Dimension(Symbol):
+class Dimension(Symbol, DimensionArgProvider):
 
     is_Buffered = False
     is_Lowered = False
