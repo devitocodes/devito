@@ -263,7 +263,7 @@
     <span class="n">is_TensorFunction</span> <span class="o">=</span> <span class="kc">False</span>
     <span class="n">is_DenseData</span> <span class="o">=</span> <span class="kc">False</span>
     <span class="n">is_TimeData</span> <span class="o">=</span> <span class="kc">False</span>
-    <span class="n">is_Coordinates</span> <span class="o">=</span> <span class="kc">False</span>
+    <span class="n">is_CompositeData</span> <span class="o">=</span> <span class="kc">False</span>
     <span class="n">is_PointData</span> <span class="o">=</span> <span class="kc">False</span>
 
     <span class="k">def</span> <span class="nf">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
@@ -412,9 +412,11 @@
 <span class="sd">    :param space_order: Discretisation order for space derivatives</span>
 <span class="sd">    :param initializer: Function to initialize the data, optional</span>
 
-<span class="sd">    Note: :class:`DenseData` objects are assumed to be constant in time and</span>
-<span class="sd">    therefore do not support time derivatives. Use :class:`TimeData` for</span>
-<span class="sd">    time-varying grid data.</span>
+<span class="sd">    .. note::</span>
+
+<span class="sd">       :class:`DenseData` objects are assumed to be constant in time</span>
+<span class="sd">       and therefore do not support time derivatives. Use</span>
+<span class="sd">       :class:`TimeData` for time-varying grid data.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">is_DenseData</span> <span class="o">=</span> <span class="kc">True</span>
@@ -639,7 +641,8 @@
 
 
 <div class="viewcode-block" id="TimeData"><a class="viewcode-back" href="../../devito.html#devito.interfaces.TimeData">[docs]</a><span class="k">class</span> <span class="nc">TimeData</span><span class="p">(</span><span class="n">DenseData</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;Data object for time-varying data that acts as a Function symbol</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Data object for time-varying data that acts as a Function symbol</span>
 
 <span class="sd">    :param name: Name of the resulting :class:`sympy.Function` symbol</span>
 <span class="sd">    :param shape: Shape of the spatial data grid</span>
@@ -654,12 +657,24 @@
 <span class="sd">                       final size of the leading time dimension of the</span>
 <span class="sd">                       data buffer.</span>
 
-<span class="sd">    Note: The parameter :shape: should only define the spatial shape of the</span>
-<span class="sd">    grid. The temporal dimension will be inserted automatically as the</span>
-<span class="sd">    leading dimension, according to the :param time_dim:, :param time_order:</span>
-<span class="sd">    and whether we want to write intermediate timesteps in the buffer. The</span>
-<span class="sd">    same is true for explicitly provided dimensions, which will be added to</span>
-<span class="sd">    the automatically derived time dimensions symbol.</span>
+<span class="sd">    .. note::</span>
+
+<span class="sd">       The parameter ``shape`` should only define the spatial shape of</span>
+<span class="sd">       the grid. The temporal dimension will be inserted automatically</span>
+<span class="sd">       as the leading dimension, according to the ``time_dim``,</span>
+<span class="sd">       ``time_order`` and whether we want to write intermediate</span>
+<span class="sd">       timesteps in the buffer. The same is true for explicitly</span>
+<span class="sd">       provided dimensions, which will be added to the automatically</span>
+<span class="sd">       derived time dimensions symbol. For example:</span>
+
+<span class="sd">       .. code-block:: python</span>
+
+<span class="sd">          In []: TimeData(name=&quot;a&quot;, dimensions=(x, y, z))</span>
+<span class="sd">          Out[]: a(t, x, y, z)</span>
+
+<span class="sd">          In []: TimeData(name=&quot;a&quot;, shape=(20, 30))</span>
+<span class="sd">          Out[]: a(t, x, y)</span>
+
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">is_TimeData</span> <span class="o">=</span> <span class="kc">True</span>
@@ -785,6 +800,22 @@
 
     <span class="k">def</span> <span class="nf">func</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">):</span>
         <span class="k">return</span> <span class="nb">super</span><span class="p">(</span><span class="n">EmptyIndexed</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">base</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">base</span><span class="o">.</span><span class="n">args</span><span class="p">))</span>
+
+
+<span class="k">class</span> <span class="nc">CompositeData</span><span class="p">(</span><span class="n">DenseData</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Base class for DenseData classes that have DenseData children</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">is_CompositeData</span> <span class="o">=</span> <span class="kc">True</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">CompositeData</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_children</span> <span class="o">=</span> <span class="p">[]</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">children</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_children</span>
 </pre></div>
 
            </div>

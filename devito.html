@@ -36,7 +36,7 @@
               href="genindex.html"/>
         <link rel="search" title="Search" href="search.html"/>
     <link rel="top" title="Devito 1 documentation" href="index.html"/>
-        <link rel="prev" title="Acoustic Wave Modelling using Devito" href="wave.html"/> 
+        <link rel="prev" title="Devito tutorials" href="tutorials.html"/> 
 
   
   <script src="_static/js/modernizr.min.js"></script>
@@ -543,9 +543,12 @@ results in:
 </tr>
 </tbody>
 </table>
-<p>Note: <a class="reference internal" href="#devito.interfaces.DenseData" title="devito.interfaces.DenseData"><code class="xref py py-class docutils literal"><span class="pre">DenseData</span></code></a> objects are assumed to be constant in time and
-therefore do not support time derivatives. Use <a class="reference internal" href="#devito.interfaces.TimeData" title="devito.interfaces.TimeData"><code class="xref py py-class docutils literal"><span class="pre">TimeData</span></code></a> for
-time-varying grid data.</p>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p class="last"><a class="reference internal" href="#devito.interfaces.DenseData" title="devito.interfaces.DenseData"><code class="xref py py-class docutils literal"><span class="pre">DenseData</span></code></a> objects are assumed to be constant in time
+and therefore do not support time derivatives. Use
+<a class="reference internal" href="#devito.interfaces.TimeData" title="devito.interfaces.TimeData"><code class="xref py py-class docutils literal"><span class="pre">TimeData</span></code></a> for time-varying grid data.</p>
+</div>
 <dl class="attribute">
 <dt id="devito.interfaces.DenseData.data">
 <code class="descname">data</code><a class="headerlink" href="#devito.interfaces.DenseData.data" title="Permalink to this definition">¶</a></dt>
@@ -743,12 +746,23 @@ data buffer.</li>
 </tr>
 </tbody>
 </table>
-<p>Note: The parameter :shape: should only define the spatial shape of the
-grid. The temporal dimension will be inserted automatically as the
-leading dimension, according to the :param time_dim:, :param time_order:
-and whether we want to write intermediate timesteps in the buffer. The
-same is true for explicitly provided dimensions, which will be added to
-the automatically derived time dimensions symbol.</p>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p>The parameter <code class="docutils literal"><span class="pre">shape</span></code> should only define the spatial shape of
+the grid. The temporal dimension will be inserted automatically
+as the leading dimension, according to the <code class="docutils literal"><span class="pre">time_dim</span></code>,
+<code class="docutils literal"><span class="pre">time_order</span></code> and whether we want to write intermediate
+timesteps in the buffer. The same is true for explicitly
+provided dimensions, which will be added to the automatically
+derived time dimensions symbol. For example:</p>
+<div class="last highlight-python"><div class="highlight"><pre><span></span><span class="n">In</span> <span class="p">[]:</span> <span class="n">TimeData</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">&quot;a&quot;</span><span class="p">,</span> <span class="n">dimensions</span><span class="o">=</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">z</span><span class="p">))</span>
+<span class="n">Out</span><span class="p">[]:</span> <span class="n">a</span><span class="p">(</span><span class="n">t</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">z</span><span class="p">)</span>
+
+<span class="n">In</span> <span class="p">[]:</span> <span class="n">TimeData</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">&quot;a&quot;</span><span class="p">,</span> <span class="n">shape</span><span class="o">=</span><span class="p">(</span><span class="mi">20</span><span class="p">,</span> <span class="mi">30</span><span class="p">))</span>
+<span class="n">Out</span><span class="p">[]:</span> <span class="n">a</span><span class="p">(</span><span class="n">t</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
 <dl class="attribute">
 <dt id="devito.interfaces.TimeData.backward">
 <code class="descname">backward</code><a class="headerlink" href="#devito.interfaces.TimeData.backward" title="Permalink to this definition">¶</a></dt>
@@ -1384,7 +1398,7 @@ as well as all of the accepted values.</p>
 <dl class="class">
 <dt id="devito.pointdata.PointData">
 <em class="property">class </em><code class="descclassname">devito.pointdata.</code><code class="descname">PointData</code><span class="sig-paren">(</span><em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/pointdata.html#PointData"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.pointdata.PointData" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <a class="reference internal" href="#devito.interfaces.DenseData" title="devito.interfaces.DenseData"><code class="xref py py-class docutils literal"><span class="pre">devito.interfaces.DenseData</span></code></a></p>
+<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">devito.interfaces.CompositeData</span></code></p>
 <p>Data object for sparse point data that acts as a Function symbol</p>
 <table class="docutils field-list" frame="void" rules="none">
 <col class="field-name" />
@@ -2078,7 +2092,7 @@ replacements in a depth-first fashion.</p>
     <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
       
       
-        <a href="wave.html" class="btn btn-neutral" title="Acoustic Wave Modelling using Devito" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
+        <a href="tutorials.html" class="btn btn-neutral" title="Devito tutorials" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
       
     </div>
   
