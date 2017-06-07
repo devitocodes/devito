@@ -31,11 +31,11 @@ class DevitoRewriter(BasicRewriter):
     def _pipeline(self, state):
         self._avoid_denormals(state)
         self._loop_fission(state)
-        #self._create_elemental_functions(state)
         self._loop_blocking(state)
         self._simdize(state)
         if self.params['openmp'] is True:
             self._ompize(state)
+        self._create_elemental_functions(state)
 
     @dle_pass
     def _loop_fission(self, state, **kwargs):
@@ -314,12 +314,12 @@ class DevitoSpeculativeRewriter(DevitoRewriter):
         self._avoid_denormals(state)
         self._loop_fission(state)
         self._padding(state)
-        self._create_elemental_functions(state)
         self._loop_blocking(state)
         self._simdize(state)
         self._nontemporal_stores(state)
         if self.params['openmp'] is True:
             self._ompize(state)
+        self._create_elemental_functions(state)
 
     @dle_pass
     def _padding(self, state, **kwargs):
