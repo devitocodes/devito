@@ -3,7 +3,7 @@ from devito.visitors import FindSections
 __all__ = ['filter_iterations', 'retrieve_iteration_tree']
 
 
-def retrieve_iteration_tree(node):
+def retrieve_iteration_tree(node, mode='normal'):
     """Return a list of all :class:`Iteration` sub-trees rooted in ``node``.
     For example, given the Iteration tree:
 
@@ -19,9 +19,24 @@ def retrieve_iteration_tree(node):
     Return the list: ::
 
         [(Iteration i, Iteration j, Iteration k), (Iteration i, Iteration p)]
-    """
 
-    return [i for i in FindSections().visit(node).keys() if i]
+    :param node: The searched Iteration/Expression tree.
+    :param mode: Accepted values are 'normal' (default) and 'superset', in which
+                 case iteration trees that are subset of larget iteration trees
+                 are dropped.
+    """
+    assert mode in ('normal', 'superset')
+
+    trees = [i for i in FindSections().visit(node) if i]
+    if mode == 'normal':
+        return trees
+    else:
+        match = []
+        for i in trees:
+            if any(set(i).issubset(set(j)) for j in trees if i != j):
+                continue
+            match.append(i)
+        return match
 
 
 def filter_iterations(tree, key=lambda i: i, stop=lambda i: False):
