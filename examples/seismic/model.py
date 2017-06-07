@@ -123,7 +123,7 @@ class Model(object):
     :param m: The square slowness of the wave
     :param damp: The damping field for absorbing boundarycondition
     """
-    def __init__(self, origin, spacing, shape, vp, nbpml=0, dtype=np.float32,
+    def __init__(self, origin, spacing, shape, vp, nbpml=20, dtype=np.float32,
                  epsilon=None, delta=None, theta=None, phi=None):
         self._vp = vp
         self.origin = origin
