@@ -60,6 +60,14 @@ class Node(object):
         raise NotImplementedError()
 
     @property
+    def view(self):
+        """
+        Generate a representation of the Iteration/Expression tree rooted in ``self``.
+        """
+        from devito.visitors import printAST
+        return printAST(self)
+
+    @property
     def children(self):
         """Return the traversable children."""
         return ()
