@@ -55,5 +55,5 @@ script:
   - python examples/benchmark.py test -P acoustic -a
   - python examples/seismic/acoustic/acoustic_example.py
   - py.test -vs examples/seismic/tutorials
-  - py.test -vs examples/diffusion/example_diffusion.py
+  - py.test -vs examples/cfd
   - if [[ $DEVITO_ARCH == 'gcc-5' ]]; then ./docs/deploy.sh; fi

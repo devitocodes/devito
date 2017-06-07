@@ -1,7 +1,16 @@
 """
+NOTE: This is a legacy example. For more up-to-date examples
+please see the tutorials under `examples/cfd/`.
+
 This example encodes multiple ways to solve the 2D diffusion equations
 using an explicit finite difference scheme with fixed boundary values
-and a given initial value for the density.
+and a given initial value for the density. The example also includes
+demo implementations using more traditional methods, including pure
+Python, vectorized NumPy and a vectorized symbolic implementation
+using SymPy's `lambdify()` functionality. For a visual demonstration
+and comparison between pure Python and NumPy, for example, run:
+
+python example_diffusion.py run -m python numpy --show
 """
 import time
 from argparse import ArgumentParser
