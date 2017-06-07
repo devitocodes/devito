@@ -49,7 +49,7 @@ git config user.email "$COMMIT_AUTHOR_EMAIL"
 #if git diff --quiet; then
 #    echo "No changes to the output on this push; exiting."
 #    exit 0
-fi
+#fi
 
 # Commit the "changes", i.e. the new version.
 # The delta will show diffs between new and old versions.
