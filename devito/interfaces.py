@@ -307,15 +307,6 @@ class DenseData(SymbolicData):
         if configuration['dle'] == 'yask':
             from devito.dle import make_grid
             self._data = make_grid(self.name, self.shape, self.indices, self.dtype)
-
-            # self._data = self._data_object.ndpointer
-            # TODO: DELETE THE BELOW
-            debug("Allocating memory for %s (%s)" % (self.name, str(self.shape)))
-            self._data_object = CMemory(self.shape, dtype=self.dtype)
-            if self.numa:
-                first_touch(self)
-            else:
-                self.data.fill(0)
         else:
             debug("Allocating memory for %s (%s)" % (self.name, str(self.shape)))
             self._data_object = CMemory(self.shape, dtype=self.dtype)

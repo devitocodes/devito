@@ -1,5 +1,4 @@
 import os
-import sys
 
 import numpy as np
 from sympy import Indexed
@@ -8,9 +7,10 @@ from devito.compiler import make
 from devito.dimension import LoweredDimension
 from devito.dle import retrieve_iteration_tree
 from devito.dle.backends import BasicRewriter, dle_pass
-from devito.exceptions import CompilationError
-from devito.logger import dle, dle_warning, error
+from devito.exceptions import CompilationError, DLEException
+from devito.logger import debug, dle, dle_warning, error
 from devito.visitors import FindSymbols
+from devito.tools import as_tuple
 
 __all__ = ['YaskRewriter', 'init', 'make_grid']
 
@@ -21,16 +21,25 @@ YASK = None
 
 class YaskState(object):
 
-    def __init__(self, cfac, nfac, path, env, settings, hook_soln):
+    def __init__(self, cfac, nfac, path, env, shape, dtype, hook_soln):
         """
         Global state to interact with YASK.
+
+        :param cfac: YASK compiler factory, to create Solutions.
+        :param nfac: YASK node factory, to create ASTs.
+        :param path: Generated code dump directory.
+        :param env: Global environment (e.g., MPI).
+        :param shape: Domain size along each dimension.
+        :param dtype: The data type used in kernels, as a NumPy dtype.
+        :param hook_soln: "Fake" solution to track YASK grids.
         """
-        self.cfac = cfac  # YASK compiler factory, to create Solutions
-        self.nfac = nfac  # YASK node factory, to create ASTs
-        self.path = path  # Generated code dump directory
-        self.env = env  # Global environment (e.g., MPI)
-        self.settings = settings  # Dimensions, grid sizes, etc.
-        self.hook_soln = hook_soln  # "Fake" solution to track YASK grids
+        self.cfac = cfac
+        self.nfac = nfac
+        self.path = path
+        self.env = env
+        self.shape = shape
+        self.dtype = dtype
+        self.hook_soln = hook_soln
 
     @property
     def dimensions(self):
@@ -44,7 +53,7 @@ class YaskState(object):
             mapper[grid.get_name()] = grid
         return mapper
 
-    def setdefault(self, name, vals=0.0):
+    def setdefault(self, name, vals=None):
         """
         Add and return a new grid ``name``. If a grid ``name`` already exists,
         then return it without performing any other actions.
@@ -57,40 +66,85 @@ class YaskState(object):
             grid = self.hook_soln.new_grid(name, *self.dimensions)
             # Allocate memory
             self.hook_soln.prepare_solution()
-            # Initialization
-            grid.set_all_elements(vals)
-            # TODO : return YaskGrid (subclass of NumPy array)
-            return grid
+            # TODO : return YaskGrid "wrapping" the allocated data
+            return YaskGrid(name, self.shape, self.dtype, grid, vals)
 
 
-class YaskGrid(np.ndarray):
+class YaskGrid(object):
 
-    """
-    An implementation of a ``numpy.ndarray`` suitable for the YASK storage layout.
+    def __init__(self, name, shape, dtype, grid, val=None):
+        self.name = name
+        self.shape = shape
+        self.dtype = dtype
+        self.grid = grid
 
-    WIP: Currently, the YASK storage layout is assumed transposed w.r.t. the
-         usual row-major format.
+        # Always init the grid, at least with 0.0
+        self[:] = 0.0 if val is None else val
 
-    This subclass follows the ``numpy`` rules for subclasses detailed at: ::
+    def _convert_multislice(self, multislice):
+        start = []
+        stop = []
+        for i, idx in enumerate(multislice):
+            if isinstance(idx, slice):
+                start.append(idx.start or 0)
+                stop.append((idx.stop or self.shape[i]) - 1)
+            else:
+                start.append(idx)
+                stop.append(idx)
+        shape = [j - i + 1 for i, j in zip(start, stop)]
+        return start, stop, shape
 
-        https://docs.scipy.org/doc/numpy/user/basics.subclassing.html
-    """
-
-    def __new__(cls, array):
-        # Input array is an already formed ndarray instance
-        # We first cast to be our class type
-        return np.asarray(array).view(cls)
-
-    def __array_finalize__(self, obj):
-        if obj is None:
-            return
+    def __repr__(self):
+        # TODO: need to return a VIEW
+        return repr(self[:])
 
     def __getitem__(self, index):
-        expected_layout = self.transpose()
-        return super(YaskGrid, expected_layout).__getitem__(index)
+        if isinstance(index, int) and len(self.shape) > 1 and self.shape != val.shape:
+            _force_exit("Retrieval from a YaskGrid, non-matching shapes.")
+        if isinstance(index, slice):
+            debug("YaskGrid: Getting whole array or block via single slice")
+            if index.step is not None:
+                _force_exit("Retrieval from a YaskGrid, unsupported stepping != 1.")
+            start = [index.start or 0 for j in self.shape]
+            stop = [(index.stop or j) - 1 for j in self.shape]
+            shape = [j - i + 1 for i, j in zip(start, stop)]
+            # TODO: using empty ndarray for now, will need to return views...
+            output = np.empty(shape, self.dtype, 'C');
+            self.grid.get_elements_in_slice(output.data, start, stop)
+            return output
+        elif all(isinstance(i, int) for i in as_tuple(index)):
+            debug("YaskGrid: Getting single entry")
+            return self.grid.get_element(*as_tuple(index))
+        else:
+            debug("YaskGrid: Getting whole array or block via multiple slices/indices")
+            start, stop, shape = self._convert_multislice(index)
+            output = np.empty(shape, self.dtype, 'C');
+            self.grid.get_elements_in_slice(output.data, start, stop)
+            return output
 
     def __setitem__(self, index, val):
-        super(YaskGrid, self).__setitem__(index, val)
+        # TODO: ATM, no MPI support.
+        if isinstance(index, int) and len(self.shape) > 1 and self.shape != val.shape:
+            _force_exit("Insertion into a YaskGrid, non-matching shapes.")
+        if isinstance(index, slice):
+            debug("YaskGrid: Setting whole array or block via single slice")
+            if isinstance(val, np.ndarray):
+                start = [index.start or 0 for j in self.shape]
+                stop = [(index.stop or j) - 1 for j in self.shape]
+                self.grid.set_elements_in_slice(val, start, stop)
+            else:
+                self.grid.set_all_elements_same(val)
+        elif all(isinstance(i, int) for i in as_tuple(index)):
+            debug("YaskGrid: Setting single entry")
+            self.grid.set_element(val, *as_tuple(index))
+        else:
+            debug("YaskGrid: Setting whole array or block via multiple slices/indices")
+            start, stop, _ = self._convert_multislice(index)
+            if isinstance(val, np.ndarray):
+                self.grid.set_elements_in_slice(val, start, stop)
+            else:
+                # TODO: NEED set_elements_in_slice acceptign single value
+                assert False, "STIIL WIP"
 
 
 class YaskRewriter(BasicRewriter):
@@ -268,20 +322,22 @@ def init(dimensions, shape, dtype, architecture='hsw', isa='avx2'):
     # Initalize MPI, etc
     env = kfac.new_env()
 
-    # Set global settings and create hook solution
-    settings = kfac.new_settings()
-    hook_soln = kfac.new_solution(env, settings)
+    # Create hook solution
+    hook_soln = kfac.new_solution(env)
     for dm, ds in zip(hook_soln.get_domain_dim_names(), shape):
         # Set domain size in each dim.
-        settings.set_rank_domain_size(dm, ds)
+        hook_soln.set_rank_domain_size(dm, ds)
+        # TODO: Add something like: hook_soln.set_min_pad_size(dm, 16)
         # Set block size to 64 in z dim and 32 in other dims.
-        settings.set_block_size(dm, min(64 if dm == "z" else 32, ds))
+        hook_soln.set_block_size(dm, min(64 if dm == "z" else 32, ds))
 
-    # Simple rank configuration in 1st dim only. # TODO Improve me
-    settings.set_num_ranks(hook_soln.get_domain_dim_name(0), env.get_num_ranks())
+    # Simple rank configuration in 1st dim only.
+    # In production runs, the ranks would be distributed along all domain dimensions.
+    # TODO Improve me
+    hook_soln.set_num_ranks(hook_soln.get_domain_dim_name(0), env.get_num_ranks())
 
     # Finish off by initializing YASK
-    YASK = YaskState(cfac, nfac, path, env, settings, hook_soln)
+    YASK = YaskState(cfac, nfac, path, env, shape, dtype, hook_soln)
 
     dle("YASK backend successfully initialized!")
 
@@ -298,5 +354,4 @@ def _force_exit(emsg):
     """
     Handle fatal errors.
     """
-    error("Couldn't startup YASK [%s]. Exiting..." % emsg)
-    sys.exit(0)
+    raise DLEException("Couldn't startup YASK [%s]. Exiting..." % emsg)
