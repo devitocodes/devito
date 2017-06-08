@@ -1,43 +1,101 @@
 import os
+import sys
 
 import numpy as np
 from sympy import Indexed
 
+from devito.compiler import make
 from devito.dimension import LoweredDimension
 from devito.dle import retrieve_iteration_tree
 from devito.dle.backends import BasicRewriter, dle_pass
-from devito.logger import dle, dle_warning
+from devito.exceptions import CompilationError
+from devito.logger import dle, dle_warning, error
 from devito.visitors import FindSymbols
 
-__all__ = ['YaskRewriter', 'yaskarray']
+__all__ = ['YaskRewriter', 'init', 'make_grid']
 
 
-# Init
+YASK = None
+"""Global state for generation of YASK kernels."""
 
-try:
-    import yask_compiler as yc
-    # Factories to interact with YASK
-    cfac = yc.yc_factory()
-    fac = yc.yc_node_factory()
-except ImportError:
-    yc, emsg = None, "[Python bindings]"
 
-try:
-    # Set directory for generated code
-    path = os.path.join(os.environ['YASK_HOME'], 'src', 'kernel', 'gen')
-    if not os.path.exists(path):
-        os.makedirs(path)
-except KeyError:
-    yc, emsg = None, "[Missing YASK_HOME]"
+class YaskState(object):
+
+    def __init__(self, cfac, nfac, path, env, settings, hook_soln):
+        """
+        Global state to interact with YASK.
+        """
+        self.cfac = cfac  # YASK compiler factory, to create Solutions
+        self.nfac = nfac  # YASK node factory, to create ASTs
+        self.path = path  # Generated code dump directory
+        self.env = env  # Global environment (e.g., MPI)
+        self.settings = settings  # Dimensions, grid sizes, etc.
+        self.hook_soln = hook_soln  # "Fake" solution to track YASK grids
+
+    @property
+    def dimensions(self):
+        return self.hook_soln.get_domain_dim_names()
+
+    @property
+    def grids(self):
+        mapper = {}
+        for i in range(self.hook_soln.get_num_grids()):
+            grid = self.hook_soln.get_grid(i)
+            mapper[grid.get_name()] = grid
+        return mapper
+
+    def setdefault(self, name, vals=0.0):
+        """
+        Add and return a new grid ``name``. If a grid ``name`` already exists,
+        then return it without performing any other actions.
+        """
+        grids = self.grids
+        if name in grids:
+            return grids[name]
+        else:
+            # new_grid() also modifies the /hook_soln/ state
+            grid = self.hook_soln.new_grid(name, *self.dimensions)
+            # Allocate memory
+            self.hook_soln.prepare_solution()
+            # Initialization
+            grid.set_all_elements(vals)
+            # TODO : return YaskGrid (subclass of NumPy array)
+            return grid
+
+
+class YaskGrid(np.ndarray):
+
+    """
+    An implementation of a ``numpy.ndarray`` suitable for the YASK storage layout.
+
+    WIP: Currently, the YASK storage layout is assumed transposed w.r.t. the
+         usual row-major format.
+
+    This subclass follows the ``numpy`` rules for subclasses detailed at: ::
+
+        https://docs.scipy.org/doc/numpy/user/basics.subclassing.html
+    """
+
+    def __new__(cls, array):
+        # Input array is an already formed ndarray instance
+        # We first cast to be our class type
+        return np.asarray(array).view(cls)
+
+    def __array_finalize__(self, obj):
+        if obj is None:
+            return
+
+    def __getitem__(self, index):
+        expected_layout = self.transpose()
+        return super(YaskGrid, expected_layout).__getitem__(index)
+
+    def __setitem__(self, index, val):
+        super(YaskGrid, self).__setitem__(index, val)
 
 
 class YaskRewriter(BasicRewriter):
 
     def _pipeline(self, state):
-        if yc is None:
-            dle_warning("Cannot find YASK %s. Skipping DLE optimizations..." % emsg)
-            super(YaskRewriter, self)._pipeline(state)
-            return
         self._avoid_denormals(state)
         self._yaskize(state)
         self._create_elemental_functions(state)
@@ -56,12 +114,11 @@ class YaskRewriter(BasicRewriter):
                 candidate = tree[-1]
 
                 # Set up the YASK solution
-                soln = cfac.new_solution("devito-test-solution")
+                soln = YASK.cfac.new_solution("devito-test-solution")
 
                 # Set up the YASK grids
                 grids = FindSymbols(mode='symbolics').visit(candidate)
-                grids = {g.name: soln.new_grid(g.name, *[str(i) for i in g.indices])
-                         for g in grids}
+                grids = [YASK.setdefault(i.name) for i in grids]
 
                 # Perform the translation on an expression basis
                 transform = sympy2yask(grids)
@@ -81,17 +138,11 @@ class YaskRewriter(BasicRewriter):
 
                 # Provide stuff to YASK-land
                 # ==========================
-                #          Scalar: print(ast.format_simple())
+                # Scalar: print(ast.format_simple())
                 # AVX2 intrinsics: print soln.format('avx2')
                 # AVX2 intrinsics to file (active now)
-                soln.write(os.path.join(path, 'yask_stencil_code.hpp'), 'avx2', True)
+                soln.write(os.path.join(YASK.path, 'yask_stencil_code.hpp'), 'avx2', True)
 
-                # Set kernel parameters
-                # =====================
-                # Vector folding API usage example
-                soln.set_fold_len('x', 1)
-                soln.set_fold_len('y', 1)
-                soln.set_fold_len('z', 8)
                 # Set necessary run-time parameters
                 soln.set_step_dim("t")
                 soln.set_element_bytes(4)
@@ -118,9 +169,9 @@ class sympy2yask(object):
 
         def run(expr):
             if expr.is_Integer:
-                return fac.new_const_number_node(int(expr))
+                return YASK.nfac.new_const_number_node(int(expr))
             elif expr.is_Float:
-                return fac.new_const_number_node(float(expr))
+                return YASK.nfac.new_const_number_node(float(expr))
             elif expr.is_Symbol:
                 assert expr in self.mapper
                 return self.mapper[expr]
@@ -131,19 +182,19 @@ class sympy2yask(object):
                            for i, j in zip(expr.indices, function.indices)]
                 return self.grids[function.name].new_relative_grid_point(*indices)
             elif expr.is_Add:
-                return nary2binary(expr.args, fac.new_add_node)
+                return nary2binary(expr.args, YASK.nfac.new_add_node)
             elif expr.is_Mul:
-                return nary2binary(expr.args, fac.new_multiply_node)
+                return nary2binary(expr.args, YASK.nfac.new_multiply_node)
             elif expr.is_Pow:
                 num, den = expr.as_numer_denom()
                 if num == 1:
-                    return fac.new_divide_node(run(num), run(den))
+                    return YASK.nfac.new_divide_node(run(num), run(den))
             elif expr.is_Equality:
                 if expr.lhs.is_Symbol:
                     assert expr.lhs not in self.mapper
                     self.mapper[expr.lhs] = run(expr.rhs)
                 else:
-                    return fac.new_equation_node(*[run(i) for i in expr.args])
+                    return YASK.nfac.new_equation_node(*[run(i) for i in expr.args])
             else:
                 dle_warning("Missing handler in Devito-YASK translation")
                 raise NotImplementedError
@@ -151,31 +202,101 @@ class sympy2yask(object):
         return run(expr)
 
 
-class yaskarray(np.ndarray):
+# YASK interface
 
+def init(dimensions, shape, dtype, architecture='hsw', isa='avx2'):
     """
-    An implementation of a ``numpy.ndarray`` suitable for the YASK storage layout.
+    To be called prior to any YASK-related operation.
 
-    WIP: Currently, the YASK storage layout is assumed transposed w.r.t. the
-         usual row-major format.
+    A new bootstrap is required wheneven any of the following change: ::
 
-    This subclass follows the ``numpy`` rules for subclasses detailed at: ::
-
-        https://docs.scipy.org/doc/numpy/user/basics.subclassing.html
+        * YASK version
+        * Target architecture (``architecture`` param)
+        * Floating-point precision (``dtype`` param)
+        * Domain dimensions (``dimensions`` param)
+        * Folding
+        * Grid memory layout scheme
     """
+    global YASK
 
-    def __new__(cls, array):
-        # Input array is an already formed ndarray instance
-        # We first cast to be our class type
-        return np.asarray(array).view(cls)
+    if YASK is not None:
+        return
 
-    def __array_finalize__(self, obj):
-        if obj is None:
-            return
+    dle("Initializing YASK...")
 
-    def __getitem__(self, index):
-        expected_layout = self.transpose()
-        return super(yaskarray, expected_layout).__getitem__(index)
+    try:
+        import yask_compiler as yc
+        # YASK compiler factories
+        cfac = yc.yc_factory()
+        nfac = yc.yc_node_factory()
+    except ImportError:
+        _force_exit("Python YASK compiler bindings")
 
-    def __setitem__(self, index, val):
-        super(yaskarray, self).__setitem__(index, val)
+    try:
+        # Set directory for generated code
+        path = os.path.join(os.environ['YASK_HOME'], 'src', 'kernel', 'gen')
+        if not os.path.exists(path):
+            os.makedirs(path)
+    except KeyError:
+        _force_exit("Missing YASK_HOME")
+
+    # Create a new stencil solution
+    soln = cfac.new_solution("Hook")
+    soln.set_step_dim("t")
+    soln.set_domain_dims(*[str(i) for i in dimensions])  # TODO: YASK only accepts x,y,z
+
+    # Number of bytes in each FP value
+    soln.set_element_bytes(dtype().itemsize)
+
+    # Generate YASK output
+    soln.write(os.path.join(path, 'yask_stencil_code.hpp'), isa, True)
+
+    # Build YASK output, and load the corresponding YASK kernel
+    try:
+        make(os.environ['YASK_HOME'],
+             ['-j', 'stencil=Hook', 'arch=%s' % architecture, 'yk-api'])
+    except CompilationError:
+        _force_exit("Hook solution compilation")
+    try:
+        import yask_kernel as yk
+    except ImportError:
+        _force_exit("Python YASK kernel bindings")
+
+    # YASK Hook kernel factory
+    kfac = yk.yk_factory()
+
+    # Initalize MPI, etc
+    env = kfac.new_env()
+
+    # Set global settings and create hook solution
+    settings = kfac.new_settings()
+    hook_soln = kfac.new_solution(env, settings)
+    for dm, ds in zip(hook_soln.get_domain_dim_names(), shape):
+        # Set domain size in each dim.
+        settings.set_rank_domain_size(dm, ds)
+        # Set block size to 64 in z dim and 32 in other dims.
+        settings.set_block_size(dm, min(64 if dm == "z" else 32, ds))
+
+    # Simple rank configuration in 1st dim only. # TODO Improve me
+    settings.set_num_ranks(hook_soln.get_domain_dim_name(0), env.get_num_ranks())
+
+    # Finish off by initializing YASK
+    YASK = YaskState(cfac, nfac, path, env, settings, hook_soln)
+
+    dle("YASK backend successfully initialized!")
+
+
+def make_grid(name, shape, dimensions, dtype):
+    """
+    Create a new YASK Grid and attach it to a "fake" solution.
+    """
+    init(dimensions, shape, dtype)
+    return YASK.setdefault(name)
+
+
+def _force_exit(emsg):
+    """
+    Handle fatal errors.
+    """
+    error("Couldn't startup YASK [%s]. Exiting..." % emsg)
+    sys.exit(0)

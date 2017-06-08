@@ -18,19 +18,6 @@ class CMemory(object):
     def __init__(self, shape, dtype=np.float32, alignment=None):
         self.ndpointer, self.data_pointer = malloc_aligned(shape, alignment, dtype)
 
-    @classmethod
-    def cast(cls, ndpointer):
-        """
-        Pick a different ndarray type depending on how the backend will access the data.
-        """
-        from devito.parameters import configuration
-        from devito.dle import yaskarray
-
-        if configuration['dle'] == 'yask':
-            return yaskarray(ndpointer)
-        else:
-            return ndpointer
-
     def __del__(self):
         free(self.data_pointer)
         self.data_pointer = None

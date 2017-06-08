@@ -5,7 +5,7 @@ import pytest  # noqa
 
 from devito import Operator, DenseData, x, y, z
 from devito.parameters import configuration, defaults
-from devito.dle.backends import yaskarray
+from devito.dle.backends import YaskGrid
 
 
 def setup_module(module):
@@ -18,7 +18,7 @@ def teardown_module(module):
 
 def test_data_type():
     u = DenseData(name='yu', shape=(10, 10), dimensions=(x, y))
-    assert type(u.data) == yaskarray
+    assert type(u.data) == YaskGrid
 
 
 def test_data_swap():
