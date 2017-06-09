@@ -1,4 +1,4 @@
-from devito.interfaces import TimeData, t, time, Forward
+from devito.interfaces import TimeData, time, Forward
 from devito.operator import Operator
 
 from sympy.abc import s, h
