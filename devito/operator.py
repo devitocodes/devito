@@ -399,6 +399,7 @@ class OperatorBasic(Function):
                 allocator.push_heap(k.output_function)
 
         # Introduce declarations on the stack
+        from IPython import embed; embed()
         for k, v in allocator.onstack:
             allocs = as_tuple([Element(i) for i in v])
             mapper[k] = Iteration(allocs + k.nodes, **k.args_frozen)
@@ -497,6 +498,8 @@ class OperatorCore(OperatorBasic):
                 info("Section %s with OI=%.2f computed in %.3f s [Perf: %.2f GFlops/s]" %
                      (name, v.oi, v.time, v.gflopss))
 
+        print "u_sum = ", arguments['u'].sum()
+        print "v_sum = ", arguments['v'].sum()
         return summary
 
     def _arg_data(self, argument):

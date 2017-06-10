@@ -215,7 +215,7 @@ class TensorFunction(SymbolicFunction):
             self.shape = kwargs.get('shape')
             self.indices = kwargs.get('dimensions')
             self.dtype = kwargs.get('dtype', np.float32)
-            self.onstack = kwargs.get('onstack', False)
+            self._onstack = kwargs.get('onstack', False)
 
     @classmethod
     def _indices(cls, **kwargs):
@@ -223,11 +223,15 @@ class TensorFunction(SymbolicFunction):
 
     @property
     def _mem_stack(self):
-        return self.onstack
+        return self._onstack
+
+    @_mem_stack.setter
+    def _mem_stack(self, val):
+        self._onstack = val
 
     @property
     def _mem_heap(self):
-        return not self.onstack
+        return not self._onstack
 
 
 class SymbolicData(AbstractSymbol):

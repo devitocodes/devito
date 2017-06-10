@@ -3,7 +3,7 @@ from sympy import Eq, Symbol
 import numpy as np
 
 from devito.dle import compose_nodes, is_foldable, retrieve_iteration_tree
-from devito.dse import retrieve_indexed
+from devito.dse import xreplace_indices
 from devito.nodes import Expression, Iteration, List, LocalExpression
 from devito.visitors import (FindAdjacentIterations, FindNodes, IsPerfectIteration,
                              NestedTransformer, Transformer)
@@ -143,17 +143,31 @@ def optimize_unfolded_tree(unfolded, root):
             start, end, incr = j.args['limits']
             otree.append(j._rebuild(limits=[0, end-start, incr]))
             index = Symbol('%ss%d' % (j.index, i))
-            stmts.append(LocalExpression(Eq(index, j.dim + start), np.int32))
+            stmts.append((LocalExpression(Eq(index, j.dim + start), np.int32),
+                          LocalExpression(Eq(index, j.dim - start), np.int32)))
             mapper[j.dim] = index
 
         # Substitute iteration variables within the folded trees
-        expressions = FindNodes(Expression).visit(otree[-1])
-        substituted = [i._rebuild(expr=Eq(i.expr.lhs, i.expr.rhs.xreplace(mapper)))
-                       for i in expressions]
+        exprs = FindNodes(Expression).visit(otree[-1])
+        replaced = xreplace_indices([j.expr for j in exprs], mapper, only_rhs=True)
+        subs = [j._rebuild(expr=k) for j, k in zip(exprs, replaced)]
 
-        handle = Transformer(dict(zip(expressions, substituted))).visit(otree[-1])
-        handle = handle._rebuild(nodes=(stmts + list(handle.nodes)))
+        handle = Transformer(dict(zip(exprs, subs))).visit(otree[-1])
+        handle = handle._rebuild(nodes=(zip(*stmts)[0] + handle.nodes))
         processed.append(tuple(otree[:-1]) + (handle,))
+
+        # Temporary arrays are now local storage
+        for j in subs:
+            j.output_function._mem_stack = True
+
+        # Introduce the new iteration variables within root
+        candidates = [j.output for j in subs]
+        exprs = FindNodes(Expression).visit(root[-1])
+        replaced = xreplace_indices([j.expr for j in exprs], mapper, candidates)
+        subs = [j._rebuild(expr=k) for j, k in zip(exprs, replaced)]
+        handle = Transformer(dict(zip(exprs, subs))).visit(root[-1])
+        handle = handle._rebuild(nodes=(zip(*stmts)[1] + handle.nodes))
+        root = root[:-1] + (handle,)
 
     return processed + [root]
 
