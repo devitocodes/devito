@@ -118,6 +118,12 @@ class AbstractSymbol(Function, CachedSymbol):
             options = kwargs.get('options', {})
             newobj = Function.__new__(newcls, *args, **options)
             newobj.__init__(*args, **kwargs)
+
+            # All objects cached on the AbstractSymbol /newobj/ keep a reference
+            # to /newobj/ through the /function/ field. Thus, all indexified
+            # object will point to /newobj/, the "actual Function".
+            newobj.function = newobj
+
             # Store new instance in symbol cache
             newcls._cache_put(newobj)
         return newobj
@@ -135,7 +141,7 @@ class AbstractSymbol(Function, CachedSymbol):
     @property
     def indexed(self):
         """Extract a :class:`IndexedData` object from the current object."""
-        return IndexedData(self.name, shape=self.shape, function=self)
+        return IndexedData(self.name, shape=self.shape, function=self.function)
 
     @property
     def _mem_external(self):
