@@ -363,7 +363,8 @@ class Rewriter(object):
 
         if self.profile:
             row = "%s [flops: %s, elapsed: %.2f]"
-            summary = " >>\n     ".join(row % (filter(lambda c: not c.isdigit(), k[1:]),
+            summary = " >>\n     ".join(row % ("".join(filter(lambda c: not c.isdigit(),
+                                                              k[1:])),
                                                str(self.ops.get(k, "?")), v)
                                         for k, v in self.timings.items())
             elapsed = sum(self.timings.values())
