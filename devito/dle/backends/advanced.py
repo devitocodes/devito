@@ -282,7 +282,7 @@ class DevitoRewriter(BasicRewriter):
             for tree in retrieve_iteration_tree(node):
                 # Determine the number of consecutive parallelizable Iterations
                 key = lambda i: i.is_Parallel and not i.is_Vectorizable
-                candidates = filter_iterations(tree, key=key, stop='consecutive')
+                candidates = filter_iterations(tree, key=key, stop='any')
                 if not candidates:
                     continue
 
