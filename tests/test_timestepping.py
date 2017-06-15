@@ -63,6 +63,7 @@ def test_forward_unroll(a, c, nt=5):
 
 
 def test_forward_backward(a, b, nt=5):
+    """Test a forward operator followed by a backward marching one"""
     a.data[0, :] = 1.
     b.data[0, :] = 1.
     eqn_a = Eq(a.forward, a + 1.)
@@ -70,6 +71,22 @@ def test_forward_backward(a, b, nt=5):
 
     eqn_b = Eq(b, a + 1.)
     Operator(eqn_b, dle=None, dse=None, time_axis=Backward)(time=nt)
+    for i in range(nt):
+        assert np.allclose(b.data[i, :], 2. + i, rtol=1.e-12)
+
+
+def test_forward_backward_overlapping(a, b, nt=5):
+    """
+    Test a forward operator followed by a backward one, but with
+    overlapping operator definitions.
+    """
+    a.data[0, :] = 1.
+    b.data[0, :] = 1.
+    op_fwd = Operator(Eq(a.forward, a + 1.), time_axis=Forward)
+    op_bwd = Operator(Eq(b, a + 1.), time_axis=Backward)
+
+    op_fwd(time=nt)
+    op_bwd(time=nt)
     for i in range(nt):
         assert np.allclose(b.data[i, :], 2. + i, rtol=1.e-12)
 
