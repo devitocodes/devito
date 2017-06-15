@@ -171,13 +171,22 @@ class AbstractSymbol(Function, CachedSymbol):
 
 
 class SymbolicFunction(AbstractSymbol):
-    """A symbolic function object."""
+
+    """
+    A symbolic function object, created and managed directly by Devito.
+
+    Unlike :class:`SymbolicData` objects, the state of a SymbolicFunction
+    is mutable.
+    """
 
     is_SymbolicFunction = True
 
     def __new__(cls, *args, **kwargs):
         kwargs.update({'options': {'evaluate': False}})
         return AbstractSymbol.__new__(cls, *args, **kwargs)
+
+    def update(self):
+        return
 
 
 class ScalarFunction(SymbolicFunction):
@@ -201,6 +210,9 @@ class ScalarFunction(SymbolicFunction):
         """Return True if the associated data should be allocated on the stack
         in a C module, False otherwise."""
         return True
+
+    def update(self, dtype=None):
+        self.dtype = dtype or self.dtype
 
 
 class TensorFunction(SymbolicFunction):
@@ -231,13 +243,15 @@ class TensorFunction(SymbolicFunction):
     def _mem_stack(self):
         return self._onstack
 
-    @_mem_stack.setter
-    def _mem_stack(self, val):
-        self._onstack = val
-
     @property
     def _mem_heap(self):
         return not self._onstack
+
+    def update(self, dtype=None, shape=None, dimensions=None, onstack=None):
+        self.dtype = dtype or self.dtype
+        self.shape = shape or self.shape
+        self.indices = dimensions or self.indices
+        self._onstack = onstack or self._mem_stack
 
 
 class SymbolicData(AbstractSymbol):

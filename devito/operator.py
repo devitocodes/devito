@@ -404,6 +404,10 @@ class OperatorBasic(Function):
         nodes = NestedTransformer(mapper).visit(nodes)
         elemental_functions = Transformer(mapper).visit(dle_state.elemental_functions)
 
+        # TODO
+        # Use x_block_size+2, y_block_size+2 instead of x_size, y_size as shape of
+        # the tensor functions
+
         # Introduce declarations on the heap (if any)
         if allocator.onheap:
             decls, allocs, frees = zip(*allocator.onheap)
