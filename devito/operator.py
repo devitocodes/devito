@@ -22,7 +22,7 @@ from devito.profiling import Profiler, create_profile
 from devito.stencil import Stencil
 from devito.tools import as_tuple, filter_ordered, flatten
 from devito.visitors import (FindSymbols, FindScopes, ResolveIterationVariable,
-                             SubstituteExpression, Transformer)
+                             SubstituteExpression, Transformer, NestedTransformer)
 from devito.exceptions import InvalidArgument, InvalidOperator
 
 __all__ = ['Operator']
@@ -400,9 +400,8 @@ class OperatorBasic(Function):
 
         # Introduce declarations on the stack
         for k, v in allocator.onstack:
-            allocs = as_tuple([Element(i) for i in v])
-            mapper[k] = Iteration(allocs + k.nodes, **k.args_frozen)
-        nodes = Transformer(mapper).visit(nodes)
+            mapper[k] = tuple(Element(i) for i in v)
+        nodes = NestedTransformer(mapper).visit(nodes)
         elemental_functions = Transformer(mapper).visit(dle_state.elemental_functions)
 
         # Introduce declarations on the heap (if any)
