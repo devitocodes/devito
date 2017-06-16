@@ -100,7 +100,7 @@
 <li class="toctree-l2"><a class="reference internal" href="#module-devito.finite_difference">devito.finite_difference module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#module-devito.interfaces">devito.interfaces module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#module-devito.logger">devito.logger module</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#module-devito.memmap_manager">devito.memmap_manager module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#devito-memmap-manager-module">devito.memmap_manager module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#module-devito.memory">devito.memory module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#module-devito.nodes">devito.nodes module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#module-devito.operator">devito.operator module</a></li>
@@ -911,55 +911,8 @@ DLE, DLE_WARN, WARNING, ERROR, CRITICAL</li>
 <dd></dd></dl>
 
 </div>
-<div class="section" id="module-devito.memmap_manager">
-<span id="devito-memmap-manager-module"></span><h2>devito.memmap_manager module<a class="headerlink" href="#module-devito.memmap_manager" title="Permalink to this headline">¶</a></h2>
-<dl class="class">
-<dt id="devito.memmap_manager.MemmapManager">
-<em class="property">class </em><code class="descclassname">devito.memmap_manager.</code><code class="descname">MemmapManager</code><a class="reference internal" href="_modules/devito/memmap_manager.html#MemmapManager"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.memmap_manager.MemmapManager" title="Permalink to this definition">¶</a></dt>
-<dd><p>Class for managing all memmap related settings</p>
-<dl class="staticmethod">
-<dt id="devito.memmap_manager.MemmapManager.set_default_disk_path">
-<em class="property">static </em><code class="descname">set_default_disk_path</code><span class="sig-paren">(</span><em>default_disk_path</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/memmap_manager.html#MemmapManager.set_default_disk_path"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.memmap_manager.MemmapManager.set_default_disk_path" title="Permalink to this definition">¶</a></dt>
-<dd><p>Call this method to change the default disk path for memmap</p>
-</dd></dl>
-
-<dl class="staticmethod">
-<dt id="devito.memmap_manager.MemmapManager.set_delete_file">
-<em class="property">static </em><code class="descname">set_delete_file</code><span class="sig-paren">(</span><em>delete</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/memmap_manager.html#MemmapManager.set_delete_file"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.memmap_manager.MemmapManager.set_delete_file" title="Permalink to this definition">¶</a></dt>
-<dd><p>Call this method to set default flag contolling whether to delete
-crated files.</p>
-</dd></dl>
-
-<dl class="staticmethod">
-<dt id="devito.memmap_manager.MemmapManager.set_memmap">
-<em class="property">static </em><code class="descname">set_memmap</code><span class="sig-paren">(</span><em>memmap</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/memmap_manager.html#MemmapManager.set_memmap"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.memmap_manager.MemmapManager.set_memmap" title="Permalink to this definition">¶</a></dt>
-<dd><p>Call this method to set default value of memmap</p>
-</dd></dl>
-
-<dl class="staticmethod">
-<dt id="devito.memmap_manager.MemmapManager.setup">
-<em class="property">static </em><code class="descname">setup</code><span class="sig-paren">(</span><em>data_self</em>, <em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/memmap_manager.html#MemmapManager.setup"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.memmap_manager.MemmapManager.setup" title="Permalink to this definition">¶</a></dt>
-<dd><p>This method is used to setup memmap parameters for data classes.</p>
-<table class="docutils field-list" frame="void" rules="none">
-<col class="field-name" />
-<col class="field-body" />
-<tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
-<li><strong>name</strong> – Name of data</li>
-<li><strong>memmap</strong> – Boolean indicates whether memmap is used. Optional</li>
-<li><strong>disk_path</strong> – String indicates directory to create memmap file. Optional</li>
-<li><strong>delete_file</strong> – Boolean indicates whether to delete created file. Optional</li>
-</ul>
-</td>
-</tr>
-</tbody>
-</table>
-<p>Note: If memmap, disk_path or delete_file are not provided, the default values
-are used.</p>
-</dd></dl>
-
-</dd></dl>
-
+<div class="section" id="devito-memmap-manager-module">
+<h2>devito.memmap_manager module<a class="headerlink" href="#devito-memmap-manager-module" title="Permalink to this headline">¶</a></h2>
 </div>
 <div class="section" id="module-devito.memory">
 <span id="devito-memory-module"></span><h2>devito.memory module<a class="headerlink" href="#module-devito.memory" title="Permalink to this headline">¶</a></h2>
