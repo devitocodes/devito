@@ -223,7 +223,8 @@ class AbstractRewriter(object):
         """
 
         row = "%s [elapsed: %.2f]"
-        out = " >>\n     ".join(row % (filter(lambda c: not c.isdigit(), k[1:]), v)
+        out = " >>\n     ".join(row % ("".join(filter(lambda c: not c.isdigit(), k[1:])),
+                                       v)
                                 for k, v in self.timings.items())
         elapsed = sum(self.timings.values())
         dle("%s\n     [Total elapsed: %.2f s]" % (out, elapsed))
