@@ -1,4 +1,6 @@
+import numbers
 import os
+import sys
 
 import numpy as np
 from sympy import Indexed
@@ -53,7 +55,7 @@ class YaskState(object):
             mapper[grid.get_name()] = grid
         return mapper
 
-    def setdefault(self, name, vals=None):
+    def setdefault(self, name, buffer=None):
         """
         Add and return a new grid ``name``. If a grid ``name`` already exists,
         then return it without performing any other actions.
@@ -66,74 +68,73 @@ class YaskState(object):
             grid = self.hook_soln.new_grid(name, *self.dimensions)
             # Allocate memory
             self.hook_soln.prepare_solution()
-            return YaskGrid(name, self.shape, self.dtype, grid, vals)
+            return YaskGrid(name, grid, self.shape, self.dtype, buffer)
 
 
 class YaskGrid(object):
 
-    def __init__(self, name, shape, dtype, grid, val=None):
+    """
+    An implementation of an array that behaves similarly to a ``numpy.ndarray``,
+    suitable for the YASK storage layout.
+
+    Subclassing ``numpy.ndarray`` would have led to shadow data copies, because
+    of the different storage layout.
+    """
+
+    def __init__(self, name, grid, shape, dtype, buffer=None):
         self.name = name
         self.shape = shape
         self.dtype = dtype
         self.grid = grid
 
         # Always init the grid, at least with 0.0
-        self[:] = 0.0 if val is None else val
-
-    @property
-    def ndim(self):
-        return len(self.shape)
-
-    def __repr__(self):
-        # TODO: need to return a VIEW
-        return repr(self[:])
+        self[:] = 0.0 if buffer is None else val
 
     def __getitem__(self, index):
         # TODO: ATM, no MPI support.
-        if isinstance(index, int) and len(self.shape) > 1 and self.shape != val.shape:
-            _force_exit("Retrieval from a YaskGrid, non-matching shapes.")
-        if isinstance(index, slice):
-            debug("YaskGrid: Getting whole array or block via single slice")
-            if index.step is not None:
-                _force_exit("Retrieval from a YaskGrid, unsupported stepping != 1.")
-            start, stop, shape = convert_multislice(as_tuple(index), self.shape)
-            # TODO: using empty ndarray for now, will need to return views...
-            out = np.empty(shape*self.ndim, self.dtype, 'C');
-            self.grid.get_elements_in_slice(out.data, start*self.ndim, stop*self.ndim)
-            return out
-        elif all(isinstance(i, int) for i in as_tuple(index)):
+        start, stop, shape = convert_multislice(as_tuple(index), self.shape)
+        if not shape:
             debug("YaskGrid: Getting single entry")
-            return self.grid.get_element(*as_tuple(normalize_index(index, self.shape)))
+            assert start == stop
+            out = self.grid.get_element(*start)
         else:
-            debug("YaskGrid: Getting whole array or block via multiple slices/indices")
-            start, stop, shape = convert_multislice(index, self.shape)
-            out = np.empty(shape, self.dtype, 'C');
+            debug("YaskGrid: Getting full-array/block via slices/indices")
+            out = np.empty(shape, self.dtype, 'C')
             self.grid.get_elements_in_slice(out.data, start, stop)
-            return out
+        return out
 
     def __setitem__(self, index, val):
         # TODO: ATM, no MPI support.
-        if isinstance(index, int) and len(self.shape) > 1 and self.shape != val.shape:
-            _force_exit("Insertion into a YaskGrid, non-matching shapes.")
-        if isinstance(index, slice):
-            debug("YaskGrid: Setting whole array or block via single slice")
-            if isinstance(val, np.ndarray):
-                start, stop, _ = convert_multislice(as_tuple(index), self.shape)
-                self.grid.set_elements_in_slice(val, start*self.ndim, stop*self.ndim)
-            else:
-                self.grid.set_all_elements_same(val)
-        elif all(isinstance(i, int) for i in as_tuple(index)):
+        start, stop, shape = convert_multislice(as_tuple(index), self.shape, 'set')
+        if all(i == 1 for i in shape):
             debug("YaskGrid: Setting single entry")
-            self.grid.set_element(val, *as_tuple(normalize_index(index, self.shape)))
+            assert start == stop
+            self.grid.set_element(val, *start)
         else:
-            debug("YaskGrid: Setting whole array or block via multiple slices/indices")
-            start, stop, _ = convert_multislice(index, self.shape)
+            debug("YaskGrid: Setting full-array/block via multiple slices/indices")
             if isinstance(val, np.ndarray):
                 self.grid.set_elements_in_slice(val, start, stop)
             else:
                 self.grid.set_elements_in_slice_same(val, start, stop)
 
-    # TODO: override __incr__ etc
+    def __getslice__(self, start, stop):
+        if stop == sys.maxint:
+            stop = None
+        return self.__getitem__(slice(start, stop))
+
+    def __setslice__(self, start, stop, val):
+        if stop == sys.maxint:
+            stop = None
+        self.__setitem__(slice(start, stop), val)
+
+    def __repr__(self):
+        return repr(self[:])
+
+    def __eq__(self, other):
+        if isinstance(other, (np.ndarray, numbers.Number)):
+            return self[:] == other
+        else:
+            raise NotImplementedError
 
 
 class YaskRewriter(BasicRewriter):
@@ -343,23 +344,39 @@ def _force_exit(emsg):
     """
     Handle fatal errors.
     """
-    raise DLEException("Couldn't startup YASK [%s]. Exiting..." % emsg)
+    raise DLEException("YASK Error [%s]. Exiting..." % emsg)
 
 
 # Generic utility functions
 
-def convert_multislice(multislice, shape):
-    start = []
-    stop = []
-    for i, idx in enumerate(multislice):
-        if isinstance(idx, slice):
-            start.append(idx.start or 0)
-            stop.append((idx.stop or shape[i]) - 1)
+def convert_multislice(multislice, shape, mode='get'):
+    assert mode in ['get', 'set']
+    multislice = as_tuple(multislice)
+
+    # Convert dimensions
+    cstart = []
+    cstop = []
+    cshape = []
+    for i, v in enumerate(multislice):
+        if isinstance(v, slice):
+            if v.step is not None:
+                _force_exit("Unsupported stepping != 1.")
+            cstart.append(v.start or 0)
+            cstop.append((v.stop or shape[i]) - 1)
+            cshape.append(cstop[-1] - cstart[-1] + 1)
         else:
-            start.append(normalize_index(idx or 0, shape))
-            stop.append(normalize_index(idx or (shape[i] - 1), shape))
-    shape = [j - i + 1 for i, j in zip(start, stop)]
-    return start, stop, shape
+            cstart.append(normalize_index(v if v is not None else 0, shape))
+            cstop.append(normalize_index(v if v is not None else (shape[i]-1), shape))
+            if mode == 'set':
+                cshape.append(1)
+
+    # Remainder (e.g., requesting A[1] and A has shape (3,3))
+    nremainder = len(shape) - len(multislice)
+    cstart.extend([0]*nremainder)
+    cstop.extend([shape[i + j] - 1 for j in range(nremainder)])
+    cshape.extend([shape[i + j] for j in range(nremainder)])
+
+    return cstart, cstop, cshape
 
 
 def normalize_index(index, shape):

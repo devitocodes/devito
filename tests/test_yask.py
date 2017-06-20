@@ -37,7 +37,10 @@ def test_data_movement_nD():
     u.data[0, 1, 1] = 1.
     assert u.data[0, 0, 0] == 0.
     assert u.data[0, 1, 1] == 1.
-    assert np.all(u.data[:] == u.data[:,:,:])
+    print u.data
+    assert np.all(u.data == u.data[:,:,:])
+    assert 1. in u.data[0]
+    assert 1. in u.data[0, 1]
 
     # Test negative indices
     assert u.data[0, -9, -9] == 1.
@@ -46,7 +49,7 @@ def test_data_movement_nD():
 
     # Test setting whole array to given value
     u.data[:] = 3.
-    assert np.all(u.data[:] == 3.)
+    assert np.all(u.data == 3.)
 
     # Test insertion of single value into block
     u.data[5,:,5] = 5.
@@ -57,6 +60,11 @@ def test_data_movement_nD():
     block.fill(4.)
     u.data[4,:,4] = block
     assert np.all(u.data[4,:,4] == block)
+
+
+def test_data_arithmetic_nD():
+    u = DenseData(name='yu3D', shape=(10, 10, 10), dimensions=(x, y, z))
+    assert np.all(u.data == 0)
 
 
 def test_storage_layout():
