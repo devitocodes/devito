@@ -81,6 +81,9 @@ class YaskGrid(object):
     of the different storage layout.
     """
 
+    # Force __rOP__ methods (OP={add,mul,...) to get arrays, not scalars, for efficiency
+    __array_priority__ = 1000
+
     def __init__(self, name, grid, shape, dtype, buffer=None):
         self.name = name
         self.shape = shape
@@ -130,11 +133,30 @@ class YaskGrid(object):
     def __repr__(self):
         return repr(self[:])
 
-    def __eq__(self, other):
-        if isinstance(other, (np.ndarray, numbers.Number)):
-            return self[:] == other
-        else:
-            raise NotImplementedError
+    def __meta_binop(op):
+        # Used to build all binary operations such as __eq__, __add__, etc.
+        # These all boil down to calling the numpy equivalents
+        def f(self, other):
+            return getattr(self[:], op)(other)
+        return f
+    __eq__ = __meta_binop('__eq__')
+    __ne__ = __meta_binop('__ne__')
+    __le__ = __meta_binop('__le__')
+    __lt__ = __meta_binop('__lt__')
+    __ge__ = __meta_binop('__ge__')
+    __gt__ = __meta_binop('__gt__')
+    __add__ = __meta_binop('__add__')
+    __radd__ = __meta_binop('__add__')
+    __sub__ = __meta_binop('__sub__')
+    __rsub__ = __meta_binop('__sub__')
+    __mul__ = __meta_binop('__mul__')
+    __rmul__ = __meta_binop('__mul__')
+    __div__ = __meta_binop('__div__')
+    __rdiv__ = __meta_binop('__div__')
+    __truediv__ = __meta_binop('__truediv__')
+    __rtruediv__ = __meta_binop('__truediv__')
+    __mod__ = __meta_binop('__mod__')
+    __rmod__ = __meta_binop('__mod__')
 
 
 class YaskRewriter(BasicRewriter):

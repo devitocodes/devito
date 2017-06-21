@@ -64,7 +64,28 @@ def test_data_movement_nD():
 
 def test_data_arithmetic_nD():
     u = DenseData(name='yu3D', shape=(10, 10, 10), dimensions=(x, y, z))
-    assert np.all(u.data == 0)
+
+    # Simple arithmetic
+    u.data[:] = 1
+    assert np.all(u.data == 1)
+    assert np.all(u.data + 2. == 3.)
+    assert np.all(u.data - 2. == -1.)
+    assert np.all(u.data * 2. == 2.)
+    assert np.all(u.data / 2. == 0.5)
+    assert np.all(u.data % 2 == 1.)
+
+    # Increments and parital increments
+    u.data[:] += 2.
+    assert np.all(u.data == 3.)
+    u.data[9,:,:] += 1.
+    assert all(np.all(u.data[i,:,:] == 3.) for i in range(9))
+    assert np.all(u.data[9,:,:] == 4.)
+
+    # Right operations __rOP__
+    u.data[:] = 1.
+    arr = np.ndarray(shape=(10, 10, 10), dtype=np.float32)
+    arr.fill(2.)
+    assert np.all(arr - u.data == -1.)
 
 
 def test_storage_layout():
