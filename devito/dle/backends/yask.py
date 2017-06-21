@@ -101,7 +101,7 @@ class YaskGrid(object):
             assert start == stop
             out = self.grid.get_element(*start)
         else:
-            debug("YaskGrid: Getting full-array/block via slices/indices")
+            debug("YaskGrid: Getting full-array/block via index [%s]" % str(index))
             out = np.empty(shape, self.dtype, 'C')
             self.grid.get_elements_in_slice(out.data, start, stop)
         return out
@@ -113,12 +113,15 @@ class YaskGrid(object):
             debug("YaskGrid: Setting single entry")
             assert start == stop
             self.grid.set_element(val, *start)
+        elif isinstance(val, np.ndarray):
+            debug("YaskGrid: Setting full-array/block via index [%s]" % str(index))
+            self.grid.set_elements_in_slice(val, start, stop)
+        elif all(i == j-1 for i, j in zip(shape, self.shape)):
+            debug("YaskGrid: Setting full-array to given scalar via single grid sweep")
+            self.grid.set_all_elements_same(val)
         else:
-            debug("YaskGrid: Setting full-array/block via multiple slices/indices")
-            if isinstance(val, np.ndarray):
-                self.grid.set_elements_in_slice(val, start, stop)
-            else:
-                self.grid.set_elements_in_slice_same(val, start, stop)
+            debug("YaskGrid: Setting block to given scalar via index [%s]" % str(index))
+            self.grid.set_elements_in_slice_same(val, start, stop)
 
     def __getslice__(self, start, stop):
         if stop == sys.maxint:
