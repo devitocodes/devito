@@ -68,41 +68,27 @@ class BasicRewriter(AbstractRewriter):
                 if ops < self.thresholds['elemental'] and not root.is_Elementizable:
                     continue
 
-                # Determine the elemental function's arguments ...
-                already_in_scope = [k.dim for k in tree[tree.index(root):]]
-                required = [k for k in FindSymbols(mode='free-symbols').visit(root)
-                            if k not in already_in_scope]
-                required += [as_symbol(k) for k in
-                             set(flatten(k.free_symbols for k in root.bounds_symbolic))]
-                required = set(required)
+                # Determine the arguments required by the elemental function
+                in_scope = [i.dim for i in tree[tree.index(root):]]
+                required = FindSymbols(mode='free-symbols').visit(root)
+                for i in FindSymbols('symbolics').visit(root):
+                    required.extend(flatten(j.free_symbols for j in i.symbolic_shape))
+                required = set([as_symbol(i) for i in required if i not in in_scope])
 
+                # Add tensor arguments
                 args = []
                 seen = {e.output for e in expressions if e.is_scalar}
-                for d in FindSymbols('symbolics').visit(root):
-                    # Add a necessary Symbolic object
-                    handle = "(float*) %s" if d.is_SymbolicFunction else "%s_vec"
-                    args.append((handle % d.name, d))
-                    seen |= {as_symbol(d)}
-                    # Add necessary information related to Dimensions
-                    for k in d.indices:
-                        if k.size is not None:
-                            continue
-                        # Dimension size
-                        size = k.symbolic_size
-                        if size not in seen:
-                            args.append((k.ccode, k))
-                            seen |= {size}
-                        # Dimension index may be required too
-                        if k in required - seen:
-                            index_arg = (k.name, ScalarFunction(name=k.name,
-                                                                dtype=np.int32))
-                            args.append(index_arg)
-                            seen |= {k}
-
-                # Add non-temporary scalars to the elemental function's arguments
+                for i in FindSymbols('symbolics').visit(root):
+                    if i.is_SymbolicFunction:
+                        handle = "(%s*) %s" % (c.dtype_to_ctype(i.dtype), i.name)
+                    else:
+                        handle = "%s_vec" % i.name
+                    args.append((handle, i))
+                    seen |= {as_symbol(i)}
+                # Add scalar arguments
                 handle = filter_sorted(required - seen, key=attrgetter('name'))
-                args.extend([(k.name, ScalarFunction(name=k.name, dtype=np.int32))
-                             for k in handle])
+                args.extend([(i.name, ScalarFunction(name=i.name, dtype=np.int32))
+                             for i in handle])
 
                 # Track info to transform the main tree
                 call, parameters = zip(*args)
