@@ -144,6 +144,25 @@ class AbstractSymbol(Function, CachedSymbol):
         return IndexedData(self.name, shape=self.shape, function=self.function)
 
     @property
+    def symbolic_shape(self):
+        """
+        Return the symbolic shape of the object. For an entry ``E`` in ``self.shape``,
+        there are two possibilities: ::
+
+            * ``E`` is already in symbolic form, then simply use ``E``.
+            * ``E`` is an integer representing the size along a dimension ``D``,
+              then, use a symbolic representation of ``D``.
+        """
+        sshape = []
+        for i, j in zip(self.shape, self.indices):
+            try:
+                i.is_algebraic_expr()
+                sshape.append(i)
+            except AttributeError:
+                sshape.append(j.symbolic_size)
+        return tuple(sshape)
+
+    @property
     def _mem_external(self):
         """Return True if the associated data was/is/will be allocated directly
         from Python (e.g., via NumPy arrays), False otherwise."""

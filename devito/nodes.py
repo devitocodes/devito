@@ -488,7 +488,8 @@ class Function(Node):
         alignment = "__attribute__((aligned(64)))"
         handle = [f for f in self.parameters
                   if isinstance(f, (SymbolicData, TensorFunction))]
-        shapes = [(f, ''.join(["[%s]" % i.ccode for i in f.indices[1:]])) for f in handle]
+        shapes = [(f, ''.join(["[%s]" % ccode(i) for i in f.symbolic_shape[1:]]))
+                  for f in handle]
         casts = [c.Initializer(c.POD(v.dtype,
                                      '(*restrict %s)%s %s' % (v.name, shape, alignment)),
                                '(%s (*)%s) %s' % (c.dtype_to_ctype(v.dtype),

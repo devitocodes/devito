@@ -302,7 +302,7 @@ class Rewriter(object):
         # Redundancies will be stored in space-varying temporaries
         g = cluster.trace
         indices = g.space_indices
-        shape = g.space_shape
+        shape = tuple(i.symbolic_size for i in indices)
 
         # Template for captured redundancies
         name = self.conventions['redundancy'] + "%d"
