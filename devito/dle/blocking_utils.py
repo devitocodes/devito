@@ -156,9 +156,12 @@ def optimize_unfolded_tree(unfolded, root):
         handle = handle._rebuild(nodes=(zip(*stmts)[0] + handle.nodes))
         processed.append(tuple(otree[:-1]) + (handle,))
 
-        # Temporary arrays are now local storage
-        for j in subs:
-            j.output_function._mem_stack = True
+        # Temporary arrays can now be moved to the stack
+        if all(not j.is_Remainder for j in otree):
+            shape = tuple(j.bounds_symbolic[1] for j in otree)
+            for j in subs:
+                shape += j.output_function.shape[len(otree):]
+                j.output_function.update(shape=shape, onstack=True)
 
         # Introduce the new iteration variables within root
         candidates = [j.output for j in subs]
