@@ -256,6 +256,7 @@ class Iteration(Node):
     :param properties: A bag of strings indicating properties of this Iteration.
                        For example, the string 'parallel' may be used to identify
                        a parallelizable Iteration.
+    :param pragmas: A bag of pragmas attached to this Iteration.
     """
 
     is_Iteration = True
@@ -270,11 +271,12 @@ class Iteration(Node):
                     executed in parallel.
         * vector-dim: A (SIMD) vectorizable iteration space.
         * elemental: Hoistable to an elemental function.
+        * remainder: A remainder iteration (e.g., by-product of some transformations)
     """
-    _known_properties = ['sequential', 'parallel', 'vector-dim', 'elemental']
+    _known_properties = ['sequential', 'parallel', 'vector-dim', 'elemental', 'remainder']
 
     def __init__(self, nodes, dimension, limits, index=None, offsets=None,
-                 properties=None):
+                 properties=None, pragmas=None):
         # Ensure we deal with a list of Expression objects internally
         nodes = as_tuple(nodes)
         self.nodes = as_tuple([n if isinstance(n, Node) else Expression(n)
@@ -304,9 +306,10 @@ class Iteration(Node):
             self.offsets[0] = min(self.offsets[0], int(off))
             self.offsets[1] = max(self.offsets[1], int(off))
 
-        # Track this Iteration's properties
+        # Track this Iteration's properties and pragmas
         self.properties = as_tuple(properties)
         assert (i in Iteration._known_properties for i in self.properties)
+        self.pragmas = as_tuple(pragmas)
 
     def __repr__(self):
         properties = ""
@@ -353,7 +356,10 @@ class Iteration(Node):
             loop_cond = '%s < %s' % (self.index, ccode(end))
             loop_inc = '%s += %s' % (self.index, self.limits[2])
 
-        return c.For(loop_init, loop_cond, loop_inc, c.Block(loop_body))
+        handle = c.For(loop_init, loop_cond, loop_inc, c.Block(loop_body))
+        if self.pragmas:
+            handle = c.Module(self.pragmas + (handle,))
+        return handle
 
     @property
     def is_Open(self):

@@ -256,11 +256,11 @@ class DevitoRewriter(BasicRewriter):
                             aligned = []
                         if aligned:
                             simd = omplang['simd-for-aligned']
-                            simd = simd(','.join([j.name for j in aligned]),
-                                        simdinfo[get_simd_flag()])
+                            simd = as_tuple(simd(','.join([j.name for j in aligned]),
+                                            simdinfo[get_simd_flag()]))
                         else:
-                            simd = omplang['simd-for']
-                        mapper[i] = List(ignore_deps + as_tuple(simd), i)
+                            simd = as_tuple(omplang['simd-for'])
+                        mapper[i] = i._rebuild(pragmas=i.pragmas + ignore_deps + simd)
                 processed.append(Transformer(mapper).visit(node))
             return processed
 
@@ -294,13 +294,14 @@ class DevitoRewriter(BasicRewriter):
                 nparallel = len(candidates)
                 if psutil.cpu_count(logical=False) < self.thresholds['collapse'] or\
                         nparallel < 2:
-                    parallelism = omplang['for']
+                    parallel = omplang['for']
                 else:
-                    parallelism = omplang['collapse'](nparallel)
+                    parallel = omplang['collapse'](nparallel)
 
                 root = candidates[0]
+                parallel_root = root._rebuild(pragmas=root.pragmas + as_tuple(parallel))
                 mapper[root] = Block(header=omplang['par-region'],
-                                     body=denormals + [Element(parallelism), root])
+                                     body=denormals + [parallel_root])
 
             processed.append(Transformer(mapper).visit(node))
 

@@ -190,9 +190,9 @@ class IterationFold(Iteration):
     is_IterationFold = True
 
     def __init__(self, nodes, dimension, limits, index=None, offsets=None,
-                 properties=None, folds=None):
+                 properties=None, pragmas=None, folds=None):
         super(IterationFold, self).__init__(nodes, dimension, limits, index,
-                                            offsets, properties)
+                                            offsets, properties, pragmas)
         self.folds = folds
 
     def __repr__(self):
