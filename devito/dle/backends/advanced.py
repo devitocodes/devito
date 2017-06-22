@@ -278,9 +278,10 @@ class DevitoRewriter(BasicRewriter):
 
             # Reset denormals flag each time a parallel region is entered
             denormals = FindNodes(Denormals).visit(state.nodes)
-            mapper = {i: List(c.Comment('DLE: moved denormals flag')) for i in denormals}
+            mapper = OrderedDict([(i, None) for i in denormals])
 
             # Handle parallelizable loops
+            pvt = []
             for tree in retrieve_iteration_tree(node):
                 # Determine the number of consecutive parallelizable Iterations
                 key = lambda i: i.is_Parallel and not i.is_Vectorizable
@@ -299,11 +300,23 @@ class DevitoRewriter(BasicRewriter):
                     parallel = omplang['collapse'](nparallel)
 
                 root = candidates[0]
-                parallel_root = root._rebuild(pragmas=root.pragmas + as_tuple(parallel))
-                mapper[root] = Block(header=omplang['par-region'],
-                                     body=denormals + [parallel_root])
+                mapper[root] = root._rebuild(pragmas=root.pragmas + as_tuple(parallel))
 
-            processed.append(Transformer(mapper).visit(node))
+                # Track the thread-private and thread-shared variables
+                pvt += [i for i in FindSymbols('symbolics').visit(tree) if i._mem_stack]
+
+            # Build the parallel region
+            pvt = sorted(set([i.name for i in pvt]))
+            pvt = ('private(%s)' % ','.join(pvt)) if pvt else ''
+            par_region = Block(header=omplang['par-region'](pvt),
+                               body=denormals + [i for i in mapper.values() if i])
+            for k, v in list(mapper.items()):
+                if v is not None:
+                    mapper[k] = None if v.is_Remainder else par_region
+
+            handle = Transformer(mapper).visit(node)
+            if handle is not None:
+                processed.append(handle)
 
         return {'nodes': processed}
 
