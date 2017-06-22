@@ -328,13 +328,14 @@ class Rewriter(object):
         rules = OrderedDict()
         stencils = []
         for c, (origin, alias) in enumerate(aliases.items()):
-            temporary = Indexed(template(c), *indices)
+            function = template(c)
+            temporary = Indexed(function, *indices)
             found.append(Eq(temporary, origin))
             # Track the stencil of each TensorFunction introduced
             stencils.append(alias.anti_stencil.anti(cluster.stencil))
             for aliased, distance in alias.with_distance:
                 coordinates = [sum([i, j]) for i, j in distance.items() if i in indices]
-                rules[candidates[aliased]] = Indexed(template(c), *tuple(coordinates))
+                rules[candidates[aliased]] = Indexed(function, *tuple(coordinates))
 
         # Create the alias clusters
         alias_clusters = clusterize(found, stencils)
