@@ -1,4 +1,3 @@
-import numbers
 import os
 import sys
 
@@ -10,7 +9,7 @@ from devito.dimension import LoweredDimension
 from devito.dle import retrieve_iteration_tree
 from devito.dle.backends import BasicRewriter, dle_pass
 from devito.exceptions import CompilationError, DLEException
-from devito.logger import debug, dle, dle_warning, error
+from devito.logger import debug, dle, dle_warning
 from devito.visitors import FindSymbols
 from devito.tools import as_tuple
 
@@ -107,7 +106,7 @@ class YaskGrid(object):
         self.grid = YASK.setdefault(name)
 
         # Always init the grid, at least with 0.0
-        self[:] = 0.0 if buffer is None else val
+        self[:] = 0.0 if buffer is None else buffer
 
     def __getitem__(self, index):
         # TODO: ATM, no MPI support.
