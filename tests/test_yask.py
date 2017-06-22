@@ -4,8 +4,10 @@ from sympy import Eq
 import pytest  # noqa
 
 from devito import Operator, DenseData, x, y, z
+from devito.dle import YaskGrid
 from devito.parameters import configuration, defaults
-from devito.dle.backends.yask import YaskGrid
+
+pexpect = pytest.importorskip('yask_compiler')  # Run only if YASK is available
 
 
 def setup_module(module):
@@ -37,7 +39,6 @@ def test_data_movement_nD():
     u.data[0, 1, 1] = 1.
     assert u.data[0, 0, 0] == 0.
     assert u.data[0, 1, 1] == 1.
-    print u.data
     assert np.all(u.data == u.data[:,:,:])
     assert 1. in u.data[0]
     assert 1. in u.data[0, 1]
