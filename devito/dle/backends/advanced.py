@@ -168,14 +168,16 @@ class DevitoRewriter(BasicRewriter):
                     # non-blocked ("remainder") iterations.
                     start = inter_block.limits[0]
                     finish = inter_block.limits[1]
-                    main = i._rebuild([], limits=[start, finish, 1], offsets=None)
+                    main = i._rebuild([], limits=[start, finish, 1], offsets=None,
+                                      properties=('parallel', 'remainder'))
 
                     # Build unitary-increment Iteration over the 'leftover' region:
                     # again as above, this may be necessary when the dimension size
                     # is not a multiple of the block size.
                     start = inter_block.limits[1]
                     finish = iter_size - i.offsets[1]
-                    leftover = i._rebuild([], limits=[start, finish, 1], offsets=None)
+                    leftover = i._rebuild([], limits=[start, finish, 1], offsets=None,
+                                          properties=('parallel', 'remainder'))
 
                     regions[i] = Region(main, leftover)
 

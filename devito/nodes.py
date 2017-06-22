@@ -380,6 +380,10 @@ class Iteration(Node):
         return 'elemental' in self.properties
 
     @property
+    def is_Remainder(self):
+        return 'remainder' in self.properties
+
+    @property
     def bounds_symbolic(self):
         """Return a 2-tuple representing the symbolic bounds of the object."""
         start = self.limits[0]
