@@ -14,7 +14,7 @@ from devito.logger import debug, dle, dle_warning, error
 from devito.visitors import FindSymbols
 from devito.tools import as_tuple
 
-__all__ = ['YaskRewriter', 'init', 'make_grid']
+__all__ = ['YaskRewriter', 'init', 'YaskGrid']
 
 
 YASK = None
@@ -55,7 +55,7 @@ class YaskState(object):
             mapper[grid.get_name()] = grid
         return mapper
 
-    def setdefault(self, name, buffer=None):
+    def setdefault(self, name):
         """
         Add and return a new grid ``name``. If a grid ``name`` already exists,
         then return it without performing any other actions.
@@ -68,7 +68,7 @@ class YaskState(object):
             grid = self.hook_soln.new_grid(name, *self.dimensions)
             # Allocate memory
             self.hook_soln.prepare_solution()
-            return YaskGrid(name, grid, self.shape, self.dtype, buffer)
+            return grid
 
 
 class YaskGrid(object):
@@ -84,11 +84,27 @@ class YaskGrid(object):
     # Force __rOP__ methods (OP={add,mul,...) to get arrays, not scalars, for efficiency
     __array_priority__ = 1000
 
-    def __init__(self, name, grid, shape, dtype, buffer=None):
+    def __new__(cls, name, shape, dimensions, dtype, buffer=None):
+        """
+        Create a new YASK Grid and attach it to a "fake" solution.
+        """
+        # Init YASK if not initialized already
+        init(dimensions, shape, dtype)
+        # Only create a YaskGrid if the requested grid is a dense one
+        if tuple(i.name for i in dimensions) == YASK.dimensions:
+            obj = super(YaskGrid, cls).__new__(cls)
+            obj.__init__(name, shape, dimensions, dtype, buffer)
+            return obj
+        else:
+            return None
+
+    def __init__(self, name, shape, dimensions, dtype, buffer=None):
         self.name = name
         self.shape = shape
+        self.dimensions = dimensions
         self.dtype = dtype
-        self.grid = grid
+
+        self.grid = YASK.setdefault(name)
 
         # Always init the grid, at least with 0.0
         self[:] = 0.0 if buffer is None else val
@@ -160,6 +176,11 @@ class YaskGrid(object):
     __rtruediv__ = __meta_binop('__truediv__')
     __mod__ = __meta_binop('__mod__')
     __rmod__ = __meta_binop('__mod__')
+
+    @property
+    def ndpointer(self):
+        # TODO: see corresponding comment in interfaces.py about CMemory
+        return self
 
 
 class YaskRewriter(BasicRewriter):
@@ -355,14 +376,6 @@ def init(dimensions, shape, dtype, architecture='hsw', isa='avx2'):
     YASK = YaskState(cfac, nfac, path, env, shape, dtype, hook_soln)
 
     dle("YASK backend successfully initialized!")
-
-
-def make_grid(name, shape, dimensions, dtype):
-    """
-    Create a new YASK Grid and attach it to a "fake" solution.
-    """
-    init(dimensions, shape, dtype)
-    return YASK.setdefault(name)
 
 
 def _force_exit(emsg):

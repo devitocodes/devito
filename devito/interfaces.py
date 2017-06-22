@@ -305,15 +305,25 @@ class DenseData(SymbolicData):
         from devito.parameters import configuration
 
         if configuration['dle'] == 'yask':
-            from devito.dle import make_grid
-            self._data = make_grid(self.name, self.shape, self.indices, self.dtype)
+            # TODO: Use inheritance
+            # TODO: Refactor CMemory to be our _data_object, while _data will
+            # be the YaskGrid itself.
+            from devito.dle import YaskGrid
+            debug("Allocating YaskGrid for %s (%s)" % (self.name, str(self.shape)))
+
+            self._data_object = YaskGrid(self.name, self.shape, self.indices, self.dtype)
+            if self._data_object is not None:
+                return
+
+            debug("Failed. Reverting to plain allocation...")
+
+        debug("Allocating memory for %s (%s)" % (self.name, str(self.shape)))
+
+        self._data_object = CMemory(self.shape, dtype=self.dtype)
+        if self.numa:
+            first_touch(self)
         else:
-            debug("Allocating memory for %s (%s)" % (self.name, str(self.shape)))
-            self._data_object = CMemory(self.shape, dtype=self.dtype)
-            if self.numa:
-                first_touch(self)
-            else:
-                self.data.fill(0)
+            self.data.fill(0)
 
     @property
     def data(self):
