@@ -172,3 +172,5 @@ def ccode_eq(eq, **settings):
 
 
 blankline = c.Line("")
+printmark = lambda i: c.Line('printf("Here: %s\\n"); fflush(stdout);' % i)
+printvar = lambda i: c.Statement('printf("%s=%%s\\n", %s); fflush(stdout);' % (i, i))

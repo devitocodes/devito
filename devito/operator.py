@@ -9,10 +9,11 @@ import numpy as np
 import sympy
 
 from devito.autotuning import autotune
-from devito.cgen_utils import Allocator, blankline
+from devito.cgen_utils import Allocator, blankline, printmark, printvar
 from devito.compiler import jit_compile, load
 from devito.dimension import Dimension, time
-from devito.dle import compose_nodes, filter_iterations, transform
+from devito.dle import (compose_nodes, filter_iterations,
+                        retrieve_iteration_tree, transform)
 from devito.dse import clusterize, indexify, rewrite, q_indexed
 from devito.interfaces import SymbolicData, Forward, Backward
 from devito.logger import bar, error, info
@@ -542,11 +543,40 @@ class OperatorCore(OperatorBasic):
         return [self.profiler.ctype, blankline]
 
 
+class OperatorDebug(OperatorCore):
+    """
+    Decorate the generated code with useful print statements.
+    """
+
+    def __init__(self, expressions, **kwargs):
+        super(OperatorDebug, self).__init__(expressions, **kwargs)
+        self._includes.append('stdio.h')
+
+        # Minimize the trip count of the sequential loops
+        iterations = set(flatten(retrieve_iteration_tree(self.body)))
+        mapper = {i: i._rebuild(limits=(max(i.offsets) + 2))
+                  for i in iterations if i.is_Sequential}
+        self.body = Transformer(mapper).visit(self.body)
+
+        # Mark entry/exit points of each non-sequential Iteration tree in the body
+        iterations = [filter_iterations(i, lambda i: not i.is_Sequential, 'any')
+                      for i in retrieve_iteration_tree(self.body)]
+        iterations = [i[0] for i in iterations if i]
+        mapper = {t: List(header=printmark('In nest %d' % i), body=t)
+                  for i, t in enumerate(iterations)}
+        self.body = Transformer(mapper).visit(self.body)
+
+
 class Operator(object):
 
     def __new__(cls, *args, **kwargs):
-        # What type of Operator should I return ?
-        cls = OperatorForeign if kwargs.pop('external', False) else OperatorCore
+        # What type of Operator should I create ?
+        if kwargs.pop('external', False):
+            cls = OperatorForeign
+        elif kwargs.pop('debug', False):
+            cls = OperatorDebug
+        else:
+            cls = OperatorCore
 
         # Trigger instantiation
         obj = cls.__new__(cls, *args, **kwargs)
