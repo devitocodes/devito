@@ -7,7 +7,7 @@ from devito.dse import xreplace_indices
 from devito.nodes import Expression, Iteration, List, LocalExpression
 from devito.visitors import (FindAdjacentIterations, FindNodes, IsPerfectIteration,
                              NestedTransformer, Transformer)
-from devito.tools import as_tuple, flatten
+from devito.tools import as_tuple
 
 __all__ = ['fold_blockable_tree', 'unfold_blocked_tree']
 

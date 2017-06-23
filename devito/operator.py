@@ -9,7 +9,7 @@ import numpy as np
 import sympy
 
 from devito.autotuning import autotune
-from devito.cgen_utils import Allocator, blankline, printmark, printvar
+from devito.cgen_utils import Allocator, blankline, printmark
 from devito.compiler import jit_compile, load
 from devito.dimension import Dimension, time
 from devito.dle import (compose_nodes, filter_iterations,
@@ -501,8 +501,6 @@ class OperatorCore(OperatorBasic):
                 info("Section %s with OI=%.2f computed in %.3f s [Perf: %.2f GFlops/s]" %
                      (name, v.oi, v.time, v.gflopss))
 
-        print "u_sum = ", arguments['u'].sum()
-        print "v_sum = ", arguments['v'].sum()
         return summary
 
     def _arg_data(self, argument):

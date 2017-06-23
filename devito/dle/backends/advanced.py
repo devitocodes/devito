@@ -8,8 +8,6 @@ from itertools import combinations
 import numpy as np
 import psutil
 
-import cgen as c
-
 from devito.dimension import Dimension
 from devito.dle import (compose_nodes, copy_arrays, filter_iterations,
                         fold_blockable_tree, unfold_blocked_tree,
@@ -20,8 +18,8 @@ from devito.dse import promote_scalar_expressions
 from devito.exceptions import DLEException
 from devito.interfaces import TensorFunction
 from devito.logger import dle_warning
-from devito.nodes import Block, Denormals, Element, Expression, Iteration, List
-from devito.tools import as_tuple, flatten, grouper, roundm
+from devito.nodes import Block, Denormals, Expression, Iteration, List
+from devito.tools import as_tuple, grouper, roundm
 from devito.visitors import (FindNodes, FindSymbols, IsPerfectIteration,
                              SubstituteExpression, Transformer)
 
