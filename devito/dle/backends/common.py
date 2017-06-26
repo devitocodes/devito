@@ -172,24 +172,30 @@ class AbstractRewriter(object):
             if not has_parallel_dimension:
                 continue
 
-            # Is the Iteration tree fully-parallel or OSIP?
+            # Determine if fully-parallel (FP), OSIP, unit-stride (in innermost dim)
+            is_FP = True
             is_OSIP = False
+            is_US = True
             for e1 in exprs:
                 lhs = e1.lhs
                 if lhs.is_Symbol:
                     continue
                 for e2 in exprs:
                     handle = [i for i in terms[e2] if as_symbol(i) == as_symbol(lhs)]
-                    if any(lhs.indices[0] != i.indices[0] for i in handle):
-                        is_OSIP = True
-                        break
+                    is_FP &= len(handle) == 0
+                    is_OSIP |= any(lhs.indices[0] != i.indices[0] for i in handle)
+                    is_US &= all(lhs.indices[-1] == i.indices[-1] for i in handle)
+
+            # Is the innermost Iteration vectorizable?
+            is_Vectorizable = is_FP or is_OSIP or is_US
 
             # Track the discovered properties
             if is_OSIP:
                 mapper.setdefault(tree[0], []).append('sequential')
-            for i in tree[is_OSIP:-1]:
+            for i in tree[is_OSIP:]:
                 mapper.setdefault(i, []).append('parallel')
-            mapper.setdefault(tree[-1], []).extend(['parallel', 'vector-dim'])
+            if is_Vectorizable:
+                mapper.setdefault(tree[-1], []).append('vector-dim')
 
         # Introduce the discovered properties in the Iteration/Expression tree
         for k, v in list(mapper.items()):
