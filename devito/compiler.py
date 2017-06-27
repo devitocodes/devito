@@ -4,12 +4,15 @@ from os import environ, getuid, mkdir, path
 from tempfile import gettempdir
 from time import time
 from sys import platform
+import subprocess
 
 import numpy.ctypeslib as npct
 from codepy.jit import extension_file_from_string
 from codepy.toolchain import GCCToolchain
 
+from devito.exceptions import CompilationError
 from devito.logger import log
+from devito.tools import change_directory
 
 __all__ = ['get_tmp_dir', 'set_compiler', 'jit_compile', 'load', 'GNUCompiler']
 
@@ -275,3 +278,29 @@ def jit_compile(ccode, compiler=GNUCompiler):
     log("%s: compiled %s [%.2f s]" % (compiler, src_file, toc-tic))
 
     return basename
+
+
+def make(loc, args):
+    """
+    Invoke ``make`` command from within ``loc`` with arguments ``args``.
+    """
+    hash_key = sha1(loc + str(args).encode()).hexdigest()
+    logfile = path.join(get_tmp_dir(), "%s.log" % hash_key)
+    errfile = path.join(get_tmp_dir(), "%s.err" % hash_key)
+
+    with change_directory(loc):
+        with open(logfile, "w") as log:
+            with open(errfile, "w") as err:
+
+                command = ['make'] + args
+                log.write("Compilation command:\n")
+                log.write(" ".join(command))
+                log.write("\n\n")
+                try:
+                    subprocess.check_call(command, stderr=err, stdout=log)
+                except subprocess.CalledProcessError as e:
+                    raise CompilationError('Command "%s" return error status %d. '
+                                           'Unable to compile code.\n'
+                                           'Compile log in %s\n'
+                                           'Compile errors in %s\n' %
+                                           (e.cmd, e.returncode, logfile, errfile))

@@ -1,3 +1,7 @@
+class CompilationError(Exception):
+    pass
+
+
 class InvalidArgument(Exception):
     pass
 
