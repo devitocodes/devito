@@ -176,7 +176,7 @@ class Rewriter(object):
 
         processed, _ = xreplace_constrained(cluster.exprs, make, rule, cm)
 
-        return cluster.rebuild(processed)
+        return cluster.reschedule(processed)
 
     @dse_pass
     def _extract_time_invariants(self, cluster, **kwargs):
@@ -202,7 +202,7 @@ class Rewriter(object):
 
         found = common_subexprs_elimination(found, make)
 
-        return cluster.rebuild(found + leaves)
+        return cluster.reschedule(found + leaves)
 
     @dse_pass
     def _eliminate_intra_stencil_redundancies(self, cluster, **kwargs):
@@ -219,7 +219,7 @@ class Rewriter(object):
 
         processed = common_subexprs_elimination(candidates, make)
 
-        return cluster.rebuild(skip + processed)
+        return cluster.reschedule(skip + processed)
 
     @dse_pass
     def _factorize(self, cluster, **kwargs):
