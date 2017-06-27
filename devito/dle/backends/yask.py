@@ -140,11 +140,13 @@ class YaskGrid(object):
 
     def __getslice__(self, start, stop):
         if stop == sys.maxint:
+            # Emulate default NumPy behaviour
             stop = None
         return self.__getitem__(slice(start, stop))
 
     def __setslice__(self, start, stop, val):
         if stop == sys.maxint:
+            # Emulate default NumPy behaviour
             stop = None
         self.__setitem__(slice(start, stop), val)
 
@@ -332,7 +334,11 @@ def init(dimensions, shape, dtype, architecture='hsw', isa='avx2'):
     # Create a new stencil solution
     soln = cfac.new_solution("Hook")
     soln.set_step_dim("t")
-    soln.set_domain_dims(*[str(i) for i in dimensions])  # TODO: YASK only accepts x,y,z
+
+    dimensions = [str(i) for i in dimensions]
+    if any(i not in ['x', 'y', 'z'] for i in dimensions):
+        _force_exit("Need a DenseData[x,y,z] for initialization")
+    soln.set_domain_dims(*dimensions)  # TODO: YASK only accepts x,y,z
 
     # Number of bytes in each FP value
     soln.set_element_bytes(dtype().itemsize)
@@ -387,6 +393,40 @@ def _force_exit(emsg):
 # Generic utility functions
 
 def convert_multislice(multislice, shape, mode='get'):
+    """
+    Convert a multislice into a format suitable to YASK's get_elements_{...}
+    and set_elements_{...} grid routines.
+
+    A multislice is the typical object received by NumPy ndarray's __getitem__
+    and __setitem__ methods; this function, therefore, converts NumPy indices
+    into YASK indices.
+
+    In particular, a multislice is either a single element or an iterable of
+    elements. An element can be a slice object, an integer index, or a tuple
+    of integer indices.
+
+    In the general case in which ``multislice`` is an iterable, each element in
+    the iterable corresponds to a dimension in ``shape``. In this case, an element
+    can be either a slice or an integer index, but not a tuple of integers.
+
+    If ``multislice`` is a single element,  then it is interpreted as follows: ::
+
+        * slice object: the slice spans the whole shape;
+        * single (integer) index: shape is one-dimensional, and the index
+          represents a specific entry;
+        * a tuple of (integer) indices: it must be ``len(multislice) == len(shape)``,
+          and each entry in ``multislice`` corresponds to a specific entry in a
+          dimension in ``shape``.
+
+    The returned value is a 3-tuple ``(starts, ends, shapes)``, where ``starts,
+    ends, shapes`` are lists of length ``len(shape)``. By taking ``starts[i]`` and
+    `` ends[i]``, one gets the start and end points of the section of elements to
+    be accessed along dimension ``i``; ``shapes[i]`` gives the size of the section.
+    """
+
+    # Note: the '-1' below are because YASK uses '<=', rather than '<', to check
+    # bounds when iterating over grid dimensions
+
     assert mode in ['get', 'set']
     multislice = as_tuple(multislice)
 
