@@ -463,7 +463,23 @@
 
     <span class="k">def</span> <span class="nf">_allocate_memory</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;Allocate memory in terms of numpy ndarrays.&quot;&quot;&quot;</span>
+        <span class="kn">from</span> <span class="nn">devito.parameters</span> <span class="k">import</span> <span class="n">configuration</span>
+
+        <span class="k">if</span> <span class="n">configuration</span><span class="p">[</span><span class="s1">&#39;dle&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;yask&#39;</span><span class="p">:</span>
+            <span class="c1"># TODO: Use inheritance</span>
+            <span class="c1"># TODO: Refactor CMemory to be our _data_object, while _data will</span>
+            <span class="c1"># be the YaskGrid itself.</span>
+            <span class="kn">from</span> <span class="nn">devito.dle</span> <span class="k">import</span> <span class="n">YaskGrid</span>
+            <span class="n">debug</span><span class="p">(</span><span class="s2">&quot;Allocating YaskGrid for </span><span class="si">%s</span><span class="s2"> (</span><span class="si">%s</span><span class="s2">)&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="nb">str</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">shape</span><span class="p">)))</span>
+
+            <span class="bp">self</span><span class="o">.</span><span class="n">_data_object</span> <span class="o">=</span> <span class="n">YaskGrid</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">indices</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">dtype</span><span class="p">)</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_data_object</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="k">return</span>
+
+            <span class="n">debug</span><span class="p">(</span><span class="s2">&quot;Failed. Reverting to plain allocation...&quot;</span><span class="p">)</span>
+
         <span class="n">debug</span><span class="p">(</span><span class="s2">&quot;Allocating memory for </span><span class="si">%s</span><span class="s2"> (</span><span class="si">%s</span><span class="s2">)&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="nb">str</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">shape</span><span class="p">)))</span>
+
         <span class="bp">self</span><span class="o">.</span><span class="n">_data_object</span> <span class="o">=</span> <span class="n">CMemory</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">dtype</span><span class="p">)</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">numa</span><span class="p">:</span>
             <span class="n">first_touch</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>

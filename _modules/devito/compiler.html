@@ -165,12 +165,15 @@
 <span class="kn">from</span> <span class="nn">tempfile</span> <span class="k">import</span> <span class="n">gettempdir</span>
 <span class="kn">from</span> <span class="nn">time</span> <span class="k">import</span> <span class="n">time</span>
 <span class="kn">from</span> <span class="nn">sys</span> <span class="k">import</span> <span class="n">platform</span>
+<span class="kn">import</span> <span class="nn">subprocess</span>
 
 <span class="kn">import</span> <span class="nn">numpy.ctypeslib</span> <span class="k">as</span> <span class="nn">npct</span>
 <span class="kn">from</span> <span class="nn">codepy.jit</span> <span class="k">import</span> <span class="n">extension_file_from_string</span>
 <span class="kn">from</span> <span class="nn">codepy.toolchain</span> <span class="k">import</span> <span class="n">GCCToolchain</span>
 
+<span class="kn">from</span> <span class="nn">devito.exceptions</span> <span class="k">import</span> <span class="n">CompilationError</span>
 <span class="kn">from</span> <span class="nn">devito.logger</span> <span class="k">import</span> <span class="n">log</span>
+<span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">change_directory</span>
 
 <span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;get_tmp_dir&#39;</span><span class="p">,</span> <span class="s1">&#39;set_compiler&#39;</span><span class="p">,</span> <span class="s1">&#39;jit_compile&#39;</span><span class="p">,</span> <span class="s1">&#39;load&#39;</span><span class="p">,</span> <span class="s1">&#39;GNUCompiler&#39;</span><span class="p">]</span>
 
@@ -436,6 +439,32 @@
     <span class="n">log</span><span class="p">(</span><span class="s2">&quot;</span><span class="si">%s</span><span class="s2">: compiled </span><span class="si">%s</span><span class="s2"> [</span><span class="si">%.2f</span><span class="s2"> s]&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">compiler</span><span class="p">,</span> <span class="n">src_file</span><span class="p">,</span> <span class="n">toc</span><span class="o">-</span><span class="n">tic</span><span class="p">))</span>
 
     <span class="k">return</span> <span class="n">basename</span></div>
+
+
+<span class="k">def</span> <span class="nf">make</span><span class="p">(</span><span class="n">loc</span><span class="p">,</span> <span class="n">args</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Invoke ``make`` command from within ``loc`` with arguments ``args``.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">hash_key</span> <span class="o">=</span> <span class="n">sha1</span><span class="p">(</span><span class="n">loc</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">args</span><span class="p">)</span><span class="o">.</span><span class="n">encode</span><span class="p">())</span><span class="o">.</span><span class="n">hexdigest</span><span class="p">()</span>
+    <span class="n">logfile</span> <span class="o">=</span> <span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">get_tmp_dir</span><span class="p">(),</span> <span class="s2">&quot;</span><span class="si">%s</span><span class="s2">.log&quot;</span> <span class="o">%</span> <span class="n">hash_key</span><span class="p">)</span>
+    <span class="n">errfile</span> <span class="o">=</span> <span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">get_tmp_dir</span><span class="p">(),</span> <span class="s2">&quot;</span><span class="si">%s</span><span class="s2">.err&quot;</span> <span class="o">%</span> <span class="n">hash_key</span><span class="p">)</span>
+
+    <span class="k">with</span> <span class="n">change_directory</span><span class="p">(</span><span class="n">loc</span><span class="p">):</span>
+        <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">logfile</span><span class="p">,</span> <span class="s2">&quot;w&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">log</span><span class="p">:</span>
+            <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">errfile</span><span class="p">,</span> <span class="s2">&quot;w&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">err</span><span class="p">:</span>
+
+                <span class="n">command</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;make&#39;</span><span class="p">]</span> <span class="o">+</span> <span class="n">args</span>
+                <span class="n">log</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="s2">&quot;Compilation command:</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">)</span>
+                <span class="n">log</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="s2">&quot; &quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">command</span><span class="p">))</span>
+                <span class="n">log</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\n\n</span><span class="s2">&quot;</span><span class="p">)</span>
+                <span class="k">try</span><span class="p">:</span>
+                    <span class="n">subprocess</span><span class="o">.</span><span class="n">check_call</span><span class="p">(</span><span class="n">command</span><span class="p">,</span> <span class="n">stderr</span><span class="o">=</span><span class="n">err</span><span class="p">,</span> <span class="n">stdout</span><span class="o">=</span><span class="n">log</span><span class="p">)</span>
+                <span class="k">except</span> <span class="n">subprocess</span><span class="o">.</span><span class="n">CalledProcessError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+                    <span class="k">raise</span> <span class="n">CompilationError</span><span class="p">(</span><span class="s1">&#39;Command &quot;</span><span class="si">%s</span><span class="s1">&quot; return error status </span><span class="si">%d</span><span class="s1">. &#39;</span>
+                                           <span class="s1">&#39;Unable to compile code.</span><span class="se">\n</span><span class="s1">&#39;</span>
+                                           <span class="s1">&#39;Compile log in </span><span class="si">%s</span><span class="se">\n</span><span class="s1">&#39;</span>
+                                           <span class="s1">&#39;Compile errors in </span><span class="si">%s</span><span class="se">\n</span><span class="s1">&#39;</span> <span class="o">%</span>
+                                           <span class="p">(</span><span class="n">e</span><span class="o">.</span><span class="n">cmd</span><span class="p">,</span> <span class="n">e</span><span class="o">.</span><span class="n">returncode</span><span class="p">,</span> <span class="n">logfile</span><span class="p">,</span> <span class="n">errfile</span><span class="p">))</span>
 </pre></div>
 
            </div>
