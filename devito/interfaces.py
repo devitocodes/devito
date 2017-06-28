@@ -9,7 +9,6 @@ from devito.finite_difference import (centered, cross_derivative,
                                       first_derivative, left, right,
                                       second_derivative)
 from devito.logger import debug, error, warning
-from devito.memmap_manager import MemmapManager
 from devito.memory import CMemory, first_touch
 
 __all__ = ['DenseData', 'TimeData', 'Forward', 'Backward']
@@ -270,13 +269,11 @@ class DenseData(SymbolicData):
             self.indices = self._indices(**kwargs)
             self.dtype = kwargs.get('dtype', np.float32)
             self.space_order = kwargs.get('space_order', 1)
-            initializer = kwargs.get('initializer', None)
-            if initializer is not None:
-                assert(callable(initializer))
-            self.initializer = initializer
+            self.initializer = kwargs.get('initializer', None)
+            if self.initializer is not None:
+                assert(callable(self.initializer))
             self.numa = kwargs.get('numa', False)
-            self._data = kwargs.get('_data', None)
-            MemmapManager.setup(self, *args, **kwargs)
+            self._data_object = None
 
     @classmethod
     def _indices(cls, **kwargs):
@@ -304,21 +301,29 @@ class DenseData(SymbolicData):
         return dimensions
 
     def _allocate_memory(self):
-        """Function to allocate memmory in terms of numpy ndarrays.
+        """Allocate memory in terms of numpy ndarrays."""
+        from devito.parameters import configuration
 
-        Note: memmap is a subclass of ndarray.
-        """
-        if self.memmap:
-            self._data = np.memmap(filename=self.f, dtype=self.dtype, mode='w+',
-                                   shape=self.shape, order='C')
+        if configuration['dle'] == 'yask':
+            # TODO: Use inheritance
+            # TODO: Refactor CMemory to be our _data_object, while _data will
+            # be the YaskGrid itself.
+            from devito.dle import YaskGrid
+            debug("Allocating YaskGrid for %s (%s)" % (self.name, str(self.shape)))
+
+            self._data_object = YaskGrid(self.name, self.shape, self.indices, self.dtype)
+            if self._data_object is not None:
+                return
+
+            debug("Failed. Reverting to plain allocation...")
+
+        debug("Allocating memory for %s (%s)" % (self.name, str(self.shape)))
+
+        self._data_object = CMemory(self.shape, dtype=self.dtype)
+        if self.numa:
+            first_touch(self)
         else:
-            debug("Allocating memory for %s (%s)" % (self.name, str(self.shape)))
-            self._data_object = CMemory(self.shape, dtype=self.dtype)
-            self._data = self._data_object.ndpointer
-            if self.numa:
-                first_touch(self)
-            else:
-                self.data.fill(0)
+            self.data.fill(0)
 
     @property
     def data(self):
@@ -326,16 +331,15 @@ class DenseData(SymbolicData):
 
         :returns: The ndarray containing the data
         """
-        if self._data is None:
+        if self._data_object is None:
             self._allocate_memory()
 
-        return self._data
+        return self._data_object.ndpointer
 
     def initialize(self):
         """Apply the data initilisation function, if it is not None."""
         if self.initializer is not None:
             self.initializer(self.data)
-        # Ignore if no initializer exists - assume no initialisation necessary
 
     @property
     def dx(self):
@@ -521,7 +525,6 @@ class TimeData(DenseData):
     def __init__(self, *args, **kwargs):
         if not self._cached():
             super(TimeData, self).__init__(*args, **kwargs)
-            self._full_data = self._data.view() if self._data else None
             time_dim = kwargs.get('time_dim', None)
             self.time_order = kwargs.get('time_order', 1)
             self.save = kwargs.get('save', False)
@@ -543,9 +546,7 @@ class TimeData(DenseData):
 
     def initialize(self):
         if self.initializer is not None:
-            if self._full_data is None:
-                self._allocate_memory()
-            self.initializer(self._full_data)
+            self.initializer(self.data)
 
     @classmethod
     def _indices(cls, **kwargs):
@@ -561,12 +562,6 @@ class TimeData(DenseData):
         tidx = time if save else t
         _indices = DenseData._indices(**kwargs)
         return tuple([tidx] + list(_indices))
-
-    def _allocate_memory(self):
-        """function to allocate memmory in terms of numpy ndarrays."""
-        super(TimeData, self)._allocate_memory()
-
-        self._full_data = self._data.view()
 
     @property
     def dim(self):
