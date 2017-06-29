@@ -205,7 +205,7 @@ class IterationFold(Iteration):
 
     @property
     def ccode(self):
-        comment = c.Comment('This IterationFold is "hiding" ore or more Iterations')
+        comment = c.Comment('This IterationFold is "hiding" one or more Iterations')
         code = super(IterationFold, self).ccode
         return c.Module([comment, code])
 

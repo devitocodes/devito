@@ -23,7 +23,7 @@ def retrieve_iteration_tree(node, mode='normal'):
 
     :param node: The searched Iteration/Expression tree.
     :param mode: Accepted values are 'normal' (default) and 'superset', in which
-                 case iteration trees that are subset of larget iteration trees
+                 case iteration trees that are subset of larger iteration trees
                  are dropped.
     """
     assert mode in ('normal', 'superset')

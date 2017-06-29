@@ -103,8 +103,8 @@ class DevitoRewriter(BasicRewriter):
         Blocking is applied to parallel iteration trees. Heuristically, innermost
         dimensions are not blocked to maximize the trip count of the SIMD loops.
 
-        Different heuristics may be specified via ``kwargs['blockshape']`` and
-        ``kwargs['blockinner']``. The former, a dictionary, is used to indicate
+        Different heuristics may be specified by passing the keywords ``blockshape``
+        and ``blockinner`` to the DLE. The former, a dictionary, is used to indicate
         a specific block size for each blocked dimension. For example, for the
         :class:`Iteration` tree: ::
 
@@ -113,7 +113,7 @@ class DevitoRewriter(BasicRewriter):
                 for k
                   ...
 
-        one may provide ``kwargs['blockshape'] = {i: 4, j: 7}``, in which case the
+        one may provide ``blockshape = {i: 4, j: 7}``, in which case the
         two outer loops will blocked, and the resulting 2-dimensional block will
         have size 4x7. The latter may be set to True to also block innermost parallel
         :class:`Iteration` objects.
