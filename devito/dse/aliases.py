@@ -1,8 +1,10 @@
 import itertools
 from collections import OrderedDict, namedtuple
 
+import numpy as np
 from sympy import Indexed
 
+from devito.exceptions import DSEException
 from devito.dse.search import retrieve_indexed
 from devito.dse.queries import q_indirect
 from devito.stencil import Stencil
@@ -63,13 +65,20 @@ def collect_aliases(exprs):
         if len(group) == 1:
             continue
 
-        # Create an alias for the group of aliasing expressions, as well as
-        # any metadata needed by the caller
+        # Try creating a basis for the aliasing expressions' offsets
         offsets = [tuple(candidates[e].offsets) for e in group]
-        COM, distances = calculate_COM(offsets)
-        alias = create_alias(handle, COM)
+        try:
+            COM, distances = calculate_COM(offsets)
+        except DSEException:
+            # Ignore these potential aliases and move on
+            pass
 
-        aliases[alias] = Alias(alias, group, distances, candidates[handle].dimensions)
+        alias = create_alias(handle, COM)
+        # In circumstances in which an expression has repeated coefficients, e.g.
+        # ... + 0.025*a[...] + 0.025*b[...],
+        # We may have found a common basis (i.e., same COM, same alias) at this point
+        v = aliases.setdefault(alias, Alias(alias, candidates[handle].dimensions))
+        v.extend(group, distances)
 
     # Heuristically attempt to relax the aliases offsets
     # to maximize the likelyhood of loop fusion
@@ -111,10 +120,10 @@ def calculate_COM(offsets):
     """
     Determine the centre of mass (COM) in a collection of offsets.
 
-    The COM minimizes the average distance along each dimension amongst the
-    values in ``offsets``.
+    The COM is a basis to span the vectors in ``offsets``.
 
-    Also return the distance of each element in ``offsets`` from the COM.
+    Also return the distance of each element E in ``offsets`` from the COM (i.e.,
+    the coefficients that when multiplied by the COM give exactly E).
     """
     COM = []
     for ofs in zip(*offsets):
@@ -123,21 +132,20 @@ def calculate_COM(offsets):
             strides = sorted(set(i))
             # Heuristic:
             # - middle point if odd number of values, or
-            # - zero-offset if present, or
-            # - middle point rounded to the bottom
+            # - strides average otherwise
             index = int((len(strides) - 1) / 2)
             if (len(strides) - 1) % 2 == 0:
                 handle.append(strides[index])
-            elif 0 in strides:
-                handle.append(0)
             else:
-                handle.append(strides[index])
+                handle.append(int(np.mean(strides, dtype=int)))
         COM.append(tuple(handle))
 
     distances = []
     for ofs in offsets:
         handle = distance(COM, ofs)
-        assert len(handle) == 1
+        if len(handle) != 1:
+            raise DSEException("%s cannot be represented by the COM %s" %
+                               (str(ofs), str(COM)))
         distances.append(handle.pop())
 
     return COM, distances
@@ -228,14 +236,17 @@ class Alias(object):
     is tracked.
     """
 
-    def __init__(self, alias, aliased, distances, dimensions, ghost_offsets=None):
-        assert len(aliased) == len(distances)
-        assert all(len(i) == len(dimensions) for i in distances)
+    def __init__(self, alias, dimensions, aliased=None, distances=None,
+                 ghost_offsets=None):
         self.alias = alias
-        self.aliased = aliased
-        self.distances = distances
         self.dimensions = dimensions
+
+        self.aliased = aliased or []
+        self.distances = distances or []
         self._ghost_offsets = ghost_offsets or []
+
+        assert len(self.aliased) == len(self.distances)
+        assert all(len(i) == len(dimensions) for i in self.distances)
 
     @property
     def anti_stencil(self):
@@ -251,6 +262,12 @@ class Alias(object):
         return [(i, OrderedDict(zip(self.dimensions, j)))
                 for i, j in zip(self.aliased, self.distances)]
 
+    def extend(self, aliased, distances):
+        assert len(aliased) == len(distances)
+        assert all(len(i) == len(self.dimensions) for i in distances)
+        self.aliased.extend(aliased)
+        self.distances.extend(distances)
+
     def relax(self, distances):
-        return Alias(self.alias, self.aliased, self.distances, self.dimensions,
+        return Alias(self.alias, self.dimensions, self.aliased, self.distances,
                      self._ghost_offsets + list(itertools.product(*distances.values())))
