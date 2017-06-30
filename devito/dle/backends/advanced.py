@@ -178,13 +178,13 @@ class DevitoRewriter(BasicRewriter):
                 for n in range(len(iterations)):
                     for c in combinations([i.dim for i in iterations], n + 1):
                         # First all inter-block Interations
-                        nodes = [b for b, r in zip(inter_blocks, remainders)
+                        nodes = [b._rebuild(properties=b.properties + ('remainder',))
+                                 for b, r in zip(inter_blocks, remainders)
                                  if r.dim not in c]
                         # Then intra-block or remainder, for each dim (in order)
                         for b, r in zip(intra_blocks, remainders):
-                            nodes.extend([r] if b.dim in c else [b])
-                        nodes = [i._rebuild(properties=i.properties + ('remainder',))
-                                 for i in nodes]
+                            handle = r if b.dim in c else b
+                            nodes.append(handle._rebuild(properties=('remainder',)))
                         nodes.extend([iterations[-1].nodes])
                         remainder_tree.append(compose_nodes(nodes))
 
