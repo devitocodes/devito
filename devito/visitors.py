@@ -7,20 +7,22 @@ The main Visitor class is extracted from https://github.com/coneoproject/COFFEE.
 from __future__ import absolute_import
 
 import inspect
-from collections import OrderedDict, defaultdict
+from collections import Iterable, OrderedDict, defaultdict
 from operator import attrgetter
 
 import cgen as c
 from sympy import Symbol
 
 from devito.dimension import LoweredDimension
+from devito.exceptions import VisitorException
 from devito.nodes import Iteration, List, Node
 from devito.tools import as_tuple, filter_ordered, filter_sorted, flatten
 
 
 __all__ = ['FindNodes', 'FindSections', 'FindSymbols', 'FindScopes',
            'IsPerfectIteration', 'SubstituteExpression', 'printAST',
-           'ResolveIterationVariable', 'Transformer', 'NestedTransformer']
+           'ResolveIterationVariable', 'Transformer', 'NestedTransformer',
+           'FindAdjacentIterations']
 
 
 class Visitor(object):
@@ -225,11 +227,15 @@ class FindSections(Visitor):
     """
 
     def visit_tuple(self, o, ret=None, queue=None):
+        if ret is None:
+            ret = self.default_retval()
         for i in o:
             ret = self.visit(i, ret=ret, queue=queue)
         return ret
 
     def visit_Node(self, o, ret=None, queue=None):
+        if ret is None:
+            ret = self.default_retval()
         for i in o.children:
             ret = self.visit(i, ret=ret, queue=queue)
         return ret
@@ -361,10 +367,60 @@ class FindNodes(Visitor):
         return ret
 
 
+class FindAdjacentIterations(Visitor):
+
+    @classmethod
+    def default_retval(cls):
+        return OrderedDict([('seen_iteration', False)])
+
+    """
+    Return a mapper from nodes N in an Expression/Iteration tree to sequences of
+    :class:`Iteration` objects I = [I_0, I_1, ...], where N is the direct ancestor of
+    the items in I and all items in I are adjacent nodes in the tree.
+    """
+
+    def handler(self, o, parent=None, ret=None):
+        if ret is None:
+            ret = self.default_retval()
+        if parent is None:
+            return ret
+        group = []
+        for i in o:
+            ret = self.visit(i, parent=parent, ret=ret)
+            if ret['seen_iteration'] is True:
+                group.append(i)
+            else:
+                if len(group) > 1:
+                    ret.setdefault(parent, []).append(tuple(group))
+                # Reset the group, Iterations no longer adjacent
+                group = []
+        # Potential leftover
+        if len(group) > 1:
+            ret.setdefault(parent, []).append(tuple(group))
+        return ret
+
+    def visit_object(self, o, parent=None, ret=None):
+        return ret
+
+    def visit_tuple(self, o, parent=None, ret=None):
+        return self.handler(o, parent=parent, ret=ret)
+
+    def visit_Node(self, o, parent=None, ret=None):
+        ret = self.handler(o.children, parent=o, ret=ret)
+        ret['seen_iteration'] = False
+        return ret
+
+    def visit_Iteration(self, o, parent=None, ret=None):
+        ret = self.handler(o.children, parent=o, ret=ret)
+        ret['seen_iteration'] = True
+        return ret
+
+
 class IsPerfectIteration(Visitor):
 
-    """Return True if an :class:`Iteration` defines a perfect loop nest,
-    False otherwise."""
+    """
+    Return True if an :class:`Iteration` defines a perfect loop nest, False otherwise.
+    """
 
     def visit_object(self, o, **kwargs):
         return False
@@ -385,9 +441,15 @@ class IsPerfectIteration(Visitor):
 
 class Transformer(Visitor):
 
-    """Given an Iteration/Expression tree T and a mapper from nodes in T to
+    """
+    Given an Iteration/Expression tree T and a mapper from nodes in T to
     a set of new nodes L, M : N --> L, build a new Iteration/Expression tree T'
     where a node ``n`` in N is replaced with ``M[n]``.
+
+    In the special case in which ``M[n]`` is None, ``n`` is dropped from T'.
+
+    In the special case in which ``M[n]`` is an iterable of nodes, ``n`` is
+    "extended" by pre-pending to its body the nodes in ``M[n]``.
     """
 
     def __init__(self, mapper={}):
@@ -399,14 +461,24 @@ class Transformer(Visitor):
         return o
 
     def visit_tuple(self, o, **kwargs):
-        return tuple(self.visit(i, **kwargs) for i in o)
+        visited = tuple(self.visit(i, **kwargs) for i in o)
+        return tuple(i for i in visited if i is not None)
 
     visit_list = visit_tuple
 
     def visit_Node(self, o, **kwargs):
         if o in self.mapper:
             handle = self.mapper[o]
-            return handle._rebuild(**handle.args)
+            if handle is None:
+                # None -> drop /o/
+                return None
+            elif isinstance(handle, Iterable):
+                if not o.children:
+                    raise VisitorException
+                extended = (tuple(handle) + o.children[0],) + o.children[1:]
+                return o._rebuild(*extended, **o.args_frozen)
+            else:
+                return handle._rebuild(**handle.args)
         else:
             rebuilt = [self.visit(i, **kwargs) for i in o.children]
             return o._rebuild(*rebuilt, **o.args_frozen)
@@ -419,15 +491,25 @@ class Transformer(Visitor):
 
 
 class NestedTransformer(Transformer):
+
     """
-    As opposed to a :class:`Transformer`, a :class:`NestedTransforer` applies
+    Unlike a :class:`Transformer`, a :class:`NestedTransforer` applies
     replacements in a depth-first fashion.
     """
 
     def visit_Node(self, o, **kwargs):
         rebuilt = [self.visit(i, **kwargs) for i in o.children]
         handle = self.mapper.get(o, o)
-        return handle._rebuild(*rebuilt, **handle.args_frozen)
+        if handle is None:
+            # None -> drop /o/
+            return None
+        elif isinstance(handle, Iterable):
+            if not o.children:
+                raise VisitorException
+            extended = [tuple(handle) + rebuilt[0]] + rebuilt[1:]
+            return o._rebuild(*extended, **o.args_frozen)
+        else:
+            return handle._rebuild(*rebuilt, **handle.args_frozen)
 
 
 class SubstituteExpression(Transformer):

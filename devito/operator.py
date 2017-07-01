@@ -1,32 +1,29 @@
 from __future__ import absolute_import
 
 import operator
-from collections import OrderedDict, namedtuple
+from collections import OrderedDict
 from ctypes import c_int
-from functools import reduce
 
 import cgen as c
 import numpy as np
 import sympy
 
 from devito.autotuning import autotune
-from devito.cgen_utils import Allocator, blankline
+from devito.cgen_utils import Allocator, blankline, printmark
 from devito.compiler import jit_compile, load
 from devito.dimension import Dimension, time
-from devito.dle import compose_nodes, filter_iterations, transform
-from devito.dse import (clusterize, estimate_cost, estimate_memory, indexify,
-                        rewrite, q_indexed)
+from devito.dle import (compose_nodes, filter_iterations,
+                        retrieve_iteration_tree, transform)
+from devito.dse import clusterize, indexify, rewrite, q_indexed
 from devito.interfaces import SymbolicData, Forward, Backward
 from devito.logger import bar, error, info
-from devito.nodes import (Element, Expression, Function, Iteration, List,
-                          LocalExpression, TimedList)
+from devito.nodes import Element, Expression, Function, Iteration, List, LocalExpression
 from devito.parameters import configuration
-from devito.profiling import Profiler
+from devito.profiling import Profiler, create_profile
 from devito.stencil import Stencil
 from devito.tools import as_tuple, filter_ordered, flatten
-from devito.visitors import (FindNodes, FindSections, FindSymbols, FindScopes,
-                             IsPerfectIteration, ResolveIterationVariable,
-                             SubstituteExpression, Transformer)
+from devito.visitors import (FindSymbols, FindScopes, ResolveIterationVariable,
+                             SubstituteExpression, Transformer, NestedTransformer)
 from devito.exceptions import InvalidArgument, InvalidOperator
 
 __all__ = ['Operator']
@@ -98,8 +95,7 @@ class OperatorBasic(Function):
         nodes = self._schedule_expressions(clusters, ordering)
 
         # Introduce C-level profiling infrastructure
-        self.sections = OrderedDict()
-        nodes = self._profile_sections(nodes)
+        nodes, self.profiler = self._profile_sections(nodes)
 
         # Parameters of the Operator (Dimensions necessary for data casts)
         parameters = FindSymbols('kernel-data').visit(nodes)
@@ -315,13 +311,7 @@ class OperatorBasic(Function):
 
     def _profile_sections(self, nodes):
         """Introduce C-level profiling nodes within the Iteration/Expression tree."""
-        return List(body=nodes)
-
-    def _profile_summary(self, dim_sizes):
-        """
-        Produce a summary of the performance achieved
-        """
-        return PerformanceSummary()
+        return List(body=nodes), Profiler()
 
     def _autotune(self, arguments):
         """Use auto-tuning on this Operator to determine empirically the
@@ -373,7 +363,7 @@ class OperatorBasic(Function):
                 # No Iterations are needed
                 processed.extend(expressions)
 
-        return processed
+        return List(body=processed)
 
     def _insert_declarations(self, dle_state, parameters):
         """Populate the Operator's body with the required array and
@@ -403,7 +393,7 @@ class OperatorBasic(Function):
             elif k.output_function._mem_stack:
                 # On the stack, as established by the DLE
                 key = lambda i: i.dim not in k.output_function.indices
-                site = filter_iterations(v, key=key, stop='consecutive')
+                site = filter_iterations(reversed(v), key=key, stop='asap') or [nodes]
                 allocator.push_stack(site[-1], k.output_function)
             else:
                 # On the heap, as a tensor that must be globally accessible
@@ -411,10 +401,13 @@ class OperatorBasic(Function):
 
         # Introduce declarations on the stack
         for k, v in allocator.onstack:
-            allocs = as_tuple([Element(i) for i in v])
-            mapper[k] = Iteration(allocs + k.nodes, **k.args_frozen)
-        nodes = Transformer(mapper).visit(nodes)
+            mapper[k] = tuple(Element(i) for i in v)
+        nodes = NestedTransformer(mapper).visit(nodes)
         elemental_functions = Transformer(mapper).visit(dle_state.elemental_functions)
+
+        # TODO
+        # Use x_block_size+2, y_block_size+2 instead of x_size, y_size as shape of
+        # the tensor functions
 
         # Introduce declarations on the heap (if any)
         if allocator.onheap:
@@ -489,10 +482,6 @@ class OperatorCore(OperatorBasic):
     C code evaluating stencil expressions, can also execute the computation.
     """
 
-    def __init__(self, expressions, **kwargs):
-        self.profiler = Profiler()
-        super(OperatorCore, self).__init__(expressions, **kwargs)
-
     def __call__(self, *args, **kwargs):
         self.apply(*args, **kwargs)
 
@@ -505,7 +494,7 @@ class OperatorCore(OperatorBasic):
         self.cfunction(*list(arguments.values()))
 
         # Output summary of performance achieved
-        summary = self._profile_summary(dim_sizes)
+        summary = self.profiler.summary(dim_sizes, self.dtype)
         with bar():
             for k, v in summary.items():
                 name = '%s<%s>' % (k, ','.join('%d' % i for i in v.itershape))
@@ -526,61 +515,7 @@ class OperatorCore(OperatorBasic):
 
     def _profile_sections(self, nodes):
         """Introduce C-level profiling nodes within the Iteration/Expression tree."""
-        mapper = {}
-        for node in nodes:
-            for itspace in FindSections().visit(node).keys():
-                for i in itspace:
-                    if IsPerfectIteration().visit(i):
-                        # Insert `TimedList` block. This should come from
-                        # the profiler, but we do this manually for now.
-                        lname = 'loop_%s_%d' % (i.index, len(mapper))
-                        mapper[i] = TimedList(gname=self.profiler.varname,
-                                              lname=lname, body=i)
-                        self.profiler.add(lname)
-
-                        # Estimate computational properties of the timed section
-                        # (operational intensity, memory accesses)
-                        expressions = FindNodes(Expression).visit(i)
-                        ops = estimate_cost([e.expr for e in expressions])
-                        memory = estimate_memory([e.expr for e in expressions])
-                        self.sections[itspace] = Profile(lname, ops, memory)
-                        break
-        processed = Transformer(mapper).visit(List(body=nodes))
-        return processed
-
-    def _profile_summary(self, dim_sizes):
-        """
-        Produce a summary of the performance achieved
-        """
-        summary = PerformanceSummary()
-        for itspace, profile in self.sections.items():
-            dims = {i: i.dim.parent if i.dim.is_Buffered else i.dim for i in itspace}
-
-            # Time
-            time = self.profiler.timings[profile.timer]
-
-            # Flops
-            itershape = [i.extent(finish=dim_sizes.get(dims[i].name)) for i in itspace]
-            iterspace = reduce(operator.mul, itershape)
-            flops = float(profile.ops*iterspace)
-            gflops = flops/10**9
-
-            # Compulsory traffic
-            datashape = [i.dim.size or dim_sizes[dims[i].name] for i in itspace]
-            dataspace = reduce(operator.mul, datashape)
-            traffic = profile.memory*dataspace*self.dtype().itemsize
-
-            # Derived metrics
-            oi = flops/traffic
-            gflopss = gflops/time
-
-            # Keep track of performance achieved
-            summary.setsection(profile.timer, time, gflopss, oi, itershape, datashape)
-
-        # Rename the most time consuming section as 'main'
-        summary['main'] = summary.pop(max(summary, key=summary.get))
-
-        return summary
+        return create_profile(nodes)
 
     def _extra_arguments(self):
         return OrderedDict([(self.profiler.typename, self.profiler.setup())])
@@ -606,44 +541,45 @@ class OperatorCore(OperatorBasic):
         return [self.profiler.ctype, blankline]
 
 
+class OperatorDebug(OperatorCore):
+    """
+    Decorate the generated code with useful print statements.
+    """
+
+    def __init__(self, expressions, **kwargs):
+        super(OperatorDebug, self).__init__(expressions, **kwargs)
+        self._includes.append('stdio.h')
+
+        # Minimize the trip count of the sequential loops
+        iterations = set(flatten(retrieve_iteration_tree(self.body)))
+        mapper = {i: i._rebuild(limits=(max(i.offsets) + 2))
+                  for i in iterations if i.is_Sequential}
+        self.body = Transformer(mapper).visit(self.body)
+
+        # Mark entry/exit points of each non-sequential Iteration tree in the body
+        iterations = [filter_iterations(i, lambda i: not i.is_Sequential, 'any')
+                      for i in retrieve_iteration_tree(self.body)]
+        iterations = [i[0] for i in iterations if i]
+        mapper = {t: List(header=printmark('In nest %d' % i), body=t)
+                  for i, t in enumerate(iterations)}
+        self.body = Transformer(mapper).visit(self.body)
+
+
 class Operator(object):
 
     def __new__(cls, *args, **kwargs):
-        # What type of Operator should I return ?
-        cls = OperatorForeign if kwargs.pop('external', False) else OperatorCore
+        # What type of Operator should I create ?
+        if kwargs.pop('external', False):
+            cls = OperatorForeign
+        elif kwargs.pop('debug', False):
+            cls = OperatorDebug
+        else:
+            cls = OperatorCore
 
         # Trigger instantiation
         obj = cls.__new__(cls, *args, **kwargs)
         obj.__init__(*args, **kwargs)
         return obj
-
-
-# Helpers for performance tracking
-
-PerfEntry = namedtuple('PerfEntry', 'time gflopss oi itershape datashape')
-"""A helper to return structured performance data."""
-
-
-class PerformanceSummary(OrderedDict):
-
-    """
-    A special dictionary to track and view performance data.
-    """
-
-    def setsection(self, key, time, gflopss, oi, itershape, datashape):
-        self[key] = PerfEntry(time, gflopss, oi, itershape, datashape)
-
-    @property
-    def gflopss(self):
-        return OrderedDict([(k, v.gflopss) for k, v in self.items()])
-
-    @property
-    def oi(self):
-        return OrderedDict([(k, v.oi) for k, v in self.items()])
-
-    @property
-    def timings(self):
-        return OrderedDict([(k, v.time) for k, v in self.items()])
 
 
 # Misc helpers
@@ -653,9 +589,6 @@ cnames = {
     'glb_timer': 'glb_timer'
 }
 """A dict of standard names to be used for code generation."""
-
-Profile = namedtuple('Profile', 'timer ops memory')
-"""A helper to track profiled sections of code."""
 
 
 def set_dle_mode(mode):

@@ -14,6 +14,10 @@ class StencilOperationError(Exception):
     pass
 
 
+class VisitorException(Exception):
+    pass
+
+
 class DSEException(Exception):
     pass
 

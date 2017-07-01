@@ -34,6 +34,20 @@ class Cluster(object):
         return not self.is_dense
 
     def rebuild(self, exprs):
+        """
+        Build a new cluster with expressions ``exprs`` having same stencil
+        as ``self``.
+        """
+        return Cluster(exprs, self.stencil)
+
+    def reschedule(self, exprs):
+        """
+        Build a new cluster with expressions ``exprs`` having same stencil
+        as ``self``. The order of the expressions in the new cluster is such that
+        self's ordering is honored.
+        """
+        g = temporaries_graph(exprs)
+        exprs = g.reschedule(self.exprs)
         return Cluster(exprs, self.stencil)
 
 

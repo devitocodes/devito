@@ -7,7 +7,9 @@ __all__ = ['compose_nodes', 'copy_arrays']
 
 
 def compose_nodes(nodes, retrieve=False):
-    """Build an Iteration/Expression tree by nesting the nodes in ``nodes``."""
+    """
+    Build an Iteration/Expression tree by nesting the nodes in ``nodes``.
+    """
     l = list(nodes)
     tree = []
 
@@ -25,10 +27,12 @@ def compose_nodes(nodes, retrieve=False):
 
 
 def copy_arrays(mapper, reverse=False):
-    """Build an Iteration/Expression tree performing the copy ``k = v``, or
+    """
+    Build an Iteration/Expression tree performing the copy ``k = v``, or
     ``v = k`` if reverse=True, for each (k, v) in mapper. (k, v) are expected
     to be of type :class:`IndexedData`. The loop bounds are inferred from
-    the dimensions used in ``k``."""
+    the dimensions used in ``k``.
+    """
     if not mapper:
         return ()
 

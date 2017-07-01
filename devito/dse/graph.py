@@ -174,6 +174,48 @@ class TemporariesGraph(OrderedDict):
                                     [(k, v)] + list(queue.items()))
         return found.values()
 
+    def reschedule(self, context):
+        """
+        Starting from the temporaries in ``self``, return a new sequence of
+        expressions that: ::
+
+            * includes all expressions in ``context`` not appearing in ``self``, and
+            * is ordered so that the ordering in ``context`` is honored.
+
+        Examples
+        ========
+        Assume that: ::
+
+            * ``self`` has five temporaries ``[t0, t1, t2, e1, e2]``,
+            * ``t1`` depends on the temporary ``e1``, and ``t2`` depends on ``t1``
+            * ``context = [e1, e2]``
+
+        Then the following sequence is returned ``[t0, e1, t1, t2, e2]``.
+
+        If, instead, we had had everything like before except: ::
+
+            * ``context = [t1, e1, e2]``
+
+        Then the following sequence is returned ``[t0, t1, t2, e1, e2]``.
+        That is, in the latter example the original ordering dictated by ``context``
+        was honored.
+        """
+        processed = [i.lhs for i in context]
+        queue = [i for i in self if i not in processed]
+        while queue:
+            k = queue.pop(0)
+            handle = self[k].readby
+            if all(i in processed for i in handle):
+                index = min(processed.index(i) for i in handle)
+                processed.insert(index, k)
+            else:
+                # Note: push at the back
+                queue.append(k)
+
+        processed = [self[i] for i in processed]
+
+        return processed
+
     def time_invariant(self, expr=None):
         """
         Check if ``expr`` is time invariant. ``expr`` may be an expression ``e``
