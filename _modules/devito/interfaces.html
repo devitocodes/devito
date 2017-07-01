@@ -279,6 +279,12 @@
             <span class="n">options</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;options&#39;</span><span class="p">,</span> <span class="p">{})</span>
             <span class="n">newobj</span> <span class="o">=</span> <span class="n">Function</span><span class="o">.</span><span class="fm">__new__</span><span class="p">(</span><span class="n">newcls</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">options</span><span class="p">)</span>
             <span class="n">newobj</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+
+            <span class="c1"># All objects cached on the AbstractSymbol /newobj/ keep a reference</span>
+            <span class="c1"># to /newobj/ through the /function/ field. Thus, all indexified</span>
+            <span class="c1"># object will point to /newobj/, the &quot;actual Function&quot;.</span>
+            <span class="n">newobj</span><span class="o">.</span><span class="n">function</span> <span class="o">=</span> <span class="n">newobj</span>
+
             <span class="c1"># Store new instance in symbol cache</span>
             <span class="n">newcls</span><span class="o">.</span><span class="n">_cache_put</span><span class="p">(</span><span class="n">newobj</span><span class="p">)</span>
         <span class="k">return</span> <span class="n">newobj</span>
@@ -296,7 +302,26 @@
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">indexed</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;Extract a :class:`IndexedData` object from the current object.&quot;&quot;&quot;</span>
-        <span class="k">return</span> <span class="n">IndexedData</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">shape</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span> <span class="n">function</span><span class="o">=</span><span class="bp">self</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">IndexedData</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">shape</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span> <span class="n">function</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">function</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">symbolic_shape</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Return the symbolic shape of the object. For an entry ``E`` in ``self.shape``,</span>
+<span class="sd">        there are two possibilities: ::</span>
+
+<span class="sd">            * ``E`` is already in symbolic form, then simply use ``E``.</span>
+<span class="sd">            * ``E`` is an integer representing the size along a dimension ``D``,</span>
+<span class="sd">              then, use a symbolic representation of ``D``.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">sshape</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">indices</span><span class="p">):</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">i</span><span class="o">.</span><span class="n">is_algebraic_expr</span><span class="p">()</span>
+                <span class="n">sshape</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">i</span><span class="p">)</span>
+            <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>
+                <span class="n">sshape</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">j</span><span class="o">.</span><span class="n">symbolic_size</span><span class="p">)</span>
+        <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">sshape</span><span class="p">)</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">_mem_external</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
@@ -326,13 +351,22 @@
 
 
 <span class="k">class</span> <span class="nc">SymbolicFunction</span><span class="p">(</span><span class="n">AbstractSymbol</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;A symbolic function object.&quot;&quot;&quot;</span>
+
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    A symbolic function object, created and managed directly by Devito.</span>
+
+<span class="sd">    Unlike :class:`SymbolicData` objects, the state of a SymbolicFunction</span>
+<span class="sd">    is mutable.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">is_SymbolicFunction</span> <span class="o">=</span> <span class="kc">True</span>
 
     <span class="k">def</span> <span class="nf">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
         <span class="n">kwargs</span><span class="o">.</span><span class="n">update</span><span class="p">({</span><span class="s1">&#39;options&#39;</span><span class="p">:</span> <span class="p">{</span><span class="s1">&#39;evaluate&#39;</span><span class="p">:</span> <span class="kc">False</span><span class="p">}})</span>
         <span class="k">return</span> <span class="n">AbstractSymbol</span><span class="o">.</span><span class="fm">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">update</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span>
 
 
 <span class="k">class</span> <span class="nc">ScalarFunction</span><span class="p">(</span><span class="n">SymbolicFunction</span><span class="p">):</span>
@@ -357,6 +391,9 @@
 <span class="sd">        in a C module, False otherwise.&quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="kc">True</span>
 
+    <span class="k">def</span> <span class="nf">update</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">dtype</span> <span class="o">=</span> <span class="n">dtype</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">dtype</span>
+
 
 <span class="k">class</span> <span class="nc">TensorFunction</span><span class="p">(</span><span class="n">SymbolicFunction</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;Symbolic object representing a tensor.</span>
@@ -376,7 +413,7 @@
             <span class="bp">self</span><span class="o">.</span><span class="n">shape</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;shape&#39;</span><span class="p">)</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">indices</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;dimensions&#39;</span><span class="p">)</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">dtype</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;dtype&#39;</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">onstack</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;onstack&#39;</span><span class="p">,</span> <span class="kc">False</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_onstack</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;onstack&#39;</span><span class="p">,</span> <span class="kc">False</span><span class="p">)</span>
 
     <span class="nd">@classmethod</span>
     <span class="k">def</span> <span class="nf">_indices</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
@@ -384,11 +421,17 @@
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">_mem_stack</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">onstack</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_onstack</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">_mem_heap</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">return</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">onstack</span>
+        <span class="k">return</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_onstack</span>
+
+    <span class="k">def</span> <span class="nf">update</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">shape</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">dimensions</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">onstack</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">dtype</span> <span class="o">=</span> <span class="n">dtype</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">dtype</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">shape</span> <span class="o">=</span> <span class="n">shape</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">shape</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">indices</span> <span class="o">=</span> <span class="n">dimensions</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">indices</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_onstack</span> <span class="o">=</span> <span class="n">onstack</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">_mem_stack</span>
 
 
 <span class="k">class</span> <span class="nc">SymbolicData</span><span class="p">(</span><span class="n">AbstractSymbol</span><span class="p">):</span>

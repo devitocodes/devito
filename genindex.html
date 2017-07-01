@@ -165,6 +165,7 @@
  | <a href="#E"><strong>E</strong></a>
  | <a href="#F"><strong>F</strong></a>
  | <a href="#G"><strong>G</strong></a>
+ | <a href="#H"><strong>H</strong></a>
  | <a href="#I"><strong>I</strong></a>
  | <a href="#J"><strong>J</strong></a>
  | <a href="#L"><strong>L</strong></a>
@@ -183,20 +184,14 @@
 <h2 id="A">A</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="devito.html#devito.profiling.Profiler.add">add() (devito.profiling.Profiler method)</a>
-
-      <ul>
-        <li><a href="devito.html#devito.stencil.Stencil.add">(devito.stencil.Stencil method)</a>
-</li>
-      </ul></li>
-      <li><a href="devito.html#devito.tools.aligned">aligned() (in module devito.tools)</a>
+      <li><a href="devito.html#devito.stencil.Stencil.add">add() (devito.stencil.Stencil method)</a>
 </li>
       <li><a href="devito.html#devito.cgen_utils.Allocator">Allocator (class in devito.cgen_utils)</a>
 </li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="devito.html#devito.stencil.Stencil.anti">anti() (devito.stencil.Stencil method)</a>
 </li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="devito.html#devito.nodes.Node.args">args (devito.nodes.Node attribute)</a>
 </li>
       <li><a href="devito.html#devito.nodes.Node.args_frozen">args_frozen (devito.nodes.Node attribute)</a>
@@ -232,9 +227,13 @@
 </li>
         <li><a href="devito.html#devito.nodes.Expression.ccode">(devito.nodes.Expression attribute)</a>
 </li>
+        <li><a href="devito.html#devito.nodes.FunCall.ccode">(devito.nodes.FunCall attribute)</a>
+</li>
         <li><a href="devito.html#devito.nodes.Function.ccode">(devito.nodes.Function attribute)</a>
 </li>
         <li><a href="devito.html#devito.nodes.Iteration.ccode">(devito.nodes.Iteration attribute)</a>
+</li>
+        <li><a href="devito.html#devito.nodes.LocalExpression.ccode">(devito.nodes.LocalExpression attribute)</a>
 </li>
         <li><a href="devito.html#devito.nodes.Node.ccode">(devito.nodes.Node attribute)</a>
 </li>
@@ -277,9 +276,9 @@
 </li>
       <li><a href="devito.html#devito.tools.DefaultOrderedDict.copy">copy() (devito.tools.DefaultOrderedDict method)</a>
 </li>
-      <li><a href="devito.html#devito.finite_difference.cross_derivative">cross_derivative() (in module devito.finite_difference)</a>
+      <li><a href="devito.html#devito.profiling.create_profile">create_profile() (in module devito.profiling)</a>
 </li>
-      <li><a href="devito.html#devito.profiling.Profiler.ctype">ctype (devito.profiling.Profiler attribute)</a>
+      <li><a href="devito.html#devito.finite_difference.cross_derivative">cross_derivative() (in module devito.finite_difference)</a>
 </li>
   </ul></td>
 </tr></table>
@@ -301,9 +300,11 @@
         <li><a href="devito.html#devito.pointdata.PointData.default_assumptions">(devito.pointdata.PointData attribute)</a>
 </li>
       </ul></li>
-      <li><a href="devito.html#devito.visitors.FindNodes.default_retval">default_retval() (devito.visitors.FindNodes class method)</a>
+      <li><a href="devito.html#devito.visitors.FindAdjacentIterations.default_retval">default_retval() (devito.visitors.FindAdjacentIterations class method)</a>
 
       <ul>
+        <li><a href="devito.html#devito.visitors.FindNodes.default_retval">(devito.visitors.FindNodes class method)</a>
+</li>
         <li><a href="devito.html#devito.visitors.FindScopes.default_retval">(devito.visitors.FindScopes class method)</a>
 </li>
         <li><a href="devito.html#devito.visitors.FindSections.default_retval">(devito.visitors.FindSections class method)</a>
@@ -312,6 +313,8 @@
 </li>
       </ul></li>
       <li><a href="devito.html#devito.tools.DefaultOrderedDict">DefaultOrderedDict (class in devito.tools)</a>
+</li>
+      <li><a href="devito.html#devito.nodes.Denormals">Denormals (class in devito.nodes)</a>
 </li>
       <li><a href="devito.html#devito.interfaces.DenseData">DenseData (class in devito.interfaces)</a>
 </li>
@@ -449,6 +452,8 @@
 </li>
       <li><a href="devito.html#devito.tools.filter_sorted">filter_sorted() (in module devito.tools)</a>
 </li>
+      <li><a href="devito.html#devito.visitors.FindAdjacentIterations">FindAdjacentIterations (class in devito.visitors)</a>
+</li>
       <li><a href="devito.html#devito.visitors.FindNodes">FindNodes (class in devito.visitors)</a>
 </li>
       <li><a href="devito.html#devito.visitors.FindScopes">FindScopes (class in devito.visitors)</a>
@@ -471,6 +476,8 @@
 </li>
       <li><a href="devito.html#devito.stencil.Stencil.frozen">frozen (devito.stencil.Stencil attribute)</a>
 </li>
+      <li><a href="devito.html#devito.nodes.FunCall">FunCall (class in devito.nodes)</a>
+</li>
       <li><a href="devito.html#devito.nodes.Function">Function (class in devito.nodes)</a>
 </li>
   </ul></td>
@@ -488,6 +495,14 @@
       <li><a href="devito.html#devito.compiler.GNUCompiler">GNUCompiler (class in devito.compiler)</a>
 </li>
       <li><a href="devito.html#devito.tools.grouper">grouper() (in module devito.tools)</a>
+</li>
+  </ul></td>
+</tr></table>
+
+<h2 id="H">H</h2>
+<table style="width: 100%" class="indextable genindextable"><tr>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="devito.html#devito.visitors.FindAdjacentIterations.handler">handler() (devito.visitors.FindAdjacentIterations method)</a>
 </li>
   </ul></td>
 </tr></table>
@@ -531,8 +546,12 @@
         <li><a href="devito.html#devito.nodes.Node.is_Expression">(devito.nodes.Node attribute)</a>
 </li>
       </ul></li>
-      <li><a href="devito.html#devito.nodes.Node.is_FunCall">is_FunCall (devito.nodes.Node attribute)</a>
+      <li><a href="devito.html#devito.nodes.FunCall.is_FunCall">is_FunCall (devito.nodes.FunCall attribute)</a>
+
+      <ul>
+        <li><a href="devito.html#devito.nodes.Node.is_FunCall">(devito.nodes.Node attribute)</a>
 </li>
+      </ul></li>
       <li><a href="devito.html#devito.nodes.Function.is_Function">is_Function (devito.nodes.Function attribute)</a>
 
       <ul>
@@ -547,6 +566,8 @@
         <li><a href="devito.html#devito.nodes.Node.is_Iteration">(devito.nodes.Node attribute)</a>
 </li>
       </ul></li>
+      <li><a href="devito.html#devito.nodes.Node.is_IterationFold">is_IterationFold (devito.nodes.Node attribute)</a>
+</li>
       <li><a href="devito.html#devito.nodes.List.is_List">is_List (devito.nodes.List attribute)</a>
 
       <ul>
@@ -562,6 +583,8 @@
       <li><a href="devito.html#devito.nodes.Iteration.is_Parallel">is_Parallel (devito.nodes.Iteration attribute)</a>
 </li>
       <li><a href="devito.html#devito.pointdata.PointData.is_PointData">is_PointData (devito.pointdata.PointData attribute)</a>
+</li>
+      <li><a href="devito.html#devito.nodes.Iteration.is_Remainder">is_Remainder (devito.nodes.Iteration attribute)</a>
 </li>
       <li><a href="devito.html#devito.nodes.Expression.is_scalar">is_scalar (devito.nodes.Expression attribute)</a>
 </li>
@@ -595,11 +618,13 @@
 </li>
       <li><a href="devito.html#devito.interfaces.DenseData.laplace2">laplace2() (devito.interfaces.DenseData method)</a>
 </li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="devito.html#devito.nodes.List">List (class in devito.nodes)</a>
 </li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="devito.html#devito.compiler.load">load() (in module devito.compiler)</a>
+</li>
+      <li><a href="devito.html#devito.nodes.LocalExpression">LocalExpression (class in devito.nodes)</a>
 </li>
       <li><a href="devito.html#devito.logger.log">log() (in module devito.logger)</a>, <a href="devito.html#devito.logger.log">[1]</a>
 </li>
@@ -612,17 +637,25 @@
       <li><a href="devito.html#devito.memory.malloc_aligned">malloc_aligned() (in module devito.memory)</a>
 </li>
   </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="devito.html#devito.profiling.Profile.memory">memory (devito.profiling.Profile attribute)</a>
+</li>
+  </ul></td>
 </tr></table>
 
 <h2 id="N">N</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="devito.html#devito.nodes.TimedList.name">name (devito.nodes.TimedList attribute)</a>
+
+      <ul>
+        <li><a href="devito.html#devito.profiling.Profile.name">(devito.profiling.Profile attribute)</a>
 </li>
-      <li><a href="devito.html#devito.visitors.NestedTransformer">NestedTransformer (class in devito.visitors)</a>
-</li>
+      </ul></li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="devito.html#devito.visitors.NestedTransformer">NestedTransformer (class in devito.visitors)</a>
+</li>
       <li><a href="devito.html#devito.nodes.Node">Node (class in devito.nodes)</a>
 </li>
       <li><a href="devito.html#devito.stencil.Stencil.null">null() (devito.stencil.Stencil method)</a>
@@ -642,6 +675,8 @@
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="devito.html#devito.operator.Operator">Operator (class in devito.operator)</a>
+</li>
+      <li><a href="devito.html#devito.profiling.Profile.ops">ops (devito.profiling.Profile attribute)</a>
 </li>
       <li><a href="devito.html#devito.nodes.Expression.output">output (devito.nodes.Expression attribute)</a>
 </li>
@@ -663,15 +698,19 @@
 </li>
       <li><a href="devito.html#devito.tools.pprint">pprint() (in module devito.tools)</a>
 </li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="devito.html#devito.parameters.print_defaults">print_defaults() (in module devito.parameters)</a>
 </li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="devito.html#devito.parameters.print_state">print_state() (in module devito.parameters)</a>
 </li>
       <li><a href="devito.html#devito.visitors.printAST">printAST() (in module devito.visitors)</a>
 </li>
-      <li><a href="devito.html#devito.profiling.Profiler">Profiler (class in devito.profiling)</a>
+      <li><a href="devito.html#devito.cgen_utils.printmark">printmark() (in module devito.cgen_utils)</a>
+</li>
+      <li><a href="devito.html#devito.cgen_utils.printvar">printvar() (in module devito.cgen_utils)</a>
+</li>
+      <li><a href="devito.html#devito.profiling.Profile">Profile (class in devito.profiling)</a>
 </li>
       <li><a href="devito.html#devito.cgen_utils.Allocator.push_heap">push_heap() (devito.cgen_utils.Allocator method)</a>
 </li>
@@ -713,8 +752,6 @@
 </li>
       <li><a href="devito.html#devito.logger.set_log_noperf">set_log_noperf() (in module devito.logger)</a>
 </li>
-      <li><a href="devito.html#devito.profiling.Profiler.setup">setup() (devito.profiling.Profiler method)</a>
-</li>
       <li><a href="devito.html#devito.nodes.Expression.shape">shape (devito.nodes.Expression attribute)</a>
 </li>
       <li><a href="devito.html#devito.stencil.Stencil.split">split() (devito.stencil.Stencil method)</a>
@@ -745,15 +782,11 @@
   <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="devito.html#devito.interfaces.TimeData">TimeData (class in devito.interfaces)</a>
 </li>
-      <li><a href="devito.html#devito.nodes.TimedList">TimedList (class in devito.nodes)</a>
-</li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="devito.html#devito.profiling.Profiler.timings">timings (devito.profiling.Profiler attribute)</a>
+      <li><a href="devito.html#devito.nodes.TimedList">TimedList (class in devito.nodes)</a>
 </li>
       <li><a href="devito.html#devito.visitors.Transformer">Transformer (class in devito.visitors)</a>
-</li>
-      <li><a href="devito.html#devito.profiling.Profiler.typename">typename (devito.profiling.Profiler attribute)</a>
 </li>
   </ul></td>
 </tr></table>
@@ -769,7 +802,7 @@
 <h2 id="V">V</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="devito.html#devito.profiling.Profiler.varname">varname (devito.profiling.Profiler attribute)</a>
+      <li><a href="devito.html#devito.nodes.Node.view">view (devito.nodes.Node attribute)</a>
 </li>
       <li><a href="devito.html#devito.visitors.Transformer.visit">visit() (devito.visitors.Transformer method)</a>
 </li>
@@ -797,9 +830,11 @@
         <li><a href="devito.html#devito.visitors.FindSections.visit_FunCall">(devito.visitors.FindSections method)</a>
 </li>
       </ul></li>
-      <li><a href="devito.html#devito.visitors.FindSections.visit_Iteration">visit_Iteration() (devito.visitors.FindSections method)</a>
+      <li><a href="devito.html#devito.visitors.FindAdjacentIterations.visit_Iteration">visit_Iteration() (devito.visitors.FindAdjacentIterations method)</a>
 
       <ul>
+        <li><a href="devito.html#devito.visitors.FindSections.visit_Iteration">(devito.visitors.FindSections method)</a>
+</li>
         <li><a href="devito.html#devito.visitors.FindSymbols.visit_Iteration">(devito.visitors.FindSymbols method)</a>
 </li>
         <li><a href="devito.html#devito.visitors.IsPerfectIteration.visit_Iteration">(devito.visitors.IsPerfectIteration method)</a>
@@ -811,9 +846,11 @@
   <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="devito.html#devito.visitors.Transformer.visit_list">visit_list() (devito.visitors.Transformer method)</a>
 </li>
-      <li><a href="devito.html#devito.visitors.FindNodes.visit_Node">visit_Node() (devito.visitors.FindNodes method)</a>
+      <li><a href="devito.html#devito.visitors.FindAdjacentIterations.visit_Node">visit_Node() (devito.visitors.FindAdjacentIterations method)</a>
 
       <ul>
+        <li><a href="devito.html#devito.visitors.FindNodes.visit_Node">(devito.visitors.FindNodes method)</a>
+</li>
         <li><a href="devito.html#devito.visitors.FindSections.visit_Node">(devito.visitors.FindSections method)</a>
 </li>
         <li><a href="devito.html#devito.visitors.IsPerfectIteration.visit_Node">(devito.visitors.IsPerfectIteration method)</a>
@@ -823,17 +860,21 @@
         <li><a href="devito.html#devito.visitors.Transformer.visit_Node">(devito.visitors.Transformer method)</a>
 </li>
       </ul></li>
-      <li><a href="devito.html#devito.visitors.FindNodes.visit_object">visit_object() (devito.visitors.FindNodes method)</a>
+      <li><a href="devito.html#devito.visitors.FindAdjacentIterations.visit_object">visit_object() (devito.visitors.FindAdjacentIterations method)</a>
 
       <ul>
+        <li><a href="devito.html#devito.visitors.FindNodes.visit_object">(devito.visitors.FindNodes method)</a>
+</li>
         <li><a href="devito.html#devito.visitors.IsPerfectIteration.visit_object">(devito.visitors.IsPerfectIteration method)</a>
 </li>
         <li><a href="devito.html#devito.visitors.Transformer.visit_object">(devito.visitors.Transformer method)</a>
 </li>
       </ul></li>
-      <li><a href="devito.html#devito.visitors.FindNodes.visit_tuple">visit_tuple() (devito.visitors.FindNodes method)</a>
+      <li><a href="devito.html#devito.visitors.FindAdjacentIterations.visit_tuple">visit_tuple() (devito.visitors.FindAdjacentIterations method)</a>
 
       <ul>
+        <li><a href="devito.html#devito.visitors.FindNodes.visit_tuple">(devito.visitors.FindNodes method)</a>
+</li>
         <li><a href="devito.html#devito.visitors.FindSections.visit_tuple">(devito.visitors.FindSections method)</a>
 </li>
         <li><a href="devito.html#devito.visitors.FindSymbols.visit_tuple">(devito.visitors.FindSymbols method)</a>

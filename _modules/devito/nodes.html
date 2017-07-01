@@ -176,8 +176,8 @@
 <span class="kn">from</span> <span class="nn">devito.stencil</span> <span class="k">import</span> <span class="n">Stencil</span>
 <span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">as_tuple</span><span class="p">,</span> <span class="n">filter_ordered</span>
 
-<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;Node&#39;</span><span class="p">,</span> <span class="s1">&#39;Block&#39;</span><span class="p">,</span> <span class="s1">&#39;Expression&#39;</span><span class="p">,</span> <span class="s1">&#39;Function&#39;</span><span class="p">,</span> <span class="s1">&#39;Iteration&#39;</span><span class="p">,</span> <span class="s1">&#39;List&#39;</span><span class="p">,</span>
-           <span class="s1">&#39;TimedList&#39;</span><span class="p">]</span>
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;Node&#39;</span><span class="p">,</span> <span class="s1">&#39;Block&#39;</span><span class="p">,</span> <span class="s1">&#39;Denormals&#39;</span><span class="p">,</span> <span class="s1">&#39;Expression&#39;</span><span class="p">,</span> <span class="s1">&#39;Function&#39;</span><span class="p">,</span> <span class="s1">&#39;FunCall&#39;</span><span class="p">,</span>
+           <span class="s1">&#39;Iteration&#39;</span><span class="p">,</span> <span class="s1">&#39;List&#39;</span><span class="p">,</span> <span class="s1">&#39;LocalExpression&#39;</span><span class="p">,</span> <span class="s1">&#39;TimedList&#39;</span><span class="p">]</span>
 
 
 <div class="viewcode-block" id="Node"><a class="viewcode-back" href="../../devito.html#devito.nodes.Node">[docs]</a><span class="k">class</span> <span class="nc">Node</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
@@ -185,6 +185,7 @@
     <span class="n">is_Node</span> <span class="o">=</span> <span class="kc">True</span>
     <span class="n">is_Block</span> <span class="o">=</span> <span class="kc">False</span>
     <span class="n">is_Iteration</span> <span class="o">=</span> <span class="kc">False</span>
+    <span class="n">is_IterationFold</span> <span class="o">=</span> <span class="kc">False</span>
     <span class="n">is_Expression</span> <span class="o">=</span> <span class="kc">False</span>
     <span class="n">is_Function</span> <span class="o">=</span> <span class="kc">False</span>
     <span class="n">is_FunCall</span> <span class="o">=</span> <span class="kc">False</span>
@@ -218,6 +219,14 @@
     <span class="k">def</span> <span class="nf">ccode</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;Generate C code.&quot;&quot;&quot;</span>
         <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">()</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">view</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Generate a representation of the Iteration/Expression tree rooted in ``self``.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="kn">from</span> <span class="nn">devito.visitors</span> <span class="k">import</span> <span class="n">printAST</span>
+        <span class="k">return</span> <span class="n">printAST</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">children</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
@@ -293,7 +302,7 @@
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">element</span>
 
 
-<span class="k">class</span> <span class="nc">FunCall</span><span class="p">(</span><span class="n">Node</span><span class="p">):</span>
+<div class="viewcode-block" id="FunCall"><a class="viewcode-back" href="../../devito.html#devito.nodes.FunCall">[docs]</a><span class="k">class</span> <span class="nc">FunCall</span><span class="p">(</span><span class="n">Node</span><span class="p">):</span>
 
     <span class="sd">&quot;&quot;&quot;A node representing a function call.&quot;&quot;&quot;</span>
 
@@ -308,7 +317,7 @@
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">ccode</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">return</span> <span class="n">c</span><span class="o">.</span><span class="n">Statement</span><span class="p">(</span><span class="s1">&#39;</span><span class="si">%s</span><span class="s1">(</span><span class="si">%s</span><span class="s1">)&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="s1">&#39;,&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">params</span><span class="p">)))</span>
+        <span class="k">return</span> <span class="n">c</span><span class="o">.</span><span class="n">Statement</span><span class="p">(</span><span class="s1">&#39;</span><span class="si">%s</span><span class="s1">(</span><span class="si">%s</span><span class="s1">)&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="s1">&#39;,&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">params</span><span class="p">)))</span></div>
 
 
 <div class="viewcode-block" id="Expression"><a class="viewcode-back" href="../../devito.html#devito.nodes.Expression">[docs]</a><span class="k">class</span> <span class="nc">Expression</span><span class="p">(</span><span class="n">Node</span><span class="p">):</span>
@@ -397,11 +406,9 @@
 
 
 <div class="viewcode-block" id="Iteration"><a class="viewcode-back" href="../../devito.html#devito.nodes.Iteration">[docs]</a><span class="k">class</span> <span class="nc">Iteration</span><span class="p">(</span><span class="n">Node</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;Iteration object that encapsualtes a single loop over nodes, possibly</span>
-<span class="sd">    just SymPy expressions.</span>
+    <span class="sd">&quot;&quot;&quot;Iteration object that encapsualtes a single loop over nodes.</span>
 
-<span class="sd">    :param nodes: Single or list of :class:`Node` objects that</span>
-<span class="sd">                        define the loop body.</span>
+<span class="sd">    :param nodes: Single or list of :class:`Node` objects defining the loop body.</span>
 <span class="sd">    :param dimension: :class:`Dimension` object over which to iterate.</span>
 <span class="sd">    :param limits: Limits for the iteration space, either the loop size or a</span>
 <span class="sd">                   tuple of the form (start, finish, stepping).</span>
@@ -410,6 +417,7 @@
 <span class="sd">    :param properties: A bag of strings indicating properties of this Iteration.</span>
 <span class="sd">                       For example, the string &#39;parallel&#39; may be used to identify</span>
 <span class="sd">                       a parallelizable Iteration.</span>
+<span class="sd">    :param pragmas: A bag of pragmas attached to this Iteration.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">is_Iteration</span> <span class="o">=</span> <span class="kc">True</span>
@@ -424,11 +432,12 @@
 <span class="sd">                    executed in parallel.</span>
 <span class="sd">        * vector-dim: A (SIMD) vectorizable iteration space.</span>
 <span class="sd">        * elemental: Hoistable to an elemental function.</span>
+<span class="sd">        * remainder: A remainder iteration (e.g., by-product of some transformations)</span>
 <span class="sd">    &quot;&quot;&quot;</span>
-    <span class="n">_known_properties</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;sequential&#39;</span><span class="p">,</span> <span class="s1">&#39;parallel&#39;</span><span class="p">,</span> <span class="s1">&#39;vector-dim&#39;</span><span class="p">,</span> <span class="s1">&#39;elemental&#39;</span><span class="p">]</span>
+    <span class="n">_known_properties</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;sequential&#39;</span><span class="p">,</span> <span class="s1">&#39;parallel&#39;</span><span class="p">,</span> <span class="s1">&#39;vector-dim&#39;</span><span class="p">,</span> <span class="s1">&#39;elemental&#39;</span><span class="p">,</span> <span class="s1">&#39;remainder&#39;</span><span class="p">]</span>
 
     <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">nodes</span><span class="p">,</span> <span class="n">dimension</span><span class="p">,</span> <span class="n">limits</span><span class="p">,</span> <span class="n">index</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">offsets</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
-                 <span class="n">properties</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+                 <span class="n">properties</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">pragmas</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
         <span class="c1"># Ensure we deal with a list of Expression objects internally</span>
         <span class="n">nodes</span> <span class="o">=</span> <span class="n">as_tuple</span><span class="p">(</span><span class="n">nodes</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">nodes</span> <span class="o">=</span> <span class="n">as_tuple</span><span class="p">([</span><span class="n">n</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">n</span><span class="p">,</span> <span class="n">Node</span><span class="p">)</span> <span class="k">else</span> <span class="n">Expression</span><span class="p">(</span><span class="n">n</span><span class="p">)</span>
@@ -458,9 +467,10 @@
             <span class="bp">self</span><span class="o">.</span><span class="n">offsets</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">offsets</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="nb">int</span><span class="p">(</span><span class="n">off</span><span class="p">))</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">offsets</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">offsets</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="nb">int</span><span class="p">(</span><span class="n">off</span><span class="p">))</span>
 
-        <span class="c1"># Track this Iteration&#39;s properties</span>
+        <span class="c1"># Track this Iteration&#39;s properties and pragmas</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">properties</span> <span class="o">=</span> <span class="n">as_tuple</span><span class="p">(</span><span class="n">properties</span><span class="p">)</span>
         <span class="k">assert</span> <span class="p">(</span><span class="n">i</span> <span class="ow">in</span> <span class="n">Iteration</span><span class="o">.</span><span class="n">_known_properties</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">properties</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">pragmas</span> <span class="o">=</span> <span class="n">as_tuple</span><span class="p">(</span><span class="n">pragmas</span><span class="p">)</span>
 
     <span class="k">def</span> <span class="nf">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="n">properties</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span>
@@ -507,7 +517,10 @@
             <span class="n">loop_cond</span> <span class="o">=</span> <span class="s1">&#39;</span><span class="si">%s</span><span class="s1"> &lt; </span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">index</span><span class="p">,</span> <span class="n">ccode</span><span class="p">(</span><span class="n">end</span><span class="p">))</span>
             <span class="n">loop_inc</span> <span class="o">=</span> <span class="s1">&#39;</span><span class="si">%s</span><span class="s1"> += </span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">index</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">limits</span><span class="p">[</span><span class="mi">2</span><span class="p">])</span>
 
-        <span class="k">return</span> <span class="n">c</span><span class="o">.</span><span class="n">For</span><span class="p">(</span><span class="n">loop_init</span><span class="p">,</span> <span class="n">loop_cond</span><span class="p">,</span> <span class="n">loop_inc</span><span class="p">,</span> <span class="n">c</span><span class="o">.</span><span class="n">Block</span><span class="p">(</span><span class="n">loop_body</span><span class="p">))</span>
+        <span class="n">handle</span> <span class="o">=</span> <span class="n">c</span><span class="o">.</span><span class="n">For</span><span class="p">(</span><span class="n">loop_init</span><span class="p">,</span> <span class="n">loop_cond</span><span class="p">,</span> <span class="n">loop_inc</span><span class="p">,</span> <span class="n">c</span><span class="o">.</span><span class="n">Block</span><span class="p">(</span><span class="n">loop_body</span><span class="p">))</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">pragmas</span><span class="p">:</span>
+            <span class="n">handle</span> <span class="o">=</span> <span class="n">c</span><span class="o">.</span><span class="n">Module</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">pragmas</span> <span class="o">+</span> <span class="p">(</span><span class="n">handle</span><span class="p">,))</span>
+        <span class="k">return</span> <span class="n">handle</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">is_Open</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
@@ -532,6 +545,10 @@
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">is_Elementizable</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">return</span> <span class="s1">&#39;elemental&#39;</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">properties</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">is_Remainder</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="s1">&#39;remainder&#39;</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">properties</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">bounds_symbolic</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
@@ -642,7 +659,8 @@
         <span class="n">alignment</span> <span class="o">=</span> <span class="s2">&quot;__attribute__((aligned(64)))&quot;</span>
         <span class="n">handle</span> <span class="o">=</span> <span class="p">[</span><span class="n">f</span> <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">parameters</span>
                   <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="p">(</span><span class="n">SymbolicData</span><span class="p">,</span> <span class="n">TensorFunction</span><span class="p">))]</span>
-        <span class="n">shapes</span> <span class="o">=</span> <span class="p">[(</span><span class="n">f</span><span class="p">,</span> <span class="s1">&#39;&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">([</span><span class="s2">&quot;[</span><span class="si">%s</span><span class="s2">]&quot;</span> <span class="o">%</span> <span class="n">i</span><span class="o">.</span><span class="n">ccode</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">f</span><span class="o">.</span><span class="n">indices</span><span class="p">[</span><span class="mi">1</span><span class="p">:]]))</span> <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">handle</span><span class="p">]</span>
+        <span class="n">shapes</span> <span class="o">=</span> <span class="p">[(</span><span class="n">f</span><span class="p">,</span> <span class="s1">&#39;&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">([</span><span class="s2">&quot;[</span><span class="si">%s</span><span class="s2">]&quot;</span> <span class="o">%</span> <span class="n">ccode</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">f</span><span class="o">.</span><span class="n">symbolic_shape</span><span class="p">[</span><span class="mi">1</span><span class="p">:]]))</span>
+                  <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">handle</span><span class="p">]</span>
         <span class="n">casts</span> <span class="o">=</span> <span class="p">[</span><span class="n">c</span><span class="o">.</span><span class="n">Initializer</span><span class="p">(</span><span class="n">c</span><span class="o">.</span><span class="n">POD</span><span class="p">(</span><span class="n">v</span><span class="o">.</span><span class="n">dtype</span><span class="p">,</span>
                                      <span class="s1">&#39;(*restrict </span><span class="si">%s</span><span class="s1">)</span><span class="si">%s</span><span class="s1"> </span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">v</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">shape</span><span class="p">,</span> <span class="n">alignment</span><span class="p">)),</span>
                                <span class="s1">&#39;(</span><span class="si">%s</span><span class="s1"> (*)</span><span class="si">%s</span><span class="s1">) </span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">c</span><span class="o">.</span><span class="n">dtype_to_ctype</span><span class="p">(</span><span class="n">v</span><span class="o">.</span><span class="n">dtype</span><span class="p">),</span>
@@ -703,7 +721,7 @@
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_name</span></div>
 
 
-<span class="k">class</span> <span class="nc">Denormals</span><span class="p">(</span><span class="n">List</span><span class="p">):</span>
+<div class="viewcode-block" id="Denormals"><a class="viewcode-back" href="../../devito.html#devito.nodes.Denormals">[docs]</a><span class="k">class</span> <span class="nc">Denormals</span><span class="p">(</span><span class="n">List</span><span class="p">):</span>
 
     <span class="sd">&quot;&quot;&quot;Macros to make sure denormal numbers are flushed in hardware.&quot;&quot;&quot;</span>
 
@@ -714,10 +732,10 @@
         <span class="nb">super</span><span class="p">(</span><span class="n">Denormals</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">header</span><span class="p">,</span> <span class="n">b</span><span class="p">,</span> <span class="n">footer</span><span class="p">)</span>
 
     <span class="k">def</span> <span class="nf">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">return</span> <span class="s2">&quot;&lt;DenormalsMacro&gt;&quot;</span>
+        <span class="k">return</span> <span class="s2">&quot;&lt;DenormalsMacro&gt;&quot;</span></div>
 
 
-<span class="k">class</span> <span class="nc">LocalExpression</span><span class="p">(</span><span class="n">Expression</span><span class="p">):</span>
+<div class="viewcode-block" id="LocalExpression"><a class="viewcode-back" href="../../devito.html#devito.nodes.LocalExpression">[docs]</a><span class="k">class</span> <span class="nc">LocalExpression</span><span class="p">(</span><span class="n">Expression</span><span class="p">):</span>
 
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Class encpasulating a single expression with known data type</span>
@@ -731,7 +749,7 @@
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">ccode</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="n">ctype</span> <span class="o">=</span> <span class="n">c</span><span class="o">.</span><span class="n">dtype_to_ctype</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dtype</span><span class="p">)</span>
-        <span class="k">return</span> <span class="n">c</span><span class="o">.</span><span class="n">Initializer</span><span class="p">(</span><span class="n">c</span><span class="o">.</span><span class="n">Value</span><span class="p">(</span><span class="n">ctype</span><span class="p">,</span> <span class="n">ccode</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">expr</span><span class="o">.</span><span class="n">lhs</span><span class="p">)),</span> <span class="n">ccode</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">expr</span><span class="o">.</span><span class="n">rhs</span><span class="p">))</span>
+        <span class="k">return</span> <span class="n">c</span><span class="o">.</span><span class="n">Initializer</span><span class="p">(</span><span class="n">c</span><span class="o">.</span><span class="n">Value</span><span class="p">(</span><span class="n">ctype</span><span class="p">,</span> <span class="n">ccode</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">expr</span><span class="o">.</span><span class="n">lhs</span><span class="p">)),</span> <span class="n">ccode</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">expr</span><span class="o">.</span><span class="n">rhs</span><span class="p">))</span></div>
 </pre></div>
 
            </div>

@@ -295,27 +295,6 @@
     <span class="k">return</span> <span class="n">conversion_dict</span><span class="p">[</span><span class="n">dtype</span><span class="p">]</span></div>
 
 
-<div class="viewcode-block" id="aligned"><a class="viewcode-back" href="../../devito.html#devito.tools.aligned">[docs]</a><span class="k">def</span> <span class="nf">aligned</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">alignment</span><span class="o">=</span><span class="mi">16</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;Function to align the memmory</span>
-
-<span class="sd">    :param a: The given memory</span>
-<span class="sd">    :param alignment: Granularity of alignment, 16 bytes by default</span>
-<span class="sd">    :returns: Reference to the start of the aligned memory</span>
-<span class="sd">    &quot;&quot;&quot;</span>
-    <span class="k">if</span> <span class="p">(</span><span class="n">a</span><span class="o">.</span><span class="n">ctypes</span><span class="o">.</span><span class="n">data</span> <span class="o">%</span> <span class="n">alignment</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
-        <span class="k">return</span> <span class="n">a</span>
-
-    <span class="n">extra</span> <span class="o">=</span> <span class="n">alignment</span> <span class="o">/</span> <span class="n">a</span><span class="o">.</span><span class="n">itemsize</span>
-    <span class="n">buf</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">(</span><span class="n">a</span><span class="o">.</span><span class="n">size</span> <span class="o">+</span> <span class="n">extra</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">a</span><span class="o">.</span><span class="n">dtype</span><span class="p">)</span>
-    <span class="n">ofs</span> <span class="o">=</span> <span class="p">(</span><span class="o">-</span><span class="n">buf</span><span class="o">.</span><span class="n">ctypes</span><span class="o">.</span><span class="n">data</span> <span class="o">%</span> <span class="n">alignment</span><span class="p">)</span> <span class="o">/</span> <span class="n">a</span><span class="o">.</span><span class="n">itemsize</span>
-    <span class="n">aa</span> <span class="o">=</span> <span class="n">buf</span><span class="p">[</span><span class="n">ofs</span><span class="p">:</span><span class="n">ofs</span><span class="o">+</span><span class="n">a</span><span class="o">.</span><span class="n">size</span><span class="p">]</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">a</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
-    <span class="n">np</span><span class="o">.</span><span class="n">copyto</span><span class="p">(</span><span class="n">aa</span><span class="p">,</span> <span class="n">a</span><span class="p">)</span>
-
-    <span class="k">assert</span> <span class="p">(</span><span class="n">aa</span><span class="o">.</span><span class="n">ctypes</span><span class="o">.</span><span class="n">data</span> <span class="o">%</span> <span class="n">alignment</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span>
-
-    <span class="k">return</span> <span class="n">aa</span></div>
-
-
 <div class="viewcode-block" id="pprint"><a class="viewcode-back" href="../../devito.html#devito.tools.pprint">[docs]</a><span class="k">def</span> <span class="nf">pprint</span><span class="p">(</span><span class="n">node</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Shortcut to pretty print Iteration/Expression trees.</span>
