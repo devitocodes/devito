@@ -160,8 +160,8 @@ def optimize_unfolded_tree(unfolded, root):
         if all(not j.is_Remainder for j in otree):
             shape = tuple(j.bounds_symbolic[1] for j in otree)
             for j in subs:
-                shape += j.output_function.shape[len(otree):]
-                j.output_function.update(shape=shape, onstack=True)
+                j_shape = shape + j.output_function.shape[len(otree):]
+                j.output_function.update(shape=j_shape, onstack=True)
 
         # Introduce the new iteration variables within root
         candidates = [j.output for j in subs]
