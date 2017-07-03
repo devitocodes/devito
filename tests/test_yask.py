@@ -92,8 +92,8 @@ def test_data_arithmetic_nD():
     assert np.all(arr - u.data == -1.)
 
 
-def test_storage_layout():
-    u = DenseData(name='yu', shape=(10, 10), dimensions=(x, y))
-    op = Operator(Eq(u, 1.), dse='noop', dle='noop')
+def test_simple_operator():
+    u = DenseData(name='yu', shape=(10, 10, 10), dimensions=(x, y, z))
+    op = Operator(Eq(u, 1.))
     op.apply(u)
     assert np.allclose(u.data, 1)
