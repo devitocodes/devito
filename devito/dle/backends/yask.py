@@ -43,8 +43,16 @@ class YaskState(object):
         self.hook_soln = hook_soln
 
     @property
-    def dimensions(self):
+    def space_dimensions(self):
         return self.hook_soln.get_domain_dim_names()
+
+    @property
+    def time_dimension(self):
+        return self.hook_soln.get_step_dim_name()
+
+    @property
+    def dimensions(self):
+        return (self.time_dimension,) + self.space_dimensions
 
     @property
     def grids(self):
@@ -54,7 +62,7 @@ class YaskState(object):
             mapper[grid.get_name()] = grid
         return mapper
 
-    def setdefault(self, name):
+    def setdefault(self, name, dimensions):
         """
         Add and return a new grid ``name``. If a grid ``name`` already exists,
         then return it without performing any other actions.
@@ -64,7 +72,7 @@ class YaskState(object):
             return grids[name]
         else:
             # new_grid() also modifies the /hook_soln/ state
-            grid = self.hook_soln.new_grid(name, *self.dimensions)
+            grid = self.hook_soln.new_grid(name, *dimensions)
             # Allocate memory
             self.hook_soln.prepare_solution()
             return grid
@@ -90,7 +98,9 @@ class YaskGrid(object):
         # Init YASK if not initialized already
         init(dimensions, shape, dtype)
         # Only create a YaskGrid if the requested grid is a dense one
-        if tuple(i.name for i in dimensions) == YASK.dimensions:
+        dimensions = tuple(i.name for i in dimensions)
+        # TODO : following check fails if not using BufferedDimension ('time' != 't')
+        if dimensions in [YASK.dimensions, YASK.space_dimensions]:
             obj = super(YaskGrid, cls).__new__(cls)
             obj.__init__(name, shape, dimensions, dtype, buffer)
             return obj
@@ -103,7 +113,7 @@ class YaskGrid(object):
         self.dimensions = dimensions
         self.dtype = dtype
 
-        self.grid = YASK.setdefault(name)
+        self.grid = YASK.setdefault(name, dimensions)
 
         # Always init the grid, at least with 0.0
         self[:] = 0.0 if buffer is None else buffer
@@ -207,12 +217,8 @@ class YaskRewriter(BasicRewriter):
                 # Set up the YASK solution
                 soln = YASK.cfac.new_solution("devito-test-solution")
 
-                # Set up the YASK grids
-                grids = FindSymbols(mode='symbolics').visit(candidate)
-                grids = [YASK.setdefault(i.name) for i in grids]
-
                 # Perform the translation on an expression basis
-                transform = sympy2yask(grids)
+                transform = sympy2yask(soln)
                 expressions = [e for e in candidate.nodes if e.is_Expression]
                 try:
                     for i in expressions:
@@ -235,7 +241,8 @@ class YaskRewriter(BasicRewriter):
                 soln.write(os.path.join(YASK.path, 'yask_stencil_code.hpp'), 'avx2', True)
 
                 # Set necessary run-time parameters
-                soln.set_step_dim("t")
+                soln.set_step_dim_name(YASK.time_dimension)
+                soln.set_domain_dim_names(YASK.space_dimensions)
                 soln.set_element_bytes(4)
 
         dle_warning("Falling back to basic DLE optimizations...")
@@ -248,8 +255,8 @@ class sympy2yask(object):
     Convert a SymPy expression into a YASK abstract syntax tree.
     """
 
-    def __init__(self, grids):
-        self.grids = grids
+    def __init__(self, soln):
+        self.soln = soln
         self.mapper = {}
 
     def __call__(self, expr):
@@ -268,10 +275,14 @@ class sympy2yask(object):
                 return self.mapper[expr]
             elif isinstance(expr, Indexed):
                 function = expr.base.function
-                assert function.name in self.grids
+                if function.name not in YASK.grids:
+                    function.data  # Create uninitialized grid (i.e., 0.0 everywhere)
+                dimensions = YASK.grids[function.name].get_dim_names()
+                grid = self.mapper.setdefault(function.name,
+                                              self.soln.new_grid(function.name, dimensions))
                 indices = [int((i.origin if isinstance(i, LoweredDimension) else i) - j)
                            for i, j in zip(expr.indices, function.indices)]
-                return self.grids[function.name].new_relative_grid_point(*indices)
+                return grid.new_relative_grid_point(*indices)
             elif expr.is_Add:
                 return nary2binary(expr.args, YASK.nfac.new_add_node)
             elif expr.is_Mul:
@@ -333,12 +344,12 @@ def init(dimensions, shape, dtype, architecture='hsw', isa='avx2'):
 
     # Create a new stencil solution
     soln = cfac.new_solution("Hook")
-    soln.set_step_dim("t")
+    soln.set_step_dim_name("t")
 
     dimensions = [str(i) for i in dimensions]
     if any(i not in ['x', 'y', 'z'] for i in dimensions):
         _force_exit("Need a DenseData[x,y,z] for initialization")
-    soln.set_domain_dims(*dimensions)  # TODO: YASK only accepts x,y,z
+    soln.set_domain_dim_names(*dimensions)  # TODO: YASK only accepts x,y,z
 
     # Number of bytes in each FP value
     soln.set_element_bytes(dtype().itemsize)
