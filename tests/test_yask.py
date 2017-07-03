@@ -19,13 +19,16 @@ def teardown_module(module):
 
 
 def test_data_type():
-    u = DenseData(name='yu', shape=(10, 10), dimensions=(x, y))
-    assert type(u.data) == YaskGrid
+    u = DenseData(name='yu', shape=(10, 10, 10), dimensions=(x, y, z))
+    u.data  # Trigger initialization
+    assert type(u._data_object) == YaskGrid
 
 
 @pytest.mark.xfail(reason="YASK always seems to use 3D grids")
 def test_data_movement_1D():
     u = DenseData(name='yu1D', shape=(10,), dimensions=(x,))
+    assert type(u._data_object) == YaskGrid
+
     u.data[1] = 1.
     assert u.data[0] == 0.
     assert u.data[1] == 1.
