@@ -107,16 +107,33 @@ def init_configuration():
         # Attempt reading from the specified configuration file
         raise NotImplementedError("Devito doesn't support configuration via file.")
 
-    # Parameters casting and checking
+    # Parameters validation
     for k, v in list(configuration.items()):
+        items = v.split(';')
         try:
-            val = int(v)
-        except (TypeError, ValueError):
-            val = v
-        if val not in accepted[k]:
+            # Env variable format: 'k1:v1;k2:v2:k3:v3:...'
+            keys, values = zip(*[i.split(':') for i in items])
+            # Casting
+            values = [eval(i) for i in values]
+        except ValueError:
+            # Env variable format: 'k1;k2:...' or even just 'k1'
+            keys = [i.split(':')[0] for i in items]
+            values = []
+            # Cast to integer
+            for i, j in enumerate(list(keys)):
+                try:
+                    keys[i] = int(j)
+                except (TypeError, ValueError):
+                    keys[i] = j
+        if any(i not in accepted[k] for i in keys):
             raise ValueError("Illegal configuration parameter (%s, %s). "
-                             "Accepted: %s" % (k, val, str(accepted[k])))
-        configuration[k] = val
+                             "Accepted: %s" % (k, v, str(accepted[k])))
+        if len(keys) == len(values):
+            configuration[k] = dict(zip(keys, values))
+        elif len(keys) == 1:
+            configuration[k] = keys[0]
+        else:
+            configuration[k] = keys
 
     # Global setup
     # - Logger
