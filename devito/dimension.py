@@ -1,7 +1,7 @@
 import cgen
 
 import numpy as np
-from sympy import Symbol
+from sympy import Number, Symbol
 
 __all__ = ['Dimension', 'x', 'y', 'z', 't', 'p', 'd', 'time']
 
@@ -32,7 +32,10 @@ class Dimension(Symbol):
     @property
     def symbolic_size(self):
         """The symbolic size of this dimension."""
-        return Symbol(self.ccode)
+        try:
+            return Number(self.ccode)
+        except ValueError:
+            return Symbol(self.ccode)
 
     @property
     def ccode(self):

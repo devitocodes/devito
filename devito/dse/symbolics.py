@@ -176,7 +176,7 @@ class Rewriter(object):
 
         processed, _ = xreplace_constrained(cluster.exprs, make, rule, cm)
 
-        return cluster.rebuild(processed)
+        return cluster.reschedule(processed)
 
     @dse_pass
     def _extract_time_invariants(self, cluster, **kwargs):
@@ -202,7 +202,7 @@ class Rewriter(object):
 
         found = common_subexprs_elimination(found, make)
 
-        return cluster.rebuild(found + leaves)
+        return cluster.reschedule(found + leaves)
 
     @dse_pass
     def _eliminate_intra_stencil_redundancies(self, cluster, **kwargs):
@@ -219,7 +219,7 @@ class Rewriter(object):
 
         processed = common_subexprs_elimination(candidates, make)
 
-        return cluster.rebuild(skip + processed)
+        return cluster.reschedule(skip + processed)
 
     @dse_pass
     def _factorize(self, cluster, **kwargs):
@@ -302,7 +302,7 @@ class Rewriter(object):
         # Redundancies will be stored in space-varying temporaries
         g = cluster.trace
         indices = g.space_indices
-        shape = g.space_shape
+        shape = tuple(i.symbolic_size for i in indices)
 
         # Template for captured redundancies
         name = self.conventions['redundancy'] + "%d"
@@ -328,13 +328,14 @@ class Rewriter(object):
         rules = OrderedDict()
         stencils = []
         for c, (origin, alias) in enumerate(aliases.items()):
-            temporary = Indexed(template(c), *indices)
+            function = template(c)
+            temporary = Indexed(function, *indices)
             found.append(Eq(temporary, origin))
             # Track the stencil of each TensorFunction introduced
             stencils.append(alias.anti_stencil.anti(cluster.stencil))
             for aliased, distance in alias.with_distance:
                 coordinates = [sum([i, j]) for i, j in distance.items() if i in indices]
-                rules[candidates[aliased]] = Indexed(template(c), *tuple(coordinates))
+                rules[candidates[aliased]] = Indexed(function, *tuple(coordinates))
 
         # Create the alias clusters
         alias_clusters = clusterize(found, stencils)
