@@ -185,6 +185,9 @@ class DevitoRewriter(BasicRewriter):
                         for b, r in zip(intra_blocks, remainders):
                             handle = r if b.dim in c else b
                             nodes.append(handle._rebuild(properties=('remainder',)))
+                        # Innermost loops are the vector dimension
+                        inner_properties = nodes[-1].properties + ('vector-dim',)
+                        nodes[-1] = nodes[-1]._rebuild(properties=inner_properties)
                         nodes.extend([iterations[-1].nodes])
                         remainder_tree.append(compose_nodes(nodes))
 
