@@ -14,6 +14,7 @@ from devito.tools import convert_dtype_to_ctype
 
 
 class CMemory(object):
+
     def __init__(self, shape, dtype=np.float32, alignment=None):
         self.ndpointer, self.data_pointer = malloc_aligned(shape, alignment, dtype)
 

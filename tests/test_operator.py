@@ -264,15 +264,15 @@ class TestDeclarator(object):
         assert """\
   float (*a);
   posix_memalign((void**)&a, 64, sizeof(float[3]));
-  struct timeval start_loop_i_0, end_loop_i_0;
-  gettimeofday(&start_loop_i_0, NULL);
+  struct timeval start_section_0, end_section_0;
+  gettimeofday(&start_section_0, NULL);
   for (int i = 0; i < 3; i += 1)
   {
     a[i] = a[i] + b[i] + 5.0F;
   }
-  gettimeofday(&end_loop_i_0, NULL);
-  timings->loop_i_0 += (double)(end_loop_i_0.tv_sec-start_loop_i_0.tv_sec)\
-+(double)(end_loop_i_0.tv_usec-start_loop_i_0.tv_usec)/1000000;
+  gettimeofday(&end_section_0, NULL);
+  timings->section_0 += (double)(end_section_0.tv_sec-start_section_0.tv_sec)\
++(double)(end_section_0.tv_usec-start_section_0.tv_usec)/1000000;
   free(a);
   return 0;""" in str(operator.ccode)
 
@@ -283,8 +283,8 @@ class TestDeclarator(object):
   float (*c)[5];
   posix_memalign((void**)&a, 64, sizeof(float[3]));
   posix_memalign((void**)&c, 64, sizeof(float[3][5]));
-  struct timeval start_loop_i_0, end_loop_i_0;
-  gettimeofday(&start_loop_i_0, NULL);
+  struct timeval start_section_0, end_section_0;
+  gettimeofday(&start_section_0, NULL);
   for (int i = 0; i < 3; i += 1)
   {
     for (int j = 0; j < 5; j += 1)
@@ -293,9 +293,9 @@ class TestDeclarator(object):
       c[i][j] = a[i]*c[i][j];
     }
   }
-  gettimeofday(&end_loop_i_0, NULL);
-  timings->loop_i_0 += (double)(end_loop_i_0.tv_sec-start_loop_i_0.tv_sec)\
-+(double)(end_loop_i_0.tv_usec-start_loop_i_0.tv_usec)/1000000;
+  gettimeofday(&end_section_0, NULL);
+  timings->section_0 += (double)(end_section_0.tv_sec-start_section_0.tv_sec)\
++(double)(end_section_0.tv_usec-start_section_0.tv_usec)/1000000;
   free(a);
   free(c);
   return 0;""" in str(operator.ccode)
@@ -307,19 +307,19 @@ class TestDeclarator(object):
   float (*c)[5];
   posix_memalign((void**)&a, 64, sizeof(float[3]));
   posix_memalign((void**)&c, 64, sizeof(float[3][5]));
+  struct timeval start_section_0, end_section_0;
+  gettimeofday(&start_section_0, NULL);
   for (int i = 0; i < 3; i += 1)
   {
     a[i] = 0.0F;
-    struct timeval start_loop_j_0, end_loop_j_0;
-    gettimeofday(&start_loop_j_0, NULL);
     for (int j = 0; j < 5; j += 1)
     {
       c[i][j] = a[i]*c[i][j];
     }
-    gettimeofday(&end_loop_j_0, NULL);
-    timings->loop_j_0 += (double)(end_loop_j_0.tv_sec-start_loop_j_0.tv_sec)\
-+(double)(end_loop_j_0.tv_usec-start_loop_j_0.tv_usec)/1000000;
   }
+  gettimeofday(&end_section_0, NULL);
+  timings->section_0 += (double)(end_section_0.tv_sec-start_section_0.tv_sec)\
++(double)(end_section_0.tv_usec-start_section_0.tv_usec)/1000000;
   free(a);
   free(c);
   return 0;""" in str(operator.ccode)
@@ -330,32 +330,32 @@ class TestDeclarator(object):
         assert """\
   float (*a);
   posix_memalign((void**)&a, 64, sizeof(float[3]));
-  struct timeval start_loop_i_0, end_loop_i_0;
-  gettimeofday(&start_loop_i_0, NULL);
+  struct timeval start_section_0, end_section_0;
+  gettimeofday(&start_section_0, NULL);
   for (int i = 0; i < 3; i += 1)
   {
     float t0 = 1.00000000000000F;
     float t1 = 2.00000000000000F;
     a[i] = 3.0F*t0*t1;
   }
-  gettimeofday(&end_loop_i_0, NULL);
-  timings->loop_i_0 += (double)(end_loop_i_0.tv_sec-start_loop_i_0.tv_sec)\
-+(double)(end_loop_i_0.tv_usec-start_loop_i_0.tv_usec)/1000000;
+  gettimeofday(&end_section_0, NULL);
+  timings->section_0 += (double)(end_section_0.tv_sec-start_section_0.tv_sec)\
++(double)(end_section_0.tv_usec-start_section_0.tv_usec)/1000000;
   free(a);
   return 0;""" in str(operator.ccode)
 
     def test_stack_vector_temporaries(self, c_stack, e):
         operator = Operator([Eq(c_stack, e*1.)], dse='noop', dle='noop')
         assert """\
-  struct timeval start_loop_k_0, end_loop_k_0;
-  gettimeofday(&start_loop_k_0, NULL);
+  struct timeval start_section_0, end_section_0;
+  gettimeofday(&start_section_0, NULL);
   for (int k = 0; k < 7; k += 1)
   {
     for (int s = 0; s < 4; s += 1)
     {
       for (int q = 0; q < 4; q += 1)
       {
-        double c_stack[3][5] __attribute__((aligned(64)));
+        float c_stack[3][5] __attribute__((aligned(64)));
         for (int i = 0; i < 3; i += 1)
         {
           for (int j = 0; j < 5; j += 1)
@@ -366,9 +366,9 @@ class TestDeclarator(object):
       }
     }
   }
-  gettimeofday(&end_loop_k_0, NULL);
-  timings->loop_k_0 += (double)(end_loop_k_0.tv_sec-start_loop_k_0.tv_sec)\
-+(double)(end_loop_k_0.tv_usec-start_loop_k_0.tv_usec)/1000000;
+  gettimeofday(&end_section_0, NULL);
+  timings->section_0 += (double)(end_section_0.tv_sec-start_section_0.tv_sec)\
++(double)(end_section_0.tv_usec-start_section_0.tv_usec)/1000000;
   return 0;""" in str(operator.ccode)
 
 
@@ -403,7 +403,7 @@ class TestLoopScheduler(object):
         assert outer[-1].nodes[0].expr.rhs == eq1.rhs
         assert inner[-1].nodes[0].expr.rhs == eq2.rhs
 
-    def test_different_loop_nests(self, tu, ti0, t0, t1):
+    def test_different_section_nests(self, tu, ti0, t0, t1):
         eq1 = Eq(ti0, t0*3.)
         eq2 = Eq(tu, ti0 + t1*3.)
         op = Operator([eq1, eq2], dse='noop', dle='noop')

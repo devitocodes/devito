@@ -118,6 +118,12 @@ class AbstractSymbol(Function, CachedSymbol):
             options = kwargs.get('options', {})
             newobj = Function.__new__(newcls, *args, **options)
             newobj.__init__(*args, **kwargs)
+
+            # All objects cached on the AbstractSymbol /newobj/ keep a reference
+            # to /newobj/ through the /function/ field. Thus, all indexified
+            # object will point to /newobj/, the "actual Function".
+            newobj.function = newobj
+
             # Store new instance in symbol cache
             newcls._cache_put(newobj)
         return newobj
@@ -135,7 +141,26 @@ class AbstractSymbol(Function, CachedSymbol):
     @property
     def indexed(self):
         """Extract a :class:`IndexedData` object from the current object."""
-        return IndexedData(self.name, shape=self.shape, function=self)
+        return IndexedData(self.name, shape=self.shape, function=self.function)
+
+    @property
+    def symbolic_shape(self):
+        """
+        Return the symbolic shape of the object. For an entry ``E`` in ``self.shape``,
+        there are two possibilities: ::
+
+            * ``E`` is already in symbolic form, then simply use ``E``.
+            * ``E`` is an integer representing the size along a dimension ``D``,
+              then, use a symbolic representation of ``D``.
+        """
+        sshape = []
+        for i, j in zip(self.shape, self.indices):
+            try:
+                i.is_algebraic_expr()
+                sshape.append(i)
+            except AttributeError:
+                sshape.append(j.symbolic_size)
+        return tuple(sshape)
 
     @property
     def _mem_external(self):
@@ -165,13 +190,22 @@ class AbstractSymbol(Function, CachedSymbol):
 
 
 class SymbolicFunction(AbstractSymbol):
-    """A symbolic function object."""
+
+    """
+    A symbolic function object, created and managed directly by Devito.
+
+    Unlike :class:`SymbolicData` objects, the state of a SymbolicFunction
+    is mutable.
+    """
 
     is_SymbolicFunction = True
 
     def __new__(cls, *args, **kwargs):
         kwargs.update({'options': {'evaluate': False}})
         return AbstractSymbol.__new__(cls, *args, **kwargs)
+
+    def update(self):
+        return
 
 
 class ScalarFunction(SymbolicFunction):
@@ -196,6 +230,9 @@ class ScalarFunction(SymbolicFunction):
         in a C module, False otherwise."""
         return True
 
+    def update(self, dtype=None):
+        self.dtype = dtype or self.dtype
+
 
 class TensorFunction(SymbolicFunction):
     """Symbolic object representing a tensor.
@@ -215,7 +252,7 @@ class TensorFunction(SymbolicFunction):
             self.shape = kwargs.get('shape')
             self.indices = kwargs.get('dimensions')
             self.dtype = kwargs.get('dtype', np.float32)
-            self.onstack = kwargs.get('onstack', False)
+            self._onstack = kwargs.get('onstack', False)
 
     @classmethod
     def _indices(cls, **kwargs):
@@ -223,11 +260,17 @@ class TensorFunction(SymbolicFunction):
 
     @property
     def _mem_stack(self):
-        return self.onstack
+        return self._onstack
 
     @property
     def _mem_heap(self):
-        return not self.onstack
+        return not self._onstack
+
+    def update(self, dtype=None, shape=None, dimensions=None, onstack=None):
+        self.dtype = dtype or self.dtype
+        self.shape = shape or self.shape
+        self.indices = dimensions or self.indices
+        self._onstack = onstack or self._mem_stack
 
 
 class SymbolicData(AbstractSymbol):
@@ -302,7 +345,23 @@ class DenseData(SymbolicData):
 
     def _allocate_memory(self):
         """Allocate memory in terms of numpy ndarrays."""
+        from devito.parameters import configuration
+
+        if configuration['dle'] == 'yask':
+            # TODO: Use inheritance
+            # TODO: Refactor CMemory to be our _data_object, while _data will
+            # be the YaskGrid itself.
+            from devito.dle import YaskGrid
+            debug("Allocating YaskGrid for %s (%s)" % (self.name, str(self.shape)))
+
+            self._data_object = YaskGrid(self.name, self.shape, self.indices, self.dtype)
+            if self._data_object is not None:
+                return
+
+            debug("Failed. Reverting to plain allocation...")
+
         debug("Allocating memory for %s (%s)" % (self.name, str(self.shape)))
+
         self._data_object = CMemory(self.shape, dtype=self.dtype)
         if self.numa:
             first_touch(self)

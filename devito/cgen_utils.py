@@ -20,14 +20,10 @@ class Allocator(object):
         """
         Generate a cgen statement that allocates ``obj`` on the stack.
         """
-        dtype = c.dtype_to_ctype(obj.dtype)
-        shape = "".join("[%d]" % j for j in obj.shape)
+        shape = "".join("[%s]" % ccode(i) for i in obj.symbolic_shape)
         alignment = "__attribute__((aligned(64)))"
-
-        item = c.POD(dtype, "%s%s %s" % (obj.name, shape, alignment))
-        handle = self.stack.setdefault(scope, [])
-        if item not in handle:
-            handle.append(item)
+        handle = self.stack.setdefault(scope, OrderedDict())
+        handle[obj] = c.POD(obj.dtype, "%s%s %s" % (obj.name, shape, alignment))
 
     def push_heap(self, obj):
         """
@@ -37,10 +33,11 @@ class Allocator(object):
         if obj in self.heap:
             return
 
-        decl = "(*%s)%s" % (obj.name, "".join("[%d]" % j for j in obj.shape[1:]))
+        decl = "(*%s)%s" % (obj.name,
+                            "".join("[%s]" % i.symbolic_size for i in obj.indices[1:]))
         decl = c.Value(c.dtype_to_ctype(obj.dtype), decl)
 
-        shape = "".join("[%d]" % j for j in obj.shape)
+        shape = "".join("[%s]" % i.symbolic_size for i in obj.indices)
         alloc = "posix_memalign((void**)&%s, 64, sizeof(%s%s))"
         alloc = alloc % (obj.name, c.dtype_to_ctype(obj.dtype), shape)
         alloc = c.Statement(alloc)
@@ -51,7 +48,7 @@ class Allocator(object):
 
     @property
     def onstack(self):
-        return self.stack.items()
+        return [(k, v.values()) for k, v in self.stack.items()]
 
     @property
     def onheap(self):
@@ -175,3 +172,5 @@ def ccode_eq(eq, **settings):
 
 
 blankline = c.Line("")
+printmark = lambda i: c.Line('printf("Here: %s\\n"); fflush(stdout);' % i)
+printvar = lambda i: c.Statement('printf("%s=%%s\\n", %s); fflush(stdout);' % (i, i))

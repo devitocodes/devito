@@ -1,3 +1,4 @@
+import os
 import ctypes
 from collections import Callable, Iterable, OrderedDict
 try:
@@ -133,27 +134,6 @@ def convert_dtype_to_ctype(dtype):
     return conversion_dict[dtype]
 
 
-def aligned(a, alignment=16):
-    """Function to align the memmory
-
-    :param a: The given memory
-    :param alignment: Granularity of alignment, 16 bytes by default
-    :returns: Reference to the start of the aligned memory
-    """
-    if (a.ctypes.data % alignment) == 0:
-        return a
-
-    extra = alignment / a.itemsize
-    buf = np.empty(a.size + extra, dtype=a.dtype)
-    ofs = (-buf.ctypes.data % alignment) / a.itemsize
-    aa = buf[ofs:ofs+a.size].reshape(a.shape)
-    np.copyto(aa, a)
-
-    assert (aa.ctypes.data % alignment) == 0
-
-    return aa
-
-
 def pprint(node, verbose=True):
     """
     Shortcut to pretty print Iteration/Expression trees.
@@ -195,3 +175,22 @@ class DefaultOrderedDict(OrderedDict):
 
     def __copy__(self):
         return type(self)(self.default_factory, self)
+
+
+class change_directory(object):
+    """
+    Context manager for changing the current working directory.
+
+    Adapted from: ::
+
+        https://stackoverflow.com/questions/431684/how-do-i-cd-in-python/
+    """
+    def __init__(self, newPath):
+        self.newPath = os.path.expanduser(newPath)
+
+    def __enter__(self):
+        self.savedPath = os.getcwd()
+        os.chdir(self.newPath)
+
+    def __exit__(self, etype, value, traceback):
+        os.chdir(self.savedPath)

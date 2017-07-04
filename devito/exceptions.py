@@ -1,3 +1,7 @@
+class CompilationError(Exception):
+    pass
+
+
 class InvalidArgument(Exception):
     pass
 
@@ -7,6 +11,10 @@ class InvalidOperator(Exception):
 
 
 class StencilOperationError(Exception):
+    pass
+
+
+class VisitorException(Exception):
     pass
 
 
