@@ -6,7 +6,7 @@ from os import environ
 from devito.backends import backends_registry
 from devito.compiler import compiler_registry, set_compiler
 from devito.dse import modes as dse_registry
-from devito.dle import modes as dle_registry
+from devito.dle import modes as dle_registry, default_options as dle_default_options
 from devito.logger import debug, logger_registry, set_log_level
 
 __all__ = ['configuration', 'init_configuration', 'print_defaults', 'print_state']
@@ -71,7 +71,8 @@ defaults = {
     'compiler': 'custom',
     'openmp': False,
     'dse': 'advanced',
-    'dle': 'advanced'
+    'dle': 'advanced',
+    'dle_options': ';'.join('%s:%s' % (k, v) for k, v in dle_default_options.items())
 }
 """The default Devito configuration parameters"""
 
@@ -82,7 +83,8 @@ accepted = {
     'compiler': list(compiler_registry),
     'openmp': [1, 0],
     'dse': list(dse_registry),
-    'dle': list(dle_registry)
+    'dle': list(dle_registry),
+    'dle_options': list(dle_default_options)
 }
 """Accepted values for the Devito environment variables."""
 
@@ -92,6 +94,7 @@ env_vars_mapper = {
     'DEVITO_BACKEND': 'backend',
     'DEVITO_DSE': 'dse',
     'DEVITO_DLE': 'dle',
+    'DEVITO_DLE_OPTIONS': 'dle_options',
     'DEVITO_OPENMP': 'openmp',
     'DEVITO_LOGGING': 'log_level'
 }

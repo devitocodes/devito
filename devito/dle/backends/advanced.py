@@ -118,7 +118,7 @@ class DevitoRewriter(BasicRewriter):
         have size 4x7. The latter may be set to True to also block innermost parallel
         :class:`Iteration` objects.
         """
-        exclude_innermost = 'blockinner' not in self.params
+        exclude_innermost = not self.params.get('blockinner', False)
 
         blocked = OrderedDict()
         processed = []
