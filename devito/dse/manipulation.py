@@ -7,14 +7,14 @@ from collections import OrderedDict
 from sympy import Indexed, collect, collect_const, flatten
 
 from devito.dse.extended_sympy import Add, Eq, Mul
-from devito.dse.inspection import count, estimate_cost
+from devito.dse.inspection import count, estimate_cost, retrieve_indexed
 from devito.dse.graph import temporaries_graph
 from devito.dse.queries import q_op
 from devito.interfaces import TensorFunction
 from devito.tools import as_tuple
 
 __all__ = ['collect_nested', 'common_subexprs_elimination', 'freeze_expression',
-           'xreplace_constrained', 'promote_scalar_expressions']
+           'xreplace_constrained', 'xreplace_indices', 'promote_scalar_expressions']
 
 
 def freeze_expression(expr):
@@ -105,7 +105,7 @@ def collect_nested(expr, aggressive=False):
 
 def xreplace_constrained(exprs, make, rule, cm=lambda e: True, repeat=False):
     """
-    As opposed to ``xreplace``, which replaces all objects specified in a mapper,
+    Unlike ``xreplace``, which replaces all objects specified in a mapper,
     this function replaces all objects satisfying two criteria: ::
 
         * The "matching rule" -- a function returning True if a node within ``expr``
@@ -185,6 +185,20 @@ def xreplace_constrained(exprs, make, rule, cm=lambda e: True, repeat=False):
     found = [Eq(v, k) for k, v in found.items()]
 
     return found + rebuilt, found
+
+
+def xreplace_indices(exprs, mapper, candidates=None, only_rhs=False):
+    """
+    Create new expressions from ``exprs``, by replacing all index variables
+    specified in mapper appearing as a tensor index. Only tensors whose symbolic
+    name appears in ``candidates`` are considered if ``candidates`` is not None.
+    """
+    get = lambda i: i.rhs if only_rhs is True else i
+    handle = flatten(retrieve_indexed(get(i)) for i in as_tuple(exprs))
+    if candidates is not None:
+        handle = [i for i in handle if i.base.label in candidates]
+    mapper = dict(zip(handle, [i.xreplace(mapper) for i in handle]))
+    return [i.xreplace(mapper) for i in exprs]
 
 
 def common_subexprs_elimination(exprs, make, mode='default'):

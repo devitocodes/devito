@@ -134,27 +134,6 @@ def convert_dtype_to_ctype(dtype):
     return conversion_dict[dtype]
 
 
-def aligned(a, alignment=16):
-    """Function to align the memmory
-
-    :param a: The given memory
-    :param alignment: Granularity of alignment, 16 bytes by default
-    :returns: Reference to the start of the aligned memory
-    """
-    if (a.ctypes.data % alignment) == 0:
-        return a
-
-    extra = alignment / a.itemsize
-    buf = np.empty(a.size + extra, dtype=a.dtype)
-    ofs = (-buf.ctypes.data % alignment) / a.itemsize
-    aa = buf[ofs:ofs+a.size].reshape(a.shape)
-    np.copyto(aa, a)
-
-    assert (aa.ctypes.data % alignment) == 0
-
-    return aa
-
-
 def pprint(node, verbose=True):
     """
     Shortcut to pretty print Iteration/Expression trees.

@@ -9,7 +9,7 @@ A dictionary to quickly access standard OpenMP pragmas
 omplang = {
     'for': c.Pragma('omp for schedule(static)'),
     'collapse': lambda i: c.Pragma('omp for collapse(%d) schedule(static)' % i),
-    'par-region': c.Pragma('omp parallel'),
+    'par-region': lambda i: c.Pragma('omp parallel %s' % i),
     'par-for': c.Pragma('omp parallel for schedule(static)'),
     'simd-for': c.Pragma('omp simd'),
     'simd-for-aligned': lambda i, j: c.Pragma('omp simd aligned(%s:%d)' % (i, j))

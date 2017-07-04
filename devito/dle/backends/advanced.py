@@ -2,16 +2,15 @@
 
 from __future__ import absolute_import
 
-from collections import OrderedDict, namedtuple
+from collections import OrderedDict
 from itertools import combinations
 
 import numpy as np
 import psutil
 
-import cgen as c
-
 from devito.dimension import Dimension
 from devito.dle import (compose_nodes, copy_arrays, filter_iterations,
+                        fold_blockable_tree, unfold_blocked_tree,
                         retrieve_iteration_tree)
 from devito.dle.backends import (BasicRewriter, BlockingArg, dle_pass, omplang,
                                  simdinfo, get_simd_flag, get_simd_items)
@@ -19,8 +18,8 @@ from devito.dse import promote_scalar_expressions
 from devito.exceptions import DLEException
 from devito.interfaces import TensorFunction
 from devito.logger import dle_warning
-from devito.nodes import Block, Denormals, Element, Expression, Iteration, List
-from devito.tools import as_tuple, flatten, grouper, roundm
+from devito.nodes import Block, Denormals, Expression, Iteration, List
+from devito.tools import as_tuple, grouper, roundm
 from devito.visitors import (FindNodes, FindSymbols, IsPerfectIteration,
                              SubstituteExpression, Transformer)
 
@@ -30,11 +29,11 @@ class DevitoRewriter(BasicRewriter):
     def _pipeline(self, state):
         self._avoid_denormals(state)
         self._loop_fission(state)
-        self._create_elemental_functions(state)
         self._loop_blocking(state)
         self._simdize(state)
         if self.params['openmp'] is True:
             self._ompize(state)
+        self._create_elemental_functions(state)
 
     @dle_pass
     def _loop_fission(self, state, **kwargs):
@@ -101,36 +100,37 @@ class DevitoRewriter(BasicRewriter):
         """
         Apply loop blocking to :class:`Iteration` trees.
 
-        By default, the blocked :class:`Iteration` objects and the block size are
-        determined heuristically. The heuristic consists of searching the deepest
-        Iteration/Expression tree and blocking all dimensions except:
+        Blocking is applied to parallel iteration trees. Heuristically, innermost
+        dimensions are not blocked to maximize the trip count of the SIMD loops.
 
-            * The innermost (eg, to retain SIMD vectorization);
-            * Those dimensions inducing loop-carried dependencies.
-
-        The caller may take over the heuristic through ``kwargs['blocking']``,
-        a dictionary indicating the block size of each blocked dimension. For
-        example, for the :class:`Iteration` tree below: ::
+        Different heuristics may be specified by passing the keywords ``blockshape``
+        and ``blockinner`` to the DLE. The former, a dictionary, is used to indicate
+        a specific block size for each blocked dimension. For example, for the
+        :class:`Iteration` tree: ::
 
             for i
               for j
                 for k
                   ...
 
-        one may pass in ``kwargs['blocking'] = {i: 4, j: 7}``, in which case the
-        two outer loops would be blocked, and the resulting 2-dimensional block
-        would be of size 4x7.
+        one may provide ``blockshape = {i: 4, j: 7}``, in which case the
+        two outer loops will blocked, and the resulting 2-dimensional block will
+        have size 4x7. The latter may be set to True to also block innermost parallel
+        :class:`Iteration` objects.
         """
-        Region = namedtuple('Region', 'main leftover')
+        exclude_innermost = 'blockinner' not in self.params
 
         blocked = OrderedDict()
         processed = []
         for node in state.nodes:
+            # Make sure loop blocking will span as many Iterations as possible
+            fold = fold_blockable_tree(node, exclude_innermost)
+
             mapper = {}
-            for tree in retrieve_iteration_tree(node):
+            for tree in retrieve_iteration_tree(fold):
                 # Is the Iteration tree blockable ?
                 iterations = [i for i in tree if i.is_Parallel]
-                if 'blockinner' not in self.params:
+                if exclude_innermost:
                     iterations = [i for i in iterations if not i.is_Vectorizable]
                 if not iterations:
                     continue
@@ -138,10 +138,11 @@ class DevitoRewriter(BasicRewriter):
                 if not IsPerfectIteration().visit(root):
                     continue
 
-                # Construct the blocked loop nest, as well as all necessary
-                # remainder loops
-                regions = OrderedDict()
-                blocked_iterations = []
+                # Build all necessary Iteration objects, individually. These will
+                # subsequently be composed to implement loop blocking.
+                inter_blocks = []
+                intra_blocks = []
+                remainders = []
                 for i in iterations:
                     # Build Iteration over blocks
                     dim = blocked.setdefault(i, Dimension("%s_block" % i.dim.name))
@@ -152,52 +153,48 @@ class DevitoRewriter(BasicRewriter):
                     finish = finish - ((finish - i.offsets[1]) % block_size)
                     inter_block = Iteration([], dim, [start, finish, block_size],
                                             properties=as_tuple('parallel'))
+                    inter_blocks.append(inter_block)
 
                     # Build Iteration within a block
                     start = inter_block.dim
                     finish = start + block_size
-                    properties = 'vector-dim' if i.is_Vectorizable else None
-                    intra_block = Iteration([], i.dim, [start, finish, 1], i.index,
-                                            properties=as_tuple(properties))
+                    intra_block = i._rebuild([], limits=[start, finish, 1], offsets=None)
+                    intra_blocks.append(intra_block)
 
-                    blocked_iterations.append((inter_block, intra_block))
-
-                    # Build unitary-increment Iteration over the 'main' region
-                    # (the one blocked); necessary to generate code iterating over
-                    # non-blocked ("remainder") iterations.
-                    start = inter_block.limits[0]
-                    finish = inter_block.limits[1]
-                    main = Iteration([], i.dim, [start, finish, 1], i.index,
-                                     properties=i.properties)
-
-                    # Build unitary-increment Iteration over the 'leftover' region:
-                    # again as above, this may be necessary when the dimension size
-                    # is not a multiple of the block size.
+                    # Build unitary-increment Iteration over the 'leftover' region.
+                    # This will be used for remainder loops, executed when any
+                    # dimension size is not a multiple of the block size.
                     start = inter_block.limits[1]
                     finish = iter_size - i.offsets[1]
-                    leftover = Iteration([], i.dim, [start, finish, 1], i.index,
-                                         properties=i.properties)
+                    remainder = i._rebuild([], limits=[start, finish, 1], offsets=None)
+                    remainders.append(remainder)
 
-                    regions[i] = Region(main, leftover)
+                # Build blocked Iteration nest
+                blocked_tree = [compose_nodes(inter_blocks + intra_blocks +
+                                              [iterations[-1].nodes])]
 
-                blocked_tree = list(flatten(zip(*blocked_iterations)))
-                blocked_tree = compose_nodes(blocked_tree + [iterations[-1].nodes])
-
-                # Build remainder loops
+                # Build remainder Iterations
                 remainder_tree = []
                 for n in range(len(iterations)):
-                    for i in combinations(iterations, n + 1):
-                        nodes = [v.leftover if k in i else v.main
-                                 for k, v in regions.items()]
-                        nodes += [iterations[-1].nodes]
+                    for c in combinations([i.dim for i in iterations], n + 1):
+                        # First all inter-block Interations
+                        nodes = [b for b, r in zip(inter_blocks, remainders)
+                                 if r.dim not in c]
+                        # Then intra-block or remainder, for each dim (in order)
+                        for b, r in zip(intra_blocks, remainders):
+                            nodes.extend([r] if b.dim in c else [b])
+                        nodes = [i._rebuild(properties=i.properties + ('remainder',))
+                                 for i in nodes]
+                        nodes.extend([iterations[-1].nodes])
                         remainder_tree.append(compose_nodes(nodes))
 
                 # Will replace with blocked loop tree
-                mapper[root] = List(body=[blocked_tree] + remainder_tree)
+                mapper[root] = List(body=blocked_tree + remainder_tree)
 
-            rebuilt = Transformer(mapper).visit(node)
+            rebuilt = Transformer(mapper).visit(fold)
 
-            processed.append(rebuilt)
+            # Finish unrolling any previously folded Iterations
+            processed.append(unfold_blocked_tree(rebuilt))
 
         # All blocked dimensions
         if not blocked:
@@ -254,11 +251,11 @@ class DevitoRewriter(BasicRewriter):
                             aligned = []
                         if aligned:
                             simd = omplang['simd-for-aligned']
-                            simd = simd(','.join([j.name for j in aligned]),
-                                        simdinfo[get_simd_flag()])
+                            simd = as_tuple(simd(','.join([j.name for j in aligned]),
+                                            simdinfo[get_simd_flag()]))
                         else:
-                            simd = omplang['simd-for']
-                        mapper[i] = List(ignore_deps + as_tuple(simd), i)
+                            simd = as_tuple(omplang['simd-for'])
+                        mapper[i] = i._rebuild(pragmas=i.pragmas + ignore_deps + simd)
                 processed.append(Transformer(mapper).visit(node))
             return processed
 
@@ -276,13 +273,14 @@ class DevitoRewriter(BasicRewriter):
 
             # Reset denormals flag each time a parallel region is entered
             denormals = FindNodes(Denormals).visit(state.nodes)
-            mapper = {i: List(c.Comment('DLE: moved denormals flag')) for i in denormals}
+            mapper = OrderedDict([(i, None) for i in denormals])
 
             # Handle parallelizable loops
+            pvt = []
             for tree in retrieve_iteration_tree(node):
                 # Determine the number of consecutive parallelizable Iterations
                 key = lambda i: i.is_Parallel and not i.is_Vectorizable
-                candidates = filter_iterations(tree, key=key, stop='consecutive')
+                candidates = filter_iterations(tree, key=key, stop='any')
                 if not candidates:
                     continue
 
@@ -292,15 +290,28 @@ class DevitoRewriter(BasicRewriter):
                 nparallel = len(candidates)
                 if psutil.cpu_count(logical=False) < self.thresholds['collapse'] or\
                         nparallel < 2:
-                    parallelism = omplang['for']
+                    parallel = omplang['for']
                 else:
-                    parallelism = omplang['collapse'](nparallel)
+                    parallel = omplang['collapse'](nparallel)
 
                 root = candidates[0]
-                mapper[root] = Block(header=omplang['par-region'],
-                                     body=denormals + [Element(parallelism), root])
+                mapper[root] = root._rebuild(pragmas=root.pragmas + as_tuple(parallel))
 
-            processed.append(Transformer(mapper).visit(node))
+                # Track the thread-private and thread-shared variables
+                pvt += [i for i in FindSymbols('symbolics').visit(tree) if i._mem_stack]
+
+            # Build the parallel region
+            pvt = sorted(set([i.name for i in pvt]))
+            pvt = ('private(%s)' % ','.join(pvt)) if pvt else ''
+            par_region = Block(header=omplang['par-region'](pvt),
+                               body=denormals + [i for i in mapper.values() if i])
+            for k, v in list(mapper.items()):
+                if v is not None:
+                    mapper[k] = None if v.is_Remainder else par_region
+
+            handle = Transformer(mapper).visit(node)
+            if handle is not None:
+                processed.append(handle)
 
         return {'nodes': processed}
 
@@ -311,12 +322,12 @@ class DevitoSpeculativeRewriter(DevitoRewriter):
         self._avoid_denormals(state)
         self._loop_fission(state)
         self._padding(state)
-        self._create_elemental_functions(state)
         self._loop_blocking(state)
         self._simdize(state)
         self._nontemporal_stores(state)
         if self.params['openmp'] is True:
             self._ompize(state)
+        self._create_elemental_functions(state)
 
     @dle_pass
     def _padding(self, state, **kwargs):
