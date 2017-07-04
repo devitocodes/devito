@@ -6,11 +6,11 @@ import numpy as np
 import pytest
 from sympy import Eq
 
-from devito.dle import transform
+from devito.dle import retrieve_iteration_tree, transform
 from devito.dle.backends import DevitoRewriter as Rewriter
 from devito import DenseData, TimeData, Operator
-from devito.nodes import Expression, Function, List
-from devito.visitors import ResolveIterationVariable, SubstituteExpression
+from devito.nodes import ELEMENTAL, Expression, Function, List, tagger
+from devito.visitors import ResolveIterationVariable, SubstituteExpression, Transformer
 
 
 @pytest.fixture(scope="module")
@@ -127,9 +127,12 @@ def _new_operator2(shape, time_order, **kwargs):
 
 
 def test_create_elemental_functions_simple(simple_function):
-    old = Rewriter.thresholds['elemental']
-    Rewriter.thresholds['elemental'] = 0
-    handle = transform(simple_function, mode='split')
+    roots = [i[-1] for i in retrieve_iteration_tree(simple_function)]
+    retagged = [i._rebuild(properties=tagger(0)) for i in roots]
+    mapper = {i: j._rebuild(properties=(j.properties + (ELEMENTAL,)))
+              for i, j in zip(roots, retagged)}
+    function = Transformer(mapper).visit(simple_function)
+    handle = transform(function, mode='split')
     block = List(body=handle.nodes + handle.elemental_functions)
     output = str(block.ccode)
     # Make output compiler independent
@@ -147,30 +150,33 @@ def test_create_elemental_functions_simple(simple_function):
   {
     for (int j = 0; j < 5; j += 1)
     {
-      f_0((float*) a,(float*) b,(float*) c,(float*) d,i,j);
+      f_0(0,7,(float*) a,(float*) b,(float*) c,(float*) d,i,j);
     }
   }
 }
-void f_0(float *restrict a_vec, float *restrict b_vec,"""
+void f_0(const int k_start, const int k_finish,"""
+         """ float *restrict a_vec, float *restrict b_vec,"""
          """ float *restrict c_vec, float *restrict d_vec, const int i, const int j)
 {
   float (*restrict a) __attribute__((aligned(64))) = (float (*)) a_vec;
   float (*restrict b) __attribute__((aligned(64))) = (float (*)) b_vec;
   float (*restrict c)[5] __attribute__((aligned(64))) = (float (*)[5]) c_vec;
   float (*restrict d)[5][7] __attribute__((aligned(64))) = (float (*)[5][7]) d_vec;
-  for (int k = 0; k < 7; k += 1)
+  for (int k = k_start; k < k_finish; k += 1)
   {
     a[i] = a[i] + b[i] + 5.0F;
     a[i] = -a[i]*c[i][j] + b[i]*d[i][j][k];
   }
 }""")
-    Rewriter.thresholds['elemental'] = old
 
 
 def test_create_elemental_functions_complex(complex_function):
-    old = Rewriter.thresholds['elemental']
-    Rewriter.thresholds['elemental'] = 0
-    handle = transform(complex_function, mode='split')
+    roots = [i[-1] for i in retrieve_iteration_tree(complex_function)]
+    retagged = [j._rebuild(properties=tagger(i)) for i, j in enumerate(roots)]
+    mapper = {i: j._rebuild(properties=(j.properties + (ELEMENTAL,)))
+              for i, j in zip(roots, retagged)}
+    function = Transformer(mapper).visit(complex_function)
+    handle = transform(function, mode='split')
     block = List(body=handle.nodes + handle.elemental_functions)
     output = str(block.ccode)
     # Make output compiler independent
@@ -186,46 +192,48 @@ def test_create_elemental_functions_complex(complex_function):
   float (*restrict d)[5][7] __attribute__((aligned(64))) = (float (*)[5][7]) d_vec;
   for (int i = 0; i < 3; i += 1)
   {
-    f_0((float*) a,(float*) b,i);
+    f_0(0,4,(float*) a,(float*) b,i);
     for (int j = 0; j < 5; j += 1)
     {
-      f_1((float*) a,(float*) b,(float*) c,(float*) d,i,j);
+      f_1(0,7,(float*) a,(float*) b,(float*) c,(float*) d,i,j);
     }
-    f_2((float*) a,(float*) b,i);
+    f_2(0,4,(float*) a,(float*) b,i);
   }
 }
-void f_0(float *restrict a_vec, float *restrict b_vec, const int i)
+void f_0(const int s_start, const int s_finish,"""
+         """ float *restrict a_vec, float *restrict b_vec, const int i)
 {
   float (*restrict a) __attribute__((aligned(64))) = (float (*)) a_vec;
   float (*restrict b) __attribute__((aligned(64))) = (float (*)) b_vec;
-  for (int s = 0; s < 4; s += 1)
+  for (int s = s_start; s < s_finish; s += 1)
   {
     b[i] = a[i] + pow(b[i], 2) + 3;
   }
 }
-void f_1(float *restrict a_vec, float *restrict b_vec,"""
+void f_1(const int k_start, const int k_finish,"""
+         """ float *restrict a_vec, float *restrict b_vec,"""
          """ float *restrict c_vec, float *restrict d_vec, const int i, const int j)
 {
   float (*restrict a) __attribute__((aligned(64))) = (float (*)) a_vec;
   float (*restrict b) __attribute__((aligned(64))) = (float (*)) b_vec;
   float (*restrict c)[5] __attribute__((aligned(64))) = (float (*)[5]) c_vec;
   float (*restrict d)[5][7] __attribute__((aligned(64))) = (float (*)[5][7]) d_vec;
-  for (int k = 0; k < 7; k += 1)
+  for (int k = k_start; k < k_finish; k += 1)
   {
     a[i] = a[i]*b[i]*c[i][j]*d[i][j][k];
     a[i] = 4*(a[i] + c[i][j])*(b[i] + d[i][j][k]);
   }
 }
-void f_2(float *restrict a_vec, float *restrict b_vec, const int i)
+void f_2(const int q_start, const int q_finish,"""
+         """ float *restrict a_vec, float *restrict b_vec, const int i)
 {
   float (*restrict a) __attribute__((aligned(64))) = (float (*)) a_vec;
   float (*restrict b) __attribute__((aligned(64))) = (float (*)) b_vec;
-  for (int q = 0; q < 4; q += 1)
+  for (int q = q_start; q < q_finish; q += 1)
   {
     a[i] = 8.0F*a[i] + 6.0F/b[i];
   }
 }""")
-    Rewriter.thresholds['elemental'] = old
 
 
 # Loop blocking tests

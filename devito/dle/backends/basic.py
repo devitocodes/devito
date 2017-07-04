@@ -1,16 +1,21 @@
 from __future__ import absolute_import
+
+from collections import OrderedDict
 from operator import attrgetter
 
 import cgen as c
 import numpy as np
+from sympy import Symbol
 
-from devito.dse import as_symbol, estimate_cost
-from devito.dle import retrieve_iteration_tree
+from devito.cgen_utils import ccode
+from devito.dse import as_symbol
+from devito.dle import retrieve_iteration_tree, filter_iterations
 from devito.dle.backends import AbstractRewriter, dle_pass, complang_ALL
 from devito.interfaces import ScalarFunction
-from devito.nodes import Denormals, Expression, FunCall, Function, List
-from devito.tools import filter_sorted, flatten
-from devito.visitors import FindNodes, FindSymbols, Transformer
+from devito.nodes import (Denormals, Expression, FunCall, Function, List,
+                          UnboundedIndex)
+from devito.tools import filter_sorted
+from devito.visitors import FindNodes, FindSymbols, NestedTransformer, Transformer
 
 
 class BasicRewriter(AbstractRewriter):
@@ -35,77 +40,88 @@ class BasicRewriter(AbstractRewriter):
         """
         Extract :class:`Iteration` sub-trees and move them into :class:`Function`s.
 
-        By default, only innermost Iteration objects containing more than
-        ``self.thresholds['elemental']`` operations are extracted. One can specify a
-        different extraction rule through the lambda function ``kwargs['rule']``,
-        which takes as input an iterable of :class:`Iteration`s and returns an
-        :class:`Iteration` node.
+        Currently, only tagged, elementizable Iteration objects are targeted.
         """
         noinline = self._compiler_decoration('noinline', c.Comment('noinline?'))
-        rule = kwargs.get('rule', lambda tree: tree[-1])
 
-        functions = []
+        functions = OrderedDict()
         processed = []
         for node in state.nodes:
             mapper = {}
             for tree in retrieve_iteration_tree(node, mode='superset'):
-                if len(tree) <= 1:
+                # Search an elementizable sub-tree (if any)
+                tagged = filter_iterations(tree, lambda i: i.tag is not None, 'asap')
+                if not tagged:
                     continue
-                root = rule(tree)
-
-                # Has an identical body been encountered already?
-                view = root.view
-                if view in mapper:
-                    mapper[view][1].append(root)
+                root = tagged[0]
+                if not root.is_Elementizable:
                     continue
+                target = tree[tree.index(root):]
 
-                name = "f_%d" % len(functions)
+                # Elemental function arguments
+                args = []  # Found so far (scalars, tensors)
+                maybe_required = set()  # Scalars that *may* have to be passed in
+                not_required = set()  # Elemental function locally declared scalars
 
-                # Heuristic: create elemental functions only if more than
-                # self.thresholds['elemental_functions'] operations are present
-                expressions = FindNodes(Expression).visit(root)
-                ops = estimate_cost([e.expr for e in expressions])
-                if ops < self.thresholds['elemental'] and not root.is_Elementizable:
-                    continue
+                # Build a new Iteration/Expression tree with free bounds
+                free = []
+                for i in target:
+                    name, bounds = i.dim.name, i.bounds_symbolic
+                    # Iteration bounds
+                    start = ScalarFunction(name='%s_start' % name, dtype=np.int32)
+                    finish = ScalarFunction(name='%s_finish' % name, dtype=np.int32)
+                    args.extend(zip([ccode(j) for j in bounds], (start, finish)))
+                    # Iteration unbounded indices
+                    ufunc = [ScalarFunction(name='%s_ub%d' % (name, j), dtype=np.int32)
+                             for j in range(len(i.uindices))]
+                    args.extend(zip([ccode(j.start) for j in i.uindices], ufunc))
+                    limits = [Symbol(start.name), Symbol(finish.name), 1]
+                    uindices = [UnboundedIndex(j.index, i.dim + as_symbol(k))
+                                for j, k in zip(i.uindices, ufunc)]
+                    free.append(i._rebuild(limits=limits, offsets=None,
+                                           uindices=uindices))
+                    not_required.update({i.dim}, set(j.index for j in i.uindices))
 
-                # Determine the arguments required by the elemental function
-                in_scope = [i.dim for i in tree[tree.index(root):]]
-                required = FindSymbols(mode='free-symbols').visit(root)
-                for i in FindSymbols('symbolics').visit(root):
-                    required.extend(flatten(j.free_symbols for j in i.symbolic_shape))
-                required = set([as_symbol(i) for i in required if i not in in_scope])
+                # Construct elemental function body, and inspect it
+                free = NestedTransformer(dict((zip(target, free)))).visit(root)
+                expressions = FindNodes(Expression).visit(free)
+                fsymbols = FindSymbols('symbolics').visit(free)
 
-                # Add tensor arguments
-                args = []
-                seen = {e.output for e in expressions if e.is_scalar}
-                for i in FindSymbols('symbolics').visit(root):
+                # Retrieve tensor arguments
+                for i in fsymbols:
                     if i.is_SymbolicFunction:
                         handle = "(%s*) %s" % (c.dtype_to_ctype(i.dtype), i.name)
                     else:
                         handle = "%s_vec" % i.name
                     args.append((handle, i))
-                    seen |= {as_symbol(i)}
-                # Add scalar arguments
-                handle = filter_sorted(required - seen, key=attrgetter('name'))
+
+                # Retrieve scalar arguments
+                not_required.update({e.output for e in expressions if e.is_scalar})
+                maybe_required.update(set(FindSymbols(mode='free-symbols').visit(free)))
+                for i in fsymbols:
+                    not_required.update({as_symbol(i)})
+                    for j in i.symbolic_shape:
+                        maybe_required.update(j.free_symbols)
+                required = filter_sorted(maybe_required - not_required,
+                                         key=attrgetter('name'))
                 args.extend([(i.name, ScalarFunction(name=i.name, dtype=np.int32))
-                             for i in handle])
+                             for i in required])
 
-                # Track info to transform the main tree
-                call, parameters = zip(*args)
-                mapper[view] = (List(header=noinline, body=FunCall(name, call)), [root])
+                call, params = zip(*args)
+                handle = flatten([p.rtargs for p in params])
+                name = "f_%d" % root.tag
 
-                args = flatten([p.rtargs for p in parameters])
+                # Produce the new FunCall
+                mapper[root] = List(header=noinline, body=FunCall(name, call))
 
-                # Produce the new function
-                functions.append(Function(name, root, 'void', args, ('static',)))
+                # Produce the new Function
+                functions.setdefault(name,
+                                     Function(name, free, 'void', handle, ('static',)))
 
             # Transform the main tree
-            imapper = {}
-            for v, keys in mapper.values():
-                imapper.update({k: v for k in keys})
-            processed.append(Transformer(imapper).visit(node))
+            processed.append(Transformer(mapper).visit(node))
 
-        return {'nodes': processed, 'elemental_functions': functions}
+        return {'nodes': processed, 'elemental_functions': functions.values()}
 
     def _compiler_decoration(self, name, default=None):
         key = self.params['compiler'].__class__.__name__

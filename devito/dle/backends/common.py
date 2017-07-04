@@ -115,7 +115,6 @@ class AbstractRewriter(object):
     """
     thresholds = {
         'collapse': 32,  # Available physical cores
-        'elemental': 30,  # Operations
         'max_fission': 800,  # Statements
         'min_fission': 20  # Statements
     }
