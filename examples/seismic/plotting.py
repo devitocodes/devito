@@ -72,7 +72,7 @@ def plot_shotrecord(rec, origin, spacing, dimensions, t0, tn, diff=False):
     :param t0: Start of time dimension to plot
     :param tn: End of time dimension to plot
     """
-    aspect = tn / (dimensions[0] * spacing[0])
+    aspect = (dimensions[0] * spacing[0])/tn
     scale = 1e0 if diff else 1e0
     plt.figure()
     plt.imshow(rec, vmin=-scale, vmax=scale, cmap=cm.gray, aspect=aspect,
