@@ -23,6 +23,9 @@ Devito rather than pure CFD or finite difference theory.
 * `01 - Linear convection
   <http://nbviewer.jupyter.org/github/opesci/devito/blob/master/examples/cfd/test_01_convection.ipynb>`_
   - Building a linear operator with simple zero BCs.
+* `01b - Linear convection, revisisted
+  <http://nbviewer.jupyter.org/github/opesci/devito/blob/master/examples/cfd/test_01_convection_revisited.ipynb>`_
+  - The above example, with a different initial condition.
 * `02 - Nonlinear convection
   <http://nbviewer.jupyter.org/github/opesci/devito/blob/master/examples/cfd/test_02_convection_nonlinear.ipynb>`_
   - Building an operator with coupled equations and simple BCs.
