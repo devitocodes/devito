@@ -37,16 +37,14 @@ def d(shape=(11, 11)):
 
 def test_forward(a):
     a.data[0, :] = 1.
-    eqn = Eq(a.forward, a + 1.)
-    Operator(eqn, dle=None, dse=None)()
+    Operator(Eq(a.forward, a + 1.))()
     for i in range(a.shape[0]):
         assert np.allclose(a.data[i, :], 1. + i, rtol=1.e-12)
 
 
 def test_backward(b):
     b.data[-1, :] = 7.
-    eqn = Eq(b.backward, b - 1.)
-    Operator(eqn, dle=None, dse=None, time_axis=Backward)()
+    Operator(Eq(b.backward, b - 1.), time_axis=Backward)()
     for i in range(b.shape[0]):
         assert np.allclose(b.data[i, :], 2. + i, rtol=1.e-12)
 
@@ -57,19 +55,36 @@ def test_forward_unroll(a, c, nt=5):
     c.data[0, :] = 1.
     eqn_c = Eq(c.forward, c + 1.)
     eqn_a = Eq(a.forward, c.forward)
-    Operator([eqn_c, eqn_a], dle=None, dse=None)(time=nt)
+    Operator([eqn_c, eqn_a])(time=nt)
     for i in range(nt):
         assert np.allclose(a.data[i, :], 1. + i, rtol=1.e-12)
 
 
 def test_forward_backward(a, b, nt=5):
+    """Test a forward operator followed by a backward marching one"""
     a.data[0, :] = 1.
     b.data[0, :] = 1.
     eqn_a = Eq(a.forward, a + 1.)
-    Operator(eqn_a, dle=None, dse=None, time_axis=Forward)(time=nt)
+    Operator(eqn_a, time_axis=Forward)(time=nt)
 
     eqn_b = Eq(b, a + 1.)
-    Operator(eqn_b, dle=None, dse=None, time_axis=Backward)(time=nt)
+    Operator(eqn_b, time_axis=Backward)(time=nt)
+    for i in range(nt):
+        assert np.allclose(b.data[i, :], 2. + i, rtol=1.e-12)
+
+
+def test_forward_backward_overlapping(a, b, nt=5):
+    """
+    Test a forward operator followed by a backward one, but with
+    overlapping operator definitions.
+    """
+    a.data[0, :] = 1.
+    b.data[0, :] = 1.
+    op_fwd = Operator(Eq(a.forward, a + 1.), time_axis=Forward)
+    op_bwd = Operator(Eq(b, a + 1.), time_axis=Backward)
+
+    op_fwd(time=nt)
+    op_bwd(time=nt)
     for i in range(nt):
         assert np.allclose(b.data[i, :], 2. + i, rtol=1.e-12)
 
