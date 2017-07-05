@@ -119,7 +119,7 @@ def set_backend(backend):
             # We need to pass a non-empty fromlist so that __import__
             # returns the submodule (i.e. the backend) rather than the
             # package.
-            mod = __import__('devito.%s' % backend, fromlist=[None])
+            mod = __import__('devito.%s' % backend, fromlist=['None'])
         except ImportError as e:
             warning('Unable to import backend %s' % backend)
             raise e

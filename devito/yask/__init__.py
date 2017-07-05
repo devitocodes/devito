@@ -3,8 +3,12 @@ import os
 from devito.compiler import make
 from devito.exceptions import CompilationError, DLEException
 from devito.logger import dle
-from devito.yask.operator import *  # noqa
 from devito.yask.utils import *  # noqa
+
+# The following used by backends.backendSelector
+from devito.pointdata import PointData  # noqa
+from devito.yask.interfaces import DenseData, TimeData  # noqa
+from devito.yask.operator import Operator  # noqa
 
 
 YASK = None
