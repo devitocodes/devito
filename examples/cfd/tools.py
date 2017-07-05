@@ -48,3 +48,23 @@ def init_hat(field, dx, dy, value=2., bgvalue=1.):
     """
     field[:] = bgvalue
     field[int(.5 / dx):int(1 / dx + 1), int(.5 / dy):int(1 / dy + 1)] = value
+
+
+def gaussian(x, mu, sig):
+    return np.exp(-np.power(x - mu, 2.) / (2 * np.power(sig, 2.)))
+
+
+def fin_bump(x):
+    if x <= 0 or x >= 1:
+        return 0
+    else:
+        return 100*np.exp(-1./(x-np.power(x, 2.)))
+
+
+def init_smooth(field, dx, dy):
+    nx, ny = field.shape
+    for ix in range(nx):
+        for iy in range(ny):
+            x = ix * dx
+            y = iy * dy
+            field[ix, iy] = fin_bump(x/1.5) * fin_bump(y/1.5) + 1.
