@@ -4,15 +4,12 @@ from devito.compiler import make
 from devito.exceptions import CompilationError, DLEException
 from devito.logger import dle
 
-YASK = None
-"""Global state for generation of YASK kernels."""
 
+class YaskKernel(object):
 
-class YaskState(object):
-
-    def __init__(self, cfac, nfac, path, env, shape, dtype, hook_soln):
+    def __init__(self, cfac, nfac, path):
         """
-        Global state to interact with YASK.
+        A proxy between Devito and YASK.
 
         :param cfac: YASK compiler factory, to create Solutions.
         :param nfac: YASK node factory, to create ASTs.
@@ -25,10 +22,25 @@ class YaskState(object):
         self.cfac = cfac
         self.nfac = nfac
         self.path = path
+
+        self.env = None
+        self.shape = None
+        self.dtype = None
+        self.hook_soln = None
+
+        self._initialized = False
+
+    def __finalize__(self, env, shape, dtype, hook_soln):
         self.env = env
         self.shape = shape
         self.dtype = dtype
         self.hook_soln = hook_soln
+
+        self._initialized = True
+
+    @property
+    def initialized(self):
+        return self._initialized
 
     @property
     def space_dimensions(self):
@@ -79,28 +91,11 @@ def init(dimensions, shape, dtype, architecture='hsw', isa='avx2'):
         * Folding
         * Grid memory layout scheme
     """
-    global YASK
 
-    if YASK is not None:
+    if YASK.initialized:
         return
 
-    dle("Initializing YASK...")
-
-    try:
-        import yask_compiler as yc
-        # YASK compiler factories
-        cfac = yc.yc_factory()
-        nfac = yc.yc_node_factory()
-    except ImportError:
-        _force_exit("Python YASK compiler bindings")
-
-    try:
-        # Set directory for generated code
-        path = os.path.join(os.environ['YASK_HOME'], 'src', 'kernel', 'gen')
-        if not os.path.exists(path):
-            os.makedirs(path)
-    except KeyError:
-        _force_exit("Missing YASK_HOME")
+    dle("Initializing YASK [kernel API]")
 
     # Create a new stencil solution
     soln = cfac.new_solution("Hook")
@@ -148,7 +143,35 @@ def init(dimensions, shape, dtype, architecture='hsw', isa='avx2'):
     # TODO Improve me
     hook_soln.set_num_ranks(hook_soln.get_domain_dim_name(0), env.get_num_ranks())
 
-    # Finish off by initializing YASK
-    YASK = YaskState(cfac, nfac, path, env, shape, dtype, hook_soln)
+    # Finish off YASK initialization
+    YASK.__finalize__(env, shape, dtype, hook_soln)
 
     dle("YASK backend successfully initialized!")
+
+
+def _force_exit(emsg):
+    """
+    Handle fatal errors.
+    """
+    raise DLEException("YASK Error [%s]. Exiting..." % emsg)
+
+
+# YASK initialization (will be finished by the first call to init())
+
+dle("Initializing YASK [compiler API]")
+
+try:
+    import yask_compiler as yc
+    # YASK compiler factories
+    cfac = yc.yc_factory()
+    nfac = yc.yc_node_factory()
+except ImportError:
+    _force_exit("Python YASK compiler bindings")
+try:
+    # Set directory for generated code
+    path = os.path.join(os.environ['YASK_HOME'], 'src', 'kernel', 'gen')
+    if not os.path.exists(path):
+        os.makedirs(path)
+except KeyError:
+    _force_exit("Missing YASK_HOME")
+YASK = YaskKernel(cfac, nfac, path)

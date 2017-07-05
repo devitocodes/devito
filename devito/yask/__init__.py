@@ -7,10 +7,3 @@ JIT-compile, and run kernels.
 from devito.pointdata import PointData  # noqa
 from devito.yask.interfaces import DenseData, TimeData  # noqa
 from devito.yask.operator import Operator  # noqa
-
-
-def _force_exit(emsg):
-    """
-    Handle fatal errors.
-    """
-    raise DLEException("YASK Error [%s]. Exiting..." % emsg)
