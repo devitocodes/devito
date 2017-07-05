@@ -200,7 +200,8 @@ class IterationFold(Iteration):
     def __repr__(self):
         properties = ""
         if self.properties:
-            properties = "WithProperties[%s]::" % ",".join(self.properties)
+            properties = [str(i) for i in self.properties]
+            properties = "WithProperties[%s]::" % ",".join(properties)
         length = "Length %d" % len(self.folds)
         return "<%sIterationFold %s; %s; %s>" % (properties, self.index,
                                                  self.limits, length)

@@ -18,7 +18,8 @@ from devito.dse import promote_scalar_expressions
 from devito.exceptions import DLEException
 from devito.interfaces import TensorFunction
 from devito.logger import dle_warning
-from devito.nodes import Block, Denormals, Expression, Iteration, List
+from devito.nodes import (Block, Denormals, Expression, Iteration, List,
+                          PARALLEL, ELEMENTAL, REMAINDER, tagger)
 from devito.tools import as_tuple, grouper, roundm
 from devito.visitors import (FindNodes, FindSymbols, IsPerfectIteration,
                              SubstituteExpression, Transformer)
@@ -84,7 +85,7 @@ class DevitoRewriter(BasicRewriter):
                 # Group statements
                 # TODO: Need a heuristic here to maximize reuse
                 args_frozen = candidate.args_frozen
-                properties = as_tuple(args_frozen['properties']) + ('elemental',)
+                properties = as_tuple(args_frozen['properties']) + (ELEMENTAL,)
                 args_frozen['properties'] = properties
                 n = self.thresholds['min_fission']
                 fissioned = [Iteration(g, **args_frozen) for g in grouper(rebuilt, n)]
@@ -152,7 +153,7 @@ class DevitoRewriter(BasicRewriter):
                     finish = iter_size - i.offsets[1]
                     finish = finish - ((finish - i.offsets[1]) % block_size)
                     inter_block = Iteration([], dim, [start, finish, block_size],
-                                            properties=as_tuple('parallel'))
+                                            properties=PARALLEL)
                     inter_blocks.append(inter_block)
 
                     # Build Iteration within a block
@@ -178,15 +179,15 @@ class DevitoRewriter(BasicRewriter):
                 for n in range(len(iterations)):
                     for c in combinations([i.dim for i in iterations], n + 1):
                         # First all inter-block Interations
-                        nodes = [b._rebuild(properties=b.properties + ('remainder',))
+                        nodes = [b._rebuild(properties=b.properties + (REMAINDER,))
                                  for b, r in zip(inter_blocks, remainders)
                                  if r.dim not in c]
                         # Then intra-block or remainder, for each dim (in order)
                         for b, r in zip(intra_blocks, remainders):
                             handle = r if b.dim in c else b
-                            nodes.append(handle._rebuild(properties=('remainder',)))
+                            nodes.append(handle._rebuild(properties=REMAINDER))
                         # Innermost loops are the vector dimension
-                        inner_properties = nodes[-1].properties + ('vector-dim',)
+                        inner_properties = nodes[-1].properties + (VECTOR,)
                         nodes[-1] = nodes[-1]._rebuild(properties=inner_properties)
                         nodes.extend([iterations[-1].nodes])
                         remainder_tree.append(compose_nodes(nodes))

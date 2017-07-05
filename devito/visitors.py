@@ -201,7 +201,8 @@ class PrintAST(Visitor):
         self._depth -= 1
         if self.verbose:
             detail = '::%s::%s::%s' % (o.index, o.limits, o.offsets)
-            props = '[%s] ' % ','.join(o.properties) if o.properties else ''
+            props = [str(i) for i in o.properties]
+            props = '[%s] ' % ','.join(props) if props else ''
         else:
             detail, props = '', ''
         return self.indent + "<%sIteration %s%s>\n%s" % (props, o.dim.name, detail, body)
