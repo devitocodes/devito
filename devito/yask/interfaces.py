@@ -4,8 +4,10 @@ import numpy as np
 
 import devito.interfaces as interfaces
 from devito.logger import debug
-from devito.yask import YASK, init, convert_multislice
 from devito.tools import as_tuple
+
+from devito.yask.kernel import YASK, init
+from devito.yask.utils import convert_multislice
 
 __all__ = ['DenseData', 'TimeData']
 

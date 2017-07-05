@@ -4,7 +4,7 @@ from sympy import Eq
 import pytest  # noqa
 
 from devito import Operator, DenseData, x, y, z
-from devito.dle import YaskGrid
+from devito.yask.interfaces import YaskGrid
 from devito.parameters import configuration, defaults
 
 pexpect = pytest.importorskip('yask_compiler')  # Run only if YASK is available

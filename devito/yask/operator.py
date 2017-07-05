@@ -8,7 +8,8 @@ from devito.dimension import LoweredDimension
 from devito.dle import retrieve_iteration_tree
 from devito.logger import dle, dle_warning
 from devito.operator import OperatorRunnable
-from devito.yask import YASK
+
+from devito.yask.kernel import YASK
 
 __all__ = ['Operator']
 
