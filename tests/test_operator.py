@@ -446,3 +446,12 @@ class TestForeign(object):
         arg, _ = op.arguments(a=b)
         op2.cfunction(*list(arg.values()))
         assert(np.allclose(a.data[:], b.data[:]))
+
+    def test_empty_arrays(self):
+        shape = (11, 11)
+        a = TimeData(name='a', shape=shape, time_order=1,
+                     time_dim=6, save=True)
+        eqn = Eq(a.forward, a + 1.)
+        op = Operator(eqn, external=True)
+        arg = dict(op.arguments())
+        assert (arg['a'] is None)
