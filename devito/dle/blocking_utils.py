@@ -4,7 +4,7 @@ import numpy as np
 
 from devito.dle import compose_nodes, is_foldable, retrieve_iteration_tree
 from devito.dse import xreplace_indices
-from devito.nodes import Expression, Iteration, List, LocalExpression
+from devito.nodes import Expression, Iteration, List, LocalExpression, ntags
 from devito.visitors import (FindAdjacentIterations, FindNodes, IsPerfectIteration,
                              NestedTransformer, Transformer)
 from devito.tools import as_tuple
@@ -88,9 +88,13 @@ def unfold_blocked_tree(node):
             candidates.append(handle)
 
     # Perform unfolding
+    tag = ntags()
     mapper = {}
     for tree in candidates:
         trees = zip(*[i.unfold() for i in tree])
+        # Update tag
+        for i, _tree in enumerate(list(trees)):
+            trees[i] = tuple(j.retag(tag + i) for j in _tree)
         trees = optimize_unfolded_tree(trees[:-1], trees[-1])
         trees = [compose_nodes(i) for i in trees]
         mapper[tree[0]] = List(body=trees)

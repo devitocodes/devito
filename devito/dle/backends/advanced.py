@@ -139,6 +139,9 @@ class DevitoRewriter(BasicRewriter):
                 if not IsPerfectIteration().visit(root):
                     continue
 
+                # Decorate intra-block iterations with an IterationProperty
+                TAG = tagger(len(mapper))
+
                 # Build all necessary Iteration objects, individually. These will
                 # subsequently be composed to implement loop blocking.
                 inter_blocks = []
@@ -159,7 +162,8 @@ class DevitoRewriter(BasicRewriter):
                     # Build Iteration within a block
                     start = inter_block.dim
                     finish = start + block_size
-                    intra_block = i._rebuild([], limits=[start, finish, 1], offsets=None)
+                    intra_block = i._rebuild([], limits=[start, finish, 1], offsets=None,
+                                             properties=i.properties + (TAG, ELEMENTAL))
                     intra_blocks.append(intra_block)
 
                     # Build unitary-increment Iteration over the 'leftover' region.
@@ -171,11 +175,11 @@ class DevitoRewriter(BasicRewriter):
                     remainders.append(remainder)
 
                 # Build blocked Iteration nest
-                blocked_tree = [compose_nodes(inter_blocks + intra_blocks +
-                                              [iterations[-1].nodes])]
+                blocked_tree = compose_nodes(inter_blocks + intra_blocks +
+                                             [iterations[-1].nodes])
 
                 # Build remainder Iterations
-                remainder_tree = []
+                remainder_trees = []
                 for n in range(len(iterations)):
                     for c in combinations([i.dim for i in iterations], n + 1):
                         # First all inter-block Interations
@@ -183,17 +187,15 @@ class DevitoRewriter(BasicRewriter):
                                  for b, r in zip(inter_blocks, remainders)
                                  if r.dim not in c]
                         # Then intra-block or remainder, for each dim (in order)
+                        properties = (REMAINDER, TAG, ELEMENTAL)
                         for b, r in zip(intra_blocks, remainders):
                             handle = r if b.dim in c else b
-                            nodes.append(handle._rebuild(properties=REMAINDER))
-                        # Innermost loops are the vector dimension
-                        inner_properties = nodes[-1].properties + (VECTOR,)
-                        nodes[-1] = nodes[-1]._rebuild(properties=inner_properties)
+                            nodes.append(handle._rebuild(properties=properties))
                         nodes.extend([iterations[-1].nodes])
-                        remainder_tree.append(compose_nodes(nodes))
+                        remainder_trees.append(compose_nodes(nodes))
 
                 # Will replace with blocked loop tree
-                mapper[root] = List(body=blocked_tree + remainder_tree)
+                mapper[root] = List(body=[blocked_tree] + remainder_trees)
 
             rebuilt = Transformer(mapper).visit(fold)
 
