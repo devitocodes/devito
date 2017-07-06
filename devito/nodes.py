@@ -476,16 +476,18 @@ class Function(Node):
         self.retval = retval
         self.prefix = prefix
 
-        if all([isinstance(x, RuntimeArgProvider) for x in parameters]):
-            args = flatten([x.rtargs for x in parameters])
+        if all([isinstance(i, RuntimeArgProvider) for i in parameters]):
+            args = flatten([i.rtargs for i in parameters])
         else:
-            assert(all([isinstance(x, RuntimeArgument) for x in parameters]))
+            assert(all([isinstance(i, RuntimeArgument) for i in parameters]))
             args = parameters
 
         self.parameters = as_tuple(args)
 
-        self.t_args = [x for x in args if isinstance(x, TensorArgument)]
-        self.s_args = [x for x in args if isinstance(x, ScalarArgument)]
+        # At this point, all objects in args should be objects of the RuntimeArgument
+        # heirarchy. Separate the tensor arguments from the scalar ones
+        self.t_args = [i for i in args if x.is_TensorArgument]
+        self.s_args = [i for i in args if x.is_ScalarArgument]
 
     def __repr__(self):
         parameters = ",".join([c.dtype_to_ctype(i.dtype) for i in self.parameters])

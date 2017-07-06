@@ -14,7 +14,7 @@ from devito.compiler import jit_compile, load
 from devito.dimension import Dimension, time
 from devito.dle import (compose_nodes, filter_iterations,
                         retrieve_iteration_tree, transform)
-from devito.dse import (clusterize, indexify, rewrite, q_indexed)
+from devito.dse import clusterize, indexify, rewrite, q_indexed
 from devito.interfaces import SymbolicData, Forward, Backward, CompositeData
 from devito.logger import bar, error, info, debug
 from devito.nodes import Element, Expression, Function, Iteration, List, LocalExpression

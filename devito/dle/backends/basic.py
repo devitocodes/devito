@@ -101,7 +101,6 @@ class BasicRewriter(AbstractRewriter):
 
             # Transform the main tree
             imapper = {}
-
             for v, keys in mapper.values():
                 imapper.update({k: v for k in keys})
             processed.append(Transformer(imapper).visit(node))

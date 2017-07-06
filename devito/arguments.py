@@ -19,6 +19,9 @@ class RuntimeArgument(object):
     """ Abstract base class for any object that represents a run time argument for
         generated kernels.
     """
+
+    is_ScalarArgument = False
+    is_TensorArgument = False
     
     def __init__(self, name, source, default_value=None):
         self.name = name
@@ -54,6 +57,8 @@ class ScalarArgument(RuntimeArgument):
         Most commonly used to pass dimension sizes
     """
     
+    is_ScalarArgument = True
+    
     def __init__(self, name, source, reducer, default_value=None):
         super(ScalarArgument, self).__init__(name, source, default_value)
         self.reducer = reducer
@@ -81,6 +86,8 @@ class TensorArgument(RuntimeArgument):
     """ Class representing tensor arguments that a kernel might expect. 
         Most commonly used to pass numpy-like multi-dimensional arrays. 
     """
+
+    is_TensorArgument = True
     
     def __init__(self, name, source, dtype):
         super(TensorArgument, self).__init__(name, source)
@@ -132,6 +139,8 @@ class RuntimeArgProvider(object):
     
     @property
     def rtargs(self):
+        """ Return a list of RuntimeArgument objects that this object needs.
+        """
         raise NotImplemented()
 
 
