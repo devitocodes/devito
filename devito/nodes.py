@@ -475,10 +475,10 @@ class Function(Node):
         self.retval = retval
         self.prefix = prefix
 
-        if all([isinstance(i, RuntimeArgProvider) for i in parameters]):
+        if all(isinstance(i, RuntimeArgProvider) for i in parameters):
             args = flatten([i.rtargs for i in parameters])
         else:
-            assert(all([isinstance(i, RuntimeArgument) for i in parameters]))
+            assert(all(isinstance(i, RuntimeArgument) for i in parameters))
             args = parameters
 
         self.parameters = as_tuple(args)

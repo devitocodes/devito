@@ -139,6 +139,9 @@ class RuntimeArgProvider(object):
         SymbolicData) might provide multiple runtime arguments.
     """
 
+    def __init__(self, *args, **kwargs):
+        pass
+
     @property
     def rtargs(self):
         """ Return a list of RuntimeArgument objects that this object needs.
