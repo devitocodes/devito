@@ -1,6 +1,3 @@
-import cgen
-
-import numpy as np
 from sympy import Number, Symbol
 from devito.arguments import DimensionArgProvider
 

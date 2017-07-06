@@ -16,7 +16,7 @@ from devito.dle import (compose_nodes, filter_iterations,
                         retrieve_iteration_tree, transform)
 from devito.dse import clusterize, indexify, rewrite, q_indexed
 from devito.interfaces import SymbolicData, Forward, Backward, CompositeData
-from devito.logger import bar, error, info, debug
+from devito.logger import bar, error, info
 from devito.nodes import Element, Expression, Function, Iteration, List, LocalExpression
 from devito.parameters import configuration
 from devito.profiling import Profiler, create_profile
@@ -25,7 +25,7 @@ from devito.tools import as_tuple, filter_ordered, flatten
 from devito.visitors import (FindSymbols, FindScopes, ResolveIterationVariable,
                              SubstituteExpression, Transformer, NestedTransformer)
 from devito.exceptions import InvalidArgument, InvalidOperator
-from devito.arguments import RuntimeArgProvider, ScalarArgument
+from devito.arguments import RuntimeArgProvider, ScalarArgument, log_args
 
 __all__ = ['Operator']
 
@@ -122,19 +122,21 @@ class OperatorBasic(Function):
         # Track the DLE output, as it might be useful at execution time
         self._dle_state = dle_state
 
-        self.symbolic_data = [x for x in parameters if isinstance(x, SymbolicData)]
-        dims = [x for x in parameters if isinstance(x, Dimension)]
+        self.symbolic_data = [i for i in parameters if isinstance(i, SymbolicData)]
+        dims = [i for i in parameters if isinstance(i, Dimension)]
 
-        d_parents = [x.parent for x in dims if hasattr(x, 'parent')]
+        d_parents = [d.parent for d in dims if hasattr(d, 'parent')]
         self.dims = list(set(dims + d_parents))
-        assert(all(isinstance(x, RuntimeArgProvider)
-                   for x in self.symbolic_data + self.dims))
+        assert(all(isinstance(i, RuntimeArgProvider)
+                   for i in self.symbolic_data + self.dims))
         parameters = list(set(parameters + d_parents))
-        
+
         # Finish instantiation
         super(OperatorBasic, self).__init__(self.name, nodes, 'int', parameters, ())
 
     def _reset_args(self):
+        """ Reset any runtime argument derivation information from a previous run
+        """
         for x in self.t_args + self.dims + self.s_args:
             x.reset()
 
@@ -167,8 +169,12 @@ class OperatorBasic(Function):
         arguments = OrderedDict([(x.name, x.value) for x in self.parameters])
         arguments.update(self._extra_arguments())
 
+        # Clear the temp values we stored in the arg objects since we've pulled them out
+        # into the OrderedDict object above
         self._reset_args()
-        self._print_args(arguments)
+
+        log_args(arguments)
+
         return arguments, dim_sizes
 
     def _dle_arguments(self, dim_sizes):
@@ -188,16 +194,6 @@ class OperatorBasic(Function):
             else:
                 dle_arguments[i.argument.name] = dim_size
         return dle_arguments
-
-    def _print_args(self, arguments, log=debug):
-        arg_str = []
-        for k, v in arguments.items():
-            if hasattr(v, 'shape'):
-                arg_str.append('(%s, shape=%s, L2 Norm=%d)' %
-                               (k, str(v.shape), np.linalg.norm(v)))
-            else:
-                arg_str.append('(%s, value=%s)' % (k, str(v)))
-        log("Passing Arguments: " + ", ".join(arg_str))
 
     @property
     def ccode(self):

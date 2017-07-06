@@ -13,8 +13,7 @@ from devito.dse import as_symbol
 from devito.interfaces import IndexedData, SymbolicData, TensorFunction
 from devito.stencil import Stencil
 from devito.tools import as_tuple, filter_ordered, flatten
-from devito.arguments import (TensorArgument, ScalarArgument, RuntimeArgProvider,
-                              RuntimeArgument)
+from devito.arguments import RuntimeArgProvider, RuntimeArgument, TensorArgument
 
 __all__ = ['Node', 'Block', 'Denormals', 'Expression', 'Function', 'FunCall',
            'Iteration', 'List', 'LocalExpression', 'TimedList']
@@ -486,8 +485,8 @@ class Function(Node):
 
         # At this point, all objects in args should be objects of the RuntimeArgument
         # heirarchy. Separate the tensor arguments from the scalar ones
-        self.t_args = [i for i in args if x.is_TensorArgument]
-        self.s_args = [i for i in args if x.is_ScalarArgument]
+        self.t_args = [i for i in args if i.is_TensorArgument]
+        self.s_args = [i for i in args if i.is_ScalarArgument]
 
     def __repr__(self):
         parameters = ",".join([c.dtype_to_ctype(i.dtype) for i in self.parameters])
@@ -502,9 +501,9 @@ class Function(Node):
     @property
     def _ccasts(self):
         """Generate data casts."""
-        t_args = [x for x in self.parameters
-                  if isinstance(x, (TensorArgument, TensorFunction))]
-        return [v.ccast for v in t_args]
+        tensors = [i for i in self.parameters
+                   if isinstance(i, (TensorArgument, TensorFunction))]
+        return [v.ccast for v in tensors]
 
     @property
     def _ctop(self):
