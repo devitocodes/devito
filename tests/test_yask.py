@@ -3,10 +3,13 @@ from sympy import Eq  # noqa
 
 import pytest  # noqa
 
-from devito import Operator, DenseData, x, y, z  # noqa
-
 pexpect = pytest.importorskip('yask_compiler')  # Run only if YASK is available
+
+from devito import Operator, DenseData, x, y, z, configuration  # noqa
 from devito.yask.interfaces import YaskGrid  # noqa
+
+pytestmark = pytest.mark.skipif(configuration['backend'] != 'yask',
+                                reason="'yask' wasn't selected as backend on startup")
 
 
 def test_data_type():
