@@ -130,7 +130,7 @@ class OperatorBasic(Function):
         assert(all(isinstance(x, RuntimeArgProvider)
                    for x in self.symbolic_data + self.dims))
         parameters = list(set(parameters + d_parents))
-        print(parameters)
+        
         # Finish instantiation
         super(OperatorBasic, self).__init__(self.name, nodes, 'int', parameters, ())
 

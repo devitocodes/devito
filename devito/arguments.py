@@ -48,7 +48,7 @@ class ScalarArgument(RuntimeArgument):
 
     @property
     def dtype(self):
-        return self.source.dtype
+        return np.int32
 
     def verify(self, value):
         # Assuming self._value was initialised as appropriate for the reducer
@@ -117,6 +117,11 @@ class DimensionArgProvider(RuntimeArgProvider):
     @property
     def value(self):
         return self._value
+    
+    @property
+    def dtype(self):
+        """The data type of the iteration variable"""
+        return np.int32
 
     @cached_property
     def rtargs(self):
@@ -126,6 +131,16 @@ class DimensionArgProvider(RuntimeArgProvider):
         else:
             size = ScalarArgument("%s_size" % self.name, self, max)
             return [size]
+
+    @property
+    def ccode(self):
+        """C-level variable name of this dimension"""
+        return "%s_size" % self.name if self.size is None else "%d" % self.size
+
+    @property
+    def decl(self):
+        """Variable declaration for C-level kernel headers"""
+        return cgen.Value("const int", self.ccode)
 
     # TODO: Do I need a verify on a dimension?
     def verify(self, value):

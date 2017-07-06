@@ -38,21 +38,6 @@ class Dimension(Symbol, DimensionArgProvider):
         except ValueError:
             return Symbol(self.ccode)
 
-    @property
-    def ccode(self):
-        """C-level variable name of this dimension"""
-        return "%s_size" % self.name if self.size is None else "%d" % self.size
-
-    @property
-    def decl(self):
-        """Variable declaration for C-level kernel headers"""
-        return cgen.Value("const int", self.ccode)
-
-    @property
-    def dtype(self):
-        """The data type of the iteration variable"""
-        return np.int32
-
 
 class BufferedDimension(Dimension):
 
