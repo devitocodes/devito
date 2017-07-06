@@ -286,6 +286,9 @@ class Iteration(Node):
 
         self.dim = dimension
         self.index = index or self.dim.name
+        # Store direction, as it might change on the dimension
+        # before we use it during code generation.
+        self.reverse = self.dim.reverse
 
         # Generate loop limits
         if isinstance(limits, Iterable):
@@ -347,7 +350,7 @@ class Iteration(Node):
             end = self.limits[1]
 
         # For reverse dimensions flip loop bounds
-        if self.dim.reverse:
+        if self.reverse:
             loop_init = c.InlineInitializer(c.Value("int", self.index),
                                             ccode('%s - 1' % end))
             loop_cond = '%s >= %s' % (self.index, ccode(start))
