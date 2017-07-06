@@ -3,11 +3,10 @@
 from collections import OrderedDict
 from os import environ
 
-from devito.autotuning import autotuning_registry
 from devito.backends import backends_registry
-from devito.dle import modes as dle_modes
-from devito.dse import modes as dse_modes
 from devito.compiler import compiler_registry, set_compiler
+from devito.dse import modes as dse_registry
+from devito.dle import modes as dle_registry
 from devito.logger import debug, logger_registry, set_log_level
 
 __all__ = ['configuration', 'init_configuration', 'print_defaults', 'print_state']
@@ -79,11 +78,11 @@ defaults = {
 accepted = {
     'backend': list(backends_registry),
     'log_level': list(logger_registry),
-    'autotuning': list(autotuning_registry),
+    'autotuning': ('none', 'basic', 'aggressive'),
     'compiler': list(compiler_registry),
     'openmp': [1, 0],
-    'dse': list(dse_modes),
-    'dle': list(dle_modes)
+    'dse': list(dse_registry),
+    'dle': list(dle_registry)
 }
 """Accepted values for the Devito environment variables."""
 

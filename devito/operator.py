@@ -15,10 +15,10 @@ from devito.dle import compose_nodes, filter_iterations, transform
 from devito.dse import clusterize, indexify, rewrite, q_indexed
 from devito.exceptions import InvalidArgument, InvalidOperator
 from devito.interfaces import SymbolicData, Forward, Backward
-from devito.logger import error
+from devito.logger import bar, error, info
 from devito.nodes import Element, Expression, Function, Iteration, List, LocalExpression
 from devito.parameters import configuration
-from devito.profiling import Profiler
+from devito.profiling import Profiler, create_profile
 from devito.stencil import Stencil
 from devito.tools import as_tuple, filter_ordered, flatten
 from devito.visitors import (FindSymbols, FindScopes, ResolveIterationVariable,
@@ -472,6 +472,62 @@ class Operator(Function):
     @property
     def _cglobals(self):
         return []
+
+
+class OperatorRunnable(Operator):
+    """
+    A special :class:`Operator` that, besides generation and compilation of
+    C code evaluating stencil expressions, can also execute the computation.
+    """
+
+    def __call__(self, *args, **kwargs):
+        self.apply(*args, **kwargs)
+
+    def apply(self, *args, **kwargs):
+        """Apply the stencil kernel to a set of data objects"""
+        # Build the arguments list to invoke the kernel function
+        arguments, dim_sizes = self.arguments(*args, **kwargs)
+
+        # Invoke kernel function with args
+        self.cfunction(*list(arguments.values()))
+
+        # Output summary of performance achieved
+        summary = self.profiler.summary(dim_sizes, self.dtype)
+        with bar():
+            for k, v in summary.items():
+                name = '%s<%s>' % (k, ','.join('%d' % i for i in v.itershape))
+                info("Section %s with OI=%.2f computed in %.3f s [Perf: %.2f GFlops/s]" %
+                     (name, v.oi, v.time, v.gflopss))
+
+        return summary
+
+    def _arg_data(self, argument):
+        # Ensure we're dealing or deriving numpy arrays
+        data = argument.data
+        if not isinstance(data, np.ndarray):
+            error('No array data found for argument %s' % argument.name)
+        return data
+
+    def _arg_shape(self, argument):
+        return argument.data.shape
+
+    def _profile_sections(self, nodes):
+        """Introduce C-level profiling nodes within the Iteration/Expression tree."""
+        return create_profile(nodes)
+
+    def _extra_arguments(self):
+        return OrderedDict([(self.profiler.typename, self.profiler.setup())])
+
+    @property
+    def _cparameters(self):
+        cparameters = super(OperatorRunnable, self)._cparameters
+        cparameters += [c.Pointer(c.Value('struct %s' % self.profiler.typename,
+                                          self.profiler.varname))]
+        return cparameters
+
+    @property
+    def _cglobals(self):
+        return [self.profiler.ctype, blankline]
 
 
 # Misc helpers

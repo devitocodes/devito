@@ -103,5 +103,3 @@ options = {
     'at_blocksize': [8, 16, 24, 32, 40, 64, 128]
 }
 """Autotuning options."""
-
-autotuning_registry = ('none', 'basic', 'aggressive')
