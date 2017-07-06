@@ -10,8 +10,8 @@ from devito.finite_difference import (centered, cross_derivative,
                                       second_derivative)
 from devito.logger import debug, error, warning
 from devito.memory import CMemory, first_touch
-from devito.arguments import (SymbolicDataArgProvider, ScalarFunctionArgProv,
-                              TensorFunctionArgProv)
+from devito.arguments import (SymbolicDataArgProvider, ScalarFunctionArgProvider,
+                              TensorFunctionArgProvider)
 
 __all__ = ['DenseData', 'TimeData', 'Forward', 'Backward']
 
@@ -210,7 +210,7 @@ class SymbolicFunction(AbstractSymbol):
         return
 
 
-class ScalarFunction(SymbolicFunction, ScalarFunctionArgProv):
+class ScalarFunction(SymbolicFunction, ScalarFunctionArgProvider):
     """Symbolic object representing a scalar.
 
     :param name: Name of the symbol
@@ -236,7 +236,7 @@ class ScalarFunction(SymbolicFunction, ScalarFunctionArgProv):
         self.dtype = dtype or self.dtype
 
 
-class TensorFunction(SymbolicFunction, TensorFunctionArgProv):
+class TensorFunction(SymbolicFunction, TensorFunctionArgProvider):
     """Symbolic object representing a tensor.
 
     :param name: Name of the symbol
