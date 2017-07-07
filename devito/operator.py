@@ -25,7 +25,7 @@ from devito.tools import as_tuple, filter_ordered, flatten
 from devito.visitors import (FindSymbols, FindScopes, ResolveIterationVariable,
                              SubstituteExpression, Transformer, NestedTransformer)
 from devito.exceptions import InvalidArgument, InvalidOperator
-from devito.arguments import RuntimeArgProvider, ScalarArgument, log_args
+from devito.arguments import ArgumentProvider, ScalarArgument, log_args
 
 __all__ = ['Operator']
 
@@ -127,7 +127,7 @@ class OperatorBasic(Function):
 
         d_parents = [d.parent for d in dims if hasattr(d, 'parent')]
         self.dims = list(set(dims + d_parents))
-        assert(all(isinstance(i, RuntimeArgProvider)
+        assert(all(isinstance(i, ArgumentProvider)
                    for i in self.symbolic_data + self.dims))
         parameters = list(set(parameters + d_parents))
 

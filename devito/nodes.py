@@ -13,7 +13,7 @@ from devito.dse import as_symbol
 from devito.interfaces import IndexedData, SymbolicData, TensorFunction
 from devito.stencil import Stencil
 from devito.tools import as_tuple, filter_ordered, flatten
-from devito.arguments import RuntimeArgProvider, RuntimeArgument, TensorArgument
+from devito.arguments import ArgumentProvider, Argument, TensorArgument
 
 __all__ = ['Node', 'Block', 'Denormals', 'Expression', 'Function', 'FunCall',
            'Iteration', 'List', 'LocalExpression', 'TimedList']
@@ -475,10 +475,10 @@ class Function(Node):
         self.retval = retval
         self.prefix = prefix
 
-        if all(isinstance(i, RuntimeArgProvider) for i in parameters):
+        if all(isinstance(i, ArgumentProvider) for i in parameters):
             args = flatten([i.rtargs for i in parameters])
         else:
-            assert(all(isinstance(i, RuntimeArgument) for i in parameters))
+            assert(all(isinstance(i, Argument) for i in parameters))
             args = parameters
 
         self.parameters = as_tuple(args)
