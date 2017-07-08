@@ -196,9 +196,9 @@ class IterationFold(Iteration):
     is_IterationFold = True
 
     def __init__(self, nodes, dimension, limits, index=None, offsets=None,
-                 properties=None, pragmas=None, folds=None):
-        super(IterationFold, self).__init__(nodes, dimension, limits, index,
-                                            offsets, properties, pragmas)
+                 properties=None, pragmas=None, uindices=None, folds=None):
+        super(IterationFold, self).__init__(nodes, dimension, limits, index, offsets,
+                                            properties, uindices, pragmas)
         self.folds = folds
 
     def __repr__(self):
@@ -206,9 +206,11 @@ class IterationFold(Iteration):
         if self.properties:
             properties = [str(i) for i in self.properties]
             properties = "WithProperties[%s]::" % ",".join(properties)
+        index = self.index
+        if self.uindices:
+            index += '[%s]' % ','.join(ccode(i.index) for i in self.uindices)
         length = "Length %d" % len(self.folds)
-        return "<%sIterationFold %s; %s; %s>" % (properties, self.index,
-                                                 self.limits, length)
+        return "<%sIterationFold %s; %s; %s>" % (properties, index, self.limits, length)
 
     @property
     def ccode(self):

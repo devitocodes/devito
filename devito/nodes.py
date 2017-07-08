@@ -257,6 +257,9 @@ class Iteration(Node):
                        For example, the string 'parallel' may be used to identify
                        a parallelizable Iteration.
     :param pragmas: A bag of pragmas attached to this Iteration.
+    :param uindices: a bag of UnboundedIndex objects, representing free iteration
+                     variables (i.e., the Iteration end point is independent of
+                     any of these UnboundedIndex).
     """
 
     is_Iteration = True
@@ -275,7 +278,7 @@ class Iteration(Node):
     """
 
     def __init__(self, nodes, dimension, limits, index=None, offsets=None,
-                 properties=None, pragmas=None):
+                 properties=None, pragmas=None, uindices=None):
         # Ensure we deal with a list of Expression objects internally
         nodes = as_tuple(nodes)
         self.nodes = as_tuple([n if isinstance(n, Node) else Expression(n)
@@ -308,17 +311,22 @@ class Iteration(Node):
             self.offsets[0] = min(self.offsets[0], int(off))
             self.offsets[1] = max(self.offsets[1], int(off))
 
-        # Track this Iteration's properties and pragmas
+        # Track this Iteration's properties, pragmas and unbounded indices
         self.properties = as_tuple(properties)
         assert (i in known_properties for i in self.properties)
         self.pragmas = as_tuple(pragmas)
+        self.uindices = as_tuple(uindices)
+        assert all(isinstance(i, UnboundedIndex) for i in self.uindices)
 
     def __repr__(self):
         properties = ""
         if self.properties:
             properties = [str(i) for i in self.properties]
             properties = "WithProperties[%s]::" % ",".join(properties)
-        return "<%sIteration %s; %s>" % (properties, self.index, self.limits)
+        index = self.index
+        if self.uindices:
+            index += '[%s]' % ','.join(ccode(i.index) for i in self.uindices)
+        return "<%sIteration %s; %s>" % (properties, index, self.limits)
 
     @property
     def ccode(self):
@@ -350,18 +358,28 @@ class Iteration(Node):
 
         # For reverse dimensions flip loop bounds
         if self.reverse:
-            loop_init = c.InlineInitializer(c.Value("int", self.index),
-                                            ccode('%s - 1' % end))
+            loop_init = 'int %s = %s' % (self.index, ccode('%s - 1' % end))
             loop_cond = '%s >= %s' % (self.index, ccode(start))
             loop_inc = '%s -= %s' % (self.index, self.limits[2])
         else:
-            loop_init = c.InlineInitializer(c.Value("int", self.index), ccode(start))
+            loop_init = 'int %s = %s' % (self.index, ccode(start))
             loop_cond = '%s < %s' % (self.index, ccode(end))
             loop_inc = '%s += %s' % (self.index, self.limits[2])
 
+        # Append unbounded indices, if any
+        if self.uindices:
+            uinit = ['%s = %s' % (i.index, i.start) for i in self.uindices]
+            loop_init = c.Line(', '.join([loop_init] + uinit))
+            uinc = ['%s += %s' % (i.index, i.inc) for i in self.uindices]
+            loop_inc = c.Line(', '.join([loop_inc] + uinc))
+
+        # Create For header+body
         handle = c.For(loop_init, loop_cond, loop_inc, c.Block(loop_body))
+
+        # Attach pragmas, if any
         if self.pragmas:
             handle = c.Module(self.pragmas + (handle,))
+
         return handle
 
     @property
@@ -608,7 +626,7 @@ class LocalExpression(Expression):
         return c.Initializer(c.Value(ctype, ccode(self.expr.lhs)), ccode(self.expr.rhs))
 
 
-# IterationProperty machinery
+# Iteration utilities
 
 class IterationProperty(object):
 
@@ -656,3 +674,16 @@ def tagger(i):
 def ntags():
     return len(known_properties) - ntags.n_original_properties
 ntags.n_original_properties = len(known_properties)
+
+
+class UnboundedIndex(object):
+
+    """
+    A generic loop iteration index used to traverse an iteration space in a
+    non-linear way (e.g., non-unitary increment).
+    """
+
+    def __init__(self, index, start=0, inc=1):
+        self.index = index
+        self.start = start
+        self.inc = inc
