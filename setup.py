@@ -20,6 +20,6 @@ setup(name='devito',
       author_email='opesci@imperial.ac.uk',
       license='MIT',
       packages=find_packages(exclude=['docs', 'examples', 'tests']),
-      install_requires=['numpy', 'sympy', 'mpmath', 'cgen', 'codepy',
+      install_requires=['numpy', 'sympy==1.0', 'mpmath', 'cgen', 'codepy',
                         'psutil', 'py-cpuinfo'],
       test_requires=['pytest', 'flake8', 'isort'])
