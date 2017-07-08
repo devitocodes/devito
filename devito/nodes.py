@@ -391,6 +391,10 @@ class Iteration(Node):
         return not self.is_Open
 
     @property
+    def is_Linear(self):
+        return len(self.uindices) == 0
+
+    @property
     def is_Sequential(self):
         return SEQUENTIAL in self.properties
 

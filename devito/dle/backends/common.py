@@ -180,7 +180,7 @@ class AbstractRewriter(object):
 
             # Determine if fully-parallel (FP), OSIP, unit-stride (in innermost dim)
             is_FP = True
-            is_OSIP = False
+            is_OSIP = not tree[0].is_Linear
             is_US = True
             for e1 in exprs:
                 lhs = e1.lhs
