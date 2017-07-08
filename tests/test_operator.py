@@ -354,11 +354,11 @@ class TestDeclarator(object):
   gettimeofday(&start_section_0, NULL);
   for (int k = 0; k < 7; k += 1)
   {
+    float c_stack[3][5] __attribute__((aligned(64)));
     for (int s = 0; s < 4; s += 1)
     {
       for (int q = 0; q < 4; q += 1)
       {
-        float c_stack[3][5] __attribute__((aligned(64)));
         for (int i = 0; i < 3; i += 1)
         {
           for (int j = 0; j < 5; j += 1)
