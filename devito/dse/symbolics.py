@@ -19,7 +19,7 @@ from devito.tools import flatten
 __all__ = ['rewrite', 'modes']
 
 
-modes = ('noop', 'basic', 'advanced',
+modes = ('noop', 'basic', 'advanced', 'speculative',
          'factorize', 'approx-trigonometry', 'glicm')
 """The DSE transformation modes."""
 
@@ -35,11 +35,15 @@ def rewrite(clusters, mode='advanced'):
          * 'noop': Do nothing.
          * 'basic': Apply common sub-expressions elimination.
          * 'factorize': Apply heuristic factorization of temporaries.
-         * 'approx-trigonometry': Replace expensive trigonometric
-             functions with suitable polynomial approximations.
+         * 'approx-trigonometry': Replace expensive trigonometric functions
+                                  with suitable polynomial approximations.
          * 'glicm': Heuristically hoist time-invariant and cross-stencil
-             redundancies.
-         * 'advanced': Compose all known transformations.
+                    redundancies.
+         * 'advanced': Compose all transformations that will reduce the
+                       operation count w/o increasing the memory pressure.
+         * 'speculative': Apply all of the 'advanced' transformations, plus
+                          the CSRE algorithm, which might increase the
+                          memory pressure.
     """
     if not mode:
         return clusters
@@ -117,11 +121,11 @@ class Rewriter(object):
     Track what options trigger a given pass.
     """
     triggers = {
-        '_extract_time_varying': ('future',),
-        '_extract_time_invariants': ('advanced',),
-        '_eliminate_intra_stencil_redundancies': ('basic', 'advanced'),
-        '_eliminate_inter_stencil_redundancies': ('glicm', 'advanced'),
-        '_factorize': ('factorize', 'advanced'),
+        '_extract_time_varying': ('speculative',),
+        '_extract_time_invariants': ('advanced', 'speculative'),
+        '_eliminate_intra_stencil_redundancies': ('basic', 'advanced', 'speculative'),
+        '_eliminate_inter_stencil_redundancies': ('glicm', 'advanced', 'speculative'),
+        '_factorize': ('factorize', 'advanced', 'speculative'),
         '_optimize_trigonometry': ('approx-trigonometry',),
         '_finalize': modes
     }

@@ -59,7 +59,7 @@ if __name__ == "__main__":
     devito = parser.add_argument_group("Devito")
     devito.add_argument("-dse", default="advanced", nargs="*",
                         choices=["noop", "basic", "factorize", "approx-trigonometry",
-                                 "glicm", "advanced"],
+                                 "glicm", "advanced", "speculative"],
                         help="Devito symbolic engine (DSE) mode")
     devito.add_argument("-dle", default="advanced", nargs="*",
                         choices=["noop", "advanced", "speculative"],
@@ -67,9 +67,6 @@ if __name__ == "__main__":
     devito.add_argument("-a", "--autotune", action="store_true",
                         help=("Benchmark with auto tuning on and off. " +
                               "Enables auto tuning when execmode is run"))
-    # devito.add_argument("-cb", "--cache_blocking", nargs=2, type=int,
-    #                    default=None, metavar=("blockDim1", "blockDim2"),
-    #                    help="User provided block sizes when auto-tuning is off")
 
     benchmarking = parser.add_argument_group("Benchmarking")
     benchmarking.add_argument("-r", "--resultsdir", default="results",
@@ -104,7 +101,6 @@ if __name__ == "__main__":
 
     parameters["dimensions"] = tuple(parameters["dimensions"])
     parameters["spacing"] = tuple(parameters["spacing"])
-
     parameters["compiler"] = compiler_registry[args.compiler](openmp=args.omp)
 
     if args.execmode == "run":
