@@ -1,10 +1,10 @@
 import cgen as c
-from sympy import Eq, Symbol
-import numpy as np
+from sympy import Symbol
 
+from devito.cgen_utils import ccode
 from devito.dle import compose_nodes, is_foldable, retrieve_iteration_tree
 from devito.dse import xreplace_indices
-from devito.nodes import Expression, Iteration, List, LocalExpression, ntags
+from devito.nodes import Expression, Iteration, List, UnboundedIndex, ntags
 from devito.visitors import (FindAdjacentIterations, FindNodes, IsPerfectIteration,
                              NestedTransformer, Transformer)
 from devito.tools import as_tuple
@@ -96,7 +96,6 @@ def unfold_blocked_tree(node):
         for i, _tree in enumerate(list(trees)):
             trees[i] = tuple(j.retag(tag + i) for j in _tree)
         trees = optimize_unfolded_tree(trees[:-1], trees[-1])
-        trees = [compose_nodes(i) for i in trees]
         mapper[tree[0]] = List(body=trees)
 
     # Insert the unfolded Iterations in the Iteration/Expression tree
@@ -140,43 +139,46 @@ def optimize_unfolded_tree(unfolded, root):
     """
     processed = []
     for i, tree in enumerate(unfolded):
+        assert len(tree) == len(root)
         otree = []
-        stmts = []
+        oroot = []
         mapper = {}
 
         # "Shrink" the iteration space
-        for j in tree:
-            start, end, incr = j.args['limits']
-            otree.append(j._rebuild(limits=[0, end-start, incr]))
-            index = Symbol('%ss%d' % (j.index, i))
-            stmts.append((LocalExpression(Eq(index, j.dim + start), np.int32),
-                          LocalExpression(Eq(index, j.dim - start), np.int32)))
-            mapper[j.dim] = index
+        for t1, t2 in zip(tree, root):
+            start, end, incr = t1.args['limits']
+            index = Symbol('%ss%d' % (t1.index, i))
 
-        # Substitute iteration variables within the folded trees
+            t1_uindex = (UnboundedIndex(index, start),)
+            t2_uindex = (UnboundedIndex(index, -start),)
+
+            otree.append(t1._rebuild(limits=[0, end-start, incr],
+                                     uindices=t1.uindices + t1_uindex))
+            oroot.append(t2._rebuild(uindices=t2.uindices + t2_uindex))
+
+            mapper[t1.dim] = index
+
+        # Temporary arrays can now be moved onto the stack
         exprs = FindNodes(Expression).visit(otree[-1])
-        replaced = xreplace_indices([j.expr for j in exprs], mapper, only_rhs=True)
-        subs = [j._rebuild(expr=k) for j, k in zip(exprs, replaced)]
-
-        handle = Transformer(dict(zip(exprs, subs))).visit(otree[-1])
-        handle = handle._rebuild(nodes=(zip(*stmts)[0] + handle.nodes))
-        processed.append(tuple(otree[:-1]) + (handle,))
-
-        # Temporary arrays can now be moved to the stack
         if all(not j.is_Remainder for j in otree):
             shape = tuple(j.bounds_symbolic[1] for j in otree)
-            for j in subs:
+            for j in exprs:
                 j_shape = shape + j.output_function.shape[len(otree):]
                 j.output_function.update(shape=j_shape, onstack=True)
 
-        # Introduce the new iteration variables within root
+        # Substitute iteration variables within the folded trees
+        otree = compose_nodes(otree)
+        replaced = xreplace_indices([j.expr for j in exprs], mapper, only_rhs=True)
+        subs = [j._rebuild(expr=k) for j, k in zip(exprs, replaced)]
+        processed.append(Transformer(dict(zip(exprs, subs))).visit(otree))
+
+        # Introduce the new iteration variables within /root/
+        oroot = compose_nodes(oroot)
+        exprs = FindNodes(Expression).visit(oroot)
         candidates = [j.output for j in subs]
-        exprs = FindNodes(Expression).visit(root[-1])
         replaced = xreplace_indices([j.expr for j in exprs], mapper, candidates)
         subs = [j._rebuild(expr=k) for j, k in zip(exprs, replaced)]
-        handle = Transformer(dict(zip(exprs, subs))).visit(root[-1])
-        handle = handle._rebuild(nodes=(zip(*stmts)[1] + handle.nodes))
-        root = root[:-1] + (handle,)
+        root = Transformer(dict(zip(exprs, subs))).visit(oroot)
 
     return processed + [root]
 

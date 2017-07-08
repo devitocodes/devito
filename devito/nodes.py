@@ -368,10 +368,10 @@ class Iteration(Node):
 
         # Append unbounded indices, if any
         if self.uindices:
-            uinit = ['%s = %s' % (i.index, i.start) for i in self.uindices]
+            uinit = ['%s = %s' % (i.index, ccode(i.start)) for i in self.uindices]
             loop_init = c.Line(', '.join([loop_init] + uinit))
-            uinc = ['%s += %s' % (i.index, i.inc) for i in self.uindices]
-            loop_inc = c.Line(', '.join([loop_inc] + uinc))
+            ustep = ['%s = %s' % (i.index, ccode(i.step)) for i in self.uindices]
+            loop_inc = c.Line(', '.join([loop_inc] + ustep))
 
         # Create For header+body
         handle = c.For(loop_init, loop_cond, loop_inc, c.Block(loop_body))
@@ -683,7 +683,7 @@ class UnboundedIndex(object):
     non-linear way (e.g., non-unitary increment).
     """
 
-    def __init__(self, index, start=0, inc=1):
+    def __init__(self, index, start=0, step=None):
         self.index = index
         self.start = start
-        self.inc = inc
+        self.step = index + 1 if step is None else step
