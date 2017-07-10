@@ -54,15 +54,14 @@ before_install:
   - conda info -a
 
 install:
-  - conda install --yes python=$TRAVIS_PYTHON_VERSION numpy scipy matplotlib
-  - pip install --upgrade pip
-  - pip install -r requirements.txt
+  - conda env create -q -f environment.yml python=$TRAVIS_PYTHON_VERSION
+  - source activate devito
+  - python setup.py install
 
 before_script:
   - echo -e "Host github.com\n\tStrictHostKeyChecking no\n" >> ~/.ssh/config
 
 script:
-  - export PYTHONPATH=$PYTHONPATH:$PWD
   - flake8 --builtins=ArgumentError .
   - py.test -vs tests/
   - python examples/benchmark.py test -P tti -so 4 -a -d 20 20 20 -n 5
