@@ -38,11 +38,25 @@ addons:
       - gcc-5
       - g++-5
 
+before_install:
+  # Setup anaconda
+  - if [[ "$TRAVIS_PYTHON_VERSION" == "2.7" ]]; then
+      wget https://repo.continuum.io/miniconda/Miniconda2-latest-Linux-x86_64.sh -O miniconda.sh;
+    else
+      wget https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh -O miniconda.sh;
+    fi
+  - bash miniconda.sh -b -p $HOME/miniconda
+  - export PATH="$HOME/miniconda/bin:$PATH"
+  - hash -r
+  - conda config --set always_yes yes --set changeps1 no
+  - conda update -q conda
+  # Useful for debugging any issues with conda
+  - conda info -a
+
 install:
-  - if [[ $TRAVIS_OS_NAME == 'osx' ]]; then brew update; brew install python; brew link --overwrite python ; fi
-  - pip install -U pip
+  - conda install --yes python=$TRAVIS_PYTHON_VERSION numpy scipy matplotlib
+  - pip install --upgrade pip
   - pip install -r requirements.txt
-  - if [[ $TRAVIS_OS_NAME == 'osx' ]]; then export PATH=$PATH:$HOME/Library/Python/2.7/bin; fi
 
 before_script:
   - echo -e "Host github.com\n\tStrictHostKeyChecking no\n" >> ~/.ssh/config
