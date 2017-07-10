@@ -1,5 +1,5 @@
 numpy>=1.11.1
-sympy>=0.7.6
+sympy==1.0
 mpmath>=0.19
 pytest
 pytest-ipynb
