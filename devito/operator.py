@@ -86,7 +86,7 @@ class Operator(Function):
         clusters = clusterize(expressions, stencils)
 
         # Apply the Devito Symbolic Engine for symbolic optimization
-        clusters = rewrite(clusters, mode=dse)
+        clusters = rewrite(clusters, mode=set_dse_mode(dse))
 
         # Wrap expressions with Iterations according to dimensions
         nodes = self._schedule_expressions(clusters, ordering)
@@ -516,6 +516,21 @@ class OperatorRunnable(Operator):
 
 
 # Misc helpers
+
+
+def set_dse_mode(mode):
+    """
+    Transform :class:`Operator` input in a format understandable by the DLE.
+    """
+    if not mode:
+        return 'noop'
+    elif isinstance(mode, str):
+        return mode
+    else:
+        try:
+            return ','.join(mode)
+        except:
+            raise TypeError("Illegal DSE mode %s." % str(mode))
 
 
 def set_dle_mode(mode):
