@@ -659,6 +659,7 @@ class IterationProperty(object):
         else:
             return "Property: %s[%s]" % (self.name, str(self.val))
 
+
 SEQUENTIAL = IterationProperty('sequential')
 PARALLEL = IterationProperty('parallel')
 VECTOR = IterationProperty('vector-dim')
@@ -677,7 +678,7 @@ def tagger(i):
 
 def ntags():
     return len(known_properties) - ntags.n_original_properties
-ntags.n_original_properties = len(known_properties)
+ntags.n_original_properties = len(known_properties)  # noqa
 
 
 class UnboundedIndex(object):

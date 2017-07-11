@@ -10,12 +10,11 @@ import inspect
 from collections import Iterable, OrderedDict, defaultdict
 from operator import attrgetter
 
-import cgen as c
 from sympy import Symbol
 
 from devito.dimension import LoweredDimension
 from devito.exceptions import VisitorException
-from devito.nodes import Iteration, List, Node, UnboundedIndex
+from devito.nodes import Iteration, Node, UnboundedIndex
 from devito.tools import as_tuple, filter_ordered, filter_sorted, flatten
 
 
