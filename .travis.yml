@@ -56,7 +56,7 @@ before_install:
 install:
   - conda env create -q -f environment.yml python=$TRAVIS_PYTHON_VERSION
   - source activate devito
-  - python setup.py install
+  - pip install -e .
 
 before_script:
   - echo -e "Host github.com\n\tStrictHostKeyChecking no\n" >> ~/.ssh/config
