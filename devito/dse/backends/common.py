@@ -49,6 +49,7 @@ class AbstractRewriter(object):
     """
     conventions = {
         'redundancy': 'r',
+        'sum-of-product': 'sop',
         'time-invariant': 'ti',
         'time-dependent': 'td',
         'temporary': 'tcse'

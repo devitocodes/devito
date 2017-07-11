@@ -1,7 +1,7 @@
 from devito.dse.backends import AdvancedRewriter, dse_pass
 from devito.dse.inspection import estimate_cost
 from devito.dse.manipulation import xreplace_constrained
-from devito.dse.queries import iq_timevarying
+from devito.dse.queries import iq_timevarying, q_leaf, q_sum_of_product, q_terminalop
 
 from devito.interfaces import ScalarFunction
 
@@ -40,6 +40,33 @@ class AggressiveRewriter(SpeculativeRewriter):
     def _pipeline(self, state):
         self._extract_time_varying(state)
         self._extract_time_invariants(state, with_cse=False)
+
+        # Iteratively apply CSRE until no further redundancies are spotted
+        i = 0
+        while state.has_changed:
+            self._eliminate_inter_stencil_redundancies(state, start=i)
+            self._extract_sum_of_products(state, start=i)
+            i += 1
+
+        self._eliminate_intra_stencil_redundancies(state)
+        self._factorize(state)
+
+    @dse_pass
+    def _extract_sum_of_products(self, cluster, **kwargs):
+        """
+        Extract sub-expressions in sum-of-product form, and assign them to temporaries.
+        """
+        targets = [i for i in cluster.exprs if i.is_tensor]
+        untouched = [i for i in cluster.exprs if i not in targets]
+
+        template = self.conventions['sum-of-product'] + "%d"
+        make = lambda i: ScalarFunction(name=template % i).indexify()
+
+        rule = q_sum_of_product
+        cm = lambda e: not (q_leaf(e) or q_terminalop(e))
+        processed, _ = xreplace_constrained(targets, make, rule, cm)
+
+        return cluster.reschedule(untouched + processed)
 
 
 class CustomRewriter(AggressiveRewriter):
