@@ -15,7 +15,7 @@ def dse_pass(func):
 
     def wrapper(self, state, **kwargs):
         tic = time()
-        state.update(flatten([func(self, c) for c in state.clusters]))
+        state.update(flatten([func(self, c, **kwargs) for c in state.clusters]))
         toc = time()
 
         key = '%s%d' % (func.__name__, len(self.timings))
