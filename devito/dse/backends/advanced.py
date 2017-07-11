@@ -23,7 +23,7 @@ class AdvancedRewriter(BasicRewriter):
         self._factorize(state)
 
     @dse_pass
-    def _extract_time_invariants(self, cluster, **kwargs):
+    def _extract_time_invariants(self, cluster, with_cse=True, **kwargs):
         """
         Extract time-invariant subexpressions, and assign them to temporaries.
         """
@@ -40,11 +40,12 @@ class AdvancedRewriter(BasicRewriter):
         leaves = [i for i in processed if i not in found]
 
         # Search for common sub-expressions amongst them (and only them)
-        template = "%s%s%s" % (self.conventions['redundancy'],
-                               self.conventions['time-invariant'], '%d')
-        make = lambda i: ScalarFunction(name=template % i).indexify()
+        if with_cse:
+            template = "%s%s%s" % (self.conventions['redundancy'],
+                                   self.conventions['time-invariant'], '%d')
+            make = lambda i: ScalarFunction(name=template % i).indexify()
 
-        found = common_subexprs_elimination(found, make)
+            found = common_subexprs_elimination(found, make)
 
         return cluster.reschedule(found + leaves)
 

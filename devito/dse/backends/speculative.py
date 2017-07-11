@@ -38,7 +38,8 @@ class SpeculativeRewriter(AdvancedRewriter):
 class AggressiveRewriter(SpeculativeRewriter):
 
     def _pipeline(self, state):
-        raise NotImplementedError
+        self._extract_time_varying(state)
+        self._extract_time_invariants(state, with_cse=False)
 
 
 class CustomRewriter(AggressiveRewriter):
