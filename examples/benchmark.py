@@ -52,8 +52,8 @@ if __name__ == "__main__":
 
     devito = parser.add_argument_group("Devito")
     devito.add_argument("-dse", default="advanced", nargs="*",
-                        choices=["noop", "basic", "factorize", "approx-trigonometry",
-                                 "glicm", "advanced", "speculative"],
+                        choices=["noop", "basic", "advanced", "speculative",
+                                 "aggressive"],
                         help="Devito symbolic engine (DSE) mode")
     devito.add_argument("-dle", default="advanced", nargs="*",
                         choices=["noop", "advanced", "speculative"],
@@ -193,25 +193,25 @@ if __name__ == "__main__":
              parameters["time_order"],
              args.arch)
 
-        dse_runs = ["basic", ("basic", "factorize"), ("basic", "glicm"), "advanced"]
+        dse_runs = ["basic", "advanced", "speculative", "aggressive"]
         dle_runs = ["basic", "advanced", "speculative"]
         runs = list(product(dse_runs, dle_runs))
         styles = {
             # DLE basic
             ('basic', 'basic'): 'or',
-            (('basic', 'factorize'), 'basic'): 'og',
-            (('basic', 'glicm'), 'basic'): 'oy',
-            ('advanced', 'basic'): 'ob',
+            ('advanced', 'basic'): 'og',
+            ('speculative', 'basic'): 'oy',
+            ('aggressive', 'basic'): 'ob',
             # DLE advanced
             ('basic', 'advanced'): 'Dr',
-            (('basic', 'factorize'), 'advanced'): 'Dg',
-            (('basic', 'glicm'), 'advanced'): 'Dy',
-            ('advanced', 'advanced'): 'Db',
+            ('advanced', 'advanced'): 'Dg',
+            ('speculative', 'advanced'): 'Dy',
+            ('aggressive', 'advanced'): 'Db',
             # DLE speculative
             ('basic', 'speculative'): 'sr',
-            (('basic', 'factorize'), 'speculative'): 'sg',
-            (('basic', 'glicm'), 'speculative'): 'sy',
-            ('advanced', 'speculative'): 'sb',
+            ('advanced', 'speculative'): 'sg',
+            ('speculative', 'speculative'): 'sy',
+            ('aggressive', 'speculative'): 'sb',
         }
 
         # Find min and max runtimes for instances having the same OI
