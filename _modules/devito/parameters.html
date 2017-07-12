@@ -164,13 +164,13 @@
 <span class="kn">from</span> <span class="nn">collections</span> <span class="k">import</span> <span class="n">OrderedDict</span>
 <span class="kn">from</span> <span class="nn">os</span> <span class="k">import</span> <span class="n">environ</span>
 
-<span class="kn">from</span> <span class="nn">devito.autotuning</span> <span class="k">import</span> <span class="n">autotuning_registry</span>
-<span class="kn">from</span> <span class="nn">devito.dle</span> <span class="k">import</span> <span class="n">modes</span> <span class="k">as</span> <span class="n">dle_modes</span>
-<span class="kn">from</span> <span class="nn">devito.dse</span> <span class="k">import</span> <span class="n">modes</span> <span class="k">as</span> <span class="n">dse_modes</span>
+<span class="kn">from</span> <span class="nn">devito.backends</span> <span class="k">import</span> <span class="n">backends_registry</span>
 <span class="kn">from</span> <span class="nn">devito.compiler</span> <span class="k">import</span> <span class="n">compiler_registry</span><span class="p">,</span> <span class="n">set_compiler</span>
+<span class="kn">from</span> <span class="nn">devito.dse</span> <span class="k">import</span> <span class="n">modes</span> <span class="k">as</span> <span class="n">dse_registry</span>
+<span class="kn">from</span> <span class="nn">devito.dle</span> <span class="k">import</span> <span class="n">modes</span> <span class="k">as</span> <span class="n">dle_registry</span>
 <span class="kn">from</span> <span class="nn">devito.logger</span> <span class="k">import</span> <span class="n">debug</span><span class="p">,</span> <span class="n">logger_registry</span><span class="p">,</span> <span class="n">set_log_level</span>
 
-<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;configuration&#39;</span><span class="p">,</span> <span class="s1">&#39;print_defaults&#39;</span><span class="p">,</span> <span class="s1">&#39;print_state&#39;</span><span class="p">]</span>
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;configuration&#39;</span><span class="p">,</span> <span class="s1">&#39;init_configuration&#39;</span><span class="p">,</span> <span class="s1">&#39;print_defaults&#39;</span><span class="p">,</span> <span class="s1">&#39;print_state&#39;</span><span class="p">]</span>
 
 <span class="c1"># Be EXTREMELY careful when writing to a Parameters dictionary</span>
 <span class="c1"># Read here for reference: http://wiki.c2.com/?GlobalVariablesAreBad</span>
@@ -226,6 +226,7 @@
 <span class="sd">&quot;&quot;&quot;The Devito configuration parameters.&quot;&quot;&quot;</span>
 
 <span class="n">defaults</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;backend&#39;</span><span class="p">:</span> <span class="s1">&#39;core&#39;</span><span class="p">,</span>
     <span class="s1">&#39;log_level&#39;</span><span class="p">:</span> <span class="s1">&#39;INFO&#39;</span><span class="p">,</span>
     <span class="s1">&#39;autotuning&#39;</span><span class="p">:</span> <span class="s1">&#39;basic&#39;</span><span class="p">,</span>
     <span class="s1">&#39;compiler&#39;</span><span class="p">:</span> <span class="s1">&#39;custom&#39;</span><span class="p">,</span>
@@ -236,53 +237,57 @@
 <span class="sd">&quot;&quot;&quot;The default Devito configuration parameters&quot;&quot;&quot;</span>
 
 <span class="n">accepted</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;backend&#39;</span><span class="p">:</span> <span class="nb">list</span><span class="p">(</span><span class="n">backends_registry</span><span class="p">),</span>
     <span class="s1">&#39;log_level&#39;</span><span class="p">:</span> <span class="nb">list</span><span class="p">(</span><span class="n">logger_registry</span><span class="p">),</span>
-    <span class="s1">&#39;autotuning&#39;</span><span class="p">:</span> <span class="nb">list</span><span class="p">(</span><span class="n">autotuning_registry</span><span class="p">),</span>
+    <span class="s1">&#39;autotuning&#39;</span><span class="p">:</span> <span class="p">(</span><span class="s1">&#39;none&#39;</span><span class="p">,</span> <span class="s1">&#39;basic&#39;</span><span class="p">,</span> <span class="s1">&#39;aggressive&#39;</span><span class="p">),</span>
     <span class="s1">&#39;compiler&#39;</span><span class="p">:</span> <span class="nb">list</span><span class="p">(</span><span class="n">compiler_registry</span><span class="p">),</span>
     <span class="s1">&#39;openmp&#39;</span><span class="p">:</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span>
-    <span class="s1">&#39;dse&#39;</span><span class="p">:</span> <span class="nb">list</span><span class="p">(</span><span class="n">dse_modes</span><span class="p">),</span>
-    <span class="s1">&#39;dle&#39;</span><span class="p">:</span> <span class="nb">list</span><span class="p">(</span><span class="n">dle_modes</span><span class="p">)</span>
+    <span class="s1">&#39;dse&#39;</span><span class="p">:</span> <span class="nb">list</span><span class="p">(</span><span class="n">dse_registry</span><span class="p">),</span>
+    <span class="s1">&#39;dle&#39;</span><span class="p">:</span> <span class="nb">list</span><span class="p">(</span><span class="n">dle_registry</span><span class="p">)</span>
 <span class="p">}</span>
 <span class="sd">&quot;&quot;&quot;Accepted values for the Devito environment variables.&quot;&quot;&quot;</span>
 
 <span class="n">env_vars_mapper</span> <span class="o">=</span> <span class="p">{</span>
     <span class="s1">&#39;DEVITO_ARCH&#39;</span><span class="p">:</span> <span class="s1">&#39;compiler&#39;</span><span class="p">,</span>
     <span class="s1">&#39;DEVITO_AUTOTUNING&#39;</span><span class="p">:</span> <span class="s1">&#39;autotuning&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;DEVITO_BACKEND&#39;</span><span class="p">:</span> <span class="s1">&#39;backend&#39;</span><span class="p">,</span>
     <span class="s1">&#39;DEVITO_DSE&#39;</span><span class="p">:</span> <span class="s1">&#39;dse&#39;</span><span class="p">,</span>
     <span class="s1">&#39;DEVITO_DLE&#39;</span><span class="p">:</span> <span class="s1">&#39;dle&#39;</span><span class="p">,</span>
     <span class="s1">&#39;DEVITO_OPENMP&#39;</span><span class="p">:</span> <span class="s1">&#39;openmp&#39;</span><span class="p">,</span>
     <span class="s1">&#39;DEVITO_LOGGING&#39;</span><span class="p">:</span> <span class="s1">&#39;log_level&#39;</span>
 <span class="p">}</span>
 
-<span class="c1"># Populate /parameters/</span>
-<span class="k">if</span> <span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;DEVITO_CONFIG&#39;</span><span class="p">)</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-    <span class="c1"># Try env variables, otherwise pick defaults</span>
-    <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">env_vars_mapper</span><span class="o">.</span><span class="n">items</span><span class="p">()):</span>
-        <span class="n">configuration</span><span class="p">[</span><span class="n">v</span><span class="p">]</span> <span class="o">=</span> <span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">defaults</span><span class="p">[</span><span class="n">v</span><span class="p">])</span>
-<span class="k">else</span><span class="p">:</span>
-    <span class="c1"># Attempt reading from the specified configuration file</span>
-    <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="s2">&quot;Devito doesn&#39;t support configuration via file.&quot;</span><span class="p">)</span>
 
-<span class="c1"># Parameters casting and checking</span>
-<span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="nb">list</span><span class="p">(</span><span class="n">configuration</span><span class="o">.</span><span class="n">items</span><span class="p">()):</span>
-    <span class="k">try</span><span class="p">:</span>
-        <span class="n">val</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">v</span><span class="p">)</span>
-    <span class="k">except</span> <span class="p">(</span><span class="ne">TypeError</span><span class="p">,</span> <span class="ne">ValueError</span><span class="p">):</span>
-        <span class="n">val</span> <span class="o">=</span> <span class="n">v</span>
-    <span class="k">if</span> <span class="n">val</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">accepted</span><span class="p">[</span><span class="n">k</span><span class="p">]:</span>
-        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Illegal configuration parameter (</span><span class="si">%s</span><span class="s2">, </span><span class="si">%s</span><span class="s2">). &quot;</span>
-                         <span class="s2">&quot;Accepted: </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">val</span><span class="p">,</span> <span class="nb">str</span><span class="p">(</span><span class="n">accepted</span><span class="p">[</span><span class="n">k</span><span class="p">])))</span>
-    <span class="n">configuration</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="n">val</span>
+<div class="viewcode-block" id="init_configuration"><a class="viewcode-back" href="../../devito.html#devito.parameters.init_configuration">[docs]</a><span class="k">def</span> <span class="nf">init_configuration</span><span class="p">():</span>
+    <span class="c1"># Populate /parameters/</span>
+    <span class="k">if</span> <span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;DEVITO_CONFIG&#39;</span><span class="p">)</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="c1"># Try env variables, otherwise pick defaults</span>
+        <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">env_vars_mapper</span><span class="o">.</span><span class="n">items</span><span class="p">()):</span>
+            <span class="n">configuration</span><span class="p">[</span><span class="n">v</span><span class="p">]</span> <span class="o">=</span> <span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">defaults</span><span class="p">[</span><span class="n">v</span><span class="p">])</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="c1"># Attempt reading from the specified configuration file</span>
+        <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="s2">&quot;Devito doesn&#39;t support configuration via file.&quot;</span><span class="p">)</span>
 
-<span class="c1"># Global setup</span>
-<span class="c1"># - Logger</span>
-<span class="n">configuration</span><span class="o">.</span><span class="n">set_update_function</span><span class="p">(</span><span class="s1">&#39;log_level&#39;</span><span class="p">,</span> <span class="k">lambda</span> <span class="n">i</span><span class="p">:</span> <span class="n">set_log_level</span><span class="p">(</span><span class="n">i</span><span class="p">))</span>
-<span class="c1"># - Compilation toolchain</span>
-<span class="n">configuration</span><span class="p">[</span><span class="s1">&#39;compiler&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">set_compiler</span><span class="p">(</span><span class="n">configuration</span><span class="p">[</span><span class="s1">&#39;compiler&#39;</span><span class="p">],</span>
-                                         <span class="n">configuration</span><span class="p">[</span><span class="s1">&#39;openmp&#39;</span><span class="p">])</span>
-<span class="n">configuration</span><span class="p">[</span><span class="s1">&#39;openmp&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="nb">bool</span><span class="p">(</span><span class="n">configuration</span><span class="p">[</span><span class="s1">&#39;openmp&#39;</span><span class="p">])</span>
+    <span class="c1"># Parameters casting and checking</span>
+    <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="nb">list</span><span class="p">(</span><span class="n">configuration</span><span class="o">.</span><span class="n">items</span><span class="p">()):</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">val</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">v</span><span class="p">)</span>
+        <span class="k">except</span> <span class="p">(</span><span class="ne">TypeError</span><span class="p">,</span> <span class="ne">ValueError</span><span class="p">):</span>
+            <span class="n">val</span> <span class="o">=</span> <span class="n">v</span>
+        <span class="k">if</span> <span class="n">val</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">accepted</span><span class="p">[</span><span class="n">k</span><span class="p">]:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Illegal configuration parameter (</span><span class="si">%s</span><span class="s2">, </span><span class="si">%s</span><span class="s2">). &quot;</span>
+                             <span class="s2">&quot;Accepted: </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">val</span><span class="p">,</span> <span class="nb">str</span><span class="p">(</span><span class="n">accepted</span><span class="p">[</span><span class="n">k</span><span class="p">])))</span>
+        <span class="n">configuration</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="n">val</span>
 
-<span class="n">configuration</span><span class="o">.</span><span class="n">initialize</span><span class="p">()</span>
+    <span class="c1"># Global setup</span>
+    <span class="c1"># - Logger</span>
+    <span class="n">configuration</span><span class="o">.</span><span class="n">set_update_function</span><span class="p">(</span><span class="s1">&#39;log_level&#39;</span><span class="p">,</span> <span class="k">lambda</span> <span class="n">i</span><span class="p">:</span> <span class="n">set_log_level</span><span class="p">(</span><span class="n">i</span><span class="p">))</span>
+    <span class="c1"># - Compilation toolchain</span>
+    <span class="n">configuration</span><span class="p">[</span><span class="s1">&#39;compiler&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">set_compiler</span><span class="p">(</span><span class="n">configuration</span><span class="p">[</span><span class="s1">&#39;compiler&#39;</span><span class="p">],</span>
+                                             <span class="n">configuration</span><span class="p">[</span><span class="s1">&#39;openmp&#39;</span><span class="p">])</span>
+    <span class="n">configuration</span><span class="p">[</span><span class="s1">&#39;openmp&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="nb">bool</span><span class="p">(</span><span class="n">configuration</span><span class="p">[</span><span class="s1">&#39;openmp&#39;</span><span class="p">])</span>
+
+    <span class="n">configuration</span><span class="o">.</span><span class="n">initialize</span><span class="p">()</span></div>
 
 
 <div class="viewcode-block" id="print_defaults"><a class="viewcode-back" href="../../devito.html#devito.parameters.print_defaults">[docs]</a><span class="k">def</span> <span class="nf">print_defaults</span><span class="p">():</span>
