@@ -14,10 +14,22 @@ __all__ = ['AbstractRewriter', 'State', 'dse_pass']
 def dse_pass(func):
 
     def wrapper(self, state, **kwargs):
+        # A template to construct temporaries
+        tempname = self.conventions.get(func.__name__)
+        if tempname:
+            start = kwargs.get('start')
+            tempname += '%d' if start is None else (('_%d_' % start) + '%d')
+            template = lambda i: tempname % i
+        else:
+            template = None
+
+        # Invoke the DSE pass
         tic = time()
-        state.update(flatten([func(self, c, **kwargs) for c in state.clusters]))
+        state.update(flatten([func(self, c, template, **kwargs)
+                              for c in state.clusters]))
         toc = time()
 
+        # Profiling
         key = '%s%d' % (func.__name__, len(self.timings))
         self.timings[key] = toc - tic
         if self.profile:
@@ -31,9 +43,17 @@ class State(object):
 
     def __init__(self, cluster):
         self.clusters = [cluster]
+        self._has_changed = False
 
     def update(self, clusters):
-        self.clusters = clusters or self.clusters
+        clusters = clusters or self.clusters
+        self._has_changed = len(clusters) != len(self.clusters) or\
+            any(c1.exprs != c2.exprs for c1, c2 in zip(clusters, self.clusters))
+        self.clusters = clusters
+
+    @property
+    def has_changed(self):
+        return self._has_changed
 
 
 class AbstractRewriter(object):
@@ -48,11 +68,11 @@ class AbstractRewriter(object):
     Name conventions for new temporaries.
     """
     conventions = {
-        'redundancy': 'r',
-        'sum-of-product': 'sop',
-        'time-invariant': 'ti',
-        'time-dependent': 'td',
-        'temporary': 'tcse'
+        '_extract_sum_of_products': 'sop',
+        '_extract_time_invariants': 'ti',
+        '_extract_time_varying': 'td',
+        '_eliminate_intra_stencil_redundancies': 'tcse',
+        '_eliminate_inter_stencil_redundancies': 'r'
     }
 
     """
@@ -87,7 +107,7 @@ class AbstractRewriter(object):
         return
 
     @dse_pass
-    def _finalize(self, cluster, **kwargs):
+    def _finalize(self, cluster, *args, **kwargs):
         """
         Finalize the DSE output: ::
 

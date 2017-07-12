@@ -23,34 +23,27 @@ class AdvancedRewriter(BasicRewriter):
         self._factorize(state)
 
     @dse_pass
-    def _extract_time_invariants(self, cluster, with_cse=True, **kwargs):
+    def _extract_time_invariants(self, cluster, template, with_cse=True, **kwargs):
         """
         Extract time-invariant subexpressions, and assign them to temporaries.
         """
 
         # Extract time invariants
-        template = self.conventions['time-invariant'] + "%d"
-        make = lambda i: ScalarFunction(name=template % i).indexify()
-
+        make = lambda i: ScalarFunction(name=template(i)).indexify()
         rule = iq_timeinvariant(cluster.trace)
-
         cm = lambda e: estimate_cost(e) > 0
-
         processed, found = xreplace_constrained(cluster.exprs, make, rule, cm)
         leaves = [i for i in processed if i not in found]
 
         # Search for common sub-expressions amongst them (and only them)
         if with_cse:
-            template = "%s%s%s" % (self.conventions['redundancy'],
-                                   self.conventions['time-invariant'], '%d')
-            make = lambda i: ScalarFunction(name=template % i).indexify()
-
+            make = lambda i: ScalarFunction(name=template(i + len(found))).indexify()
             found = common_subexprs_elimination(found, make)
 
         return cluster.reschedule(found + leaves)
 
     @dse_pass
-    def _factorize(self, cluster, **kwargs):
+    def _factorize(self, cluster, *args, **kwargs):
         """
         Collect terms in each expr in exprs based on the following heuristic:
 
@@ -79,7 +72,7 @@ class AdvancedRewriter(BasicRewriter):
         return cluster.rebuild(processed)
 
     @dse_pass
-    def _eliminate_inter_stencil_redundancies(self, cluster, **kwargs):
+    def _eliminate_inter_stencil_redundancies(self, cluster, template, **kwargs):
         """
         Search for redundancies across the expressions and expose them
         to the later stages of the optimisation pipeline by introducing
@@ -118,9 +111,8 @@ class AdvancedRewriter(BasicRewriter):
         shape = tuple(i.symbolic_size for i in indices)
 
         # Template for captured redundancies
-        name = self.conventions['redundancy'] + "%d"
-        template = lambda i: TensorFunction(name=name % i, shape=shape,
-                                            dimensions=indices).indexed
+        make = lambda i: TensorFunction(name=template(i), shape=shape,
+                                        dimensions=indices).indexed
 
         # Find the candidate expressions
         processed = []
@@ -141,7 +133,7 @@ class AdvancedRewriter(BasicRewriter):
         rules = OrderedDict()
         stencils = []
         for c, (origin, alias) in enumerate(aliases.items()):
-            function = template(c)
+            function = make(c)
             temporary = Indexed(function, *indices)
             found.append(Eq(temporary, origin))
             # Track the stencil of each TensorFunction introduced

@@ -16,20 +16,16 @@ class SpeculativeRewriter(AdvancedRewriter):
         self._factorize(state)
 
     @dse_pass
-    def _extract_time_varying(self, cluster, **kwargs):
+    def _extract_time_varying(self, cluster, template, **kwargs):
         """
         Extract time-varying subexpressions, and assign them to temporaries.
         Time varying subexpressions arise for example when approximating
         derivatives through finite differences.
         """
 
-        template = self.conventions['time-dependent'] + "%d"
-        make = lambda i: ScalarFunction(name=template % i).indexify()
-
+        make = lambda i: ScalarFunction(name=template(i)).indexify()
         rule = iq_timevarying(cluster.trace)
-
         cm = lambda i: estimate_cost(i) > 0
-
         processed, _ = xreplace_constrained(cluster.exprs, make, rule, cm)
 
         return cluster.reschedule(processed)
@@ -52,16 +48,14 @@ class AggressiveRewriter(SpeculativeRewriter):
         self._factorize(state)
 
     @dse_pass
-    def _extract_sum_of_products(self, cluster, **kwargs):
+    def _extract_sum_of_products(self, cluster, template, **kwargs):
         """
         Extract sub-expressions in sum-of-product form, and assign them to temporaries.
         """
         targets = [i for i in cluster.exprs if i.is_tensor]
         untouched = [i for i in cluster.exprs if i not in targets]
 
-        template = self.conventions['sum-of-product'] + "%d"
-        make = lambda i: ScalarFunction(name=template % i).indexify()
-
+        make = lambda i: ScalarFunction(name=template(i)).indexify()
         rule = q_sum_of_product
         cm = lambda e: not (q_leaf(e) or q_terminalop(e))
         processed, _ = xreplace_constrained(targets, make, rule, cm)

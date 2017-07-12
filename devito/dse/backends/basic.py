@@ -13,7 +13,7 @@ class BasicRewriter(AbstractRewriter):
         self._eliminate_intra_stencil_redundancies(state)
 
     @dse_pass
-    def _eliminate_intra_stencil_redundancies(self, cluster, **kwargs):
+    def _eliminate_intra_stencil_redundancies(self, cluster, template, **kwargs):
         """
         Perform common subexpression elimination, bypassing the scalar expressions
         extracted in previous passes.
@@ -22,8 +22,7 @@ class BasicRewriter(AbstractRewriter):
         skip = [e for e in cluster.exprs if e.lhs.base.function.is_SymbolicFunction]
         candidates = [e for e in cluster.exprs if e not in skip]
 
-        template = self.conventions['temporary'] + "%d"
-        make = lambda i: ScalarFunction(name=template % i).indexify()
+        make = lambda i: ScalarFunction(name=template(i)).indexify()
 
         processed = common_subexprs_elimination(candidates, make)
 
