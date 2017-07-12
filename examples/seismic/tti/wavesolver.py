@@ -1,7 +1,7 @@
 # coding: utf-8
 from cached_property import cached_property
 
-from devito.interfaces import TimeData
+from devito import TimeData
 from examples.seismic.tti.operators import ForwardOperator
 from examples.seismic import Receiver
 

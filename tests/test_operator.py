@@ -1,5 +1,7 @@
 from __future__ import absolute_import
 
+from collections import OrderedDict
+
 from conftest import EVAL, dims
 
 import numpy as np
@@ -7,7 +9,8 @@ import pytest
 from sympy import Eq  # noqa
 
 from devito import (clear_cache, Operator, DenseData, TimeData,
-                    PointData, Dimension, time, x, y, z)
+                    PointData, Dimension, time, x, y, z, configuration)
+from devito.foreign import Operator as OperatorForeign
 from devito.dle import retrieve_iteration_tree
 from devito.visitors import IsPerfectIteration
 
@@ -430,19 +433,22 @@ class TestLoopScheduler(object):
         assert trees[1][-1].nodes[0].expr.rhs == eqs[1].rhs
 
 
+@pytest.mark.skipif(configuration['backend'] != 'foreign',
+                    reason="'foreign' wasn't selected as backend on startup")
 class TestForeign(object):
 
-    def test_code(self):
-        shape = (11, 11)
-        a = TimeData(name='a', shape=shape, time_order=1,
-                     time_dim=6, save=True)
+    def test_explicit_run(self):
+        time_dim = 6
+        a = TimeData(name='a', shape=(11, 11), time_order=1,
+                     time_dim=time_dim, save=True)
         eqn = Eq(a.forward, a + 1.)
-        b = TimeData(name='a', shape=shape, time_order=1,
-                     time_dim=6, save=True)
-        eqn2 = Eq(b.forward, b + 1.)
         op = Operator(eqn)
-        op()
-        op2 = Operator(eqn2, external=True)
-        arg, _ = op.arguments(a=b)
-        op2.cfunction(*list(arg.values()))
-        assert(np.allclose(a.data[:], b.data[:]))
+        assert isinstance(op, OperatorForeign)
+        args = OrderedDict(op.arguments())
+        assert args['a'] is None
+        # Emulate data feeding from outside
+        array = np.ndarray(shape=a.shape, dtype=np.float32)
+        array.fill(0.0)
+        args['a'] = array
+        op.cfunction(*list(args.values()))
+        assert all(np.allclose(args['a'][i], i) for i in range(time_dim))

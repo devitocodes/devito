@@ -1,7 +1,7 @@
 from collections import Sequence
 
 from devito.dle.backends import (State, BasicRewriter, DevitoCustomRewriter,
-                                 DevitoRewriter, DevitoSpeculativeRewriter, YaskRewriter)
+                                 DevitoRewriter, DevitoSpeculativeRewriter)
 from devito.exceptions import DLEException
 from devito.logger import dle_warning
 
@@ -11,8 +11,7 @@ __all__ = ['transform', 'modes']
 modes = {
     'basic': BasicRewriter,
     'advanced': DevitoRewriter,
-    'speculative': DevitoSpeculativeRewriter,
-    'yask': YaskRewriter
+    'speculative': DevitoSpeculativeRewriter
 }
 """The DLE transformation modes."""
 
@@ -34,8 +33,6 @@ def transform(node, mode='basic', options=None):
                      * 'speculative': Apply all of the 'advanced' transformations,
                                       plus other transformations that might increase
                                       (or possibly decrease) performance.
-                     * 'yask': Optimize by offloading to the YASK optimizer. Still
-                               work-in-progress; should only be used by developers.
     :param options: A dictionary with additional information to drive the DLE. The
                     following values are accepted: ::
 
@@ -69,13 +66,13 @@ def transform(node, mode='basic', options=None):
             params.pop(i)
     params['compiler'] = configuration['compiler']
     params['openmp'] = configuration['openmp']
+    if mode == '3D-advanced':
+        params['blockinner'] = True
+        mode = 'advanced'
 
     # Process the Iteration/Expression tree through the DLE
     if mode is None or mode == 'noop':
         return State(node)
-    elif mode == '3D-advanced':
-        params['blockinner'] = True
-        mode = 'advanced'
     elif mode not in modes:
         try:
             rewriter = DevitoCustomRewriter(node, mode, params)

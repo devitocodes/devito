@@ -8,9 +8,8 @@ from sympy import Eq
 
 from devito.dle import transform
 from devito.dle.backends import DevitoRewriter as Rewriter
-from devito.interfaces import DenseData, TimeData
+from devito import DenseData, TimeData, Operator
 from devito.nodes import Expression, Function, List
-from devito.operator import Operator
 from devito.visitors import ResolveIterationVariable, SubstituteExpression
 
 

@@ -8,13 +8,12 @@ import cgen as c
 import numpy as np
 import sympy
 
-from devito.autotuning import autotune
-from devito.cgen_utils import Allocator, blankline, printmark
+from devito.cgen_utils import Allocator, blankline
 from devito.compiler import jit_compile, load
 from devito.dimension import Dimension, time
-from devito.dle import (compose_nodes, filter_iterations,
-                        retrieve_iteration_tree, transform)
+from devito.dle import compose_nodes, filter_iterations, transform
 from devito.dse import clusterize, indexify, rewrite, q_indexed
+from devito.exceptions import InvalidArgument, InvalidOperator
 from devito.interfaces import SymbolicData, Forward, Backward
 from devito.logger import bar, error, info
 from devito.nodes import Element, Expression, Function, Iteration, List, LocalExpression
@@ -24,12 +23,9 @@ from devito.stencil import Stencil
 from devito.tools import as_tuple, filter_ordered, flatten
 from devito.visitors import (FindSymbols, FindScopes, ResolveIterationVariable,
                              SubstituteExpression, Transformer, NestedTransformer)
-from devito.exceptions import InvalidArgument, InvalidOperator
-
-__all__ = ['Operator']
 
 
-class OperatorBasic(Function):
+class Operator(Function):
 
     _default_headers = ['#define _POSIX_C_SOURCE 200809L']
     _default_includes = ['stdlib.h', 'math.h', 'sys/time.h']
@@ -111,18 +107,26 @@ class OperatorBasic(Function):
 
         # Apply the Devito Loop Engine for loop optimization
         dle_state = transform(nodes, *set_dle_mode(dle))
-        parameters += [i.argument for i in dle_state.arguments]
+        nodes, elemental_functions = dle_state.trees
+        self.dle_arguments = dle_state.arguments
+        self.dle_flags = dle_state.flags
+
+        # Update the Operator arguments
+        parameters += [i.argument for i in self.dle_arguments]
         self._includes.extend(list(dle_state.includes))
 
-        # Introduce all required C declarations
-        nodes, elemental_functions = self._insert_declarations(dle_state, parameters)
-        self.elemental_functions = elemental_functions
+        # Translate into backend-specific representation (e.g., GPU, Yask)
+        nodes, elemental_functions = self._specialize(nodes, elemental_functions)
 
-        # Track the DLE output, as it might be useful at execution time
-        self._dle_state = dle_state
+        # Introduce all required C declarations
+        nodes, elemental_functions = self._insert_declarations(nodes,
+                                                               elemental_functions,
+                                                               dle_state.func_table,
+                                                               parameters)
 
         # Finish instantiation
-        super(OperatorBasic, self).__init__(self.name, nodes, 'int', parameters, ())
+        super(Operator, self).__init__(self.name, nodes, 'int', parameters, ())
+        self.elemental_functions = elemental_functions
 
     def arguments(self, *args, **kwargs):
         """
@@ -206,7 +210,7 @@ class OperatorBasic(Function):
 
         # Add user-provided block sizes, if any
         dle_arguments = OrderedDict()
-        for i in self._dle_state.arguments:
+        for i in self.dle_arguments:
             dim_size = dim_sizes.get(i.original_dim.name, i.original_dim.size)
             if dim_size is None:
                 error('Unable to derive size of dimension %s from defaults. '
@@ -365,17 +369,21 @@ class OperatorBasic(Function):
 
         return List(body=processed)
 
-    def _insert_declarations(self, dle_state, parameters):
-        """Populate the Operator's body with the required array and
-        variable declarations, to generate a legal C file."""
+    def _specialize(self, nodes, elemental_functions):
+        """Transform the Iteration/Expression tree into a backend-specific
+        representation, such as code to be executed on a GPU or through a
+        lower-level tool."""
+        return nodes, elemental_functions
 
-        nodes = dle_state.nodes
+    def _insert_declarations(self, nodes, elemental_functions, func_table, parameters):
+        """Populate the Operator's body with the required array and variable
+        declarations, to generate a legal C file."""
 
         # Resolve function calls first
         scopes = []
         for k, v in FindScopes().visit(nodes).items():
             if k.is_FunCall:
-                function = dle_state.func_table[k.name]
+                function = func_table[k.name]
                 scopes.extend(FindScopes().visit(function, queue=list(v)).items())
             else:
                 scopes.append((k, v))
@@ -403,7 +411,7 @@ class OperatorBasic(Function):
         for k, v in allocator.onstack:
             mapper[k] = tuple(Element(i) for i in v)
         nodes = NestedTransformer(mapper).visit(nodes)
-        elemental_functions = Transformer(mapper).visit(dle_state.elemental_functions)
+        elemental_functions = Transformer(mapper).visit(elemental_functions)
 
         # TODO
         # Use x_block_size+2, y_block_size+2 instead of x_size, y_size as shape of
@@ -459,26 +467,16 @@ class OperatorBasic(Function):
 
     @property
     def _cparameters(self):
-        return super(OperatorBasic, self)._cparameters
+        return super(Operator, self)._cparameters
 
     @property
     def _cglobals(self):
         return []
 
 
-class OperatorForeign(OperatorBasic):
+class OperatorRunnable(Operator):
     """
-    A special :class:`OperatorBasic` for use outside of Python.
-    """
-
-    def arguments(self, *args, **kwargs):
-        arguments, _ = super(OperatorForeign, self).arguments(*args, **kwargs)
-        return arguments.items()
-
-
-class OperatorCore(OperatorBasic):
-    """
-    A special :class:`OperatorBasic` that, besides generation and compilation of
+    A special :class:`Operator` that, besides generation and compilation of
     C code evaluating stencil expressions, can also execute the computation.
     """
 
@@ -520,18 +518,9 @@ class OperatorCore(OperatorBasic):
     def _extra_arguments(self):
         return OrderedDict([(self.profiler.typename, self.profiler.setup())])
 
-    def _autotune(self, arguments):
-        """Use auto-tuning on this Operator to determine empirically the
-        best block sizes when loop blocking is in use."""
-        if self._dle_state.has_applied_blocking:
-            return autotune(self, arguments, self._dle_state.arguments,
-                            mode=configuration['autotuning'])
-        else:
-            return arguments
-
     @property
     def _cparameters(self):
-        cparameters = super(OperatorCore, self)._cparameters
+        cparameters = super(OperatorRunnable, self)._cparameters
         cparameters += [c.Pointer(c.Value('struct %s' % self.profiler.typename,
                                           self.profiler.varname))]
         return cparameters
@@ -541,54 +530,7 @@ class OperatorCore(OperatorBasic):
         return [self.profiler.ctype, blankline]
 
 
-class OperatorDebug(OperatorCore):
-    """
-    Decorate the generated code with useful print statements.
-    """
-
-    def __init__(self, expressions, **kwargs):
-        super(OperatorDebug, self).__init__(expressions, **kwargs)
-        self._includes.append('stdio.h')
-
-        # Minimize the trip count of the sequential loops
-        iterations = set(flatten(retrieve_iteration_tree(self.body)))
-        mapper = {i: i._rebuild(limits=(max(i.offsets) + 2))
-                  for i in iterations if i.is_Sequential}
-        self.body = Transformer(mapper).visit(self.body)
-
-        # Mark entry/exit points of each non-sequential Iteration tree in the body
-        iterations = [filter_iterations(i, lambda i: not i.is_Sequential, 'any')
-                      for i in retrieve_iteration_tree(self.body)]
-        iterations = [i[0] for i in iterations if i]
-        mapper = {t: List(header=printmark('In nest %d' % i), body=t)
-                  for i, t in enumerate(iterations)}
-        self.body = Transformer(mapper).visit(self.body)
-
-
-class Operator(object):
-
-    def __new__(cls, *args, **kwargs):
-        # What type of Operator should I create ?
-        if kwargs.pop('external', False):
-            cls = OperatorForeign
-        elif kwargs.pop('debug', False):
-            cls = OperatorDebug
-        else:
-            cls = OperatorCore
-
-        # Trigger instantiation
-        obj = cls.__new__(cls, *args, **kwargs)
-        obj.__init__(*args, **kwargs)
-        return obj
-
-
 # Misc helpers
-
-cnames = {
-    'loc_timer': 'loc_timer',
-    'glb_timer': 'glb_timer'
-}
-"""A dict of standard names to be used for code generation."""
 
 
 def set_dle_mode(mode):
