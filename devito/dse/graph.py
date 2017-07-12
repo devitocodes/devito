@@ -231,10 +231,18 @@ class TemporariesGraph(OrderedDict):
         queue = [expr.rhs] if expr.is_Equality else [expr]
         while queue:
             item = queue.pop()
-            for i in retrieve_indexed(item):
+            temporaries = []
+            for i in terminals(item):
                 if any(j in i.free_symbols for j in self.time_indices):
+                    # Definitely not time-invariant
                     return False
-            temporaries = [i for i in item.free_symbols if i in self]
+                if i in self:
+                    # Go on with the search
+                    temporaries.append(i)
+                elif not i.base.function.is_SymbolicData:
+                    # It didn't come from the outside and it's not in self, so
+                    # cannot determine if time-invariant; assume time-varying
+                    return False
             queue.extend([self[i].rhs for i in temporaries if self[i].rhs != item])
         return True
 
