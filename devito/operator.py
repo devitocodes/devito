@@ -10,10 +10,10 @@ import sympy
 
 from devito.cgen_utils import Allocator, blankline
 from devito.compiler import jit_compile, load
-from devito.dimension import Dimension, time
+from devito.dimension import time, Dimension
 from devito.dle import compose_nodes, filter_iterations, transform
 from devito.dse import clusterize, indexify, rewrite, q_indexed
-from devito.interfaces import SymbolicData, Forward, Backward, CompositeData
+from devito.interfaces import Forward, Backward, CompositeData, SymbolicData
 from devito.logger import bar, error, info
 from devito.nodes import Element, Expression, Function, Iteration, List, LocalExpression
 from devito.parameters import configuration
@@ -23,7 +23,7 @@ from devito.tools import as_tuple, filter_ordered, flatten
 from devito.visitors import (FindSymbols, FindScopes, ResolveIterationVariable,
                              SubstituteExpression, Transformer, NestedTransformer)
 from devito.exceptions import InvalidArgument, InvalidOperator
-from devito.arguments import ArgumentProvider, ScalarArgument, log_args
+from devito.arguments import ScalarArgument, log_args, ArgumentProvider
 
 
 class Operator(Function):
@@ -116,6 +116,17 @@ class Operator(Function):
         parameters += [i.argument for i in self.dle_arguments]
         self._includes.extend(list(dle_state.includes))
 
+        self.symbolic_data = [i for i in parameters if isinstance(i, SymbolicData)]
+        dims = [i for i in parameters if isinstance(i, Dimension)]
+        d_parents = [d.parent for d in dims if hasattr(d, 'parent')]
+
+        self.dims = list(set(dims + d_parents))
+
+        assert(all(isinstance(i, ArgumentProvider) for i in self.symbolic_data +
+                   self.dims))
+
+        parameters = list(set(parameters + d_parents))
+
         # Translate into backend-specific representation (e.g., GPU, Yask)
         nodes, elemental_functions = self._specialize(nodes, elemental_functions)
 
@@ -138,9 +149,12 @@ class Operator(Function):
     def arguments(self, *args, **kwargs):
 
         new_params = {}
+        # If we've been passed CompositeData objects as kwargs, they might have children
+        # that need to be substituted as well.
         for k, v in kwargs.items():
             if isinstance(v, CompositeData):
                 orig_param = [x for x in self.symbolic_data if x.name == k][0]
+                # Pull out the children and add them to kwargs
                 for orig_child, new_child in zip(orig_param.children, v.children):
                     new_params[orig_child.name] = new_child
         kwargs.update(new_params)
