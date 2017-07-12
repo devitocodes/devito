@@ -1,26 +1,30 @@
-class CompilationError(Exception):
+class DevitoError(Exception):
     pass
 
 
-class InvalidArgument(Exception):
+class CompilationError(DevitoError):
     pass
 
 
-class InvalidOperator(Exception):
+class InvalidArgument(DevitoError):
     pass
 
 
-class StencilOperationError(Exception):
+class InvalidOperator(DevitoError):
     pass
 
 
-class VisitorException(Exception):
+class StencilOperationError(DevitoError):
     pass
 
 
-class DSEException(Exception):
+class VisitorException(DevitoError):
     pass
 
 
-class DLEException(Exception):
+class DSEException(DevitoError):
+    pass
+
+
+class DLEException(DevitoError):
     pass

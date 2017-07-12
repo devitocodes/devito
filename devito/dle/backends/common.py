@@ -1,7 +1,7 @@
 # Types used by all DLE backends
 
 import abc
-from collections import OrderedDict
+from collections import OrderedDict, defaultdict
 from time import time
 
 from devito.dse import as_symbol, terminals
@@ -36,7 +36,7 @@ class State(object):
         self.elemental_functions = ()
         self.arguments = ()
         self.includes = ()
-        self.flags = ()
+        self.flags = defaultdict(bool)
 
     def update(self, nodes=None, elemental_functions=None, arguments=None,
                includes=None, flags=None):
@@ -45,7 +45,14 @@ class State(object):
             self.elemental_functions
         self.arguments += as_tuple(arguments)
         self.includes += as_tuple(includes)
-        self.flags += as_tuple(flags)
+        try:
+            self.flags.update({i: True for i in flags})
+        except TypeError:
+            self.flags[flags] = True
+
+    @property
+    def trees(self):
+        return self.nodes, self.elemental_functions
 
     @property
     def has_applied_blocking(self):

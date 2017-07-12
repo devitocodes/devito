@@ -3,13 +3,13 @@
 from collections import OrderedDict
 from os import environ
 
-from devito.autotuning import autotuning_registry
-from devito.dle import modes as dle_modes
-from devito.dse import modes as dse_modes
+from devito.backends import backends_registry
 from devito.compiler import compiler_registry, set_compiler
+from devito.dse import modes as dse_registry
+from devito.dle import modes as dle_registry
 from devito.logger import debug, logger_registry, set_log_level
 
-__all__ = ['configuration', 'print_defaults', 'print_state']
+__all__ = ['configuration', 'init_configuration', 'print_defaults', 'print_state']
 
 # Be EXTREMELY careful when writing to a Parameters dictionary
 # Read here for reference: http://wiki.c2.com/?GlobalVariablesAreBad
@@ -65,6 +65,7 @@ configuration = Parameters("Devito-Configuration")
 """The Devito configuration parameters."""
 
 defaults = {
+    'backend': 'core',
     'log_level': 'INFO',
     'autotuning': 'basic',
     'compiler': 'custom',
@@ -75,53 +76,57 @@ defaults = {
 """The default Devito configuration parameters"""
 
 accepted = {
+    'backend': list(backends_registry),
     'log_level': list(logger_registry),
-    'autotuning': list(autotuning_registry),
+    'autotuning': ('none', 'basic', 'aggressive'),
     'compiler': list(compiler_registry),
     'openmp': [1, 0],
-    'dse': list(dse_modes),
-    'dle': list(dle_modes)
+    'dse': list(dse_registry),
+    'dle': list(dle_registry)
 }
 """Accepted values for the Devito environment variables."""
 
 env_vars_mapper = {
     'DEVITO_ARCH': 'compiler',
     'DEVITO_AUTOTUNING': 'autotuning',
+    'DEVITO_BACKEND': 'backend',
     'DEVITO_DSE': 'dse',
     'DEVITO_DLE': 'dle',
     'DEVITO_OPENMP': 'openmp',
     'DEVITO_LOGGING': 'log_level'
 }
 
-# Populate /parameters/
-if environ.get('DEVITO_CONFIG') is None:
-    # Try env variables, otherwise pick defaults
-    for k, v in sorted(env_vars_mapper.items()):
-        configuration[v] = environ.get(k, defaults[v])
-else:
-    # Attempt reading from the specified configuration file
-    raise NotImplementedError("Devito doesn't support configuration via file.")
 
-# Parameters casting and checking
-for k, v in list(configuration.items()):
-    try:
-        val = int(v)
-    except (TypeError, ValueError):
-        val = v
-    if val not in accepted[k]:
-        raise ValueError("Illegal configuration parameter (%s, %s). "
-                         "Accepted: %s" % (k, val, str(accepted[k])))
-    configuration[k] = val
+def init_configuration():
+    # Populate /parameters/
+    if environ.get('DEVITO_CONFIG') is None:
+        # Try env variables, otherwise pick defaults
+        for k, v in sorted(env_vars_mapper.items()):
+            configuration[v] = environ.get(k, defaults[v])
+    else:
+        # Attempt reading from the specified configuration file
+        raise NotImplementedError("Devito doesn't support configuration via file.")
 
-# Global setup
-# - Logger
-configuration.set_update_function('log_level', lambda i: set_log_level(i))
-# - Compilation toolchain
-configuration['compiler'] = set_compiler(configuration['compiler'],
-                                         configuration['openmp'])
-configuration['openmp'] = bool(configuration['openmp'])
+    # Parameters casting and checking
+    for k, v in list(configuration.items()):
+        try:
+            val = int(v)
+        except (TypeError, ValueError):
+            val = v
+        if val not in accepted[k]:
+            raise ValueError("Illegal configuration parameter (%s, %s). "
+                             "Accepted: %s" % (k, val, str(accepted[k])))
+        configuration[k] = val
 
-configuration.initialize()
+    # Global setup
+    # - Logger
+    configuration.set_update_function('log_level', lambda i: set_log_level(i))
+    # - Compilation toolchain
+    configuration['compiler'] = set_compiler(configuration['compiler'],
+                                             configuration['openmp'])
+    configuration['openmp'] = bool(configuration['openmp'])
+
+    configuration.initialize()
 
 
 def print_defaults():

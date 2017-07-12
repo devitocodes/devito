@@ -347,23 +347,7 @@ class DenseData(SymbolicData):
 
     def _allocate_memory(self):
         """Allocate memory in terms of numpy ndarrays."""
-        from devito.parameters import configuration
-
-        if configuration['dle'] == 'yask':
-            # TODO: Use inheritance
-            # TODO: Refactor CMemory to be our _data_object, while _data will
-            # be the YaskGrid itself.
-            from devito.dle import YaskGrid
-            debug("Allocating YaskGrid for %s (%s)" % (self.name, str(self.shape)))
-
-            self._data_object = YaskGrid(self.name, self.shape, self.indices, self.dtype)
-            if self._data_object is not None:
-                return
-
-            debug("Failed. Reverting to plain allocation...")
-
         debug("Allocating memory for %s (%s)" % (self.name, str(self.shape)))
-
         self._data_object = CMemory(self.shape, dtype=self.dtype)
         if self.numa:
             first_touch(self)

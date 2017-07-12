@@ -51,6 +51,7 @@ script:
   - export PYTHONPATH=$PYTHONPATH:$PWD
   - flake8 --builtins=ArgumentError .
   - py.test -vs tests/
+  - DEVITO_BACKEND=foreign py.test -vs tests/test_operator.py -k TestForeign
   - python examples/benchmark.py test -P tti -so 4 -a -d 20 20 20 -n 5
   - python examples/benchmark.py test -P acoustic -a
   - python examples/seismic/acoustic/acoustic_example.py

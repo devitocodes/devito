@@ -4,8 +4,8 @@ import pytest
 
 from sympy import Eq, cos  # noqa
 
-from devito.dimension import Dimension, t, x, y, z
-from devito.interfaces import DenseData, ScalarFunction, TensorFunction
+from devito import Dimension, t, x, y, z, DenseData
+from devito.interfaces import ScalarFunction, TensorFunction
 from devito.nodes import Iteration
 from devito.tools import as_tuple
 
