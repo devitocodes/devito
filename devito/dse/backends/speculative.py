@@ -1,4 +1,5 @@
 from devito.dse.backends import AdvancedRewriter, dse_pass
+from devito.dse.clusterizer import optimize
 from devito.dse.inspection import estimate_cost
 from devito.dse.manipulation import xreplace_constrained
 from devito.dse.queries import iq_timevarying, q_leaf, q_sum_of_product, q_terminalop
@@ -32,6 +33,11 @@ class SpeculativeRewriter(AdvancedRewriter):
 
 
 class AggressiveRewriter(SpeculativeRewriter):
+
+    def run(self, cluster):
+        clusters = super(AggressiveRewriter, self).run(cluster)
+        clusters = optimize(clusters)
+        return clusters
 
     def _pipeline(self, state):
         self._extract_time_varying(state)

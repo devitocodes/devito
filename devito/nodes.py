@@ -210,12 +210,9 @@ class Expression(Node):
     @property
     def output_function(self):
         """
-        Return the function written by this Expression, if any.
+        Return the function written by this Expression.
         """
-        if self.is_scalar:
-            return None
-        handle = self.expr.lhs.base
-        return handle.function if isinstance(handle, IndexedData) else None
+        return self.expr.lhs.base.function
 
     @property
     def is_scalar(self):

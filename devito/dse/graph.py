@@ -22,6 +22,7 @@ Temporaries graph are used for symbolic as well as loop-level transformations.
 from collections import OrderedDict
 from itertools import islice
 
+from cached_property import cached_property
 from sympy import Indexed
 
 from devito.dimension import x, y, z, t, time
@@ -309,6 +310,31 @@ class TemporariesGraph(OrderedDict):
         except ValueError:
             stop = None
         return TemporariesGraph(islice(list(self.items()), start, stop))
+
+    @cached_property
+    def unknown(self):
+        """
+        Return all symbols appearing in self for which a temporary is not available.
+        """
+        known = {v.function for v in self.values()}
+        reads = set([i.base.function for i in
+                     flatten(terminals(v.rhs) for v in self.values())])
+        return reads - known
+
+    @cached_property
+    def tensors(self):
+        """
+        Return all occurrences of the tensors in ``self`` keyed by function.
+        """
+        mapper = {}
+        for v in self.values():
+            handle = retrieve_indexed(v)
+            for i in handle:
+                found = mapper.setdefault(i.base.function, [])
+                if i not in found:
+                    # Not using sets to preserve order
+                    found.append(i)
+        return mapper
 
 
 def temporaries_graph(temporaries):

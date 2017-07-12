@@ -132,6 +132,14 @@ def test_tti_rewrite_speculative(tti_nodse):
     assert np.allclose(tti_nodse[1].data, rec.data, atol=10e-1)
 
 
+def test_tti_rewrite_aggressive(tti_nodse):
+    operator = tti_operator(dse='aggressive')
+    rec, u, v, _ = operator.forward()
+
+    assert np.allclose(tti_nodse[0].data, v.data, atol=10e-1)
+    assert np.allclose(tti_nodse[1].data, rec.data, atol=10e-1)
+
+
 # DSE manipulation
 
 @pytest.mark.parametrize('expr,expected', [
