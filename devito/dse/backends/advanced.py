@@ -108,9 +108,10 @@ class AdvancedRewriter(BasicRewriter):
         # Redundancies will be stored in space-varying temporaries
         g = cluster.trace
         indices = g.space_indices
-        shape = tuple(i.symbolic_size for i in indices)
+        time_invariants = {v.rhs: g.time_invariant(v) for v in g.values()}
 
         # Template for captured redundancies
+        shape = tuple(i.symbolic_size for i in indices)
         make = lambda i: TensorFunction(name=template(i), shape=shape,
                                         dimensions=indices).indexed
 
@@ -121,7 +122,7 @@ class AdvancedRewriter(BasicRewriter):
             # Cost check (to keep the memory footprint under control)
             naliases = len(mapper.get(v.rhs, []))
             cost = estimate_cost(v, True)*naliases
-            if cost >= self.thresholds['min-cost-time-hoist'] and g.time_invariant(v):
+            if cost >= self.thresholds['min-cost-time-hoist'] and time_invariants[v.rhs]:
                 candidates[v.rhs] = k
             elif cost >= self.thresholds['min-cost-space-hoist'] and naliases > 1:
                 candidates[v.rhs] = k
@@ -129,21 +130,27 @@ class AdvancedRewriter(BasicRewriter):
                 processed.append(Eq(k, v.rhs))
 
         # Create temporaries capturing redundant computation
-        found = []
-        rules = OrderedDict()
+        expressions = []
         stencils = []
+        rules = OrderedDict()
         for c, (origin, alias) in enumerate(aliases.items()):
+            # Build alias expression
             function = make(c)
             temporary = Indexed(function, *indices)
-            found.append(Eq(temporary, origin))
-            # Track the stencil of each TensorFunction introduced
-            stencils.append(alias.anti_stencil.anti(cluster.stencil))
+            expressions.append(Eq(temporary, origin))
+            # Build substitution rules
             for aliased, distance in alias.with_distance:
                 coordinates = [sum([i, j]) for i, j in distance.items() if i in indices]
                 rules[candidates[aliased]] = Indexed(function, *tuple(coordinates))
+            # Build cluster stencil
+            stencil = alias.anti_stencil.anti(cluster.stencil)
+            if all(time_invariants[i] for i in alias.aliased):
+                # Optimization: drop time dimension if time-invariant
+                stencil = stencil.section(g.time_indices)
+            stencils.append(stencil)
 
         # Create the alias clusters
-        alias_clusters = clusterize(found, stencils)
+        alias_clusters = clusterize(expressions, stencils)
         alias_clusters = sorted(alias_clusters, key=lambda i: i.is_dense)
 
         # Switch temporaries in the expression trees
