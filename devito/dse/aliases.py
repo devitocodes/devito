@@ -71,7 +71,7 @@ def collect_aliases(exprs):
             COM, distances = calculate_COM(offsets)
         except DSEException:
             # Ignore these potential aliases and move on
-            pass
+            continue
 
         alias = create_alias(handle, COM)
         # In circumstances in which an expression has repeated coefficients, e.g.
