@@ -205,6 +205,11 @@ class DimensionArgProvider(ArgumentProvider):
         if value is not None and value == self._value:
             return verify
 
+        # If I am a buffered dimension, I just need to make sure the calling object has
+        # enough buffers as my modulo
+        if self.is_Buffered and value is not None:
+            return value >= self.modulo
+
         if self.size is not None:
             # Assuming the only people calling my verify are symbolic data, they need to
             # be bigger than my size if I have a hard-coded size

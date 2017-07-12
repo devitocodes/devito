@@ -19,6 +19,8 @@ def test_acoustic(dimensions, time_order, space_order, fix_dim):
 
     if fix_dim:
         time.size = solver.source.nt
+    else:
+        time.size = None
     # Run forward and adjoint operators
     rec, _, _ = solver.forward(save=False)
     solver.adjoint(rec=rec, srca=srca)
