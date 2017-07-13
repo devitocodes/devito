@@ -150,23 +150,26 @@ def xreplace_constrained(exprs, make, rule, cm=lambda e: True, repeat=False):
             return expr, rule(expr)
         elif expr.is_Pow:
             base, flag = run(expr.base)
-            return expr.func(base, expr.exp), flag
+            return expr.func(base, expr.exp, evaluate=False), flag
         else:
             children = [run(a) for a in expr.args]
             matching = [a for a, flag in children if flag]
             other = [a for a, _ in children if a not in matching]
             if matching:
-                matched = expr.func(*matching)
+                matched = expr.func(*matching, evaluate=False)
                 if len(matching) == len(children) and rule(expr):
                     # Go look for longer expressions first
                     return matched, True
                 elif rule(matched):
                     # Replace what I can replace, then give up
-                    return expr.func(*(other + [replace(matched)])), False
+                    rebuilt = expr.func(*(other + [replace(matched)]), evaluate=False)
+                    return rebuilt, False
                 else:
                     # Replace flagged children, then give up
-                    return expr.func(*(other + [replace(e) for e in matching])), False
-            return expr.func(*other), False
+                    handle = [replace(e) for e in matching]
+                    rebuilt = expr.func(*(other + handle), evaluate=False)
+                    return rebuilt, False
+            return expr.func(*other, evaluate=False), False
 
     # Process the provided expressions
     for expr in as_tuple(exprs):

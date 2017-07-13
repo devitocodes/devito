@@ -79,8 +79,7 @@ class AbstractRewriter(object):
     Bag of thresholds, to be used to trigger or prevent certain transformations.
     """
     thresholds = {
-        'min-cost-space-hoist': 10,
-        'min-cost-time-hoist': 200,
+        'min-cost-alias': 10,
         'min-cost-factorize': 100,
         'max-operands': 40,
     }

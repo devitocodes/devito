@@ -6,7 +6,7 @@ from sympy import Eq, Symbol  # noqa
 
 from devito.dse import (clusterize, rewrite, xreplace_constrained, iq_timeinvariant,
                         iq_timevarying, estimate_cost, temporaries_graph,
-                        common_subexprs_elimination, collect_aliases)
+                        common_subexprs_elimination, collect)
 from devito import Dimension, x, y, z, time, TimeData, clear_cache  # noqa
 from devito.nodes import Expression
 from devito.stencil import Stencil
@@ -276,7 +276,7 @@ def test_graph_isindex(fa, fb, fc, t0, t1, t2, exprs, expected):
 def test_collect_aliases(fa, fb, fc, fd, t0, t1, t2, t3, exprs, expected):
     scope = [fa, fb, fc, fd, t0, t1, t2, t3]
     mapper = dict([(EVAL(k, *scope), v) for k, v in expected.items()])
-    _, aliases = collect_aliases(EVAL(exprs, *scope))
+    _, aliases = collect(EVAL(exprs, *scope))
     for k, v in aliases.items():
         assert k in mapper
         assert v.anti_stencil == mapper[k]

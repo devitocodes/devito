@@ -4,7 +4,7 @@ from collections import OrderedDict
 
 from sympy import Eq, Indexed
 
-from devito.dse.aliases import collect_aliases
+from devito.dse.aliases import collect
 from devito.dse.backends import BasicRewriter, dse_pass
 from devito.dse.clusterizer import clusterize
 from devito.dse.inspection import estimate_cost
@@ -23,7 +23,8 @@ class AdvancedRewriter(BasicRewriter):
         self._factorize(state)
 
     @dse_pass
-    def _extract_time_invariants(self, cluster, template, with_cse=True, **kwargs):
+    def _extract_time_invariants(self, cluster, template, with_cse=True,
+                                 costmodel=None, **kwargs):
         """
         Extract time-invariant subexpressions, and assign them to temporaries.
         """
@@ -31,8 +32,8 @@ class AdvancedRewriter(BasicRewriter):
         # Extract time invariants
         make = lambda i: ScalarFunction(name=template(i)).indexify()
         rule = iq_timeinvariant(cluster.trace)
-        cm = lambda e: estimate_cost(e) > 0
-        processed, found = xreplace_constrained(cluster.exprs, make, rule, cm)
+        costmodel = costmodel or (lambda e: estimate_cost(e) > 0)
+        processed, found = xreplace_constrained(cluster.exprs, make, rule, costmodel)
         leaves = [i for i in processed if i not in found]
 
         # Search for common sub-expressions amongst them (and only them)
@@ -102,8 +103,8 @@ class AdvancedRewriter(BasicRewriter):
         if cluster.is_sparse:
             return cluster
 
-        # For more information about "aliases", refer to collect_aliases.__doc__
-        mapper, aliases = collect_aliases(cluster.exprs)
+        # For more information about "aliases", refer to collect.__doc__
+        mapper, aliases = collect(cluster.exprs)
 
         # Redundancies will be stored in space-varying temporaries
         g = cluster.trace
@@ -122,9 +123,7 @@ class AdvancedRewriter(BasicRewriter):
             # Cost check (to keep the memory footprint under control)
             naliases = len(mapper.get(v.rhs, []))
             cost = estimate_cost(v, True)*naliases
-            if cost >= self.thresholds['min-cost-time-hoist'] and time_invariants[v.rhs]:
-                candidates[v.rhs] = k
-            elif cost >= self.thresholds['min-cost-space-hoist'] and naliases > 1:
+            if cost >= self.thresholds['min-cost-alias'] and naliases > 1:
                 candidates[v.rhs] = k
             else:
                 processed.append(Eq(k, v.rhs))
@@ -134,18 +133,22 @@ class AdvancedRewriter(BasicRewriter):
         stencils = []
         rules = OrderedDict()
         for c, (origin, alias) in enumerate(aliases.items()):
+            if all(i not in candidates for i in alias.aliased):
+                continue
             # Build alias expression
             function = make(c)
-            temporary = Indexed(function, *indices)
-            expressions.append(Eq(temporary, origin))
+            expressions.append(Eq(Indexed(function, *indices), origin))
             # Build substitution rules
             for aliased, distance in alias.with_distance:
                 coordinates = [sum([i, j]) for i, j in distance.items() if i in indices]
-                rules[candidates[aliased]] = Indexed(function, *tuple(coordinates))
+                temporary = Indexed(function, *tuple(coordinates))
+                rules[candidates[aliased]] = temporary
+                rules[aliased] = temporary
             # Build cluster stencil
             stencil = alias.anti_stencil.anti(cluster.stencil)
             if all(time_invariants[i] for i in alias.aliased):
-                # Optimization: drop time dimension if time-invariant
+                # Optimization: drop time dimension if time-invariant and the
+                # alias involves a complex calculation
                 stencil = stencil.section(g.time_indices)
             stencils.append(stencil)
 

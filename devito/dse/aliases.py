@@ -6,13 +6,13 @@ from sympy import Indexed
 
 from devito.exceptions import DSEException
 from devito.dse.search import retrieve_indexed
-from devito.dse.queries import q_indirect
+from devito.dse.queries import q_indirect, q_terminalop, q_sum_of_product
 from devito.stencil import Stencil
 
-__all__ = ['collect_aliases']
+__all__ = ['collect']
 
 
-def collect_aliases(exprs):
+def collect(exprs):
     """
     Determine groups of aliasing expressions in ``exprs``.
 
@@ -37,7 +37,6 @@ def collect_aliases(exprs):
         a[i+2] - b[i+2] : because at least one operation differs
         a[i+2] + b[i] : because distance along ``i`` differ (+2 and +0)
     """
-
     ExprData = namedtuple('ExprData', 'dimensions offsets')
 
     # Discard expressions that surely won't alias to anything

@@ -11,7 +11,7 @@ class SpeculativeRewriter(AdvancedRewriter):
 
     def _pipeline(self, state):
         self._extract_time_varying(state)
-        self._extract_time_invariants(state)
+        self._extract_time_invariants(state, costmodel=lambda e: e.is_Function)
         self._eliminate_inter_stencil_redundancies(state)
         self._eliminate_intra_stencil_redundancies(state)
         self._factorize(state)
@@ -26,8 +26,8 @@ class SpeculativeRewriter(AdvancedRewriter):
 
         make = lambda i: ScalarFunction(name=template(i)).indexify()
         rule = iq_timevarying(cluster.trace)
-        cm = lambda i: estimate_cost(i) > 0
-        processed, _ = xreplace_constrained(cluster.exprs, make, rule, cm)
+        costmodel = lambda i: estimate_cost(i) > 0
+        processed, _ = xreplace_constrained(cluster.exprs, make, rule, costmodel)
 
         return cluster.reschedule(processed)
 
@@ -40,33 +40,31 @@ class AggressiveRewriter(SpeculativeRewriter):
         return clusters
 
     def _pipeline(self, state):
+        """Three CSRE phases, progressively searching for less structure."""
+
         self._extract_time_varying(state)
-        self._extract_time_invariants(state, with_cse=False)
+        self._extract_time_invariants(state, with_cse=False,
+                                      costmodel=lambda e: e.is_Function)
+        self._eliminate_inter_stencil_redundancies(state, start=0)
 
-        # Iteratively apply CSRE until no further redundancies are spotted
-        i = 0
-        while state.has_changed:
-            self._eliminate_inter_stencil_redundancies(state, start=i)
-            self._extract_sum_of_products(state, start=i)
-            i += 1
+        self._extract_sum_of_products(state, start=0)
+        self._eliminate_inter_stencil_redundancies(state, start=1)
+        self._extract_sum_of_products(state, start=1)
 
-        self._eliminate_intra_stencil_redundancies(state)
         self._factorize(state)
+        self._eliminate_intra_stencil_redundancies(state)
 
     @dse_pass
     def _extract_sum_of_products(self, cluster, template, **kwargs):
         """
         Extract sub-expressions in sum-of-product form, and assign them to temporaries.
         """
-        targets = [i for i in cluster.exprs if i.is_tensor]
-        untouched = [i for i in cluster.exprs if i not in targets]
-
         make = lambda i: ScalarFunction(name=template(i)).indexify()
         rule = q_sum_of_product
-        cm = lambda e: not (q_leaf(e) or q_terminalop(e))
-        processed, _ = xreplace_constrained(targets, make, rule, cm)
+        costmodel = lambda e: not (q_leaf(e) or q_terminalop(e))
+        processed, _ = xreplace_constrained(cluster.exprs, make, rule, costmodel)
 
-        return cluster.reschedule(untouched + processed)
+        return cluster.reschedule(processed)
 
 
 class CustomRewriter(AggressiveRewriter):

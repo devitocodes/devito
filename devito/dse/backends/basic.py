@@ -15,11 +15,11 @@ class BasicRewriter(AbstractRewriter):
     @dse_pass
     def _eliminate_intra_stencil_redundancies(self, cluster, template, **kwargs):
         """
-        Perform common subexpression elimination, bypassing the scalar expressions
+        Perform common subexpression elimination, bypassing the tensor expressions
         extracted in previous passes.
         """
 
-        skip = [e for e in cluster.exprs if e.lhs.base.function.is_SymbolicFunction]
+        skip = [e for e in cluster.exprs if e.lhs.base.function.is_TensorFunction]
         candidates = [e for e in cluster.exprs if e not in skip]
 
         make = lambda i: ScalarFunction(name=template(i)).indexify()
