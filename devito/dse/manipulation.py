@@ -193,12 +193,14 @@ def xreplace_indices(exprs, mapper, candidates=None, only_rhs=False):
     specified in mapper appearing as a tensor index. Only tensors whose symbolic
     name appears in ``candidates`` are considered if ``candidates`` is not None.
     """
+    exprs = as_tuple(exprs)
     get = lambda i: i.rhs if only_rhs is True else i
-    handle = flatten(retrieve_indexed(get(i)) for i in as_tuple(exprs))
+    handle = flatten(retrieve_indexed(get(i)) for i in exprs)
     if candidates is not None:
         handle = [i for i in handle if i.base.label in candidates]
     mapper = dict(zip(handle, [i.xreplace(mapper) for i in handle]))
-    return [i.xreplace(mapper) for i in exprs]
+    replaced = [i.xreplace(mapper) for i in exprs]
+    return replaced[0] if len(exprs) == 1 else replaced
 
 
 def common_subexprs_elimination(exprs, make, mode='default'):
