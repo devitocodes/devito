@@ -150,17 +150,14 @@ class AbstractRewriter(object):
         represent parallel dimensions.
         """
         nodes = state.nodes
-
         sections = FindSections().visit(nodes)
-        candidate = max(list(sections), key=lambda i: len(i))
-        candidates = [i for i in sections if len(i) == len(candidate)]
 
         # The analysis below may return "false positives" (ie, absence of fully-
         # parallel or OSIP trees when this is actually false), but this should
         # never be the case in practice, given the targeted stencil codes.
         mapper = OrderedDict()
-        for tree in candidates:
-            exprs = [e.expr for e in sections[tree]]
+        for tree, nexprs in sections.items():
+            exprs = [e.expr for e in nexprs]
 
             # "Prefetch" objects to speed up the analsys
             terms = {e: tuple(terminals(e.rhs)) for e in exprs}
@@ -201,7 +198,9 @@ class AbstractRewriter(object):
             for i in tree[is_OSIP:]:
                 mapper.setdefault(i, []).append(PARALLEL)
             if is_Vectorizable:
-                mapper.setdefault(tree[-1], []).append(VECTOR)
+                if len(tree[is_OSIP:]) > 1:
+                    # Necessary condition: there's at least an outer parallel Iteration
+                    mapper.setdefault(tree[-1], []).append(VECTOR)
 
         # Introduce the discovered properties in the Iteration/Expression tree
         for k, v in list(mapper.items()):
