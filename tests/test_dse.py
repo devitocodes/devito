@@ -57,8 +57,8 @@ def run_acoustic_forward(dse=None):
 
     src = PointSource(name='src', data=time_series, coordinates=location)
     rec = Receiver(name='rec', ntime=nt, coordinates=receiver_coords)
-    acoustic = AcousticWaveSolver(model, source=src, receiver=rec)
-    rec, u, _ = acoustic.forward(save=False, dse=dse, dle='basic')
+    acoustic = AcousticWaveSolver(model, source=src, receiver=rec, dse=dse, dle='basic')
+    rec, u, _ = acoustic.forward(save=False)
 
     return u, rec
 

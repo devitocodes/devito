@@ -147,13 +147,23 @@ class Operator(Function):
             x.reset()
 
     def arguments(self, *args, **kwargs):
-
+        """ Process any apply-time arguments passed to apply and derive values for
+            any remaining arguments
+        """
         new_params = {}
         # If we've been passed CompositeData objects as kwargs, they might have children
         # that need to be substituted as well.
         for k, v in kwargs.items():
             if isinstance(v, CompositeData):
-                orig_param = [x for x in self.symbolic_data if x.name == k][0]
+                orig_param_l = [i for i in self.symbolic_data if i.name == k]
+                # If I have been passed a parameter, I must have seen it before
+                if len(orig_param_l) == 0:
+                    raise InvalidArgument("Parameter %s does not exist in expressions " +
+                                          "passed to this Operator" % k)
+                # We've made sure the list isn't empty. Names should be unique so it
+                # should have exactly one entry
+                assert(len(orig_param_l) == 1)
+                orig_param = orig_param_l[0]
                 # Pull out the children and add them to kwargs
                 for orig_child, new_child in zip(orig_param.children, v.children):
                     new_params[orig_child.name] = new_child
@@ -170,13 +180,24 @@ class Operator(Function):
 
         dim_sizes = OrderedDict([(d.name, d.value) for d in self.dims])
         dim_names = OrderedDict([(d.name, d) for d in self.dims])
-        dle_arguments = self._dle_arguments(dim_sizes)
+        dle_arguments, autotune = self._dle_arguments(dim_sizes)
         dim_sizes.update(dle_arguments)
+
+        autotune = autotune and kwargs.pop('autotune', False)
+
+        # Make sure we've used all arguments passed
+        if len(kwargs) > 0:
+            raise InvalidArgument("Unknown arguments passed: " + ", ".join(kwargs.keys()))
 
         for d, v in dim_sizes.items():
             assert(dim_names[d].verify(v))
-        arguments = OrderedDict([(x.name, x.value) for x in self.parameters])
+
+        arguments = self._default_args()
+
         arguments.update(self._extra_arguments())
+
+        if autotune:
+            arguments = self._autotune(arguments)
 
         # Clear the temp values we stored in the arg objects since we've pulled them out
         # into the OrderedDict object above
@@ -186,9 +207,13 @@ class Operator(Function):
 
         return arguments, dim_sizes
 
+    def _default_args(self):
+        return OrderedDict([(x.name, x.value) for x in self.parameters])
+
     def _dle_arguments(self, dim_sizes):
         # Add user-provided block sizes, if any
         dle_arguments = OrderedDict()
+        auto_tune = True
         for i in self.dle_arguments:
             dim_size = dim_sizes.get(i.original_dim.name, i.original_dim.size)
             if dim_size is None:
@@ -200,9 +225,10 @@ class Operator(Function):
                     dle_arguments[i.argument.name] = i.value(dim_size)
                 except TypeError:
                     dle_arguments[i.argument.name] = i.value
+                    auto_tune = False
             else:
                 dle_arguments[i.argument.name] = dim_size
-        return dle_arguments
+        return dle_arguments, auto_tune
 
     @property
     def ccode(self):
