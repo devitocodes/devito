@@ -12,8 +12,8 @@ def source(t, f0):
     return np.exp(-2*s**2)*np.cos(2*np.pi*s)
 
 
-def setup(dimensions=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=250.0,
-          time_order=2, space_order=4, nbpml=10, dse='advanced'):
+def setup(dimensions=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=250.0, time_order=2,
+          space_order=4, nbpml=10, dse='advanced', dle='advanced', compiler=None):
 
     origin = (0., 0., 0.)
 
@@ -57,18 +57,19 @@ def setup(dimensions=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=250.0,
     rec = Receiver(name='rec', ntime=nt, coordinates=receiver_coords)
 
     return AnisotropicWaveSolver(model, source=src, time_order=time_order,
-                                 space_order=space_order, receiver=rec, dse=dse)
+                                 space_order=space_order, receiver=rec, dse=dse, dle=dle,
+                                 compiler=compiler)
 
 
 def run(dimensions=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=250.0,
         time_order=2, space_order=4, nbpml=10, **kwargs):
-
-    solver = setup(dimensions, spacing, tn, time_order, space_order, nbpml)
+    autotune = kwargs.pop('autotune', False)
+    solver = setup(dimensions, spacing, tn, time_order, space_order, nbpml, **kwargs)
 
     if space_order % 4 != 0:
         warning('WARNING: TTI requires a space_order that is a multiple of 4!')
 
-    rec, u, v, summary = solver.forward(**kwargs)
+    rec, u, v, summary = solver.forward(autotune=autotune)
 
     return summary.gflopss, summary.oi, summary.timings, [rec, u, v]
 

@@ -9,11 +9,11 @@ import cgen as c
 from sympy import Eq, preorder_traversal
 
 from devito.cgen_utils import ccode
-from devito.dimension import Dimension
 from devito.dse import as_symbol
 from devito.interfaces import IndexedData, SymbolicData, TensorFunction
 from devito.stencil import Stencil
-from devito.tools import as_tuple, filter_ordered
+from devito.tools import as_tuple, filter_ordered, flatten
+from devito.arguments import ArgumentProvider, Argument, TensorArgument
 
 __all__ = ['Node', 'Block', 'Denormals', 'Expression', 'Function', 'FunCall',
            'Iteration', 'List', 'LocalExpression', 'TimedList']
@@ -473,8 +473,20 @@ class Function(Node):
         self.name = name
         self.body = as_tuple(body)
         self.retval = retval
-        self.parameters = as_tuple(parameters)
         self.prefix = prefix
+
+        if all(isinstance(i, ArgumentProvider) for i in parameters):
+            args = flatten([i.rtargs for i in parameters])
+        else:
+            assert(all(isinstance(i, Argument) for i in parameters))
+            args = parameters
+
+        self.parameters = as_tuple(args)
+
+        # At this point, all objects in args should be objects of the RuntimeArgument
+        # heirarchy. Separate the tensor arguments from the scalar ones
+        self.tensor_args = [i for i in args if i.is_TensorArgument]
+        self.scalar_args = [i for i in args if i.is_ScalarArgument]
 
     def __repr__(self):
         parameters = ",".join([c.dtype_to_ctype(i.dtype) for i in self.parameters])
@@ -484,31 +496,14 @@ class Function(Node):
     @property
     def _cparameters(self):
         """Generate arguments signature."""
-        cparameters = []
-        for v in self.parameters:
-            if isinstance(v, Dimension):
-                cparameters.append(v.decl)
-            elif v.is_ScalarFunction:
-                cparameters.append(c.Value('const int', v.name))
-            else:
-                cparameters.append(c.Value(c.dtype_to_ctype(v.dtype),
-                                           '*restrict %s_vec' % v.name))
-        return cparameters
+        return [v.decl for v in self.parameters]
 
     @property
     def _ccasts(self):
         """Generate data casts."""
-        alignment = "__attribute__((aligned(64)))"
-        handle = [f for f in self.parameters
-                  if isinstance(f, (SymbolicData, TensorFunction))]
-        shapes = [(f, ''.join(["[%s]" % ccode(i) for i in f.symbolic_shape[1:]]))
-                  for f in handle]
-        casts = [c.Initializer(c.POD(v.dtype,
-                                     '(*restrict %s)%s %s' % (v.name, shape, alignment)),
-                               '(%s (*)%s) %s' % (c.dtype_to_ctype(v.dtype),
-                                                  shape, '%s_vec' % v.name))
-                 for v, shape in shapes]
-        return casts
+        tensors = [i for i in self.parameters
+                   if isinstance(i, (TensorArgument, TensorFunction))]
+        return [v.ccast for v in tensors]
 
     @property
     def _ctop(self):

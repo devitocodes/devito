@@ -10,11 +10,10 @@ import sympy
 
 from devito.cgen_utils import Allocator, blankline
 from devito.compiler import jit_compile, load
-from devito.dimension import Dimension, time
+from devito.dimension import time, Dimension
 from devito.dle import compose_nodes, filter_iterations, transform
 from devito.dse import clusterize, indexify, rewrite, q_indexed
-from devito.exceptions import InvalidArgument, InvalidOperator
-from devito.interfaces import SymbolicData, Forward, Backward
+from devito.interfaces import Forward, Backward, CompositeData, SymbolicData
 from devito.logger import bar, error, info
 from devito.nodes import Element, Expression, Function, Iteration, List, LocalExpression
 from devito.parameters import configuration
@@ -23,6 +22,8 @@ from devito.stencil import Stencil
 from devito.tools import as_tuple, filter_ordered, flatten
 from devito.visitors import (FindSymbols, FindScopes, ResolveIterationVariable,
                              SubstituteExpression, Transformer, NestedTransformer)
+from devito.exceptions import InvalidArgument, InvalidOperator
+from devito.arguments import ScalarArgument, log_args, ArgumentProvider
 
 
 class Operator(Function):
@@ -115,6 +116,17 @@ class Operator(Function):
         parameters += [i.argument for i in self.dle_arguments]
         self._includes.extend(list(dle_state.includes))
 
+        self.symbolic_data = [i for i in parameters if isinstance(i, SymbolicData)]
+        dims = [i for i in parameters if isinstance(i, Dimension)]
+        d_parents = [d.parent for d in dims if hasattr(d, 'parent')]
+
+        self.dims = list(set(dims + d_parents))
+
+        assert(all(isinstance(i, ArgumentProvider) for i in self.symbolic_data +
+                   self.dims))
+
+        parameters = list(set(parameters + d_parents))
+
         # Translate into backend-specific representation (e.g., GPU, Yask)
         nodes, elemental_functions = self._specialize(nodes, elemental_functions)
 
@@ -128,88 +140,80 @@ class Operator(Function):
         super(Operator, self).__init__(self.name, nodes, 'int', parameters, ())
         self.elemental_functions = elemental_functions
 
+    def _reset_args(self):
+        """ Reset any runtime argument derivation information from a previous run
+        """
+        for x in self.tensor_args + self.dims + self.scalar_args:
+            x.reset()
+
     def arguments(self, *args, **kwargs):
+        """ Process any apply-time arguments passed to apply and derive values for
+            any remaining arguments
         """
-        Return the arguments necessary to apply the Operator.
-        """
-        if len(args) == 0:
-            args = self.parameters
+        new_params = {}
+        # If we've been passed CompositeData objects as kwargs, they might have children
+        # that need to be substituted as well.
+        for k, v in kwargs.items():
+            if isinstance(v, CompositeData):
+                orig_param_l = [i for i in self.symbolic_data if i.name == k]
+                # If I have been passed a parameter, I must have seen it before
+                if len(orig_param_l) == 0:
+                    raise InvalidArgument("Parameter %s does not exist in expressions " +
+                                          "passed to this Operator" % k)
+                # We've made sure the list isn't empty. Names should be unique so it
+                # should have exactly one entry
+                assert(len(orig_param_l) == 1)
+                orig_param = orig_param_l[0]
+                # Pull out the children and add them to kwargs
+                for orig_child, new_child in zip(orig_param.children, v.children):
+                    new_params[orig_child.name] = new_child
+        kwargs.update(new_params)
 
-        # Will perform auto-tuning if the user requested it and loop blocking was used
-        maybe_autotune = kwargs.get('autotune', False)
+        for ta in self.tensor_args:
+            assert(ta.verify(kwargs.pop(ta.name, None)))
 
-        # Initialise argument map and a map of dimension names to values
-        arguments = OrderedDict([(arg.name, arg) for arg in self.parameters])
-        dim_sizes = dict([(arg.name, arg.size) for arg in self.parameters
-                          if isinstance(arg, Dimension)])
+        for d in self.dims:
+            d.verify(kwargs.pop(d.name, None))
 
-        o_vals = {}
-        for name, arg in kwargs.items():
-            # Override explicitly provided dim sizes from **kwargs
-            if name in dim_sizes:
-                dim_sizes[name] = arg
+        for s in self.scalar_args:
+            s.verify(kwargs.pop(s.name, None))
 
-            # Override explicitly provided SymbolicData
-            if name in arguments and isinstance(arguments[name], SymbolicData):
-                # Override the original symbol
-                o_vals[name] = arg
+        dim_sizes = OrderedDict([(d.name, d.value) for d in self.dims])
+        dim_names = OrderedDict([(d.name, d) for d in self.dims])
+        dle_arguments, autotune = self._dle_arguments(dim_sizes)
+        dim_sizes.update(dle_arguments)
 
-                original = arguments[name]
-                if original.is_CompositeData:
-                    for orig, child in zip(original.children, arg.children):
-                        o_vals[orig.name] = child
+        autotune = autotune and kwargs.pop('autotune', False)
 
-        # Replace the overridden values with the provided ones
-        for argname in o_vals.keys():
-            arguments[argname] = o_vals[argname]
+        # Make sure we've used all arguments passed
+        if len(kwargs) > 0:
+            raise InvalidArgument("Unknown arguments passed: " + ", ".join(kwargs.keys()))
 
-        # Traverse positional args and infer loop sizes for open dimensions
-        f_args = [(name, f) for name, f in arguments.items()
-                  if isinstance(f, SymbolicData)]
-        for fname, f in f_args:
-            arguments[fname] = self._arg_data(f)
-            shape = self._arg_shape(f)
+        for d, v in dim_sizes.items():
+            assert(dim_names[d].verify(v))
 
-            # Ensure data dimensions match symbol dimensions
-            for i, dim in enumerate(f.indices):
-                # We don't need to check sizes for buffered dimensions
-                # against data shapes, all we need is the size of the parent.
-                if dim.is_Buffered:
-                    continue
+        arguments = self._default_args()
 
-                # Check data sizes for dimensions with a fixed size
-                if dim.size is not None:
-                    if not shape[i] <= dim.size:
-                        error('Size of data argument for %s is greater than the size '
-                              'of dimension %s: %d' % (fname, dim.name, dim.size))
-                        raise InvalidArgument('Wrong data shape encountered')
-                    else:
-                        continue
+        arguments.update(self._extra_arguments())
 
-                if dim_sizes[dim.name] is None:
-                    # We haven't determined the size of this dimension yet,
-                    # try to infer it from the data shape.
-                    dim_sizes[dim.name] = shape[i]
-                else:
-                    # We know the dimension size, check if data shape agrees
-                    if not dim_sizes[dim.name] <= shape[i]:
-                        error('Size of dimension %s was determined to be %d, '
-                              'but data for symbol %s has shape %d.'
-                              % (dim.name, dim_sizes[dim.name], fname, shape[i]))
-                        raise InvalidArgument('Wrong data shape encountered')
+        if autotune:
+            arguments = self._autotune(arguments)
 
-        # Make sure we have defined all buffered dimensions and their parents,
-        # even if they are not explicitly given or used.
-        d_args = [d for d in arguments.values() if isinstance(d, Dimension)]
-        for d in d_args:
-            if d.is_Buffered:
-                if dim_sizes[d.parent.name] is None:
-                    dim_sizes[d.parent.name] = dim_sizes[d.name]
-                if dim_sizes[d.name] is None:
-                    dim_sizes[d.name] = dim_sizes[d.parent.name]
+        # Clear the temp values we stored in the arg objects since we've pulled them out
+        # into the OrderedDict object above
+        self._reset_args()
 
+        log_args(arguments)
+
+        return arguments, dim_sizes
+
+    def _default_args(self):
+        return OrderedDict([(x.name, x.value) for x in self.parameters])
+
+    def _dle_arguments(self, dim_sizes):
         # Add user-provided block sizes, if any
         dle_arguments = OrderedDict()
+        auto_tune = True
         for i in self.dle_arguments:
             dim_size = dim_sizes.get(i.original_dim.name, i.original_dim.size)
             if dim_size is None:
@@ -221,29 +225,10 @@ class Operator(Function):
                     dle_arguments[i.argument.name] = i.value(dim_size)
                 except TypeError:
                     dle_arguments[i.argument.name] = i.value
-                    # User-provided block size available, do not autotune
-                    maybe_autotune = False
+                    auto_tune = False
             else:
                 dle_arguments[i.argument.name] = dim_size
-        dim_sizes.update(dle_arguments)
-
-        # Insert loop size arguments from dimension values
-        d_args = [d for d in arguments.values() if isinstance(d, Dimension)]
-        for d in d_args:
-            arguments[d.name] = dim_sizes[d.name]
-
-        # Might have been asked to auto-tune the block size
-        if maybe_autotune:
-            arguments = self._autotune(arguments)
-
-        # Add profiler structs
-        arguments.update(self._extra_arguments())
-
-        # Sanity check argument derivation
-        for name, arg in arguments.items():
-            if isinstance(arg, SymbolicData) or isinstance(arg, Dimension):
-                raise ValueError('Runtime argument %s not defined' % arg)
-        return arguments, dim_sizes
+        return dle_arguments, auto_tune
 
     @property
     def ccode(self):
@@ -297,7 +282,7 @@ class Operator(Function):
 
         if self._cfunction is None:
             self._cfunction = getattr(self._lib, self.name)
-            argtypes = [c_int if isinstance(v, Dimension) else
+            argtypes = [c_int if isinstance(v, ScalarArgument) else
                         np.ctypeslib.ndpointer(dtype=v.dtype, flags='C')
                         for v in self.parameters]
             self._cfunction.argtypes = argtypes
