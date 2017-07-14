@@ -103,7 +103,7 @@ def collect_nested(expr, aggressive=False):
     return run(expr)[0]
 
 
-def xreplace_constrained(exprs, make, rule, cm=lambda e: True, repeat=False):
+def xreplace_constrained(exprs, make, rule, costmodel=lambda e: True, repeat=False):
     """
     Unlike ``xreplace``, which replaces all objects specified in a mapper,
     this function replaces all objects satisfying two criteria: ::
@@ -124,7 +124,7 @@ def xreplace_constrained(exprs, make, rule, cm=lambda e: True, repeat=False):
                  The function takes as input an integer ID; ID is computed internally
                  and used as a unique identifier for the constructed symbols.
     :param rule: The matching rule (a lambda function).
-    :param cm: The cost model (a lambda function, optional).
+    :param costmodel: The cost model (a lambda function, optional).
     :param repeat: Repeatedly apply ``xreplace`` until no more replacements are
                    possible (optional, defaults to False).
     """
@@ -136,13 +136,11 @@ def xreplace_constrained(exprs, make, rule, cm=lambda e: True, repeat=False):
         temporary = found.get(expr)
         if temporary:
             return temporary
-        elif cm(expr):
+        else:
             temporary = make(replace.c)
             found[expr] = temporary
             replace.c += 1
             return temporary
-        else:
-            return expr
     replace.c = 0  # Unique identifier for new temporaries
 
     def run(expr):
@@ -160,14 +158,15 @@ def xreplace_constrained(exprs, make, rule, cm=lambda e: True, repeat=False):
                 if len(matching) == len(children) and rule(expr):
                     # Go look for longer expressions first
                     return matched, True
-                elif rule(matched):
+                elif rule(matched) and costmodel(matched):
                     # Replace what I can replace, then give up
                     rebuilt = expr.func(*(other + [replace(matched)]), evaluate=False)
                     return rebuilt, False
                 else:
                     # Replace flagged children, then give up
-                    handle = [replace(e) for e in matching]
-                    rebuilt = expr.func(*(other + handle), evaluate=False)
+                    replaced = [replace(e) for e in matching if costmodel(e)]
+                    unreplaced = [e for e in matching if not costmodel(e)]
+                    rebuilt = expr.func(*(other + replaced + unreplaced), evaluate=False)
                     return rebuilt, False
             return expr.func(*other, evaluate=False), False
 
