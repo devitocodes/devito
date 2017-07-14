@@ -485,8 +485,8 @@ class Function(Node):
 
         # At this point, all objects in args should be objects of the RuntimeArgument
         # heirarchy. Separate the tensor arguments from the scalar ones
-        self.t_args = [i for i in args if i.is_TensorArgument]
-        self.s_args = [i for i in args if i.is_ScalarArgument]
+        self.tensor_args = [i for i in args if i.is_TensorArgument]
+        self.scalar_args = [i for i in args if i.is_ScalarArgument]
 
     def __repr__(self):
         parameters = ",".join([c.dtype_to_ctype(i.dtype) for i in self.parameters])

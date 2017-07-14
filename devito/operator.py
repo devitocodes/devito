@@ -143,7 +143,7 @@ class Operator(Function):
     def _reset_args(self):
         """ Reset any runtime argument derivation information from a previous run
         """
-        for x in self.t_args + self.dims + self.s_args:
+        for x in self.tensor_args + self.dims + self.scalar_args:
             x.reset()
 
     def arguments(self, *args, **kwargs):
@@ -169,13 +169,13 @@ class Operator(Function):
                     new_params[orig_child.name] = new_child
         kwargs.update(new_params)
 
-        for ta in self.t_args:
+        for ta in self.tensor_args:
             assert(ta.verify(kwargs.pop(ta.name, None)))
 
         for d in self.dims:
             d.verify(kwargs.pop(d.name, None))
 
-        for s in self.s_args:
+        for s in self.scalar_args:
             s.verify(kwargs.pop(s.name, None))
 
         dim_sizes = OrderedDict([(d.name, d.value) for d in self.dims])
