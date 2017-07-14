@@ -45,10 +45,7 @@ class State(object):
             self.elemental_functions
         self.arguments += as_tuple(arguments)
         self.includes += as_tuple(includes)
-        try:
-            self.flags.update({i: True for i in flags})
-        except TypeError:
-            self.flags[flags] = True
+        self.flags.update({i: True for i in as_tuple(flags)})
 
     @property
     def trees(self):
