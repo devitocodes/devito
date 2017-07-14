@@ -171,11 +171,10 @@
 
 <span class="kn">from</span> <span class="nn">devito.cgen_utils</span> <span class="k">import</span> <span class="n">Allocator</span><span class="p">,</span> <span class="n">blankline</span>
 <span class="kn">from</span> <span class="nn">devito.compiler</span> <span class="k">import</span> <span class="n">jit_compile</span><span class="p">,</span> <span class="n">load</span>
-<span class="kn">from</span> <span class="nn">devito.dimension</span> <span class="k">import</span> <span class="n">Dimension</span><span class="p">,</span> <span class="n">time</span>
+<span class="kn">from</span> <span class="nn">devito.dimension</span> <span class="k">import</span> <span class="n">time</span><span class="p">,</span> <span class="n">Dimension</span>
 <span class="kn">from</span> <span class="nn">devito.dle</span> <span class="k">import</span> <span class="n">compose_nodes</span><span class="p">,</span> <span class="n">filter_iterations</span><span class="p">,</span> <span class="n">transform</span>
 <span class="kn">from</span> <span class="nn">devito.dse</span> <span class="k">import</span> <span class="n">clusterize</span><span class="p">,</span> <span class="n">indexify</span><span class="p">,</span> <span class="n">rewrite</span><span class="p">,</span> <span class="n">q_indexed</span>
-<span class="kn">from</span> <span class="nn">devito.exceptions</span> <span class="k">import</span> <span class="n">InvalidArgument</span><span class="p">,</span> <span class="n">InvalidOperator</span>
-<span class="kn">from</span> <span class="nn">devito.interfaces</span> <span class="k">import</span> <span class="n">SymbolicData</span><span class="p">,</span> <span class="n">Forward</span><span class="p">,</span> <span class="n">Backward</span>
+<span class="kn">from</span> <span class="nn">devito.interfaces</span> <span class="k">import</span> <span class="n">Forward</span><span class="p">,</span> <span class="n">Backward</span><span class="p">,</span> <span class="n">CompositeData</span><span class="p">,</span> <span class="n">SymbolicData</span>
 <span class="kn">from</span> <span class="nn">devito.logger</span> <span class="k">import</span> <span class="n">bar</span><span class="p">,</span> <span class="n">error</span><span class="p">,</span> <span class="n">info</span>
 <span class="kn">from</span> <span class="nn">devito.nodes</span> <span class="k">import</span> <span class="n">Element</span><span class="p">,</span> <span class="n">Expression</span><span class="p">,</span> <span class="n">Function</span><span class="p">,</span> <span class="n">Iteration</span><span class="p">,</span> <span class="n">List</span><span class="p">,</span> <span class="n">LocalExpression</span>
 <span class="kn">from</span> <span class="nn">devito.parameters</span> <span class="k">import</span> <span class="n">configuration</span>
@@ -184,6 +183,8 @@
 <span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">as_tuple</span><span class="p">,</span> <span class="n">filter_ordered</span><span class="p">,</span> <span class="n">flatten</span>
 <span class="kn">from</span> <span class="nn">devito.visitors</span> <span class="k">import</span> <span class="p">(</span><span class="n">FindSymbols</span><span class="p">,</span> <span class="n">FindScopes</span><span class="p">,</span> <span class="n">ResolveIterationVariable</span><span class="p">,</span>
                              <span class="n">SubstituteExpression</span><span class="p">,</span> <span class="n">Transformer</span><span class="p">,</span> <span class="n">NestedTransformer</span><span class="p">)</span>
+<span class="kn">from</span> <span class="nn">devito.exceptions</span> <span class="k">import</span> <span class="n">InvalidArgument</span><span class="p">,</span> <span class="n">InvalidOperator</span>
+<span class="kn">from</span> <span class="nn">devito.arguments</span> <span class="k">import</span> <span class="n">ScalarArgument</span><span class="p">,</span> <span class="n">log_args</span><span class="p">,</span> <span class="n">ArgumentProvider</span>
 
 
 <div class="viewcode-block" id="Operator"><a class="viewcode-back" href="../../devito.html#devito.operator.Operator">[docs]</a><span class="k">class</span> <span class="nc">Operator</span><span class="p">(</span><span class="n">Function</span><span class="p">):</span>
@@ -276,6 +277,17 @@
         <span class="n">parameters</span> <span class="o">+=</span> <span class="p">[</span><span class="n">i</span><span class="o">.</span><span class="n">argument</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">dle_arguments</span><span class="p">]</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_includes</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="n">dle_state</span><span class="o">.</span><span class="n">includes</span><span class="p">))</span>
 
+        <span class="bp">self</span><span class="o">.</span><span class="n">symbolic_data</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">parameters</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">SymbolicData</span><span class="p">)]</span>
+        <span class="n">dims</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">parameters</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">Dimension</span><span class="p">)]</span>
+        <span class="n">d_parents</span> <span class="o">=</span> <span class="p">[</span><span class="n">d</span><span class="o">.</span><span class="n">parent</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">dims</span> <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">d</span><span class="p">,</span> <span class="s1">&#39;parent&#39;</span><span class="p">)]</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">dims</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="n">dims</span> <span class="o">+</span> <span class="n">d_parents</span><span class="p">))</span>
+
+        <span class="k">assert</span><span class="p">(</span><span class="nb">all</span><span class="p">(</span><span class="nb">isinstance</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">ArgumentProvider</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">symbolic_data</span> <span class="o">+</span>
+                   <span class="bp">self</span><span class="o">.</span><span class="n">dims</span><span class="p">))</span>
+
+        <span class="n">parameters</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="n">parameters</span> <span class="o">+</span> <span class="n">d_parents</span><span class="p">))</span>
+
         <span class="c1"># Translate into backend-specific representation (e.g., GPU, Yask)</span>
         <span class="n">nodes</span><span class="p">,</span> <span class="n">elemental_functions</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_specialize</span><span class="p">(</span><span class="n">nodes</span><span class="p">,</span> <span class="n">elemental_functions</span><span class="p">)</span>
 
@@ -289,88 +301,80 @@
         <span class="nb">super</span><span class="p">(</span><span class="n">Operator</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">nodes</span><span class="p">,</span> <span class="s1">&#39;int&#39;</span><span class="p">,</span> <span class="n">parameters</span><span class="p">,</span> <span class="p">())</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">elemental_functions</span> <span class="o">=</span> <span class="n">elemental_functions</span>
 
-<div class="viewcode-block" id="Operator.arguments"><a class="viewcode-back" href="../../devito.html#devito.operator.Operator.arguments">[docs]</a>    <span class="k">def</span> <span class="nf">arguments</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Return the arguments necessary to apply the Operator.</span>
+    <span class="k">def</span> <span class="nf">_reset_args</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot; Reset any runtime argument derivation information from a previous run</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">args</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
-            <span class="n">args</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">parameters</span>
+        <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">tensor_args</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">dims</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">scalar_args</span><span class="p">:</span>
+            <span class="n">x</span><span class="o">.</span><span class="n">reset</span><span class="p">()</span>
 
-        <span class="c1"># Will perform auto-tuning if the user requested it and loop blocking was used</span>
-        <span class="n">maybe_autotune</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;autotune&#39;</span><span class="p">,</span> <span class="kc">False</span><span class="p">)</span>
+<div class="viewcode-block" id="Operator.arguments"><a class="viewcode-back" href="../../devito.html#devito.operator.Operator.arguments">[docs]</a>    <span class="k">def</span> <span class="nf">arguments</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot; Process any apply-time arguments passed to apply and derive values for</span>
+<span class="sd">            any remaining arguments</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">new_params</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="c1"># If we&#39;ve been passed CompositeData objects as kwargs, they might have children</span>
+        <span class="c1"># that need to be substituted as well.</span>
+        <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="n">CompositeData</span><span class="p">):</span>
+                <span class="n">orig_param_l</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">symbolic_data</span> <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">name</span> <span class="o">==</span> <span class="n">k</span><span class="p">]</span>
+                <span class="c1"># If I have been passed a parameter, I must have seen it before</span>
+                <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">orig_param_l</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                    <span class="k">raise</span> <span class="n">InvalidArgument</span><span class="p">(</span><span class="s2">&quot;Parameter </span><span class="si">%s</span><span class="s2"> does not exist in expressions &quot;</span> <span class="o">+</span>
+                                          <span class="s2">&quot;passed to this Operator&quot;</span> <span class="o">%</span> <span class="n">k</span><span class="p">)</span>
+                <span class="c1"># We&#39;ve made sure the list isn&#39;t empty. Names should be unique so it</span>
+                <span class="c1"># should have exactly one entry</span>
+                <span class="k">assert</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">orig_param_l</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">)</span>
+                <span class="n">orig_param</span> <span class="o">=</span> <span class="n">orig_param_l</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+                <span class="c1"># Pull out the children and add them to kwargs</span>
+                <span class="k">for</span> <span class="n">orig_child</span><span class="p">,</span> <span class="n">new_child</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">orig_param</span><span class="o">.</span><span class="n">children</span><span class="p">,</span> <span class="n">v</span><span class="o">.</span><span class="n">children</span><span class="p">):</span>
+                    <span class="n">new_params</span><span class="p">[</span><span class="n">orig_child</span><span class="o">.</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="n">new_child</span>
+        <span class="n">kwargs</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">new_params</span><span class="p">)</span>
 
-        <span class="c1"># Initialise argument map and a map of dimension names to values</span>
-        <span class="n">arguments</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">([(</span><span class="n">arg</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">arg</span><span class="p">)</span> <span class="k">for</span> <span class="n">arg</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">parameters</span><span class="p">])</span>
-        <span class="n">dim_sizes</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">([(</span><span class="n">arg</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">arg</span><span class="o">.</span><span class="n">size</span><span class="p">)</span> <span class="k">for</span> <span class="n">arg</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">parameters</span>
-                          <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">arg</span><span class="p">,</span> <span class="n">Dimension</span><span class="p">)])</span>
+        <span class="k">for</span> <span class="n">ta</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">tensor_args</span><span class="p">:</span>
+            <span class="k">assert</span><span class="p">(</span><span class="n">ta</span><span class="o">.</span><span class="n">verify</span><span class="p">(</span><span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="n">ta</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="kc">None</span><span class="p">)))</span>
 
-        <span class="n">o_vals</span> <span class="o">=</span> <span class="p">{}</span>
-        <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">arg</span> <span class="ow">in</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
-            <span class="c1"># Override explicitly provided dim sizes from **kwargs</span>
-            <span class="k">if</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">dim_sizes</span><span class="p">:</span>
-                <span class="n">dim_sizes</span><span class="p">[</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="n">arg</span>
+        <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">dims</span><span class="p">:</span>
+            <span class="n">d</span><span class="o">.</span><span class="n">verify</span><span class="p">(</span><span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="n">d</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="kc">None</span><span class="p">))</span>
 
-            <span class="c1"># Override explicitly provided SymbolicData</span>
-            <span class="k">if</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">arguments</span> <span class="ow">and</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">arguments</span><span class="p">[</span><span class="n">name</span><span class="p">],</span> <span class="n">SymbolicData</span><span class="p">):</span>
-                <span class="c1"># Override the original symbol</span>
-                <span class="n">o_vals</span><span class="p">[</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="n">arg</span>
+        <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">scalar_args</span><span class="p">:</span>
+            <span class="n">s</span><span class="o">.</span><span class="n">verify</span><span class="p">(</span><span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="n">s</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="kc">None</span><span class="p">))</span>
 
-                <span class="n">original</span> <span class="o">=</span> <span class="n">arguments</span><span class="p">[</span><span class="n">name</span><span class="p">]</span>
-                <span class="k">if</span> <span class="n">original</span><span class="o">.</span><span class="n">is_CompositeData</span><span class="p">:</span>
-                    <span class="k">for</span> <span class="n">orig</span><span class="p">,</span> <span class="n">child</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">original</span><span class="o">.</span><span class="n">children</span><span class="p">,</span> <span class="n">arg</span><span class="o">.</span><span class="n">children</span><span class="p">):</span>
-                        <span class="n">o_vals</span><span class="p">[</span><span class="n">orig</span><span class="o">.</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="n">child</span>
+        <span class="n">dim_sizes</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">([(</span><span class="n">d</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">d</span><span class="o">.</span><span class="n">value</span><span class="p">)</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">dims</span><span class="p">])</span>
+        <span class="n">dim_names</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">([(</span><span class="n">d</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">d</span><span class="p">)</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">dims</span><span class="p">])</span>
+        <span class="n">dle_arguments</span><span class="p">,</span> <span class="n">autotune</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_dle_arguments</span><span class="p">(</span><span class="n">dim_sizes</span><span class="p">)</span>
+        <span class="n">dim_sizes</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">dle_arguments</span><span class="p">)</span>
 
-        <span class="c1"># Replace the overridden values with the provided ones</span>
-        <span class="k">for</span> <span class="n">argname</span> <span class="ow">in</span> <span class="n">o_vals</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
-            <span class="n">arguments</span><span class="p">[</span><span class="n">argname</span><span class="p">]</span> <span class="o">=</span> <span class="n">o_vals</span><span class="p">[</span><span class="n">argname</span><span class="p">]</span>
+        <span class="n">autotune</span> <span class="o">=</span> <span class="n">autotune</span> <span class="ow">and</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;autotune&#39;</span><span class="p">,</span> <span class="kc">False</span><span class="p">)</span>
 
-        <span class="c1"># Traverse positional args and infer loop sizes for open dimensions</span>
-        <span class="n">f_args</span> <span class="o">=</span> <span class="p">[(</span><span class="n">name</span><span class="p">,</span> <span class="n">f</span><span class="p">)</span> <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">arguments</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
-                  <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="n">SymbolicData</span><span class="p">)]</span>
-        <span class="k">for</span> <span class="n">fname</span><span class="p">,</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">f_args</span><span class="p">:</span>
-            <span class="n">arguments</span><span class="p">[</span><span class="n">fname</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_arg_data</span><span class="p">(</span><span class="n">f</span><span class="p">)</span>
-            <span class="n">shape</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_arg_shape</span><span class="p">(</span><span class="n">f</span><span class="p">)</span>
+        <span class="c1"># Make sure we&#39;ve used all arguments passed</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">kwargs</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">InvalidArgument</span><span class="p">(</span><span class="s2">&quot;Unknown arguments passed: &quot;</span> <span class="o">+</span> <span class="s2">&quot;, &quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">kwargs</span><span class="o">.</span><span class="n">keys</span><span class="p">()))</span>
 
-            <span class="c1"># Ensure data dimensions match symbol dimensions</span>
-            <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">dim</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">f</span><span class="o">.</span><span class="n">indices</span><span class="p">):</span>
-                <span class="c1"># We don&#39;t need to check sizes for buffered dimensions</span>
-                <span class="c1"># against data shapes, all we need is the size of the parent.</span>
-                <span class="k">if</span> <span class="n">dim</span><span class="o">.</span><span class="n">is_Buffered</span><span class="p">:</span>
-                    <span class="k">continue</span>
+        <span class="k">for</span> <span class="n">d</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">dim_sizes</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="k">assert</span><span class="p">(</span><span class="n">dim_names</span><span class="p">[</span><span class="n">d</span><span class="p">]</span><span class="o">.</span><span class="n">verify</span><span class="p">(</span><span class="n">v</span><span class="p">))</span>
 
-                <span class="c1"># Check data sizes for dimensions with a fixed size</span>
-                <span class="k">if</span> <span class="n">dim</span><span class="o">.</span><span class="n">size</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-                    <span class="k">if</span> <span class="ow">not</span> <span class="n">shape</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">&lt;=</span> <span class="n">dim</span><span class="o">.</span><span class="n">size</span><span class="p">:</span>
-                        <span class="n">error</span><span class="p">(</span><span class="s1">&#39;Size of data argument for </span><span class="si">%s</span><span class="s1"> is greater than the size &#39;</span>
-                              <span class="s1">&#39;of dimension </span><span class="si">%s</span><span class="s1">: </span><span class="si">%d</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">fname</span><span class="p">,</span> <span class="n">dim</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">dim</span><span class="o">.</span><span class="n">size</span><span class="p">))</span>
-                        <span class="k">raise</span> <span class="n">InvalidArgument</span><span class="p">(</span><span class="s1">&#39;Wrong data shape encountered&#39;</span><span class="p">)</span>
-                    <span class="k">else</span><span class="p">:</span>
-                        <span class="k">continue</span>
+        <span class="n">arguments</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_default_args</span><span class="p">()</span>
 
-                <span class="k">if</span> <span class="n">dim_sizes</span><span class="p">[</span><span class="n">dim</span><span class="o">.</span><span class="n">name</span><span class="p">]</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-                    <span class="c1"># We haven&#39;t determined the size of this dimension yet,</span>
-                    <span class="c1"># try to infer it from the data shape.</span>
-                    <span class="n">dim_sizes</span><span class="p">[</span><span class="n">dim</span><span class="o">.</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="n">shape</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
-                <span class="k">else</span><span class="p">:</span>
-                    <span class="c1"># We know the dimension size, check if data shape agrees</span>
-                    <span class="k">if</span> <span class="ow">not</span> <span class="n">dim_sizes</span><span class="p">[</span><span class="n">dim</span><span class="o">.</span><span class="n">name</span><span class="p">]</span> <span class="o">&lt;=</span> <span class="n">shape</span><span class="p">[</span><span class="n">i</span><span class="p">]:</span>
-                        <span class="n">error</span><span class="p">(</span><span class="s1">&#39;Size of dimension </span><span class="si">%s</span><span class="s1"> was determined to be </span><span class="si">%d</span><span class="s1">, &#39;</span>
-                              <span class="s1">&#39;but data for symbol </span><span class="si">%s</span><span class="s1"> has shape </span><span class="si">%d</span><span class="s1">.&#39;</span>
-                              <span class="o">%</span> <span class="p">(</span><span class="n">dim</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">dim_sizes</span><span class="p">[</span><span class="n">dim</span><span class="o">.</span><span class="n">name</span><span class="p">],</span> <span class="n">fname</span><span class="p">,</span> <span class="n">shape</span><span class="p">[</span><span class="n">i</span><span class="p">]))</span>
-                        <span class="k">raise</span> <span class="n">InvalidArgument</span><span class="p">(</span><span class="s1">&#39;Wrong data shape encountered&#39;</span><span class="p">)</span>
+        <span class="n">arguments</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_extra_arguments</span><span class="p">())</span>
 
-        <span class="c1"># Make sure we have defined all buffered dimensions and their parents,</span>
-        <span class="c1"># even if they are not explicitly given or used.</span>
-        <span class="n">d_args</span> <span class="o">=</span> <span class="p">[</span><span class="n">d</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">arguments</span><span class="o">.</span><span class="n">values</span><span class="p">()</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">d</span><span class="p">,</span> <span class="n">Dimension</span><span class="p">)]</span>
-        <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">d_args</span><span class="p">:</span>
-            <span class="k">if</span> <span class="n">d</span><span class="o">.</span><span class="n">is_Buffered</span><span class="p">:</span>
-                <span class="k">if</span> <span class="n">dim_sizes</span><span class="p">[</span><span class="n">d</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">name</span><span class="p">]</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-                    <span class="n">dim_sizes</span><span class="p">[</span><span class="n">d</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="n">dim_sizes</span><span class="p">[</span><span class="n">d</span><span class="o">.</span><span class="n">name</span><span class="p">]</span>
-                <span class="k">if</span> <span class="n">dim_sizes</span><span class="p">[</span><span class="n">d</span><span class="o">.</span><span class="n">name</span><span class="p">]</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-                    <span class="n">dim_sizes</span><span class="p">[</span><span class="n">d</span><span class="o">.</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="n">dim_sizes</span><span class="p">[</span><span class="n">d</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">name</span><span class="p">]</span>
+        <span class="k">if</span> <span class="n">autotune</span><span class="p">:</span>
+            <span class="n">arguments</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_autotune</span><span class="p">(</span><span class="n">arguments</span><span class="p">)</span>
 
+        <span class="c1"># Clear the temp values we stored in the arg objects since we&#39;ve pulled them out</span>
+        <span class="c1"># into the OrderedDict object above</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_reset_args</span><span class="p">()</span>
+
+        <span class="n">log_args</span><span class="p">(</span><span class="n">arguments</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">arguments</span><span class="p">,</span> <span class="n">dim_sizes</span></div>
+
+    <span class="k">def</span> <span class="nf">_default_args</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">OrderedDict</span><span class="p">([(</span><span class="n">x</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">x</span><span class="o">.</span><span class="n">value</span><span class="p">)</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">parameters</span><span class="p">])</span>
+
+    <span class="k">def</span> <span class="nf">_dle_arguments</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dim_sizes</span><span class="p">):</span>
         <span class="c1"># Add user-provided block sizes, if any</span>
         <span class="n">dle_arguments</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">()</span>
+        <span class="n">auto_tune</span> <span class="o">=</span> <span class="kc">True</span>
         <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">dle_arguments</span><span class="p">:</span>
             <span class="n">dim_size</span> <span class="o">=</span> <span class="n">dim_sizes</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">original_dim</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">i</span><span class="o">.</span><span class="n">original_dim</span><span class="o">.</span><span class="n">size</span><span class="p">)</span>
             <span class="k">if</span> <span class="n">dim_size</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
@@ -382,29 +386,10 @@
                     <span class="n">dle_arguments</span><span class="p">[</span><span class="n">i</span><span class="o">.</span><span class="n">argument</span><span class="o">.</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="n">i</span><span class="o">.</span><span class="n">value</span><span class="p">(</span><span class="n">dim_size</span><span class="p">)</span>
                 <span class="k">except</span> <span class="ne">TypeError</span><span class="p">:</span>
                     <span class="n">dle_arguments</span><span class="p">[</span><span class="n">i</span><span class="o">.</span><span class="n">argument</span><span class="o">.</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="n">i</span><span class="o">.</span><span class="n">value</span>
-                    <span class="c1"># User-provided block size available, do not autotune</span>
-                    <span class="n">maybe_autotune</span> <span class="o">=</span> <span class="kc">False</span>
+                    <span class="n">auto_tune</span> <span class="o">=</span> <span class="kc">False</span>
             <span class="k">else</span><span class="p">:</span>
                 <span class="n">dle_arguments</span><span class="p">[</span><span class="n">i</span><span class="o">.</span><span class="n">argument</span><span class="o">.</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="n">dim_size</span>
-        <span class="n">dim_sizes</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">dle_arguments</span><span class="p">)</span>
-
-        <span class="c1"># Insert loop size arguments from dimension values</span>
-        <span class="n">d_args</span> <span class="o">=</span> <span class="p">[</span><span class="n">d</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">arguments</span><span class="o">.</span><span class="n">values</span><span class="p">()</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">d</span><span class="p">,</span> <span class="n">Dimension</span><span class="p">)]</span>
-        <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">d_args</span><span class="p">:</span>
-            <span class="n">arguments</span><span class="p">[</span><span class="n">d</span><span class="o">.</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="n">dim_sizes</span><span class="p">[</span><span class="n">d</span><span class="o">.</span><span class="n">name</span><span class="p">]</span>
-
-        <span class="c1"># Might have been asked to auto-tune the block size</span>
-        <span class="k">if</span> <span class="n">maybe_autotune</span><span class="p">:</span>
-            <span class="n">arguments</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_autotune</span><span class="p">(</span><span class="n">arguments</span><span class="p">)</span>
-
-        <span class="c1"># Add profiler structs</span>
-        <span class="n">arguments</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_extra_arguments</span><span class="p">())</span>
-
-        <span class="c1"># Sanity check argument derivation</span>
-        <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">arg</span> <span class="ow">in</span> <span class="n">arguments</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
-            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">arg</span><span class="p">,</span> <span class="n">SymbolicData</span><span class="p">)</span> <span class="ow">or</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">arg</span><span class="p">,</span> <span class="n">Dimension</span><span class="p">):</span>
-                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;Runtime argument </span><span class="si">%s</span><span class="s1"> not defined&#39;</span> <span class="o">%</span> <span class="n">arg</span><span class="p">)</span>
-        <span class="k">return</span> <span class="n">arguments</span><span class="p">,</span> <span class="n">dim_sizes</span></div>
+        <span class="k">return</span> <span class="n">dle_arguments</span><span class="p">,</span> <span class="n">auto_tune</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">ccode</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
@@ -458,7 +443,7 @@
 
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cfunction</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_cfunction</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_lib</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
-            <span class="n">argtypes</span> <span class="o">=</span> <span class="p">[</span><span class="n">c_int</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="n">Dimension</span><span class="p">)</span> <span class="k">else</span>
+            <span class="n">argtypes</span> <span class="o">=</span> <span class="p">[</span><span class="n">c_int</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="n">ScalarArgument</span><span class="p">)</span> <span class="k">else</span>
                         <span class="n">np</span><span class="o">.</span><span class="n">ctypeslib</span><span class="o">.</span><span class="n">ndpointer</span><span class="p">(</span><span class="n">dtype</span><span class="o">=</span><span class="n">v</span><span class="o">.</span><span class="n">dtype</span><span class="p">,</span> <span class="n">flags</span><span class="o">=</span><span class="s1">&#39;C&#39;</span><span class="p">)</span>
                         <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">parameters</span><span class="p">]</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_cfunction</span><span class="o">.</span><span class="n">argtypes</span> <span class="o">=</span> <span class="n">argtypes</span>

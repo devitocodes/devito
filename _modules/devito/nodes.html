@@ -170,11 +170,11 @@
 <span class="kn">from</span> <span class="nn">sympy</span> <span class="k">import</span> <span class="n">Eq</span><span class="p">,</span> <span class="n">preorder_traversal</span>
 
 <span class="kn">from</span> <span class="nn">devito.cgen_utils</span> <span class="k">import</span> <span class="n">ccode</span>
-<span class="kn">from</span> <span class="nn">devito.dimension</span> <span class="k">import</span> <span class="n">Dimension</span>
 <span class="kn">from</span> <span class="nn">devito.dse</span> <span class="k">import</span> <span class="n">as_symbol</span>
 <span class="kn">from</span> <span class="nn">devito.interfaces</span> <span class="k">import</span> <span class="n">IndexedData</span><span class="p">,</span> <span class="n">SymbolicData</span><span class="p">,</span> <span class="n">TensorFunction</span>
 <span class="kn">from</span> <span class="nn">devito.stencil</span> <span class="k">import</span> <span class="n">Stencil</span>
-<span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">as_tuple</span><span class="p">,</span> <span class="n">filter_ordered</span>
+<span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">as_tuple</span><span class="p">,</span> <span class="n">filter_ordered</span><span class="p">,</span> <span class="n">flatten</span>
+<span class="kn">from</span> <span class="nn">devito.arguments</span> <span class="k">import</span> <span class="n">ArgumentProvider</span><span class="p">,</span> <span class="n">Argument</span><span class="p">,</span> <span class="n">TensorArgument</span>
 
 <span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;Node&#39;</span><span class="p">,</span> <span class="s1">&#39;Block&#39;</span><span class="p">,</span> <span class="s1">&#39;Denormals&#39;</span><span class="p">,</span> <span class="s1">&#39;Expression&#39;</span><span class="p">,</span> <span class="s1">&#39;Function&#39;</span><span class="p">,</span> <span class="s1">&#39;FunCall&#39;</span><span class="p">,</span>
            <span class="s1">&#39;Iteration&#39;</span><span class="p">,</span> <span class="s1">&#39;List&#39;</span><span class="p">,</span> <span class="s1">&#39;LocalExpression&#39;</span><span class="p">,</span> <span class="s1">&#39;TimedList&#39;</span><span class="p">]</span>
@@ -634,8 +634,20 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">name</span> <span class="o">=</span> <span class="n">name</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">body</span> <span class="o">=</span> <span class="n">as_tuple</span><span class="p">(</span><span class="n">body</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">retval</span> <span class="o">=</span> <span class="n">retval</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">parameters</span> <span class="o">=</span> <span class="n">as_tuple</span><span class="p">(</span><span class="n">parameters</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">prefix</span> <span class="o">=</span> <span class="n">prefix</span>
+
+        <span class="k">if</span> <span class="nb">all</span><span class="p">(</span><span class="nb">isinstance</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">ArgumentProvider</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">parameters</span><span class="p">):</span>
+            <span class="n">args</span> <span class="o">=</span> <span class="n">flatten</span><span class="p">([</span><span class="n">i</span><span class="o">.</span><span class="n">rtargs</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">parameters</span><span class="p">])</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">assert</span><span class="p">(</span><span class="nb">all</span><span class="p">(</span><span class="nb">isinstance</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">Argument</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">parameters</span><span class="p">))</span>
+            <span class="n">args</span> <span class="o">=</span> <span class="n">parameters</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">parameters</span> <span class="o">=</span> <span class="n">as_tuple</span><span class="p">(</span><span class="n">args</span><span class="p">)</span>
+
+        <span class="c1"># At this point, all objects in args should be objects of the RuntimeArgument</span>
+        <span class="c1"># heirarchy. Separate the tensor arguments from the scalar ones</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">tensor_args</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">args</span> <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">is_TensorArgument</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">scalar_args</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">args</span> <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">is_ScalarArgument</span><span class="p">]</span>
 
     <span class="k">def</span> <span class="nf">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="n">parameters</span> <span class="o">=</span> <span class="s2">&quot;,&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">([</span><span class="n">c</span><span class="o">.</span><span class="n">dtype_to_ctype</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">dtype</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">parameters</span><span class="p">])</span>
@@ -645,31 +657,14 @@
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">_cparameters</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;Generate arguments signature.&quot;&quot;&quot;</span>
-        <span class="n">cparameters</span> <span class="o">=</span> <span class="p">[]</span>
-        <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">parameters</span><span class="p">:</span>
-            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="n">Dimension</span><span class="p">):</span>
-                <span class="n">cparameters</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">v</span><span class="o">.</span><span class="n">decl</span><span class="p">)</span>
-            <span class="k">elif</span> <span class="n">v</span><span class="o">.</span><span class="n">is_ScalarFunction</span><span class="p">:</span>
-                <span class="n">cparameters</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">c</span><span class="o">.</span><span class="n">Value</span><span class="p">(</span><span class="s1">&#39;const int&#39;</span><span class="p">,</span> <span class="n">v</span><span class="o">.</span><span class="n">name</span><span class="p">))</span>
-            <span class="k">else</span><span class="p">:</span>
-                <span class="n">cparameters</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">c</span><span class="o">.</span><span class="n">Value</span><span class="p">(</span><span class="n">c</span><span class="o">.</span><span class="n">dtype_to_ctype</span><span class="p">(</span><span class="n">v</span><span class="o">.</span><span class="n">dtype</span><span class="p">),</span>
-                                           <span class="s1">&#39;*restrict </span><span class="si">%s</span><span class="s1">_vec&#39;</span> <span class="o">%</span> <span class="n">v</span><span class="o">.</span><span class="n">name</span><span class="p">))</span>
-        <span class="k">return</span> <span class="n">cparameters</span>
+        <span class="k">return</span> <span class="p">[</span><span class="n">v</span><span class="o">.</span><span class="n">decl</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">parameters</span><span class="p">]</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">_ccasts</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;Generate data casts.&quot;&quot;&quot;</span>
-        <span class="n">alignment</span> <span class="o">=</span> <span class="s2">&quot;__attribute__((aligned(64)))&quot;</span>
-        <span class="n">handle</span> <span class="o">=</span> <span class="p">[</span><span class="n">f</span> <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">parameters</span>
-                  <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="p">(</span><span class="n">SymbolicData</span><span class="p">,</span> <span class="n">TensorFunction</span><span class="p">))]</span>
-        <span class="n">shapes</span> <span class="o">=</span> <span class="p">[(</span><span class="n">f</span><span class="p">,</span> <span class="s1">&#39;&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">([</span><span class="s2">&quot;[</span><span class="si">%s</span><span class="s2">]&quot;</span> <span class="o">%</span> <span class="n">ccode</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">f</span><span class="o">.</span><span class="n">symbolic_shape</span><span class="p">[</span><span class="mi">1</span><span class="p">:]]))</span>
-                  <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">handle</span><span class="p">]</span>
-        <span class="n">casts</span> <span class="o">=</span> <span class="p">[</span><span class="n">c</span><span class="o">.</span><span class="n">Initializer</span><span class="p">(</span><span class="n">c</span><span class="o">.</span><span class="n">POD</span><span class="p">(</span><span class="n">v</span><span class="o">.</span><span class="n">dtype</span><span class="p">,</span>
-                                     <span class="s1">&#39;(*restrict </span><span class="si">%s</span><span class="s1">)</span><span class="si">%s</span><span class="s1"> </span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">v</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">shape</span><span class="p">,</span> <span class="n">alignment</span><span class="p">)),</span>
-                               <span class="s1">&#39;(</span><span class="si">%s</span><span class="s1"> (*)</span><span class="si">%s</span><span class="s1">) </span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">c</span><span class="o">.</span><span class="n">dtype_to_ctype</span><span class="p">(</span><span class="n">v</span><span class="o">.</span><span class="n">dtype</span><span class="p">),</span>
-                                                  <span class="n">shape</span><span class="p">,</span> <span class="s1">&#39;</span><span class="si">%s</span><span class="s1">_vec&#39;</span> <span class="o">%</span> <span class="n">v</span><span class="o">.</span><span class="n">name</span><span class="p">))</span>
-                 <span class="k">for</span> <span class="n">v</span><span class="p">,</span> <span class="n">shape</span> <span class="ow">in</span> <span class="n">shapes</span><span class="p">]</span>
-        <span class="k">return</span> <span class="n">casts</span>
+        <span class="n">tensors</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">parameters</span>
+                   <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="p">(</span><span class="n">TensorArgument</span><span class="p">,</span> <span class="n">TensorFunction</span><span class="p">))]</span>
+        <span class="k">return</span> <span class="p">[</span><span class="n">v</span><span class="o">.</span><span class="n">ccast</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">tensors</span><span class="p">]</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">_ctop</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>

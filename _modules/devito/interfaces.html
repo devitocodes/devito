@@ -171,6 +171,8 @@
                                       <span class="n">second_derivative</span><span class="p">)</span>
 <span class="kn">from</span> <span class="nn">devito.logger</span> <span class="k">import</span> <span class="n">debug</span><span class="p">,</span> <span class="n">error</span><span class="p">,</span> <span class="n">warning</span>
 <span class="kn">from</span> <span class="nn">devito.memory</span> <span class="k">import</span> <span class="n">CMemory</span><span class="p">,</span> <span class="n">first_touch</span>
+<span class="kn">from</span> <span class="nn">devito.arguments</span> <span class="k">import</span> <span class="p">(</span><span class="n">SymbolicDataArgProvider</span><span class="p">,</span> <span class="n">ScalarFunctionArgProvider</span><span class="p">,</span>
+                              <span class="n">TensorFunctionArgProvider</span><span class="p">)</span>
 
 <span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;DenseData&#39;</span><span class="p">,</span> <span class="s1">&#39;TimeData&#39;</span><span class="p">,</span> <span class="s1">&#39;Forward&#39;</span><span class="p">,</span> <span class="s1">&#39;Backward&#39;</span><span class="p">]</span>
 
@@ -369,7 +371,7 @@
         <span class="k">return</span>
 
 
-<span class="k">class</span> <span class="nc">ScalarFunction</span><span class="p">(</span><span class="n">SymbolicFunction</span><span class="p">):</span>
+<span class="k">class</span> <span class="nc">ScalarFunction</span><span class="p">(</span><span class="n">SymbolicFunction</span><span class="p">,</span> <span class="n">ScalarFunctionArgProvider</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;Symbolic object representing a scalar.</span>
 
 <span class="sd">    :param name: Name of the symbol</span>
@@ -395,7 +397,7 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">dtype</span> <span class="o">=</span> <span class="n">dtype</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">dtype</span>
 
 
-<span class="k">class</span> <span class="nc">TensorFunction</span><span class="p">(</span><span class="n">SymbolicFunction</span><span class="p">):</span>
+<span class="k">class</span> <span class="nc">TensorFunction</span><span class="p">(</span><span class="n">SymbolicFunction</span><span class="p">,</span> <span class="n">TensorFunctionArgProvider</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;Symbolic object representing a tensor.</span>
 
 <span class="sd">    :param name: Name of the symbol</span>
@@ -434,7 +436,7 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">_onstack</span> <span class="o">=</span> <span class="n">onstack</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">_mem_stack</span>
 
 
-<span class="k">class</span> <span class="nc">SymbolicData</span><span class="p">(</span><span class="n">AbstractSymbol</span><span class="p">):</span>
+<span class="k">class</span> <span class="nc">SymbolicData</span><span class="p">(</span><span class="n">AbstractSymbol</span><span class="p">,</span> <span class="n">SymbolicDataArgProvider</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;A symbolic object associated with data.&quot;&quot;&quot;</span>
 
     <span class="n">is_SymbolicData</span> <span class="o">=</span> <span class="kc">True</span>

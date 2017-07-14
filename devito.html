@@ -372,30 +372,12 @@ we utilise the <cite>pymic</cite> package to manage device streams.</p>
 <span id="devito-dimension-module"></span><h2>devito.dimension module<a class="headerlink" href="#module-devito.dimension" title="Permalink to this headline">¶</a></h2>
 <dl class="class">
 <dt id="devito.dimension.Dimension">
-<em class="property">class </em><code class="descclassname">devito.dimension.</code><code class="descname">Dimension</code><a class="reference internal" href="_modules/devito/dimension.html#Dimension"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.dimension.Dimension" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">sympy.core.symbol.Symbol</span></code></p>
-<dl class="attribute">
-<dt id="devito.dimension.Dimension.ccode">
-<code class="descname">ccode</code><a class="headerlink" href="#devito.dimension.Dimension.ccode" title="Permalink to this definition">¶</a></dt>
-<dd><p>C-level variable name of this dimension</p>
-</dd></dl>
-
-<dl class="attribute">
-<dt id="devito.dimension.Dimension.decl">
-<code class="descname">decl</code><a class="headerlink" href="#devito.dimension.Dimension.decl" title="Permalink to this definition">¶</a></dt>
-<dd><p>Variable declaration for C-level kernel headers</p>
-</dd></dl>
-
+<em class="property">class </em><code class="descclassname">devito.dimension.</code><code class="descname">Dimension</code><span class="sig-paren">(</span><em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/dimension.html#Dimension"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.dimension.Dimension" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">sympy.core.symbol.Symbol</span></code>, <code class="xref py py-class docutils literal"><span class="pre">devito.arguments.DimensionArgProvider</span></code></p>
 <dl class="attribute">
 <dt id="devito.dimension.Dimension.default_assumptions">
 <code class="descname">default_assumptions</code><em class="property"> = {}</em><a class="headerlink" href="#devito.dimension.Dimension.default_assumptions" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
-
-<dl class="attribute">
-<dt id="devito.dimension.Dimension.dtype">
-<code class="descname">dtype</code><a class="headerlink" href="#devito.dimension.Dimension.dtype" title="Permalink to this definition">¶</a></dt>
-<dd><p>The data type of the iteration variable</p>
-</dd></dl>
 
 <dl class="attribute">
 <dt id="devito.dimension.Dimension.is_Buffered">
@@ -1385,7 +1367,8 @@ if a limit is unknown.</p>
 <dl class="method">
 <dt id="devito.operator.Operator.arguments">
 <code class="descname">arguments</code><span class="sig-paren">(</span><em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/operator.html#Operator.arguments"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.operator.Operator.arguments" title="Permalink to this definition">¶</a></dt>
-<dd><p>Return the arguments necessary to apply the Operator.</p>
+<dd><p>Process any apply-time arguments passed to apply and derive values for
+any remaining arguments</p>
 </dd></dl>
 
 <dl class="attribute">
