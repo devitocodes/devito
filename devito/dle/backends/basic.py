@@ -96,7 +96,7 @@ class BasicRewriter(AbstractRewriter):
                     args.append((handle, i))
 
                 # Retrieve scalar arguments
-                not_required.update({e.output for e in expressions if e.is_scalar})
+                not_required.update({i.output for i in expressions if i.is_scalar})
                 maybe_required.update(set(FindSymbols(mode='free-symbols').visit(free)))
                 for i in fsymbols:
                     not_required.update({as_symbol(i)})

@@ -684,8 +684,8 @@ ntags.n_original_properties = len(known_properties)  # noqa
 class UnboundedIndex(object):
 
     """
-    A generic loop iteration index used to traverse an iteration space in a
-    non-linear way (e.g., non-unitary increment).
+    A generic loop iteration index that can be used in a :class:`Iteration` to
+    add a non-linear traversal of the iteration space.
     """
 
     def __init__(self, index, start=0, step=None):

@@ -140,8 +140,8 @@ def optimize_unfolded_tree(unfolded, root):
     processed = []
     for i, tree in enumerate(unfolded):
         assert len(tree) == len(root)
-        otree = []
-        oroot = []
+        modified_tree = []
+        modified_root = []
         mapper = {}
 
         # "Shrink" the iteration space
@@ -152,33 +152,33 @@ def optimize_unfolded_tree(unfolded, root):
             t1_uindex = (UnboundedIndex(index, start),)
             t2_uindex = (UnboundedIndex(index, -start),)
 
-            otree.append(t1._rebuild(limits=[0, end-start, incr],
-                                     uindices=t1.uindices + t1_uindex))
-            oroot.append(t2._rebuild(uindices=t2.uindices + t2_uindex))
+            modified_tree.append(t1._rebuild(limits=[0, end-start, incr],
+                                             uindices=t1.uindices + t1_uindex))
+            modified_root.append(t2._rebuild(uindices=t2.uindices + t2_uindex))
 
             mapper[t1.dim] = index
 
         # Temporary arrays can now be moved onto the stack
-        exprs = FindNodes(Expression).visit(otree[-1])
-        if all(not j.is_Remainder for j in otree):
-            shape = tuple(j.bounds_symbolic[1] for j in otree)
+        exprs = FindNodes(Expression).visit(modified_tree[-1])
+        if all(not j.is_Remainder for j in modified_tree):
+            shape = tuple(j.bounds_symbolic[1] for j in modified_tree)
             for j in exprs:
-                j_shape = shape + j.output_function.shape[len(otree):]
+                j_shape = shape + j.output_function.shape[len(modified_tree):]
                 j.output_function.update(shape=j_shape, onstack=True)
 
         # Substitute iteration variables within the folded trees
-        otree = compose_nodes(otree)
+        modified_tree = compose_nodes(modified_tree)
         replaced = xreplace_indices([j.expr for j in exprs], mapper, only_rhs=True)
         subs = [j._rebuild(expr=k) for j, k in zip(exprs, replaced)]
-        processed.append(Transformer(dict(zip(exprs, subs))).visit(otree))
+        processed.append(Transformer(dict(zip(exprs, subs))).visit(modified_tree))
 
         # Introduce the new iteration variables within /root/
-        oroot = compose_nodes(oroot)
-        exprs = FindNodes(Expression).visit(oroot)
+        modified_root = compose_nodes(modified_root)
+        exprs = FindNodes(Expression).visit(modified_root)
         candidates = [j.output for j in subs]
         replaced = xreplace_indices([j.expr for j in exprs], mapper, candidates)
         subs = [j._rebuild(expr=k) for j, k in zip(exprs, replaced)]
-        root = Transformer(dict(zip(exprs, subs))).visit(oroot)
+        root = Transformer(dict(zip(exprs, subs))).visit(modified_root)
 
     return processed + [root]
 
