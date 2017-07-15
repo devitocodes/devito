@@ -1,12 +1,10 @@
 import sys
 from argparse import ArgumentParser, RawDescriptionHelpFormatter
 from itertools import product
-from os import environ
 
 import numpy as np
 
 from devito import clear_cache
-from devito.compiler import compiler_registry
 from devito.logger import warning
 from seismic.acoustic.acoustic_example import run as acoustic_run
 from seismic.tti.tti_example3D import run as tti_run
@@ -29,10 +27,6 @@ if __name__ == "__main__":
     parser.add_argument("--bench-mode", "-bm", dest="benchmode", default="maxperf",
                         choices=["maxperf", "dse", "dle"],
                         help="Choose what to benchmark (maxperf, dse, dle).")
-    parser.add_argument(dest="compiler", nargs="?",
-                        default=environ.get("DEVITO_ARCH", "gnu"),
-                        choices=compiler_registry.keys(),
-                        help="Compiler/architecture to use. Defaults to DEVITO_ARCH")
     parser.add_argument("--arch", default="unknown",
                         help="Architecture on which the simulation is/was run.")
     parser.add_argument("-P", "--problem", nargs="?", default="tti",
@@ -101,7 +95,6 @@ if __name__ == "__main__":
 
     parameters["dimensions"] = tuple(parameters["dimensions"])
     parameters["spacing"] = tuple(parameters["spacing"])
-    parameters["compiler"] = compiler_registry[args.compiler](openmp=args.omp)
 
     if args.execmode == "run":
         parameters["space_order"] = parameters["space_order"][0]

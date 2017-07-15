@@ -13,7 +13,7 @@ def source(t, f0):
 
 
 def setup(dimensions=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=250.0, time_order=2,
-          space_order=4, nbpml=10, dse='advanced', dle='advanced', compiler=None):
+          space_order=4, nbpml=10, dse='advanced', dle='advanced'):
 
     origin = (0., 0., 0.)
 
@@ -57,8 +57,7 @@ def setup(dimensions=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=250.0, time_or
     rec = Receiver(name='rec', ntime=nt, coordinates=receiver_coords)
 
     return AnisotropicWaveSolver(model, source=src, time_order=time_order,
-                                 space_order=space_order, receiver=rec, dse=dse, dle=dle,
-                                 compiler=compiler)
+                                 space_order=space_order, receiver=rec, dse=dse, dle=dle)
 
 
 def run(dimensions=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=250.0,
