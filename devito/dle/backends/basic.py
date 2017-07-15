@@ -14,7 +14,7 @@ from devito.dle.backends import AbstractRewriter, dle_pass, complang_ALL
 from devito.interfaces import ScalarFunction
 from devito.nodes import (Denormals, Expression, FunCall, Function, List,
                           UnboundedIndex)
-from devito.tools import filter_sorted
+from devito.tools import filter_sorted, flatten
 from devito.visitors import FindNodes, FindSymbols, NestedTransformer, Transformer
 
 
