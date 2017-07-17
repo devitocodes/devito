@@ -1,0 +1,59 @@
+from __future__ import absolute_import
+
+from devito.core.autotuning import autotune
+from devito.cgen_utils import printmark
+from devito.dle import filter_iterations, retrieve_iteration_tree
+from devito.nodes import List
+from devito.operator import OperatorRunnable
+from devito.parameters import configuration
+from devito.visitors import Transformer
+from devito.tools import flatten
+
+__all__ = ['Operator']
+
+
+class OperatorCore(OperatorRunnable):
+
+    def _autotune(self, arguments):
+        """
+        Use auto-tuning on this Operator to determine empirically the
+        best block sizes when loop blocking is in use.
+        """
+        if self.dle_flags.get('blocking', False):
+            return autotune(self, arguments, self.dle_arguments,
+                            mode=configuration['autotuning'])
+        else:
+            return arguments
+
+
+class OperatorDebug(OperatorCore):
+    """
+    Decorate the generated code with useful print statements.
+    """
+
+    def __init__(self, expressions, **kwargs):
+        super(OperatorDebug, self).__init__(expressions, **kwargs)
+        self._includes.append('stdio.h')
+
+        # Minimize the trip count of the sequential loops
+        iterations = set(flatten(retrieve_iteration_tree(self.body)))
+        mapper = {i: i._rebuild(limits=(max(i.offsets) + 2))
+                  for i in iterations if i.is_Sequential}
+        self.body = Transformer(mapper).visit(self.body)
+
+        # Mark entry/exit points of each non-sequential Iteration tree in the body
+        iterations = [filter_iterations(i, lambda i: not i.is_Sequential, 'any')
+                      for i in retrieve_iteration_tree(self.body)]
+        iterations = [i[0] for i in iterations if i]
+        mapper = {t: List(header=printmark('In nest %d' % i), body=t)
+                  for i, t in enumerate(iterations)}
+        self.body = Transformer(mapper).visit(self.body)
+
+
+class Operator(object):
+
+    def __new__(cls, *args, **kwargs):
+        cls = OperatorDebug if kwargs.pop('debug', False) else OperatorCore
+        obj = cls.__new__(cls, *args, **kwargs)
+        obj.__init__(*args, **kwargs)
+        return obj

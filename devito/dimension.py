@@ -1,12 +1,10 @@
-import cgen
-
-import numpy as np
 from sympy import Number, Symbol
+from devito.arguments import DimensionArgProvider
 
 __all__ = ['Dimension', 'x', 'y', 'z', 't', 'p', 'd', 'time']
 
 
-class Dimension(Symbol):
+class Dimension(Symbol, DimensionArgProvider):
 
     is_Buffered = False
     is_Lowered = False
@@ -36,21 +34,6 @@ class Dimension(Symbol):
             return Number(self.ccode)
         except ValueError:
             return Symbol(self.ccode)
-
-    @property
-    def ccode(self):
-        """C-level variable name of this dimension"""
-        return "%s_size" % self.name if self.size is None else "%d" % self.size
-
-    @property
-    def decl(self):
-        """Variable declaration for C-level kernel headers"""
-        return cgen.Value("const int", self.ccode)
-
-    @property
-    def dtype(self):
-        """The data type of the iteration variable"""
-        return np.int32
 
 
 class BufferedDimension(Dimension):

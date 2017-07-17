@@ -1,12 +1,12 @@
 # Types used by all DLE backends
 
 import abc
-from collections import OrderedDict
+from collections import OrderedDict, defaultdict
 from time import time
 
 from devito.dse import as_symbol, terminals
 from devito.logger import dle
-from devito.nodes import Iteration
+from devito.nodes import Iteration, SEQUENTIAL, PARALLEL, VECTOR
 from devito.tools import as_tuple, flatten
 from devito.visitors import FindSections, NestedTransformer
 
@@ -36,7 +36,7 @@ class State(object):
         self.elemental_functions = ()
         self.arguments = ()
         self.includes = ()
-        self.flags = ()
+        self.flags = defaultdict(bool)
 
     def update(self, nodes=None, elemental_functions=None, arguments=None,
                includes=None, flags=None):
@@ -45,7 +45,14 @@ class State(object):
             self.elemental_functions
         self.arguments += as_tuple(arguments)
         self.includes += as_tuple(includes)
-        self.flags += as_tuple(flags)
+        try:
+            self.flags.update({i: True for i in flags})
+        except TypeError:
+            self.flags[flags] = True
+
+    @property
+    def trees(self):
+        return self.nodes, self.elemental_functions
 
     @property
     def has_applied_blocking(self):
@@ -108,7 +115,6 @@ class AbstractRewriter(object):
     """
     thresholds = {
         'collapse': 32,  # Available physical cores
-        'elemental': 30,  # Operations
         'max_fission': 800,  # Statements
         'min_fission': 20  # Statements
     }
@@ -174,7 +180,7 @@ class AbstractRewriter(object):
 
             # Determine if fully-parallel (FP), OSIP, unit-stride (in innermost dim)
             is_FP = True
-            is_OSIP = False
+            is_OSIP = not tree[0].is_Linear
             is_US = True
             for e1 in exprs:
                 lhs = e1.lhs
@@ -191,17 +197,17 @@ class AbstractRewriter(object):
 
             # Track the discovered properties
             if is_OSIP:
-                mapper.setdefault(tree[0], []).append('sequential')
+                mapper.setdefault(tree[0], []).append(SEQUENTIAL)
             for i in tree[is_OSIP:]:
-                mapper.setdefault(i, []).append('parallel')
+                mapper.setdefault(i, []).append(PARALLEL)
             if is_Vectorizable:
-                mapper.setdefault(tree[-1], []).append('vector-dim')
+                mapper.setdefault(tree[-1], []).append(VECTOR)
 
         # Introduce the discovered properties in the Iteration/Expression tree
         for k, v in list(mapper.items()):
             args = k.args
             # 'sequential' kills 'parallel'
-            properties = ('sequential',) if 'sequential' in v else tuple(v)
+            properties = (SEQUENTIAL,) if SEQUENTIAL in v else tuple(v)
             properties = as_tuple(args.pop('properties')) + properties
             mapper[k] = Iteration(properties=properties, **args)
         nodes = NestedTransformer(mapper).visit(nodes)

@@ -1,7 +1,7 @@
 # coding: utf-8
 from cached_property import cached_property
 
-from devito.interfaces import TimeData
+from devito import TimeData
 from examples.seismic.tti.operators import ForwardOperator
 from examples.seismic import Receiver
 
@@ -102,11 +102,14 @@ class AnisotropicWaveSolver(object):
 
         # Execute operator and return wavefield and receiver data
         if save:
-            summary = self.op_fwd_save.apply(src=src, rec=rec, u=u, v=v, m=m,
-                                             epsilon=epsilon, delta=delta,
-                                             theta=theta, phi=phi, **kwargs)
+            op = self.op_fwd_save
         else:
-            summary = self.op_fwd.apply(src=src, rec=rec, u=u, v=v, m=m,
-                                        epsilon=epsilon, delta=delta,
-                                        theta=theta, phi=phi, **kwargs)
+            op = self.op_fwd
+
+        if len(m.shape) == 2:
+            summary = op.apply(src=src, rec=rec, u=u, v=v, m=m, epsilon=epsilon,
+                               delta=delta, theta=theta, **kwargs)
+        else:
+            summary = op.apply(src=src, rec=rec, u=u, v=v, m=m, epsilon=epsilon,
+                               delta=delta, theta=theta, phi=phi, **kwargs)
         return rec, u, v, summary

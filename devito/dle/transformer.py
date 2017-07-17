@@ -1,20 +1,25 @@
 from collections import Sequence
 
 from devito.dle.backends import (State, BasicRewriter, DevitoCustomRewriter,
-                                 DevitoRewriter, DevitoSpeculativeRewriter, YaskRewriter)
+                                 DevitoRewriter, DevitoSpeculativeRewriter)
 from devito.exceptions import DLEException
 from devito.logger import dle_warning
 
-__all__ = ['transform', 'modes']
+__all__ = ['transform', 'modes', 'default_options']
 
 
 modes = {
     'basic': BasicRewriter,
     'advanced': DevitoRewriter,
-    'speculative': DevitoSpeculativeRewriter,
-    'yask': YaskRewriter
+    'speculative': DevitoSpeculativeRewriter
 }
 """The DLE transformation modes."""
+
+default_options = {
+    'blockinner': False,
+    'blockshape': None
+}
+"""Default values for the various optimization options."""
 
 
 def transform(node, mode='basic', options=None):
@@ -30,12 +35,9 @@ def transform(node, mode='basic', options=None):
                      * 'basic': Add instructions to avoid denormal numbers and create
                                 elemental functions for rapid JIT-compilation.
                      * 'advanced': 'basic', vectorization, loop blocking.
-                     * '3D-advanced': Like 'advanced', but attempt 3D loop blocking.
                      * 'speculative': Apply all of the 'advanced' transformations,
                                       plus other transformations that might increase
                                       (or possibly decrease) performance.
-                     * 'yask': Optimize by offloading to the YASK optimizer. Still
-                               work-in-progress; should only be used by developers.
     :param options: A dictionary with additional information to drive the DLE. The
                     following values are accepted: ::
 
@@ -60,22 +62,25 @@ def transform(node, mode='basic', options=None):
     else:
         raise ValueError("Got illegal node of type %s." % type(node))
 
-    # Parse options
+    # Parse options (local options take precedence over global options)
     options = options or {}
     params = options.copy()
     for i in options:
-        if i not in ('blockshape', 'blockinner'):
+        if i not in default_options:
             dle_warning("Illegal DLE parameter '%s'" % i)
             params.pop(i)
+    params.update({k: v for k, v in configuration['dle_options'].items()
+                   if k not in params})
+    params.update({k: v for k, v in default_options.items() if k not in params})
     params['compiler'] = configuration['compiler']
     params['openmp'] = configuration['openmp']
+    if mode == '3D-advanced':
+        params['blockinner'] = True
+        mode = 'advanced'
 
     # Process the Iteration/Expression tree through the DLE
     if mode is None or mode == 'noop':
         return State(node)
-    elif mode == '3D-advanced':
-        params['blockinner'] = True
-        mode = 'advanced'
     elif mode not in modes:
         try:
             rewriter = DevitoCustomRewriter(node, mode, params)

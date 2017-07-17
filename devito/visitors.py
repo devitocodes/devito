@@ -10,12 +10,11 @@ import inspect
 from collections import Iterable, OrderedDict, defaultdict
 from operator import attrgetter
 
-import cgen as c
 from sympy import Symbol
 
 from devito.dimension import LoweredDimension
 from devito.exceptions import VisitorException
-from devito.nodes import Iteration, List, Node
+from devito.nodes import Iteration, Node, UnboundedIndex
 from devito.tools import as_tuple, filter_ordered, filter_sorted, flatten
 
 
@@ -201,7 +200,8 @@ class PrintAST(Visitor):
         self._depth -= 1
         if self.verbose:
             detail = '::%s::%s::%s' % (o.index, o.limits, o.offsets)
-            props = '[%s] ' % ','.join(o.properties) if o.properties else ''
+            props = [str(i) for i in o.properties]
+            props = '[%s] ' % ','.join(props) if props else ''
         else:
             detail, props = '', ''
         return self.indent + "<%sIteration %s%s>\n%s" % (props, o.dim.name, detail, body)
@@ -552,17 +552,13 @@ class ResolveIterationVariable(Transformer):
             # definition of buffered variables, eg. t+1 => t1
             init = []
             for i, off in enumerate(filter_ordered(offsets[o.dim])):
-                vname = "%s%d" % (o.dim.name, i)
-                value = o.dim.parent + off
-                modulo = o.dim.modulo
-                init += [c.Initializer(c.Value('int', vname),
-                                       "(%s) %% %d" % (value, modulo))]
-                subs[o.dim + off] = LoweredDimension(vname, o.dim, off)
+                vname = Symbol("%s%d" % (o.dim.name, i))
+                value = (o.dim.parent + off) % o.dim.modulo
+                init.append(UnboundedIndex(vname, value, value))
+                subs[o.dim + off] = LoweredDimension(vname.name, o.dim, off)
             # Always lower to symbol
             subs[o.dim.parent] = Symbol(o.dim.parent.name)
-            # Insert block with modulo initialisations
-            newnodes = (List(header=init, body=nodes[0]), )
-            return o._rebuild(newnodes, index=o.dim.parent.name)
+            return o._rebuild(index=o.dim.parent.name, uindices=init)
         else:
             return o._rebuild(*nodes)
 
