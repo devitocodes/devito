@@ -182,6 +182,7 @@ class Operator(Function):
         autotune = autotune and kwargs.pop('autotune', False)
 
         # Make sure we've used all arguments passed
+        # Breaks for constant velocity
         if len(kwargs) > 0:
             raise InvalidArgument("Unknown arguments passed: " + ", ".join(kwargs.keys()))
 
