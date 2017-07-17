@@ -1,5 +1,4 @@
 from sympy import Eq, Function, Matrix, symbols
-from sympy.abc import h
 
 from collections import OrderedDict
 from devito.dimension import d, p, t, time, x, y, z
