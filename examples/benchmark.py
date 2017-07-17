@@ -103,20 +103,17 @@ if __name__ == "__main__":
     else:
         if args.benchmode == 'maxperf':
             parameters["autotune"] = [True]
-            parameters["dse"] = ["advanced"]
+            parameters["dse"] = ["aggressive"]
             parameters["dle"] = ["advanced"]
         elif args.benchmode == 'dse':
-            parameters["autotune"] = [False]
-            parameters["dse"] = ["basic",
-                                 ('basic', 'glicm'),
-                                 "advanced"]
-            parameters["dle"] = ["basic"]
+            parameters["autotune"] = [True]
+            parameters["dse"] = ["basic", "advanced", "speculative", "aggressive"]
+            parameters["dle"] = ["advanced"]
         else:
             # must be == 'dle'
             parameters["autotune"] = [True]
             parameters["dse"] = ["advanced"]
-            parameters["dle"] = ["basic",
-                                 "advanced"]
+            parameters["dle"] = ["basic", "advanced"]
 
     if args.execmode == "test":
         values_sweep = [v if isinstance(v, list) else [v] for v in parameters.values()]
