@@ -6,7 +6,7 @@ from sympy import Indexed
 
 from devito.exceptions import DSEException
 from devito.dse.search import retrieve_indexed
-from devito.dse.queries import q_indirect, q_terminalop, q_sum_of_product
+from devito.dse.queries import q_indirect
 from devito.stencil import Stencil
 
 __all__ = ['collect']
