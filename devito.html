@@ -1199,7 +1199,7 @@ The default value is (‘static’, ‘inline’).</li>
 
 <dl class="class">
 <dt id="devito.nodes.Iteration">
-<em class="property">class </em><code class="descclassname">devito.nodes.</code><code class="descname">Iteration</code><span class="sig-paren">(</span><em>nodes</em>, <em>dimension</em>, <em>limits</em>, <em>index=None</em>, <em>offsets=None</em>, <em>properties=None</em>, <em>pragmas=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/nodes.html#Iteration"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.nodes.Iteration" title="Permalink to this definition">¶</a></dt>
+<em class="property">class </em><code class="descclassname">devito.nodes.</code><code class="descname">Iteration</code><span class="sig-paren">(</span><em>nodes</em>, <em>dimension</em>, <em>limits</em>, <em>index=None</em>, <em>offsets=None</em>, <em>properties=None</em>, <em>pragmas=None</em>, <em>uindices=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/nodes.html#Iteration"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.nodes.Iteration" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <a class="reference internal" href="#devito.nodes.Node" title="devito.nodes.Node"><code class="xref py py-class docutils literal"><span class="pre">devito.nodes.Node</span></code></a></p>
 <p>Iteration object that encapsualtes a single loop over nodes.</p>
 <table class="docutils field-list" frame="void" rules="none">
@@ -1217,6 +1217,9 @@ tuple of the form (start, finish, stepping).</li>
 For example, the string ‘parallel’ may be used to identify
 a parallelizable Iteration.</li>
 <li><strong>pragmas</strong> – A bag of pragmas attached to this Iteration.</li>
+<li><strong>uindices</strong> – a bag of UnboundedIndex objects, representing free iteration
+variables (i.e., the Iteration end point is independent of
+any of these UnboundedIndex).</li>
 </ul>
 </td>
 </tr>
@@ -1287,6 +1290,11 @@ if a limit is unknown.</p>
 <dd></dd></dl>
 
 <dl class="attribute">
+<dt id="devito.nodes.Iteration.is_Linear">
+<code class="descname">is_Linear</code><a class="headerlink" href="#devito.nodes.Iteration.is_Linear" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
 <dt id="devito.nodes.Iteration.is_Open">
 <code class="descname">is_Open</code><a class="headerlink" href="#devito.nodes.Iteration.is_Open" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
@@ -1312,11 +1320,24 @@ if a limit is unknown.</p>
 <dd></dd></dl>
 
 <dl class="method">
+<dt id="devito.nodes.Iteration.retag">
+<code class="descname">retag</code><span class="sig-paren">(</span><em>tag_value=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/nodes.html#Iteration.retag"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.nodes.Iteration.retag" title="Permalink to this definition">¶</a></dt>
+<dd><p>Create a new Iteration object which is identical to <code class="docutils literal"><span class="pre">self</span></code>, except
+for the tag. If provided, <code class="docutils literal"><span class="pre">tag_value</span></code> is used as new tag; otherwise,
+an internally generated tag is used.</p>
+</dd></dl>
+
+<dl class="method">
 <dt id="devito.nodes.Iteration.start">
 <code class="descname">start</code><span class="sig-paren">(</span><em>start=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/nodes.html#Iteration.start"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.nodes.Iteration.start" title="Permalink to this definition">¶</a></dt>
 <dd><p>Return the start point of the Iteration if the lower limit is known,
 <code class="docutils literal"><span class="pre">None</span></code> otherwise.</p>
 </dd></dl>
+
+<dl class="attribute">
+<dt id="devito.nodes.Iteration.tag">
+<code class="descname">tag</code><a class="headerlink" href="#devito.nodes.Iteration.tag" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
 
 </dd></dl>
 
@@ -1431,7 +1452,7 @@ C code evaluating stencil expressions, can also execute the computation.</p>
 <p>The parameters dictionary contains global parameter settings.</p>
 <dl class="data">
 <dt id="devito.parameters.configuration">
-<code class="descclassname">devito.parameters.</code><code class="descname">configuration</code><em class="property"> = Parameters([('compiler', DevitoJITCompiler[GNUCompiler]), ('autotuning', 'basic'), ('backend', 'core'), ('dle', 'advanced'), ('dse', 'advanced'), ('log_level', 'DEBUG'), ('openmp', False)])</em><a class="headerlink" href="#devito.parameters.configuration" title="Permalink to this definition">¶</a></dt>
+<code class="descclassname">devito.parameters.</code><code class="descname">configuration</code><em class="property"> = Parameters([('compiler', DevitoJITCompiler[GNUCompiler]), ('autotuning', 'basic'), ('backend', 'core'), ('dle', 'advanced'), ('dle_options', {'blockinner': False, 'blockshape': None}), ('dse', 'advanced'), ('log_level', 'DEBUG'), ('openmp', False)])</em><a class="headerlink" href="#devito.parameters.configuration" title="Permalink to this definition">¶</a></dt>
 <dd><p>The Devito configuration parameters.</p>
 </dd></dl>
 

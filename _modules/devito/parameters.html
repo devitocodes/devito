@@ -167,7 +167,7 @@
 <span class="kn">from</span> <span class="nn">devito.backends</span> <span class="k">import</span> <span class="n">backends_registry</span>
 <span class="kn">from</span> <span class="nn">devito.compiler</span> <span class="k">import</span> <span class="n">compiler_registry</span><span class="p">,</span> <span class="n">set_compiler</span>
 <span class="kn">from</span> <span class="nn">devito.dse</span> <span class="k">import</span> <span class="n">modes</span> <span class="k">as</span> <span class="n">dse_registry</span>
-<span class="kn">from</span> <span class="nn">devito.dle</span> <span class="k">import</span> <span class="n">modes</span> <span class="k">as</span> <span class="n">dle_registry</span>
+<span class="kn">from</span> <span class="nn">devito.dle</span> <span class="k">import</span> <span class="n">modes</span> <span class="k">as</span> <span class="n">dle_registry</span><span class="p">,</span> <span class="n">default_options</span> <span class="k">as</span> <span class="n">dle_default_options</span>
 <span class="kn">from</span> <span class="nn">devito.logger</span> <span class="k">import</span> <span class="n">debug</span><span class="p">,</span> <span class="n">logger_registry</span><span class="p">,</span> <span class="n">set_log_level</span>
 
 <span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;configuration&#39;</span><span class="p">,</span> <span class="s1">&#39;init_configuration&#39;</span><span class="p">,</span> <span class="s1">&#39;print_defaults&#39;</span><span class="p">,</span> <span class="s1">&#39;print_state&#39;</span><span class="p">]</span>
@@ -232,7 +232,8 @@
     <span class="s1">&#39;compiler&#39;</span><span class="p">:</span> <span class="s1">&#39;custom&#39;</span><span class="p">,</span>
     <span class="s1">&#39;openmp&#39;</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span>
     <span class="s1">&#39;dse&#39;</span><span class="p">:</span> <span class="s1">&#39;advanced&#39;</span><span class="p">,</span>
-    <span class="s1">&#39;dle&#39;</span><span class="p">:</span> <span class="s1">&#39;advanced&#39;</span>
+    <span class="s1">&#39;dle&#39;</span><span class="p">:</span> <span class="s1">&#39;advanced&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;dle_options&#39;</span><span class="p">:</span> <span class="s1">&#39;;&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="s1">&#39;</span><span class="si">%s</span><span class="s1">:</span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">v</span><span class="p">)</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">dle_default_options</span><span class="o">.</span><span class="n">items</span><span class="p">())</span>
 <span class="p">}</span>
 <span class="sd">&quot;&quot;&quot;The default Devito configuration parameters&quot;&quot;&quot;</span>
 
@@ -243,7 +244,8 @@
     <span class="s1">&#39;compiler&#39;</span><span class="p">:</span> <span class="nb">list</span><span class="p">(</span><span class="n">compiler_registry</span><span class="p">),</span>
     <span class="s1">&#39;openmp&#39;</span><span class="p">:</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span>
     <span class="s1">&#39;dse&#39;</span><span class="p">:</span> <span class="nb">list</span><span class="p">(</span><span class="n">dse_registry</span><span class="p">),</span>
-    <span class="s1">&#39;dle&#39;</span><span class="p">:</span> <span class="nb">list</span><span class="p">(</span><span class="n">dle_registry</span><span class="p">)</span>
+    <span class="s1">&#39;dle&#39;</span><span class="p">:</span> <span class="nb">list</span><span class="p">(</span><span class="n">dle_registry</span><span class="p">),</span>
+    <span class="s1">&#39;dle_options&#39;</span><span class="p">:</span> <span class="nb">list</span><span class="p">(</span><span class="n">dle_default_options</span><span class="p">)</span>
 <span class="p">}</span>
 <span class="sd">&quot;&quot;&quot;Accepted values for the Devito environment variables.&quot;&quot;&quot;</span>
 
@@ -253,6 +255,7 @@
     <span class="s1">&#39;DEVITO_BACKEND&#39;</span><span class="p">:</span> <span class="s1">&#39;backend&#39;</span><span class="p">,</span>
     <span class="s1">&#39;DEVITO_DSE&#39;</span><span class="p">:</span> <span class="s1">&#39;dse&#39;</span><span class="p">,</span>
     <span class="s1">&#39;DEVITO_DLE&#39;</span><span class="p">:</span> <span class="s1">&#39;dle&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;DEVITO_DLE_OPTIONS&#39;</span><span class="p">:</span> <span class="s1">&#39;dle_options&#39;</span><span class="p">,</span>
     <span class="s1">&#39;DEVITO_OPENMP&#39;</span><span class="p">:</span> <span class="s1">&#39;openmp&#39;</span><span class="p">,</span>
     <span class="s1">&#39;DEVITO_LOGGING&#39;</span><span class="p">:</span> <span class="s1">&#39;log_level&#39;</span>
 <span class="p">}</span>
@@ -268,16 +271,33 @@
         <span class="c1"># Attempt reading from the specified configuration file</span>
         <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="s2">&quot;Devito doesn&#39;t support configuration via file.&quot;</span><span class="p">)</span>
 
-    <span class="c1"># Parameters casting and checking</span>
+    <span class="c1"># Parameters validation</span>
     <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="nb">list</span><span class="p">(</span><span class="n">configuration</span><span class="o">.</span><span class="n">items</span><span class="p">()):</span>
+        <span class="n">items</span> <span class="o">=</span> <span class="n">v</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;;&#39;</span><span class="p">)</span>
         <span class="k">try</span><span class="p">:</span>
-            <span class="n">val</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">v</span><span class="p">)</span>
-        <span class="k">except</span> <span class="p">(</span><span class="ne">TypeError</span><span class="p">,</span> <span class="ne">ValueError</span><span class="p">):</span>
-            <span class="n">val</span> <span class="o">=</span> <span class="n">v</span>
-        <span class="k">if</span> <span class="n">val</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">accepted</span><span class="p">[</span><span class="n">k</span><span class="p">]:</span>
+            <span class="c1"># Env variable format: &#39;k1:v1;k2:v2:k3:v3:...&#39;</span>
+            <span class="n">keys</span><span class="p">,</span> <span class="n">values</span> <span class="o">=</span> <span class="nb">zip</span><span class="p">(</span><span class="o">*</span><span class="p">[</span><span class="n">i</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;:&#39;</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">items</span><span class="p">])</span>
+            <span class="c1"># Casting</span>
+            <span class="n">values</span> <span class="o">=</span> <span class="p">[</span><span class="nb">eval</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">values</span><span class="p">]</span>
+        <span class="k">except</span> <span class="ne">ValueError</span><span class="p">:</span>
+            <span class="c1"># Env variable format: &#39;k1;k2:...&#39; or even just &#39;k1&#39;</span>
+            <span class="n">keys</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;:&#39;</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">items</span><span class="p">]</span>
+            <span class="n">values</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="c1"># Cast to integer</span>
+            <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="n">keys</span><span class="p">)):</span>
+                <span class="k">try</span><span class="p">:</span>
+                    <span class="n">keys</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">j</span><span class="p">)</span>
+                <span class="k">except</span> <span class="p">(</span><span class="ne">TypeError</span><span class="p">,</span> <span class="ne">ValueError</span><span class="p">):</span>
+                    <span class="n">keys</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">j</span>
+        <span class="k">if</span> <span class="nb">any</span><span class="p">(</span><span class="n">i</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">accepted</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">keys</span><span class="p">):</span>
             <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Illegal configuration parameter (</span><span class="si">%s</span><span class="s2">, </span><span class="si">%s</span><span class="s2">). &quot;</span>
-                             <span class="s2">&quot;Accepted: </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">val</span><span class="p">,</span> <span class="nb">str</span><span class="p">(</span><span class="n">accepted</span><span class="p">[</span><span class="n">k</span><span class="p">])))</span>
-        <span class="n">configuration</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="n">val</span>
+                             <span class="s2">&quot;Accepted: </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">v</span><span class="p">,</span> <span class="nb">str</span><span class="p">(</span><span class="n">accepted</span><span class="p">[</span><span class="n">k</span><span class="p">])))</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">keys</span><span class="p">)</span> <span class="o">==</span> <span class="nb">len</span><span class="p">(</span><span class="n">values</span><span class="p">):</span>
+            <span class="n">configuration</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="nb">zip</span><span class="p">(</span><span class="n">keys</span><span class="p">,</span> <span class="n">values</span><span class="p">))</span>
+        <span class="k">elif</span> <span class="nb">len</span><span class="p">(</span><span class="n">keys</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="n">configuration</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="n">keys</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">configuration</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="n">keys</span>
 
     <span class="c1"># Global setup</span>
     <span class="c1"># - Logger</span>
