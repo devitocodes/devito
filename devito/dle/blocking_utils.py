@@ -1,10 +1,10 @@
 import cgen as c
-from sympy import Eq, Symbol
-import numpy as np
+from sympy import Symbol
 
+from devito.cgen_utils import ccode
 from devito.dle import compose_nodes, is_foldable, retrieve_iteration_tree
 from devito.dse import xreplace_indices
-from devito.nodes import Expression, Iteration, List, LocalExpression
+from devito.nodes import Expression, Iteration, List, UnboundedIndex, ntags
 from devito.visitors import (FindAdjacentIterations, FindNodes, IsPerfectIteration,
                              NestedTransformer, Transformer)
 from devito.tools import as_tuple
@@ -41,7 +41,9 @@ def fold_blockable_tree(node, exclude_innermost=False):
             if any(not is_foldable(j) for j in pairwise_folds):
                 continue
             # Perform folding
-            for j in pairwise_folds[:-exclude_innermost]:
+            if exclude_innermost is True:
+                pairwise_folds = pairwise_folds[:-1]
+            for j in pairwise_folds:
                 root, remainder = j[0], j[1:]
                 folds = [(tuple(y-x for x, y in zip(i.offsets, root.offsets)), i.nodes)
                          for i in remainder]
@@ -86,11 +88,14 @@ def unfold_blocked_tree(node):
             candidates.append(handle)
 
     # Perform unfolding
+    tag = ntags()
     mapper = {}
     for tree in candidates:
         trees = zip(*[i.unfold() for i in tree])
+        # Update tag
+        for i, _tree in enumerate(list(trees)):
+            trees[i] = tuple(j.retag(tag + i) for j in _tree)
         trees = optimize_unfolded_tree(trees[:-1], trees[-1])
-        trees = [compose_nodes(i) for i in trees]
         mapper[tree[0]] = List(body=trees)
 
     # Insert the unfolded Iterations in the Iteration/Expression tree
@@ -134,43 +139,46 @@ def optimize_unfolded_tree(unfolded, root):
     """
     processed = []
     for i, tree in enumerate(unfolded):
-        otree = []
-        stmts = []
+        assert len(tree) == len(root)
+        modified_tree = []
+        modified_root = []
         mapper = {}
 
         # "Shrink" the iteration space
-        for j in tree:
-            start, end, incr = j.args['limits']
-            otree.append(j._rebuild(limits=[0, end-start, incr]))
-            index = Symbol('%ss%d' % (j.index, i))
-            stmts.append((LocalExpression(Eq(index, j.dim + start), np.int32),
-                          LocalExpression(Eq(index, j.dim - start), np.int32)))
-            mapper[j.dim] = index
+        for t1, t2 in zip(tree, root):
+            start, end, incr = t1.args['limits']
+            index = Symbol('%ss%d' % (t1.index, i))
+
+            t1_uindex = (UnboundedIndex(index, start),)
+            t2_uindex = (UnboundedIndex(index, -start),)
+
+            modified_tree.append(t1._rebuild(limits=[0, end-start, incr],
+                                             uindices=t1.uindices + t1_uindex))
+            modified_root.append(t2._rebuild(uindices=t2.uindices + t2_uindex))
+
+            mapper[t1.dim] = index
+
+        # Temporary arrays can now be moved onto the stack
+        exprs = FindNodes(Expression).visit(modified_tree[-1])
+        if all(not j.is_Remainder for j in modified_tree):
+            shape = tuple(j.bounds_symbolic[1] for j in modified_tree)
+            for j in exprs:
+                j_shape = shape + j.output_function.shape[len(modified_tree):]
+                j.output_function.update(shape=j_shape, onstack=True)
 
         # Substitute iteration variables within the folded trees
-        exprs = FindNodes(Expression).visit(otree[-1])
+        modified_tree = compose_nodes(modified_tree)
         replaced = xreplace_indices([j.expr for j in exprs], mapper, only_rhs=True)
         subs = [j._rebuild(expr=k) for j, k in zip(exprs, replaced)]
+        processed.append(Transformer(dict(zip(exprs, subs))).visit(modified_tree))
 
-        handle = Transformer(dict(zip(exprs, subs))).visit(otree[-1])
-        handle = handle._rebuild(nodes=(zip(*stmts)[0] + handle.nodes))
-        processed.append(tuple(otree[:-1]) + (handle,))
-
-        # Temporary arrays can now be moved to the stack
-        if all(not j.is_Remainder for j in otree):
-            shape = tuple(j.bounds_symbolic[1] for j in otree)
-            for j in subs:
-                shape += j.output_function.shape[len(otree):]
-                j.output_function.update(shape=shape, onstack=True)
-
-        # Introduce the new iteration variables within root
+        # Introduce the new iteration variables within /root/
+        modified_root = compose_nodes(modified_root)
+        exprs = FindNodes(Expression).visit(modified_root)
         candidates = [j.output for j in subs]
-        exprs = FindNodes(Expression).visit(root[-1])
         replaced = xreplace_indices([j.expr for j in exprs], mapper, candidates)
         subs = [j._rebuild(expr=k) for j, k in zip(exprs, replaced)]
-        handle = Transformer(dict(zip(exprs, subs))).visit(root[-1])
-        handle = handle._rebuild(nodes=(zip(*stmts)[1] + handle.nodes))
-        root = root[:-1] + (handle,)
+        root = Transformer(dict(zip(exprs, subs))).visit(modified_root)
 
     return processed + [root]
 
@@ -190,18 +198,21 @@ class IterationFold(Iteration):
     is_IterationFold = True
 
     def __init__(self, nodes, dimension, limits, index=None, offsets=None,
-                 properties=None, pragmas=None, folds=None):
-        super(IterationFold, self).__init__(nodes, dimension, limits, index,
-                                            offsets, properties, pragmas)
+                 properties=None, pragmas=None, uindices=None, folds=None):
+        super(IterationFold, self).__init__(nodes, dimension, limits, index, offsets,
+                                            properties, uindices, pragmas)
         self.folds = folds
 
     def __repr__(self):
         properties = ""
         if self.properties:
-            properties = "WithProperties[%s]::" % ",".join(self.properties)
+            properties = [str(i) for i in self.properties]
+            properties = "WithProperties[%s]::" % ",".join(properties)
+        index = self.index
+        if self.uindices:
+            index += '[%s]' % ','.join(ccode(i.index) for i in self.uindices)
         length = "Length %d" % len(self.folds)
-        return "<%sIterationFold %s; %s; %s>" % (properties, self.index,
-                                                 self.limits, length)
+        return "<%sIterationFold %s; %s; %s>" % (properties, index, self.limits, length)
 
     @property
     def ccode(self):

@@ -257,6 +257,9 @@ class Iteration(Node):
                        For example, the string 'parallel' may be used to identify
                        a parallelizable Iteration.
     :param pragmas: A bag of pragmas attached to this Iteration.
+    :param uindices: a bag of UnboundedIndex objects, representing free iteration
+                     variables (i.e., the Iteration end point is independent of
+                     any of these UnboundedIndex).
     """
 
     is_Iteration = True
@@ -273,10 +276,9 @@ class Iteration(Node):
         * elemental: Hoistable to an elemental function.
         * remainder: A remainder iteration (e.g., by-product of some transformations)
     """
-    _known_properties = ['sequential', 'parallel', 'vector-dim', 'elemental', 'remainder']
 
     def __init__(self, nodes, dimension, limits, index=None, offsets=None,
-                 properties=None, pragmas=None):
+                 properties=None, pragmas=None, uindices=None):
         # Ensure we deal with a list of Expression objects internally
         nodes = as_tuple(nodes)
         self.nodes = as_tuple([n if isinstance(n, Node) else Expression(n)
@@ -309,16 +311,22 @@ class Iteration(Node):
             self.offsets[0] = min(self.offsets[0], int(off))
             self.offsets[1] = max(self.offsets[1], int(off))
 
-        # Track this Iteration's properties and pragmas
+        # Track this Iteration's properties, pragmas and unbounded indices
         self.properties = as_tuple(properties)
-        assert (i in Iteration._known_properties for i in self.properties)
+        assert (i in known_properties for i in self.properties)
         self.pragmas = as_tuple(pragmas)
+        self.uindices = as_tuple(uindices)
+        assert all(isinstance(i, UnboundedIndex) for i in self.uindices)
 
     def __repr__(self):
         properties = ""
         if self.properties:
-            properties = "WithProperties[%s]::" % ",".join(self.properties)
-        return "<%sIteration %s; %s>" % (properties, self.index, self.limits)
+            properties = [str(i) for i in self.properties]
+            properties = "WithProperties[%s]::" % ",".join(properties)
+        index = self.index
+        if self.uindices:
+            index += '[%s]' % ','.join(ccode(i.index) for i in self.uindices)
+        return "<%sIteration %s; %s>" % (properties, index, self.limits)
 
     @property
     def ccode(self):
@@ -350,18 +358,28 @@ class Iteration(Node):
 
         # For reverse dimensions flip loop bounds
         if self.reverse:
-            loop_init = c.InlineInitializer(c.Value("int", self.index),
-                                            ccode('%s - 1' % end))
+            loop_init = 'int %s = %s' % (self.index, ccode('%s - 1' % end))
             loop_cond = '%s >= %s' % (self.index, ccode(start))
             loop_inc = '%s -= %s' % (self.index, self.limits[2])
         else:
-            loop_init = c.InlineInitializer(c.Value("int", self.index), ccode(start))
+            loop_init = 'int %s = %s' % (self.index, ccode(start))
             loop_cond = '%s < %s' % (self.index, ccode(end))
             loop_inc = '%s += %s' % (self.index, self.limits[2])
 
+        # Append unbounded indices, if any
+        if self.uindices:
+            uinit = ['%s = %s' % (i.index, ccode(i.start)) for i in self.uindices]
+            loop_init = c.Line(', '.join([loop_init] + uinit))
+            ustep = ['%s = %s' % (i.index, ccode(i.step)) for i in self.uindices]
+            loop_inc = c.Line(', '.join([loop_inc] + ustep))
+
+        # Create For header+body
         handle = c.For(loop_init, loop_cond, loop_inc, c.Block(loop_body))
+
+        # Attach pragmas, if any
         if self.pragmas:
             handle = c.Module(self.pragmas + (handle,))
+
         return handle
 
     @property
@@ -373,24 +391,47 @@ class Iteration(Node):
         return not self.is_Open
 
     @property
+    def is_Linear(self):
+        return len(self.uindices) == 0
+
+    @property
     def is_Sequential(self):
-        return 'sequential' in self.properties
+        return SEQUENTIAL in self.properties
 
     @property
     def is_Parallel(self):
-        return 'parallel' in self.properties
+        return PARALLEL in self.properties
 
     @property
     def is_Vectorizable(self):
-        return 'vector-dim' in self.properties
+        return VECTOR in self.properties
 
     @property
     def is_Elementizable(self):
-        return 'elemental' in self.properties
+        return ELEMENTAL in self.properties
 
     @property
     def is_Remainder(self):
-        return 'remainder' in self.properties
+        return REMAINDER in self.properties
+
+    @property
+    def tag(self):
+        for i in self.properties:
+            if i.name == 'tag':
+                return i.val
+        return None
+
+    def retag(self, tag_value=None):
+        """
+        Create a new Iteration object which is identical to ``self``, except
+        for the tag. If provided, ``tag_value`` is used as new tag; otherwise,
+        an internally generated tag is used.
+        """
+        if self.tag is None:
+            return self._rebuild()
+        properties = [tagger(tag_value or (ntags() + 1)) if i.name == 'tag' else i
+                      for i in self.properties]
+        return self._rebuild(properties=properties)
 
     @property
     def bounds_symbolic(self):
@@ -587,3 +628,67 @@ class LocalExpression(Expression):
     def ccode(self):
         ctype = c.dtype_to_ctype(self.dtype)
         return c.Initializer(c.Value(ctype, ccode(self.expr.lhs)), ccode(self.expr.rhs))
+
+
+# Iteration utilities
+
+class IterationProperty(object):
+
+    """
+    An IterationProperty is an object that can be used to decorate an Iteration.
+    """
+
+    def __init__(self, name, val=None):
+        self.name = name
+        self.val = val
+
+    def __eq__(self, other):
+        if not isinstance(other, IterationProperty):
+            return False
+        return self.name == other.name and self.val == other.val
+
+    def __ne__(self, other):
+        return not self.__eq__(other)
+
+    def __str__(self):
+        return self.name if self.val is None else '%s%s' % (self.name, str(self.val))
+
+    def __repr__(self):
+        if self.val is None:
+            return "Property: %s" % self.name
+        else:
+            return "Property: %s[%s]" % (self.name, str(self.val))
+
+
+SEQUENTIAL = IterationProperty('sequential')
+PARALLEL = IterationProperty('parallel')
+VECTOR = IterationProperty('vector-dim')
+ELEMENTAL = IterationProperty('elemental')
+REMAINDER = IterationProperty('remainder')
+
+known_properties = [SEQUENTIAL, PARALLEL, VECTOR, ELEMENTAL, REMAINDER]
+
+
+def tagger(i):
+    handle = IterationProperty('tag', i)
+    if handle not in known_properties:
+        known_properties.append(handle)
+    return handle
+
+
+def ntags():
+    return len(known_properties) - ntags.n_original_properties
+ntags.n_original_properties = len(known_properties)  # noqa
+
+
+class UnboundedIndex(object):
+
+    """
+    A generic loop iteration index that can be used in a :class:`Iteration` to
+    add a non-linear traversal of the iteration space.
+    """
+
+    def __init__(self, index, start=0, step=None):
+        self.index = index
+        self.start = start
+        self.step = index + 1 if step is None else step

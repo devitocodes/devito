@@ -89,7 +89,8 @@ def tti_nodse():
 def test_tti_clusters_to_graph():
     solver = tti_operator()
 
-    nodes = FindNodes(Expression).visit(solver.op_fwd.elemental_functions)
+    nodes = FindNodes(Expression).visit(solver.op_fwd.elemental_functions +
+                                        (solver.op_fwd,))
     expressions = [n.expr for n in nodes]
     stencils = solver.op_fwd._retrieve_stencils(expressions)
     clusters = clusterize(expressions, stencils)
@@ -256,8 +257,8 @@ def test_graph_isindex(fa, fb, fc, t0, t1, t2, exprs, expected):
     # complex (two 2D aliases with stride inducing relaxation)
     (['Eq(t0, fc[x,y] + fd[x+1,y+2])', 'Eq(t1, fc[x+1,y+1] + fd[x+2,y+3])',
       'Eq(t2, fc[x-2,y-2]*3. + fd[x+2,y+2])', 'Eq(t3, fc[x-4,y-4]*3. + fd[x,y])'],
-     {'fc[x,y] + fd[x+1,y+2]': Stencil([(x, {0, 1, 2}), (y, {0, 1, 2})]),
-      '3.*fc[x-4,y-4] + fd[x,y]': Stencil([(x, {0, 1, 2}), (y, {0, 1, 2})])}),
+     {'fc[x,y] + fd[x+1,y+2]': Stencil([(x, {-1, 0, 1}), (y, {-1, 0, 1})]),
+      '3.*fc[x-3,y-3] + fd[x+1,y+1]': Stencil([(x, {-1, 0, 1}), (y, {-1, 0, 1})])}),
 ])
 def test_collect_aliases(fa, fb, fc, fd, t0, t1, t2, t3, exprs, expected):
     scope = [fa, fb, fc, fd, t0, t1, t2, t3]

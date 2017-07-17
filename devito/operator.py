@@ -385,8 +385,8 @@ class Operator(Function):
                 continue
             elif k.output_function._mem_stack:
                 # On the stack, as established by the DLE
-                key = lambda i: i.dim not in k.output_function.indices
-                site = filter_iterations(reversed(v), key=key, stop='asap') or [nodes]
+                key = lambda i: not i.is_Parallel
+                site = filter_iterations(v, key=key, stop='asap') or [nodes]
                 allocator.push_stack(site[-1], k.output_function)
             else:
                 # On the heap, as a tensor that must be globally accessible

@@ -6,7 +6,7 @@ from os import environ
 from devito.backends import backends_registry
 from devito.compiler import compiler_registry, set_compiler
 from devito.dse import modes as dse_registry
-from devito.dle import modes as dle_registry
+from devito.dle import modes as dle_registry, default_options as dle_default_options
 from devito.logger import debug, logger_registry, set_log_level
 
 __all__ = ['configuration', 'init_configuration', 'print_defaults', 'print_state']
@@ -71,7 +71,8 @@ defaults = {
     'compiler': 'custom',
     'openmp': False,
     'dse': 'advanced',
-    'dle': 'advanced'
+    'dle': 'advanced',
+    'dle_options': ';'.join('%s:%s' % (k, v) for k, v in dle_default_options.items())
 }
 """The default Devito configuration parameters"""
 
@@ -82,7 +83,8 @@ accepted = {
     'compiler': list(compiler_registry),
     'openmp': [1, 0],
     'dse': list(dse_registry),
-    'dle': list(dle_registry)
+    'dle': list(dle_registry),
+    'dle_options': list(dle_default_options)
 }
 """Accepted values for the Devito environment variables."""
 
@@ -92,6 +94,7 @@ env_vars_mapper = {
     'DEVITO_BACKEND': 'backend',
     'DEVITO_DSE': 'dse',
     'DEVITO_DLE': 'dle',
+    'DEVITO_DLE_OPTIONS': 'dle_options',
     'DEVITO_OPENMP': 'openmp',
     'DEVITO_LOGGING': 'log_level'
 }
@@ -107,16 +110,33 @@ def init_configuration():
         # Attempt reading from the specified configuration file
         raise NotImplementedError("Devito doesn't support configuration via file.")
 
-    # Parameters casting and checking
+    # Parameters validation
     for k, v in list(configuration.items()):
+        items = v.split(';')
         try:
-            val = int(v)
-        except (TypeError, ValueError):
-            val = v
-        if val not in accepted[k]:
+            # Env variable format: 'k1:v1;k2:v2:k3:v3:...'
+            keys, values = zip(*[i.split(':') for i in items])
+            # Casting
+            values = [eval(i) for i in values]
+        except ValueError:
+            # Env variable format: 'k1;k2:...' or even just 'k1'
+            keys = [i.split(':')[0] for i in items]
+            values = []
+            # Cast to integer
+            for i, j in enumerate(list(keys)):
+                try:
+                    keys[i] = int(j)
+                except (TypeError, ValueError):
+                    keys[i] = j
+        if any(i not in accepted[k] for i in keys):
             raise ValueError("Illegal configuration parameter (%s, %s). "
-                             "Accepted: %s" % (k, val, str(accepted[k])))
-        configuration[k] = val
+                             "Accepted: %s" % (k, v, str(accepted[k])))
+        if len(keys) == len(values):
+            configuration[k] = dict(zip(keys, values))
+        elif len(keys) == 1:
+            configuration[k] = keys[0]
+        else:
+            configuration[k] = keys
 
     # Global setup
     # - Logger
