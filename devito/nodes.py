@@ -447,6 +447,27 @@ class Iteration(Node):
             pass
         return (start - as_symbol(self.offsets[0]), end - as_symbol(self.offsets[1]))
 
+    @property
+    def extent_symbolic(self):
+        """
+        Return the symbolic extent of the Iteration.
+        """
+        return self.bounds_symbolic[1] - self.bounds_symbolic[0]
+
+    @property
+    def start_symbolic(self):
+        """
+        Return the symbolic extent of the Iteration.
+        """
+        return self.bounds_symbolic[0]
+
+    @property
+    def end_symbolic(self):
+        """
+        Return the symbolic extent of the Iteration.
+        """
+        return self.bounds_symbolic[1]
+
     def bounds(self, start=None, finish=None):
         """Return the start and end points of the Iteration if the limits are
         available (either statically known or provided through ``start``/
