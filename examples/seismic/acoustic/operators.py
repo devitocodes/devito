@@ -1,8 +1,11 @@
-from sympy import Eq
-from sympy.abc import h, s
+from sympy import Eq, symbols
+from sympy.abc import s
 
-from devito import Operator, Forward, Backward, DenseData, TimeData, time
+from devito import Operator, Forward, Backward, DenseData, TimeData, time, x, y, z
 from examples.seismic import PointSource, Receiver
+
+# Default spacing symbol
+h = dict({x: symbols('h_x'), y: symbols('h_y'), z: symbols('h_z')})
 
 
 def ForwardOperator(model, source, receiver, time_order=2, space_order=4,
@@ -53,9 +56,10 @@ def ForwardOperator(model, source, receiver, time_order=2, space_order=4,
 
     # Create interpolation expression for receivers
     rec_term = rec.interpolate(expr=u, u_t=ti, offset=model.nbpml)
-
+    subs = dict([(s, dt)] + [(h[i], model.get_spacing()[j]) for i, j
+                             in zip(u.indices[1:], range(len(model.shape)))])
     return Operator(eqn + src_term + rec_term,
-                    subs={s: dt, h: model.get_spacing()},
+                    subs=subs,
                     time_axis=Forward, name='Forward', **kwargs)
 
 
@@ -99,9 +103,10 @@ def AdjointOperator(model, source, receiver, time_order=2, space_order=4, **kwar
 
     # Create interpolation expression for the adjoint-source
     source_a = srca.interpolate(expr=v, u_t=ti, offset=model.nbpml)
-
+    subs = dict([(s, dt)] + [(h[i], model.get_spacing()[j]) for i, j
+                             in zip(v.indices[1:], range(len(model.shape)))])
     return Operator([eqn] + receivers + source_a,
-                    subs={s: dt, h: model.get_spacing()},
+                    subs=subs,
                     time_axis=Backward, name='Adjoint', **kwargs)
 
 
@@ -149,9 +154,10 @@ def GradientOperator(model, source, receiver, time_order=2, space_order=4, **kwa
     ti = v.indices[0]
     receivers = rec.inject(field=v, u_t=ti - 1, offset=model.nbpml,
                            expr=rec * dt * dt / m, p_t=time)
-
+    subs = dict([(s, dt)] + [(h[i], model.get_spacing()[j]) for i, j
+                             in zip(v.indices[1:], range(len(model.shape)))])
     return Operator([eqn] + [gradient_update] + receivers,
-                    subs={s: dt, h: model.get_spacing()},
+                    subs=subs,
                     time_axis=Backward, name='Gradient', **kwargs)
 
 
@@ -212,7 +218,8 @@ def BornOperator(model, source, receiver, time_order=2, space_order=4, **kwargs)
 
     # Create receiver interpolation expression from U
     receivers = rec.interpolate(expr=U, u_t=ti, offset=model.nbpml)
-
+    subs = dict([(s, dt)] + [(h[i], model.get_spacing()[j]) for i, j
+                             in zip(u.indices[1:], range(len(model.shape)))])
     return Operator([eqn1] + source + [eqn2] + receivers,
-                    subs={s: dt, h: model.get_spacing()},
+                    subs=subs,
                     time_axis=Forward, name='Born', **kwargs)

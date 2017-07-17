@@ -5,14 +5,14 @@ from operator import mul
 
 from sympy import finite_diff_weights, symbols
 
-from devito.dimension import x, y
+from devito.dimension import x, y, z
 from devito.logger import error
 
 __all__ = ['first_derivative', 'second_derivative', 'cross_derivative',
            'left', 'right', 'centered']
 
 # Default spacing symbol
-h = symbols('h')
+h = dict({x: symbols('h_x'), y: symbols('h_y'), z: symbols('h_z')})
 
 
 class Transpose(object):
@@ -82,7 +82,7 @@ def second_derivative(*args, **kwargs):
     """
     order = kwargs.get('order', 2)
     dim = kwargs.get('dim', x)
-    diff = kwargs.get('diff', h)
+    diff = kwargs.get('diff', h[dim])
 
     ind = [(dim + i * diff) for i in range(-int(order / 2),
                                            int(order / 2) + 1)]
@@ -115,39 +115,43 @@ def cross_derivative(*args, **kwargs):
        ``f(h + x, -h + y)*g(h + x, -h + y)) / h**2``
     """
     dims = kwargs.get('dims', (x, y))
-    diff = kwargs.get('diff', h)
+    diff = kwargs.get('diff', (h[dims[0]], h[dims[1]]))
     order = kwargs.get('order', 1)
 
     assert(isinstance(dims, tuple) and len(dims) == 2)
     deriv = 0
 
     # Stencil positions for non-symmetric cross-derivatives with symmetric averaging
-    ind1r = [(dims[0] + i * diff)
+    ind1r = [(dims[0] + i * diff[0])
              for i in range(-int(order / 2) + 1 - (order < 4),
                             int((order + 1) / 2) + 2 - (order < 4))]
-    ind2r = [(dims[1] + i * diff)
+    ind2r = [(dims[1] + i * diff[1])
              for i in range(-int(order / 2) + 1 - (order < 4),
                             int((order + 1) / 2) + 2 - (order < 4))]
-    ind1l = [(dims[0] - i * diff)
+    ind1l = [(dims[0] - i * diff[0])
              for i in range(-int(order / 2) + 1 - (order < 4),
                             int((order + 1) / 2) + 2 - (order < 4))]
-    ind2l = [(dims[1] - i * diff)
+    ind2l = [(dims[1] - i * diff[1])
              for i in range(-int(order / 2) + 1 - (order < 4),
                             int((order + 1) / 2) + 2 - (order < 4))]
 
     # Finite difference weights from Taylor approximation with this positions
-    c1 = finite_diff_weights(1, ind1r, dims[0])
-    c1 = c1[-1][-1]
-    c2 = finite_diff_weights(1, ind1l, dims[0])
-    c2 = c2[-1][-1]
+    c11 = finite_diff_weights(1, ind1r, dims[0])
+    c11 = c11[-1][-1]
+    c21 = finite_diff_weights(1, ind1l, dims[0])
+    c21 = c21[-1][-1]
+    c12 = finite_diff_weights(1, ind2r, dims[1])
+    c12 = c12[-1][-1]
+    c22 = finite_diff_weights(1, ind2l, dims[1])
+    c22 = c22[-1][-1]
 
     # Diagonal elements
     for i in range(0, len(ind1r)):
         for j in range(0, len(ind2r)):
             var1 = [a.subs({dims[0]: ind1r[i], dims[1]: ind2r[j]}) for a in args]
             var2 = [a.subs({dims[0]: ind1l[i], dims[1]: ind2l[j]}) for a in args]
-            deriv += (.5 * c1[i] * c1[j] * reduce(mul, var1, 1) +
-                      .5 * c2[-(j+1)] * c2[-(i+1)] * reduce(mul, var2, 1))
+            deriv += (.5 * c11[i] * c12[j] * reduce(mul, var1, 1) +
+                      .5 * c21[-(j+1)] * c22[-(i+1)] * reduce(mul, var2, 1))
 
     return -deriv
 
@@ -169,7 +173,7 @@ def first_derivative(*args, **kwargs):
        ``*(-f(x)*g(x) + f(x + h)*g(x + h) ) / h``
     """
     dim = kwargs.get('dim', x)
-    diff = kwargs.get('diff', h)
+    diff = kwargs.get('diff', h[dim])
     order = int(kwargs.get('order', 1))
     matvec = kwargs.get('matvec', direct)
     side = kwargs.get('side', centered).adjoint(matvec)

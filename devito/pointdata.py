@@ -2,12 +2,15 @@ from sympy import Eq, Function, Matrix, symbols
 from sympy.abc import h
 
 from collections import OrderedDict
-from devito.dimension import d, p, t, time
+from devito.dimension import d, p, t, time, x, y, z
 from devito.dse.inspection import indexify, retrieve_indexed
 from devito.interfaces import DenseData, CompositeData
 from devito.logger import error
 
 __all__ = ['PointData']
+
+# Default spacing symbol
+h = dict({x: symbols('h_x'), y: symbols('h_y'), z: symbols('h_z')})
 
 
 class PointData(CompositeData):
@@ -106,7 +109,7 @@ class PointData(CompositeData):
                                       % self.ndim)
 
         # Map to reference cell
-        reference_cell = {x1: 0, y1: 0, z1: 0, x2: h, y2: h, z2: h}
+        reference_cell = {x1: 0, y1: 0, z1: 0, x2: h[x], y2: h[y], z2: h[z]}
         A = A.subs(reference_cell)
         return A.inv().T.dot(p)
 
@@ -138,15 +141,18 @@ class PointData(CompositeData):
     @property
     def coordinate_indices(self):
         """Symbol for each grid index according to the coordinates"""
-        return tuple([Function('INT')(Function('floor')(x / h))
-                      for x in self.coordinate_symbols])
+        indices = (x, y, z)
+        return tuple([Function('INT')(Function('floor')(c / h[i]))
+                      for c, i in zip(self.coordinate_symbols, indices[:self.ndim])])
 
     @property
     def coordinate_bases(self):
         """Symbol for the base coordinates of the reference grid point"""
-        return tuple([Function('FLOAT')(x - idx * h)
-                      for x, idx in zip(self.coordinate_symbols,
-                                        self.coordinate_indices)])
+        indices = (x, y, z)
+        return tuple([Function('FLOAT')(c - idx * h[g])
+                      for c, idx, g in zip(self.coordinate_symbols,
+                                           self.coordinate_indices,
+                                           indices[:self.ndim])])
 
     def interpolate(self, expr, offset=0, **kwargs):
         """Creates a :class:`sympy.Eq` equation for the interpolation

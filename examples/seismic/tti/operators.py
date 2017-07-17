@@ -142,7 +142,6 @@ def ForwardOperator(model, source, receiver, time_order=2, space_order=4,
          v.backward + 2.0 * s**2 * (delta * Hp + Hzr))
 
     # Add substitutions for spacing (temporal and spatial)
-    subs = {s: dt, h: model.get_spacing()}
     first_stencil = Eq(u.forward, stencilp)
     second_stencil = Eq(v.forward, stencilr)
     stencils = [first_stencil, second_stencil]
@@ -154,5 +153,6 @@ def ForwardOperator(model, source, receiver, time_order=2, space_order=4,
                            offset=model.nbpml)
     stencils += rec.interpolate(expr=u, u_t=ti, offset=model.nbpml)
     stencils += rec.interpolate(expr=v, u_t=ti, offset=model.nbpml)
-
+    subs = dict([(s, dt)] + [(h[i], model.get_spacing()[j]) for i, j
+                             in zip(u.indices[1:], range(len(model.shape)))])
     return Operator(stencils, subs=subs, name='ForwardTTI', **kwargs)
