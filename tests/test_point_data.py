@@ -124,4 +124,4 @@ def test_adjoint_inject_interpolate(shape, coords,
     # P^T y => a
     term1 = np.dot(p2.data.reshape(-1), p.data.reshape(-1))
     term2 = np.dot(c.data.reshape(-1), a.data.reshape(-1))
-    assert np.isclose((term1-term2)/term1, 0., atol=np.finfo(np.float32).eps)
+    assert np.isclose((term1-term2) / term1, 0., atol=1.e-6)

@@ -14,18 +14,27 @@ detailed [API documentation](http://www.opesci.org/devito).
 
 ## Quickstart
 
-Devito can be installed from GitHub via pip:
+The recommended way to install Devito uses the Conda package manager
+for installation of the necessary software dependencies. Please
+install either [Anaconda](https://www.continuum.io/downloads) or
+[Miniconda](https://conda.io/miniconda.html) using the instructions
+provided at the download links.
+
+To install the editable development version Devito, including examples,
+tests and tutorial notebooks, please run the following commands:
+```
+git clone https://github.com/opesci/devito.git
+cd devito
+conda env create -f environment.yml
+source activate devito
+pip install -e .
+```
+
+If you don't want to use the Conda environment manager, Devito can
+also be installed directly from GitHub via pip:
 ```
 pip install --user git+https://github.com/opesci/devito.git
 ```
-
-Alternatively Devito can be be installed manually from GitHub via:
-```
-git clone https://github.com/opesci/devito.git
-cd devito && pip install --user -r requirements.txt
-```
-When manually installing Devito please make sure you also add Devito
-to your `PYTHONPATH`.
 
 ## Examples
 
@@ -33,11 +42,19 @@ At the core of the Devito API are the so-called `Operator` objects that
 allow users to create efficient FD kernels from SymPy expressions.
 Examples of how to configure operators are provided:
 
-* A simple example of how to solve the 2D diffusion equation can be
-  found in `examples/diffusion/example_diffusion.py`. This example
-  also demonstrates how the equation can be solved via pure Python and
-  optimised `numpy`, as well as Devito.
-* A more practical example of acoustic forward, adjoint, gradient and born
+* A set of introductory notebook tutorials introducing the basic
+  features of Devito operators can be found under
+  `examples/cfd`. These tutorials cover a range of well-known examples
+  from Computation Fluid Dynamics (CFD) and are based on the excellent
+  introductory blog ["CFD Python:12 steps to
+  Navier-Stokes"](http://lorenabarba.com/blog/cfd-python-12-steps-to-navier-stokes/)
+  by the Lorena A. Barba group. To run these, simply go into the tutorial
+  directory and run `jupyter notebook`.
+* A set of tutorial notebooks for seismic inversion examples is currently
+  under construction in `examples/acoustic/tutorials`. We will add to these
+  in the near future to provide more complex examples of how to use Devito
+  operators for seismic imaging algorithms.
+* Example implementations of acoustic forward, adjoint, gradient and born
   operators for use in full-waveform inversion (FWI) methods can be found in
   `examples/acoustic`.
 * An advanced example of a Tilted Transverse Isotropy forward operator

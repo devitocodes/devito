@@ -57,14 +57,6 @@ devito.logger module
     :undoc-members:
     :show-inheritance:
 
-devito.memmap_manager module
-----------------------------
-
-.. automodule:: devito.memmap_manager
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
 devito.memory module
 --------------------
 
