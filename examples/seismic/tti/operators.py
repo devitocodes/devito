@@ -154,8 +154,7 @@ def ForwardOperator(model, source, receiver, time_order=2, space_order=4,
                            offset=model.nbpml)
     stencils += src.inject(field=v, u_t=ti + 1, expr=src * dt * dt / m,
                            offset=model.nbpml)
-    stencils += rec.interpolate(expr=u, u_t=ti, offset=model.nbpml)
-    stencils += rec.interpolate(expr=v, u_t=ti, offset=model.nbpml)
+    stencils += rec.interpolate(expr=u + v, u_t=ti, offset=model.nbpml)
     subs = dict([(s, dt)] + [(i.spacing, model.get_spacing()[j]) for i, j
                              in zip(u.indices[1:], range(len(model.shape)))])
     return Operator(stencils, subs=subs, name='ForwardTTI', **kwargs)
