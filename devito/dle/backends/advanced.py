@@ -120,6 +120,7 @@ class DevitoRewriter(BasicRewriter):
         :class:`Iteration` objects.
         """
         exclude_innermost = not self.params.get('blockinner', False)
+        ignore_heuristic = self.params.get('blockalways', False)
 
         blocked = OrderedDict()
         processed = []
@@ -139,9 +140,9 @@ class DevitoRewriter(BasicRewriter):
                 if not IsPerfectIteration().visit(root):
                     # Illegal/unsupported
                     continue
-                if not tree[0].is_Sequential:
-                    # Avoid polluting the generated code with blocked nests
-                    # (thus increasing JIT compilation time and affecting
+                if not tree[0].is_Sequential and not ignore_heuristic:
+                    # Heuristic: avoid polluting the generated code with blocked
+                    # nests (thus increasing JIT compilation time and affecting
                     # readability) if the blockable tree isn't embedded in a
                     # sequential loop (e.g., a timestepping loop)
                     continue
@@ -452,6 +453,7 @@ class DevitoSpeculativeRewriter(DevitoRewriter):
 class DevitoCustomRewriter(DevitoSpeculativeRewriter):
 
     passes_mapper = {
+        'blocking': DevitoSpeculativeRewriter._loop_blocking,
         'fission': DevitoSpeculativeRewriter._loop_fission,
         'padding': DevitoSpeculativeRewriter._padding,
         'split': DevitoSpeculativeRewriter._create_elemental_functions

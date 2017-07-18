@@ -245,7 +245,8 @@ void f_2(const int q_start, const int q_finish,"""
 @pytest.mark.parametrize("blockinner", [False, True])
 def test_cache_blocking_no_time_loop(shape, blockshape, blockinner):
     wo_blocking = _new_operator1(shape, dle='noop')
-    w_blocking = _new_operator1(shape, dle=('blocking', {'blockshape': blockshape,
+    w_blocking = _new_operator1(shape, dle=('blocking', {'blockalways': True,
+                                                         'blockshape': blockshape,
                                                          'blockinner': blockinner}))
 
     assert np.equal(wo_blocking.data, w_blocking.data).all()
