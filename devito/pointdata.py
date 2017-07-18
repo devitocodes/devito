@@ -8,9 +8,6 @@ from devito.logger import error
 
 __all__ = ['PointData']
 
-# Default spacing symbol
-h = dict({x: symbols('h_x'), y: symbols('h_y'), z: symbols('h_z')})
-
 
 class PointData(CompositeData):
     """
@@ -108,7 +105,7 @@ class PointData(CompositeData):
                                       % self.ndim)
 
         # Map to reference cell
-        reference_cell = {x1: 0, y1: 0, z1: 0, x2: h[x], y2: h[y], z2: h[z]}
+        reference_cell = {x1: 0, y1: 0, z1: 0, x2: x.spacing, y2: y.spacing, z2: z.spacing}
         A = A.subs(reference_cell)
         return A.inv().T.dot(p)
 
@@ -141,15 +138,15 @@ class PointData(CompositeData):
     def coordinate_indices(self):
         """Symbol for each grid index according to the coordinates"""
         indices = (x, y, z)
-        return tuple([Function('INT')(Function('floor')(c / h[i]))
+        return tuple([Function('INT')(Function('floor')(c / i.spacing))
                       for c, i in zip(self.coordinate_symbols, indices[:self.ndim])])
 
     @property
     def coordinate_bases(self):
         """Symbol for the base coordinates of the reference grid point"""
         indices = (x, y, z)
-        return tuple([Function('FLOAT')(c - idx * h[g])
-                      for c, idx, g in zip(self.coordinate_symbols,
+        return tuple([Function('FLOAT')(c - idx * i.spacing)
+                      for c, idx, i in zip(self.coordinate_symbols,
                                            self.coordinate_indices,
                                            indices[:self.ndim])])
 

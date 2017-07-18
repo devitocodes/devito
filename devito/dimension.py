@@ -22,6 +22,7 @@ class Dimension(Symbol, DimensionArgProvider):
         newobj = Symbol.__new__(cls, name)
         newobj.size = kwargs.get('size', None)
         newobj.reverse = kwargs.get('reverse', False)
+        newobj.spacing = kwargs.get('spacing', Symbol('h'))
         return newobj
 
     def __str__(self):
@@ -99,9 +100,9 @@ time = Dimension('time')
 t = BufferedDimension('t', parent=time)
 
 # Default dimensions for space
-x = Dimension('x')
-y = Dimension('y')
-z = Dimension('z')
+x = Dimension('x', spacing=Symbol('h_x'))
+y = Dimension('y', spacing=Symbol('h_y'))
+z = Dimension('z', spacing=Symbol('h_z'))
 
 d = Dimension('d')
 p = Dimension('p')

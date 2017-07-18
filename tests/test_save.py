@@ -1,7 +1,7 @@
 import numpy as np
 from sympy import Eq, solve, symbols
 
-from devito import Operator, TimeData, Forward
+from devito import Operator, TimeData, Forward, x, y
 
 
 def initial(dx=0.01, dy=0.01):
@@ -29,11 +29,12 @@ def run_simulation(save=False, dx=0.01, dy=0.01, a=0.5, timesteps=100):
         time_order=1, space_order=2, save=save
     )
 
-    a, h, s = symbols('a h s')
+    a, s = symbols('a s')
     eqn = Eq(u.dt, a * (u.dx2 + u.dy2))
     stencil = solve(eqn, u.forward)[0]
     op = Operator(Eq(u.forward, stencil),
-                  subs={a: 0.5, h: dx, s: dt},
+                  subs={a: 0.5, x.spacing: dx,
+                        y.spacing: dx, s: dt},
                   time_axis=Forward)
     op.apply(time=timesteps)
 

@@ -56,7 +56,7 @@ def ForwardOperator(model, source, receiver, time_order=2, space_order=4,
 
     # Create interpolation expression for receivers
     rec_term = rec.interpolate(expr=u, u_t=ti, offset=model.nbpml)
-    subs = dict([(s, dt)] + [(h[i], model.get_spacing()[j]) for i, j
+    subs = dict([(s, dt)] + [(i.spacing, model.get_spacing()[j]) for i, j
                              in zip(u.indices[1:], range(len(model.shape)))])
     return Operator(eqn + src_term + rec_term,
                     subs=subs,
@@ -103,7 +103,7 @@ def AdjointOperator(model, source, receiver, time_order=2, space_order=4, **kwar
 
     # Create interpolation expression for the adjoint-source
     source_a = srca.interpolate(expr=v, u_t=ti, offset=model.nbpml)
-    subs = dict([(s, dt)] + [(h[i], model.get_spacing()[j]) for i, j
+    subs = dict([(s, dt)] + [(i.spacing, model.get_spacing()[j]) for i, j
                              in zip(v.indices[1:], range(len(model.shape)))])
     return Operator([eqn] + receivers + source_a,
                     subs=subs,
@@ -154,7 +154,7 @@ def GradientOperator(model, source, receiver, time_order=2, space_order=4, **kwa
     ti = v.indices[0]
     receivers = rec.inject(field=v, u_t=ti - 1, offset=model.nbpml,
                            expr=rec * dt * dt / m, p_t=time)
-    subs = dict([(s, dt)] + [(h[i], model.get_spacing()[j]) for i, j
+    subs = dict([(s, dt)] + [(i.spacing, model.get_spacing()[j]) for i, j
                              in zip(v.indices[1:], range(len(model.shape)))])
     return Operator([eqn] + [gradient_update] + receivers,
                     subs=subs,
@@ -218,7 +218,7 @@ def BornOperator(model, source, receiver, time_order=2, space_order=4, **kwargs)
 
     # Create receiver interpolation expression from U
     receivers = rec.interpolate(expr=U, u_t=ti, offset=model.nbpml)
-    subs = dict([(s, dt)] + [(h[i], model.get_spacing()[j]) for i, j
+    subs = dict([(s, dt)] + [(i.spacing, model.get_spacing()[j]) for i, j
                              in zip(u.indices[1:], range(len(model.shape)))])
     return Operator([eqn1] + source + [eqn2] + receivers,
                     subs=subs,

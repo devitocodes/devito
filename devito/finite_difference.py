@@ -3,16 +3,13 @@ from __future__ import absolute_import
 from functools import reduce
 from operator import mul
 
-from sympy import finite_diff_weights, symbols
+from sympy import finite_diff_weights
 
-from devito.dimension import x, y, z
+from devito.dimension import x, y
 from devito.logger import error
 
 __all__ = ['first_derivative', 'second_derivative', 'cross_derivative',
            'left', 'right', 'centered']
-
-# Default spacing symbol
-h = dict({x: symbols('h_x'), y: symbols('h_y'), z: symbols('h_z')})
 
 
 class Transpose(object):
@@ -82,7 +79,7 @@ def second_derivative(*args, **kwargs):
     """
     order = kwargs.get('order', 2)
     dim = kwargs.get('dim', x)
-    diff = kwargs.get('diff', h[dim])
+    diff = kwargs.get('diff', dim.spacing)
 
     ind = [(dim + i * diff) for i in range(-int(order / 2),
                                            int(order / 2) + 1)]
@@ -115,7 +112,7 @@ def cross_derivative(*args, **kwargs):
        ``f(h + x, -h + y)*g(h + x, -h + y)) / h**2``
     """
     dims = kwargs.get('dims', (x, y))
-    diff = kwargs.get('diff', (h[dims[0]], h[dims[1]]))
+    diff = kwargs.get('diff', (dims[0].sapcing, dims[1].sapcing))
     order = kwargs.get('order', 1)
 
     assert(isinstance(dims, tuple) and len(dims) == 2)
@@ -173,7 +170,7 @@ def first_derivative(*args, **kwargs):
        ``*(-f(x)*g(x) + f(x + h)*g(x + h) ) / h``
     """
     dim = kwargs.get('dim', x)
-    diff = kwargs.get('diff', h[dim])
+    diff = kwargs.get('diff', dim.spacing)
     order = int(kwargs.get('order', 1))
     matvec = kwargs.get('matvec', direct)
     side = kwargs.get('side', centered).adjoint(matvec)
