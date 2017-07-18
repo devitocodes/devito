@@ -31,22 +31,21 @@ def transform(node, mode='basic', options=None):
     :param mode: Drive the tree transformation. ``mode`` is a string indicating
                  a certain optimization pipeline. The following values are accepted: ::
 
-                     * 'noop': Do nothing.
-                     * 'basic': Add instructions to avoid denormal numbers and create
-                                elemental functions for rapid JIT-compilation.
-                     * 'advanced': 'basic', vectorization, loop blocking.
-                     * 'speculative': Apply all of the 'advanced' transformations,
-                                      plus other transformations that might increase
-                                      (or possibly decrease) performance.
+        * 'noop': Do nothing.
+        * 'basic': Add instructions to avoid denormal numbers and create elemental
+                   functions for rapid JIT-compilation.
+        * 'advanced': 'basic', vectorization, loop blocking.
+        * 'speculative': Apply all of the 'advanced' transformations, plus other
+                         transformations that might increase (or possibly decrease)
+                         performance.
     :param options: A dictionary with additional information to drive the DLE. The
                     following values are accepted: ::
 
-                        * 'blockshape': A tuple representing the shape of a block created
-                                        by loop blocking.
-                        * 'blockinner': By default, loop blocking is not applied to the
-                                        innermost dimension of an Iteration/Expression
-                                        tree to maximize vectorization. Set this flag to
-                                        True to override this heuristic.
+        * 'blockshape': The block shape for loop blocking (a tuple).
+        * 'blockinner': By default, loop blocking is not applied to the innermost
+                        dimension of an Iteration/Expression tree (to maximize
+                        vectorization). Set this flag to True to override this
+                        heuristic.
     """
     from devito.parameters import configuration
 
