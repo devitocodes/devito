@@ -105,7 +105,8 @@ class PointData(CompositeData):
                                       % self.ndim)
 
         # Map to reference cell
-        reference_cell = {x1: 0, y1: 0, z1: 0, x2: x.spacing, y2: y.spacing, z2: z.spacing}
+        reference_cell = {x1: 0, y1: 0, z1: 0, x2: x.spacing, y2: y.spacing,
+                          z2: z.spacing}
         A = A.subs(reference_cell)
         return A.inv().T.dot(p)
 
