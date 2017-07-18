@@ -1,10 +1,13 @@
-from sympy import Eq, cos, sin
-from sympy.abc import h, s
+from sympy import Eq, cos, sin, symbols
+from sympy.abc import s
 
 from devito import Operator, TimeData
 from examples.seismic import PointSource, Receiver
 from devito.finite_difference import centered, first_derivative, right, transpose
 from devito.dimension import x, y, z
+
+# Default spacing symbol
+h = dict({x: symbols('h_x'), y: symbols('h_y'), z: symbols('h_z')})
 
 
 def ForwardOperator(model, source, receiver, time_order=2, space_order=4,

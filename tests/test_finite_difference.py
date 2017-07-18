@@ -25,7 +25,8 @@ def test_fd_space(derivative, space_order):
     u = DenseData(name="u", shape=(nx,), space_order=space_order, dtype=np.float32)
     du = DenseData(name="du", shape=(nx,), space_order=space_order, dtype=np.float32)
     # Define polynomial with exact fd
-    h, y = symbols('h y')
+    y = symbols('y')
+    h = symbols('h_x')
     coeffs = np.ones((space_order,), dtype=np.float32)
     polynome = sum([coeffs[i]*y**i for i in range(0, space_order)])
     polyvalues = np.array([polynome.subs(y, xi) for xi in xx], np.float32)
