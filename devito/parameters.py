@@ -69,7 +69,7 @@ defaults = {
     'log_level': 'INFO',
     'autotuning': 'basic',
     'compiler': 'custom',
-    'openmp': False,
+    'openmp': 0,
     'dse': 'advanced',
     'dle': 'advanced',
     'dle_options': ';'.join('%s:%s' % (k, v) for k, v in dle_default_options.items())
