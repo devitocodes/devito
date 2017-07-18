@@ -86,7 +86,7 @@ class Operator(Function):
         clusters = clusterize(expressions, stencils)
 
         # Apply the Devito Symbolic Engine for symbolic optimization
-        clusters = rewrite(clusters, mode=dse)
+        clusters = rewrite(clusters, mode=set_dse_mode(dse))
 
         # Wrap expressions with Iterations according to dimensions
         nodes = self._schedule_expressions(clusters, ordering)
@@ -118,14 +118,11 @@ class Operator(Function):
 
         self.symbolic_data = [i for i in parameters if isinstance(i, SymbolicData)]
         dims = [i for i in parameters if isinstance(i, Dimension)]
-        d_parents = [d.parent for d in dims if hasattr(d, 'parent')]
-
-        self.dims = list(set(dims + d_parents))
-
+        dims_parents = [d.parent for d in dims if d.is_Buffered]
+        self.dims = list(set(dims + dims_parents))
         assert(all(isinstance(i, ArgumentProvider) for i in self.symbolic_data +
                    self.dims))
-
-        parameters = list(set(parameters + d_parents))
+        parameters = list(set(parameters + dims_parents))
 
         # Translate into backend-specific representation (e.g., GPU, Yask)
         nodes, elemental_functions = self._specialize(nodes, elemental_functions)
@@ -213,7 +210,7 @@ class Operator(Function):
     def _dle_arguments(self, dim_sizes):
         # Add user-provided block sizes, if any
         dle_arguments = OrderedDict()
-        auto_tune = True
+        autotune = True
         for i in self.dle_arguments:
             dim_size = dim_sizes.get(i.original_dim.name, i.original_dim.size)
             if dim_size is None:
@@ -225,10 +222,10 @@ class Operator(Function):
                     dle_arguments[i.argument.name] = i.value(dim_size)
                 except TypeError:
                     dle_arguments[i.argument.name] = i.value
-                    auto_tune = False
+                    autotune = False
             else:
                 dle_arguments[i.argument.name] = dim_size
-        return dle_arguments, auto_tune
+        return dle_arguments, autotune
 
     @property
     def ccode(self):
@@ -516,6 +513,21 @@ class OperatorRunnable(Operator):
 
 
 # Misc helpers
+
+
+def set_dse_mode(mode):
+    """
+    Transform :class:`Operator` input in a format understandable by the DLE.
+    """
+    if not mode:
+        return 'noop'
+    elif isinstance(mode, str):
+        return mode
+    else:
+        try:
+            return ','.join(mode)
+        except:
+            raise TypeError("Illegal DSE mode %s." % str(mode))
 
 
 def set_dle_mode(mode):

@@ -116,16 +116,16 @@ def test_tti_rewrite_basic(tti_nodse):
     assert np.allclose(tti_nodse[1].data, rec.data, atol=10e-3)
 
 
-def test_tti_rewrite_factorizer(tti_nodse):
-    operator = tti_operator(dse=('basic', 'factorize'))
-    rec, u, v, _ = operator.forward()
-
-    assert np.allclose(tti_nodse[0].data, v.data, atol=10e-3)
-    assert np.allclose(tti_nodse[1].data, rec.data, atol=10e-3)
-
-
 def test_tti_rewrite_advanced(tti_nodse):
     operator = tti_operator(dse='advanced')
+    rec, u, v, _ = operator.forward()
+
+    assert np.allclose(tti_nodse[0].data, v.data, atol=10e-1)
+    assert np.allclose(tti_nodse[1].data, rec.data, atol=10e-1)
+
+
+def test_tti_rewrite_speculative(tti_nodse):
+    operator = tti_operator(dse='speculative')
     rec, u, v, _ = operator.forward()
 
     assert np.allclose(tti_nodse[0].data, v.data, atol=10e-1)
