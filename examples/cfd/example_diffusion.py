@@ -17,9 +17,9 @@ from argparse import ArgumentParser
 
 import numpy as np
 from sympy import Eq, Function, as_finite_diff, lambdify, solve
-from sympy.abc import h, s, t, x, y
+from sympy.abc import h, s
 
-from devito import Operator, TimeData
+from devito import Operator, TimeData, t, x, y
 from devito.logger import log
 
 try:
@@ -135,7 +135,7 @@ def execute_devito(ui, spacing=0.01, a=0.5, timesteps=500):
     stencil = solve(eqn, u.forward)[0]
     op = Operator(Eq(u.forward, stencil), subs={x.spacing: spacing,
                                                 y.spacing: spacing,
-                                                s:dt})
+                                                s: dt})
 
     # Execute the generated Devito stencil operator
     tstart = time.time()

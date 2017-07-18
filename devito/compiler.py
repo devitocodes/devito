@@ -76,8 +76,8 @@ class GNUCompiler(Compiler):
     def __init__(self, *args, **kwargs):
         super(GNUCompiler, self).__init__(*args, **kwargs)
         self.version = kwargs.get('version', None)
-        self.cc = 'gcc' if self.version is None else 'gcc-%s' % self.version
-        self.ld = 'gcc' if self.version is None else 'gcc-%s' % self.version
+        self.cc = 'gcc-mp-5' if self.version is None else 'gcc-%s' % self.version
+        self.ld = 'gcc-mp-5' if self.version is None else 'gcc-%s' % self.version
         self.cflags = ['-O3', '-g', '-march=native', '-fPIC', '-Wall', '-std=c99',
                        '-Wno-unused-result', '-Wno-unused-variable']
         self.ldflags = ['-shared']
