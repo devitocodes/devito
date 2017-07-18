@@ -1,8 +1,8 @@
-from sympy import Eq
+from sympy import Eq, solve
 from sympy.abc import h, s
 
-from devito import Operator, Forward, Backward, DenseData, TimeData, time
-from examples.seismic import PointSource, Receiver
+from devito import Operator, Forward, Backward, DenseData, TimeData, time, x, y, z
+from examples.seismic import PointSource, Receiver, ABC
 
 
 def ForwardOperator(model, source, receiver, time_order=2, space_order=4,
@@ -38,11 +38,14 @@ def ForwardOperator(model, source, receiver, time_order=2, space_order=4,
     # Derive both stencils from symbolic equation:
     # Create the stencil by hand instead of calling numpy solve for speed purposes
     # Simple linear solve of a u(t+dt) + b u(t) + c u(t-dt) = L for u(t+dt)
-    stencil = 1 / (2 * m + s * damp) * (
-        4 * m * u + (s * damp - 2 * m) * u.backward +
-        2 * s**2 * (u.laplace + s**2 / 12 * biharmonic))
-    eqn = [Eq(u.forward, stencil)]
-
+    # stencil = 1 / (2 * m + s * damp) * (
+    #     4 * m * u + (s * damp - 2 * m) * u.backward +
+    #     2 * s**2 * (u.laplace + s**2 / 12 * biharmonic))
+    eqn = m*u.dt2 - u.laplace
+    stencil = solve(eqn, u.forward, rational=False)[0]
+    indices = (x, y, z)
+    eqn = [Eq(u.forward, stencil).subs({c: c+model.nbpml for c in indices[:len(model.shape)]})]
+    eqn = eqn.subs({c : c2})
     # Construct expression to inject source values
     # Note that src and field terms have differing time indices:
     #   src[time, ...] - always accesses the "unrolled" time index
@@ -54,7 +57,10 @@ def ForwardOperator(model, source, receiver, time_order=2, space_order=4,
     # Create interpolation expression for receivers
     rec_term = rec.interpolate(expr=u, u_t=ti, offset=model.nbpml)
 
-    return Operator(eqn + src_term + rec_term,
+    abc = ABC(model, u, u.dt2 - u.laplace)
+    eq_abc = abc.damp_2d()
+
+    return Operator(eqn + eq_abc + src_term + rec_term,
                     subs={s: dt, h: model.get_spacing()},
                     time_axis=Forward, name='Forward', **kwargs)
 
