@@ -1,4 +1,4 @@
-from collections import OrderedDict
+from collections import OrderedDict, namedtuple
 
 from devito.dse.graph import temporaries_graph
 from devito.dse.manipulation import xreplace_indices
@@ -170,25 +170,40 @@ def clusterize(exprs, stencils):
 
     exprs, stencils = aggregate(exprs, stencils)
 
+    Info = namedtuple('Info', 'trace stencil')
+
     g = temporaries_graph(exprs)
-    mapper = OrderedDict([(i.lhs, j) for i, j in zip(g.values(), stencils)
-                          if i.is_tensor])
+    mapper = OrderedDict([(k, Info(g.trace(k), j))
+                          for (k, v), j in zip(g.items(), stencils) if v.is_tensor])
+
+    # A cluster stencil is determined iteratively, by first calculating the
+    # "local" stencil and then by looking at the stencils of all other clusters
+    # depending on it. The stencil information is propagated until there are
+    # no more updates.
+    queue = list(mapper)
+    while queue:
+        target = queue.pop(0)
+
+        info = mapper[target]
+        strict_trace = [i.lhs for i in info.trace if i.lhs != target]
+
+        stencil = Stencil(info.stencil.entries)
+        for i in strict_trace:
+            if i in mapper:
+                stencil = stencil.add(mapper[i].stencil)
+
+        mapper[target] = Info(info.trace, stencil)
+
+        if stencil != info.stencil:
+            # Something has changed, need to propagate the update
+            queue.extend([i for i in strict_trace if i not in queue])
 
     clusters = []
-    for k, v in mapper.items():
-        # Determine what temporaries are needed to compute /i/
-        exprs = g.trace(k)
-
-        # Determine the Stencil of the cluster
-        stencil = Stencil(v.entries)
-        for i in exprs:
-            stencil = stencil.add(mapper.get(i.lhs, {}))
-        stencil = stencil.frozen
-
+    for target, info in mapper.items():
         # Drop all non-output tensors, as computed by other clusters
-        exprs = [i for i in exprs if i.lhs.is_Symbol or i.lhs == k]
+        exprs = [i for i in info.trace if i.lhs.is_Symbol or i.lhs == target]
 
         # Create and track the cluster
-        clusters.append(Cluster(exprs, stencil))
+        clusters.append(Cluster(exprs, info.stencil.frozen))
 
     return merge(clusters)
