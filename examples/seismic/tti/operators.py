@@ -1,13 +1,9 @@
-from sympy import Eq, cos, sin, symbols
-from sympy.abc import s
+from sympy import Eq, cos, sin
 
 from devito import Operator, TimeData
 from examples.seismic import PointSource, Receiver
 from devito.finite_difference import centered, first_derivative, right, transpose
-from devito.dimension import x, y, z
-
-# Default spacing symbol
-h = dict({x: symbols('h_x'), y: symbols('h_y'), z: symbols('h_z')})
+from devito.dimension import x, y, z, t, time
 
 
 def ForwardOperator(model, source, receiver, time_order=2, space_order=4,
@@ -137,6 +133,8 @@ def ForwardOperator(model, source, receiver, time_order=2, space_order=4,
         Hp = -(.5 * Gxx1 + .5 * Gxx2)
         Hzr = -(.5 * Gzz1 + .5 * Gzz2)
 
+    s = t.spacing
+
     stencilp = 1.0 / (2.0 * m + s * damp) * \
         (4.0 * m * u + (s * damp - 2.0 * m) *
          u.backward + 2.0 * s**2 * (epsilon * Hp + delta * Hzr))
@@ -155,6 +153,7 @@ def ForwardOperator(model, source, receiver, time_order=2, space_order=4,
     stencils += src.inject(field=v, u_t=ti + 1, expr=src * dt * dt / m,
                            offset=model.nbpml)
     stencils += rec.interpolate(expr=u + v, u_t=ti, offset=model.nbpml)
-    subs = dict([(s, dt)] + [(i.spacing, model.get_spacing()[j]) for i, j
-                             in zip(u.indices[1:], range(len(model.shape)))])
+    subs = dict([(t.spacing, dt)] + [(time.spacing, dt)] +
+                [(i.spacing, model.get_spacing()[j]) for i, j
+                 in zip(u.indices[1:], range(len(model.shape)))])
     return Operator(stencils, subs=subs, name='ForwardTTI', **kwargs)

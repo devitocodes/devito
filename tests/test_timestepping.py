@@ -1,10 +1,9 @@
 import numpy as np
 from sympy import Eq
-from sympy.abc import s
 
 import pytest
 
-from devito import Operator, Forward, Backward, TimeData
+from devito import Operator, Forward, Backward, TimeData, t
 
 
 @pytest.fixture
@@ -93,7 +92,7 @@ def test_loop_bounds_forward(d):
     """Test the automatic bound detection for forward time loops"""
     d.data[:] = 1.
     eqn = Eq(d, 2. + d.dt2)
-    Operator(eqn, dle=None, dse=None, subs={s: 1.}, time_axis=Forward)()
+    Operator(eqn, dle=None, dse=None, subs={t.spacing: 1.}, time_axis=Forward)()
     assert np.allclose(d.data[0, :], 1., rtol=1.e-12)
     assert np.allclose(d.data[-1, :], 1., rtol=1.e-12)
     for i in range(1, d.data.shape[0]-1):
@@ -104,7 +103,7 @@ def test_loop_bounds_backward(d):
     """Test the automatic bound detection for backward time loops"""
     d.data[:] = 1.
     eqn = Eq(d, 2. + d.dt2)
-    Operator(eqn, dle=None, dse=None, subs={s: 1.}, time_axis=Backward)()
+    Operator(eqn, dle=None, dse=None, subs={t.spacing: 1.}, time_axis=Backward)()
     assert np.allclose(d.data[0, :], 1., rtol=1.e-12)
     assert np.allclose(d.data[-1, :], 1., rtol=1.e-12)
     for i in range(1, d.data.shape[0]-1):

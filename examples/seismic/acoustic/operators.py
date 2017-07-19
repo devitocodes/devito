@@ -1,11 +1,7 @@
-from sympy import Eq, symbols
-from sympy.abc import s
+from sympy import Eq
 
-from devito import Operator, Forward, Backward, DenseData, TimeData, time, x, y, z
+from devito import Operator, Forward, Backward, DenseData, TimeData, time, t
 from examples.seismic import PointSource, Receiver
-
-# Default spacing symbol
-h = dict({x: symbols('h_x'), y: symbols('h_y'), z: symbols('h_z')})
 
 
 def ForwardOperator(model, source, receiver, time_order=2, space_order=4,
@@ -41,6 +37,9 @@ def ForwardOperator(model, source, receiver, time_order=2, space_order=4,
     # Derive both stencils from symbolic equation:
     # Create the stencil by hand instead of calling numpy solve for speed purposes
     # Simple linear solve of a u(t+dt) + b u(t) + c u(t-dt) = L for u(t+dt)
+
+    s = t.spacing
+
     stencil = 1 / (2 * m + s * damp) * (
         4 * m * u + (s * damp - 2 * m) * u.backward +
         2 * s**2 * (u.laplace + s**2 / 12 * biharmonic))
@@ -56,8 +55,9 @@ def ForwardOperator(model, source, receiver, time_order=2, space_order=4,
 
     # Create interpolation expression for receivers
     rec_term = rec.interpolate(expr=u, u_t=ti, offset=model.nbpml)
-    subs = dict([(s, dt)] + [(i.spacing, model.get_spacing()[j]) for i, j
-                             in zip(u.indices[1:], range(len(model.shape)))])
+    subs = dict([(t.spacing, dt)] + [(time.spacing, dt)] +
+                [(i.spacing, model.get_spacing()[j]) for i, j
+                 in zip(u.indices[1:], range(len(model.shape)))])
     return Operator(eqn + src_term + rec_term,
                     subs=subs,
                     time_axis=Forward, name='Forward', **kwargs)
@@ -83,6 +83,8 @@ def AdjointOperator(model, source, receiver, time_order=2, space_order=4, **kwar
     rec = Receiver(name='rec', ntime=receiver.nt, ndim=receiver.ndim,
                    npoint=receiver.npoint)
 
+    s = t.spacing
+
     if time_order == 2:
         biharmonic = 0
         dt = model.critical_dt
@@ -103,8 +105,9 @@ def AdjointOperator(model, source, receiver, time_order=2, space_order=4, **kwar
 
     # Create interpolation expression for the adjoint-source
     source_a = srca.interpolate(expr=v, u_t=ti, offset=model.nbpml)
-    subs = dict([(s, dt)] + [(i.spacing, model.get_spacing()[j]) for i, j
-                             in zip(v.indices[1:], range(len(model.shape)))])
+    subs = dict([(t.spacing, dt)] + [(time.spacing, dt)] +
+                [(i.spacing, model.get_spacing()[j]) for i, j
+                 in zip(v.indices[1:], range(len(model.shape)))])
     return Operator([eqn] + receivers + source_a,
                     subs=subs,
                     time_axis=Backward, name='Adjoint', **kwargs)
@@ -134,6 +137,8 @@ def GradientOperator(model, source, receiver, time_order=2, space_order=4, **kwa
     rec = Receiver(name='rec', ntime=receiver.nt, ndim=receiver.ndim,
                    npoint=receiver.npoint)
 
+    s = t.spacing
+
     if time_order == 2:
         biharmonic = 0
         dt = model.critical_dt
@@ -154,8 +159,9 @@ def GradientOperator(model, source, receiver, time_order=2, space_order=4, **kwa
     ti = v.indices[0]
     receivers = rec.inject(field=v, u_t=ti - 1, offset=model.nbpml,
                            expr=rec * dt * dt / m, p_t=time)
-    subs = dict([(s, dt)] + [(i.spacing, model.get_spacing()[j]) for i, j
-                             in zip(v.indices[1:], range(len(model.shape)))])
+    subs = dict([(t.spacing, dt)] + [(time.spacing, dt)] +
+                [(i.spacing, model.get_spacing()[j]) for i, j
+                 in zip(v.indices[1:], range(len(model.shape)))])
     return Operator([eqn] + [gradient_update] + receivers,
                     subs=subs,
                     time_axis=Backward, name='Gradient', **kwargs)
@@ -201,6 +207,7 @@ def BornOperator(model, source, receiver, time_order=2, space_order=4, **kwargs)
     # Derive both stencils from symbolic equation
     # first_eqn = m * u.dt2 - u.laplace + damp * u.dt
     # second_eqn = m * U.dt2 - U.laplace - dm* u.dt2 + damp * U.dt
+    s = t.spacing
     stencil1 = 1.0 / (2.0 * m + s * damp) * \
         (4.0 * m * u + (s * damp - 2.0 * m) *
          u.backward + 2.0 * s ** 2 * (u.laplace + s**2 / 12 * biharmonicu))
@@ -218,8 +225,9 @@ def BornOperator(model, source, receiver, time_order=2, space_order=4, **kwargs)
 
     # Create receiver interpolation expression from U
     receivers = rec.interpolate(expr=U, u_t=ti, offset=model.nbpml)
-    subs = dict([(s, dt)] + [(i.spacing, model.get_spacing()[j]) for i, j
-                             in zip(u.indices[1:], range(len(model.shape)))])
+    subs = dict([(t.spacing, dt)] + [(time.spacing, dt)] +
+                [(i.spacing, model.get_spacing()[j]) for i, j
+                 in zip(u.indices[1:], range(len(model.shape)))])
     return Operator([eqn1] + source + [eqn2] + receivers,
                     subs=subs,
                     time_axis=Forward, name='Born', **kwargs)

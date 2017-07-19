@@ -112,7 +112,7 @@ def cross_derivative(*args, **kwargs):
        ``f(h + x, -h + y)*g(h + x, -h + y)) / h**2``
     """
     dims = kwargs.get('dims', (x, y))
-    diff = kwargs.get('diff', (dims[0].sapcing, dims[1].sapcing))
+    diff = kwargs.get('diff', (dims[0].spacing, dims[1].spacing))
     order = kwargs.get('order', 1)
 
     assert(isinstance(dims, tuple) and len(dims) == 2)
