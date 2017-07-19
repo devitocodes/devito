@@ -7,7 +7,7 @@ from time import time
 from devito.dse import as_symbol, terminals
 from devito.logger import dle
 from devito.nodes import Iteration, SEQUENTIAL, PARALLEL, VECTOR
-from devito.tools import as_tuple, flatten
+from devito.tools import as_tuple
 from devito.visitors import FindSections, NestedTransformer
 
 
@@ -158,53 +158,50 @@ class AbstractRewriter(object):
 
             # "Prefetch" objects to speed up the analsys
             terms = {e: tuple(terminals(e.rhs)) for e in exprs}
-            writes = {e.lhs for e in exprs if not e.is_Symbol}
 
-            # Does the Iteration index only appear in the outermost dimension ?
-            has_parallel_dimension = True
-            for k, v in terms.items():
-                for i in writes:
-                    maybe_dependencies = [j for j in v if as_symbol(i) == as_symbol(j)
-                                          and not j.is_Symbol]
-                    for j in maybe_dependencies:
-                        handle = flatten(k.atoms() for k in j.indices[1:])
-                        has_parallel_dimension &= not (i.indices[0] in handle)
-            if not has_parallel_dimension:
-                continue
+            # Determine whether the Iteration tree ...
+            is_FP = True  # ... is fully parallel (FP)
+            is_OP = True  # ... has an outermost parallel dimension (OP)
+            is_OSIP = True  # ... is of type OSIP
+            is_US = True  # ... has a unit-strided innermost dimension (US)
+            for lhs in [e.lhs for e in exprs if not e.lhs.is_Symbol]:
+                for e in exprs:
+                    for i in [j for j in terms[e] if as_symbol(j) == as_symbol(lhs)]:
+                        is_FP &= lhs.indices == i.indices
 
-            # Determine if fully-parallel (FP), OSIP, unit-stride (in innermost dim)
-            is_FP = True
-            is_OSIP = not tree[0].is_Linear
-            is_US = True
-            for e1 in exprs:
-                lhs = e1.lhs
-                if lhs.is_Symbol:
-                    continue
-                for e2 in exprs:
-                    handle = [i for i in terms[e2] if as_symbol(i) == as_symbol(lhs)]
-                    is_FP &= len(handle) == 0
-                    is_OSIP |= any(lhs.indices[0] != i.indices[0] for i in handle)
-                    is_US &= all(lhs.indices[-1] == i.indices[-1] for i in handle)
+                        is_OP &= lhs.indices[0] == i.indices[0] and\
+                            all(lhs.indices[0].free_symbols.isdisjoint(j.free_symbols)
+                                for j in i.indices[1:])  # not A[x,y] = A[x,x+1]
 
-            # Is the innermost Iteration vectorizable?
-            is_Vectorizable = is_FP or is_OSIP or is_US
+                        is_US &= lhs.indices[-1] == i.indices[-1]
 
-            # Track the discovered properties
-            if is_OSIP:
+                        lhs_function, i_function = lhs.base.function, i.base.function
+                        is_OSIP &= lhs_function.indices[0] == i_function.indices[0] and\
+                            (lhs.indices[0] != i.indices[0] or len(lhs.indices) == 1 or
+                             lhs.indices[1] == i.indices[1])
+
+            # Build a node->property mapper
+            if is_FP:
+                for i in tree:
+                    mapper.setdefault(i, []).append(PARALLEL)
+            elif is_OP:
+                mapper.setdefault(tree[0], []).append(PARALLEL)
+            elif is_OSIP:
                 mapper.setdefault(tree[0], []).append(SEQUENTIAL)
-            for i in tree[is_OSIP:]:
-                mapper.setdefault(i, []).append(PARALLEL)
-            if is_Vectorizable:
-                if len(tree[is_OSIP:]) > 1:
-                    # Necessary condition: there's at least an outer parallel Iteration
+                for i in tree[1:]:
+                    mapper.setdefault(i, []).append(PARALLEL)
+            if is_FP or is_OSIP or is_US:
+                # Vectorizable
+                if len(tree) > 1 and SEQUENTIAL not in mapper.get(tree[-2], []):
+                    # Heuristic: there's at least an outer parallel Iteration
                     mapper.setdefault(tree[-1], []).append(VECTOR)
 
-        # Introduce the discovered properties in the Iteration/Expression tree
+        # Store the discovered properties in the Iteration/Expression tree
         for k, v in list(mapper.items()):
             args = k.args
-            # 'sequential' kills 'parallel'
-            properties = (SEQUENTIAL,) if SEQUENTIAL in v else tuple(v)
-            properties = as_tuple(args.pop('properties')) + properties
+            # SEQUENTIAL kills PARALLEL
+            properties = SEQUENTIAL if (SEQUENTIAL in v or not k.is_Linear) else v
+            properties = as_tuple(args.pop('properties')) + as_tuple(properties)
             mapper[k] = Iteration(properties=properties, **args)
         nodes = NestedTransformer(mapper).visit(nodes)
 
