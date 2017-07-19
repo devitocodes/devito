@@ -6,11 +6,14 @@ import numpy as np
 import pytest
 from sympy import Eq
 
+from conftest import EVAL
+
 from devito.dle import retrieve_iteration_tree, transform
 from devito.dle.backends import DevitoRewriter as Rewriter
 from devito import DenseData, TimeData, Operator
-from devito.nodes import ELEMENTAL, Expression, Function, List, tagger
-from devito.visitors import ResolveIterationVariable, SubstituteExpression, Transformer
+from devito.nodes import ELEMENTAL, Expression, Function, Iteration, List, tagger
+from devito.visitors import (ResolveIterationVariable, SubstituteExpression,
+                             Transformer, FindNodes)
 
 
 @pytest.fixture(scope="module")
@@ -106,9 +109,10 @@ def _new_operator1(shape, **kwargs):
     stencil = Eq(outfield.indexify(), outfield.indexify() + infield.indexify()*3.0)
 
     # Run the operator
-    Operator(stencil, **kwargs)(infield, outfield)
+    op = Operator(stencil, **kwargs)
+    op(infield, outfield)
 
-    return outfield
+    return outfield, op
 
 
 def _new_operator2(shape, time_order, **kwargs):
@@ -121,9 +125,10 @@ def _new_operator2(shape, time_order, **kwargs):
                  outfield.indexify() + infield.indexify()*3.0)
 
     # Run the operator
-    Operator(stencil, **kwargs)(infield, outfield, t=10)
+    op = Operator(stencil, **kwargs)
+    op(infield, outfield, t=10)
 
-    return outfield
+    return outfield, op
 
 
 def test_create_elemental_functions_simple(simple_function):
@@ -236,18 +241,44 @@ void f_2(const int q_start, const int q_finish,"""
 }""")
 
 
-# Loop blocking tests
-# ATM, these tests resemble the ones in test_cache_blocking.py, with the main
-# difference being that here the new Operator interface is used
+@pytest.mark.parametrize("blockinner,expected", [
+    (False, 4),
+    (True, 8)
+])
+def test_cache_blocking_structure(blockinner, expected):
+    _, op = _new_operator1((10, 31, 45), dle=('blocking', {'blockalways': True,
+                                                           'blockshape': (2, 9, 2),
+                                                           'blockinner': blockinner}))
+
+    # Check presence of remainder loops
+    iterations = retrieve_iteration_tree(op)
+    assert len(iterations) == expected
+    assert not iterations[0][0].is_Remainder
+    assert all(i[0].is_Remainder for i in iterations[1:])
+
+    # Check presence of openmp pragmas at the right place
+    _, op = _new_operator1((10, 31, 45), dle=('blocking,openmp',
+                                              {'blockalways': True,
+                                               'blockshape': (2, 9, 2),
+                                               'blockinner': blockinner}))
+    iterations = retrieve_iteration_tree(op)
+    assert len(iterations) == expected
+    # All iterations except the last one an outermost parallel loop over blocks
+    assert not iterations[-1][0].is_Parallel
+    for i in iterations[:-1]:
+        outermost = i[0]
+        assert len(outermost.pragmas) == 1
+        assert 'omp for' in outermost.pragmas[0].value
+
 
 @pytest.mark.parametrize("shape", [(10,), (10, 45), (10, 31, 45)])
 @pytest.mark.parametrize("blockshape", [2, 7, (3, 3), (2, 9, 1)])
 @pytest.mark.parametrize("blockinner", [False, True])
 def test_cache_blocking_no_time_loop(shape, blockshape, blockinner):
-    wo_blocking = _new_operator1(shape, dle='noop')
-    w_blocking = _new_operator1(shape, dle=('blocking', {'blockalways': True,
-                                                         'blockshape': blockshape,
-                                                         'blockinner': blockinner}))
+    wo_blocking, _ = _new_operator1(shape, dle='noop')
+    w_blocking, _ = _new_operator1(shape, dle=('blocking', {'blockalways': True,
+                                                            'blockshape': blockshape,
+                                                            'blockinner': blockinner}))
 
     assert np.equal(wo_blocking.data, w_blocking.data).all()
 
@@ -257,10 +288,10 @@ def test_cache_blocking_no_time_loop(shape, blockshape, blockinner):
 @pytest.mark.parametrize("blockshape", [2, (13, 20), (11, 15, 23)])
 @pytest.mark.parametrize("blockinner", [False, True])
 def test_cache_blocking_time_loop(shape, time_order, blockshape, blockinner):
-    wo_blocking = _new_operator2(shape, time_order, dle='noop')
-    w_blocking = _new_operator2(shape, time_order,
-                                dle=('blocking', {'blockshape': blockshape,
-                                                  'blockinner': blockinner}))
+    wo_blocking, _ = _new_operator2(shape, time_order, dle='noop')
+    w_blocking, _ = _new_operator2(shape, time_order,
+                                   dle=('blocking', {'blockshape': blockshape,
+                                                     'blockinner': blockinner}))
 
     assert np.equal(wo_blocking.data, w_blocking.data).all()
 
@@ -280,12 +311,70 @@ def test_cache_blocking_time_loop(shape, time_order, blockshape, blockinner):
     ((25, 46), (7, None))
 ])
 def test_cache_blocking_edge_cases(shape, blockshape):
-    wo_blocking = _new_operator2(shape, time_order=2, dle='noop')
-    w_blocking = _new_operator2(shape, time_order=2,
-                                dle=('blocking', {'blockshape': blockshape,
-                                                  'blockinner': True}))
+    wo_blocking, _ = _new_operator2(shape, time_order=2, dle='noop')
+    w_blocking, _ = _new_operator2(shape, time_order=2,
+                                   dle=('blocking', {'blockshape': blockshape,
+                                                     'blockinner': True}))
 
     assert np.equal(wo_blocking.data, w_blocking.data).all()
+
+
+@pytest.mark.parametrize('exprs,expected', [
+    # trivial 1D
+    (['Eq(fa[x], fa[x] + fb[x])'],
+     (True, False)),
+    # trivial 1D
+    (['Eq(t0, fa[x] + fb[x])', 'Eq(fa[x], t0 + 1)'],
+     (True, False)),
+    # trivial 2D
+    (['Eq(t0, fc[x,y] + fd[x,y])', 'Eq(fc[x,y], t0 + 1)'],
+     (True, False)),
+    # outermost parallel, innermost sequential
+    (['Eq(t0, fc[x,y] + fd[x,y])', 'Eq(fc[x,y+1], t0 + 1)'],
+     (True, False)),
+    # outermost sequential, innermost parallel
+    (['Eq(t0, fc[x,y] + fd[x,y])', 'Eq(fc[x+1,y], t0 + 1)'],
+     (False, True)),
+    # outermost sequential, innermost parallel
+    (['Eq(fc[x,y], fc[x+1,y+1] + fc[x-1,y])'],
+     (False, True)),
+    # outermost parallel w/ repeated dimensions
+    (['Eq(t0, fc[x,x] + fd[x,y+1])', 'Eq(fc[x,x], t0 + 1)'],
+     (True, False)),
+    # outermost sequential w/ repeated dimensions
+    (['Eq(t0, fc[x,x] + fd[x,y+1])', 'Eq(fc[x,x+1], t0 + 1)'],
+     (False, False)),
+    # outermost sequential, innermost sequential
+    (['Eq(fc[x,y], fc[x,y+1] + fc[x-1,y])'],
+     (False, False)),
+    # outermost parallel, innermost sequential w/ double tensor write
+    (['Eq(fc[x,y], fc[x,y+1] + fd[x-1,y])', 'Eq(fd[x-1,y+1], fd[x-1,y] + fc[x,y+1])'],
+     (True, False)),
+    # outermost sequential, innermost parallel w/ mixed dimensions
+    (['Eq(fc[x+1,y], fc[x,y+1] + fa[y])', 'Eq(fa[y], 2. + fc[x,y+1])'],
+     (False, True)),
+])
+def test_loops_ompized(fa, fb, fc, fd, t0, t1, t2, t3, exprs, expected, iters):
+    scope = [fa, fb, fc, fd, t0, t1, t2, t3]
+    node_exprs = [Expression(EVAL(i, *scope)) for i in exprs]
+    ast = iters[6](iters[7](node_exprs))
+
+    nodes = transform(ast, mode='openmp').nodes
+    assert len(nodes) == 1
+    ast = nodes[0]
+    iterations = FindNodes(Iteration).visit(ast)
+    assert len(iterations) == len(expected)
+
+    # Check for presence of pragma omp
+    for i, j in zip(iterations, expected):
+        pragmas = i.pragmas
+        if j is True:
+            assert len(pragmas) == 1
+            pragma = pragmas[0]
+            assert 'omp for' in pragma.value
+        else:
+            for k in pragmas:
+                assert 'omp for' not in k.value
 
 
 def test_loop_nofission(simple_function):
@@ -356,7 +445,7 @@ for (int i = 0; i < 3; i += 1)
 
 @pytest.mark.parametrize("shape", [(41,), (20, 33), (45, 31, 45)])
 def test_composite_transformation(shape):
-    wo_blocking = _new_operator1(shape, dle='noop')
-    w_blocking = _new_operator1(shape, dle='advanced')
+    wo_blocking, _ = _new_operator1(shape, dle='noop')
+    w_blocking, _ = _new_operator1(shape, dle='advanced')
 
     assert np.equal(wo_blocking.data, w_blocking.data).all()

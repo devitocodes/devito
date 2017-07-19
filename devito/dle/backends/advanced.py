@@ -454,6 +454,7 @@ class DevitoCustomRewriter(DevitoSpeculativeRewriter):
 
     passes_mapper = {
         'blocking': DevitoSpeculativeRewriter._loop_blocking,
+        'openmp': DevitoSpeculativeRewriter._ompize,
         'fission': DevitoSpeculativeRewriter._loop_fission,
         'padding': DevitoSpeculativeRewriter._padding,
         'split': DevitoSpeculativeRewriter._create_elemental_functions
