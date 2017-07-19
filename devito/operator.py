@@ -286,9 +286,6 @@ class Operator(Function):
 
         return self._cfunction
 
-    def _arg_data(self, argument):
-        return None
-
     def _arg_shape(self, argument):
         return argument.shape
 
@@ -482,13 +479,6 @@ class OperatorRunnable(Operator):
                      (name, v.oi, v.time, v.gflopss))
 
         return summary
-
-    def _arg_data(self, argument):
-        # Ensure we're dealing or deriving numpy arrays
-        data = argument.data
-        if not isinstance(data, np.ndarray):
-            error('No array data found for argument %s' % argument.name)
-        return data
 
     def _arg_shape(self, argument):
         return argument.data.shape
