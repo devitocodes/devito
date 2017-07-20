@@ -1,6 +1,7 @@
 from sympy import Eq
 
-from devito.nodes import Expression, Iteration
+from devito.nodes import Expression, Iteration, List
+from devito.tools import flatten
 from devito.visitors import MergeOuterIterations
 
 __all__ = ['compose_nodes', 'copy_arrays']
@@ -13,11 +14,15 @@ def compose_nodes(nodes, retrieve=False):
     l = list(nodes)
     tree = []
 
-    body = l.pop(-1)
-    while l:
-        handle = l.pop(-1)
-        body = handle._rebuild(body, **handle.args_frozen)
-        tree.append(body)
+    if not isinstance(l[0], Iteration):
+        # Nothing to compose
+        body = List(body=flatten(l))
+    else:
+        body = l.pop(-1)
+        while l:
+            handle = l.pop(-1)
+            body = handle._rebuild(body, **handle.args_frozen)
+            tree.append(body)
 
     if retrieve is True:
         tree = list(reversed(tree))

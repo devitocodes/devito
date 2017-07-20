@@ -103,7 +103,7 @@ def collect_nested(expr, aggressive=False):
     return run(expr)[0]
 
 
-def xreplace_constrained(exprs, make, rule, cm=lambda e: True, repeat=False):
+def xreplace_constrained(exprs, make, rule, costmodel=lambda e: True, repeat=False):
     """
     Unlike ``xreplace``, which replaces all objects specified in a mapper,
     this function replaces all objects satisfying two criteria: ::
@@ -124,7 +124,7 @@ def xreplace_constrained(exprs, make, rule, cm=lambda e: True, repeat=False):
                  The function takes as input an integer ID; ID is computed internally
                  and used as a unique identifier for the constructed symbols.
     :param rule: The matching rule (a lambda function).
-    :param cm: The cost model (a lambda function, optional).
+    :param costmodel: The cost model (a lambda function, optional).
     :param repeat: Repeatedly apply ``xreplace`` until no more replacements are
                    possible (optional, defaults to False).
     """
@@ -136,13 +136,11 @@ def xreplace_constrained(exprs, make, rule, cm=lambda e: True, repeat=False):
         temporary = found.get(expr)
         if temporary:
             return temporary
-        elif cm(expr):
+        else:
             temporary = make(replace.c)
             found[expr] = temporary
             replace.c += 1
             return temporary
-        else:
-            return expr
     replace.c = 0  # Unique identifier for new temporaries
 
     def run(expr):
@@ -150,23 +148,27 @@ def xreplace_constrained(exprs, make, rule, cm=lambda e: True, repeat=False):
             return expr, rule(expr)
         elif expr.is_Pow:
             base, flag = run(expr.base)
-            return expr.func(base, expr.exp), flag
+            return expr.func(base, expr.exp, evaluate=False), flag
         else:
             children = [run(a) for a in expr.args]
             matching = [a for a, flag in children if flag]
             other = [a for a, _ in children if a not in matching]
             if matching:
-                matched = expr.func(*matching)
+                matched = expr.func(*matching, evaluate=False)
                 if len(matching) == len(children) and rule(expr):
                     # Go look for longer expressions first
                     return matched, True
-                elif rule(matched):
+                elif rule(matched) and costmodel(matched):
                     # Replace what I can replace, then give up
-                    return expr.func(*(other + [replace(matched)])), False
+                    rebuilt = expr.func(*(other + [replace(matched)]), evaluate=False)
+                    return rebuilt, False
                 else:
                     # Replace flagged children, then give up
-                    return expr.func(*(other + [replace(e) for e in matching])), False
-            return expr.func(*other), False
+                    replaced = [replace(e) for e in matching if costmodel(e)]
+                    unreplaced = [e for e in matching if not costmodel(e)]
+                    rebuilt = expr.func(*(other + replaced + unreplaced), evaluate=False)
+                    return rebuilt, False
+            return expr.func(*other, evaluate=False), False
 
     # Process the provided expressions
     for expr in as_tuple(exprs):
@@ -193,12 +195,14 @@ def xreplace_indices(exprs, mapper, candidates=None, only_rhs=False):
     specified in mapper appearing as a tensor index. Only tensors whose symbolic
     name appears in ``candidates`` are considered if ``candidates`` is not None.
     """
+    exprs = as_tuple(exprs)
     get = lambda i: i.rhs if only_rhs is True else i
-    handle = flatten(retrieve_indexed(get(i)) for i in as_tuple(exprs))
+    handle = flatten(retrieve_indexed(get(i)) for i in exprs)
     if candidates is not None:
         handle = [i for i in handle if i.base.label in candidates]
     mapper = dict(zip(handle, [i.xreplace(mapper) for i in handle]))
-    return [i.xreplace(mapper) for i in exprs]
+    replaced = [i.xreplace(mapper) for i in exprs]
+    return replaced[0] if len(exprs) == 1 else replaced
 
 
 def common_subexprs_elimination(exprs, make, mode='default'):

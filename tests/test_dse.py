@@ -6,7 +6,7 @@ from sympy import Eq, Symbol  # noqa
 
 from devito.dse import (clusterize, rewrite, xreplace_constrained, iq_timeinvariant,
                         iq_timevarying, estimate_cost, temporaries_graph,
-                        common_subexprs_elimination, collect_aliases)
+                        common_subexprs_elimination, collect)
 from devito import Dimension, x, y, z, time, TimeData, clear_cache  # noqa
 from devito.nodes import Expression
 from devito.stencil import Stencil
@@ -132,22 +132,32 @@ def test_tti_rewrite_speculative(tti_nodse):
     assert np.allclose(tti_nodse[1].data, rec.data, atol=10e-1)
 
 
+def test_tti_rewrite_aggressive(tti_nodse):
+    operator = tti_operator(dse='aggressive')
+    rec, u, v, _ = operator.forward()
+
+    assert np.allclose(tti_nodse[0].data, v.data, atol=10e-1)
+    assert np.allclose(tti_nodse[1].data, rec.data, atol=10e-1)
+
+
 # DSE manipulation
 
-@pytest.mark.parametrize('expr,expected', [
+@pytest.mark.parametrize('exprs,expected', [
     # simple
-    ('Eq(tu, ti0 + ti1 + 5.)',
+    (['Eq(ti1, 4.)', 'Eq(ti0, 3.)', 'Eq(tu, ti0 + ti1 + 5.)'],
      ['ti0[x, y, z] + ti1[x, y, z]']),
     # more ops
-    ('Eq(tu, (ti0*ti1*t0) + (ti1*tv) + (t1 + ti1)*tw)',
-     ['t1 + ti1[x, y, z]', 't0*ti0[x, y, z]*ti1[x, y, z]']),
+    (['Eq(ti1, 4.)', 'Eq(ti0, 3.)', 'Eq(t0, 0.2)', 'Eq(t1, t0 + 2.)',
+      'Eq(tw, 2. + ti0*t1)', 'Eq(tu, (ti0*ti1*t0) + (ti1*tv) + (t1 + ti1)*tw)'],
+     ['t1*ti0[x, y, z]', 't1 + ti1[x, y, z]', 't0*ti0[x, y, z]*ti1[x, y, z]']),
     # wrapped
-    ('Eq(tu, ((ti0*ti1*t0)*tv + (ti0*ti1*tv)*t1))',
+    (['Eq(ti1, 4.)', 'Eq(ti0, 3.)', 'Eq(t0, 0.2)', 'Eq(t1, t0 + 2.)', 'Eq(tv, 2.4)',
+      'Eq(tu, ((ti0*ti1*t0)*tv + (ti0*ti1*tv)*t1))'],
      ['t0*ti0[x, y, z]*ti1[x, y, z]', 't1*ti0[x, y, z]*ti1[x, y, z]']),
 ])
 def test_xreplace_constrained_time_invariants(tu, tv, tw, ti0, ti1, t0, t1,
-                                              expr, expected):
-    exprs = [eval(expr)]
+                                              exprs, expected):
+    exprs = EVAL(exprs, tu, tv, tw, ti0, ti1, t0, t1)
     processed, found = xreplace_constrained(exprs,
                                             lambda i: Symbol('r%d' % i),
                                             iq_timeinvariant(temporaries_graph(exprs)),
@@ -156,20 +166,23 @@ def test_xreplace_constrained_time_invariants(tu, tv, tw, ti0, ti1, t0, t1,
     assert all(str(i.rhs) == j for i, j in zip(found, expected))
 
 
-@pytest.mark.parametrize('expr,expected', [
+@pytest.mark.parametrize('exprs,expected', [
     # simple
-    ('Eq(tu, tv + tw + 5. + ti0)',
-     ['tv[t, x, y, z] + tw[t, x, y, z] + 5.0']),
+    (['Eq(ti0, 3.)', 'Eq(tv, 2.4)', 'Eq(tu, tv + 5. + ti0)'],
+     ['tv[t, x, y, z] + 5.0']),
     # more ops
-    ('Eq(tu, tv*tw*4.*ti0 + ti1*tv)',
+    (['Eq(tv, 2.4)', 'Eq(tw, tv*2.3)', 'Eq(ti1, 4.)', 'Eq(ti0, 3. + ti1)',
+      'Eq(tu, tv*tw*4.*ti0 + ti1*tv)'],
      ['4.0*tv[t, x, y, z]*tw[t, x, y, z]']),
     # wrapped
-    ('Eq(tu, ((tv + 4.)*ti0*ti1 + (tv + tw)/3.)*ti1*t0)',
+    (['Eq(tv, 2.4)', 'Eq(tw, tv*tw*2.3)', 'Eq(ti1, 4.)', 'Eq(ti0, 3. + ti1)',
+      'Eq(tu, ((tv + 4.)*ti0*ti1 + (tv + tw)/3.)*ti1*t0)'],
      ['tv[t, x, y, z] + 4.0',
       '0.333333333333333*tv[t, x, y, z] + 0.333333333333333*tw[t, x, y, z]']),
 ])
-def test_xreplace_constrained_time_varying(tu, tv, tw, ti0, ti1, t0, t1, expr, expected):
-    exprs = [eval(expr)]
+def test_xreplace_constrained_time_varying(tu, tv, tw, ti0, ti1, t0, t1,
+                                           exprs, expected):
+    exprs = EVAL(exprs, tu, tv, tw, ti0, ti1, t0, t1)
     processed, found = xreplace_constrained(exprs,
                                             lambda i: Symbol('r%d' % i),
                                             iq_timevarying(temporaries_graph(exprs)),
@@ -263,7 +276,7 @@ def test_graph_isindex(fa, fb, fc, t0, t1, t2, exprs, expected):
 def test_collect_aliases(fa, fb, fc, fd, t0, t1, t2, t3, exprs, expected):
     scope = [fa, fb, fc, fd, t0, t1, t2, t3]
     mapper = dict([(EVAL(k, *scope), v) for k, v in expected.items()])
-    _, aliases = collect_aliases(EVAL(exprs, *scope))
+    _, aliases = collect(EVAL(exprs, *scope))
     for k, v in aliases.items():
         assert k in mapper
         assert v.anti_stencil == mapper[k]

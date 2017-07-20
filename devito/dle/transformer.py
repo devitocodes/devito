@@ -17,7 +17,8 @@ modes = {
 
 default_options = {
     'blockinner': False,
-    'blockshape': None
+    'blockshape': None,
+    'blockalways': False
 }
 """Default values for the various optimization options."""
 
@@ -46,6 +47,8 @@ def transform(node, mode='basic', options=None):
                         dimension of an Iteration/Expression tree (to maximize
                         vectorization). Set this flag to True to override this
                         heuristic.
+        * 'blockalways': Apply blocking even though the DLE thinks it's not
+                         worthwhile applying it.
     """
     from devito.parameters import configuration
 
@@ -73,9 +76,6 @@ def transform(node, mode='basic', options=None):
     params.update({k: v for k, v in default_options.items() if k not in params})
     params['compiler'] = configuration['compiler']
     params['openmp'] = configuration['openmp']
-    if mode == '3D-advanced':
-        params['blockinner'] = True
-        mode = 'advanced'
 
     # Process the Iteration/Expression tree through the DLE
     if mode is None or mode == 'noop':

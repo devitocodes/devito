@@ -1,7 +1,9 @@
 from collections import OrderedDict
 
 from devito.dse.graph import temporaries_graph
+from devito.dse.manipulation import xreplace_indices
 
+from devito.interfaces import ScalarFunction
 from devito.stencil import Stencil
 
 __all__ = ['clusterize']
@@ -24,6 +26,14 @@ class Cluster(object):
     @property
     def exprs(self):
         return self.trace.values()
+
+    @property
+    def unknown(self):
+        return self.trace.unknown
+
+    @property
+    def tensors(self):
+        return self.trace.tensors
 
     @property
     def is_dense(self):
@@ -71,6 +81,44 @@ def merge(clusters):
                     temporaries[k] = v
         # Squash the clusters together
         processed.append(Cluster(temporaries.values(), Stencil(entries)))
+
+    return processed
+
+
+def optimize(clusters):
+    """
+    Attempt scalar promotion. Candidates are tensors, perhaps created by some
+    cluster-wise transformations, that do not appear in any other clusters.
+    """
+    clusters = merge(clusters)
+
+    processed = []
+    for c1 in clusters:
+        mapper = {}
+        temporaries = []
+        for k, v in c1.trace.items():
+            if v.is_tensor and not any(v.function in c2.unknown for c2 in clusters):
+                for i in c1.tensors[v.function]:
+                    # LHS scalarization
+                    scalarized = ScalarFunction(name='s%d' % len(mapper)).indexify()
+                    mapper[i] = scalarized
+
+                    # May have to "unroll" some tensor expressions for scalarization;
+                    # e.g., if we have two occurrences of r0, say r0[x,y,z] and
+                    # r0[x+1,y,z], and r0 is to be scalarized, this will require a
+                    # different scalar for each unique set of indices.
+                    assert len(v.function.indices) == len(k.indices) == len(i.indices)
+                    shifting = {idx: idx + (o2 - o1) for idx, o1, o2 in
+                                zip(v.function.indices, k.indices, i.indices)}
+
+                    # Transform /v/, introducing (i) a scalarized LHS and (ii) shifted
+                    # indices if necessary
+                    handle = v.func(scalarized, v.rhs.xreplace(mapper))
+                    handle = xreplace_indices(handle, shifting)
+                    temporaries.append(handle)
+            else:
+                temporaries.append(v.func(k, v.rhs.xreplace(mapper)))
+        processed.append(c1.rebuild(temporaries))
 
     return processed
 
