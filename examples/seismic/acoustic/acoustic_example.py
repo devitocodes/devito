@@ -99,5 +99,4 @@ def run(dimensions=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=1000.0,
 
 
 if __name__ == "__main__":
-    run(full_run=False, autotune=False, space_order=6, time_order=2, dimensions=(50, 60),
-        spacing=(15, 20))
+    run(full_run=False, autotune=False, space_order=6, time_order=2)

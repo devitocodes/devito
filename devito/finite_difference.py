@@ -133,14 +133,10 @@ def cross_derivative(*args, **kwargs):
                             int((order + 1) / 2) + 2 - (order < 4))]
 
     # Finite difference weights from Taylor approximation with this positions
-    c11 = finite_diff_weights(1, ind1r, dims[0])
-    c11 = c11[-1][-1]
-    c21 = finite_diff_weights(1, ind1l, dims[0])
-    c21 = c21[-1][-1]
-    c12 = finite_diff_weights(1, ind2r, dims[1])
-    c12 = c12[-1][-1]
-    c22 = finite_diff_weights(1, ind2l, dims[1])
-    c22 = c22[-1][-1]
+    c11 = finite_diff_weights(1, ind1r, dims[0])[-1][-1]
+    c21 = finite_diff_weights(1, ind1l, dims[0])[-1][-1]
+    c12 = finite_diff_weights(1, ind2r, dims[1])[-1][-1]
+    c22 = finite_diff_weights(1, ind2l, dims[1])[-1][-1]
 
     # Diagonal elements
     for i in range(0, len(ind1r)):

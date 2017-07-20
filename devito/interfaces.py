@@ -184,8 +184,8 @@ class AbstractSymbol(Function, CachedSymbol):
 
     def indexify(self):
         """Create a :class:`sympy.Indexed` object from the current object."""
-        indices = [a.subs({x.spacing: 1, y.spacing: 1, z.spacing: 1, s: 1})
-                   for a in self.args]
+        subs = dict([(i.spacing, 1) for i in self.indices])
+        indices = [a.subs(subs) for a in self.args]
 
         if indices:
             return self.indexed[indices]
