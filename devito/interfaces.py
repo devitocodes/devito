@@ -232,7 +232,7 @@ class ScalarFunction(SymbolicFunction, ScalarFunctionArgProvider):
         in a C module, False otherwise."""
         return True
 
-    def update(self, dtype=None):
+    def update(self, dtype=None, **kwargs):
         self.dtype = dtype or self.dtype
 
 

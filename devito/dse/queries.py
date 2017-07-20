@@ -46,6 +46,10 @@ def q_terminalop(expr):
         return True
 
 
+def q_sum_of_product(expr):
+    return q_leaf(expr) or q_terminalop(expr) or all(q_terminalop(i) for i in expr.args)
+
+
 def q_indirect(expr):
     """
     Return True if ``indexed`` has indirect accesses, False otherwise.

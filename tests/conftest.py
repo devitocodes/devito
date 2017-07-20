@@ -39,7 +39,9 @@ def iters(dims):
             lambda ex: Iteration(ex, dims['k'], (0, 7, 1)),
             lambda ex: Iteration(ex, dims['s'], (0, 4, 1)),
             lambda ex: Iteration(ex, dims['q'], (0, 4, 1)),
-            lambda ex: Iteration(ex, dims['l'], (0, 6, 1))]
+            lambda ex: Iteration(ex, dims['l'], (0, 6, 1)),
+            lambda ex: Iteration(ex, x, (0, 5, 1)),
+            lambda ex: Iteration(ex, y, (0, 7, 1))]
 
 
 @pytest.fixture(scope="session", autouse=True)

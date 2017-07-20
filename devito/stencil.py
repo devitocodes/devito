@@ -202,16 +202,14 @@ class Stencil(DefaultOrderedDict):
         o = {-2, -1, 0, 1, 2}
         self.anti(o) >> {-1, 0, 1}
         """
-        o = o.section([i for i in o.dimensions if i not in self])
-
-        if any(not o[i].issuperset(self[i]) for i in o.dimensions):
+        if any(not o[i].issuperset(self[i]) for i in o.dimensions if i in self):
             raise StencilOperationError
 
         diff = o.subtract(self)
         n, p = diff.split()
         n = n.rshift({i: min(self[i]) for i in self})
         p = p.rshift({i: max(self[i]) for i in self})
-        union = Stencil.union(*[n, self.null(), p])
+        union = Stencil.union(*[n, o.null(), p])
 
         return union
 

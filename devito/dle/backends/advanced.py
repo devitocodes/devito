@@ -120,6 +120,7 @@ class DevitoRewriter(BasicRewriter):
         :class:`Iteration` objects.
         """
         exclude_innermost = not self.params.get('blockinner', False)
+        ignore_heuristic = self.params.get('blockalways', False)
 
         blocked = OrderedDict()
         processed = []
@@ -133,10 +134,17 @@ class DevitoRewriter(BasicRewriter):
                 iterations = [i for i in tree if i.is_Parallel]
                 if exclude_innermost:
                     iterations = [i for i in iterations if not i.is_Vectorizable]
-                if not iterations:
+                if len(iterations) <= 1:
                     continue
                 root = iterations[0]
                 if not IsPerfectIteration().visit(root):
+                    # Illegal/unsupported
+                    continue
+                if not tree[0].is_Sequential and not ignore_heuristic:
+                    # Heuristic: avoid polluting the generated code with blocked
+                    # nests (thus increasing JIT compilation time and affecting
+                    # readability) if the blockable tree isn't embedded in a
+                    # sequential loop (e.g., a timestepping loop)
                     continue
 
                 # Decorate intra-block iterations with an IterationProperty
@@ -281,39 +289,53 @@ class DevitoRewriter(BasicRewriter):
             denormals = FindNodes(Denormals).visit(state.nodes)
             mapper = OrderedDict([(i, None) for i in denormals])
 
-            # Handle parallelizable loops
-            pvt = []
+            # Group by outer loop so that we can embed within the same parallel region
+            was_tagged = False
+            groups = OrderedDict()
             for tree in retrieve_iteration_tree(node):
                 # Determine the number of consecutive parallelizable Iterations
-                key = lambda i: i.is_Parallel and not i.is_Vectorizable
-                candidates = filter_iterations(tree, key=key, stop='any')
+                key = lambda i: i.is_Parallel and\
+                    not (i.is_Elementizable or i.is_Vectorizable)
+                candidates = filter_iterations(tree, key=key, stop='asap')
                 if not candidates:
+                    was_tagged = False
                     continue
+                # Consecutive tagged Iteration go in the same group
+                is_tagged = any(i.tag is not None for i in tree)
+                key = len(groups) - (is_tagged & was_tagged)
+                handle = groups.setdefault(key, OrderedDict())
+                handle[candidates[0]] = candidates
+                was_tagged = is_tagged
 
-                # Heuristic: if at least two parallel loops are available and the
-                # physical core count is greater than self.thresholds['collapse'],
-                # then omp-collapse the loops
-                nparallel = len(candidates)
-                if psutil.cpu_count(logical=False) < self.thresholds['collapse'] or\
-                        nparallel < 2:
-                    parallel = omplang['for']
-                else:
-                    parallel = omplang['collapse'](nparallel)
+            # Handle parallelizable loops
+            for group in groups.values():
+                private = []
+                for root, tree in group.items():
+                    # Heuristic: if at least two parallel loops are available and the
+                    # physical core count is greater than self.thresholds['collapse'],
+                    # then omp-collapse the loops
+                    nparallel = len(tree)
+                    if psutil.cpu_count(logical=False) < self.thresholds['collapse'] or\
+                            nparallel < 2:
+                        parallel = omplang['for']
+                    else:
+                        parallel = omplang['collapse'](nparallel)
 
-                root = candidates[0]
-                mapper[root] = root._rebuild(pragmas=root.pragmas + as_tuple(parallel))
+                    mapper[root] = root._rebuild(pragmas=root.pragmas + (parallel,))
 
-                # Track the thread-private and thread-shared variables
-                pvt += [i for i in FindSymbols('symbolics').visit(tree) if i._mem_stack]
+                    # Track the thread-private and thread-shared variables
+                    private.extend([i for i in FindSymbols('symbolics').visit(root)
+                                    if i._mem_stack])
 
-            # Build the parallel region
-            pvt = sorted(set([i.name for i in pvt]))
-            pvt = ('private(%s)' % ','.join(pvt)) if pvt else ''
-            par_region = Block(header=omplang['par-region'](pvt),
-                               body=denormals + [i for i in mapper.values() if i])
-            for k, v in list(mapper.items()):
-                if v is not None:
-                    mapper[k] = None if v.is_Remainder else par_region
+                # Build the parallel region
+                private = sorted(set([i.name for i in private]))
+                private = ('private(%s)' % ','.join(private)) if private else ''
+                rebuilt = [v for k, v in mapper.items() if k in group]
+                par_region = Block(header=omplang['par-region'](private),
+                                   body=denormals + rebuilt)
+                for k, v in list(mapper.items()):
+                    if isinstance(v, Iteration):
+                        mapper[k] = None if v.is_Remainder else par_region
 
             handle = Transformer(mapper).visit(node)
             if handle is not None:
@@ -431,6 +453,8 @@ class DevitoSpeculativeRewriter(DevitoRewriter):
 class DevitoCustomRewriter(DevitoSpeculativeRewriter):
 
     passes_mapper = {
+        'blocking': DevitoSpeculativeRewriter._loop_blocking,
+        'openmp': DevitoSpeculativeRewriter._ompize,
         'fission': DevitoSpeculativeRewriter._loop_fission,
         'padding': DevitoSpeculativeRewriter._padding,
         'split': DevitoSpeculativeRewriter._create_elemental_functions

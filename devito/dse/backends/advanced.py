@@ -4,7 +4,7 @@ from collections import OrderedDict
 
 from sympy import Eq, Indexed
 
-from devito.dse.aliases import collect_aliases
+from devito.dse.aliases import collect
 from devito.dse.backends import BasicRewriter, dse_pass
 from devito.dse.clusterizer import clusterize
 from devito.dse.inspection import estimate_cost
@@ -23,33 +23,28 @@ class AdvancedRewriter(BasicRewriter):
         self._factorize(state)
 
     @dse_pass
-    def _extract_time_invariants(self, cluster, **kwargs):
+    def _extract_time_invariants(self, cluster, template, with_cse=True,
+                                 costmodel=None, **kwargs):
         """
         Extract time-invariant subexpressions, and assign them to temporaries.
         """
 
         # Extract time invariants
-        template = self.conventions['time-invariant'] + "%d"
-        make = lambda i: ScalarFunction(name=template % i).indexify()
-
+        make = lambda i: ScalarFunction(name=template(i)).indexify()
         rule = iq_timeinvariant(cluster.trace)
-
-        cm = lambda e: estimate_cost(e) > 0
-
-        processed, found = xreplace_constrained(cluster.exprs, make, rule, cm)
+        costmodel = costmodel or (lambda e: estimate_cost(e) > 0)
+        processed, found = xreplace_constrained(cluster.exprs, make, rule, costmodel)
         leaves = [i for i in processed if i not in found]
 
         # Search for common sub-expressions amongst them (and only them)
-        template = "%s%s%s" % (self.conventions['redundancy'],
-                               self.conventions['time-invariant'], '%d')
-        make = lambda i: ScalarFunction(name=template % i).indexify()
-
-        found = common_subexprs_elimination(found, make)
+        if with_cse:
+            make = lambda i: ScalarFunction(name=template(i + len(found))).indexify()
+            found = common_subexprs_elimination(found, make)
 
         return cluster.reschedule(found + leaves)
 
     @dse_pass
-    def _factorize(self, cluster, **kwargs):
+    def _factorize(self, cluster, *args, **kwargs):
         """
         Collect terms in each expr in exprs based on the following heuristic:
 
@@ -78,7 +73,7 @@ class AdvancedRewriter(BasicRewriter):
         return cluster.rebuild(processed)
 
     @dse_pass
-    def _eliminate_inter_stencil_redundancies(self, cluster, **kwargs):
+    def _eliminate_inter_stencil_redundancies(self, cluster, template, **kwargs):
         """
         Search for redundancies across the expressions and expose them
         to the later stages of the optimisation pipeline by introducing
@@ -108,18 +103,18 @@ class AdvancedRewriter(BasicRewriter):
         if cluster.is_sparse:
             return cluster
 
-        # For more information about "aliases", refer to collect_aliases.__doc__
-        mapper, aliases = collect_aliases(cluster.exprs)
+        # For more information about "aliases", refer to collect.__doc__
+        mapper, aliases = collect(cluster.exprs)
 
         # Redundancies will be stored in space-varying temporaries
         g = cluster.trace
         indices = g.space_indices
-        shape = tuple(i.symbolic_size for i in indices)
+        time_invariants = {v.rhs: g.time_invariant(v) for v in g.values()}
 
         # Template for captured redundancies
-        name = self.conventions['redundancy'] + "%d"
-        template = lambda i: TensorFunction(name=name % i, shape=shape,
-                                            dimensions=indices).indexed
+        shape = tuple(i.symbolic_size for i in indices)
+        make = lambda i: TensorFunction(name=template(i), shape=shape,
+                                        dimensions=indices).indexed
 
         # Find the candidate expressions
         processed = []
@@ -128,29 +123,37 @@ class AdvancedRewriter(BasicRewriter):
             # Cost check (to keep the memory footprint under control)
             naliases = len(mapper.get(v.rhs, []))
             cost = estimate_cost(v, True)*naliases
-            if cost >= self.thresholds['min-cost-time-hoist'] and g.time_invariant(v):
-                candidates[v.rhs] = k
-            elif cost >= self.thresholds['min-cost-space-hoist'] and naliases > 1:
+            if cost >= self.thresholds['min-cost-alias'] and naliases > 1:
                 candidates[v.rhs] = k
             else:
                 processed.append(Eq(k, v.rhs))
 
         # Create temporaries capturing redundant computation
-        found = []
-        rules = OrderedDict()
+        expressions = []
         stencils = []
+        rules = OrderedDict()
         for c, (origin, alias) in enumerate(aliases.items()):
-            function = template(c)
-            temporary = Indexed(function, *indices)
-            found.append(Eq(temporary, origin))
-            # Track the stencil of each TensorFunction introduced
-            stencils.append(alias.anti_stencil.anti(cluster.stencil))
+            if all(i not in candidates for i in alias.aliased):
+                continue
+            # Build alias expression
+            function = make(c)
+            expressions.append(Eq(Indexed(function, *indices), origin))
+            # Build substitution rules
             for aliased, distance in alias.with_distance:
                 coordinates = [sum([i, j]) for i, j in distance.items() if i in indices]
-                rules[candidates[aliased]] = Indexed(function, *tuple(coordinates))
+                temporary = Indexed(function, *tuple(coordinates))
+                rules[candidates[aliased]] = temporary
+                rules[aliased] = temporary
+            # Build cluster stencil
+            stencil = alias.anti_stencil.anti(cluster.stencil)
+            if all(time_invariants[i] for i in alias.aliased):
+                # Optimization: drop time dimension if time-invariant and the
+                # alias involves a complex calculation
+                stencil = stencil.section(g.time_indices)
+            stencils.append(stencil)
 
         # Create the alias clusters
-        alias_clusters = clusterize(found, stencils)
+        alias_clusters = clusterize(expressions, stencils)
         alias_clusters = sorted(alias_clusters, key=lambda i: i.is_dense)
 
         # Switch temporaries in the expression trees
