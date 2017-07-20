@@ -1,36 +1,46 @@
-from devito import Dimension, x, y, z
+from devito import Dimension, x, y, z, Forward, Backward
+from devito.exceptions import InvalidArgument
 
 import numpy as np
-from sympy import Eq, sin, solve
+from sympy import Eq, sin, sqrt
+from sympy.abc import s, h
 
 __all__ = ['ABC']
 
 
 class ABC(object):
 
-    def __init__(self, model, field, pde):
-        self.nbpml = model.nbpml + field.space_order/2
+    def __init__(self, model, field, m, taxis=Forward):
+        self.nbpml = model.nbpml
         self.full_shape = model.shape_domain
         self.p_abc = Dimension(name="abc", size=self.nbpml)
-        self.pde = pde
         self.ndim = len(model.shape)
-        self.dampcoeff = 1.5 * np.log(1.0 / 0.001) / (40.)
+        self.dampcoeff = np.log(1.0 / 0.001) / (40. * h)
         self.field = field
+        self.m = m
         pos = abs((self.nbpml - self.p_abc + 1) / float(self.nbpml))
-        val = self.dampcoeff * (pos - sin(2 * np.pi * pos) / (2 * np.pi))
-        self.eq_abc = Eq(self.field.forward, solve(self.pde + val * self.field.dt, self.field.forward, rational=False)[0])
+        self.val = sqrt(1/self.m)*self.dampcoeff * (pos - sin(2 * np.pi * pos) / (2 * np.pi))
+        self.taxis = taxis
+
+    @property
+    def abc_eq(self):
+        if self.taxis == Forward:
+            return Eq(self.field.forward, self.m / (self.m + s * self.val) * self.field.forward +
+                      s * self.val / (self.m + s * self.val) * self.field.backward)
+        elif self.taxis == Backward:
+            return Eq(self.field.backward, self.m / (self.m + s * self.val) * self.field.backward +
+                      s * self.val / (self.m + s * self.val) * self.field.forward)
+        else:
+            raise InvalidArgument("Unknown arguments passed: " + ", " + self.taxis)
 
     def damp_x(self):
-
-        return [self.eq_abc.subs({x: self.p_abc})] + [self.eq_abc.subs({x: self.full_shape[0] - 1 - self.p_abc})]
+        return [self.abc_eq.subs({x: self.p_abc}), self.abc_eq.subs({x: self.full_shape[0] - 1 - self.p_abc})]
 
     def damp_y(self):
-
-        return [self.eq_abc.subs({y: self.p_abc})] + [self.eq_abc.subs({y: self.full_shape[1] - 1 - self.p_abc})]
+        return [self.abc_eq.subs({y: self.p_abc}), self.abc_eq.subs({y: self.full_shape[0] - 1 - self.p_abc})]
 
     def damp_z(self):
-
-        return [self.eq_abc.subs({z: self.p_abc})] + [self.eq_abc.subs({z: self.full_shape[2] - 1 - self.p_abc})]
+        return [self.abc_eq.subs({z: self.p_abc}), self.abc_eq.subs({z: self.full_shape[0] - 1 - self.p_abc})]
 
     def damp_2d(self):
         return self.damp_x() + self.damp_y()

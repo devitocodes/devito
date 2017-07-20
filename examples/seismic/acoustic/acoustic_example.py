@@ -81,7 +81,7 @@ def run(dimensions=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=1000.0,
 
     solver = setup(dimensions=dimensions, spacing=spacing, nbpml=nbpml, tn=tn,
                    space_order=space_order, time_order=time_order,
-                   dse='noop', dle='noop', **kwargs)
+                   dse='advanced', dle='advanced', **kwargs)
 
     initial_vp = smooth10(solver.model.m.data, solver.model.shape_domain)
     dm = np.float32(initial_vp**2 - solver.model.m.data)
@@ -100,4 +100,4 @@ def run(dimensions=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=1000.0,
 
 
 if __name__ == "__main__":
-    run(full_run=False, autotune=False, space_order=6, time_order=2, dimensions=(30, 30))
+    run(full_run=True, autotune=False, space_order=6, time_order=2, dimensions=(30, 30))

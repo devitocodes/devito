@@ -2,7 +2,7 @@ from sympy import Eq, cos, sin
 from sympy.abc import h, s
 
 from devito import Operator, TimeData
-from examples.seismic import PointSource, Receiver
+from examples.seismic import PointSource, Receiver, ABC
 from devito.finite_difference import centered, first_derivative, right, transpose
 from devito.dimension import x, y, z
 
@@ -21,8 +21,8 @@ def ForwardOperator(model, source, receiver, time_order=2, space_order=4,
     """
     dt = model.critical_dt
 
-    m, damp, epsilon, delta, theta, phi = (model.m, model.damp, model.epsilon,
-                                           model.delta, model.theta, model.phi)
+    m, epsilon, delta, theta, phi = (model.m, model.epsilon,
+                                     model.delta, model.theta, model.phi)
 
     # Create symbols for forward wavefield, source and receivers
     u = TimeData(name='u', shape=model.shape_domain, time_dim=source.nt,
@@ -134,12 +134,15 @@ def ForwardOperator(model, source, receiver, time_order=2, space_order=4,
         Hp = -(.5 * Gxx1 + .5 * Gxx2)
         Hzr = -(.5 * Gzz1 + .5 * Gzz2)
 
-    stencilp = 1.0 / (2.0 * m + s * damp) * \
-        (4.0 * m * u + (s * damp - 2.0 * m) *
-         u.backward + 2.0 * s**2 * (epsilon * Hp + delta * Hzr))
-    stencilr = 1.0 / (2.0 * m + s * damp) * \
-        (4.0 * m * v + (s * damp - 2.0 * m) *
-         v.backward + 2.0 * s**2 * (delta * Hp + Hzr))
+    stencilp = s ** 2 / m * (epsilon * Hp + delta * Hzr) - u + 2 * u.backward
+    stencilr = s ** 2 / m * (delta * Hp + Hzr) - v + 2 * v.backward
+
+    #     1.0 / (2.0 * m + s * damp) * \
+    #     (4.0 * m * u + (s * damp - 2.0 * m) *
+    #      u.backward + 2.0 * s**2 * (epsilon * Hp + delta * Hzr))
+    # stencilr = 1.0 / (2.0 * m + s * damp) * \
+    #     (4.0 * m * v + (s * damp - 2.0 * m) *
+    #      v.backward + 2.0 * s**2 * (delta * Hp + Hzr))
 
     # Add substitutions for spacing (temporal and spatial)
     subs = {s: dt, h: model.get_spacing()}
@@ -155,4 +158,8 @@ def ForwardOperator(model, source, receiver, time_order=2, space_order=4,
     stencils += rec.interpolate(expr=u, u_t=ti, offset=model.nbpml)
     stencils += rec.interpolate(expr=v, u_t=ti, offset=model.nbpml)
 
+    abcv = ABC(model, v, m)
+    abcu = ABC(model, u, m)
+    stencils += abcu.damp_2d() if len(model.shape) == 2 else abcu.damp_3d()
+    stencils += abcv.damp_2d() if len(model.shape) == 2 else abcv.damp_3d()
     return Operator(stencils, subs=subs, name='ForwardTTI', **kwargs)

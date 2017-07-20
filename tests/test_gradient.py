@@ -31,7 +31,8 @@ def test_gradientFWI(dimensions, time_order, space_order):
     :return: assertion that the Taylor properties are satisfied
     """
     wave = setup(dimensions=dimensions, time_order=time_order,
-                 space_order=space_order, nbpml=10+space_order/2)
+                 space_order=space_order, nbpml=40, tn=500.,
+                 dse='noop', dle='noop')
     m0 = smooth10(wave.model.m.data, wave.model.shape_domain)
     dm = np.float32(wave.model.m.data - m0)
 
@@ -97,16 +98,14 @@ def test_gradientJ(dimensions, time_order, space_order):
     :return: assertion that the Taylor properties are satisfied
     """
     wave = setup(dimensions=dimensions, time_order=time_order,
-                 space_order=space_order, tn=1000.,
-                 nbpml=10+space_order/2)
+                 space_order=space_order, tn=750.,
+                 nbpml=100)
     m0 = smooth10(wave.model.m.data, wave.model.shape_domain)
     dm = np.float32(wave.model.m.data - m0)
-    linrec = Receiver(name='rec', ntime=wave.receiver.nt,
-                      coordinates=wave.receiver.coordinates.data)
     # Compute receiver data and full wavefield for the smooth velocity
     rec, u0, _ = wave.forward(m=m0, save=False)
     # Gradient: J dm
-    Jdm, _, _, _ = wave.born(dm, rec=linrec, m=m0)
+    Jdm, _, _, _ = wave.born(dm, m=m0)
     # FWI Gradient test
     H = [0.5, 0.25, .125, 0.0625, 0.0312, 0.015625, 0.0078125]
     error1 = np.zeros(7)
