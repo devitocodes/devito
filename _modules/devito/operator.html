@@ -556,10 +556,6 @@
         <span class="n">nodes</span> <span class="o">=</span> <span class="n">NestedTransformer</span><span class="p">(</span><span class="n">mapper</span><span class="p">)</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">nodes</span><span class="p">)</span>
         <span class="n">elemental_functions</span> <span class="o">=</span> <span class="n">Transformer</span><span class="p">(</span><span class="n">mapper</span><span class="p">)</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">elemental_functions</span><span class="p">)</span>
 
-        <span class="c1"># TODO</span>
-        <span class="c1"># Use x_block_size+2, y_block_size+2 instead of x_size, y_size as shape of</span>
-        <span class="c1"># the tensor functions</span>
-
         <span class="c1"># Introduce declarations on the heap (if any)</span>
         <span class="k">if</span> <span class="n">allocator</span><span class="o">.</span><span class="n">onheap</span><span class="p">:</span>
             <span class="n">decls</span><span class="p">,</span> <span class="n">allocs</span><span class="p">,</span> <span class="n">frees</span> <span class="o">=</span> <span class="nb">zip</span><span class="p">(</span><span class="o">*</span><span class="n">allocator</span><span class="o">.</span><span class="n">onheap</span><span class="p">)</span>
