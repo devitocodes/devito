@@ -1,7 +1,5 @@
 from __future__ import absolute_import
 
-import os
-
 from sympy import Indexed
 
 from devito.dimension import LoweredDimension
@@ -10,7 +8,6 @@ from devito.logger import debug, info, warning
 from devito.operator import OperatorRunnable
 
 from devito.yask.kernel import YASK, namespace, yask_jit, _force_exit
-from devito.yask.interfaces import YaskGrid
 
 __all__ = ['Operator']
 
@@ -90,7 +87,7 @@ class Operator(OperatorRunnable):
             ds = dim_sizes[dm]
             # Set domain size in each dim.
             self.ksoln.set_rank_domain_size(dm, ds)
-            #TODO ksoln.set_block_size(dm, min(64 if dm == "z" else 32, ds))
+            # TODO ksoln.set_block_size(dm, min(64 if dm == "z" else 32, ds))
 
         # Share the grids from the hook solution
         for kgrid in self.ksoln.get_grids():
