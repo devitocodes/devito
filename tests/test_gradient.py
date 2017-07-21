@@ -99,7 +99,7 @@ def test_gradientJ(dimensions, time_order, space_order):
     """
     wave = setup(dimensions=dimensions, time_order=time_order,
                  space_order=space_order, tn=750.,
-                 nbpml=100)
+                 nbpml=20)
     m0 = smooth10(wave.model.m.data, wave.model.shape_domain)
     dm = np.float32(wave.model.m.data - m0)
     # Compute receiver data and full wavefield for the smooth velocity

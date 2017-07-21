@@ -11,7 +11,7 @@ def test_acousticJ(dimensions, space_order):
     solver = setup(dimensions=dimensions,
                    space_order=space_order,
                    nbpml=10+space_order/2,
-                   dse='noop', dle='noop')
+                   dle='noop')
     initial_vp = np.ones(solver.model.shape_domain) + .5
     m0 = np.float32(initial_vp**-2)
     dm = np.float32(solver.model.m.data - m0)

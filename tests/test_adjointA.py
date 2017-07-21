@@ -13,7 +13,7 @@ from examples.seismic import PointSource
 @pytest.mark.parametrize('fix_dim', [True, False])
 def test_acoustic(dimensions, time_order, space_order, fix_dim):
     solver = setup(dimensions=dimensions, time_order=time_order,
-                   space_order=space_order, nbpml=10+space_order/2)
+                   space_order=space_order, nbpml=30)
     srca = PointSource(name='srca', ntime=solver.source.nt,
                        coordinates=solver.source.coordinates.data)
 
@@ -30,3 +30,7 @@ def test_acoustic(dimensions, time_order, space_order, fix_dim):
     term2 = linalg.norm(rec.data) ** 2
     print(term1, term2, ("%12.12f") % (term1 - term2), term1 / term2)
     assert np.isclose(term1 / term2, 1.0, atol=0.001)
+
+
+if __name__ == "__main__":
+    test_acoustic(dimensions=(60, 70), space_order=4, time_order=2, fix_dim=False)

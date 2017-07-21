@@ -1,19 +1,28 @@
-from sympy import Eq, solve, diff
+from sympy import Eq, diff
 from sympy.abc import h, s
 
 from devito import Operator, Forward, Backward, DenseData, TimeData, time
 from examples.seismic import PointSource, Receiver, ABC
 
 
-def pde(field, m, time_order, model):
+def pde(field, m, time_order, model, q=0, taxis=Forward):
     if time_order == 2:
         biharmonic = 0
         dt = model.critical_dt
     else:
         biharmonic = field.laplace2(1/m)
         dt = 1.73 * model.critical_dt
-    eq = m * field.dt2 - field.laplace - s**2/12 * biharmonic
-    return eq, dt
+    eq = m * field.dt2 - field.laplace - s**2/12 * biharmonic + q
+
+    if taxis == Forward:
+        stencil = [Eq(field.forward,
+                      s**2 / m * (field.laplace + s**2/12 * biharmonic + q) +
+                      2 * field - field.backward)]
+    else:
+        stencil = [Eq(field.backward,
+                      s**2 / m * (field.laplace + s**2/12 * biharmonic + q) +
+                      2 * field - field.forward)]
+    return eq, stencil, dt
 
 
 def ForwardOperator(model, source, receiver, time_order=2, space_order=4,
@@ -40,8 +49,7 @@ def ForwardOperator(model, source, receiver, time_order=2, space_order=4,
                    npoint=receiver.npoint)
 
     # Derive stencil from symbolic equation:
-    eqn, dt = pde(u, m, time_order, model)
-    stencil = [Eq(u.forward, solve(eqn, u.forward, rational=False)[0])]
+    _, stencil, dt = pde(u, m, time_order, model)
     # Construct expression to inject source values
     # Note that src and field terms have differing time indices:
     #   src[time, ...] - always accesses the "unrolled" time index
@@ -81,8 +89,7 @@ def AdjointOperator(model, source, receiver, time_order=2, space_order=4, **kwar
     rec = Receiver(name='rec', ntime=receiver.nt, ndim=receiver.ndim,
                    npoint=receiver.npoint)
 
-    eqn, dt = pde(v, m, time_order, model)
-    stencil = [Eq(v.backward, solve(eqn, v.backward, rational=False)[0])]
+    _, stencil, dt = pde(v, m, time_order, model, taxis=Backward)
 
     # Construct expression to inject receiver values
     ti = v.indices[0]
@@ -124,9 +131,8 @@ def GradientOperator(model, source, receiver, time_order=2, space_order=4, **kwa
     rec = Receiver(name='rec', ntime=receiver.nt, ndim=receiver.ndim,
                    npoint=receiver.npoint)
 
-    eqn, dt = pde(v, m, time_order, model)
-    eqnu, _ = pde(u, m, time_order, model)
-    stencil = [Eq(v.backward, solve(eqn, v.backward, rational=False)[0])]
+    eqn, stencil, dt = pde(v, m, time_order, model, taxis=Backward)
+    eqnu, _, _ = pde(u, m, time_order, model)
     gradient_update = Eq(grad, grad - diff(eqnu, m) * v)
 
     # Add expression for receiver injection
@@ -171,10 +177,8 @@ def BornOperator(model, source, receiver, time_order=2, space_order=4, **kwargs)
                    dtype=model.dtype)
 
     # Derive stencil from symbolic equation:
-    eqnu, dt = pde(u, m, time_order, model)
-    stencilu = [Eq(u.forward, solve(eqnu, u.forward, rational=False)[0])]
-    eqnU, dt = pde(U, m, time_order, model)
-    stencilU = [Eq(U.forward, solve(eqnU + dm * diff(eqnu, m), U.forward, rational=False)[0])]
+    eqnu, stencilu, dt = pde(u, m, time_order, model)
+    eqnU, stencilU, _ = pde(U, m, time_order, model, q=- dm * diff(eqnu, m))
 
     # Add source term expression for u
     ti = u.indices[0]
