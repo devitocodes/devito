@@ -311,6 +311,7 @@ class Operator(Function):
 
         processed = []
         schedule = OrderedDict()
+        atomics = ()
         for i in clusters:
             # Build the Expression objects to be inserted within an Iteration tree
             expressions = [Expression(v, np.int32 if i.trace.is_index(k) else self.dtype)
@@ -323,7 +324,7 @@ class Operator(Function):
                 # Can I reuse any of the previously scheduled Iterations ?
                 index = 0
                 for j0, j1 in zip(entries, list(schedule)):
-                    if j0 != j1:
+                    if j0 != j1 or j0.dim in atomics:
                         break
                     root = schedule[j1]
                     index += 1
@@ -348,6 +349,9 @@ class Operator(Function):
             else:
                 # No Iterations are needed
                 processed.extend(expressions)
+
+            # Track dimensions that cannot be fused at next stage
+            atomics = i.atomics
 
         return List(body=processed)
 

@@ -5,8 +5,9 @@ from devito.dse.manipulation import xreplace_indices
 
 from devito.interfaces import ScalarFunction
 from devito.stencil import Stencil
+from devito.tools import as_tuple
 
-__all__ = ['clusterize']
+__all__ = ['clusterize', 'optimize']
 
 
 class Cluster(object):
@@ -17,11 +18,18 @@ class Cluster(object):
 
     A Cluster is associated with a stencil, which tracks what neighboring points
     are required, along each dimension, to compute an entry in the tensor.
+
+    The parameter ``atomics`` allows to specify dimensions (a subset of those
+    appearing in ``stencil``) along which a Cluster cannot be fused with
+    other clusters. This is for example useful when a Cluster is evaluating
+    a tensor temporary, whose values must all be updated before being accessed
+    in the subsequent clusters.
     """
 
-    def __init__(self, exprs, stencil):
+    def __init__(self, exprs, stencil, atomics):
         self.trace = temporaries_graph(exprs)
         self.stencil = stencil
+        self.atomics = as_tuple(atomics)
 
     @property
     def exprs(self):
@@ -48,7 +56,7 @@ class Cluster(object):
         Build a new cluster with expressions ``exprs`` having same stencil
         as ``self``.
         """
-        return Cluster(exprs, self.stencil)
+        return Cluster(exprs, self.stencil, self.atomics)
 
     def reschedule(self, exprs):
         """
@@ -58,7 +66,7 @@ class Cluster(object):
         """
         g = temporaries_graph(exprs)
         exprs = g.reschedule(self.exprs)
-        return Cluster(exprs, self.stencil)
+        return Cluster(exprs, self.stencil, self.atomics)
 
 
 def merge(clusters):
@@ -69,10 +77,10 @@ def merge(clusters):
     """
     mapper = OrderedDict()
     for c in clusters:
-        mapper.setdefault(c.stencil.entries, []).append(c)
+        mapper.setdefault((c.stencil.entries, c.atomics), []).append(c)
 
     processed = []
-    for entries, clusters in mapper.items():
+    for (entries, atomics), clusters in mapper.items():
         # Eliminate redundant temporaries
         temporaries = OrderedDict()
         for c in clusters:
@@ -80,7 +88,7 @@ def merge(clusters):
                 if k not in temporaries:
                     temporaries[k] = v
         # Squash the clusters together
-        processed.append(Cluster(temporaries.values(), Stencil(entries)))
+        processed.append(Cluster(temporaries.values(), Stencil(entries), atomics))
 
     return processed
 
@@ -163,9 +171,12 @@ def aggregate(exprs, stencils):
     return exprs, stencils
 
 
-def clusterize(exprs, stencils):
-    """Derive :class:`Cluster`s from an iterator of expressions; a stencil for
-    each expression must be provided."""
+def clusterize(exprs, stencils, atomics=None):
+    """
+    Derive :class:`Cluster`s from an iterator of expressions; a stencil for
+    each expression must be provided. A list of atomic dimensions (see description
+    in Cluster.__doc__) may be provided.
+    """
     assert len(exprs) == len(stencils)
 
     exprs, stencils = aggregate(exprs, stencils)
@@ -204,6 +215,6 @@ def clusterize(exprs, stencils):
         exprs = [i for i in info.trace if i.lhs.is_Symbol or i.lhs == target]
 
         # Create and track the cluster
-        clusters.append(Cluster(exprs, info.stencil.frozen))
+        clusters.append(Cluster(exprs, info.stencil.frozen, atomics))
 
     return merge(clusters)
