@@ -32,6 +32,10 @@ class Operator(OperatorRunnable):
         # Set up the YASK solution
         self.soln = YASK.cfac.new_solution(namespace['kernel-real'])
 
+        # Silence YASK
+        self.yask_compiler_output = YASK.ofac.new_string_output()
+        self.soln.set_debug_output(self.yask_compiler_output)
+
         trees = retrieve_iteration_tree(nodes)
         if len(trees) > 1:
             _force_exit("Currently unable to handle Operators w/ more than 1 loop nests")
@@ -67,6 +71,11 @@ class Operator(OperatorRunnable):
         kfac = yk.yk_factory()
         env = kfac.new_env()
         self.ksoln = kfac.new_solution(env)
+
+        # Silence YASK
+        self.yask_kernel_output = yk.yask_output_factory().new_string_output()
+        self.ksoln.set_debug_output(self.yask_kernel_output)
+
         self.ksoln.set_num_ranks(self.ksoln.get_domain_dim_name(0), env.get_num_ranks())
 
         # Track this Operator
@@ -80,14 +89,9 @@ class Operator(OperatorRunnable):
         # Build the arguments list to invoke the kernel function
         arguments, dim_sizes = self.arguments(*args, **kwargs)
 
-        # Build a YASK kernel solution
-        # TODO: Some fixes/tweaks required here: look at the hook_soln
-        # construction in kernel.py
+        # Set the domain sizes
         for dm in self.ksoln.get_domain_dim_names():
-            ds = dim_sizes[dm]
-            # Set domain size in each dim.
-            self.ksoln.set_rank_domain_size(dm, ds)
-            # TODO ksoln.set_block_size(dm, min(64 if dm == "z" else 32, ds))
+            self.ksoln.set_rank_domain_size(dm, dim_sizes[dm])
 
         # Share the grids from the hook solution
         for kgrid in self.ksoln.get_grids():
@@ -109,7 +113,8 @@ class Operator(OperatorRunnable):
 
         debug("Running Operator through YASK...")
         self.ksoln.prepare_solution()
-        self.ksoln.run_solution(0)
+        # TODO: getting number of timesteps in a hacky way
+        self.ksoln.run_solution(arguments["%s_size" % YASK.time_dimension])
 
 
 class sympy2yask(object):

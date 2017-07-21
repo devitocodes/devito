@@ -149,8 +149,12 @@ def init(dimensions, shape, dtype):
 
     # Create a new stencil solution
     soln = cfac.new_solution(namespace['kernel-hook'])
-    soln.set_step_dim_name(namespace['time-dim'])
 
+    # Silence YASK
+    soln.set_debug_output(ofac.new_string_output())
+
+    # Setup hook solution builder
+    soln.set_step_dim_name(namespace['time-dim'])
     dimensions = [str(i) for i in dimensions]
     if set(dimensions) < {'x', 'y', 'z'}:
         _force_exit("Need a DenseData[x,y,z] for initialization")
@@ -171,6 +175,11 @@ def init(dimensions, shape, dtype):
 
     # Create hook solution
     hook_soln = kfac.new_solution(env)
+
+    # Silence YASK
+    hook_soln.set_debug_output(yk.yask_output_factory().new_string_output())
+
+    # Setup hook solution
     dim_sizes = OrderedDict(zip(dimensions, shape))
     for dm in hook_soln.get_domain_dim_names():
         ds = dim_sizes[dm]
@@ -201,12 +210,6 @@ def yask_jit(soln, base):
     # It's necessary to `clean` the YASK kernel directory *before*
     # writing out the first `yask_stencil_code.hpp`
     make(path, ['-C', namespace['kernel-path'], 'clean'])
-    # TODO: this is a bug of the current YASK make clean... it will be dropped
-    import subprocess
-    loc = os.path.join(namespace['kernel-path'], 'swig')
-    subprocess.check_call(['rm', '-f', os.path.join(loc, 'yask_kernel_api_wrap.cpp')])
-    subprocess.check_call(['rm', '-f', os.path.join(loc, 'yask_kernel_api_wrap.o')])
-    subprocess.check_call(['rm', '-f', os.path.join(loc, 'yask_kernel_api_wrap.optrpt')])
 
     # Write out the stencil file
     if not os.path.exists(namespace['kernel-path-gen']):
