@@ -79,6 +79,41 @@ class Operator(OperatorRunnable):
 
         return nodes, elemental_functions
 
+    def apply(self, *args, **kwargs):
+        # Build the arguments list to invoke the kernel function
+        arguments, dim_sizes = self.arguments(*args, **kwargs)
+
+        # Build a YASK kernel solution
+        # TODO: Some fixes/tweaks required here: look at the hook_soln
+        # construction in kernel.py
+        for dm in self.ksoln.get_domain_dim_names():
+            ds = dim_sizes[dm]
+            # Set domain size in each dim.
+            self.ksoln.set_rank_domain_size(dm, ds)
+            #TODO ksoln.set_block_size(dm, min(64 if dm == "z" else 32, ds))
+
+        # Share the grids from the hook solution
+        for kgrid in self.ksoln.get_grids():
+            name = kgrid.get_name()
+            try:
+                hook_grid = YASK.grids[name]
+            except KeyError:
+                _force_exit("Unknown grid %s" % name)
+            kgrid.share_storage(hook_grid)
+            debug("Shared storage from grid <%s>" % hook_grid.get_name())
+
+        # Print some info about the solution.
+        debug("YASK Stencil-solution '" + self.ksoln.get_name() + "':")
+        debug("  Step dimension: " + repr(self.ksoln.get_step_dim_name()))
+        debug("  Domain dimensions: " + repr(self.ksoln.get_domain_dim_names()))
+        debug("  Grids:")
+        for grid in self.ksoln.get_grids():
+            debug("    " + grid.get_name() + repr(grid.get_dim_names()))
+
+        debug("Running Operator through YASK...")
+        self.ksoln.prepare_solution()
+        self.ksoln.run_solution(0)
+
 
 class sympy2yask(object):
     """
