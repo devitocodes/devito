@@ -6,10 +6,11 @@ from sympy import Indexed
 
 from devito.dimension import LoweredDimension
 from devito.dle import retrieve_iteration_tree
-from devito.logger import dle, dle_warning
+from devito.logger import debug, info, warning
 from devito.operator import OperatorRunnable
 
-from devito.yask.kernel import YASK
+from devito.yask.kernel import YASK, namespace, yask_jit, _force_exit
+from devito.yask.interfaces import YaskGrid
 
 __all__ = ['Operator']
 
@@ -21,7 +22,7 @@ class Operator(OperatorRunnable):
     """
 
     def __init__(self, expressions, **kwargs):
-        kwargs['dle'] = 'basic'
+        kwargs['dle'] = 'noop'
         super(Operator, self).__init__(expressions, **kwargs)
 
     def _specialize(self, nodes, elemental_functions):
@@ -29,45 +30,50 @@ class Operator(OperatorRunnable):
         Create a YASK representation of this Iteration/Expression tree.
         """
 
-        dle_warning("Be patient! The YASK backend is still a WIP")
-        dle_warning("This is the YASK AST that the Devito DLE can build")
+        warning("Converting a Devito AST into a YASK AST")
 
-        for node in nodes + elemental_functions:
-            for tree in retrieve_iteration_tree(node):
-                candidate = tree[-1]
+        # Set up the YASK solution
+        self.soln = YASK.cfac.new_solution(namespace['kernel-real'])
 
-                # Set up the YASK solution
-                soln = YASK.cfac.new_solution("devito-test-solution")
+        trees = retrieve_iteration_tree(nodes)
+        if len(trees) > 1:
+            _force_exit("Currently unable to handle Operators w/ more than 1 loop nests")
 
-                # Perform the translation on an expression basis
-                transform = sympy2yask(soln)
-                expressions = [e for e in candidate.nodes if e.is_Expression]
-                try:
-                    for i in expressions:
-                        transform(i.expr)
-                        dle("Converted %s into YASK format", str(i.expr))
-                except:
-                    dle_warning("Cannot convert %s into YASK format", str(i.expr))
-                    continue
+        tree = trees[0]
+        candidate = tree[-1]
 
-                # Print some useful information to screen about the YASK conversion
-                dle("Solution '" + soln.get_name() + "' contains " +
-                    str(soln.get_num_grids()) + " grid(s), and " +
-                    str(soln.get_num_equations()) + " equation(s).")
+        # Perform the translation on an expression basis
+        transform = sympy2yask(self.soln)
+        expressions = [e for e in candidate.nodes if e.is_Expression]
+        try:
+            for i in expressions:
+                ast = transform(i.expr)
+                info("Converted %s into YASK ast [%s]", str(i.expr), ast.format_simple())
+        except:
+            _force_exit("Couldn't convert %s into YASK format" % str(i.expr))
 
-                # Provide stuff to YASK-land
-                # ==========================
-                # Scalar: print(ast.format_simple())
-                # AVX2 intrinsics: print soln.format('avx2')
-                # AVX2 intrinsics to file (active now)
-                soln.write(os.path.join(YASK.path, 'yask_stencil_code.hpp'), 'avx2', True)
+        # Print some useful information about the newly constructed Yask solution
+        info("Solution '" + self.soln.get_name() + "' contains " +
+             str(self.soln.get_num_grids()) + " grid(s), and " +
+             str(self.soln.get_num_equations()) + " equation(s).")
 
-                # Set necessary run-time parameters
-                soln.set_step_dim_name(YASK.time_dimension)
-                soln.set_domain_dim_names(YASK.space_dimensions)
-                soln.set_element_bytes(4)
+        # Set necessary run-time parameters
+        self.soln.set_step_dim_name(YASK.time_dimension)
+        self.soln.set_domain_dim_names(YASK.space_dimensions)
+        self.soln.set_element_bytes(4)
 
-        dle_warning("Falling back to basic DLE optimizations...")
+        # JIT YASK kernel
+        name = 'kernel%d' % YASK.nkernels
+        yk = yask_jit(self.soln, name)
+
+        # Build an empty kernel solution
+        kfac = yk.yk_factory()
+        env = kfac.new_env()
+        self.ksoln = kfac.new_solution(env)
+        self.ksoln.set_num_ranks(self.ksoln.get_domain_dim_name(0), env.get_num_ranks())
+
+        # Track this Operator
+        YASK.add_kernel(name, self)
 
         # TODO: need to update nodes and elemental_functions
 
@@ -103,11 +109,12 @@ class sympy2yask(object):
                 name = function.name
                 if name not in YASK.grids:
                     function.data  # Create uninitialized grid (i.e., 0.0 everywhere)
-                dimensions = YASK.grids[name].get_dim_names()
-                grid = self.mapper.setdefault(name, self.soln.new_grid(name, dimensions))
+                if name not in self.mapper:
+                    dimensions = YASK.grids[name].get_dim_names()
+                    self.mapper[name] = self.soln.new_grid(name, dimensions)
                 indices = [int((i.origin if isinstance(i, LoweredDimension) else i) - j)
                            for i, j in zip(expr.indices, function.indices)]
-                return grid.new_relative_grid_point(*indices)
+                return self.mapper[name].new_relative_grid_point(*indices)
             elif expr.is_Add:
                 return nary2binary(expr.args, YASK.nfac.new_add_node)
             elif expr.is_Mul:
@@ -123,7 +130,7 @@ class sympy2yask(object):
                 else:
                     return YASK.nfac.new_equation_node(*[run(i) for i in expr.args])
             else:
-                dle_warning("Missing handler in Devito-YASK translation")
+                warning("Missing handler in Devito-YASK translation")
                 raise NotImplementedError
 
         return run(expr)

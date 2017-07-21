@@ -62,7 +62,7 @@ class YaskGrid(object):
         self.dimensions = dimensions
         self.dtype = dtype
 
-        self.grid = YASK.setdefault(name, dimensions)
+        self.grid = YASK.add_grid(name, dimensions)
 
         # Always init the grid, at least with 0.0
         self[:] = 0.0 if buffer is None else buffer
