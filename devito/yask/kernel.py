@@ -146,7 +146,47 @@ def init(dimensions, shape, dtype, architecture='hsw', isa='avx2'):
     # Finish off YASK initialization
     YASK.__finalize__(env, shape, dtype, hook_soln)
 
-    dle("YASK backend successfully initialized!")
+    info("YASK backend successfully initialized!")
+
+
+def yask_jit(soln, base):
+    """
+    Write out YASK kernel and create a shared object using YASK's Makefile.
+
+    Import and return the SWIG-created Python module using the shared object.
+    """
+    assert isinstance(soln, yc.yc_solution)
+
+    # It's necessary to `clean` the YASK kernel directory *before*
+    # writing out the first `yask_stencil_code.hpp`
+    make(path, ['-C', namespace['kernel-path'], 'clean'])
+    # TODO: this is a bug of the current YASK make clean... it will be dropped
+    import subprocess
+    loc = os.path.join(namespace['kernel-path'], 'swig')
+    subprocess.check_call(['rm', '-f', os.path.join(loc, 'yask_kernel_api_wrap.cpp')])
+    subprocess.check_call(['rm', '-f', os.path.join(loc, 'yask_kernel_api_wrap.o')])
+    subprocess.check_call(['rm', '-f', os.path.join(loc, 'yask_kernel_api_wrap.optrpt')])
+
+    # Write out the stencil file
+    if not os.path.exists(namespace['kernel-path-gen']):
+        os.makedirs(namespace['kernel-path-gen'])
+    soln.format(isa, YASK.ofac.new_file_output(namespace['kernel-output']))
+
+    # JIT-compile it
+    try:
+        make(os.environ['YASK_HOME'], ['-j', 'YK_CXXOPT=-O0',
+                                       "EXTRA_MACROS=TRACE",
+                                       'YK_BASE=%s' % str(base),
+                                       'stencil=%s' % soln.get_name(),
+                                       '-C', namespace['kernel-path'], 'api'])
+    except CompilationError:
+        _force_exit("Hook solution compilation")
+
+    # Import the corresponding Python (SWIG-generated) module
+    try:
+        return importlib.import_module(base)
+    except ImportError:
+        _force_exit("Python YASK kernel bindings")
 
 
 def _force_exit(emsg):
