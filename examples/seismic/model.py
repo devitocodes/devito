@@ -1,9 +1,42 @@
 import numpy as np
 
 from devito import DenseData, ConstantData
+from devito.logger import error
 
 
-__all__ = ['Model']
+__all__ = ['Model', 'demo_model']
+
+
+def demo_model(preset, **kwargs):
+    """
+    Utility function to create preset :class:`Model` objects for
+    demonstration and testing purposes. The particular presets are ::
+
+    * 'layer2D': Simple two-layer model with velocities 1.5 km/s
+                 and 2.5 km/s in the top and bottom layer respectively.
+    * 'marmousi2D': Loads the 2D Marmousi data set from the given
+                    filepath. Requires the ``opesci/data`` repository
+                    to be available on your machine.
+    """
+    if preset.lower() == 'layer2d':
+        # 2D two-layer model with domain shape (101, 101),
+        # grid spacing of 10m and the origin at (1., 0.).
+        # The physical extent with defaults will be 1km x 1km.
+
+        shape = kwargs.get('shape', (101, 101))
+        spacing = kwargs.get('spacing', (10., 10.))
+        origin = kwargs.get('origin', (0., 0.))
+        nbpml = kwargs.get('nbpml', 20)
+
+        # Define a velocity profile in km/s
+        v = np.empty(shape, dtype=np.float32)
+        v[:, :51] = 1.5
+        v[:, 51:] = 2.5
+
+        return Model(vp=v, origin=origin, shape=shape,
+                     spacing=spacing, nbpml=nbpml)
+    else:
+        error('Unknown model preset name %s' % preset)
 
 
 def damp_boundary(damp, nbpml, spacing):
