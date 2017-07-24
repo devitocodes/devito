@@ -13,7 +13,8 @@ from examples.seismic import PointSource
 @pytest.mark.parametrize('fix_dim', [True, False])
 def test_acoustic(dimensions, time_order, space_order, fix_dim):
     solver = setup(dimensions=dimensions, time_order=time_order,
-                   space_order=space_order, nbpml=30)
+                   space_order=space_order, nbpml=30, dse='noop',
+                   tn=750.)
     srca = PointSource(name='srca', ntime=solver.source.nt,
                        coordinates=solver.source.coordinates.data)
 
@@ -23,7 +24,6 @@ def test_acoustic(dimensions, time_order, space_order, fix_dim):
         time.size = None
     # Run forward and adjoint operators
     rec, _, _ = solver.forward(save=False)
-    solver.adjoint(rec=rec, srca=srca)
 
     # Actual adjoint test
     term1 = np.dot(srca.data.reshape(-1), solver.source.data)

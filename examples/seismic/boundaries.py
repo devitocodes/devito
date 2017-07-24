@@ -1,9 +1,9 @@
-from devito import Dimension, x, y, z, Forward, Backward
+from devito import Dimension, x, y, z, t, Forward, Backward
 from devito.exceptions import InvalidArgument
 
 import numpy as np
 from sympy import Eq, sin, sqrt
-from sympy.abc import s, h
+from sympy.abc import h
 
 __all__ = ['ABC']
 
@@ -32,6 +32,7 @@ class ABC(object):
 
     @property
     def abc_eq(self):
+        s = t.spacing
         if self.taxis == Forward:
             return Eq(self.field.forward,
                       self.m / (self.m + s * self.val) * self.field.forward +
@@ -44,16 +45,19 @@ class ABC(object):
             raise InvalidArgument("Unknown arguments passed: " + ", " + self.taxis)
 
     def damp_x(self):
-        return [self.abc_eq.subs({x: self.p_abc}),
-                self.abc_eq.subs({x: self.full_shape[0] - 1 - self.p_abc})]
+        return [self.abc_eq.subs({x: self.p_abc, h: x.spacing}),
+                self.abc_eq.subs({x: self.full_shape[0] - 1 - self.p_abc,
+                                  h: x.spacing})]
 
     def damp_y(self):
-        return [self.abc_eq.subs({y: self.p_abc}),
-                self.abc_eq.subs({y: self.full_shape[0] - 1 - self.p_abc})]
+        return [self.abc_eq.subs({y: self.p_abc, h: y.spacing}),
+                self.abc_eq.subs({y: self.full_shape[0] - 1 - self.p_abc,
+                                  h: y.spacing})]
 
     def damp_z(self):
-        return [self.abc_eq.subs({z: self.p_abc}),
-                self.abc_eq.subs({z: self.full_shape[0] - 1 - self.p_abc})]
+        return [self.abc_eq.subs({z: self.p_abc, h: z.spacing}),
+                self.abc_eq.subs({z: self.full_shape[0] - 1 - self.p_abc,
+                                  h: z.spacing})]
 
     def damp_2d(self):
         return self.damp_x() + self.damp_y()
