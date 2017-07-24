@@ -70,4 +70,5 @@ script:
   - python examples/seismic/acoustic/acoustic_example.py
   - py.test -vs examples/seismic/tutorials
   - py.test -vs examples/cfd
+  - sphinx-apidoc -f -o docs/ devito devito/yask/*
   - if [[ $DEVITO_ARCH == 'gcc-5' ]]; then ./docs/deploy.sh; fi
