@@ -8,3 +8,5 @@ _site
 docs/_build
 
 .ipynb_checkpoints
+
+devito.egg-info/*
