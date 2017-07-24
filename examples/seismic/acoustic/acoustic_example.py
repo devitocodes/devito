@@ -80,8 +80,7 @@ def run(dimensions=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=1000.0,
         time_order=2, space_order=4, nbpml=40, full_run=False, **kwargs):
 
     solver = setup(dimensions=dimensions, spacing=spacing, nbpml=nbpml, tn=tn,
-                   space_order=space_order, time_order=time_order,
-                   dse='noop', **kwargs)
+                   space_order=space_order, time_order=time_order, **kwargs)
 
     initial_vp = smooth10(solver.model.m.data, solver.model.shape_domain)
     dm = np.float32(initial_vp**2 - solver.model.m.data)

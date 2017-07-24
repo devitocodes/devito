@@ -124,7 +124,7 @@ def GradientOperator(model, source, receiver, time_order=2, space_order=4, **kwa
     :param time_order: Time discretization order
     :param space_order: Space discretization order
     """
-    m, damp = model.m, model.damp
+    m = model.m
 
     # Gradient symbol and wavefield symbols
     grad = DenseData(name='grad', shape=model.shape_domain,
