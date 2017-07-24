@@ -378,6 +378,11 @@ class TestDeclarator(object):
 class TestLoopScheduler(object):
 
     def test_consistency_coupled_wo_ofs(self, tu, tv, ti0, t0, t1):
+        """
+        Test that no matter what is the order in which the equations are
+        provided to an Operator, the resulting loop nest is the same.
+        None of the array accesses in the equations use offsets.
+        """
         eq1 = Eq(tu, tv*ti0*t0 + ti0*t1)
         eq2 = Eq(ti0, tu + t0*3.)
         eq3 = Eq(tv, ti0*tu)
@@ -407,6 +412,13 @@ class TestLoopScheduler(object):
          'Eq(ti3[x,y,z], ti3[x+5,y,z-1] - ti0[x+3,y-2,z+4])')
     ])
     def test_consistency_coupled_w_ofs(self, exprs, ti0, ti1, ti3):
+        """
+        Test that no matter what is the order in which the equations are
+        provided to an Operator, the resulting loop nest is the same.
+        The array accesses in the equations may or may not use offsets;
+        these impact the loop bounds, but not the resulting tree
+        structure.
+        """
         eq1, eq2, eq3 = EVAL(exprs, ti0.base, ti1.base, ti3.base)
         op1 = Operator([eq1, eq2, eq3], dse='noop', dle='noop')
         op2 = Operator([eq2, eq1, eq3], dse='noop', dle='noop')
@@ -422,6 +434,11 @@ class TestLoopScheduler(object):
         assert all(set([j.expr for j in i[-1].nodes]) == pivot for i in trees)
 
     def test_expressions_imperfect_loops(self, ti0, ti1, ti2, t0):
+        """
+        Test that equations depending only on a subset of all indices
+        appearing across all equations are placed within earlier loops
+        in the loop nest tree.
+        """
         eq1 = Eq(ti2, t0*3.)
         eq2 = Eq(ti0, ti1 + 4. + ti2*5.)
         op = Operator([eq1, eq2], dse='noop', dle='noop')
