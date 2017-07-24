@@ -240,7 +240,7 @@ class TemporariesGraph(OrderedDict):
                 if i in self:
                     # Go on with the search
                     temporaries.append(i)
-                else:
+                elif not i.base.function.is_SymbolicData:
                     # It didn't come from the outside and it's not in self, so
                     # cannot determine if time-invariant; assume time-varying
                     return False

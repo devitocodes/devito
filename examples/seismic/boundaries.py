@@ -1,4 +1,4 @@
-from devito import Dimension, x, y, z, t, Forward, Backward
+from devito import Dimension, x, y, z, t, Forward, Backward, TimeData
 from devito.exceptions import InvalidArgument
 
 import numpy as np
@@ -65,13 +65,3 @@ class ABC(object):
     def damp_3d(self):
         return self.damp_x() + self.damp_y() + self.damp_z()
 
-
-class PML(object):
-    """
-    To be implemented, broad choice of formulations to choose from.
-    """
-    def __init__(self, model, field, m, taxis=Forward):
-        self.nbpml = model.nbpml
-        self.full_shape = model.shape_domain
-        self.p_pml = Dimension(name="abc", size=self.nbpml)
-        self.ndim = len(model.shape)
