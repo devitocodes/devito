@@ -19,8 +19,8 @@ class FrozenExpr(Expr):
     such as xreplace, collect, expand, ... have no effect, thus building a
     new expression identical to self.
 
-    Notes
-    =====
+    :Notes:
+
     At the moment, only xreplace is overridded (to prevent unpicking factorizations)
     """
 

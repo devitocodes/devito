@@ -23,18 +23,21 @@ def rewrite(clusters, mode='advanced'):
     of SymPy expressions with reduced operation count, with M >= N.
 
     :param clusters: The clusters to be transformed.
-    :param mode: drive the expression transformation as follows: ::
+    :param mode: drive the expression transformation
+
+    The ``mode`` parameter recognises the following values: ::
 
          * 'noop': Do nothing.
          * 'basic': Apply common sub-expressions elimination.
          * 'advanced': Compose all transformations that will reduce the
                        operation count w/o increasing the memory pressure,
-                       namely: 'basic', factorization, CSRE for time-invariants only.
+                       namely 'basic', factorization, CSRE for time-invariants only.
          * 'speculative': Like 'advanced', but apply CSRE also to time-varying
                           sub-expressions, which might increase the memory pressure.
          * 'aggressive': Like 'speculative', but apply CSRE to any non-trivial
                          sub-expression (i.e., anything that is at least in a
                          sum-of-products form).
+
     """
     # Check input parameters
     if not (mode is None or isinstance(mode, str)):

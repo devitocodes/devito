@@ -54,8 +54,8 @@ def q_indirect(expr):
     """
     Return True if ``indexed`` has indirect accesses, False otherwise.
 
-    Examples
-    ========
+    :Examples:
+
     a[i] --> False
     a[b[i]] --> True
     """
