@@ -54,7 +54,7 @@ class Model(object):
     """
     def __init__(self, origin, spacing, shape, vp, nbpml=0, dtype=np.float32,
                  epsilon=None, delta=None, theta=None, phi=None):
-        self.vp = vp
+        self._vp = vp
         self.origin = origin
         self.spacing = spacing
         self.nbpml = nbpml
@@ -141,12 +141,25 @@ class Model(object):
         coeff = 0.38 if len(self.shape) == 3 else 0.42
         return coeff * np.min(self.spacing) / (self.scale*np.max(self.vp))
 
-    def set_vp(self, vp):
+    @property
+    def vp(self):
+        """:class:`numpy.ndarray` holding the model velocity in km/s.
+
+        .. note::
+
+        Updating the velocity field also updates the square slowness
+        ``self.m``. However, only ``self.m`` should be used in seismic
+        operators, since it is of type :class:`DenseData`.
+        """
+        return self._vp
+
+    @vp.setter
+    def vp(self, vp):
         """Set a new velocity model and update square slowness
 
         :param vp : new velocity in km/s
         """
-        self.vp = vp
+        self._vp = vp
         self.m.data[:] = self.pad(1 / (self.vp * self.vp))
 
     def get_spacing(self):
