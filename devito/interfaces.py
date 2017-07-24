@@ -2,7 +2,7 @@ import weakref
 
 import numpy as np
 from sympy import Function, IndexedBase, Symbol, as_finite_diff, symbols
-from sympy.abc import h, s
+from sympy.abc import s
 
 from devito.dimension import t, x, y, z, time
 from devito.finite_difference import (centered, cross_derivative,
@@ -184,7 +184,9 @@ class AbstractSymbol(Function, CachedSymbol):
 
     def indexify(self):
         """Create a :class:`sympy.Indexed` object from the current object."""
-        indices = [a.subs({h: 1, s: 1}) for a in self.args]
+        subs = dict([(i.spacing, 1) for i in self.indices])
+        indices = [a.subs(subs) for a in self.args]
+
         if indices:
             return self.indexed[indices]
         else:
@@ -232,7 +234,7 @@ class ScalarFunction(SymbolicFunction, ScalarFunctionArgProvider):
         in a C module, False otherwise."""
         return True
 
-    def update(self, dtype=None):
+    def update(self, dtype=None, **kwargs):
         self.dtype = dtype or self.dtype
 
 
@@ -434,7 +436,7 @@ class DenseData(SymbolicData):
     def dx2(self):
         """Symbol for the second derivative wrt the x dimension"""
         width_h = int(self.space_order/2)
-        indx = [(x + i * h) for i in range(-width_h, width_h + 1)]
+        indx = [(x + i * x.spacing) for i in range(-width_h, width_h + 1)]
 
         return as_finite_diff(self.diff(x, x), indx)
 
@@ -442,7 +444,7 @@ class DenseData(SymbolicData):
     def dy2(self):
         """Symbol for the second derivative wrt the y dimension"""
         width_h = int(self.space_order/2)
-        indy = [(y + i * h) for i in range(-width_h, width_h + 1)]
+        indy = [(y + i * y.spacing) for i in range(-width_h, width_h + 1)]
 
         return as_finite_diff(self.diff(y, y), indy)
 
@@ -450,7 +452,7 @@ class DenseData(SymbolicData):
     def dz2(self):
         """Symbol for the second derivative wrt the z dimension"""
         width_h = int(self.space_order/2)
-        indz = [(z + i * h) for i in range(-width_h, width_h + 1)]
+        indz = [(z + i * z.spacing) for i in range(-width_h, width_h + 1)]
 
         return as_finite_diff(self.diff(z, z), indz)
 
@@ -473,7 +475,7 @@ class DenseData(SymbolicData):
     def dx4(self):
         """Symbol for the fourth derivative wrt the x dimension"""
         width_h = max(int(self.space_order / 2), 2)
-        indx = [(x + i * h) for i in range(-width_h, width_h + 1)]
+        indx = [(x + i * x.spacing) for i in range(-width_h, width_h + 1)]
 
         return as_finite_diff(self.diff(x, x, x, x), indx)
 
@@ -481,7 +483,7 @@ class DenseData(SymbolicData):
     def dy4(self):
         """Symbol for the fourth derivative wrt the y dimension"""
         width_h = max(int(self.space_order / 2), 2)
-        indy = [(y + i * h) for i in range(-width_h, width_h + 1)]
+        indy = [(y + i * y.spacing) for i in range(-width_h, width_h + 1)]
 
         return as_finite_diff(self.diff(y, y, y, y), indy)
 
@@ -489,7 +491,7 @@ class DenseData(SymbolicData):
     def dz4(self):
         """Symbol for the fourth derivative wrt the z dimension"""
         width_h = max(int(self.space_order / 2), 2)
-        indz = [(z + i * h) for i in range(-width_h, width_h + 1)]
+        indz = [(z + i * z.spacing) for i in range(-width_h, width_h + 1)]
 
         return as_finite_diff(self.diff(z, z, z, z), indz)
 

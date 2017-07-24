@@ -5,9 +5,11 @@ from __future__ import absolute_import
 from collections import OrderedDict
 from itertools import combinations
 
+import cgen
 import numpy as np
 import psutil
 
+from devito.cgen_utils import ccode
 from devito.dimension import Dimension
 from devito.dle import (compose_nodes, copy_arrays, filter_iterations,
                         fold_blockable_tree, unfold_blocked_tree,
@@ -35,6 +37,7 @@ class DevitoRewriter(BasicRewriter):
         if self.params['openmp'] is True:
             self._ompize(state)
         self._create_elemental_functions(state)
+        self._minimize_remainders(state)
 
     @dle_pass
     def _loop_fission(self, state, **kwargs):
@@ -120,6 +123,7 @@ class DevitoRewriter(BasicRewriter):
         :class:`Iteration` objects.
         """
         exclude_innermost = not self.params.get('blockinner', False)
+        ignore_heuristic = self.params.get('blockalways', False)
 
         blocked = OrderedDict()
         processed = []
@@ -133,10 +137,17 @@ class DevitoRewriter(BasicRewriter):
                 iterations = [i for i in tree if i.is_Parallel]
                 if exclude_innermost:
                     iterations = [i for i in iterations if not i.is_Vectorizable]
-                if not iterations:
+                if len(iterations) <= 1:
                     continue
                 root = iterations[0]
                 if not IsPerfectIteration().visit(root):
+                    # Illegal/unsupported
+                    continue
+                if not tree[0].is_Sequential and not ignore_heuristic:
+                    # Heuristic: avoid polluting the generated code with blocked
+                    # nests (thus increasing JIT compilation time and affecting
+                    # readability) if the blockable tree isn't embedded in a
+                    # sequential loop (e.g., a timestepping loop)
                     continue
 
                 # Decorate intra-block iterations with an IterationProperty
@@ -281,45 +292,126 @@ class DevitoRewriter(BasicRewriter):
             denormals = FindNodes(Denormals).visit(state.nodes)
             mapper = OrderedDict([(i, None) for i in denormals])
 
-            # Handle parallelizable loops
-            pvt = []
+            # Group by outer loop so that we can embed within the same parallel region
+            was_tagged = False
+            groups = OrderedDict()
             for tree in retrieve_iteration_tree(node):
                 # Determine the number of consecutive parallelizable Iterations
-                key = lambda i: i.is_Parallel and not i.is_Vectorizable
-                candidates = filter_iterations(tree, key=key, stop='any')
+                key = lambda i: i.is_Parallel and\
+                    not (i.is_Elementizable or i.is_Vectorizable)
+                candidates = filter_iterations(tree, key=key, stop='asap')
                 if not candidates:
+                    was_tagged = False
                     continue
+                # Consecutive tagged Iteration go in the same group
+                is_tagged = any(i.tag is not None for i in tree)
+                key = len(groups) - (is_tagged & was_tagged)
+                handle = groups.setdefault(key, OrderedDict())
+                handle[candidates[0]] = candidates
+                was_tagged = is_tagged
 
-                # Heuristic: if at least two parallel loops are available and the
-                # physical core count is greater than self.thresholds['collapse'],
-                # then omp-collapse the loops
-                nparallel = len(candidates)
-                if psutil.cpu_count(logical=False) < self.thresholds['collapse'] or\
-                        nparallel < 2:
-                    parallel = omplang['for']
-                else:
-                    parallel = omplang['collapse'](nparallel)
+            # Handle parallelizable loops
+            for group in groups.values():
+                private = []
+                for root, tree in group.items():
+                    # Heuristic: if at least two parallel loops are available and the
+                    # physical core count is greater than self.thresholds['collapse'],
+                    # then omp-collapse the loops
+                    nparallel = len(tree)
+                    if psutil.cpu_count(logical=False) < self.thresholds['collapse'] or\
+                            nparallel < 2:
+                        parallel = omplang['for']
+                    else:
+                        parallel = omplang['collapse'](nparallel)
 
-                root = candidates[0]
-                mapper[root] = root._rebuild(pragmas=root.pragmas + as_tuple(parallel))
+                    mapper[root] = root._rebuild(pragmas=root.pragmas + (parallel,))
 
-                # Track the thread-private and thread-shared variables
-                pvt += [i for i in FindSymbols('symbolics').visit(tree) if i._mem_stack]
+                    # Track the thread-private and thread-shared variables
+                    private.extend([i for i in FindSymbols('symbolics').visit(root)
+                                    if i._mem_stack])
 
-            # Build the parallel region
-            pvt = sorted(set([i.name for i in pvt]))
-            pvt = ('private(%s)' % ','.join(pvt)) if pvt else ''
-            par_region = Block(header=omplang['par-region'](pvt),
-                               body=denormals + [i for i in mapper.values() if i])
-            for k, v in list(mapper.items()):
-                if v is not None:
-                    mapper[k] = None if v.is_Remainder else par_region
+                # Build the parallel region
+                private = sorted(set([i.name for i in private]))
+                private = ('private(%s)' % ','.join(private)) if private else ''
+                rebuilt = [v for k, v in mapper.items() if k in group]
+                par_region = Block(header=omplang['par-region'](private),
+                                   body=denormals + rebuilt)
+                for k, v in list(mapper.items()):
+                    if isinstance(v, Iteration):
+                        mapper[k] = None if v.is_Remainder else par_region
 
             handle = Transformer(mapper).visit(node)
             if handle is not None:
                 processed.append(handle)
 
         return {'nodes': processed}
+
+    @dle_pass
+    def _minimize_remainders(self, state, **kwargs):
+        """
+        Reshape temporary tensors and adjust loop trip counts to prevent as many
+        compiler-generated remainder loops as possible.
+        """
+
+        mapper = {}
+        for tree in retrieve_iteration_tree(state.nodes + state.elemental_functions):
+            vector_iterations = [i for i in tree if i.is_Vectorizable]
+            if not vector_iterations:
+                continue
+            assert len(vector_iterations) == 1
+            root = vector_iterations[0]
+            if root.tag is None:
+                continue
+
+            # Padding
+            writes = [i for i in FindSymbols('symbolics-writes').visit(root)
+                      if i.is_TensorFunction]
+            padding = []
+            for i in writes:
+                try:
+                    simd_items = get_simd_items(i.dtype)
+                except KeyError:
+                    # Fallback to 16 (maximum expectable padding, for AVX512 registers)
+                    simd_items = simdinfo['avx512f'] / np.dtype(i.dtype).itemsize
+                padding.append(simd_items - i.shape[-1] % simd_items)
+            if len(set(padding)) == 1:
+                padding = padding[0]
+                for i in writes:
+                    i.update(shape=i.shape[:-1] + (i.shape[-1] + padding,))
+            else:
+                # Padding must be uniform -- not the case, so giving up
+                continue
+
+            # Dynamic trip count adjustment
+            endpoint = root.end_symbolic
+            if not endpoint.is_Symbol:
+                continue
+            condition = []
+            externals = set(i.symbolic_shape[-1] for i in FindSymbols().visit(root))
+            for i in root.uindices:
+                for j in externals:
+                    condition.append(root.end_symbolic + padding < j)
+            condition = ' || '.join(ccode(i) for i in condition)
+            endpoint_padded = endpoint.func(name='_%s' % endpoint.name)
+            init = cgen.Initializer(
+                cgen.Value("const int", endpoint_padded),
+                cgen.Line('(%s) ? %s : %s' % (condition,
+                                              ccode(endpoint + padding),
+                                              endpoint))
+            )
+
+            # Update the Iteration bound
+            limits = list(root.limits)
+            limits[1] = endpoint_padded.func(endpoint_padded.name)
+            rebuilt = list(tree)
+            rebuilt[rebuilt.index(root)] = root._rebuild(limits=limits)
+
+            mapper[tree[0]] = List(header=init, body=compose_nodes(rebuilt))
+
+        nodes = Transformer(mapper).visit(state.nodes)
+        elemental_functions = Transformer(mapper).visit(state.elemental_functions)
+
+        return {'nodes': nodes, 'elemental_functions': elemental_functions}
 
 
 class DevitoSpeculativeRewriter(DevitoRewriter):
@@ -334,6 +426,7 @@ class DevitoSpeculativeRewriter(DevitoRewriter):
         if self.params['openmp'] is True:
             self._ompize(state)
         self._create_elemental_functions(state)
+        self._minimize_remainders(state)
 
     @dle_pass
     def _padding(self, state, **kwargs):
@@ -431,6 +524,8 @@ class DevitoSpeculativeRewriter(DevitoRewriter):
 class DevitoCustomRewriter(DevitoSpeculativeRewriter):
 
     passes_mapper = {
+        'blocking': DevitoSpeculativeRewriter._loop_blocking,
+        'openmp': DevitoSpeculativeRewriter._ompize,
         'fission': DevitoSpeculativeRewriter._loop_fission,
         'padding': DevitoSpeculativeRewriter._padding,
         'split': DevitoSpeculativeRewriter._create_elemental_functions

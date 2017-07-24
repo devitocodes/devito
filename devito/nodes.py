@@ -210,12 +210,9 @@ class Expression(Node):
     @property
     def output_function(self):
         """
-        Return the function written by this Expression, if any.
+        Return the function written by this Expression.
         """
-        if self.is_scalar:
-            return None
-        handle = self.expr.lhs.base
-        return handle.function if isinstance(handle, IndexedData) else None
+        return self.expr.lhs.base.function
 
     @property
     def is_scalar(self):
@@ -449,6 +446,27 @@ class Iteration(Node):
             # Already a symbolic expression
             pass
         return (start - as_symbol(self.offsets[0]), end - as_symbol(self.offsets[1]))
+
+    @property
+    def extent_symbolic(self):
+        """
+        Return the symbolic extent of the Iteration.
+        """
+        return self.bounds_symbolic[1] - self.bounds_symbolic[0]
+
+    @property
+    def start_symbolic(self):
+        """
+        Return the symbolic extent of the Iteration.
+        """
+        return self.bounds_symbolic[0]
+
+    @property
+    def end_symbolic(self):
+        """
+        Return the symbolic extent of the Iteration.
+        """
+        return self.bounds_symbolic[1]
 
     def bounds(self, start=None, finish=None):
         """Return the start and end points of the Iteration if the limits are

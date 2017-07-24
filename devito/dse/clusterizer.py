@@ -1,10 +1,13 @@
-from collections import OrderedDict
+from collections import OrderedDict, namedtuple
 
 from devito.dse.graph import temporaries_graph
+from devito.dse.manipulation import xreplace_indices
 
+from devito.interfaces import ScalarFunction
 from devito.stencil import Stencil
+from devito.tools import as_tuple
 
-__all__ = ['clusterize']
+__all__ = ['clusterize', 'optimize']
 
 
 class Cluster(object):
@@ -15,15 +18,30 @@ class Cluster(object):
 
     A Cluster is associated with a stencil, which tracks what neighboring points
     are required, along each dimension, to compute an entry in the tensor.
+
+    The parameter ``atomics`` allows to specify dimensions (a subset of those
+    appearing in ``stencil``) along which a Cluster cannot be fused with
+    other clusters. This is for example useful when a Cluster is evaluating
+    a tensor temporary, whose values must all be updated before being accessed
+    in the subsequent clusters.
     """
 
-    def __init__(self, exprs, stencil):
+    def __init__(self, exprs, stencil, atomics):
         self.trace = temporaries_graph(exprs)
         self.stencil = stencil
+        self.atomics = as_tuple(atomics)
 
     @property
     def exprs(self):
         return self.trace.values()
+
+    @property
+    def unknown(self):
+        return self.trace.unknown
+
+    @property
+    def tensors(self):
+        return self.trace.tensors
 
     @property
     def is_dense(self):
@@ -38,7 +56,7 @@ class Cluster(object):
         Build a new cluster with expressions ``exprs`` having same stencil
         as ``self``.
         """
-        return Cluster(exprs, self.stencil)
+        return Cluster(exprs, self.stencil, self.atomics)
 
     def reschedule(self, exprs):
         """
@@ -48,7 +66,7 @@ class Cluster(object):
         """
         g = temporaries_graph(exprs)
         exprs = g.reschedule(self.exprs)
-        return Cluster(exprs, self.stencil)
+        return Cluster(exprs, self.stencil, self.atomics)
 
 
 def merge(clusters):
@@ -59,10 +77,10 @@ def merge(clusters):
     """
     mapper = OrderedDict()
     for c in clusters:
-        mapper.setdefault(c.stencil.entries, []).append(c)
+        mapper.setdefault((c.stencil.entries, c.atomics), []).append(c)
 
     processed = []
-    for entries, clusters in mapper.items():
+    for (entries, atomics), clusters in mapper.items():
         # Eliminate redundant temporaries
         temporaries = OrderedDict()
         for c in clusters:
@@ -70,7 +88,45 @@ def merge(clusters):
                 if k not in temporaries:
                     temporaries[k] = v
         # Squash the clusters together
-        processed.append(Cluster(temporaries.values(), Stencil(entries)))
+        processed.append(Cluster(temporaries.values(), Stencil(entries), atomics))
+
+    return processed
+
+
+def optimize(clusters):
+    """
+    Attempt scalar promotion. Candidates are tensors, perhaps created by some
+    cluster-wise transformations, that do not appear in any other clusters.
+    """
+    clusters = merge(clusters)
+
+    processed = []
+    for c1 in clusters:
+        mapper = {}
+        temporaries = []
+        for k, v in c1.trace.items():
+            if v.is_tensor and not any(v.function in c2.unknown for c2 in clusters):
+                for i in c1.tensors[v.function]:
+                    # LHS scalarization
+                    scalarized = ScalarFunction(name='s%d' % len(mapper)).indexify()
+                    mapper[i] = scalarized
+
+                    # May have to "unroll" some tensor expressions for scalarization;
+                    # e.g., if we have two occurrences of r0, say r0[x,y,z] and
+                    # r0[x+1,y,z], and r0 is to be scalarized, this will require a
+                    # different scalar for each unique set of indices.
+                    assert len(v.function.indices) == len(k.indices) == len(i.indices)
+                    shifting = {idx: idx + (o2 - o1) for idx, o1, o2 in
+                                zip(v.function.indices, k.indices, i.indices)}
+
+                    # Transform /v/, introducing (i) a scalarized LHS and (ii) shifted
+                    # indices if necessary
+                    handle = v.func(scalarized, v.rhs.xreplace(mapper))
+                    handle = xreplace_indices(handle, shifting)
+                    temporaries.append(handle)
+            else:
+                temporaries.append(v.func(k, v.rhs.xreplace(mapper)))
+        processed.append(c1.rebuild(temporaries))
 
     return processed
 
@@ -115,32 +171,50 @@ def aggregate(exprs, stencils):
     return exprs, stencils
 
 
-def clusterize(exprs, stencils):
-    """Derive :class:`Cluster`s from an iterator of expressions; a stencil for
-    each expression must be provided."""
+def clusterize(exprs, stencils, atomics=None):
+    """
+    Derive :class:`Cluster`s from an iterator of expressions; a stencil for
+    each expression must be provided. A list of atomic dimensions (see description
+    in Cluster.__doc__) may be provided.
+    """
     assert len(exprs) == len(stencils)
 
     exprs, stencils = aggregate(exprs, stencils)
 
+    Info = namedtuple('Info', 'trace stencil')
+
     g = temporaries_graph(exprs)
-    mapper = OrderedDict([(i.lhs, j) for i, j in zip(g.values(), stencils)
-                          if i.is_tensor])
+    mapper = OrderedDict([(k, Info(g.trace(k), j))
+                          for (k, v), j in zip(g.items(), stencils) if v.is_tensor])
+
+    # A cluster stencil is determined iteratively, by first calculating the
+    # "local" stencil and then by looking at the stencils of all other clusters
+    # depending on it. The stencil information is propagated until there are
+    # no more updates.
+    queue = list(mapper)
+    while queue:
+        target = queue.pop(0)
+
+        info = mapper[target]
+        strict_trace = [i.lhs for i in info.trace if i.lhs != target]
+
+        stencil = Stencil(info.stencil.entries)
+        for i in strict_trace:
+            if i in mapper:
+                stencil = stencil.add(mapper[i].stencil)
+
+        mapper[target] = Info(info.trace, stencil)
+
+        if stencil != info.stencil:
+            # Something has changed, need to propagate the update
+            queue.extend([i for i in strict_trace if i not in queue])
 
     clusters = []
-    for k, v in mapper.items():
-        # Determine what temporaries are needed to compute /i/
-        exprs = g.trace(k)
-
-        # Determine the Stencil of the cluster
-        stencil = Stencil(v.entries)
-        for i in exprs:
-            stencil = stencil.add(mapper.get(i.lhs, {}))
-        stencil = stencil.frozen
-
+    for target, info in mapper.items():
         # Drop all non-output tensors, as computed by other clusters
-        exprs = [i for i in exprs if i.lhs.is_Symbol or i.lhs == k]
+        exprs = [i for i in info.trace if i.lhs.is_Symbol or i.lhs == target]
 
         # Create and track the cluster
-        clusters.append(Cluster(exprs, stencil))
+        clusters.append(Cluster(exprs, info.stencil.frozen, atomics))
 
     return merge(clusters)

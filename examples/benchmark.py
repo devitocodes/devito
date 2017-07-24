@@ -52,8 +52,8 @@ if __name__ == "__main__":
 
     devito = parser.add_argument_group("Devito")
     devito.add_argument("-dse", default="advanced", nargs="*",
-                        choices=["noop", "basic", "factorize", "approx-trigonometry",
-                                 "glicm", "advanced", "speculative"],
+                        choices=["noop", "basic", "advanced", "speculative",
+                                 "aggressive"],
                         help="Devito symbolic engine (DSE) mode")
     devito.add_argument("-dle", default="advanced", nargs="*",
                         choices=["noop", "advanced", "speculative"],
@@ -103,20 +103,17 @@ if __name__ == "__main__":
     else:
         if args.benchmode == 'maxperf':
             parameters["autotune"] = [True]
-            parameters["dse"] = ["advanced"]
+            parameters["dse"] = ["aggressive"]
             parameters["dle"] = ["advanced"]
         elif args.benchmode == 'dse':
-            parameters["autotune"] = [False]
-            parameters["dse"] = ["basic",
-                                 ('basic', 'glicm'),
-                                 "advanced"]
-            parameters["dle"] = ["basic"]
+            parameters["autotune"] = [True]
+            parameters["dse"] = ["basic", "advanced", "speculative", "aggressive"]
+            parameters["dle"] = ["advanced"]
         else:
             # must be == 'dle'
             parameters["autotune"] = [True]
             parameters["dse"] = ["advanced"]
-            parameters["dle"] = ["basic",
-                                 "advanced"]
+            parameters["dle"] = ["basic", "advanced"]
 
     if args.execmode == "test":
         values_sweep = [v if isinstance(v, list) else [v] for v in parameters.values()]
@@ -187,31 +184,33 @@ if __name__ == "__main__":
                                                        parameters["time_order"],
                                                        args.arch)
         name = name.replace(' ', '')
-        title = "%s[%s,TO=%s], with varying <DSE,DLE>, on %s" %\
-            (args.problem.capitalize(),
-             parameters["dimensions"],
+        problem_styles = {'acoustic': 'Acoustic', 'tti': 'TTI'}
+        title = "%s [grid=%s, TO=%s, duration=%sms], varying <DSE,DLE> on %s" %\
+            (problem_styles[args.problem],
+             list(parameters["dimensions"]),
              parameters["time_order"],
+             args.tn,
              args.arch)
 
-        dse_runs = ["basic", ("basic", "factorize"), ("basic", "glicm"), "advanced"]
+        dse_runs = ["basic", "advanced", "speculative", "aggressive"]
         dle_runs = ["basic", "advanced", "speculative"]
         runs = list(product(dse_runs, dle_runs))
-        styles = {
+        styles = {  # (marker, color)
             # DLE basic
-            ('basic', 'basic'): 'or',
-            (('basic', 'factorize'), 'basic'): 'og',
-            (('basic', 'glicm'), 'basic'): 'oy',
-            ('advanced', 'basic'): 'ob',
+            ('basic', 'basic'): ('D', 'r'),
+            ('advanced', 'basic'): ('D', 'g'),
+            ('speculative', 'basic'): ('D', 'y'),
+            ('aggressive', 'basic'): ('D', 'b'),
             # DLE advanced
-            ('basic', 'advanced'): 'Dr',
-            (('basic', 'factorize'), 'advanced'): 'Dg',
-            (('basic', 'glicm'), 'advanced'): 'Dy',
-            ('advanced', 'advanced'): 'Db',
+            ('basic', 'advanced'): ('o', 'r'),
+            ('advanced', 'advanced'): ('o', 'g'),
+            ('speculative', 'advanced'): ('o', 'y'),
+            ('aggressive', 'advanced'): ('o', 'b'),
             # DLE speculative
-            ('basic', 'speculative'): 'sr',
-            (('basic', 'factorize'), 'speculative'): 'sg',
-            (('basic', 'glicm'), 'speculative'): 'sy',
-            ('advanced', 'speculative'): 'sb',
+            ('basic', 'speculative'): ('s', 'r'),
+            ('advanced', 'speculative'): ('s', 'g'),
+            ('speculative', 'speculative'): ('s', 'y'),
+            ('aggressive', 'speculative'): ('s', 'b')
         }
 
         # Find min and max runtimes for instances having the same OI
@@ -223,26 +222,27 @@ if __name__ == "__main__":
 
         with RooflinePlotter(title=title, figname=name, plotdir=args.plotdir,
                              max_bw=args.max_bw, max_flops=args.max_flops,
-                             legend={'fontsize': 7}) as plot:
+                             fancycolor=True, legend={'fontsize': 5, 'ncol': 4}) as plot:
             for key, gflopss in gflopss.items():
                 oi_value = oi[key]
                 time_value = time[key]
                 key = dict(key)
                 run = (key["dse"], key["dle"])
                 label = "<%s,%s>" % run
-                oi_loc = 0.06 if len(str(key["space_order"])) == 1 else 0.07
+                oi_loc = 0.05 if len(str(key["space_order"])) == 1 else 0.06
                 oi_annotate = {'s': 'SO=%s' % key["space_order"],
-                               'size': 5, 'xy': (oi_value, oi_loc)} if run[0] else None
-                if time_value in min_max[oi_value]:
+                               'size': 4, 'xy': (oi_value, oi_loc)} if run[0] else None
+                if time_value in min_max[oi_value] and args.point_runtime:
                     # Only annotate min and max runtimes on each OI line, to avoid
                     # polluting the plot too much
-                    point_annotate = {'s': "%.1f s" % time_value,
-                                      'xytext': (-16, 13), 'size': 4,
-                                      'weight': 'bold'} if args.point_runtime else None
+                    point_annotate = {'s': "%.1f s" % time_value, 'xytext': (0, 5.2),
+                                      'size': 3.5, 'weight': 'bold', 'rotation': 0}
                 else:
                     point_annotate = None
                 oi_line = time_value == min_max[oi_value][0]
-                perf_annotate = time_value == min_max[oi_value][0]
-                plot.add_point(gflops=gflopss, oi=oi_value, style=styles[run],
-                               oi_line=oi_line, label=label, perf_annotate=perf_annotate,
-                               oi_annotate=oi_annotate, annotate=point_annotate)
+                if oi_line:
+                    perf_annotate = {'size': 4, 'xytext': (-4, 4)}
+                plot.add_point(gflops=gflopss, oi=oi_value, marker=styles[run][0],
+                               color=styles[run][1], oi_line=oi_line, label=label,
+                               perf_annotate=perf_annotate, oi_annotate=oi_annotate,
+                               point_annotate=point_annotate)

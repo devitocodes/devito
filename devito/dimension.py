@@ -22,6 +22,7 @@ class Dimension(Symbol, DimensionArgProvider):
         newobj = Symbol.__new__(cls, name)
         newobj.size = kwargs.get('size', None)
         newobj.reverse = kwargs.get('reverse', False)
+        newobj.spacing = kwargs.get('spacing', Symbol('h_%s' % name))
         return newobj
 
     def __str__(self):
@@ -61,6 +62,10 @@ class BufferedDimension(Dimension):
     def reverse(self):
         return self.parent.reverse
 
+    @property
+    def spacing(self):
+        return self.parent.spacing
+
 
 class LoweredDimension(Dimension):
 
@@ -95,13 +100,13 @@ class LoweredDimension(Dimension):
 
 
 # Default dimensions for time
-time = Dimension('time')
+time = Dimension('time', spacing=Symbol('s'))
 t = BufferedDimension('t', parent=time)
 
 # Default dimensions for space
-x = Dimension('x')
-y = Dimension('y')
-z = Dimension('z')
+x = Dimension('x', spacing=Symbol('h_x'))
+y = Dimension('y', spacing=Symbol('h_y'))
+z = Dimension('z', spacing=Symbol('h_z'))
 
 d = Dimension('d')
 p = Dimension('p')

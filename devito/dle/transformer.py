@@ -17,7 +17,8 @@ modes = {
 
 default_options = {
     'blockinner': False,
-    'blockshape': None
+    'blockshape': None,
+    'blockalways': False
 }
 """Default values for the various optimization options."""
 
@@ -31,22 +32,23 @@ def transform(node, mode='basic', options=None):
     :param mode: Drive the tree transformation. ``mode`` is a string indicating
                  a certain optimization pipeline. The following values are accepted: ::
 
-                     * 'noop': Do nothing.
-                     * 'basic': Add instructions to avoid denormal numbers and create
-                                elemental functions for rapid JIT-compilation.
-                     * 'advanced': 'basic', vectorization, loop blocking.
-                     * 'speculative': Apply all of the 'advanced' transformations,
-                                      plus other transformations that might increase
-                                      (or possibly decrease) performance.
+        * 'noop': Do nothing.
+        * 'basic': Add instructions to avoid denormal numbers and create elemental
+                   functions for rapid JIT-compilation.
+        * 'advanced': 'basic', vectorization, loop blocking.
+        * 'speculative': Apply all of the 'advanced' transformations, plus other
+                         transformations that might increase (or possibly decrease)
+                         performance.
     :param options: A dictionary with additional information to drive the DLE. The
                     following values are accepted: ::
 
-                        * 'blockshape': A tuple representing the shape of a block created
-                                        by loop blocking.
-                        * 'blockinner': By default, loop blocking is not applied to the
-                                        innermost dimension of an Iteration/Expression
-                                        tree to maximize vectorization. Set this flag to
-                                        True to override this heuristic.
+        * 'blockshape': The block shape for loop blocking (a tuple).
+        * 'blockinner': By default, loop blocking is not applied to the innermost
+                        dimension of an Iteration/Expression tree (to maximize
+                        vectorization). Set this flag to True to override this
+                        heuristic.
+        * 'blockalways': Apply blocking even though the DLE thinks it's not
+                         worthwhile applying it.
     """
     from devito.parameters import configuration
 
@@ -74,9 +76,6 @@ def transform(node, mode='basic', options=None):
     params.update({k: v for k, v in default_options.items() if k not in params})
     params['compiler'] = configuration['compiler']
     params['openmp'] = configuration['openmp']
-    if mode == '3D-advanced':
-        params['blockinner'] = True
-        mode = 'advanced'
 
     # Process the Iteration/Expression tree through the DLE
     if mode is None or mode == 'noop':

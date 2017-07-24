@@ -37,7 +37,7 @@ def fold_blockable_tree(node, exclude_innermost=False):
             if not trees:
                 continue
             # Check foldability
-            pairwise_folds = zip(*reversed(trees))
+            pairwise_folds = list(zip(*reversed(trees)))
             if any(not is_foldable(j) for j in pairwise_folds):
                 continue
             # Perform folding
@@ -91,7 +91,7 @@ def unfold_blocked_tree(node):
     tag = ntags()
     mapper = {}
     for tree in candidates:
-        trees = zip(*[i.unfold() for i in tree])
+        trees = list(zip(*[i.unfold() for i in tree]))
         # Update tag
         for i, _tree in enumerate(list(trees)):
             trees[i] = tuple(j.retag(tag + i) for j in _tree)
@@ -233,7 +233,10 @@ class IterationFold(Iteration):
         # Construct the folds
         args.pop('nodes')
         args.pop('offsets')
-        start, end, incr = args.pop('limits')
+        try:
+            start, end, incr = args.pop('limits')
+        except TypeError:
+            start, end, incr = self.limits
         folds = tuple(Iteration(nodes, limits=[start+ofs[0], end+ofs[1], incr], **args)
                       for ofs, nodes in self.folds)
 

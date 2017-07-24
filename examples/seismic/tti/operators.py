@@ -1,10 +1,9 @@
 from sympy import Eq, cos, sin
-from sympy.abc import h, s
 
 from devito import Operator, TimeData
 from examples.seismic import PointSource, Receiver, ABC
 from devito.finite_difference import centered, first_derivative, right, transpose
-from devito.dimension import x, y, z
+from devito.dimension import x, y, z, t, time
 
 
 def ForwardOperator(model, source, receiver, time_order=2, space_order=4,
@@ -134,6 +133,7 @@ def ForwardOperator(model, source, receiver, time_order=2, space_order=4,
         Hp = -(.5 * Gxx1 + .5 * Gxx2)
         Hzr = -(.5 * Gzz1 + .5 * Gzz2)
 
+    s = t.spacing
     stencilp = s ** 2 / m * (epsilon * Hp + delta * Hzr) - u + 2 * u.backward
     stencilr = s ** 2 / m * (delta * Hp + Hzr) - v + 2 * v.backward
 
@@ -145,7 +145,9 @@ def ForwardOperator(model, source, receiver, time_order=2, space_order=4,
     #      v.backward + 2.0 * s**2 * (delta * Hp + Hzr))
 
     # Add substitutions for spacing (temporal and spatial)
-    subs = {s: dt, h: model.get_spacing()}
+    subs = dict([(t.spacing, dt)] + [(time.spacing, dt)] +
+                [(i.spacing, model.get_spacing()[j]) for i, j
+                 in zip(u.indices[1:], range(len(model.shape)))])
     first_stencil = Eq(u.forward, stencilp)
     second_stencil = Eq(v.forward, stencilr)
     stencils = [first_stencil, second_stencil]
@@ -155,8 +157,7 @@ def ForwardOperator(model, source, receiver, time_order=2, space_order=4,
                            offset=model.nbpml)
     stencils += src.inject(field=v, u_t=ti + 1, expr=src * dt * dt / m,
                            offset=model.nbpml)
-    stencils += rec.interpolate(expr=u, u_t=ti, offset=model.nbpml)
-    stencils += rec.interpolate(expr=v, u_t=ti, offset=model.nbpml)
+    stencils += rec.interpolate(expr=u + v, u_t=ti, offset=model.nbpml)
 
     abcv = ABC(model, v, m)
     abcu = ABC(model, u, m)

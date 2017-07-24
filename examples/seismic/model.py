@@ -9,8 +9,9 @@ __all__ = ['Model']
 class Model(object):
     """The physical model used in seismic inversion processes.
 
-    :param origin: Origin of the model in m as a tuple
-    :param spacing: Grid size in m as a Tuple
+    :param origin: Origin of the model in m as a tuple in (x,y,z) order
+    :param spacing: Grid size in m as a Tuple in (x,y,z) order
+    :param shape: Number of grid points size in (x,y,z) order
     :param vp: Velocity in km/s
     :param nbpml: The number of PML layers for boundary damping
     :param rho: Density in kg/cm^3 (rho=1 for water)
@@ -99,7 +100,7 @@ class Model(object):
         # The CFL condtion is then given by
         # dt <= coeff * h / (max(velocity))
         coeff = 0.38 if len(self.shape) == 3 else 0.42
-        return coeff * self.spacing[0] / (self.scale*np.max(self.vp))
+        return coeff * np.min(self.spacing) / (self.scale*np.max(self.vp))
 
     def set_vp(self, vp):
         """Set a new velocity model and update square slowness
@@ -111,7 +112,7 @@ class Model(object):
 
     def get_spacing(self):
         """Return the grid size"""
-        return self.spacing[0]
+        return self.spacing
 
     def pad(self, data):
         """Padding function PNL layers in every direction for for the

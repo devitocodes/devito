@@ -1,11 +1,11 @@
 from sympy import Eq, diff
-from sympy.abc import h, s
 
-from devito import Operator, Forward, Backward, DenseData, TimeData, time
+from devito import Operator, Forward, Backward, DenseData, TimeData, time, t
 from examples.seismic import PointSource, Receiver, ABC
 
 
 def pde(field, m, time_order, model, q=0, taxis=Forward):
+    s = t.spacing
     if time_order == 2:
         biharmonic = 0
         dt = model.critical_dt
@@ -64,8 +64,12 @@ def ForwardOperator(model, source, receiver, time_order=2, space_order=4,
     abc = ABC(model, u, m)
     eq_abc = abc.damp_2d() if len(model.shape) == 2 else abc.damp_3d()
 
+    subs = dict([(t.spacing, dt)] + [(time.spacing, dt)] +
+                [(i.spacing, model.get_spacing()[j]) for i, j
+                 in zip(u.indices[1:], range(len(model.shape)))])
+
     return Operator(stencil + eq_abc + src_term + rec_term,
-                    subs={s: dt, h: model.get_spacing()},
+                    subs=subs,
                     time_axis=Forward, name='Forward', **kwargs)
 
 
@@ -101,9 +105,12 @@ def AdjointOperator(model, source, receiver, time_order=2, space_order=4, **kwar
 
     abc = ABC(model, v, m, taxis=Backward)
     eq_abc = abc.damp_2d() if len(model.shape) == 2 else abc.damp_3d()
+    subs = dict([(t.spacing, dt)] + [(time.spacing, dt)] +
+                [(i.spacing, model.get_spacing()[j]) for i, j
+                 in zip(v.indices[1:], range(len(model.shape)))])
 
     return Operator(stencil + eq_abc + receivers + source_a,
-                    subs={s: dt, h: model.get_spacing()},
+                    subs=subs,
                     time_axis=Backward, name='Adjoint', **kwargs)
 
 
@@ -117,7 +124,7 @@ def GradientOperator(model, source, receiver, time_order=2, space_order=4, **kwa
     :param time_order: Time discretization order
     :param space_order: Space discretization order
     """
-    m = model.m
+    m, damp = model.m, model.damp
 
     # Gradient symbol and wavefield symbols
     grad = DenseData(name='grad', shape=model.shape_domain,
@@ -143,8 +150,12 @@ def GradientOperator(model, source, receiver, time_order=2, space_order=4, **kwa
     abc = ABC(model, v, m, taxis=Backward)
     eq_abc = abc.damp_2d() if len(model.shape) == 2 else abc.damp_3d()
 
+    subs = dict([(t.spacing, dt)] + [(time.spacing, dt)] +
+                [(i.spacing, model.get_spacing()[j]) for i, j
+                 in zip(v.indices[1:], range(len(model.shape)))])
+
     return Operator(stencil + receivers + eq_abc + [gradient_update],
-                    subs={s: dt, h: model.get_spacing()},
+                    subs=subs,
                     time_axis=Backward, name='Gradient', **kwargs)
 
 
@@ -192,7 +203,9 @@ def BornOperator(model, source, receiver, time_order=2, space_order=4, **kwargs)
     eq_abcu = abcu.damp_2d() if len(model.shape) == 2 else abcu.damp_3d()
     abcU = ABC(model, U, m)
     eq_abcU = abcU.damp_2d() if len(model.shape) == 2 else abcU.damp_3d()
-
+    subs = dict([(t.spacing, dt)] + [(time.spacing, dt)] +
+                [(i.spacing, model.get_spacing()[j]) for i, j
+                 in zip(u.indices[1:], range(len(model.shape)))])
     return Operator(stencilu + eq_abcu + source + stencilU + eq_abcU + receivers,
-                    subs={s: dt, h: model.get_spacing()},
+                    subs=subs,
                     time_axis=Forward, name='Born', **kwargs)
