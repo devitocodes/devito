@@ -17,9 +17,8 @@ from argparse import ArgumentParser
 
 import numpy as np
 from sympy import Eq, Function, as_finite_diff, lambdify, solve
-from sympy.abc import h, s, t, x, y
 
-from devito import Operator, TimeData
+from devito import Operator, TimeData, t, x, y
 from devito.logger import log
 
 try:
@@ -96,6 +95,8 @@ def execute_lambdify(ui, spacing=0.01, a=0.5, timesteps=500):
     def diffusion_stencil():
         """Create stencil and substitutions for the diffusion equation"""
         p = Function('p')
+        s = t.spacing
+        h = x.spacing
         dx2 = as_finite_diff(p(x, y, t).diff(x, x), [x - h, x, x + h])
         dy2 = as_finite_diff(p(x, y, t).diff(y, y), [y - h, y, y + h])
         dt = as_finite_diff(p(x, y, t).diff(t), [t, t + s])
@@ -133,7 +134,9 @@ def execute_devito(ui, spacing=0.01, a=0.5, timesteps=500):
     # Derive the stencil according to devito conventions
     eqn = Eq(u.dt, a * (u.dx2 + u.dy2))
     stencil = solve(eqn, u.forward)[0]
-    op = Operator(Eq(u.forward, stencil), subs={h: spacing, s: dt})
+    op = Operator(Eq(u.forward, stencil), subs={x.spacing: spacing,
+                                                y.spacing: spacing,
+                                                t.spacing: dt})
 
     # Execute the generated Devito stencil operator
     tstart = time.time()

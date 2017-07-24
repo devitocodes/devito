@@ -1,8 +1,8 @@
 import numpy as np
 import pytest
-from sympy import Eq, diff, symbols
+from sympy import Eq, diff
 
-from devito import Operator, clear_cache, DenseData
+from devito import Operator, clear_cache, DenseData, x
 
 
 @pytest.mark.parametrize('space_order', [2, 4, 6, 8, 10, 12, 14, 16, 18, 20])
@@ -25,20 +25,19 @@ def test_fd_space(derivative, space_order):
     u = DenseData(name="u", shape=(nx,), space_order=space_order, dtype=np.float32)
     du = DenseData(name="du", shape=(nx,), space_order=space_order, dtype=np.float32)
     # Define polynomial with exact fd
-    h, y = symbols('h y')
     coeffs = np.ones((space_order,), dtype=np.float32)
-    polynome = sum([coeffs[i]*y**i for i in range(0, space_order)])
-    polyvalues = np.array([polynome.subs(y, xi) for xi in xx], np.float32)
+    polynome = sum([coeffs[i]*x**i for i in range(0, space_order)])
+    polyvalues = np.array([polynome.subs(x, xi) for xi in xx], np.float32)
     # Fill original data with the polynomial values
     u.data[:] = polyvalues
     # True derivative of the polynome
     Dpolynome = diff(diff(polynome)) if derivative == 'dx2' else diff(polynome)
-    Dpolyvalues = np.array([Dpolynome.subs(y, xi) for xi in xx], np.float32)
+    Dpolyvalues = np.array([Dpolynome.subs(x, xi) for xi in xx], np.float32)
     # FD derivative, symbolic
     u_deriv = getattr(u, derivative)
     # Compute numerical FD
     stencil = Eq(du, u_deriv)
-    op = Operator(stencil, subs={h: dx})
+    op = Operator(stencil, subs={x.spacing: dx})
     op.apply()
 
     # Check exactness of the numerical derivative except inside space_brd

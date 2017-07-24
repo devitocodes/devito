@@ -1,7 +1,6 @@
 import numpy as np
 import pytest
 from sympy import Derivative, as_finite_diff, simplify
-from sympy.abc import h
 
 from devito import DenseData, TimeData, t, x, y, z
 
@@ -23,8 +22,8 @@ def test_stencil_derivative(shape, SymbolType, dimension):
     dxx = u.diff(x, x)
     # Check for sympy Derivative objects
     assert(isinstance(dx, Derivative) and isinstance(dxx, Derivative))
-    s_dx = as_finite_diff(dx, [x - h, x])
-    s_dxx = as_finite_diff(dxx, [x - h, x, x + h])
+    s_dx = as_finite_diff(dx, [x - x.spacing, x])
+    s_dxx = as_finite_diff(dxx, [x - x.spacing, x, x + x.spacing])
     # Check stencil length of first and second derivatives
     assert(len(s_dx.args) == 2 and len(s_dxx.args) == 3)
     u_dx = s_dx.args[0].args[1]
@@ -57,9 +56,10 @@ def test_derivatives_space(derivative, dimension, order):
     # Establish native sympy derivative expression
     width = int(order / 2)
     if order == 1:
-        indices = [dimension, dimension + h]
+        indices = [dimension, dimension + dimension.spacing]
     else:
-        indices = [(dimension + i * h) for i in range(-width, width + 1)]
+        indices = [(dimension + i * dimension.spacing)
+                   for i in range(-width, width + 1)]
     s_expr = as_finite_diff(u.diff(dimension), indices)
     assert(simplify(expr - s_expr) == 0)  # Symbolic equality
     assert(expr == s_expr)  # Exact equailty
@@ -75,7 +75,8 @@ def test_second_derivatives_space(derivative, dimension, order):
     expr = getattr(u, derivative)
     # Establish native sympy derivative expression
     width = int(order / 2)
-    indices = [(dimension + i * h) for i in range(-width, width + 1)]
+    indices = [(dimension + i * dimension.spacing)
+               for i in range(-width, width + 1)]
     s_expr = as_finite_diff(u.diff(dimension, dimension), indices)
     assert(simplify(expr - s_expr) == 0)  # Symbolic equality
     assert(expr == s_expr)  # Exact equailty

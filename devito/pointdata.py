@@ -1,8 +1,7 @@
 from sympy import Eq, Function, Matrix, symbols
-from sympy.abc import h
 
 from collections import OrderedDict
-from devito.dimension import d, p, t, time
+from devito.dimension import d, p, t, time, x, y, z
 from devito.dse.inspection import indexify, retrieve_indexed
 from devito.interfaces import DenseData, CompositeData
 from devito.logger import error
@@ -106,7 +105,8 @@ class PointData(CompositeData):
                                       % self.ndim)
 
         # Map to reference cell
-        reference_cell = {x1: 0, y1: 0, z1: 0, x2: h, y2: h, z2: h}
+        reference_cell = {x1: 0, y1: 0, z1: 0, x2: x.spacing, y2: y.spacing,
+                          z2: z.spacing}
         A = A.subs(reference_cell)
         return A.inv().T.dot(p)
 
@@ -138,15 +138,18 @@ class PointData(CompositeData):
     @property
     def coordinate_indices(self):
         """Symbol for each grid index according to the coordinates"""
-        return tuple([Function('INT')(Function('floor')(x / h))
-                      for x in self.coordinate_symbols])
+        indices = (x, y, z)
+        return tuple([Function('INT')(Function('floor')(c / i.spacing))
+                      for c, i in zip(self.coordinate_symbols, indices[:self.ndim])])
 
     @property
     def coordinate_bases(self):
         """Symbol for the base coordinates of the reference grid point"""
-        return tuple([Function('FLOAT')(x - idx * h)
-                      for x, idx in zip(self.coordinate_symbols,
-                                        self.coordinate_indices)])
+        indices = (x, y, z)
+        return tuple([Function('FLOAT')(c - idx * i.spacing)
+                      for c, idx, i in zip(self.coordinate_symbols,
+                                           self.coordinate_indices,
+                                           indices[:self.ndim])])
 
     def interpolate(self, expr, offset=0, **kwargs):
         """Creates a :class:`sympy.Eq` equation for the interpolation

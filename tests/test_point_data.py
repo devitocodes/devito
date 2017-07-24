@@ -1,9 +1,8 @@
 import numpy as np
 import pytest
 from sympy import Function
-from sympy.abc import h
 
-from devito import Operator, DenseData, PointData
+from devito import Operator, DenseData, PointData, x, y, z
 
 
 @pytest.fixture
@@ -47,7 +46,8 @@ def test_interpolate(shape, coords, npoints=20):
     xcoords = p.coordinates.data[:, 0]
 
     expr = p.interpolate(a)
-    Operator(expr, subs={h: spacing})(a=a, t=1)
+    Operator(expr, subs={x.spacing: spacing, y.spacing: spacing,
+                         z.spacing: spacing})(a=a, t=1)
 
     assert np.allclose(p.data[0, :], xcoords, rtol=1e-6)
 
@@ -67,7 +67,8 @@ def test_inject(shape, coords, result, npoints=19):
 
     expr = p.inject(a, Function('FLOAT')(1.))
 
-    Operator(expr, subs={h: spacing})(a=a)
+    Operator(expr, subs={x.spacing: spacing, y.spacing: spacing,
+                         z.spacing: spacing})(a=a)
 
     indices = [slice(4, 6, 1) for _ in coords]
     indices[0] = slice(1, -1, 1)
@@ -90,7 +91,8 @@ def test_inject_from_field(shape, coords, result, npoints=19):
     p = points(ranges=coords, npoints=npoints)
 
     expr = p.inject(field=a, expr=b)
-    Operator(expr, subs={h: spacing})(a=a, b=b)
+    Operator(expr, subs={x.spacing: spacing, y.spacing: spacing,
+                         z.spacing: spacing})(a=a, b=b)
 
     indices = [slice(4, 6, 1) for _ in coords]
     indices[0] = slice(1, -1, 1)
@@ -116,7 +118,8 @@ def test_adjoint_inject_interpolate(shape, coords,
     # Read receiver
     p2 = points(name='points2', ranges=coords, npoints=npoints)
     expr2 = p2.interpolate(expr=c)
-    Operator(expr + expr2, subs={h: spacing})(a=a, c=c, t=1)
+    Operator(expr + expr2, subs={x.spacing: spacing, y.spacing: spacing,
+                                 z.spacing: spacing})(a=a, c=c, t=1)
     # < P x, y > - < x, P^T y>
     # Px => p2
     # y => p

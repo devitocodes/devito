@@ -27,8 +27,9 @@ def source(t, f0):
 def run(dimensions=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=1000.0,
         time_order=2, space_order=4, nbpml=40, dse='advanced', dle='advanced',
         full_run=False):
-
-    origin = (0., 0., 0.)
+    ndim = len(dimensions)
+    origin = tuple([0.]*ndim)
+    spacing = spacing[:ndim]
 
     # True velocity
     true_vp = 2.
@@ -53,18 +54,18 @@ def run(dimensions=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=1000.0,
 
     time_series[:, 0] = source(np.linspace(t0, tn, nt), f0)
 
-    location = np.zeros((1, 3))
-    location[0, 0] = origin[0] + dimensions[0] * spacing[0] * 0.5
-    location[0, 1] = origin[1] + dimensions[1] * spacing[1] * 0.5
-    location[0, 2] = origin[1] + 2 * spacing[2]
-    src = PointSource(name='src', data=time_series, coordinates=location)
-
-    # Receiver geometry
-    receiver_coords = np.zeros((101, 3))
+    # Source location
+    location = np.zeros((1, ndim), dtype=np.float32)
+    location[0, :-1] = [origin[i] + dimensions[i] * spacing[i] * .5
+                        for i in range(ndim-1)]
+    location[0, -1] = origin[-1] + 2 * spacing[-1]
+    # Receivers locations
+    receiver_coords = np.zeros((dimensions[0], ndim), dtype=np.float32)
     receiver_coords[:, 0] = np.linspace(0, origin[0] +
-                                        dimensions[0] * spacing[0], num=101)
-    receiver_coords[:, 1] = origin[1] + dimensions[1] * spacing[1] * 0.5
-    receiver_coords[:, 2] = location[0, 1]
+                                        (dimensions[0]-1) * spacing[0],
+                                        num=dimensions[0])
+    receiver_coords[:, 1:] = location[0, 1:]
+    src = PointSource(name='src', data=time_series, coordinates=location)
     rec = Receiver(name='rec', ntime=nt, coordinates=receiver_coords)
 
     solver = AcousticWaveSolver(model, source=src, receiver=rec,
