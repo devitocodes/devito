@@ -273,7 +273,7 @@ def log_args(arguments):
     for k, v in arguments.items():
         if hasattr(v, 'shape'):
             arg_str.append('(%s, shape=%s, L2 Norm=%d)' %
-                           (k, str(v.shape), np.linalg.norm(v)))
+                           (k, str(v.shape), np.linalg.norm(v.view())))
         else:
             arg_str.append('(%s, value=%s)' % (k, str(v)))
     debug("Passing Arguments: " + ", ".join(arg_str))

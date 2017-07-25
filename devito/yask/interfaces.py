@@ -16,11 +16,7 @@ class DenseData(interfaces.DenseData):
 
     def _allocate_memory(self):
         """Allocate memory in terms of Yask grids."""
-        # TODO: Refactor CMemory to be our _data_object, while _data will
-        # be the YaskGrid itself.
-
         debug("Allocating YaskGrid for %s (%s)" % (self.name, str(self.shape)))
-
         self._data_object = YaskGrid(self.name, self.shape, self.indices, self.dtype)
         if self._data_object is None:
             debug("Failed. Reverting to plain allocation...")
@@ -66,7 +62,7 @@ class YaskGrid(object):
         self.dimensions = dimensions
         self.dtype = dtype
 
-        self.grid = YASK.setdefault(name, dimensions)
+        self.grid = YASK.add_grid(name, dimensions)
 
         # Always init the grid, at least with 0.0
         self[:] = 0.0 if buffer is None else buffer
@@ -145,3 +141,9 @@ class YaskGrid(object):
     def ndpointer(self):
         # TODO: see corresponding comment in interfaces.py about CMemory
         return self
+
+    def view(self):
+        """
+        View of the YASK grid in standard (i.e., Devito) row-major layout.
+        """
+        return self[:]
