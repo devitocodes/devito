@@ -25,7 +25,7 @@ from itertools import islice
 from cached_property import cached_property
 from sympy import Indexed
 
-from devito.dimension import x, y, z, t, time
+from devito.dimension import Dimension, x, y, z, t, time
 from devito.dse.extended_sympy import Eq
 from devito.dse.search import retrieve_indexed
 from devito.dse.inspection import as_symbol, terminals
@@ -240,6 +240,9 @@ class TemporariesGraph(OrderedDict):
                 if i in self:
                     # Go on with the search
                     temporaries.append(i)
+                elif isinstance(i, Dimension):
+                    # Go on with the search, as /i/ is not a time dimension
+                    continue
                 elif not i.base.function.is_SymbolicData:
                     # It didn't come from the outside and it's not in self, so
                     # cannot determine if time-invariant; assume time-varying
