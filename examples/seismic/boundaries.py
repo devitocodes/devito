@@ -1,4 +1,4 @@
-from devito import Dimension, x, y, z, t, Forward, Backward, TimeData
+from devito import Dimension, x, y, z, t, Forward, Backward
 from devito.exceptions import InvalidArgument
 
 import numpy as np
@@ -64,4 +64,3 @@ class ABC(object):
 
     def damp_3d(self):
         return self.damp_x() + self.damp_y() + self.damp_z()
-
