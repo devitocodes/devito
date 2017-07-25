@@ -447,9 +447,6 @@
 
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cfunction</span>
 
-    <span class="k">def</span> <span class="nf">_arg_data</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">argument</span><span class="p">):</span>
-        <span class="k">return</span> <span class="kc">None</span>
-
     <span class="k">def</span> <span class="nf">_arg_shape</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">argument</span><span class="p">):</span>
         <span class="k">return</span> <span class="n">argument</span><span class="o">.</span><span class="n">shape</span>
 
@@ -643,13 +640,6 @@
                      <span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">v</span><span class="o">.</span><span class="n">oi</span><span class="p">,</span> <span class="n">v</span><span class="o">.</span><span class="n">time</span><span class="p">,</span> <span class="n">v</span><span class="o">.</span><span class="n">gflopss</span><span class="p">))</span>
 
         <span class="k">return</span> <span class="n">summary</span></div>
-
-    <span class="k">def</span> <span class="nf">_arg_data</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">argument</span><span class="p">):</span>
-        <span class="c1"># Ensure we&#39;re dealing or deriving numpy arrays</span>
-        <span class="n">data</span> <span class="o">=</span> <span class="n">argument</span><span class="o">.</span><span class="n">data</span>
-        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">):</span>
-            <span class="n">error</span><span class="p">(</span><span class="s1">&#39;No array data found for argument </span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="n">argument</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
-        <span class="k">return</span> <span class="n">data</span>
 
     <span class="k">def</span> <span class="nf">_arg_shape</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">argument</span><span class="p">):</span>
         <span class="k">return</span> <span class="n">argument</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">shape</span>
