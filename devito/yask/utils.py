@@ -61,8 +61,8 @@ def convert_multislice(multislice, shape, mode='get'):
     # Remainder (e.g., requesting A[1] and A has shape (3,3))
     nremainder = len(shape) - len(multislice)
     cstart.extend([0]*nremainder)
-    cstop.extend([shape[i + j] - 1 for j in range(nremainder)])
-    cshape.extend([shape[i + j] for j in range(nremainder)])
+    cstop.extend([shape[i + j] - 1 for j in range(1, nremainder + 1)])
+    cshape.extend([shape[i + j] for j in range(1, nremainder + 1)])
 
     return cstart, cstop, cshape
 
