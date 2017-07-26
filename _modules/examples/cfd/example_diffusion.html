@@ -1,0 +1,481 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>examples.cfd.example_diffusion &mdash; Devito 1 documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+
+  
+  
+    
+
+  
+
+  
+  
+    <link rel="stylesheet" href="../../../_static/css/theme.css" type="text/css" />
+  
+
+  
+
+  
+        <link rel="index" title="Index"
+              href="../../../genindex.html"/>
+        <link rel="search" title="Search" href="../../../search.html"/>
+    <link rel="top" title="Devito 1 documentation" href="../../../index.html"/>
+        <link rel="up" title="Module code" href="../../index.html"/> 
+
+  
+  <script src="../../../_static/js/modernizr.min.js"></script>
+
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+   
+  <div class="wy-grid-for-nav">
+
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search">
+          
+
+          
+            <a href="../../../index.html" class="icon icon-home"> Devito
+          
+
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                0
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../download.html">Download</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../tutorials.html">Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../examples.html">Example Documentation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../devito.html">API Documentation</a></li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" role="navigation" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">Devito</a>
+        
+      </nav>
+
+
+      
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../../../index.html">Docs</a> &raquo;</li>
+        
+          <li><a href="../../index.html">Module code</a> &raquo;</li>
+        
+      <li>examples.cfd.example_diffusion</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+            
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <h1>Source code for examples.cfd.example_diffusion</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">NOTE: This is a legacy example. For more up-to-date examples</span>
+<span class="sd">please see the tutorials under `examples/cfd/`.</span>
+
+<span class="sd">This example encodes multiple ways to solve the 2D diffusion equations</span>
+<span class="sd">using an explicit finite difference scheme with fixed boundary values</span>
+<span class="sd">and a given initial value for the density. The example also includes</span>
+<span class="sd">demo implementations using more traditional methods, including pure</span>
+<span class="sd">Python, vectorized NumPy and a vectorized symbolic implementation</span>
+<span class="sd">using SymPy&#39;s `lambdify()` functionality. For a visual demonstration</span>
+<span class="sd">and comparison between pure Python and NumPy, for example, run:</span>
+
+<span class="sd">python example_diffusion.py run -m python numpy --show</span>
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="kn">import</span> <span class="nn">time</span>
+<span class="kn">from</span> <span class="nn">argparse</span> <span class="k">import</span> <span class="n">ArgumentParser</span>
+
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">from</span> <span class="nn">sympy</span> <span class="k">import</span> <span class="n">Eq</span><span class="p">,</span> <span class="n">Function</span><span class="p">,</span> <span class="n">as_finite_diff</span><span class="p">,</span> <span class="n">lambdify</span><span class="p">,</span> <span class="n">solve</span>
+
+<span class="kn">from</span> <span class="nn">devito</span> <span class="k">import</span> <span class="n">Operator</span><span class="p">,</span> <span class="n">TimeData</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span>
+<span class="kn">from</span> <span class="nn">devito.logger</span> <span class="k">import</span> <span class="n">log</span>
+
+<span class="k">try</span><span class="p">:</span>
+    <span class="kn">from</span> <span class="nn">opescibench</span> <span class="k">import</span> <span class="n">Benchmark</span><span class="p">,</span> <span class="n">Executor</span><span class="p">,</span> <span class="n">Plotter</span>
+<span class="k">except</span><span class="p">:</span>
+    <span class="n">Benchmark</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">Executor</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">Plotter</span> <span class="o">=</span> <span class="kc">None</span>
+
+
+<div class="viewcode-block" id="ring_initial"><a class="viewcode-back" href="../../../examples.cfd.html#examples.cfd.example_diffusion.ring_initial">[docs]</a><span class="k">def</span> <span class="nf">ring_initial</span><span class="p">(</span><span class="n">spacing</span><span class="o">=</span><span class="mf">0.01</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Initialise grid with initial condition (&quot;ring&quot;)&quot;&quot;&quot;</span>
+    <span class="n">nx</span><span class="p">,</span> <span class="n">ny</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="mi">1</span> <span class="o">/</span> <span class="n">spacing</span><span class="p">),</span> <span class="nb">int</span><span class="p">(</span><span class="mi">1</span> <span class="o">/</span> <span class="n">spacing</span><span class="p">)</span>
+    <span class="n">xx</span><span class="p">,</span> <span class="n">yy</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">meshgrid</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="mf">0.</span><span class="p">,</span> <span class="mf">1.</span><span class="p">,</span> <span class="n">nx</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">),</span>
+                         <span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="mf">0.</span><span class="p">,</span> <span class="mf">1.</span><span class="p">,</span> <span class="n">ny</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">))</span>
+    <span class="n">ui</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">nx</span><span class="p">,</span> <span class="n">ny</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span>
+    <span class="n">r</span> <span class="o">=</span> <span class="p">(</span><span class="n">xx</span> <span class="o">-</span> <span class="o">.</span><span class="mi">5</span><span class="p">)</span><span class="o">**</span><span class="mf">2.</span> <span class="o">+</span> <span class="p">(</span><span class="n">yy</span> <span class="o">-</span> <span class="o">.</span><span class="mi">5</span><span class="p">)</span><span class="o">**</span><span class="mf">2.</span>
+    <span class="n">ui</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">logical_and</span><span class="p">(</span><span class="o">.</span><span class="mi">05</span> <span class="o">&lt;=</span> <span class="n">r</span><span class="p">,</span> <span class="n">r</span> <span class="o">&lt;=</span> <span class="o">.</span><span class="mi">1</span><span class="p">)]</span> <span class="o">=</span> <span class="mf">1.</span>
+    <span class="k">return</span> <span class="n">ui</span></div>
+
+
+<div class="viewcode-block" id="execute_python"><a class="viewcode-back" href="../../../examples.cfd.html#examples.cfd.example_diffusion.execute_python">[docs]</a><span class="k">def</span> <span class="nf">execute_python</span><span class="p">(</span><span class="n">ui</span><span class="p">,</span> <span class="n">spacing</span><span class="o">=</span><span class="mf">0.01</span><span class="p">,</span> <span class="n">a</span><span class="o">=</span><span class="mf">0.5</span><span class="p">,</span> <span class="n">timesteps</span><span class="o">=</span><span class="mi">500</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Execute diffusion stencil using pure Python list indexing.&quot;&quot;&quot;</span>
+    <span class="n">nx</span><span class="p">,</span> <span class="n">ny</span> <span class="o">=</span> <span class="n">ui</span><span class="o">.</span><span class="n">shape</span>
+    <span class="n">dx2</span><span class="p">,</span> <span class="n">dy2</span> <span class="o">=</span> <span class="n">spacing</span><span class="o">**</span><span class="mi">2</span><span class="p">,</span> <span class="n">spacing</span><span class="o">**</span><span class="mi">2</span>
+    <span class="n">dt</span> <span class="o">=</span> <span class="n">dx2</span> <span class="o">*</span> <span class="n">dy2</span> <span class="o">/</span> <span class="p">(</span><span class="mi">2</span> <span class="o">*</span> <span class="n">a</span> <span class="o">*</span> <span class="p">(</span><span class="n">dx2</span> <span class="o">+</span> <span class="n">dy2</span><span class="p">))</span>
+    <span class="n">u</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">concatenate</span><span class="p">((</span><span class="n">ui</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros_like</span><span class="p">(</span><span class="n">ui</span><span class="p">)))</span><span class="o">.</span><span class="n">reshape</span><span class="p">((</span><span class="mi">2</span><span class="p">,</span> <span class="n">nx</span><span class="p">,</span> <span class="n">ny</span><span class="p">))</span>
+
+    <span class="c1"># Execute timestepping loop with alternating buffers</span>
+    <span class="n">tstart</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span>
+    <span class="k">for</span> <span class="n">ti</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">timesteps</span><span class="p">):</span>
+        <span class="n">t0</span> <span class="o">=</span> <span class="n">ti</span> <span class="o">%</span> <span class="mi">2</span>
+        <span class="n">t1</span> <span class="o">=</span> <span class="p">(</span><span class="n">ti</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span> <span class="o">%</span> <span class="mi">2</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">nx</span><span class="o">-</span><span class="mi">1</span><span class="p">):</span>
+            <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">ny</span><span class="o">-</span><span class="mi">1</span><span class="p">):</span>
+                <span class="n">uxx</span> <span class="o">=</span> <span class="p">(</span><span class="n">u</span><span class="p">[</span><span class="n">t0</span><span class="p">,</span> <span class="n">i</span><span class="o">+</span><span class="mi">1</span><span class="p">,</span> <span class="n">j</span><span class="p">]</span> <span class="o">-</span> <span class="mi">2</span><span class="o">*</span><span class="n">u</span><span class="p">[</span><span class="n">t0</span><span class="p">,</span> <span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">]</span> <span class="o">+</span> <span class="n">u</span><span class="p">[</span><span class="n">t0</span><span class="p">,</span> <span class="n">i</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="n">j</span><span class="p">])</span> <span class="o">/</span> <span class="n">dx2</span>
+                <span class="n">uyy</span> <span class="o">=</span> <span class="p">(</span><span class="n">u</span><span class="p">[</span><span class="n">t0</span><span class="p">,</span> <span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="o">+</span><span class="mi">1</span><span class="p">]</span> <span class="o">-</span> <span class="mi">2</span><span class="o">*</span><span class="n">u</span><span class="p">[</span><span class="n">t0</span><span class="p">,</span> <span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">]</span> <span class="o">+</span> <span class="n">u</span><span class="p">[</span><span class="n">t0</span><span class="p">,</span> <span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span> <span class="o">/</span> <span class="n">dy2</span>
+                <span class="n">u</span><span class="p">[</span><span class="n">t1</span><span class="p">,</span> <span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">]</span> <span class="o">=</span> <span class="n">u</span><span class="p">[</span><span class="n">t0</span><span class="p">,</span> <span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">]</span> <span class="o">+</span> <span class="n">dt</span> <span class="o">*</span> <span class="n">a</span> <span class="o">*</span> <span class="p">(</span><span class="n">uxx</span> <span class="o">+</span> <span class="n">uyy</span><span class="p">)</span>
+    <span class="n">runtime</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span> <span class="o">-</span> <span class="n">tstart</span>
+    <span class="n">log</span><span class="p">(</span><span class="s2">&quot;Python: Diffusion with dx=</span><span class="si">%0.4f</span><span class="s2">, dy=</span><span class="si">%0.4f</span><span class="s2">, executed </span><span class="si">%d</span><span class="s2"> timesteps in </span><span class="si">%f</span><span class="s2"> seconds&quot;</span>
+        <span class="o">%</span> <span class="p">(</span><span class="n">spacing</span><span class="p">,</span> <span class="n">spacing</span><span class="p">,</span> <span class="n">timesteps</span><span class="p">,</span> <span class="n">runtime</span><span class="p">))</span>
+    <span class="k">return</span> <span class="n">u</span><span class="p">[</span><span class="n">ti</span> <span class="o">%</span> <span class="mi">2</span><span class="p">,</span> <span class="p">:,</span> <span class="p">:],</span> <span class="n">runtime</span></div>
+
+
+<div class="viewcode-block" id="execute_numpy"><a class="viewcode-back" href="../../../examples.cfd.html#examples.cfd.example_diffusion.execute_numpy">[docs]</a><span class="k">def</span> <span class="nf">execute_numpy</span><span class="p">(</span><span class="n">ui</span><span class="p">,</span> <span class="n">spacing</span><span class="o">=</span><span class="mf">0.01</span><span class="p">,</span> <span class="n">a</span><span class="o">=</span><span class="mf">0.5</span><span class="p">,</span> <span class="n">timesteps</span><span class="o">=</span><span class="mi">500</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Execute diffusion stencil using vectorised numpy array accesses.&quot;&quot;&quot;</span>
+    <span class="n">nx</span><span class="p">,</span> <span class="n">ny</span> <span class="o">=</span> <span class="n">ui</span><span class="o">.</span><span class="n">shape</span>
+    <span class="n">dx2</span><span class="p">,</span> <span class="n">dy2</span> <span class="o">=</span> <span class="n">spacing</span><span class="o">**</span><span class="mi">2</span><span class="p">,</span> <span class="n">spacing</span><span class="o">**</span><span class="mi">2</span>
+    <span class="n">dt</span> <span class="o">=</span> <span class="n">dx2</span> <span class="o">*</span> <span class="n">dy2</span> <span class="o">/</span> <span class="p">(</span><span class="mi">2</span> <span class="o">*</span> <span class="n">a</span> <span class="o">*</span> <span class="p">(</span><span class="n">dx2</span> <span class="o">+</span> <span class="n">dy2</span><span class="p">))</span>
+    <span class="n">u</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">concatenate</span><span class="p">((</span><span class="n">ui</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros_like</span><span class="p">(</span><span class="n">ui</span><span class="p">)))</span><span class="o">.</span><span class="n">reshape</span><span class="p">((</span><span class="mi">2</span><span class="p">,</span> <span class="n">nx</span><span class="p">,</span> <span class="n">ny</span><span class="p">))</span>
+
+    <span class="c1"># Execute timestepping loop with alternating buffers</span>
+    <span class="n">tstart</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span>
+    <span class="k">for</span> <span class="n">ti</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">timesteps</span><span class="p">):</span>
+        <span class="n">t0</span> <span class="o">=</span> <span class="n">ti</span> <span class="o">%</span> <span class="mi">2</span>
+        <span class="n">t1</span> <span class="o">=</span> <span class="p">(</span><span class="n">ti</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span> <span class="o">%</span> <span class="mi">2</span>
+
+        <span class="n">uxx</span> <span class="o">=</span> <span class="p">(</span><span class="n">u</span><span class="p">[</span><span class="n">t0</span><span class="p">,</span> <span class="mi">2</span><span class="p">:,</span> <span class="mi">1</span><span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">-</span> <span class="mi">2</span><span class="o">*</span><span class="n">u</span><span class="p">[</span><span class="n">t0</span><span class="p">,</span> <span class="mi">1</span><span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="n">u</span><span class="p">[</span><span class="n">t0</span><span class="p">,</span> <span class="p">:</span><span class="o">-</span><span class="mi">2</span><span class="p">,</span> <span class="mi">1</span><span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span> <span class="o">/</span> <span class="n">dx2</span>
+        <span class="n">uyy</span> <span class="o">=</span> <span class="p">(</span><span class="n">u</span><span class="p">[</span><span class="n">t0</span><span class="p">,</span> <span class="mi">1</span><span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">:]</span> <span class="o">-</span> <span class="mi">2</span><span class="o">*</span><span class="n">u</span><span class="p">[</span><span class="n">t0</span><span class="p">,</span> <span class="mi">1</span><span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="n">u</span><span class="p">[</span><span class="n">t0</span><span class="p">,</span> <span class="mi">1</span><span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="p">:</span><span class="o">-</span><span class="mi">2</span><span class="p">])</span> <span class="o">/</span> <span class="n">dy2</span>
+        <span class="n">u</span><span class="p">[</span><span class="n">t1</span><span class="p">,</span> <span class="mi">1</span><span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="n">u</span><span class="p">[</span><span class="n">t0</span><span class="p">,</span> <span class="mi">1</span><span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="n">a</span> <span class="o">*</span> <span class="n">dt</span> <span class="o">*</span> <span class="p">(</span><span class="n">uxx</span> <span class="o">+</span> <span class="n">uyy</span><span class="p">)</span>
+    <span class="n">runtime</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span> <span class="o">-</span> <span class="n">tstart</span>
+    <span class="n">log</span><span class="p">(</span><span class="s2">&quot;Numpy: Diffusion with dx=</span><span class="si">%0.4f</span><span class="s2">, dy=</span><span class="si">%0.4f</span><span class="s2">, executed </span><span class="si">%d</span><span class="s2"> timesteps in </span><span class="si">%f</span><span class="s2"> seconds&quot;</span>
+        <span class="o">%</span> <span class="p">(</span><span class="n">spacing</span><span class="p">,</span> <span class="n">spacing</span><span class="p">,</span> <span class="n">timesteps</span><span class="p">,</span> <span class="n">runtime</span><span class="p">))</span>
+    <span class="k">return</span> <span class="n">u</span><span class="p">[</span><span class="n">ti</span> <span class="o">%</span> <span class="mi">2</span><span class="p">,</span> <span class="p">:,</span> <span class="p">:],</span> <span class="n">runtime</span></div>
+
+
+<div class="viewcode-block" id="execute_lambdify"><a class="viewcode-back" href="../../../examples.cfd.html#examples.cfd.example_diffusion.execute_lambdify">[docs]</a><span class="k">def</span> <span class="nf">execute_lambdify</span><span class="p">(</span><span class="n">ui</span><span class="p">,</span> <span class="n">spacing</span><span class="o">=</span><span class="mf">0.01</span><span class="p">,</span> <span class="n">a</span><span class="o">=</span><span class="mf">0.5</span><span class="p">,</span> <span class="n">timesteps</span><span class="o">=</span><span class="mi">500</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Execute diffusion stencil using vectorised numpy array accesses.&quot;&quot;&quot;</span>
+    <span class="n">nx</span><span class="p">,</span> <span class="n">ny</span> <span class="o">=</span> <span class="n">ui</span><span class="o">.</span><span class="n">shape</span>
+    <span class="n">dx2</span><span class="p">,</span> <span class="n">dy2</span> <span class="o">=</span> <span class="n">spacing</span><span class="o">**</span><span class="mi">2</span><span class="p">,</span> <span class="n">spacing</span><span class="o">**</span><span class="mi">2</span>
+    <span class="n">dt</span> <span class="o">=</span> <span class="n">dx2</span> <span class="o">*</span> <span class="n">dy2</span> <span class="o">/</span> <span class="p">(</span><span class="mi">2</span> <span class="o">*</span> <span class="n">a</span> <span class="o">*</span> <span class="p">(</span><span class="n">dx2</span> <span class="o">+</span> <span class="n">dy2</span><span class="p">))</span>
+    <span class="n">u</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">concatenate</span><span class="p">((</span><span class="n">ui</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros_like</span><span class="p">(</span><span class="n">ui</span><span class="p">)))</span><span class="o">.</span><span class="n">reshape</span><span class="p">((</span><span class="mi">2</span><span class="p">,</span> <span class="n">nx</span><span class="p">,</span> <span class="n">ny</span><span class="p">))</span>
+
+    <span class="k">def</span> <span class="nf">diffusion_stencil</span><span class="p">():</span>
+        <span class="sd">&quot;&quot;&quot;Create stencil and substitutions for the diffusion equation&quot;&quot;&quot;</span>
+        <span class="n">p</span> <span class="o">=</span> <span class="n">Function</span><span class="p">(</span><span class="s1">&#39;p&#39;</span><span class="p">)</span>
+        <span class="n">s</span> <span class="o">=</span> <span class="n">t</span><span class="o">.</span><span class="n">spacing</span>
+        <span class="n">h</span> <span class="o">=</span> <span class="n">x</span><span class="o">.</span><span class="n">spacing</span>
+        <span class="n">dx2</span> <span class="o">=</span> <span class="n">as_finite_diff</span><span class="p">(</span><span class="n">p</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">t</span><span class="p">)</span><span class="o">.</span><span class="n">diff</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">x</span><span class="p">),</span> <span class="p">[</span><span class="n">x</span> <span class="o">-</span> <span class="n">h</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">x</span> <span class="o">+</span> <span class="n">h</span><span class="p">])</span>
+        <span class="n">dy2</span> <span class="o">=</span> <span class="n">as_finite_diff</span><span class="p">(</span><span class="n">p</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">t</span><span class="p">)</span><span class="o">.</span><span class="n">diff</span><span class="p">(</span><span class="n">y</span><span class="p">,</span> <span class="n">y</span><span class="p">),</span> <span class="p">[</span><span class="n">y</span> <span class="o">-</span> <span class="n">h</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">y</span> <span class="o">+</span> <span class="n">h</span><span class="p">])</span>
+        <span class="n">dt</span> <span class="o">=</span> <span class="n">as_finite_diff</span><span class="p">(</span><span class="n">p</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">t</span><span class="p">)</span><span class="o">.</span><span class="n">diff</span><span class="p">(</span><span class="n">t</span><span class="p">),</span> <span class="p">[</span><span class="n">t</span><span class="p">,</span> <span class="n">t</span> <span class="o">+</span> <span class="n">s</span><span class="p">])</span>
+        <span class="n">eqn</span> <span class="o">=</span> <span class="n">Eq</span><span class="p">(</span><span class="n">dt</span><span class="p">,</span> <span class="n">a</span> <span class="o">*</span> <span class="p">(</span><span class="n">dx2</span> <span class="o">+</span> <span class="n">dy2</span><span class="p">))</span>
+        <span class="n">stencil</span> <span class="o">=</span> <span class="n">solve</span><span class="p">(</span><span class="n">eqn</span><span class="p">,</span> <span class="n">p</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">t</span> <span class="o">+</span> <span class="n">s</span><span class="p">))[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="k">return</span> <span class="n">stencil</span><span class="p">,</span> <span class="p">(</span><span class="n">p</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">t</span><span class="p">),</span> <span class="n">p</span><span class="p">(</span><span class="n">x</span> <span class="o">+</span> <span class="n">h</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">t</span><span class="p">),</span> <span class="n">p</span><span class="p">(</span><span class="n">x</span> <span class="o">-</span> <span class="n">h</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">t</span><span class="p">),</span>
+                         <span class="n">p</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span> <span class="o">+</span> <span class="n">h</span><span class="p">,</span> <span class="n">t</span><span class="p">),</span> <span class="n">p</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span> <span class="o">-</span> <span class="n">h</span><span class="p">,</span> <span class="n">t</span><span class="p">),</span> <span class="n">s</span><span class="p">,</span> <span class="n">h</span><span class="p">)</span>
+    <span class="n">stencil</span><span class="p">,</span> <span class="n">subs</span> <span class="o">=</span> <span class="n">diffusion_stencil</span><span class="p">()</span>
+    <span class="n">kernel</span> <span class="o">=</span> <span class="n">lambdify</span><span class="p">(</span><span class="n">subs</span><span class="p">,</span> <span class="n">stencil</span><span class="p">,</span> <span class="s1">&#39;numpy&#39;</span><span class="p">)</span>
+
+    <span class="c1"># Execute timestepping loop with alternating buffers</span>
+    <span class="n">tstart</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span>
+    <span class="k">for</span> <span class="n">ti</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">timesteps</span><span class="p">):</span>
+        <span class="n">t0</span> <span class="o">=</span> <span class="n">ti</span> <span class="o">%</span> <span class="mi">2</span>
+        <span class="n">t1</span> <span class="o">=</span> <span class="p">(</span><span class="n">ti</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span> <span class="o">%</span> <span class="mi">2</span>
+        <span class="n">u</span><span class="p">[</span><span class="n">t1</span><span class="p">,</span> <span class="mi">1</span><span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="n">kernel</span><span class="p">(</span><span class="n">u</span><span class="p">[</span><span class="n">t0</span><span class="p">,</span> <span class="mi">1</span><span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span> <span class="n">u</span><span class="p">[</span><span class="n">t0</span><span class="p">,</span> <span class="mi">2</span><span class="p">:,</span> <span class="mi">1</span><span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span>
+                                   <span class="n">u</span><span class="p">[</span><span class="n">t0</span><span class="p">,</span> <span class="p">:</span><span class="o">-</span><span class="mi">2</span><span class="p">,</span> <span class="mi">1</span><span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span> <span class="n">u</span><span class="p">[</span><span class="n">t0</span><span class="p">,</span> <span class="mi">1</span><span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">:],</span>
+                                   <span class="n">u</span><span class="p">[</span><span class="n">t0</span><span class="p">,</span> <span class="mi">1</span><span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="p">:</span><span class="o">-</span><span class="mi">2</span><span class="p">],</span> <span class="n">dt</span><span class="p">,</span> <span class="n">spacing</span><span class="p">)</span>
+    <span class="n">runtime</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span> <span class="o">-</span> <span class="n">tstart</span>
+    <span class="n">log</span><span class="p">(</span><span class="s2">&quot;Lambdify: Diffusion with dx=</span><span class="si">%0.4f</span><span class="s2">, dy=</span><span class="si">%0.4f</span><span class="s2">, executed </span><span class="si">%d</span><span class="s2"> timesteps in </span><span class="si">%f</span><span class="s2"> seconds&quot;</span>
+        <span class="o">%</span> <span class="p">(</span><span class="n">spacing</span><span class="p">,</span> <span class="n">spacing</span><span class="p">,</span> <span class="n">timesteps</span><span class="p">,</span> <span class="n">runtime</span><span class="p">))</span>
+    <span class="k">return</span> <span class="n">u</span><span class="p">[</span><span class="n">ti</span> <span class="o">%</span> <span class="mi">2</span><span class="p">,</span> <span class="p">:,</span> <span class="p">:],</span> <span class="n">runtime</span></div>
+
+
+<div class="viewcode-block" id="execute_devito"><a class="viewcode-back" href="../../../examples.cfd.html#examples.cfd.example_diffusion.execute_devito">[docs]</a><span class="k">def</span> <span class="nf">execute_devito</span><span class="p">(</span><span class="n">ui</span><span class="p">,</span> <span class="n">spacing</span><span class="o">=</span><span class="mf">0.01</span><span class="p">,</span> <span class="n">a</span><span class="o">=</span><span class="mf">0.5</span><span class="p">,</span> <span class="n">timesteps</span><span class="o">=</span><span class="mi">500</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Execute diffusion stencil using the devito Operator API.&quot;&quot;&quot;</span>
+    <span class="n">nx</span><span class="p">,</span> <span class="n">ny</span> <span class="o">=</span> <span class="n">ui</span><span class="o">.</span><span class="n">shape</span>
+    <span class="n">dx2</span><span class="p">,</span> <span class="n">dy2</span> <span class="o">=</span> <span class="n">spacing</span><span class="o">**</span><span class="mi">2</span><span class="p">,</span> <span class="n">spacing</span><span class="o">**</span><span class="mi">2</span>
+    <span class="n">dt</span> <span class="o">=</span> <span class="n">dx2</span> <span class="o">*</span> <span class="n">dy2</span> <span class="o">/</span> <span class="p">(</span><span class="mi">2</span> <span class="o">*</span> <span class="n">a</span> <span class="o">*</span> <span class="p">(</span><span class="n">dx2</span> <span class="o">+</span> <span class="n">dy2</span><span class="p">))</span>
+    <span class="c1"># Allocate the grid and set initial condition</span>
+    <span class="c1"># Note: This should be made simpler through the use of defaults</span>
+    <span class="n">u</span> <span class="o">=</span> <span class="n">TimeData</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;u&#39;</span><span class="p">,</span> <span class="n">shape</span><span class="o">=</span><span class="p">(</span><span class="n">nx</span><span class="p">,</span> <span class="n">ny</span><span class="p">),</span> <span class="n">time_order</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">space_order</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span>
+    <span class="n">u</span><span class="o">.</span><span class="n">data</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="p">:]</span> <span class="o">=</span> <span class="n">ui</span><span class="p">[:]</span>
+
+    <span class="c1"># Derive the stencil according to devito conventions</span>
+    <span class="n">eqn</span> <span class="o">=</span> <span class="n">Eq</span><span class="p">(</span><span class="n">u</span><span class="o">.</span><span class="n">dt</span><span class="p">,</span> <span class="n">a</span> <span class="o">*</span> <span class="p">(</span><span class="n">u</span><span class="o">.</span><span class="n">dx2</span> <span class="o">+</span> <span class="n">u</span><span class="o">.</span><span class="n">dy2</span><span class="p">))</span>
+    <span class="n">stencil</span> <span class="o">=</span> <span class="n">solve</span><span class="p">(</span><span class="n">eqn</span><span class="p">,</span> <span class="n">u</span><span class="o">.</span><span class="n">forward</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="n">op</span> <span class="o">=</span> <span class="n">Operator</span><span class="p">(</span><span class="n">Eq</span><span class="p">(</span><span class="n">u</span><span class="o">.</span><span class="n">forward</span><span class="p">,</span> <span class="n">stencil</span><span class="p">),</span> <span class="n">subs</span><span class="o">=</span><span class="p">{</span><span class="n">x</span><span class="o">.</span><span class="n">spacing</span><span class="p">:</span> <span class="n">spacing</span><span class="p">,</span>
+                                                <span class="n">y</span><span class="o">.</span><span class="n">spacing</span><span class="p">:</span> <span class="n">spacing</span><span class="p">,</span>
+                                                <span class="n">t</span><span class="o">.</span><span class="n">spacing</span><span class="p">:</span> <span class="n">dt</span><span class="p">})</span>
+
+    <span class="c1"># Execute the generated Devito stencil operator</span>
+    <span class="n">tstart</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span>
+    <span class="n">op</span><span class="o">.</span><span class="n">apply</span><span class="p">(</span><span class="n">u</span><span class="p">,</span> <span class="n">t</span><span class="o">=</span><span class="n">timesteps</span><span class="p">)</span>
+    <span class="n">runtime</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span> <span class="o">-</span> <span class="n">tstart</span>
+    <span class="n">log</span><span class="p">(</span><span class="s2">&quot;Devito: Diffusion with dx=</span><span class="si">%0.4f</span><span class="s2">, dy=</span><span class="si">%0.4f</span><span class="s2">, executed </span><span class="si">%d</span><span class="s2"> timesteps in </span><span class="si">%f</span><span class="s2"> seconds&quot;</span>
+        <span class="o">%</span> <span class="p">(</span><span class="n">spacing</span><span class="p">,</span> <span class="n">spacing</span><span class="p">,</span> <span class="n">timesteps</span><span class="p">,</span> <span class="n">runtime</span><span class="p">))</span>
+    <span class="k">return</span> <span class="n">u</span><span class="o">.</span><span class="n">data</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="p">:],</span> <span class="n">runtime</span></div>
+
+
+<div class="viewcode-block" id="animate"><a class="viewcode-back" href="../../../examples.cfd.html#examples.cfd.example_diffusion.animate">[docs]</a><span class="k">def</span> <span class="nf">animate</span><span class="p">(</span><span class="n">field</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Animate solution field&quot;&quot;&quot;</span>
+    <span class="kn">import</span> <span class="nn">matplotlib.pyplot</span> <span class="k">as</span> <span class="nn">plt</span>
+    <span class="n">xvals</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mf">1.</span><span class="p">,</span> <span class="n">field</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+    <span class="n">yvals</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mf">1.</span><span class="p">,</span> <span class="n">field</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+    <span class="n">levels</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="o">-.</span><span class="mi">1</span><span class="p">,</span> <span class="mf">1.1</span><span class="p">,</span> <span class="mi">21</span><span class="p">)</span>
+    <span class="n">cs</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">contourf</span><span class="p">(</span><span class="n">xvals</span><span class="p">,</span> <span class="n">yvals</span><span class="p">,</span> <span class="n">field</span><span class="p">,</span> <span class="n">levels</span><span class="o">=</span><span class="n">levels</span><span class="p">)</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">colorbar</span><span class="p">(</span><span class="n">cs</span><span class="p">)</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span></div>
+
+
+<div class="viewcode-block" id="test_diffusion2d"><a class="viewcode-back" href="../../../examples.cfd.html#examples.cfd.example_diffusion.test_diffusion2d">[docs]</a><span class="k">def</span> <span class="nf">test_diffusion2d</span><span class="p">(</span><span class="n">spacing</span><span class="o">=</span><span class="mf">0.01</span><span class="p">,</span> <span class="n">timesteps</span><span class="o">=</span><span class="mi">1000</span><span class="p">):</span>
+    <span class="n">ui</span> <span class="o">=</span> <span class="n">ring_initial</span><span class="p">(</span><span class="n">spacing</span><span class="o">=</span><span class="n">spacing</span><span class="p">)</span>
+    <span class="n">u</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">execute_devito</span><span class="p">(</span><span class="n">ui</span><span class="p">,</span> <span class="n">spacing</span><span class="o">=</span><span class="n">spacing</span><span class="p">,</span> <span class="n">timesteps</span><span class="o">=</span><span class="n">timesteps</span><span class="p">)</span>
+    <span class="k">assert</span><span class="p">(</span><span class="n">u</span><span class="o">.</span><span class="n">max</span><span class="p">()</span> <span class="o">&lt;</span> <span class="mf">2.4</span><span class="p">)</span>
+    <span class="k">assert</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">norm</span><span class="p">(</span><span class="n">u</span><span class="p">,</span> <span class="nb">ord</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mi">13</span><span class="p">)</span></div>
+
+
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">&quot;__main__&quot;</span><span class="p">:</span>
+    <span class="n">description</span> <span class="o">=</span> <span class="s2">&quot;&quot;&quot;</span>
+<span class="s2">Example script demonstrating several approaches to solving the</span>
+<span class="s2">2D diffusion equation. The various modes are pure Python,</span>
+<span class="s2">vectorized numpy, a lambdified SymPy equation and the Devito API.</span>
+
+<span class="s2">Please not that the default settings for spacing and timesteps are</span>
+<span class="s2">chosen to highlight that Devito and &quot;vectorised numpy&quot; are faster than</span>
+<span class="s2">pure Python or the sympy.lambdify kernels approach.  For a fair</span>
+<span class="s2">performance comparison between Devito and &quot;vectorised numpy&quot; we</span>
+<span class="s2">recommend using --spacing 0.001 -t 1000.</span>
+<span class="s2">&quot;&quot;&quot;</span>
+    <span class="n">parser</span> <span class="o">=</span> <span class="n">ArgumentParser</span><span class="p">(</span><span class="n">description</span><span class="o">=</span><span class="n">description</span><span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="n">dest</span><span class="o">=</span><span class="s1">&#39;execmode&#39;</span><span class="p">,</span> <span class="n">nargs</span><span class="o">=</span><span class="s1">&#39;?&#39;</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="s1">&#39;run&#39;</span><span class="p">,</span>
+                        <span class="n">choices</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;run&#39;</span><span class="p">,</span> <span class="s1">&#39;bench&#39;</span><span class="p">,</span> <span class="s1">&#39;plot&#39;</span><span class="p">],</span>
+                        <span class="n">help</span><span class="o">=</span><span class="s2">&quot;Script mode; either &#39;run&#39;, &#39;bench&#39; or &#39;plot&#39; &quot;</span><span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s1">&#39;-m&#39;</span><span class="p">,</span> <span class="s1">&#39;--mode&#39;</span><span class="p">,</span> <span class="n">nargs</span><span class="o">=</span><span class="s1">&#39;+&#39;</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;devito&#39;</span><span class="p">],</span>
+                        <span class="n">choices</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;python&#39;</span><span class="p">,</span> <span class="s1">&#39;numpy&#39;</span><span class="p">,</span> <span class="s1">&#39;lambdify&#39;</span><span class="p">,</span> <span class="s1">&#39;devito&#39;</span><span class="p">],</span>
+                        <span class="n">help</span><span class="o">=</span><span class="s2">&quot;Example modes: python, numpy, lambdify, devito&quot;</span><span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s1">&#39;-s&#39;</span><span class="p">,</span> <span class="s1">&#39;--spacing&#39;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">float</span><span class="p">,</span> <span class="n">nargs</span><span class="o">=</span><span class="s1">&#39;+&#39;</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="p">[</span><span class="mf">0.01</span><span class="p">],</span>
+                        <span class="n">help</span><span class="o">=</span><span class="s1">&#39;Grid spacing in x and y)&#39;</span><span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s1">&#39;-t&#39;</span><span class="p">,</span> <span class="s1">&#39;--timesteps&#39;</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">int</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="mi">20</span><span class="p">,</span>
+                        <span class="n">help</span><span class="o">=</span><span class="s1">&#39;Number of timesteps to run&#39;</span><span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s1">&#39;--show&#39;</span><span class="p">,</span> <span class="n">action</span><span class="o">=</span><span class="s1">&#39;store_true&#39;</span><span class="p">,</span>
+                        <span class="n">help</span><span class="o">=</span><span class="s2">&quot;Show animation of the solution field&quot;</span><span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s1">&#39;-i&#39;</span><span class="p">,</span> <span class="s1">&#39;--resultsdir&#39;</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="s1">&#39;results&#39;</span><span class="p">,</span>
+                        <span class="n">help</span><span class="o">=</span><span class="s1">&#39;Directory containing results&#39;</span><span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s1">&#39;-o&#39;</span><span class="p">,</span> <span class="s1">&#39;--plotdir&#39;</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="s1">&#39;plots&#39;</span><span class="p">,</span>
+                        <span class="n">help</span><span class="o">=</span><span class="s1">&#39;Directory to store generated plots&#39;</span><span class="p">)</span>
+
+    <span class="n">args</span> <span class="o">=</span> <span class="n">parser</span><span class="o">.</span><span class="n">parse_args</span><span class="p">()</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">args</span><span class="o">.</span><span class="n">spacing</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">2</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Too many arguments encountered for --spacing&quot;</span><span class="p">)</span>
+
+    <span class="c1"># Map &quot;mode&quot; arg to execution function</span>
+    <span class="n">exec_func</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;python&#39;</span><span class="p">:</span> <span class="n">execute_python</span><span class="p">,</span> <span class="s1">&#39;numpy&#39;</span><span class="p">:</span> <span class="n">execute_numpy</span><span class="p">,</span>
+                 <span class="s1">&#39;lambdify&#39;</span><span class="p">:</span> <span class="n">execute_lambdify</span><span class="p">,</span> <span class="s1">&#39;devito&#39;</span><span class="p">:</span> <span class="n">execute_devito</span><span class="p">}</span>
+    <span class="c1"># Create parameters dict and remove script-specific args</span>
+    <span class="n">parameters</span> <span class="o">=</span> <span class="nb">vars</span><span class="p">(</span><span class="n">args</span><span class="p">)</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+    <span class="k">del</span> <span class="n">parameters</span><span class="p">[</span><span class="s1">&#39;show&#39;</span><span class="p">]</span>
+    <span class="k">del</span> <span class="n">parameters</span><span class="p">[</span><span class="s1">&#39;execmode&#39;</span><span class="p">]</span>
+    <span class="k">del</span> <span class="n">parameters</span><span class="p">[</span><span class="s1">&#39;resultsdir&#39;</span><span class="p">]</span>
+    <span class="k">del</span> <span class="n">parameters</span><span class="p">[</span><span class="s1">&#39;plotdir&#39;</span><span class="p">]</span>
+
+    <span class="k">if</span> <span class="n">args</span><span class="o">.</span><span class="n">execmode</span> <span class="o">==</span> <span class="s1">&#39;run&#39;</span><span class="p">:</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">args</span><span class="o">.</span><span class="n">spacing</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Run mode only supports a single --spacing value&quot;</span><span class="p">)</span>
+
+        <span class="c1"># Run and animate example runs</span>
+        <span class="k">for</span> <span class="n">mode</span> <span class="ow">in</span> <span class="n">args</span><span class="o">.</span><span class="n">mode</span><span class="p">:</span>
+            <span class="n">ui</span> <span class="o">=</span> <span class="n">ring_initial</span><span class="p">(</span><span class="n">spacing</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">spacing</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+            <span class="k">if</span> <span class="n">args</span><span class="o">.</span><span class="n">show</span><span class="p">:</span>
+                <span class="n">animate</span><span class="p">(</span><span class="n">ui</span><span class="p">)</span>
+            <span class="n">u</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">exec_func</span><span class="p">[</span><span class="n">mode</span><span class="p">](</span><span class="n">ui</span><span class="p">,</span> <span class="n">spacing</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">spacing</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span>
+                                   <span class="n">timesteps</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">timesteps</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">args</span><span class="o">.</span><span class="n">show</span><span class="p">:</span>
+                <span class="n">animate</span><span class="p">(</span><span class="n">u</span><span class="p">)</span>
+
+    <span class="k">elif</span> <span class="n">args</span><span class="o">.</span><span class="n">execmode</span> <span class="o">==</span> <span class="s1">&#39;bench&#39;</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">Benchmark</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ImportError</span><span class="p">(</span><span class="s2">&quot;Could not find opescibench utility package.</span><span class="se">\n</span><span class="s2">&quot;</span>
+                              <span class="s2">&quot;Please install from https://github.com/opesci/opescibench&quot;</span><span class="p">)</span>
+
+        <span class="k">class</span> <span class="nc">DiffusionExecutor</span><span class="p">(</span><span class="n">Executor</span><span class="p">):</span>
+            <span class="sd">&quot;&quot;&quot;Executor class that defines how to run the benchmark&quot;&quot;&quot;</span>
+            <span class="k">def</span> <span class="nf">setup</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">ui</span> <span class="o">=</span> <span class="n">ring_initial</span><span class="p">(</span><span class="n">spacing</span><span class="o">=</span><span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;spacing&#39;</span><span class="p">])</span>
+
+            <span class="k">def</span> <span class="nf">run</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+                <span class="n">u</span><span class="p">,</span> <span class="n">time</span> <span class="o">=</span> <span class="n">exec_func</span><span class="p">[</span><span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;mode&#39;</span><span class="p">]](</span><span class="bp">self</span><span class="o">.</span><span class="n">ui</span><span class="p">,</span> <span class="n">spacing</span><span class="o">=</span><span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;spacing&#39;</span><span class="p">],</span>
+                                                    <span class="n">timesteps</span><span class="o">=</span><span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;timesteps&#39;</span><span class="p">])</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="n">time</span><span class="p">)</span>
+
+        <span class="c1"># Run benchmark across parameters and save the result</span>
+        <span class="n">bench</span> <span class="o">=</span> <span class="n">Benchmark</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;Diffusion&#39;</span><span class="p">,</span> <span class="n">resultsdir</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">resultsdir</span><span class="p">,</span>
+                          <span class="n">parameters</span><span class="o">=</span><span class="n">parameters</span><span class="p">)</span>
+        <span class="n">bench</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="n">DiffusionExecutor</span><span class="p">(),</span> <span class="n">warmups</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">repeats</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+        <span class="n">bench</span><span class="o">.</span><span class="n">save</span><span class="p">()</span>
+
+    <span class="k">elif</span> <span class="n">args</span><span class="o">.</span><span class="n">execmode</span> <span class="o">==</span> <span class="s1">&#39;plot&#39;</span><span class="p">:</span>
+        <span class="c1"># Load previously generated benchmark data</span>
+        <span class="n">bench</span> <span class="o">=</span> <span class="n">Benchmark</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;Diffusion&#39;</span><span class="p">,</span> <span class="n">resultsdir</span><span class="o">=</span><span class="n">args</span><span class="o">.</span><span class="n">resultsdir</span><span class="p">,</span>
+                          <span class="n">parameters</span><span class="o">=</span><span class="n">parameters</span><span class="p">)</span>
+        <span class="n">bench</span><span class="o">.</span><span class="n">load</span><span class="p">()</span>
+
+        <span class="c1"># Generate the plot from loaded benchmark data</span>
+        <span class="n">plotter</span> <span class="o">=</span> <span class="n">Plotter</span><span class="p">()</span>
+        <span class="n">plotter</span><span class="o">.</span><span class="n">plot_comparison</span><span class="p">(</span><span class="s1">&#39;DiffusionModes.pdf&#39;</span><span class="p">,</span> <span class="n">args</span><span class="o">.</span><span class="n">mode</span><span class="p">,</span> <span class="n">bench</span><span class="o">.</span><span class="n">lookup</span><span class="p">())</span>
+</pre></div>
+
+           </div>
+           <div class="articleComments">
+            
+           </div>
+          </div>
+          <footer>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2016, Opesci.
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/snide/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  
+
+    <script type="text/javascript">
+        var DOCUMENTATION_OPTIONS = {
+            URL_ROOT:'../../../',
+            VERSION:'1',
+            COLLAPSE_INDEX:false,
+            FILE_SUFFIX:'.html',
+            HAS_SOURCE:  true,
+            SOURCELINK_SUFFIX: '.txt'
+        };
+    </script>
+      <script type="text/javascript" src="../../../_static/jquery.js"></script>
+      <script type="text/javascript" src="../../../_static/underscore.js"></script>
+      <script type="text/javascript" src="../../../_static/doctools.js"></script>
+      <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.0/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+
+  
+
+  
+  
+    <script type="text/javascript" src="../../../_static/js/theme.js"></script>
+  
+
+  
+  
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.StickyNav.enable();
+      });
+  </script>
+   
+
+</body>
+</html>

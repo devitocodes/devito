@@ -1,0 +1,46 @@
+examples\.seismic\.tti package
+==============================
+
+Submodules
+----------
+
+examples\.seismic\.tti\.operators module
+----------------------------------------
+
+.. automodule:: examples.seismic.tti.operators
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+examples\.seismic\.tti\.tti\_example2D module
+---------------------------------------------
+
+.. automodule:: examples.seismic.tti.tti_example2D
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+examples\.seismic\.tti\.tti\_example3D module
+---------------------------------------------
+
+.. automodule:: examples.seismic.tti.tti_example3D
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+examples\.seismic\.tti\.wavesolver module
+-----------------------------------------
+
+.. automodule:: examples.seismic.tti.wavesolver
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+
+Module contents
+---------------
+
+.. automodule:: examples.seismic.tti
+    :members:
+    :undoc-members:
+    :show-inheritance:

@@ -1,0 +1,302 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>devito.dse.queries &mdash; Devito 1 documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+
+  
+  
+    
+
+  
+
+  
+  
+    <link rel="stylesheet" href="../../../_static/css/theme.css" type="text/css" />
+  
+
+  
+
+  
+        <link rel="index" title="Index"
+              href="../../../genindex.html"/>
+        <link rel="search" title="Search" href="../../../search.html"/>
+    <link rel="top" title="Devito 1 documentation" href="../../../index.html"/>
+        <link rel="up" title="devito" href="../../devito.html"/> 
+
+  
+  <script src="../../../_static/js/modernizr.min.js"></script>
+
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+   
+  <div class="wy-grid-for-nav">
+
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search">
+          
+
+          
+            <a href="../../../index.html" class="icon icon-home"> Devito
+          
+
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                0
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../download.html">Download</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../tutorials.html">Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../examples.html">Example Documentation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../devito.html">API Documentation</a></li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" role="navigation" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">Devito</a>
+        
+      </nav>
+
+
+      
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../../../index.html">Docs</a> &raquo;</li>
+        
+          <li><a href="../../index.html">Module code</a> &raquo;</li>
+        
+          <li><a href="../../devito.html">devito</a> &raquo;</li>
+        
+      <li>devito.dse.queries</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+            
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <h1>Source code for devito.dse.queries</h1><div class="highlight"><pre>
+<span></span><span class="kn">from</span> <span class="nn">sympy</span> <span class="k">import</span> <span class="n">Indexed</span><span class="p">,</span> <span class="n">cos</span><span class="p">,</span> <span class="n">sin</span>
+
+
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">The q_* functions are to be applied directly to expression objects.</span>
+<span class="sd">The iq_* functions return functions to be applied to expressions objects.</span>
+
+<span class="sd">Function names are usually self-explanatory of what the queries achieves,</span>
+<span class="sd">otherwise a docstring is provided.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+
+<div class="viewcode-block" id="q_leaf"><a class="viewcode-back" href="../../../devito.dse.html#devito.dse.queries.q_leaf">[docs]</a><span class="k">def</span> <span class="nf">q_leaf</span><span class="p">(</span><span class="n">expr</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    The DSE interprets the following SymPy objects as tree leaves: ::</span>
+
+<span class="sd">        * Number</span>
+<span class="sd">        * Symbol</span>
+<span class="sd">        * Indexed</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">expr</span><span class="o">.</span><span class="n">is_Number</span> <span class="ow">or</span> <span class="n">expr</span><span class="o">.</span><span class="n">is_Symbol</span> <span class="ow">or</span> <span class="n">q_indexed</span><span class="p">(</span><span class="n">expr</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="q_indexed"><a class="viewcode-back" href="../../../devito.dse.html#devito.dse.queries.q_indexed">[docs]</a><span class="k">def</span> <span class="nf">q_indexed</span><span class="p">(</span><span class="n">expr</span><span class="p">):</span>
+    <span class="k">return</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">Indexed</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="q_trigonometry"><a class="viewcode-back" href="../../../devito.dse.html#devito.dse.queries.q_trigonometry">[docs]</a><span class="k">def</span> <span class="nf">q_trigonometry</span><span class="p">(</span><span class="n">expr</span><span class="p">):</span>
+    <span class="k">return</span> <span class="n">expr</span><span class="o">.</span><span class="n">is_Function</span> <span class="ow">and</span> <span class="n">expr</span><span class="o">.</span><span class="n">func</span> <span class="ow">in</span> <span class="p">[</span><span class="n">sin</span><span class="p">,</span> <span class="n">cos</span><span class="p">]</span></div>
+
+
+<div class="viewcode-block" id="q_op"><a class="viewcode-back" href="../../../devito.dse.html#devito.dse.queries.q_op">[docs]</a><span class="k">def</span> <span class="nf">q_op</span><span class="p">(</span><span class="n">expr</span><span class="p">):</span>
+    <span class="k">return</span> <span class="n">expr</span><span class="o">.</span><span class="n">is_Add</span> <span class="ow">or</span> <span class="n">expr</span><span class="o">.</span><span class="n">is_Mul</span> <span class="ow">or</span> <span class="n">expr</span><span class="o">.</span><span class="n">is_Function</span></div>
+
+
+<div class="viewcode-block" id="q_terminalop"><a class="viewcode-back" href="../../../devito.dse.html#devito.dse.queries.q_terminalop">[docs]</a><span class="k">def</span> <span class="nf">q_terminalop</span><span class="p">(</span><span class="n">expr</span><span class="p">):</span>
+    <span class="kn">from</span> <span class="nn">devito.dse.inspection</span> <span class="k">import</span> <span class="n">as_symbol</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">q_op</span><span class="p">(</span><span class="n">expr</span><span class="p">):</span>
+        <span class="k">return</span> <span class="kc">False</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="n">expr</span><span class="o">.</span><span class="n">args</span><span class="p">:</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">as_symbol</span><span class="p">(</span><span class="n">a</span><span class="p">)</span>
+            <span class="k">except</span> <span class="ne">TypeError</span><span class="p">:</span>
+                <span class="k">return</span> <span class="kc">False</span>
+        <span class="k">return</span> <span class="kc">True</span></div>
+
+
+<div class="viewcode-block" id="q_sum_of_product"><a class="viewcode-back" href="../../../devito.dse.html#devito.dse.queries.q_sum_of_product">[docs]</a><span class="k">def</span> <span class="nf">q_sum_of_product</span><span class="p">(</span><span class="n">expr</span><span class="p">):</span>
+    <span class="k">return</span> <span class="n">q_leaf</span><span class="p">(</span><span class="n">expr</span><span class="p">)</span> <span class="ow">or</span> <span class="n">q_terminalop</span><span class="p">(</span><span class="n">expr</span><span class="p">)</span> <span class="ow">or</span> <span class="nb">all</span><span class="p">(</span><span class="n">q_terminalop</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">expr</span><span class="o">.</span><span class="n">args</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="q_indirect"><a class="viewcode-back" href="../../../devito.dse.html#devito.dse.queries.q_indirect">[docs]</a><span class="k">def</span> <span class="nf">q_indirect</span><span class="p">(</span><span class="n">expr</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Return True if ``indexed`` has indirect accesses, False otherwise.</span>
+
+<span class="sd">    :Examples:</span>
+
+<span class="sd">    a[i] --&gt; False</span>
+<span class="sd">    a[b[i]] --&gt; True</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="kn">from</span> <span class="nn">devito.dse.search</span> <span class="k">import</span> <span class="n">retrieve_indexed</span>
+
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">q_indexed</span><span class="p">(</span><span class="n">expr</span><span class="p">):</span>
+        <span class="k">return</span> <span class="kc">False</span>
+    <span class="k">return</span> <span class="nb">any</span><span class="p">(</span><span class="n">retrieve_indexed</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">expr</span><span class="o">.</span><span class="n">indices</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="iq_timeinvariant"><a class="viewcode-back" href="../../../devito.dse.html#devito.dse.queries.iq_timeinvariant">[docs]</a><span class="k">def</span> <span class="nf">iq_timeinvariant</span><span class="p">(</span><span class="n">graph</span><span class="p">):</span>
+    <span class="k">return</span> <span class="k">lambda</span> <span class="n">e</span><span class="p">:</span> <span class="ow">not</span> <span class="n">e</span><span class="o">.</span><span class="n">is_Number</span> <span class="ow">and</span> <span class="n">graph</span><span class="o">.</span><span class="n">time_invariant</span><span class="p">(</span><span class="n">e</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="iq_timevarying"><a class="viewcode-back" href="../../../devito.dse.html#devito.dse.queries.iq_timevarying">[docs]</a><span class="k">def</span> <span class="nf">iq_timevarying</span><span class="p">(</span><span class="n">graph</span><span class="p">):</span>
+    <span class="k">return</span> <span class="k">lambda</span> <span class="n">e</span><span class="p">:</span> <span class="n">e</span><span class="o">.</span><span class="n">is_Number</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">graph</span><span class="o">.</span><span class="n">time_invariant</span><span class="p">(</span><span class="n">e</span><span class="p">)</span></div>
+</pre></div>
+
+           </div>
+           <div class="articleComments">
+            
+           </div>
+          </div>
+          <footer>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2016, Opesci.
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/snide/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  
+
+    <script type="text/javascript">
+        var DOCUMENTATION_OPTIONS = {
+            URL_ROOT:'../../../',
+            VERSION:'1',
+            COLLAPSE_INDEX:false,
+            FILE_SUFFIX:'.html',
+            HAS_SOURCE:  true,
+            SOURCELINK_SUFFIX: '.txt'
+        };
+    </script>
+      <script type="text/javascript" src="../../../_static/jquery.js"></script>
+      <script type="text/javascript" src="../../../_static/underscore.js"></script>
+      <script type="text/javascript" src="../../../_static/doctools.js"></script>
+      <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.0/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+
+  
+
+  
+  
+    <script type="text/javascript" src="../../../_static/js/theme.js"></script>
+  
+
+  
+  
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.StickyNav.enable();
+      });
+  </script>
+   
+
+</body>
+</html>

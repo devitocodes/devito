@@ -1,0 +1,448 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>devito.dse.clusterizer &mdash; Devito 1 documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+
+  
+  
+    
+
+  
+
+  
+  
+    <link rel="stylesheet" href="../../../_static/css/theme.css" type="text/css" />
+  
+
+  
+
+  
+        <link rel="index" title="Index"
+              href="../../../genindex.html"/>
+        <link rel="search" title="Search" href="../../../search.html"/>
+    <link rel="top" title="Devito 1 documentation" href="../../../index.html"/>
+        <link rel="up" title="devito" href="../../devito.html"/> 
+
+  
+  <script src="../../../_static/js/modernizr.min.js"></script>
+
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+   
+  <div class="wy-grid-for-nav">
+
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search">
+          
+
+          
+            <a href="../../../index.html" class="icon icon-home"> Devito
+          
+
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                0
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../download.html">Download</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../tutorials.html">Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../examples.html">Example Documentation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../devito.html">API Documentation</a></li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" role="navigation" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">Devito</a>
+        
+      </nav>
+
+
+      
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../../../index.html">Docs</a> &raquo;</li>
+        
+          <li><a href="../../index.html">Module code</a> &raquo;</li>
+        
+          <li><a href="../../devito.html">devito</a> &raquo;</li>
+        
+      <li>devito.dse.clusterizer</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+            
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <h1>Source code for devito.dse.clusterizer</h1><div class="highlight"><pre>
+<span></span><span class="kn">from</span> <span class="nn">collections</span> <span class="k">import</span> <span class="n">OrderedDict</span><span class="p">,</span> <span class="n">namedtuple</span>
+
+<span class="kn">from</span> <span class="nn">devito.dse.graph</span> <span class="k">import</span> <span class="n">temporaries_graph</span>
+<span class="kn">from</span> <span class="nn">devito.dse.manipulation</span> <span class="k">import</span> <span class="n">xreplace_indices</span>
+
+<span class="kn">from</span> <span class="nn">devito.interfaces</span> <span class="k">import</span> <span class="n">ScalarFunction</span>
+<span class="kn">from</span> <span class="nn">devito.stencil</span> <span class="k">import</span> <span class="n">Stencil</span>
+<span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">as_tuple</span>
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;clusterize&#39;</span><span class="p">,</span> <span class="s1">&#39;optimize&#39;</span><span class="p">]</span>
+
+
+<span class="k">class</span> <span class="nc">Cluster</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    A Cluster is an ordered sequence of expressions that are necessary to</span>
+<span class="sd">    compute a tensor, plus the tensor expression itself.</span>
+
+<span class="sd">    A Cluster is associated with a stencil, which tracks what neighboring points</span>
+<span class="sd">    are required, along each dimension, to compute an entry in the tensor.</span>
+
+<span class="sd">    The parameter ``atomics`` allows to specify dimensions (a subset of those</span>
+<span class="sd">    appearing in ``stencil``) along which a Cluster cannot be fused with</span>
+<span class="sd">    other clusters. This is for example useful when a Cluster is evaluating</span>
+<span class="sd">    a tensor temporary, whose values must all be updated before being accessed</span>
+<span class="sd">    in the subsequent clusters.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">exprs</span><span class="p">,</span> <span class="n">stencil</span><span class="p">,</span> <span class="n">atomics</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">trace</span> <span class="o">=</span> <span class="n">temporaries_graph</span><span class="p">(</span><span class="n">exprs</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">stencil</span> <span class="o">=</span> <span class="n">stencil</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">atomics</span> <span class="o">=</span> <span class="n">as_tuple</span><span class="p">(</span><span class="n">atomics</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">exprs</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">trace</span><span class="o">.</span><span class="n">values</span><span class="p">()</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">unknown</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">trace</span><span class="o">.</span><span class="n">unknown</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">tensors</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">trace</span><span class="o">.</span><span class="n">tensors</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">is_dense</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">trace</span><span class="o">.</span><span class="n">space_indices</span> <span class="ow">and</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">trace</span><span class="o">.</span><span class="n">time_invariant</span><span class="p">()</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">is_sparse</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_dense</span>
+
+    <span class="k">def</span> <span class="nf">rebuild</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">exprs</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Build a new cluster with expressions ``exprs`` having same stencil</span>
+<span class="sd">        as ``self``.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">Cluster</span><span class="p">(</span><span class="n">exprs</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">stencil</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">atomics</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">reschedule</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">exprs</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Build a new cluster with expressions ``exprs`` having same stencil</span>
+<span class="sd">        as ``self``. The order of the expressions in the new cluster is such that</span>
+<span class="sd">        self&#39;s ordering is honored.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">g</span> <span class="o">=</span> <span class="n">temporaries_graph</span><span class="p">(</span><span class="n">exprs</span><span class="p">)</span>
+        <span class="n">exprs</span> <span class="o">=</span> <span class="n">g</span><span class="o">.</span><span class="n">reschedule</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">exprs</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">Cluster</span><span class="p">(</span><span class="n">exprs</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">stencil</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">atomics</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">merge</span><span class="p">(</span><span class="n">clusters</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Given an ordered collection of :class:`Cluster` objects, return a</span>
+<span class="sd">    (potentially) smaller sequence in which clusters with identical stencil</span>
+<span class="sd">    have been merged into a single :class:`Cluster`.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">mapper</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">()</span>
+    <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">clusters</span><span class="p">:</span>
+        <span class="n">mapper</span><span class="o">.</span><span class="n">setdefault</span><span class="p">((</span><span class="n">c</span><span class="o">.</span><span class="n">stencil</span><span class="o">.</span><span class="n">entries</span><span class="p">,</span> <span class="n">c</span><span class="o">.</span><span class="n">atomics</span><span class="p">),</span> <span class="p">[])</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">c</span><span class="p">)</span>
+
+    <span class="n">processed</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="p">(</span><span class="n">entries</span><span class="p">,</span> <span class="n">atomics</span><span class="p">),</span> <span class="n">clusters</span> <span class="ow">in</span> <span class="n">mapper</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="c1"># Eliminate redundant temporaries</span>
+        <span class="n">temporaries</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">()</span>
+        <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">clusters</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">c</span><span class="o">.</span><span class="n">trace</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+                <span class="k">if</span> <span class="n">k</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">temporaries</span><span class="p">:</span>
+                    <span class="n">temporaries</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="n">v</span>
+        <span class="c1"># Squash the clusters together</span>
+        <span class="n">processed</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">Cluster</span><span class="p">(</span><span class="n">temporaries</span><span class="o">.</span><span class="n">values</span><span class="p">(),</span> <span class="n">Stencil</span><span class="p">(</span><span class="n">entries</span><span class="p">),</span> <span class="n">atomics</span><span class="p">))</span>
+
+    <span class="k">return</span> <span class="n">processed</span>
+
+
+<div class="viewcode-block" id="optimize"><a class="viewcode-back" href="../../../devito.dse.html#devito.dse.clusterizer.optimize">[docs]</a><span class="k">def</span> <span class="nf">optimize</span><span class="p">(</span><span class="n">clusters</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Attempt scalar promotion. Candidates are tensors, perhaps created by some</span>
+<span class="sd">    cluster-wise transformations, that do not appear in any other clusters.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">clusters</span> <span class="o">=</span> <span class="n">merge</span><span class="p">(</span><span class="n">clusters</span><span class="p">)</span>
+
+    <span class="n">processed</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">c1</span> <span class="ow">in</span> <span class="n">clusters</span><span class="p">:</span>
+        <span class="n">mapper</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="n">temporaries</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">c1</span><span class="o">.</span><span class="n">trace</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="k">if</span> <span class="n">v</span><span class="o">.</span><span class="n">is_tensor</span> <span class="ow">and</span> <span class="ow">not</span> <span class="nb">any</span><span class="p">(</span><span class="n">v</span><span class="o">.</span><span class="n">function</span> <span class="ow">in</span> <span class="n">c2</span><span class="o">.</span><span class="n">unknown</span> <span class="k">for</span> <span class="n">c2</span> <span class="ow">in</span> <span class="n">clusters</span><span class="p">):</span>
+                <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">c1</span><span class="o">.</span><span class="n">tensors</span><span class="p">[</span><span class="n">v</span><span class="o">.</span><span class="n">function</span><span class="p">]:</span>
+                    <span class="c1"># LHS scalarization</span>
+                    <span class="n">scalarized</span> <span class="o">=</span> <span class="n">ScalarFunction</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;s</span><span class="si">%d</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="nb">len</span><span class="p">(</span><span class="n">mapper</span><span class="p">))</span><span class="o">.</span><span class="n">indexify</span><span class="p">()</span>
+                    <span class="n">mapper</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">scalarized</span>
+
+                    <span class="c1"># May have to &quot;unroll&quot; some tensor expressions for scalarization;</span>
+                    <span class="c1"># e.g., if we have two occurrences of r0, say r0[x,y,z] and</span>
+                    <span class="c1"># r0[x+1,y,z], and r0 is to be scalarized, this will require a</span>
+                    <span class="c1"># different scalar for each unique set of indices.</span>
+                    <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">v</span><span class="o">.</span><span class="n">function</span><span class="o">.</span><span class="n">indices</span><span class="p">)</span> <span class="o">==</span> <span class="nb">len</span><span class="p">(</span><span class="n">k</span><span class="o">.</span><span class="n">indices</span><span class="p">)</span> <span class="o">==</span> <span class="nb">len</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">indices</span><span class="p">)</span>
+                    <span class="n">shifting</span> <span class="o">=</span> <span class="p">{</span><span class="n">idx</span><span class="p">:</span> <span class="n">idx</span> <span class="o">+</span> <span class="p">(</span><span class="n">o2</span> <span class="o">-</span> <span class="n">o1</span><span class="p">)</span> <span class="k">for</span> <span class="n">idx</span><span class="p">,</span> <span class="n">o1</span><span class="p">,</span> <span class="n">o2</span> <span class="ow">in</span>
+                                <span class="nb">zip</span><span class="p">(</span><span class="n">v</span><span class="o">.</span><span class="n">function</span><span class="o">.</span><span class="n">indices</span><span class="p">,</span> <span class="n">k</span><span class="o">.</span><span class="n">indices</span><span class="p">,</span> <span class="n">i</span><span class="o">.</span><span class="n">indices</span><span class="p">)}</span>
+
+                    <span class="c1"># Transform /v/, introducing (i) a scalarized LHS and (ii) shifted</span>
+                    <span class="c1"># indices if necessary</span>
+                    <span class="n">handle</span> <span class="o">=</span> <span class="n">v</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="n">scalarized</span><span class="p">,</span> <span class="n">v</span><span class="o">.</span><span class="n">rhs</span><span class="o">.</span><span class="n">xreplace</span><span class="p">(</span><span class="n">mapper</span><span class="p">))</span>
+                    <span class="n">handle</span> <span class="o">=</span> <span class="n">xreplace_indices</span><span class="p">(</span><span class="n">handle</span><span class="p">,</span> <span class="n">shifting</span><span class="p">)</span>
+                    <span class="n">temporaries</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">handle</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">temporaries</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">v</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">v</span><span class="o">.</span><span class="n">rhs</span><span class="o">.</span><span class="n">xreplace</span><span class="p">(</span><span class="n">mapper</span><span class="p">)))</span>
+        <span class="n">processed</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">c1</span><span class="o">.</span><span class="n">rebuild</span><span class="p">(</span><span class="n">temporaries</span><span class="p">))</span>
+
+    <span class="k">return</span> <span class="n">processed</span></div>
+
+
+<span class="k">def</span> <span class="nf">aggregate</span><span class="p">(</span><span class="n">exprs</span><span class="p">,</span> <span class="n">stencils</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Consecutive expressions with identical LHS and identical stencil</span>
+<span class="sd">    may be aggregated by substituting the earlier with the later ones (in</span>
+<span class="sd">    program order).</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    ========</span>
+<span class="sd">    a[i] = b[i] + 3.</span>
+<span class="sd">    a[i] = c[i] + 4. + a[i]</span>
+<span class="sd">    &gt;&gt; a[i] = c[i] + 4. + b[i] + 3.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">mapper</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">(</span><span class="nb">zip</span><span class="p">(</span><span class="n">exprs</span><span class="p">,</span> <span class="n">stencils</span><span class="p">))</span>
+
+    <span class="n">groups</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">last</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">mapper</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="n">key</span> <span class="o">=</span> <span class="n">k</span><span class="o">.</span><span class="n">lhs</span><span class="p">,</span> <span class="n">v</span>
+        <span class="k">if</span> <span class="n">key</span> <span class="o">==</span> <span class="n">last</span><span class="p">:</span>
+            <span class="n">groups</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">k</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">last</span> <span class="o">=</span> <span class="n">key</span>
+            <span class="n">groups</span><span class="o">.</span><span class="n">append</span><span class="p">([</span><span class="n">k</span><span class="p">])</span>
+
+    <span class="n">exprs</span><span class="p">,</span> <span class="n">stencils</span> <span class="o">=</span> <span class="p">[],</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">groups</span><span class="p">:</span>
+        <span class="n">top</span> <span class="o">=</span> <span class="n">i</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="n">exprs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">top</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">inlining</span><span class="p">,</span> <span class="n">base</span> <span class="o">=</span> <span class="n">top</span><span class="o">.</span><span class="n">args</span>
+            <span class="n">queue</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">i</span><span class="p">[</span><span class="mi">1</span><span class="p">:])</span>
+            <span class="k">while</span> <span class="n">queue</span><span class="p">:</span>
+                <span class="n">base</span> <span class="o">=</span> <span class="n">queue</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span><span class="o">.</span><span class="n">rhs</span><span class="o">.</span><span class="n">xreplace</span><span class="p">({</span><span class="n">inlining</span><span class="p">:</span> <span class="n">base</span><span class="p">})</span>
+            <span class="n">exprs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">top</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="n">inlining</span><span class="p">,</span> <span class="n">base</span><span class="p">))</span>
+        <span class="n">stencils</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">mapper</span><span class="p">[</span><span class="n">top</span><span class="p">])</span>
+
+    <span class="k">return</span> <span class="n">exprs</span><span class="p">,</span> <span class="n">stencils</span>
+
+
+<div class="viewcode-block" id="clusterize"><a class="viewcode-back" href="../../../devito.dse.html#devito.dse.clusterizer.clusterize">[docs]</a><span class="k">def</span> <span class="nf">clusterize</span><span class="p">(</span><span class="n">exprs</span><span class="p">,</span> <span class="n">stencils</span><span class="p">,</span> <span class="n">atomics</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Derive :class:`Cluster` objetcs from an iterator of expressions; a stencil for</span>
+<span class="sd">    each expression must be provided. A list of atomic dimensions (see description</span>
+<span class="sd">    in Cluster.__doc__) may be provided.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">exprs</span><span class="p">)</span> <span class="o">==</span> <span class="nb">len</span><span class="p">(</span><span class="n">stencils</span><span class="p">)</span>
+
+    <span class="n">exprs</span><span class="p">,</span> <span class="n">stencils</span> <span class="o">=</span> <span class="n">aggregate</span><span class="p">(</span><span class="n">exprs</span><span class="p">,</span> <span class="n">stencils</span><span class="p">)</span>
+
+    <span class="n">Info</span> <span class="o">=</span> <span class="n">namedtuple</span><span class="p">(</span><span class="s1">&#39;Info&#39;</span><span class="p">,</span> <span class="s1">&#39;trace stencil&#39;</span><span class="p">)</span>
+
+    <span class="n">g</span> <span class="o">=</span> <span class="n">temporaries_graph</span><span class="p">(</span><span class="n">exprs</span><span class="p">)</span>
+    <span class="n">mapper</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">([(</span><span class="n">k</span><span class="p">,</span> <span class="n">Info</span><span class="p">(</span><span class="n">g</span><span class="o">.</span><span class="n">trace</span><span class="p">(</span><span class="n">k</span><span class="p">),</span> <span class="n">j</span><span class="p">))</span>
+                          <span class="k">for</span> <span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">v</span><span class="p">),</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">g</span><span class="o">.</span><span class="n">items</span><span class="p">(),</span> <span class="n">stencils</span><span class="p">)</span> <span class="k">if</span> <span class="n">v</span><span class="o">.</span><span class="n">is_tensor</span><span class="p">])</span>
+
+    <span class="c1"># A cluster stencil is determined iteratively, by first calculating the</span>
+    <span class="c1"># &quot;local&quot; stencil and then by looking at the stencils of all other clusters</span>
+    <span class="c1"># depending on it. The stencil information is propagated until there are</span>
+    <span class="c1"># no more updates.</span>
+    <span class="n">queue</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">mapper</span><span class="p">)</span>
+    <span class="k">while</span> <span class="n">queue</span><span class="p">:</span>
+        <span class="n">target</span> <span class="o">=</span> <span class="n">queue</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+
+        <span class="n">info</span> <span class="o">=</span> <span class="n">mapper</span><span class="p">[</span><span class="n">target</span><span class="p">]</span>
+        <span class="n">strict_trace</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span><span class="o">.</span><span class="n">lhs</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">info</span><span class="o">.</span><span class="n">trace</span> <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">lhs</span> <span class="o">!=</span> <span class="n">target</span><span class="p">]</span>
+
+        <span class="n">stencil</span> <span class="o">=</span> <span class="n">Stencil</span><span class="p">(</span><span class="n">info</span><span class="o">.</span><span class="n">stencil</span><span class="o">.</span><span class="n">entries</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">strict_trace</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">mapper</span><span class="p">:</span>
+                <span class="n">stencil</span> <span class="o">=</span> <span class="n">stencil</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">mapper</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">stencil</span><span class="p">)</span>
+
+        <span class="n">mapper</span><span class="p">[</span><span class="n">target</span><span class="p">]</span> <span class="o">=</span> <span class="n">Info</span><span class="p">(</span><span class="n">info</span><span class="o">.</span><span class="n">trace</span><span class="p">,</span> <span class="n">stencil</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">stencil</span> <span class="o">!=</span> <span class="n">info</span><span class="o">.</span><span class="n">stencil</span><span class="p">:</span>
+            <span class="c1"># Something has changed, need to propagate the update</span>
+            <span class="n">queue</span><span class="o">.</span><span class="n">extend</span><span class="p">([</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">strict_trace</span> <span class="k">if</span> <span class="n">i</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">queue</span><span class="p">])</span>
+
+    <span class="n">clusters</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">target</span><span class="p">,</span> <span class="n">info</span> <span class="ow">in</span> <span class="n">mapper</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="c1"># Drop all non-output tensors, as computed by other clusters</span>
+        <span class="n">exprs</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">info</span><span class="o">.</span><span class="n">trace</span> <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">lhs</span><span class="o">.</span><span class="n">is_Symbol</span> <span class="ow">or</span> <span class="n">i</span><span class="o">.</span><span class="n">lhs</span> <span class="o">==</span> <span class="n">target</span><span class="p">]</span>
+
+        <span class="c1"># Create and track the cluster</span>
+        <span class="n">clusters</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">Cluster</span><span class="p">(</span><span class="n">exprs</span><span class="p">,</span> <span class="n">info</span><span class="o">.</span><span class="n">stencil</span><span class="o">.</span><span class="n">frozen</span><span class="p">,</span> <span class="n">atomics</span><span class="p">))</span>
+
+    <span class="k">return</span> <span class="n">merge</span><span class="p">(</span><span class="n">clusters</span><span class="p">)</span></div>
+</pre></div>
+
+           </div>
+           <div class="articleComments">
+            
+           </div>
+          </div>
+          <footer>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2016, Opesci.
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/snide/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  
+
+    <script type="text/javascript">
+        var DOCUMENTATION_OPTIONS = {
+            URL_ROOT:'../../../',
+            VERSION:'1',
+            COLLAPSE_INDEX:false,
+            FILE_SUFFIX:'.html',
+            HAS_SOURCE:  true,
+            SOURCELINK_SUFFIX: '.txt'
+        };
+    </script>
+      <script type="text/javascript" src="../../../_static/jquery.js"></script>
+      <script type="text/javascript" src="../../../_static/underscore.js"></script>
+      <script type="text/javascript" src="../../../_static/doctools.js"></script>
+      <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.0/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+
+  
+
+  
+  
+    <script type="text/javascript" src="../../../_static/js/theme.js"></script>
+  
+
+  
+  
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.StickyNav.enable();
+      });
+  </script>
+   
+
+</body>
+</html>

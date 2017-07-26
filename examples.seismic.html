@@ -1,0 +1,459 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>examples.seismic package &mdash; Devito 1 documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+
+  
+  
+    
+
+  
+
+  
+  
+    <link rel="stylesheet" href="_static/css/theme.css" type="text/css" />
+  
+
+  
+
+  
+        <link rel="index" title="Index"
+              href="genindex.html"/>
+        <link rel="search" title="Search" href="search.html"/>
+    <link rel="top" title="Devito 1 documentation" href="index.html"/>
+        <link rel="up" title="examples package" href="examples.html"/>
+        <link rel="next" title="examples.seismic.acoustic package" href="examples.seismic.acoustic.html"/>
+        <link rel="prev" title="examples.cfd package" href="examples.cfd.html"/> 
+
+  
+  <script src="_static/js/modernizr.min.js"></script>
+
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+   
+  <div class="wy-grid-for-nav">
+
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search">
+          
+
+          
+            <a href="index.html" class="icon icon-home"> Devito
+          
+
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                0
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="download.html">Download</a></li>
+<li class="toctree-l1"><a class="reference internal" href="tutorials.html">Tutorials</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="examples.html">Example Documentation</a><ul class="current">
+<li class="toctree-l2 current"><a class="reference internal" href="examples.html#subpackages">Subpackages</a><ul class="current">
+<li class="toctree-l3"><a class="reference internal" href="examples.cfd.html">examples.cfd package</a></li>
+<li class="toctree-l3 current"><a class="current reference internal" href="#">examples.seismic package</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#subpackages">Subpackages</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#submodules">Submodules</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#module-examples.seismic.model">examples.seismic.model module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#module-examples.seismic.plotting">examples.seismic.plotting module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#module-examples.seismic.source">examples.seismic.source module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#module-examples.seismic">Module contents</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="examples.html#submodules">Submodules</a></li>
+<li class="toctree-l2"><a class="reference internal" href="examples.html#module-examples.benchmark">examples.benchmark module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="examples.html#module-examples">Module contents</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="devito.html">API Documentation</a></li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" role="navigation" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">Devito</a>
+        
+      </nav>
+
+
+      
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="index.html">Docs</a> &raquo;</li>
+        
+          <li><a href="examples.html">examples package</a> &raquo;</li>
+        
+      <li>examples.seismic package</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+            
+            <a href="_sources/examples.seismic.rst.txt" rel="nofollow"> View page source</a>
+          
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <div class="section" id="examples-seismic-package">
+<h1>examples.seismic package<a class="headerlink" href="#examples-seismic-package" title="Permalink to this headline">¶</a></h1>
+<div class="section" id="subpackages">
+<h2>Subpackages<a class="headerlink" href="#subpackages" title="Permalink to this headline">¶</a></h2>
+<div class="toctree-wrapper compound">
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="examples.seismic.acoustic.html">examples.seismic.acoustic package</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="examples.seismic.acoustic.html#submodules">Submodules</a></li>
+<li class="toctree-l2"><a class="reference internal" href="examples.seismic.acoustic.html#module-examples.seismic.acoustic.acoustic_example">examples.seismic.acoustic.acoustic_example module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="examples.seismic.acoustic.html#module-examples.seismic.acoustic.constant_example">examples.seismic.acoustic.constant_example module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="examples.seismic.acoustic.html#module-examples.seismic.acoustic.gradient_example">examples.seismic.acoustic.gradient_example module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="examples.seismic.acoustic.html#module-examples.seismic.acoustic.operators">examples.seismic.acoustic.operators module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="examples.seismic.acoustic.html#module-examples.seismic.acoustic.wavesolver">examples.seismic.acoustic.wavesolver module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="examples.seismic.acoustic.html#module-examples.seismic.acoustic">Module contents</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="examples.seismic.tti.html">examples.seismic.tti package</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="examples.seismic.tti.html#submodules">Submodules</a></li>
+<li class="toctree-l2"><a class="reference internal" href="examples.seismic.tti.html#module-examples.seismic.tti.operators">examples.seismic.tti.operators module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="examples.seismic.tti.html#module-examples.seismic.tti.tti_example2D">examples.seismic.tti.tti_example2D module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="examples.seismic.tti.html#module-examples.seismic.tti.tti_example3D">examples.seismic.tti.tti_example3D module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="examples.seismic.tti.html#module-examples.seismic.tti.wavesolver">examples.seismic.tti.wavesolver module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="examples.seismic.tti.html#module-examples.seismic.tti">Module contents</a></li>
+</ul>
+</li>
+</ul>
+</div>
+</div>
+<div class="section" id="submodules">
+<h2>Submodules<a class="headerlink" href="#submodules" title="Permalink to this headline">¶</a></h2>
+</div>
+<div class="section" id="module-examples.seismic.model">
+<span id="examples-seismic-model-module"></span><h2>examples.seismic.model module<a class="headerlink" href="#module-examples.seismic.model" title="Permalink to this headline">¶</a></h2>
+<dl class="class">
+<dt id="examples.seismic.model.Model">
+<em class="property">class </em><code class="descclassname">examples.seismic.model.</code><code class="descname">Model</code><span class="sig-paren">(</span><em>origin</em>, <em>spacing</em>, <em>shape</em>, <em>vp</em>, <em>nbpml=0</em>, <em>dtype=&lt;type ‘numpy.float32’&gt;</em>, <em>epsilon=None</em>, <em>delta=None</em>, <em>theta=None</em>, <em>phi=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/examples/seismic/model.html#Model"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#examples.seismic.model.Model" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">object</span></code></p>
+<p>The physical model used in seismic inversion processes.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>origin</strong> – Origin of the model in m as a tuple in (x,y,z) order</li>
+<li><strong>spacing</strong> – Grid size in m as a Tuple in (x,y,z) order</li>
+<li><strong>shape</strong> – Number of grid points size in (x,y,z) order</li>
+<li><strong>vp</strong> – Velocity in km/s</li>
+<li><strong>nbpml</strong> – The number of PML layers for boundary damping</li>
+<li><strong>rho</strong> – Density in kg/cm^3 (rho=1 for water)</li>
+<li><strong>epsilon</strong> – Thomsen epsilon parameter (0&lt;epsilon&lt;1)</li>
+<li><strong>delta</strong> – Thomsen delta parameter (0&lt;delta&lt;1), delta&lt;epsilon</li>
+<li><strong>theta</strong> – Tilt angle in radian</li>
+<li><strong>phi</strong> – Asymuth angle in radian</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+<p>The <a class="reference internal" href="#examples.seismic.model.Model" title="examples.seismic.model.Model"><code class="xref py py-class docutils literal"><span class="pre">Model</span></code></a> provides two symbolic data objects for the
+creation of seismic wave propagation operators:</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>m</strong> – The square slowness of the wave</li>
+<li><strong>damp</strong> – The damping field for absorbing boundarycondition</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+<dl class="attribute">
+<dt id="examples.seismic.model.Model.critical_dt">
+<code class="descname">critical_dt</code><a class="headerlink" href="#examples.seismic.model.Model.critical_dt" title="Permalink to this definition">¶</a></dt>
+<dd><p>Critical computational time step value from the CFL condition.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="examples.seismic.model.Model.get_spacing">
+<code class="descname">get_spacing</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/examples/seismic/model.html#Model.get_spacing"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#examples.seismic.model.Model.get_spacing" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return the grid size</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="examples.seismic.model.Model.pad">
+<code class="descname">pad</code><span class="sig-paren">(</span><em>data</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/examples/seismic/model.html#Model.pad"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#examples.seismic.model.Model.pad" title="Permalink to this definition">¶</a></dt>
+<dd><p>Padding function PNL layers in every direction for for the
+absorbing boundary conditions.</p>
+<p>:param data : Data array to be padded</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="examples.seismic.model.Model.set_vp">
+<code class="descname">set_vp</code><span class="sig-paren">(</span><em>vp</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/examples/seismic/model.html#Model.set_vp"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#examples.seismic.model.Model.set_vp" title="Permalink to this definition">¶</a></dt>
+<dd><p>Set a new velocity model and update square slowness</p>
+<p>:param vp : new velocity in km/s</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="examples.seismic.model.Model.shape_domain">
+<code class="descname">shape_domain</code><a class="headerlink" href="#examples.seismic.model.Model.shape_domain" title="Permalink to this definition">¶</a></dt>
+<dd><p>Computational shape of the model domain, with PML layers</p>
+</dd></dl>
+
+</dd></dl>
+
+</div>
+<div class="section" id="module-examples.seismic.plotting">
+<span id="examples-seismic-plotting-module"></span><h2>examples.seismic.plotting module<a class="headerlink" href="#module-examples.seismic.plotting" title="Permalink to this headline">¶</a></h2>
+<dl class="function">
+<dt id="examples.seismic.plotting.plot_shotrecord">
+<code class="descclassname">examples.seismic.plotting.</code><code class="descname">plot_shotrecord</code><span class="sig-paren">(</span><em>rec</em>, <em>origin</em>, <em>spacing</em>, <em>dimensions</em>, <em>t0</em>, <em>tn</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/examples/seismic/plotting.html#plot_shotrecord"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#examples.seismic.plotting.plot_shotrecord" title="Permalink to this definition">¶</a></dt>
+<dd><p>Plot a shot record (receiver values over time).</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>rec</strong> – Receiver data with shape (time, points)</li>
+<li><strong>origin</strong> – Origin of the domain</li>
+<li><strong>spacing</strong> – Spacing in all dimensions of the domain</li>
+<li><strong>dimensions</strong> – Number of grid points in each dimension of the domain</li>
+<li><strong>t0</strong> – Start of time dimension to plot</li>
+<li><strong>tn</strong> – End of time dimension to plot</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="function">
+<dt id="examples.seismic.plotting.plot_velocity">
+<code class="descclassname">examples.seismic.plotting.</code><code class="descname">plot_velocity</code><span class="sig-paren">(</span><em>model</em>, <em>source=None</em>, <em>receiver=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/examples/seismic/plotting.html#plot_velocity"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#examples.seismic.plotting.plot_velocity" title="Permalink to this definition">¶</a></dt>
+<dd><p>Plot a two-dimensional velocity field from a seismic <code class="xref py py-class docutils literal"><span class="pre">Model</span></code>
+object. Optionally also includes point markers for sources and receivers.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>model</strong> – <code class="xref py py-class docutils literal"><span class="pre">Model</span></code> object that holds the velocity model.</li>
+<li><strong>source</strong> – Coordinates of the source point.</li>
+<li><strong>receiver</strong> – Coordinates of the receiver points.</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+</div>
+<div class="section" id="module-examples.seismic.source">
+<span id="examples-seismic-source-module"></span><h2>examples.seismic.source module<a class="headerlink" href="#module-examples.seismic.source" title="Permalink to this headline">¶</a></h2>
+<dl class="class">
+<dt id="examples.seismic.source.PointSource">
+<em class="property">class </em><code class="descclassname">examples.seismic.source.</code><code class="descname">PointSource</code><span class="sig-paren">(</span><em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/examples/seismic/source.html#PointSource"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#examples.seismic.source.PointSource" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="devito.html#devito.pointdata.PointData" title="devito.pointdata.PointData"><code class="xref py py-class docutils literal"><span class="pre">devito.pointdata.PointData</span></code></a></p>
+<p>Symbolic data object for a set of sparse points sources</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>name</strong> – Name of the symbol representing this source</li>
+<li><strong>coordinates</strong> – Point coordinates for this source</li>
+<li><strong>data</strong> – (Optional) Data values to initialise point data</li>
+<li><strong>ntime</strong> – (Optional) Number of timesteps for which to allocate data</li>
+<li><strong>npoint</strong> – (Optional) Number of sparse points represented by this source</li>
+<li><strong>dimension</strong> – :(Optional) class:<cite>Dimension</cite> object for
+representing the number of points in this source</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+<p>Note, either the dimensions <cite>ntime</cite> and <cite>npoint</cite> or the fully
+initialised <cite>data</cite> array need to be provided.</p>
+<dl class="attribute">
+<dt id="examples.seismic.source.PointSource.default_assumptions">
+<code class="descname">default_assumptions</code><em class="property"> = {}</em><a class="headerlink" href="#examples.seismic.source.PointSource.default_assumptions" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="attribute">
+<dt id="examples.seismic.source.Receiver">
+<code class="descclassname">examples.seismic.source.</code><code class="descname">Receiver</code><a class="headerlink" href="#examples.seismic.source.Receiver" title="Permalink to this definition">¶</a></dt>
+<dd><p>alias of <a class="reference internal" href="#examples.seismic.source.PointSource" title="examples.seismic.source.PointSource"><code class="xref py py-class docutils literal"><span class="pre">PointSource</span></code></a></p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="examples.seismic.source.Shot">
+<code class="descclassname">examples.seismic.source.</code><code class="descname">Shot</code><a class="headerlink" href="#examples.seismic.source.Shot" title="Permalink to this definition">¶</a></dt>
+<dd><p>alias of <a class="reference internal" href="#examples.seismic.source.PointSource" title="examples.seismic.source.PointSource"><code class="xref py py-class docutils literal"><span class="pre">PointSource</span></code></a></p>
+</dd></dl>
+
+</div>
+<div class="section" id="module-examples.seismic">
+<span id="module-contents"></span><h2>Module contents<a class="headerlink" href="#module-examples.seismic" title="Permalink to this headline">¶</a></h2>
+</div>
+</div>
+
+
+           </div>
+           <div class="articleComments">
+            
+           </div>
+          </div>
+          <footer>
+  
+    <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
+      
+        <a href="examples.seismic.acoustic.html" class="btn btn-neutral float-right" title="examples.seismic.acoustic package" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
+      
+      
+        <a href="examples.cfd.html" class="btn btn-neutral" title="examples.cfd package" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
+      
+    </div>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2016, Opesci.
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/snide/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  
+
+    <script type="text/javascript">
+        var DOCUMENTATION_OPTIONS = {
+            URL_ROOT:'./',
+            VERSION:'1',
+            COLLAPSE_INDEX:false,
+            FILE_SUFFIX:'.html',
+            HAS_SOURCE:  true,
+            SOURCELINK_SUFFIX: '.txt'
+        };
+    </script>
+      <script type="text/javascript" src="_static/jquery.js"></script>
+      <script type="text/javascript" src="_static/underscore.js"></script>
+      <script type="text/javascript" src="_static/doctools.js"></script>
+      <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.0/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+
+  
+
+  
+  
+    <script type="text/javascript" src="_static/js/theme.js"></script>
+  
+
+  
+  
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.StickyNav.enable();
+      });
+  </script>
+   
+
+</body>
+</html>

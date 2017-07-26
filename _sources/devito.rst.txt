@@ -1,130 +1,177 @@
 devito package
 ==============
 
-.. automodule:: devito
-    :members:
-    :undoc-members:
-    :show-inheritance:
+Subpackages
+-----------
+
+.. toctree::
+
+    devito.core
+    devito.dle
+    devito.dse
+    devito.foreign
+    devito.yask
 
 Submodules
 ----------
 
-devito.cgen_utils module
+devito\.arguments module
 ------------------------
+
+.. automodule:: devito.arguments
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+devito\.backends module
+-----------------------
+
+.. automodule:: devito.backends
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+devito\.base module
+-------------------
+
+.. automodule:: devito.base
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+devito\.cgen\_utils module
+--------------------------
 
 .. automodule:: devito.cgen_utils
     :members:
     :undoc-members:
     :show-inheritance:
 
-devito.compiler module
-----------------------
+devito\.compiler module
+-----------------------
 
 .. automodule:: devito.compiler
     :members:
     :undoc-members:
     :show-inheritance:
 
-devito.dimension module
------------------------
+devito\.dimension module
+------------------------
 
 .. automodule:: devito.dimension
     :members:
     :undoc-members:
     :show-inheritance:
 
-devito.finite_difference module
--------------------------------
+devito\.exceptions module
+-------------------------
+
+.. automodule:: devito.exceptions
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+devito\.finite\_difference module
+---------------------------------
 
 .. automodule:: devito.finite_difference
     :members:
     :undoc-members:
     :show-inheritance:
 
-devito.interfaces module
-------------------------
+devito\.interfaces module
+-------------------------
 
 .. automodule:: devito.interfaces
     :members:
     :undoc-members:
     :show-inheritance:
 
-devito.logger module
-------------------------
+devito\.logger module
+---------------------
 
 .. automodule:: devito.logger
     :members:
     :undoc-members:
     :show-inheritance:
 
-devito.memory module
---------------------
+devito\.memory module
+---------------------
 
 .. automodule:: devito.memory
     :members:
     :undoc-members:
     :show-inheritance:
 
-devito.nodes module
-------------------------
+devito\.nodes module
+--------------------
 
 .. automodule:: devito.nodes
     :members:
     :undoc-members:
     :show-inheritance:
 
-devito.operator module
-----------------------
+devito\.operator module
+-----------------------
 
 .. automodule:: devito.operator
     :members:
     :undoc-members:
     :show-inheritance:
 
-devito.parameters module
-------------------------
+devito\.parameters module
+-------------------------
 
 .. automodule:: devito.parameters
     :members:
     :undoc-members:
     :show-inheritance:
 
-devito.pointdata module
------------------------
+devito\.pointdata module
+------------------------
 
 .. automodule:: devito.pointdata
     :members:
     :undoc-members:
     :show-inheritance:
 
-devito.profiling module
------------------------
+devito\.profiling module
+------------------------
 
 .. automodule:: devito.profiling
     :members:
     :undoc-members:
     :show-inheritance:
 
-devito.stencil module
----------------------
+devito\.stencil module
+----------------------
 
 .. automodule:: devito.stencil
     :members:
     :undoc-members:
     :show-inheritance:
 
-devito.tools module
--------------------
+devito\.tools module
+--------------------
 
 .. automodule:: devito.tools
     :members:
     :undoc-members:
     :show-inheritance:
 
-devito.visitor module
----------------------
+devito\.visitors module
+-----------------------
 
 .. automodule:: devito.visitors
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+
+Module contents
+---------------
+
+.. automodule:: devito
     :members:
     :undoc-members:
     :show-inheritance:

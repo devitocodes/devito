@@ -1,0 +1,471 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>devito.dle.blocking_utils &mdash; Devito 1 documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+
+  
+  
+    
+
+  
+
+  
+  
+    <link rel="stylesheet" href="../../../_static/css/theme.css" type="text/css" />
+  
+
+  
+
+  
+        <link rel="index" title="Index"
+              href="../../../genindex.html"/>
+        <link rel="search" title="Search" href="../../../search.html"/>
+    <link rel="top" title="Devito 1 documentation" href="../../../index.html"/>
+        <link rel="up" title="devito" href="../../devito.html"/> 
+
+  
+  <script src="../../../_static/js/modernizr.min.js"></script>
+
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+   
+  <div class="wy-grid-for-nav">
+
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search">
+          
+
+          
+            <a href="../../../index.html" class="icon icon-home"> Devito
+          
+
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                0
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../download.html">Download</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../tutorials.html">Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../examples.html">Example Documentation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../devito.html">API Documentation</a></li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" role="navigation" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">Devito</a>
+        
+      </nav>
+
+
+      
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../../../index.html">Docs</a> &raquo;</li>
+        
+          <li><a href="../../index.html">Module code</a> &raquo;</li>
+        
+          <li><a href="../../devito.html">devito</a> &raquo;</li>
+        
+      <li>devito.dle.blocking_utils</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+            
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <h1>Source code for devito.dle.blocking_utils</h1><div class="highlight"><pre>
+<span></span><span class="kn">import</span> <span class="nn">cgen</span> <span class="k">as</span> <span class="nn">c</span>
+<span class="kn">from</span> <span class="nn">sympy</span> <span class="k">import</span> <span class="n">Symbol</span>
+
+<span class="kn">from</span> <span class="nn">devito.cgen_utils</span> <span class="k">import</span> <span class="n">ccode</span>
+<span class="kn">from</span> <span class="nn">devito.dle</span> <span class="k">import</span> <span class="n">compose_nodes</span><span class="p">,</span> <span class="n">is_foldable</span><span class="p">,</span> <span class="n">retrieve_iteration_tree</span>
+<span class="kn">from</span> <span class="nn">devito.dse</span> <span class="k">import</span> <span class="n">xreplace_indices</span>
+<span class="kn">from</span> <span class="nn">devito.nodes</span> <span class="k">import</span> <span class="n">Expression</span><span class="p">,</span> <span class="n">Iteration</span><span class="p">,</span> <span class="n">List</span><span class="p">,</span> <span class="n">UnboundedIndex</span><span class="p">,</span> <span class="n">ntags</span>
+<span class="kn">from</span> <span class="nn">devito.visitors</span> <span class="k">import</span> <span class="p">(</span><span class="n">FindAdjacentIterations</span><span class="p">,</span> <span class="n">FindNodes</span><span class="p">,</span> <span class="n">IsPerfectIteration</span><span class="p">,</span>
+                             <span class="n">NestedTransformer</span><span class="p">,</span> <span class="n">Transformer</span><span class="p">)</span>
+<span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">as_tuple</span>
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;fold_blockable_tree&#39;</span><span class="p">,</span> <span class="s1">&#39;unfold_blocked_tree&#39;</span><span class="p">]</span>
+
+
+<div class="viewcode-block" id="fold_blockable_tree"><a class="viewcode-back" href="../../../devito.dle.html#devito.dle.blocking_utils.fold_blockable_tree">[docs]</a><span class="k">def</span> <span class="nf">fold_blockable_tree</span><span class="p">(</span><span class="n">node</span><span class="p">,</span> <span class="n">exclude_innermost</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Create :class:`IterationFold`s from sequences of nested :class:`Iteration`.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">found</span> <span class="o">=</span> <span class="n">FindAdjacentIterations</span><span class="p">()</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">node</span><span class="p">)</span>
+    <span class="n">found</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;seen_iteration&#39;</span><span class="p">)</span>
+
+    <span class="n">mapper</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">found</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">v</span><span class="p">:</span>
+            <span class="c1"># Pre-condition: they all must be perfect iterations</span>
+            <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1</span>
+            <span class="k">if</span> <span class="nb">any</span><span class="p">(</span><span class="ow">not</span> <span class="n">IsPerfectIteration</span><span class="p">()</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">j</span><span class="p">)</span> <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="n">i</span><span class="p">):</span>
+                <span class="k">continue</span>
+            <span class="c1"># Only retain consecutive trees having same depth</span>
+            <span class="n">trees</span> <span class="o">=</span> <span class="p">[</span><span class="n">retrieve_iteration_tree</span><span class="p">(</span><span class="n">j</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span> <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="n">i</span><span class="p">]</span>
+            <span class="n">handle</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="n">trees</span><span class="p">:</span>
+                <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">j</span><span class="p">)</span> <span class="o">!=</span> <span class="nb">len</span><span class="p">(</span><span class="n">trees</span><span class="p">[</span><span class="mi">0</span><span class="p">]):</span>
+                    <span class="k">break</span>
+                <span class="n">handle</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">j</span><span class="p">)</span>
+            <span class="n">trees</span> <span class="o">=</span> <span class="n">handle</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">trees</span><span class="p">:</span>
+                <span class="k">continue</span>
+            <span class="c1"># Check foldability</span>
+            <span class="n">pairwise_folds</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="nb">zip</span><span class="p">(</span><span class="o">*</span><span class="nb">reversed</span><span class="p">(</span><span class="n">trees</span><span class="p">)))</span>
+            <span class="k">if</span> <span class="nb">any</span><span class="p">(</span><span class="ow">not</span> <span class="n">is_foldable</span><span class="p">(</span><span class="n">j</span><span class="p">)</span> <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="n">pairwise_folds</span><span class="p">):</span>
+                <span class="k">continue</span>
+            <span class="c1"># Perform folding</span>
+            <span class="k">if</span> <span class="n">exclude_innermost</span> <span class="ow">is</span> <span class="kc">True</span><span class="p">:</span>
+                <span class="n">pairwise_folds</span> <span class="o">=</span> <span class="n">pairwise_folds</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+            <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="n">pairwise_folds</span><span class="p">:</span>
+                <span class="n">root</span><span class="p">,</span> <span class="n">remainder</span> <span class="o">=</span> <span class="n">j</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">j</span><span class="p">[</span><span class="mi">1</span><span class="p">:]</span>
+                <span class="n">folds</span> <span class="o">=</span> <span class="p">[(</span><span class="nb">tuple</span><span class="p">(</span><span class="n">y</span><span class="o">-</span><span class="n">x</span> <span class="k">for</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">offsets</span><span class="p">,</span> <span class="n">root</span><span class="o">.</span><span class="n">offsets</span><span class="p">)),</span> <span class="n">i</span><span class="o">.</span><span class="n">nodes</span><span class="p">)</span>
+                         <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">remainder</span><span class="p">]</span>
+                <span class="n">mapper</span><span class="p">[</span><span class="n">root</span><span class="p">]</span> <span class="o">=</span> <span class="n">IterationFold</span><span class="p">(</span><span class="n">folds</span><span class="o">=</span><span class="n">folds</span><span class="p">,</span> <span class="o">**</span><span class="n">root</span><span class="o">.</span><span class="n">args</span><span class="p">)</span>
+                <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">remainder</span><span class="p">:</span>
+                    <span class="n">mapper</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
+
+    <span class="c1"># Insert the IterationFolds in the Iteration/Expression tree</span>
+    <span class="n">processed</span> <span class="o">=</span> <span class="n">NestedTransformer</span><span class="p">(</span><span class="n">mapper</span><span class="p">)</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">node</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">processed</span></div>
+
+
+<div class="viewcode-block" id="unfold_blocked_tree"><a class="viewcode-back" href="../../../devito.dle.html#devito.dle.blocking_utils.unfold_blocked_tree">[docs]</a><span class="k">def</span> <span class="nf">unfold_blocked_tree</span><span class="p">(</span><span class="n">node</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Unfold nested :class:`IterationFold`.</span>
+
+<span class="sd">    :Example:</span>
+
+<span class="sd">    Given a section of Iteration/Expression tree as below: ::</span>
+
+<span class="sd">        for i = 1 to N-1  // folded</span>
+<span class="sd">          for j = 1 to N-1  // folded</span>
+<span class="sd">            foo1()</span>
+
+<span class="sd">    Assuming a fold with offset 1 in both /i/ and /j/ and body ``foo2()``, create: ::</span>
+
+<span class="sd">        for i = 1 to N-1</span>
+<span class="sd">          for j = 1 to N-1</span>
+<span class="sd">            foo1()</span>
+<span class="sd">        for i = 2 to N-2</span>
+<span class="sd">          for j = 2 to N-2</span>
+<span class="sd">            foo2()</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># Search the unfolding candidates</span>
+    <span class="n">candidates</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">tree</span> <span class="ow">in</span> <span class="n">retrieve_iteration_tree</span><span class="p">(</span><span class="n">node</span><span class="p">):</span>
+        <span class="n">handle</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">tree</span> <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">is_IterationFold</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">handle</span><span class="p">:</span>
+            <span class="c1"># Sanity check</span>
+            <span class="k">assert</span> <span class="n">IsPerfectIteration</span><span class="p">()</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">handle</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+            <span class="n">candidates</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">handle</span><span class="p">)</span>
+
+    <span class="c1"># Perform unfolding</span>
+    <span class="n">tag</span> <span class="o">=</span> <span class="n">ntags</span><span class="p">()</span>
+    <span class="n">mapper</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="k">for</span> <span class="n">tree</span> <span class="ow">in</span> <span class="n">candidates</span><span class="p">:</span>
+        <span class="n">trees</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="nb">zip</span><span class="p">(</span><span class="o">*</span><span class="p">[</span><span class="n">i</span><span class="o">.</span><span class="n">unfold</span><span class="p">()</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">tree</span><span class="p">]))</span>
+        <span class="c1"># Update tag</span>
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">_tree</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="n">trees</span><span class="p">)):</span>
+            <span class="n">trees</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">j</span><span class="o">.</span><span class="n">retag</span><span class="p">(</span><span class="n">tag</span> <span class="o">+</span> <span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="n">_tree</span><span class="p">)</span>
+        <span class="n">trees</span> <span class="o">=</span> <span class="n">optimize_unfolded_tree</span><span class="p">(</span><span class="n">trees</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span> <span class="n">trees</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span>
+        <span class="n">mapper</span><span class="p">[</span><span class="n">tree</span><span class="p">[</span><span class="mi">0</span><span class="p">]]</span> <span class="o">=</span> <span class="n">List</span><span class="p">(</span><span class="n">body</span><span class="o">=</span><span class="n">trees</span><span class="p">)</span>
+
+    <span class="c1"># Insert the unfolded Iterations in the Iteration/Expression tree</span>
+    <span class="n">processed</span> <span class="o">=</span> <span class="n">Transformer</span><span class="p">(</span><span class="n">mapper</span><span class="p">)</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">node</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">processed</span></div>
+
+
+<span class="k">def</span> <span class="nf">optimize_unfolded_tree</span><span class="p">(</span><span class="n">unfolded</span><span class="p">,</span> <span class="n">root</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Transform folded trees to reduce the memory footprint.</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    ========</span>
+<span class="sd">    Given:</span>
+
+<span class="sd">        .. code-block::</span>
+<span class="sd">            for i = 1 to N - 1  # Folded tree</span>
+<span class="sd">              for j = 1 to N - 1</span>
+<span class="sd">                tmp[i,j] = ...</span>
+<span class="sd">            for i = 2 to N - 2  # Root</span>
+<span class="sd">              for j = 2 to N - 2</span>
+<span class="sd">                ... = ... tmp[i,j] ...</span>
+
+<span class="sd">    The temporary ``tmp`` has shape ``(N-1, N-1)``. However, as soon as the</span>
+<span class="sd">    iteration space is blocked, with blocks of shape ``(i_bs, j_bs)``, the</span>
+<span class="sd">    ``tmp`` shape can be shrunk to ``(i_bs-1, j_bs-1)``. The resulting</span>
+<span class="sd">    iteration tree becomes:</span>
+
+<span class="sd">        .. code-block::</span>
+<span class="sd">            for i = 1 to i_bs + 1  # Folded tree</span>
+<span class="sd">              for j = 1 to j_bs + 1</span>
+<span class="sd">                i&#39; = i + i_block - 2</span>
+<span class="sd">                j&#39; = j + j_block - 2</span>
+<span class="sd">                tmp[i,j] = ... # use i&#39; and j&#39;</span>
+<span class="sd">            for i = i_block to i_block + i_bs  # Root</span>
+<span class="sd">              for j = j_block to j_block + j_bs</span>
+<span class="sd">                i&#39; = i - x_block</span>
+<span class="sd">                j&#39; = j - j_block</span>
+<span class="sd">                ... = ... tmp[i&#39;,j&#39;] ...</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">processed</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">tree</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">unfolded</span><span class="p">):</span>
+        <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">tree</span><span class="p">)</span> <span class="o">==</span> <span class="nb">len</span><span class="p">(</span><span class="n">root</span><span class="p">)</span>
+        <span class="n">modified_tree</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">modified_root</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">mapper</span> <span class="o">=</span> <span class="p">{}</span>
+
+        <span class="c1"># &quot;Shrink&quot; the iteration space</span>
+        <span class="k">for</span> <span class="n">t1</span><span class="p">,</span> <span class="n">t2</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">tree</span><span class="p">,</span> <span class="n">root</span><span class="p">):</span>
+            <span class="n">start</span><span class="p">,</span> <span class="n">end</span><span class="p">,</span> <span class="n">incr</span> <span class="o">=</span> <span class="n">t1</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="s1">&#39;limits&#39;</span><span class="p">]</span>
+            <span class="n">index</span> <span class="o">=</span> <span class="n">Symbol</span><span class="p">(</span><span class="s1">&#39;</span><span class="si">%s</span><span class="s1">s</span><span class="si">%d</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">t1</span><span class="o">.</span><span class="n">index</span><span class="p">,</span> <span class="n">i</span><span class="p">))</span>
+
+            <span class="n">t1_uindex</span> <span class="o">=</span> <span class="p">(</span><span class="n">UnboundedIndex</span><span class="p">(</span><span class="n">index</span><span class="p">,</span> <span class="n">start</span><span class="p">),)</span>
+            <span class="n">t2_uindex</span> <span class="o">=</span> <span class="p">(</span><span class="n">UnboundedIndex</span><span class="p">(</span><span class="n">index</span><span class="p">,</span> <span class="o">-</span><span class="n">start</span><span class="p">),)</span>
+
+            <span class="n">modified_tree</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">t1</span><span class="o">.</span><span class="n">_rebuild</span><span class="p">(</span><span class="n">limits</span><span class="o">=</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="n">end</span><span class="o">-</span><span class="n">start</span><span class="p">,</span> <span class="n">incr</span><span class="p">],</span>
+                                             <span class="n">uindices</span><span class="o">=</span><span class="n">t1</span><span class="o">.</span><span class="n">uindices</span> <span class="o">+</span> <span class="n">t1_uindex</span><span class="p">))</span>
+            <span class="n">modified_root</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">t2</span><span class="o">.</span><span class="n">_rebuild</span><span class="p">(</span><span class="n">uindices</span><span class="o">=</span><span class="n">t2</span><span class="o">.</span><span class="n">uindices</span> <span class="o">+</span> <span class="n">t2_uindex</span><span class="p">))</span>
+
+            <span class="n">mapper</span><span class="p">[</span><span class="n">t1</span><span class="o">.</span><span class="n">dim</span><span class="p">]</span> <span class="o">=</span> <span class="n">index</span>
+
+        <span class="c1"># Temporary arrays can now be moved onto the stack</span>
+        <span class="n">exprs</span> <span class="o">=</span> <span class="n">FindNodes</span><span class="p">(</span><span class="n">Expression</span><span class="p">)</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">modified_tree</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span>
+        <span class="k">if</span> <span class="nb">all</span><span class="p">(</span><span class="ow">not</span> <span class="n">j</span><span class="o">.</span><span class="n">is_Remainder</span> <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="n">modified_tree</span><span class="p">):</span>
+            <span class="n">shape</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">j</span><span class="o">.</span><span class="n">bounds_symbolic</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="n">modified_tree</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="n">exprs</span><span class="p">:</span>
+                <span class="n">j_shape</span> <span class="o">=</span> <span class="n">shape</span> <span class="o">+</span> <span class="n">j</span><span class="o">.</span><span class="n">output_function</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="nb">len</span><span class="p">(</span><span class="n">modified_tree</span><span class="p">):]</span>
+                <span class="n">j</span><span class="o">.</span><span class="n">output_function</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">shape</span><span class="o">=</span><span class="n">j_shape</span><span class="p">,</span> <span class="n">onstack</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+        <span class="c1"># Substitute iteration variables within the folded trees</span>
+        <span class="n">modified_tree</span> <span class="o">=</span> <span class="n">compose_nodes</span><span class="p">(</span><span class="n">modified_tree</span><span class="p">)</span>
+        <span class="n">replaced</span> <span class="o">=</span> <span class="n">xreplace_indices</span><span class="p">([</span><span class="n">j</span><span class="o">.</span><span class="n">expr</span> <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="n">exprs</span><span class="p">],</span> <span class="n">mapper</span><span class="p">,</span> <span class="n">only_rhs</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="n">subs</span> <span class="o">=</span> <span class="p">[</span><span class="n">j</span><span class="o">.</span><span class="n">_rebuild</span><span class="p">(</span><span class="n">expr</span><span class="o">=</span><span class="n">k</span><span class="p">)</span> <span class="k">for</span> <span class="n">j</span><span class="p">,</span> <span class="n">k</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">exprs</span><span class="p">,</span> <span class="n">replaced</span><span class="p">)]</span>
+        <span class="n">processed</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">Transformer</span><span class="p">(</span><span class="nb">dict</span><span class="p">(</span><span class="nb">zip</span><span class="p">(</span><span class="n">exprs</span><span class="p">,</span> <span class="n">subs</span><span class="p">)))</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">modified_tree</span><span class="p">))</span>
+
+        <span class="c1"># Introduce the new iteration variables within /root/</span>
+        <span class="n">modified_root</span> <span class="o">=</span> <span class="n">compose_nodes</span><span class="p">(</span><span class="n">modified_root</span><span class="p">)</span>
+        <span class="n">exprs</span> <span class="o">=</span> <span class="n">FindNodes</span><span class="p">(</span><span class="n">Expression</span><span class="p">)</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">modified_root</span><span class="p">)</span>
+        <span class="n">candidates</span> <span class="o">=</span> <span class="p">[</span><span class="n">j</span><span class="o">.</span><span class="n">output</span> <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="n">subs</span><span class="p">]</span>
+        <span class="n">replaced</span> <span class="o">=</span> <span class="n">xreplace_indices</span><span class="p">([</span><span class="n">j</span><span class="o">.</span><span class="n">expr</span> <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="n">exprs</span><span class="p">],</span> <span class="n">mapper</span><span class="p">,</span> <span class="n">candidates</span><span class="p">)</span>
+        <span class="n">subs</span> <span class="o">=</span> <span class="p">[</span><span class="n">j</span><span class="o">.</span><span class="n">_rebuild</span><span class="p">(</span><span class="n">expr</span><span class="o">=</span><span class="n">k</span><span class="p">)</span> <span class="k">for</span> <span class="n">j</span><span class="p">,</span> <span class="n">k</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">exprs</span><span class="p">,</span> <span class="n">replaced</span><span class="p">)]</span>
+        <span class="n">root</span> <span class="o">=</span> <span class="n">Transformer</span><span class="p">(</span><span class="nb">dict</span><span class="p">(</span><span class="nb">zip</span><span class="p">(</span><span class="n">exprs</span><span class="p">,</span> <span class="n">subs</span><span class="p">)))</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">modified_root</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">processed</span> <span class="o">+</span> <span class="p">[</span><span class="n">root</span><span class="p">]</span>
+
+
+<span class="k">class</span> <span class="nc">IterationFold</span><span class="p">(</span><span class="n">Iteration</span><span class="p">):</span>
+
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    An IterationFold is a special :class:`Iteration` object that represents</span>
+<span class="sd">    a sequence of consecutive (in program order) Iterations. In an IterationFold,</span>
+<span class="sd">    all Iterations of the sequence but the so called ``root`` are &quot;hidden&quot;; that is,</span>
+<span class="sd">    they cannot be visited by an Iteration/Expression tree visitor.</span>
+
+<span class="sd">    The Iterations in the sequence represented by the IterationFold all have same</span>
+<span class="sd">    dimension and properties. However, their extent is relative to that of the ``root``.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">is_IterationFold</span> <span class="o">=</span> <span class="kc">True</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">nodes</span><span class="p">,</span> <span class="n">dimension</span><span class="p">,</span> <span class="n">limits</span><span class="p">,</span> <span class="n">index</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">offsets</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                 <span class="n">properties</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">pragmas</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">uindices</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">folds</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">IterationFold</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">nodes</span><span class="p">,</span> <span class="n">dimension</span><span class="p">,</span> <span class="n">limits</span><span class="p">,</span> <span class="n">index</span><span class="p">,</span> <span class="n">offsets</span><span class="p">,</span>
+                                            <span class="n">properties</span><span class="p">,</span> <span class="n">uindices</span><span class="p">,</span> <span class="n">pragmas</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">folds</span> <span class="o">=</span> <span class="n">folds</span>
+
+    <span class="k">def</span> <span class="nf">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">properties</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">properties</span><span class="p">:</span>
+            <span class="n">properties</span> <span class="o">=</span> <span class="p">[</span><span class="nb">str</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">properties</span><span class="p">]</span>
+            <span class="n">properties</span> <span class="o">=</span> <span class="s2">&quot;WithProperties[</span><span class="si">%s</span><span class="s2">]::&quot;</span> <span class="o">%</span> <span class="s2">&quot;,&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">properties</span><span class="p">)</span>
+        <span class="n">index</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">index</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">uindices</span><span class="p">:</span>
+            <span class="n">index</span> <span class="o">+=</span> <span class="s1">&#39;[</span><span class="si">%s</span><span class="s1">]&#39;</span> <span class="o">%</span> <span class="s1">&#39;,&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">ccode</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">index</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">uindices</span><span class="p">)</span>
+        <span class="n">length</span> <span class="o">=</span> <span class="s2">&quot;Length </span><span class="si">%d</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">folds</span><span class="p">)</span>
+        <span class="k">return</span> <span class="s2">&quot;&lt;</span><span class="si">%s</span><span class="s2">IterationFold </span><span class="si">%s</span><span class="s2">; </span><span class="si">%s</span><span class="s2">; </span><span class="si">%s</span><span class="s2">&gt;&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">properties</span><span class="p">,</span> <span class="n">index</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">limits</span><span class="p">,</span> <span class="n">length</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">ccode</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">comment</span> <span class="o">=</span> <span class="n">c</span><span class="o">.</span><span class="n">Comment</span><span class="p">(</span><span class="s1">&#39;This IterationFold is &quot;hiding&quot; one or more Iterations&#39;</span><span class="p">)</span>
+        <span class="n">code</span> <span class="o">=</span> <span class="nb">super</span><span class="p">(</span><span class="n">IterationFold</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">ccode</span>
+        <span class="k">return</span> <span class="n">c</span><span class="o">.</span><span class="n">Module</span><span class="p">([</span><span class="n">comment</span><span class="p">,</span> <span class="n">code</span><span class="p">])</span>
+
+    <span class="k">def</span> <span class="nf">unfold</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Return the corresponding :class:`Iteration` objects from each fold in ``self``.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">args</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">args</span>
+        <span class="n">args</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;folds&#39;</span><span class="p">)</span>
+
+        <span class="c1"># Construct the root Iteration</span>
+        <span class="n">root</span> <span class="o">=</span> <span class="n">Iteration</span><span class="p">(</span><span class="o">**</span><span class="n">args</span><span class="p">)</span>
+
+        <span class="c1"># Construct the folds</span>
+        <span class="n">args</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;nodes&#39;</span><span class="p">)</span>
+        <span class="n">args</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;offsets&#39;</span><span class="p">)</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">start</span><span class="p">,</span> <span class="n">end</span><span class="p">,</span> <span class="n">incr</span> <span class="o">=</span> <span class="n">args</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;limits&#39;</span><span class="p">)</span>
+        <span class="k">except</span> <span class="ne">TypeError</span><span class="p">:</span>
+            <span class="n">start</span><span class="p">,</span> <span class="n">end</span><span class="p">,</span> <span class="n">incr</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">limits</span>
+        <span class="n">folds</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">Iteration</span><span class="p">(</span><span class="n">nodes</span><span class="p">,</span> <span class="n">limits</span><span class="o">=</span><span class="p">[</span><span class="n">start</span><span class="o">+</span><span class="n">ofs</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">end</span><span class="o">+</span><span class="n">ofs</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">incr</span><span class="p">],</span> <span class="o">**</span><span class="n">args</span><span class="p">)</span>
+                      <span class="k">for</span> <span class="n">ofs</span><span class="p">,</span> <span class="n">nodes</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">folds</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">folds</span> <span class="o">+</span> <span class="n">as_tuple</span><span class="p">(</span><span class="n">root</span><span class="p">)</span>
+</pre></div>
+
+           </div>
+           <div class="articleComments">
+            
+           </div>
+          </div>
+          <footer>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2016, Opesci.
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/snide/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  
+
+    <script type="text/javascript">
+        var DOCUMENTATION_OPTIONS = {
+            URL_ROOT:'../../../',
+            VERSION:'1',
+            COLLAPSE_INDEX:false,
+            FILE_SUFFIX:'.html',
+            HAS_SOURCE:  true,
+            SOURCELINK_SUFFIX: '.txt'
+        };
+    </script>
+      <script type="text/javascript" src="../../../_static/jquery.js"></script>
+      <script type="text/javascript" src="../../../_static/underscore.js"></script>
+      <script type="text/javascript" src="../../../_static/doctools.js"></script>
+      <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.0/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+
+  
+
+  
+  
+    <script type="text/javascript" src="../../../_static/js/theme.js"></script>
+  
+
+  
+  
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.StickyNav.enable();
+      });
+  </script>
+   
+
+</body>
+</html>

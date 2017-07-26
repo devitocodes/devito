@@ -1,0 +1,774 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>devito.dle.backends.advanced &mdash; Devito 1 documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+
+  
+  
+    
+
+  
+
+  
+  
+    <link rel="stylesheet" href="../../../../_static/css/theme.css" type="text/css" />
+  
+
+  
+
+  
+        <link rel="index" title="Index"
+              href="../../../../genindex.html"/>
+        <link rel="search" title="Search" href="../../../../search.html"/>
+    <link rel="top" title="Devito 1 documentation" href="../../../../index.html"/>
+        <link rel="up" title="devito" href="../../../devito.html"/> 
+
+  
+  <script src="../../../../_static/js/modernizr.min.js"></script>
+
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+   
+  <div class="wy-grid-for-nav">
+
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search">
+          
+
+          
+            <a href="../../../../index.html" class="icon icon-home"> Devito
+          
+
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                0
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../download.html">Download</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../tutorials.html">Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../examples.html">Example Documentation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../devito.html">API Documentation</a></li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" role="navigation" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../../index.html">Devito</a>
+        
+      </nav>
+
+
+      
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../../../../index.html">Docs</a> &raquo;</li>
+        
+          <li><a href="../../../index.html">Module code</a> &raquo;</li>
+        
+          <li><a href="../../../devito.html">devito</a> &raquo;</li>
+        
+      <li>devito.dle.backends.advanced</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+            
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <h1>Source code for devito.dle.backends.advanced</h1><div class="highlight"><pre>
+<span></span><span class="c1"># The internal loop engine</span>
+
+<span class="kn">from</span> <span class="nn">__future__</span> <span class="k">import</span> <span class="n">absolute_import</span>
+
+<span class="kn">from</span> <span class="nn">collections</span> <span class="k">import</span> <span class="n">OrderedDict</span>
+<span class="kn">from</span> <span class="nn">itertools</span> <span class="k">import</span> <span class="n">combinations</span>
+
+<span class="kn">import</span> <span class="nn">cgen</span>
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">import</span> <span class="nn">psutil</span>
+
+<span class="kn">from</span> <span class="nn">devito.cgen_utils</span> <span class="k">import</span> <span class="n">ccode</span>
+<span class="kn">from</span> <span class="nn">devito.dimension</span> <span class="k">import</span> <span class="n">Dimension</span>
+<span class="kn">from</span> <span class="nn">devito.dle</span> <span class="k">import</span> <span class="p">(</span><span class="n">compose_nodes</span><span class="p">,</span> <span class="n">copy_arrays</span><span class="p">,</span> <span class="n">filter_iterations</span><span class="p">,</span>
+                        <span class="n">fold_blockable_tree</span><span class="p">,</span> <span class="n">unfold_blocked_tree</span><span class="p">,</span>
+                        <span class="n">retrieve_iteration_tree</span><span class="p">)</span>
+<span class="kn">from</span> <span class="nn">devito.dle.backends</span> <span class="k">import</span> <span class="p">(</span><span class="n">BasicRewriter</span><span class="p">,</span> <span class="n">BlockingArg</span><span class="p">,</span> <span class="n">dle_pass</span><span class="p">,</span> <span class="n">omplang</span><span class="p">,</span>
+                                 <span class="n">simdinfo</span><span class="p">,</span> <span class="n">get_simd_flag</span><span class="p">,</span> <span class="n">get_simd_items</span><span class="p">)</span>
+<span class="kn">from</span> <span class="nn">devito.dse</span> <span class="k">import</span> <span class="n">promote_scalar_expressions</span>
+<span class="kn">from</span> <span class="nn">devito.exceptions</span> <span class="k">import</span> <span class="n">DLEException</span>
+<span class="kn">from</span> <span class="nn">devito.interfaces</span> <span class="k">import</span> <span class="n">TensorFunction</span>
+<span class="kn">from</span> <span class="nn">devito.logger</span> <span class="k">import</span> <span class="n">dle_warning</span>
+<span class="kn">from</span> <span class="nn">devito.nodes</span> <span class="k">import</span> <span class="p">(</span><span class="n">Block</span><span class="p">,</span> <span class="n">Denormals</span><span class="p">,</span> <span class="n">Expression</span><span class="p">,</span> <span class="n">Iteration</span><span class="p">,</span> <span class="n">List</span><span class="p">,</span>
+                          <span class="n">PARALLEL</span><span class="p">,</span> <span class="n">ELEMENTAL</span><span class="p">,</span> <span class="n">REMAINDER</span><span class="p">,</span> <span class="n">tagger</span><span class="p">)</span>
+<span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">as_tuple</span><span class="p">,</span> <span class="n">grouper</span><span class="p">,</span> <span class="n">roundm</span>
+<span class="kn">from</span> <span class="nn">devito.visitors</span> <span class="k">import</span> <span class="p">(</span><span class="n">FindNodes</span><span class="p">,</span> <span class="n">FindSymbols</span><span class="p">,</span> <span class="n">IsPerfectIteration</span><span class="p">,</span>
+                             <span class="n">SubstituteExpression</span><span class="p">,</span> <span class="n">Transformer</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="DevitoRewriter"><a class="viewcode-back" href="../../../../devito.dle.backends.html#devito.dle.backends.advanced.DevitoRewriter">[docs]</a><span class="k">class</span> <span class="nc">DevitoRewriter</span><span class="p">(</span><span class="n">BasicRewriter</span><span class="p">):</span>
+
+    <span class="k">def</span> <span class="nf">_pipeline</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">state</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_avoid_denormals</span><span class="p">(</span><span class="n">state</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_loop_fission</span><span class="p">(</span><span class="n">state</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_loop_blocking</span><span class="p">(</span><span class="n">state</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_simdize</span><span class="p">(</span><span class="n">state</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">params</span><span class="p">[</span><span class="s1">&#39;openmp&#39;</span><span class="p">]</span> <span class="ow">is</span> <span class="kc">True</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_ompize</span><span class="p">(</span><span class="n">state</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_create_elemental_functions</span><span class="p">(</span><span class="n">state</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_minimize_remainders</span><span class="p">(</span><span class="n">state</span><span class="p">)</span>
+
+    <span class="nd">@dle_pass</span>
+    <span class="k">def</span> <span class="nf">_loop_fission</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">state</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Apply loop fission to innermost :class:`Iteration` objects. This pass</span>
+<span class="sd">        is not applied if the number of statements in an Iteration&#39;s body is</span>
+<span class="sd">        lower than ``self.thresholds[&#39;fission&#39;].``</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">processed</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">node</span> <span class="ow">in</span> <span class="n">state</span><span class="o">.</span><span class="n">nodes</span><span class="p">:</span>
+            <span class="n">mapper</span> <span class="o">=</span> <span class="p">{}</span>
+            <span class="k">for</span> <span class="n">tree</span> <span class="ow">in</span> <span class="n">retrieve_iteration_tree</span><span class="p">(</span><span class="n">node</span><span class="p">):</span>
+                <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">tree</span><span class="p">)</span> <span class="o">&lt;=</span> <span class="mi">1</span><span class="p">:</span>
+                    <span class="c1"># Heuristically avoided</span>
+                    <span class="k">continue</span>
+
+                <span class="n">candidate</span> <span class="o">=</span> <span class="n">tree</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+                <span class="n">expressions</span> <span class="o">=</span> <span class="p">[</span><span class="n">e</span> <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">candidate</span><span class="o">.</span><span class="n">nodes</span> <span class="k">if</span> <span class="n">e</span><span class="o">.</span><span class="n">is_Expression</span><span class="p">]</span>
+
+                <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">expressions</span><span class="p">)</span> <span class="o">&lt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">thresholds</span><span class="p">[</span><span class="s1">&#39;max_fission&#39;</span><span class="p">]:</span>
+                    <span class="c1"># Heuristically avoided</span>
+                    <span class="k">continue</span>
+                <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">expressions</span><span class="p">)</span> <span class="o">!=</span> <span class="nb">len</span><span class="p">(</span><span class="n">candidate</span><span class="o">.</span><span class="n">nodes</span><span class="p">):</span>
+                    <span class="c1"># Dangerous for correctness</span>
+                    <span class="k">continue</span>
+
+                <span class="n">functions</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="nb">set</span><span class="o">.</span><span class="n">union</span><span class="p">(</span><span class="o">*</span><span class="p">[</span><span class="nb">set</span><span class="p">(</span><span class="n">e</span><span class="o">.</span><span class="n">functions</span><span class="p">)</span> <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">expressions</span><span class="p">]))</span>
+                <span class="n">wrapped</span> <span class="o">=</span> <span class="p">[</span><span class="n">e</span><span class="o">.</span><span class="n">expr</span> <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">expressions</span><span class="p">]</span>
+
+                <span class="k">if</span> <span class="ow">not</span> <span class="n">functions</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">wrapped</span><span class="p">:</span>
+                    <span class="c1"># Heuristically avoided</span>
+                    <span class="k">continue</span>
+
+                <span class="c1"># Promote temporaries from scalar to tensors</span>
+                <span class="n">handle</span> <span class="o">=</span> <span class="n">functions</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+                <span class="n">dim</span> <span class="o">=</span> <span class="n">handle</span><span class="o">.</span><span class="n">indices</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+                <span class="n">size</span> <span class="o">=</span> <span class="n">handle</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+                <span class="k">if</span> <span class="nb">any</span><span class="p">(</span><span class="n">dim</span> <span class="o">!=</span> <span class="n">i</span><span class="o">.</span><span class="n">indices</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">functions</span><span class="p">):</span>
+                    <span class="c1"># Dangerous for correctness</span>
+                    <span class="k">continue</span>
+
+                <span class="n">wrapped</span> <span class="o">=</span> <span class="n">promote_scalar_expressions</span><span class="p">(</span><span class="n">wrapped</span><span class="p">,</span> <span class="p">(</span><span class="n">size</span><span class="p">,),</span> <span class="p">(</span><span class="n">dim</span><span class="p">,),</span> <span class="kc">True</span><span class="p">)</span>
+
+                <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">wrapped</span><span class="p">)</span> <span class="o">==</span> <span class="nb">len</span><span class="p">(</span><span class="n">expressions</span><span class="p">)</span>
+                <span class="n">rebuilt</span> <span class="o">=</span> <span class="p">[</span><span class="n">Expression</span><span class="p">(</span><span class="n">s</span><span class="p">,</span> <span class="n">e</span><span class="o">.</span><span class="n">dtype</span><span class="p">)</span> <span class="k">for</span> <span class="n">s</span><span class="p">,</span> <span class="n">e</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">wrapped</span><span class="p">,</span> <span class="n">expressions</span><span class="p">)]</span>
+
+                <span class="c1"># Group statements</span>
+                <span class="c1"># TODO: Need a heuristic here to maximize reuse</span>
+                <span class="n">args_frozen</span> <span class="o">=</span> <span class="n">candidate</span><span class="o">.</span><span class="n">args_frozen</span>
+                <span class="n">properties</span> <span class="o">=</span> <span class="n">as_tuple</span><span class="p">(</span><span class="n">args_frozen</span><span class="p">[</span><span class="s1">&#39;properties&#39;</span><span class="p">])</span> <span class="o">+</span> <span class="p">(</span><span class="n">ELEMENTAL</span><span class="p">,)</span>
+                <span class="n">args_frozen</span><span class="p">[</span><span class="s1">&#39;properties&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">properties</span>
+                <span class="n">n</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">thresholds</span><span class="p">[</span><span class="s1">&#39;min_fission&#39;</span><span class="p">]</span>
+                <span class="n">fissioned</span> <span class="o">=</span> <span class="p">[</span><span class="n">Iteration</span><span class="p">(</span><span class="n">g</span><span class="p">,</span> <span class="o">**</span><span class="n">args_frozen</span><span class="p">)</span> <span class="k">for</span> <span class="n">g</span> <span class="ow">in</span> <span class="n">grouper</span><span class="p">(</span><span class="n">rebuilt</span><span class="p">,</span> <span class="n">n</span><span class="p">)]</span>
+
+                <span class="n">mapper</span><span class="p">[</span><span class="n">candidate</span><span class="p">]</span> <span class="o">=</span> <span class="n">List</span><span class="p">(</span><span class="n">body</span><span class="o">=</span><span class="n">fissioned</span><span class="p">)</span>
+
+            <span class="n">processed</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">Transformer</span><span class="p">(</span><span class="n">mapper</span><span class="p">)</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">node</span><span class="p">))</span>
+
+        <span class="k">return</span> <span class="p">{</span><span class="s1">&#39;nodes&#39;</span><span class="p">:</span> <span class="n">processed</span><span class="p">}</span>
+
+    <span class="nd">@dle_pass</span>
+    <span class="k">def</span> <span class="nf">_loop_blocking</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">state</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Apply loop blocking to :class:`Iteration` trees.</span>
+
+<span class="sd">        Blocking is applied to parallel iteration trees. Heuristically, innermost</span>
+<span class="sd">        dimensions are not blocked to maximize the trip count of the SIMD loops.</span>
+
+<span class="sd">        Different heuristics may be specified by passing the keywords ``blockshape``</span>
+<span class="sd">        and ``blockinner`` to the DLE. The former, a dictionary, is used to indicate</span>
+<span class="sd">        a specific block size for each blocked dimension. For example, for the</span>
+<span class="sd">        :class:`Iteration` tree: ::</span>
+
+<span class="sd">            for i</span>
+<span class="sd">              for j</span>
+<span class="sd">                for k</span>
+<span class="sd">                  ...</span>
+
+<span class="sd">        one may provide ``blockshape = {i: 4, j: 7}``, in which case the</span>
+<span class="sd">        two outer loops will blocked, and the resulting 2-dimensional block will</span>
+<span class="sd">        have size 4x7. The latter may be set to True to also block innermost parallel</span>
+<span class="sd">        :class:`Iteration` objects.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">exclude_innermost</span> <span class="o">=</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">params</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;blockinner&#39;</span><span class="p">,</span> <span class="kc">False</span><span class="p">)</span>
+        <span class="n">ignore_heuristic</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">params</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;blockalways&#39;</span><span class="p">,</span> <span class="kc">False</span><span class="p">)</span>
+
+        <span class="n">blocked</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">()</span>
+        <span class="n">processed</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">node</span> <span class="ow">in</span> <span class="n">state</span><span class="o">.</span><span class="n">nodes</span><span class="p">:</span>
+            <span class="c1"># Make sure loop blocking will span as many Iterations as possible</span>
+            <span class="n">fold</span> <span class="o">=</span> <span class="n">fold_blockable_tree</span><span class="p">(</span><span class="n">node</span><span class="p">,</span> <span class="n">exclude_innermost</span><span class="p">)</span>
+
+            <span class="n">mapper</span> <span class="o">=</span> <span class="p">{}</span>
+            <span class="k">for</span> <span class="n">tree</span> <span class="ow">in</span> <span class="n">retrieve_iteration_tree</span><span class="p">(</span><span class="n">fold</span><span class="p">):</span>
+                <span class="c1"># Is the Iteration tree blockable ?</span>
+                <span class="n">iterations</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">tree</span> <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">is_Parallel</span><span class="p">]</span>
+                <span class="k">if</span> <span class="n">exclude_innermost</span><span class="p">:</span>
+                    <span class="n">iterations</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">iterations</span> <span class="k">if</span> <span class="ow">not</span> <span class="n">i</span><span class="o">.</span><span class="n">is_Vectorizable</span><span class="p">]</span>
+                <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">iterations</span><span class="p">)</span> <span class="o">&lt;=</span> <span class="mi">1</span><span class="p">:</span>
+                    <span class="k">continue</span>
+                <span class="n">root</span> <span class="o">=</span> <span class="n">iterations</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+                <span class="k">if</span> <span class="ow">not</span> <span class="n">IsPerfectIteration</span><span class="p">()</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">root</span><span class="p">):</span>
+                    <span class="c1"># Illegal/unsupported</span>
+                    <span class="k">continue</span>
+                <span class="k">if</span> <span class="ow">not</span> <span class="n">tree</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">is_Sequential</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">ignore_heuristic</span><span class="p">:</span>
+                    <span class="c1"># Heuristic: avoid polluting the generated code with blocked</span>
+                    <span class="c1"># nests (thus increasing JIT compilation time and affecting</span>
+                    <span class="c1"># readability) if the blockable tree isn&#39;t embedded in a</span>
+                    <span class="c1"># sequential loop (e.g., a timestepping loop)</span>
+                    <span class="k">continue</span>
+
+                <span class="c1"># Decorate intra-block iterations with an IterationProperty</span>
+                <span class="n">TAG</span> <span class="o">=</span> <span class="n">tagger</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">mapper</span><span class="p">))</span>
+
+                <span class="c1"># Build all necessary Iteration objects, individually. These will</span>
+                <span class="c1"># subsequently be composed to implement loop blocking.</span>
+                <span class="n">inter_blocks</span> <span class="o">=</span> <span class="p">[]</span>
+                <span class="n">intra_blocks</span> <span class="o">=</span> <span class="p">[]</span>
+                <span class="n">remainders</span> <span class="o">=</span> <span class="p">[]</span>
+                <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">iterations</span><span class="p">:</span>
+                    <span class="c1"># Build Iteration over blocks</span>
+                    <span class="n">dim</span> <span class="o">=</span> <span class="n">blocked</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">Dimension</span><span class="p">(</span><span class="s2">&quot;</span><span class="si">%s</span><span class="s2">_block&quot;</span> <span class="o">%</span> <span class="n">i</span><span class="o">.</span><span class="n">dim</span><span class="o">.</span><span class="n">name</span><span class="p">))</span>
+                    <span class="n">block_size</span> <span class="o">=</span> <span class="n">dim</span><span class="o">.</span><span class="n">symbolic_size</span>
+                    <span class="n">iter_size</span> <span class="o">=</span> <span class="n">i</span><span class="o">.</span><span class="n">dim</span><span class="o">.</span><span class="n">size</span> <span class="ow">or</span> <span class="n">i</span><span class="o">.</span><span class="n">dim</span><span class="o">.</span><span class="n">symbolic_size</span>
+                    <span class="n">start</span> <span class="o">=</span> <span class="n">i</span><span class="o">.</span><span class="n">limits</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">-</span> <span class="n">i</span><span class="o">.</span><span class="n">offsets</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+                    <span class="n">finish</span> <span class="o">=</span> <span class="n">iter_size</span> <span class="o">-</span> <span class="n">i</span><span class="o">.</span><span class="n">offsets</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+                    <span class="n">finish</span> <span class="o">=</span> <span class="n">finish</span> <span class="o">-</span> <span class="p">((</span><span class="n">finish</span> <span class="o">-</span> <span class="n">i</span><span class="o">.</span><span class="n">offsets</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span> <span class="o">%</span> <span class="n">block_size</span><span class="p">)</span>
+                    <span class="n">inter_block</span> <span class="o">=</span> <span class="n">Iteration</span><span class="p">([],</span> <span class="n">dim</span><span class="p">,</span> <span class="p">[</span><span class="n">start</span><span class="p">,</span> <span class="n">finish</span><span class="p">,</span> <span class="n">block_size</span><span class="p">],</span>
+                                            <span class="n">properties</span><span class="o">=</span><span class="n">PARALLEL</span><span class="p">)</span>
+                    <span class="n">inter_blocks</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">inter_block</span><span class="p">)</span>
+
+                    <span class="c1"># Build Iteration within a block</span>
+                    <span class="n">start</span> <span class="o">=</span> <span class="n">inter_block</span><span class="o">.</span><span class="n">dim</span>
+                    <span class="n">finish</span> <span class="o">=</span> <span class="n">start</span> <span class="o">+</span> <span class="n">block_size</span>
+                    <span class="n">intra_block</span> <span class="o">=</span> <span class="n">i</span><span class="o">.</span><span class="n">_rebuild</span><span class="p">([],</span> <span class="n">limits</span><span class="o">=</span><span class="p">[</span><span class="n">start</span><span class="p">,</span> <span class="n">finish</span><span class="p">,</span> <span class="mi">1</span><span class="p">],</span> <span class="n">offsets</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                                             <span class="n">properties</span><span class="o">=</span><span class="n">i</span><span class="o">.</span><span class="n">properties</span> <span class="o">+</span> <span class="p">(</span><span class="n">TAG</span><span class="p">,</span> <span class="n">ELEMENTAL</span><span class="p">))</span>
+                    <span class="n">intra_blocks</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">intra_block</span><span class="p">)</span>
+
+                    <span class="c1"># Build unitary-increment Iteration over the &#39;leftover&#39; region.</span>
+                    <span class="c1"># This will be used for remainder loops, executed when any</span>
+                    <span class="c1"># dimension size is not a multiple of the block size.</span>
+                    <span class="n">start</span> <span class="o">=</span> <span class="n">inter_block</span><span class="o">.</span><span class="n">limits</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+                    <span class="n">finish</span> <span class="o">=</span> <span class="n">iter_size</span> <span class="o">-</span> <span class="n">i</span><span class="o">.</span><span class="n">offsets</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+                    <span class="n">remainder</span> <span class="o">=</span> <span class="n">i</span><span class="o">.</span><span class="n">_rebuild</span><span class="p">([],</span> <span class="n">limits</span><span class="o">=</span><span class="p">[</span><span class="n">start</span><span class="p">,</span> <span class="n">finish</span><span class="p">,</span> <span class="mi">1</span><span class="p">],</span> <span class="n">offsets</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span>
+                    <span class="n">remainders</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">remainder</span><span class="p">)</span>
+
+                <span class="c1"># Build blocked Iteration nest</span>
+                <span class="n">blocked_tree</span> <span class="o">=</span> <span class="n">compose_nodes</span><span class="p">(</span><span class="n">inter_blocks</span> <span class="o">+</span> <span class="n">intra_blocks</span> <span class="o">+</span>
+                                             <span class="p">[</span><span class="n">iterations</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">nodes</span><span class="p">])</span>
+
+                <span class="c1"># Build remainder Iterations</span>
+                <span class="n">remainder_trees</span> <span class="o">=</span> <span class="p">[]</span>
+                <span class="k">for</span> <span class="n">n</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">iterations</span><span class="p">)):</span>
+                    <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">combinations</span><span class="p">([</span><span class="n">i</span><span class="o">.</span><span class="n">dim</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">iterations</span><span class="p">],</span> <span class="n">n</span> <span class="o">+</span> <span class="mi">1</span><span class="p">):</span>
+                        <span class="c1"># First all inter-block Interations</span>
+                        <span class="n">nodes</span> <span class="o">=</span> <span class="p">[</span><span class="n">b</span><span class="o">.</span><span class="n">_rebuild</span><span class="p">(</span><span class="n">properties</span><span class="o">=</span><span class="n">b</span><span class="o">.</span><span class="n">properties</span> <span class="o">+</span> <span class="p">(</span><span class="n">REMAINDER</span><span class="p">,))</span>
+                                 <span class="k">for</span> <span class="n">b</span><span class="p">,</span> <span class="n">r</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">inter_blocks</span><span class="p">,</span> <span class="n">remainders</span><span class="p">)</span>
+                                 <span class="k">if</span> <span class="n">r</span><span class="o">.</span><span class="n">dim</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">c</span><span class="p">]</span>
+                        <span class="c1"># Then intra-block or remainder, for each dim (in order)</span>
+                        <span class="n">properties</span> <span class="o">=</span> <span class="p">(</span><span class="n">REMAINDER</span><span class="p">,</span> <span class="n">TAG</span><span class="p">,</span> <span class="n">ELEMENTAL</span><span class="p">)</span>
+                        <span class="k">for</span> <span class="n">b</span><span class="p">,</span> <span class="n">r</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">intra_blocks</span><span class="p">,</span> <span class="n">remainders</span><span class="p">):</span>
+                            <span class="n">handle</span> <span class="o">=</span> <span class="n">r</span> <span class="k">if</span> <span class="n">b</span><span class="o">.</span><span class="n">dim</span> <span class="ow">in</span> <span class="n">c</span> <span class="k">else</span> <span class="n">b</span>
+                            <span class="n">nodes</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">handle</span><span class="o">.</span><span class="n">_rebuild</span><span class="p">(</span><span class="n">properties</span><span class="o">=</span><span class="n">properties</span><span class="p">))</span>
+                        <span class="n">nodes</span><span class="o">.</span><span class="n">extend</span><span class="p">([</span><span class="n">iterations</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">nodes</span><span class="p">])</span>
+                        <span class="n">remainder_trees</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">compose_nodes</span><span class="p">(</span><span class="n">nodes</span><span class="p">))</span>
+
+                <span class="c1"># Will replace with blocked loop tree</span>
+                <span class="n">mapper</span><span class="p">[</span><span class="n">root</span><span class="p">]</span> <span class="o">=</span> <span class="n">List</span><span class="p">(</span><span class="n">body</span><span class="o">=</span><span class="p">[</span><span class="n">blocked_tree</span><span class="p">]</span> <span class="o">+</span> <span class="n">remainder_trees</span><span class="p">)</span>
+
+            <span class="n">rebuilt</span> <span class="o">=</span> <span class="n">Transformer</span><span class="p">(</span><span class="n">mapper</span><span class="p">)</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">fold</span><span class="p">)</span>
+
+            <span class="c1"># Finish unrolling any previously folded Iterations</span>
+            <span class="n">processed</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">unfold_blocked_tree</span><span class="p">(</span><span class="n">rebuilt</span><span class="p">))</span>
+
+        <span class="c1"># All blocked dimensions</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">blocked</span><span class="p">:</span>
+            <span class="k">return</span> <span class="p">{</span><span class="s1">&#39;nodes&#39;</span><span class="p">:</span> <span class="n">processed</span><span class="p">}</span>
+
+        <span class="c1"># Determine the block shape</span>
+        <span class="n">blockshape</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">params</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;blockshape&#39;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">blockshape</span><span class="p">:</span>
+            <span class="c1"># Use trivial heuristic for a suitable blockshape</span>
+            <span class="k">def</span> <span class="nf">heuristic</span><span class="p">(</span><span class="n">dim_size</span><span class="p">):</span>
+                <span class="n">ths</span> <span class="o">=</span> <span class="mi">8</span>  <span class="c1"># FIXME: This really needs to be improved</span>
+                <span class="k">return</span> <span class="n">ths</span> <span class="k">if</span> <span class="n">dim_size</span> <span class="o">&gt;</span> <span class="n">ths</span> <span class="k">else</span> <span class="mi">1</span>
+            <span class="n">blockshape</span> <span class="o">=</span> <span class="p">{</span><span class="n">k</span><span class="p">:</span> <span class="n">heuristic</span> <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">blocked</span><span class="o">.</span><span class="n">keys</span><span class="p">()}</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">nitems</span><span class="p">,</span> <span class="n">nrequired</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">blockshape</span><span class="p">),</span> <span class="nb">len</span><span class="p">(</span><span class="n">blocked</span><span class="p">)</span>
+                <span class="n">blockshape</span> <span class="o">=</span> <span class="p">{</span><span class="n">k</span><span class="p">:</span> <span class="n">v</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">blocked</span><span class="p">,</span> <span class="n">blockshape</span><span class="p">)}</span>
+                <span class="k">if</span> <span class="n">nitems</span> <span class="o">&gt;</span> <span class="n">nrequired</span><span class="p">:</span>
+                    <span class="n">dle_warning</span><span class="p">(</span><span class="s2">&quot;Provided &#39;blockshape&#39; has more entries than &quot;</span>
+                                <span class="s2">&quot;blocked loops; dropping entries ...&quot;</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">nitems</span> <span class="o">&lt;</span> <span class="n">nrequired</span><span class="p">:</span>
+                    <span class="n">dle_warning</span><span class="p">(</span><span class="s2">&quot;Provided &#39;blockshape&#39; has fewer entries than &quot;</span>
+                                <span class="s2">&quot;blocked loops; dropping dimensions ...&quot;</span><span class="p">)</span>
+            <span class="k">except</span> <span class="ne">TypeError</span><span class="p">:</span>
+                <span class="n">blockshape</span> <span class="o">=</span> <span class="p">{</span><span class="nb">list</span><span class="p">(</span><span class="n">blocked</span><span class="p">)[</span><span class="mi">0</span><span class="p">]:</span> <span class="n">blockshape</span><span class="p">}</span>
+            <span class="n">blockshape</span><span class="o">.</span><span class="n">update</span><span class="p">({</span><span class="n">k</span><span class="p">:</span> <span class="kc">None</span> <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">blocked</span><span class="o">.</span><span class="n">keys</span><span class="p">()</span>
+                               <span class="k">if</span> <span class="n">k</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">blockshape</span><span class="p">})</span>
+
+        <span class="c1"># Track any additional arguments required to execute /state.nodes/</span>
+        <span class="n">arguments</span> <span class="o">=</span> <span class="p">[</span><span class="n">BlockingArg</span><span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="n">k</span><span class="p">,</span> <span class="n">blockshape</span><span class="p">[</span><span class="n">k</span><span class="p">])</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">blocked</span><span class="o">.</span><span class="n">items</span><span class="p">()]</span>
+
+        <span class="k">return</span> <span class="p">{</span><span class="s1">&#39;nodes&#39;</span><span class="p">:</span> <span class="n">processed</span><span class="p">,</span> <span class="s1">&#39;arguments&#39;</span><span class="p">:</span> <span class="n">arguments</span><span class="p">,</span> <span class="s1">&#39;flags&#39;</span><span class="p">:</span> <span class="s1">&#39;blocking&#39;</span><span class="p">}</span>
+
+    <span class="nd">@dle_pass</span>
+    <span class="k">def</span> <span class="nf">_simdize</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">state</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Add compiler-specific or, if not available, OpenMP pragmas to the</span>
+<span class="sd">        Iteration/Expression tree to emit SIMD-friendly code.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">ignore_deps</span> <span class="o">=</span> <span class="n">as_tuple</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_compiler_decoration</span><span class="p">(</span><span class="s1">&#39;ignore-deps&#39;</span><span class="p">))</span>
+
+        <span class="k">def</span> <span class="nf">decorate</span><span class="p">(</span><span class="n">nodes</span><span class="p">):</span>
+            <span class="n">processed</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="k">for</span> <span class="n">node</span> <span class="ow">in</span> <span class="n">nodes</span><span class="p">:</span>
+                <span class="n">mapper</span> <span class="o">=</span> <span class="p">{}</span>
+                <span class="k">for</span> <span class="n">tree</span> <span class="ow">in</span> <span class="n">retrieve_iteration_tree</span><span class="p">(</span><span class="n">node</span><span class="p">):</span>
+                    <span class="n">vector_iterations</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">tree</span> <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">is_Vectorizable</span><span class="p">]</span>
+                    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">vector_iterations</span><span class="p">:</span>
+                        <span class="n">handle</span> <span class="o">=</span> <span class="n">FindSymbols</span><span class="p">(</span><span class="s1">&#39;symbolics&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">i</span><span class="p">)</span>
+                        <span class="k">try</span><span class="p">:</span>
+                            <span class="n">aligned</span> <span class="o">=</span> <span class="p">[</span><span class="n">j</span> <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="n">handle</span>
+                                       <span class="k">if</span> <span class="n">j</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">%</span> <span class="n">get_simd_items</span><span class="p">(</span><span class="n">j</span><span class="o">.</span><span class="n">dtype</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">]</span>
+                        <span class="k">except</span> <span class="ne">KeyError</span><span class="p">:</span>
+                            <span class="n">aligned</span> <span class="o">=</span> <span class="p">[]</span>
+                        <span class="k">if</span> <span class="n">aligned</span><span class="p">:</span>
+                            <span class="n">simd</span> <span class="o">=</span> <span class="n">omplang</span><span class="p">[</span><span class="s1">&#39;simd-for-aligned&#39;</span><span class="p">]</span>
+                            <span class="n">simd</span> <span class="o">=</span> <span class="n">as_tuple</span><span class="p">(</span><span class="n">simd</span><span class="p">(</span><span class="s1">&#39;,&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">([</span><span class="n">j</span><span class="o">.</span><span class="n">name</span> <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="n">aligned</span><span class="p">]),</span>
+                                            <span class="n">simdinfo</span><span class="p">[</span><span class="n">get_simd_flag</span><span class="p">()]))</span>
+                        <span class="k">else</span><span class="p">:</span>
+                            <span class="n">simd</span> <span class="o">=</span> <span class="n">as_tuple</span><span class="p">(</span><span class="n">omplang</span><span class="p">[</span><span class="s1">&#39;simd-for&#39;</span><span class="p">])</span>
+                        <span class="n">mapper</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">i</span><span class="o">.</span><span class="n">_rebuild</span><span class="p">(</span><span class="n">pragmas</span><span class="o">=</span><span class="n">i</span><span class="o">.</span><span class="n">pragmas</span> <span class="o">+</span> <span class="n">ignore_deps</span> <span class="o">+</span> <span class="n">simd</span><span class="p">)</span>
+                <span class="n">processed</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">Transformer</span><span class="p">(</span><span class="n">mapper</span><span class="p">)</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">node</span><span class="p">))</span>
+            <span class="k">return</span> <span class="n">processed</span>
+
+        <span class="k">return</span> <span class="p">{</span><span class="s1">&#39;nodes&#39;</span><span class="p">:</span> <span class="n">decorate</span><span class="p">(</span><span class="n">state</span><span class="o">.</span><span class="n">nodes</span><span class="p">),</span>
+                <span class="s1">&#39;elemental_functions&#39;</span><span class="p">:</span> <span class="n">decorate</span><span class="p">(</span><span class="n">state</span><span class="o">.</span><span class="n">elemental_functions</span><span class="p">)}</span>
+
+    <span class="nd">@dle_pass</span>
+    <span class="k">def</span> <span class="nf">_ompize</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">state</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Add OpenMP pragmas to the Iteration/Expression tree to emit parallel code</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">processed</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">node</span> <span class="ow">in</span> <span class="n">state</span><span class="o">.</span><span class="n">nodes</span><span class="p">:</span>
+
+            <span class="c1"># Reset denormals flag each time a parallel region is entered</span>
+            <span class="n">denormals</span> <span class="o">=</span> <span class="n">FindNodes</span><span class="p">(</span><span class="n">Denormals</span><span class="p">)</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">state</span><span class="o">.</span><span class="n">nodes</span><span class="p">)</span>
+            <span class="n">mapper</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">([(</span><span class="n">i</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">denormals</span><span class="p">])</span>
+
+            <span class="c1"># Group by outer loop so that we can embed within the same parallel region</span>
+            <span class="n">was_tagged</span> <span class="o">=</span> <span class="kc">False</span>
+            <span class="n">groups</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">()</span>
+            <span class="k">for</span> <span class="n">tree</span> <span class="ow">in</span> <span class="n">retrieve_iteration_tree</span><span class="p">(</span><span class="n">node</span><span class="p">):</span>
+                <span class="c1"># Determine the number of consecutive parallelizable Iterations</span>
+                <span class="n">key</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">i</span><span class="p">:</span> <span class="n">i</span><span class="o">.</span><span class="n">is_Parallel</span> <span class="ow">and</span>\
+                    <span class="ow">not</span> <span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">is_Elementizable</span> <span class="ow">or</span> <span class="n">i</span><span class="o">.</span><span class="n">is_Vectorizable</span><span class="p">)</span>
+                <span class="n">candidates</span> <span class="o">=</span> <span class="n">filter_iterations</span><span class="p">(</span><span class="n">tree</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="n">key</span><span class="p">,</span> <span class="n">stop</span><span class="o">=</span><span class="s1">&#39;asap&#39;</span><span class="p">)</span>
+                <span class="k">if</span> <span class="ow">not</span> <span class="n">candidates</span><span class="p">:</span>
+                    <span class="n">was_tagged</span> <span class="o">=</span> <span class="kc">False</span>
+                    <span class="k">continue</span>
+                <span class="c1"># Consecutive tagged Iteration go in the same group</span>
+                <span class="n">is_tagged</span> <span class="o">=</span> <span class="nb">any</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">tag</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">tree</span><span class="p">)</span>
+                <span class="n">key</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">groups</span><span class="p">)</span> <span class="o">-</span> <span class="p">(</span><span class="n">is_tagged</span> <span class="o">&amp;</span> <span class="n">was_tagged</span><span class="p">)</span>
+                <span class="n">handle</span> <span class="o">=</span> <span class="n">groups</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">OrderedDict</span><span class="p">())</span>
+                <span class="n">handle</span><span class="p">[</span><span class="n">candidates</span><span class="p">[</span><span class="mi">0</span><span class="p">]]</span> <span class="o">=</span> <span class="n">candidates</span>
+                <span class="n">was_tagged</span> <span class="o">=</span> <span class="n">is_tagged</span>
+
+            <span class="c1"># Handle parallelizable loops</span>
+            <span class="k">for</span> <span class="n">group</span> <span class="ow">in</span> <span class="n">groups</span><span class="o">.</span><span class="n">values</span><span class="p">():</span>
+                <span class="n">private</span> <span class="o">=</span> <span class="p">[]</span>
+                <span class="k">for</span> <span class="n">root</span><span class="p">,</span> <span class="n">tree</span> <span class="ow">in</span> <span class="n">group</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+                    <span class="c1"># Heuristic: if at least two parallel loops are available and the</span>
+                    <span class="c1"># physical core count is greater than self.thresholds[&#39;collapse&#39;],</span>
+                    <span class="c1"># then omp-collapse the loops</span>
+                    <span class="n">nparallel</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">tree</span><span class="p">)</span>
+                    <span class="k">if</span> <span class="n">psutil</span><span class="o">.</span><span class="n">cpu_count</span><span class="p">(</span><span class="n">logical</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span> <span class="o">&lt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">thresholds</span><span class="p">[</span><span class="s1">&#39;collapse&#39;</span><span class="p">]</span> <span class="ow">or</span>\
+                            <span class="n">nparallel</span> <span class="o">&lt;</span> <span class="mi">2</span><span class="p">:</span>
+                        <span class="n">parallel</span> <span class="o">=</span> <span class="n">omplang</span><span class="p">[</span><span class="s1">&#39;for&#39;</span><span class="p">]</span>
+                    <span class="k">else</span><span class="p">:</span>
+                        <span class="n">parallel</span> <span class="o">=</span> <span class="n">omplang</span><span class="p">[</span><span class="s1">&#39;collapse&#39;</span><span class="p">](</span><span class="n">nparallel</span><span class="p">)</span>
+
+                    <span class="n">mapper</span><span class="p">[</span><span class="n">root</span><span class="p">]</span> <span class="o">=</span> <span class="n">root</span><span class="o">.</span><span class="n">_rebuild</span><span class="p">(</span><span class="n">pragmas</span><span class="o">=</span><span class="n">root</span><span class="o">.</span><span class="n">pragmas</span> <span class="o">+</span> <span class="p">(</span><span class="n">parallel</span><span class="p">,))</span>
+
+                    <span class="c1"># Track the thread-private and thread-shared variables</span>
+                    <span class="n">private</span><span class="o">.</span><span class="n">extend</span><span class="p">([</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">FindSymbols</span><span class="p">(</span><span class="s1">&#39;symbolics&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">root</span><span class="p">)</span>
+                                    <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">_mem_stack</span><span class="p">])</span>
+
+                <span class="c1"># Build the parallel region</span>
+                <span class="n">private</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="nb">set</span><span class="p">([</span><span class="n">i</span><span class="o">.</span><span class="n">name</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">private</span><span class="p">]))</span>
+                <span class="n">private</span> <span class="o">=</span> <span class="p">(</span><span class="s1">&#39;private(</span><span class="si">%s</span><span class="s1">)&#39;</span> <span class="o">%</span> <span class="s1">&#39;,&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">private</span><span class="p">))</span> <span class="k">if</span> <span class="n">private</span> <span class="k">else</span> <span class="s1">&#39;&#39;</span>
+                <span class="n">rebuilt</span> <span class="o">=</span> <span class="p">[</span><span class="n">v</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">mapper</span><span class="o">.</span><span class="n">items</span><span class="p">()</span> <span class="k">if</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">group</span><span class="p">]</span>
+                <span class="n">par_region</span> <span class="o">=</span> <span class="n">Block</span><span class="p">(</span><span class="n">header</span><span class="o">=</span><span class="n">omplang</span><span class="p">[</span><span class="s1">&#39;par-region&#39;</span><span class="p">](</span><span class="n">private</span><span class="p">),</span>
+                                   <span class="n">body</span><span class="o">=</span><span class="n">denormals</span> <span class="o">+</span> <span class="n">rebuilt</span><span class="p">)</span>
+                <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="nb">list</span><span class="p">(</span><span class="n">mapper</span><span class="o">.</span><span class="n">items</span><span class="p">()):</span>
+                    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="n">Iteration</span><span class="p">):</span>
+                        <span class="n">mapper</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span> <span class="k">if</span> <span class="n">v</span><span class="o">.</span><span class="n">is_Remainder</span> <span class="k">else</span> <span class="n">par_region</span>
+
+            <span class="n">handle</span> <span class="o">=</span> <span class="n">Transformer</span><span class="p">(</span><span class="n">mapper</span><span class="p">)</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">node</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">handle</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">processed</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">handle</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="p">{</span><span class="s1">&#39;nodes&#39;</span><span class="p">:</span> <span class="n">processed</span><span class="p">}</span>
+
+    <span class="nd">@dle_pass</span>
+    <span class="k">def</span> <span class="nf">_minimize_remainders</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">state</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Reshape temporary tensors and adjust loop trip counts to prevent as many</span>
+<span class="sd">        compiler-generated remainder loops as possible.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">mapper</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="k">for</span> <span class="n">tree</span> <span class="ow">in</span> <span class="n">retrieve_iteration_tree</span><span class="p">(</span><span class="n">state</span><span class="o">.</span><span class="n">nodes</span> <span class="o">+</span> <span class="n">state</span><span class="o">.</span><span class="n">elemental_functions</span><span class="p">):</span>
+            <span class="n">vector_iterations</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">tree</span> <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">is_Vectorizable</span><span class="p">]</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">vector_iterations</span><span class="p">:</span>
+                <span class="k">continue</span>
+            <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">vector_iterations</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span>
+            <span class="n">root</span> <span class="o">=</span> <span class="n">vector_iterations</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+            <span class="k">if</span> <span class="n">root</span><span class="o">.</span><span class="n">tag</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="k">continue</span>
+
+            <span class="c1"># Padding</span>
+            <span class="n">writes</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">FindSymbols</span><span class="p">(</span><span class="s1">&#39;symbolics-writes&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">root</span><span class="p">)</span>
+                      <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">is_TensorFunction</span><span class="p">]</span>
+            <span class="n">padding</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">writes</span><span class="p">:</span>
+                <span class="k">try</span><span class="p">:</span>
+                    <span class="n">simd_items</span> <span class="o">=</span> <span class="n">get_simd_items</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">dtype</span><span class="p">)</span>
+                <span class="k">except</span> <span class="ne">KeyError</span><span class="p">:</span>
+                    <span class="c1"># Fallback to 16 (maximum expectable padding, for AVX512 registers)</span>
+                    <span class="n">simd_items</span> <span class="o">=</span> <span class="n">simdinfo</span><span class="p">[</span><span class="s1">&#39;avx512f&#39;</span><span class="p">]</span> <span class="o">/</span> <span class="n">np</span><span class="o">.</span><span class="n">dtype</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">dtype</span><span class="p">)</span><span class="o">.</span><span class="n">itemsize</span>
+                <span class="n">padding</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">simd_items</span> <span class="o">-</span> <span class="n">i</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">%</span> <span class="n">simd_items</span><span class="p">)</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="n">padding</span><span class="p">))</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="n">padding</span> <span class="o">=</span> <span class="n">padding</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+                <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">writes</span><span class="p">:</span>
+                    <span class="n">i</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">shape</span><span class="o">=</span><span class="n">i</span><span class="o">.</span><span class="n">shape</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="n">padding</span><span class="p">,))</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="c1"># Padding must be uniform -- not the case, so giving up</span>
+                <span class="k">continue</span>
+
+            <span class="c1"># Dynamic trip count adjustment</span>
+            <span class="n">endpoint</span> <span class="o">=</span> <span class="n">root</span><span class="o">.</span><span class="n">end_symbolic</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">endpoint</span><span class="o">.</span><span class="n">is_Symbol</span><span class="p">:</span>
+                <span class="k">continue</span>
+            <span class="n">condition</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="n">externals</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">symbolic_shape</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">FindSymbols</span><span class="p">()</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">root</span><span class="p">))</span>
+            <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">root</span><span class="o">.</span><span class="n">uindices</span><span class="p">:</span>
+                <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="n">externals</span><span class="p">:</span>
+                    <span class="n">condition</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">root</span><span class="o">.</span><span class="n">end_symbolic</span> <span class="o">+</span> <span class="n">padding</span> <span class="o">&lt;</span> <span class="n">j</span><span class="p">)</span>
+            <span class="n">condition</span> <span class="o">=</span> <span class="s1">&#39; || &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">ccode</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">condition</span><span class="p">)</span>
+            <span class="n">endpoint_padded</span> <span class="o">=</span> <span class="n">endpoint</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;_</span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="n">endpoint</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+            <span class="n">init</span> <span class="o">=</span> <span class="n">cgen</span><span class="o">.</span><span class="n">Initializer</span><span class="p">(</span>
+                <span class="n">cgen</span><span class="o">.</span><span class="n">Value</span><span class="p">(</span><span class="s2">&quot;const int&quot;</span><span class="p">,</span> <span class="n">endpoint_padded</span><span class="p">),</span>
+                <span class="n">cgen</span><span class="o">.</span><span class="n">Line</span><span class="p">(</span><span class="s1">&#39;(</span><span class="si">%s</span><span class="s1">) ? </span><span class="si">%s</span><span class="s1"> : </span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">condition</span><span class="p">,</span>
+                                              <span class="n">ccode</span><span class="p">(</span><span class="n">endpoint</span> <span class="o">+</span> <span class="n">padding</span><span class="p">),</span>
+                                              <span class="n">endpoint</span><span class="p">))</span>
+            <span class="p">)</span>
+
+            <span class="c1"># Update the Iteration bound</span>
+            <span class="n">limits</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">root</span><span class="o">.</span><span class="n">limits</span><span class="p">)</span>
+            <span class="n">limits</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="n">endpoint_padded</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="n">endpoint_padded</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+            <span class="n">rebuilt</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">tree</span><span class="p">)</span>
+            <span class="n">rebuilt</span><span class="p">[</span><span class="n">rebuilt</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">root</span><span class="p">)]</span> <span class="o">=</span> <span class="n">root</span><span class="o">.</span><span class="n">_rebuild</span><span class="p">(</span><span class="n">limits</span><span class="o">=</span><span class="n">limits</span><span class="p">)</span>
+
+            <span class="n">mapper</span><span class="p">[</span><span class="n">tree</span><span class="p">[</span><span class="mi">0</span><span class="p">]]</span> <span class="o">=</span> <span class="n">List</span><span class="p">(</span><span class="n">header</span><span class="o">=</span><span class="n">init</span><span class="p">,</span> <span class="n">body</span><span class="o">=</span><span class="n">compose_nodes</span><span class="p">(</span><span class="n">rebuilt</span><span class="p">))</span>
+
+        <span class="n">nodes</span> <span class="o">=</span> <span class="n">Transformer</span><span class="p">(</span><span class="n">mapper</span><span class="p">)</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">state</span><span class="o">.</span><span class="n">nodes</span><span class="p">)</span>
+        <span class="n">elemental_functions</span> <span class="o">=</span> <span class="n">Transformer</span><span class="p">(</span><span class="n">mapper</span><span class="p">)</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">state</span><span class="o">.</span><span class="n">elemental_functions</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="p">{</span><span class="s1">&#39;nodes&#39;</span><span class="p">:</span> <span class="n">nodes</span><span class="p">,</span> <span class="s1">&#39;elemental_functions&#39;</span><span class="p">:</span> <span class="n">elemental_functions</span><span class="p">}</span></div>
+
+
+<div class="viewcode-block" id="DevitoSpeculativeRewriter"><a class="viewcode-back" href="../../../../devito.dle.backends.html#devito.dle.backends.advanced.DevitoSpeculativeRewriter">[docs]</a><span class="k">class</span> <span class="nc">DevitoSpeculativeRewriter</span><span class="p">(</span><span class="n">DevitoRewriter</span><span class="p">):</span>
+
+    <span class="k">def</span> <span class="nf">_pipeline</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">state</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_avoid_denormals</span><span class="p">(</span><span class="n">state</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_loop_fission</span><span class="p">(</span><span class="n">state</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_padding</span><span class="p">(</span><span class="n">state</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_loop_blocking</span><span class="p">(</span><span class="n">state</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_simdize</span><span class="p">(</span><span class="n">state</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_nontemporal_stores</span><span class="p">(</span><span class="n">state</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">params</span><span class="p">[</span><span class="s1">&#39;openmp&#39;</span><span class="p">]</span> <span class="ow">is</span> <span class="kc">True</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_ompize</span><span class="p">(</span><span class="n">state</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_create_elemental_functions</span><span class="p">(</span><span class="n">state</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_minimize_remainders</span><span class="p">(</span><span class="n">state</span><span class="p">)</span>
+
+    <span class="nd">@dle_pass</span>
+    <span class="k">def</span> <span class="nf">_padding</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">state</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Introduce temporary buffers padded to the nearest multiple of the vector</span>
+<span class="sd">        length, to maximize data alignment. At the bottom of the kernel, the</span>
+<span class="sd">        values in the padded temporaries will be copied back into the input arrays.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">mapper</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">()</span>
+        <span class="k">for</span> <span class="n">node</span> <span class="ow">in</span> <span class="n">state</span><span class="o">.</span><span class="n">nodes</span><span class="p">:</span>
+            <span class="c1"># Assess feasibility of the transformation</span>
+            <span class="n">handle</span> <span class="o">=</span> <span class="n">FindSymbols</span><span class="p">(</span><span class="s1">&#39;symbolics-writes&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">node</span><span class="p">)</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">handle</span><span class="p">:</span>
+                <span class="k">continue</span>
+
+            <span class="n">shape</span> <span class="o">=</span> <span class="nb">max</span><span class="p">([</span><span class="n">i</span><span class="o">.</span><span class="n">shape</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">handle</span><span class="p">],</span> <span class="n">key</span><span class="o">=</span><span class="nb">len</span><span class="p">)</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">shape</span><span class="p">:</span>
+                <span class="k">continue</span>
+
+            <span class="n">candidates</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">handle</span> <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="n">shape</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]]</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">candidates</span><span class="p">:</span>
+                <span class="k">continue</span>
+
+            <span class="c1"># Retrieve the maximum number of items in a SIMD register when processing</span>
+            <span class="c1"># the expressions in /node/</span>
+            <span class="n">exprs</span> <span class="o">=</span> <span class="n">FindNodes</span><span class="p">(</span><span class="n">Expression</span><span class="p">)</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">node</span><span class="p">)</span>
+            <span class="n">exprs</span> <span class="o">=</span> <span class="p">[</span><span class="n">e</span> <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">exprs</span> <span class="k">if</span> <span class="n">e</span><span class="o">.</span><span class="n">output_function</span> <span class="ow">in</span> <span class="n">candidates</span><span class="p">]</span>
+            <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">exprs</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span>
+            <span class="n">dtype</span> <span class="o">=</span> <span class="n">exprs</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">dtype</span>
+            <span class="k">assert</span> <span class="nb">all</span><span class="p">(</span><span class="n">e</span><span class="o">.</span><span class="n">dtype</span> <span class="o">==</span> <span class="n">dtype</span> <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">exprs</span><span class="p">)</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">simd_items</span> <span class="o">=</span> <span class="n">get_simd_items</span><span class="p">(</span><span class="n">dtype</span><span class="p">)</span>
+            <span class="k">except</span> <span class="ne">KeyError</span><span class="p">:</span>
+                <span class="c1"># Fallback to 16 (maximum expectable padding, for AVX512 registers)</span>
+                <span class="n">simd_items</span> <span class="o">=</span> <span class="n">simdinfo</span><span class="p">[</span><span class="s1">&#39;avx512f&#39;</span><span class="p">]</span> <span class="o">/</span> <span class="n">np</span><span class="o">.</span><span class="n">dtype</span><span class="p">(</span><span class="n">dtype</span><span class="p">)</span><span class="o">.</span><span class="n">itemsize</span>
+
+            <span class="n">shapes</span> <span class="o">=</span> <span class="p">{</span><span class="n">k</span><span class="p">:</span> <span class="n">k</span><span class="o">.</span><span class="n">shape</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="p">(</span><span class="n">roundm</span><span class="p">(</span><span class="n">k</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span> <span class="n">simd_items</span><span class="p">),)</span>
+                      <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">candidates</span><span class="p">}</span>
+            <span class="n">mapper</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">OrderedDict</span><span class="p">([(</span><span class="n">k</span><span class="o">.</span><span class="n">indexed</span><span class="p">,</span>
+                                        <span class="n">TensorFunction</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;p</span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="n">k</span><span class="o">.</span><span class="n">name</span><span class="p">,</span>
+                                                       <span class="n">shape</span><span class="o">=</span><span class="n">shapes</span><span class="p">[</span><span class="n">k</span><span class="p">],</span>
+                                                       <span class="n">dimensions</span><span class="o">=</span><span class="n">k</span><span class="o">.</span><span class="n">indices</span><span class="p">,</span>
+                                                       <span class="n">onstack</span><span class="o">=</span><span class="n">k</span><span class="o">.</span><span class="n">_mem_stack</span><span class="p">)</span><span class="o">.</span><span class="n">indexed</span><span class="p">)</span>
+                          <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">candidates</span><span class="p">]))</span>
+
+        <span class="c1"># Substitute original arrays with padded buffers</span>
+        <span class="n">processed</span> <span class="o">=</span> <span class="p">[</span><span class="n">SubstituteExpression</span><span class="p">(</span><span class="n">mapper</span><span class="p">)</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">n</span><span class="p">)</span> <span class="k">for</span> <span class="n">n</span> <span class="ow">in</span> <span class="n">state</span><span class="o">.</span><span class="n">nodes</span><span class="p">]</span>
+
+        <span class="c1"># Build Iteration trees for initialization and copy-back of padded arrays</span>
+        <span class="n">mapper</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">([(</span><span class="n">k</span><span class="p">,</span> <span class="n">v</span><span class="p">)</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">mapper</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
+                              <span class="k">if</span> <span class="n">k</span><span class="o">.</span><span class="n">function</span><span class="o">.</span><span class="n">is_SymbolicData</span><span class="p">])</span>
+        <span class="n">init</span> <span class="o">=</span> <span class="n">copy_arrays</span><span class="p">(</span><span class="n">mapper</span><span class="p">,</span> <span class="n">reverse</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="n">copyback</span> <span class="o">=</span> <span class="n">copy_arrays</span><span class="p">(</span><span class="n">mapper</span><span class="p">)</span>
+
+        <span class="n">processed</span> <span class="o">=</span> <span class="n">init</span> <span class="o">+</span> <span class="n">as_tuple</span><span class="p">(</span><span class="n">processed</span><span class="p">)</span> <span class="o">+</span> <span class="n">copyback</span>
+
+        <span class="k">return</span> <span class="p">{</span><span class="s1">&#39;nodes&#39;</span><span class="p">:</span> <span class="n">processed</span><span class="p">}</span>
+
+    <span class="nd">@dle_pass</span>
+    <span class="k">def</span> <span class="nf">_nontemporal_stores</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">state</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Add compiler-specific pragmas and instructions to generate nontemporal</span>
+<span class="sd">        stores (ie, non-cached stores).</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">pragma</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_compiler_decoration</span><span class="p">(</span><span class="s1">&#39;ntstores&#39;</span><span class="p">)</span>
+        <span class="n">fence</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_compiler_decoration</span><span class="p">(</span><span class="s1">&#39;storefence&#39;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">pragma</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">fence</span><span class="p">:</span>
+            <span class="k">return</span> <span class="p">{}</span>
+
+        <span class="k">def</span> <span class="nf">decorate</span><span class="p">(</span><span class="n">nodes</span><span class="p">):</span>
+            <span class="n">processed</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="k">for</span> <span class="n">node</span> <span class="ow">in</span> <span class="n">nodes</span><span class="p">:</span>
+                <span class="n">mapper</span> <span class="o">=</span> <span class="p">{}</span>
+                <span class="k">for</span> <span class="n">tree</span> <span class="ow">in</span> <span class="n">retrieve_iteration_tree</span><span class="p">(</span><span class="n">node</span><span class="p">):</span>
+                    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">tree</span><span class="p">:</span>
+                        <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">is_Parallel</span><span class="p">:</span>
+                            <span class="n">mapper</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">List</span><span class="p">(</span><span class="n">body</span><span class="o">=</span><span class="n">i</span><span class="p">,</span> <span class="n">footer</span><span class="o">=</span><span class="n">fence</span><span class="p">)</span>
+                            <span class="k">break</span>
+                <span class="n">transformed</span> <span class="o">=</span> <span class="n">Transformer</span><span class="p">(</span><span class="n">mapper</span><span class="p">)</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">node</span><span class="p">)</span>
+                <span class="n">mapper</span> <span class="o">=</span> <span class="p">{}</span>
+                <span class="k">for</span> <span class="n">tree</span> <span class="ow">in</span> <span class="n">retrieve_iteration_tree</span><span class="p">(</span><span class="n">transformed</span><span class="p">):</span>
+                    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">tree</span><span class="p">:</span>
+                        <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">is_Vectorizable</span><span class="p">:</span>
+                            <span class="n">mapper</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">List</span><span class="p">(</span><span class="n">header</span><span class="o">=</span><span class="n">pragma</span><span class="p">,</span> <span class="n">body</span><span class="o">=</span><span class="n">i</span><span class="p">)</span>
+                <span class="n">transformed</span> <span class="o">=</span> <span class="n">Transformer</span><span class="p">(</span><span class="n">mapper</span><span class="p">)</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">transformed</span><span class="p">)</span>
+                <span class="n">processed</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">transformed</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">processed</span>
+
+        <span class="k">return</span> <span class="p">{</span><span class="s1">&#39;nodes&#39;</span><span class="p">:</span> <span class="n">decorate</span><span class="p">(</span><span class="n">state</span><span class="o">.</span><span class="n">nodes</span><span class="p">),</span>
+                <span class="s1">&#39;elemental_functions&#39;</span><span class="p">:</span> <span class="n">decorate</span><span class="p">(</span><span class="n">state</span><span class="o">.</span><span class="n">elemental_functions</span><span class="p">),</span>
+                <span class="s1">&#39;flags&#39;</span><span class="p">:</span> <span class="s1">&#39;ntstores&#39;</span><span class="p">}</span></div>
+
+
+<div class="viewcode-block" id="DevitoCustomRewriter"><a class="viewcode-back" href="../../../../devito.dle.backends.html#devito.dle.backends.advanced.DevitoCustomRewriter">[docs]</a><span class="k">class</span> <span class="nc">DevitoCustomRewriter</span><span class="p">(</span><span class="n">DevitoSpeculativeRewriter</span><span class="p">):</span>
+
+    <span class="n">passes_mapper</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="s1">&#39;blocking&#39;</span><span class="p">:</span> <span class="n">DevitoSpeculativeRewriter</span><span class="o">.</span><span class="n">_loop_blocking</span><span class="p">,</span>
+        <span class="s1">&#39;openmp&#39;</span><span class="p">:</span> <span class="n">DevitoSpeculativeRewriter</span><span class="o">.</span><span class="n">_ompize</span><span class="p">,</span>
+        <span class="s1">&#39;fission&#39;</span><span class="p">:</span> <span class="n">DevitoSpeculativeRewriter</span><span class="o">.</span><span class="n">_loop_fission</span><span class="p">,</span>
+        <span class="s1">&#39;padding&#39;</span><span class="p">:</span> <span class="n">DevitoSpeculativeRewriter</span><span class="o">.</span><span class="n">_padding</span><span class="p">,</span>
+        <span class="s1">&#39;split&#39;</span><span class="p">:</span> <span class="n">DevitoSpeculativeRewriter</span><span class="o">.</span><span class="n">_create_elemental_functions</span>
+    <span class="p">}</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">nodes</span><span class="p">,</span> <span class="n">passes</span><span class="p">,</span> <span class="n">params</span><span class="p">):</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">passes</span> <span class="o">=</span> <span class="n">passes</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;,&#39;</span><span class="p">)</span>
+        <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">DLEException</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">all</span><span class="p">(</span><span class="n">i</span> <span class="ow">in</span> <span class="n">DevitoCustomRewriter</span><span class="o">.</span><span class="n">passes_mapper</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">passes</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="n">DLEException</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">passes</span> <span class="o">=</span> <span class="n">passes</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">DevitoCustomRewriter</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">nodes</span><span class="p">,</span> <span class="n">params</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_pipeline</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">state</span><span class="p">):</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">passes</span><span class="p">:</span>
+            <span class="n">DevitoCustomRewriter</span><span class="o">.</span><span class="n">passes_mapper</span><span class="p">[</span><span class="n">i</span><span class="p">](</span><span class="bp">self</span><span class="p">,</span> <span class="n">state</span><span class="p">)</span></div>
+</pre></div>
+
+           </div>
+           <div class="articleComments">
+            
+           </div>
+          </div>
+          <footer>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2016, Opesci.
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/snide/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  
+
+    <script type="text/javascript">
+        var DOCUMENTATION_OPTIONS = {
+            URL_ROOT:'../../../../',
+            VERSION:'1',
+            COLLAPSE_INDEX:false,
+            FILE_SUFFIX:'.html',
+            HAS_SOURCE:  true,
+            SOURCELINK_SUFFIX: '.txt'
+        };
+    </script>
+      <script type="text/javascript" src="../../../../_static/jquery.js"></script>
+      <script type="text/javascript" src="../../../../_static/underscore.js"></script>
+      <script type="text/javascript" src="../../../../_static/doctools.js"></script>
+      <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.0/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+
+  
+
+  
+  
+    <script type="text/javascript" src="../../../../_static/js/theme.js"></script>
+  
+
+  
+  
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.StickyNav.enable();
+      });
+  </script>
+   
+
+</body>
+</html>

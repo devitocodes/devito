@@ -1,0 +1,30 @@
+examples package
+================
+
+Subpackages
+-----------
+
+.. toctree::
+
+    examples.cfd
+    examples.seismic
+
+Submodules
+----------
+
+examples\.benchmark module
+--------------------------
+
+.. automodule:: examples.benchmark
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+
+Module contents
+---------------
+
+.. automodule:: examples
+    :members:
+    :undoc-members:
+    :show-inheritance:
