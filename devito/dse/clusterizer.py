@@ -173,7 +173,7 @@ def aggregate(exprs, stencils):
 
 def clusterize(exprs, stencils, atomics=None):
     """
-    Derive :class:`Cluster`s from an iterator of expressions; a stencil for
+    Derive :class:`Cluster` objetcs from an iterator of expressions; a stencil for
     each expression must be provided. A list of atomic dimensions (see description
     in Cluster.__doc__) may be provided.
     """

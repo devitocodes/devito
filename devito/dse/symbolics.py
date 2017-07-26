@@ -19,8 +19,9 @@ modes = {
 
 def rewrite(clusters, mode='advanced'):
     """
-    Transform N :class:`Cluster`s of SymPy expressions into M :class:`Cluster`s
-    of SymPy expressions with reduced operation count, with M >= N.
+    Transform N :class:`Cluster` objects of SymPy expressions into M
+    :class:`Cluster` objects of SymPy expressions with reduced
+    operation count, with M >= N.
 
     :param clusters: The clusters to be transformed.
     :param mode: drive the expression transformation

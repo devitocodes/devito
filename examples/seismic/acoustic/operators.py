@@ -14,7 +14,7 @@ def ForwardOperator(model, source, receiver, time_order=2, space_order=4,
     :param receiver: :class:`PointData` object containing the acquisition geometry
     :param time_order: Time discretization order
     :param space_order: Space discretization order
-    :param save : Saving flag, True saves all time steps, False only the three
+    :param save: Saving flag, True saves all time steps, False only the three
     """
     m, damp = model.m, model.damp
 
