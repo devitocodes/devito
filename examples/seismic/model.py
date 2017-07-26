@@ -44,10 +44,11 @@ class Model(object):
     :param epsilon: Thomsen epsilon parameter (0<epsilon<1)
     :param delta: Thomsen delta parameter (0<delta<1), delta<epsilon
     :param theta: Tilt angle in radian
-    :param phi : Asymuth angle in radian
+    :param phi: Asymuth angle in radian
 
     The :class:`Model` provides two symbolic data objects for the
-    creation of seismic wve propagation operators:
+    creation of seismic wave propagation operators:
+
     :param m: The square slowness of the wave
     :param damp: The damping field for absorbing boundarycondition
     """

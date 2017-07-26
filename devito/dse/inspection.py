@@ -90,17 +90,21 @@ def estimate_cost(handle, estimate_functions=False):
 
 
 def estimate_memory(handle, mode='realistic'):
-    """Estimate the number of memory reads and writes.
+    """
+    Estimate the number of memory reads and writes.
 
     :param handle: a SymPy expression or an iterator of SymPy expressions.
-    :param mode: There are multiple ways of computing the estimate: ::
+    :param mode: Mode for computing the estimate:
 
-        * ideal: also known as "compulsory traffic", which is the minimum
-            number of read/writes to be performed (ie, models an infinite cache).
-        * ideal_with_stores: like ideal, but a data item which is both read
-            and written is counted twice (ie both load and store are counted).
-        * realistic: assume that all datasets, even the time-independent ones,
-            need to be re-read at each time iteration.
+    Estimate ``mode`` might be any of: ::
+
+        * ideal: Also known as "compulsory traffic", which is the minimum
+                 number of read/writes to be performed (ie, models an infinite cache).
+        * ideal_with_stores: Like ideal, but a data item which is both read.
+                             and written is counted twice (ie both load an
+                             store are counted).
+        * realistic: Assume that all datasets, even the time-independent ones,
+                     need to be re-read at each time iteration.
     """
     assert mode in ['ideal', 'ideal_with_stores', 'realistic']
 
