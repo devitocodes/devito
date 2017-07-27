@@ -34,7 +34,7 @@ def autotune(operator, arguments, tunable, mode='basic'):
                   if i.is_Sequential and i.dim.is_Buffered]
 
     # Attempted block sizes
-    mapper = OrderedDict([(i.argument.name, i) for i in tunable])
+    mapper = OrderedDict([(i.argument.symbolic_size.name, i) for i in tunable])
     blocksizes = [OrderedDict([(i, v) for i in mapper])
                   for v in options['at_blocksize']]
     if mode == 'aggressive':
@@ -55,7 +55,7 @@ def autotune(operator, arguments, tunable, mode='basic'):
         for k, v in at_arguments.items():
             if k in bs:
                 val = bs[k]
-                handle = at_arguments.get(mapper[k].original_dim.name)
+                handle = at_arguments.get(mapper[k].original_dim.symbolic_size.name)
                 if val <= mapper[k].iteration.end(handle):
                     at_arguments[k] = val
                 else:
