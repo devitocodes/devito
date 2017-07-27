@@ -4,12 +4,12 @@ import importlib
 
 from devito.compiler import make
 from devito.exceptions import CompilationError, InvalidOperator
-from devito.logger import info
+from devito.logger import yask as log
 
 
 class YaskContext(object):
 
-    def __init__(self, arch, isa, cfac, nfac, ofac):
+    def __init__(self, env, domain_sizes, pad_sizes, dtype, hook_soln):
         """
         Proxy between Devito and YASK.
 
@@ -21,32 +21,6 @@ class YaskContext(object):
             * Domain dimensions (``domain_sizes``) and padding dimensions (``pad_sizes``)
             * Folding
             * Grid memory layout scheme
-
-        :param arch: Architecture identifier, in a format understood by YASK.
-        :param isa: Instruction set architecture, in a format understood by YASK.
-        :param cfac: YASK compiler factory.
-        :param nfac: YASK node factory, to create ASTs.
-        :param ofac: YASK compiler output factory, to handle output streams.
-        """
-        self.arch = arch
-        self.isa = isa
-        self.cfac = cfac
-        self.nfac = nfac
-        self.ofac = ofac
-
-        self._kernels = OrderedDict()
-
-        self.env = None
-        self.domain_sizes = None
-        self.pad_sizes = None
-        self.dtype = None
-        self.hook_soln = None
-
-        self._initialized = False
-
-    def __finalize__(self, env, domain_sizes, pad_sizes, dtype, hook_soln):
-        """
-        Finalize instantiation.
 
         :param env: Global environment (e.g., MPI).
         :param domain_sizes: Domain size along each dimension.
@@ -60,11 +34,7 @@ class YaskContext(object):
         self.dtype = dtype
         self.hook_soln = hook_soln
 
-        self._initialized = True
-
-    @property
-    def initialized(self):
-        return self._initialized
+        self._kernels = OrderedDict()
 
     @property
     def space_dimensions(self):
@@ -93,8 +63,6 @@ class YaskContext(object):
     @property
     def grids(self):
         mapper = {}
-        if not self.initialized:
-            return mapper
         for i in range(self.hook_soln.get_num_grids()):
             grid = self.hook_soln.get_grid(i)
             mapper[grid.get_name()] = grid
@@ -136,17 +104,21 @@ class YaskContext(object):
         return self._kernels[key]
 
 
-def init(dimensions, shape, dtype, radius):
+contexts = OrderedDict()
+"""All known YASK contexts."""
+
+
+def yask_context(dimensions, shape, dtype, space_order):
     """
-    Create a new :class:`YaskContext`.
-
-    To be called prior to any YASK-related operation.
+    Create a new :class:`YaskContext`, or retrieve an existing one with same
+    ``dimensions``, ``shape``, and ``dtype``.
     """
 
-    if YASK.initialized:
-        return
+    key = (dimensions, shape, dtype, space_order)
+    if key in contexts:
+        return contexts[key]
 
-    info("Initializing YASK [kernel API]")
+    log("Creating new context...")
 
     assert len(dimensions) == len(shape)
 
@@ -170,25 +142,20 @@ def init(dimensions, shape, dtype, radius):
     # JIT YASK kernel
     yk = yask_jit(soln, namespace['kernel-hook'])
 
-    # YASK Hook kernel factory
-    kfac = yk.yk_factory()
-
-    # Initalize MPI, etc
-    env = kfac.new_env()
-
     # Create hook solution
+    kfac = yk.yk_factory()
+    env = kfac.new_env()
     hook_soln = kfac.new_solution(env)
-
-    # Silence YASK
     hook_soln.set_debug_output(yk.yask_output_factory().new_string_output())
 
     # Calculate domain and padding regions
     domain_sizes = OrderedDict()
     pad_sizes = OrderedDict()
+    # TODO: This will probably require using NBPML
     for i, j in zip(dimensions, shape):
         if namespace['time-dim'] != i:
             # Padding only meaningful in space dimensions
-            pad_sizes[i] = radius  # TODO: need a proper use of /radius/ here
+            pad_sizes[i] = space_order
             domain_sizes[i] = j - pad_sizes[i]*2
         else:
             domain_sizes[i] = j
@@ -203,10 +170,11 @@ def init(dimensions, shape, dtype, radius):
     # TODO Improve me
     hook_soln.set_num_ranks(hook_soln.get_domain_dim_name(0), env.get_num_ranks())
 
-    # Finish off YASK initialization
-    YASK.__finalize__(env, domain_sizes, pad_sizes, dtype, hook_soln)
+    contexts[key] = YaskContext(env, domain_sizes, pad_sizes, dtype, hook_soln)
 
-    info("YASK backend successfully initialized!")
+    log("Context successfully created!")
+
+    return contexts[key]
 
 
 def yask_jit(soln, base):
@@ -224,7 +192,7 @@ def yask_jit(soln, base):
     # Write out the stencil file
     if not os.path.exists(namespace['kernel-path-gen']):
         os.makedirs(namespace['kernel-path-gen'])
-    soln.format(isa, YASK.ofac.new_file_output(namespace['kernel-output']))
+    soln.format(isa, ofac.new_file_output(namespace['kernel-output']))
 
     # JIT-compile it
     try:
@@ -252,7 +220,7 @@ def _force_exit(emsg):
 
 # YASK initialization (will be finished by the first call to init())
 
-info("Initializing YASK [compiler API]")
+log("Backend initialization...")
 
 try:
     import yask_compiler as yc
@@ -284,5 +252,4 @@ namespace['time-dim'] = 't'
 arch = 'hsw'
 isa = 'cpp'
 
-# TODO: only a single YaskContext is assumed at the moment
-YASK = YaskContext(arch, isa, cfac, nfac, ofac)
+log("Backend successfully initialized!")

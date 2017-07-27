@@ -5,7 +5,7 @@ import pytest  # noqa
 
 pexpect = pytest.importorskip('yask_compiler')  # Run only if YASK is available
 
-from devito import Operator, DenseData, t, x, y, z, configuration  # noqa
+from devito import Operator, DenseData, TimeData, t, x, y, z, configuration  # noqa
 from devito.yask.interfaces import YaskGrid  # noqa
 
 pytestmark = pytest.mark.skipif(configuration['backend'] != 'yask',
@@ -95,9 +95,9 @@ def test_data_arithmetic_nD():
 
 
 @pytest.mark.parametrize("space_order", [0])
-def test_trivial_operator(space_order):
-    u = DenseData(name='yu4D', shape=(2, 16, 16, 16), dimensions=(t, x, y, z),
-                  space_order=space_order)
+def test_simple_operator(space_order):
+    u = TimeData(name='yu4D', shape=(16, 16, 16), dimensions=(x, y, z),
+                 space_order=space_order)
     op = Operator(Eq(u.indexed[t + 1, x, y, z], u.indexed[t, x, y, z] + 1.))
     op(u, t=1)
     assert np.all(u.data == 1.)
