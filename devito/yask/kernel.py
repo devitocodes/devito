@@ -18,7 +18,7 @@ class YaskContext(object):
             * YASK version
             * Target architecture (``arch``) and instruction set (``isa``)
             * Floating-point precision (``dtype``)
-            * Domain dimensions (``dim_sizes``)
+            * Domain dimensions (``domain_sizes``) and padding dimensions (``pad_sizes``)
             * Folding
             * Grid memory layout scheme
 
@@ -37,23 +37,26 @@ class YaskContext(object):
         self._kernels = OrderedDict()
 
         self.env = None
-        self.dim_sizes = None
+        self.domain_sizes = None
+        self.pad_sizes = None
         self.dtype = None
         self.hook_soln = None
 
         self._initialized = False
 
-    def __finalize__(self, env, dim_sizes, dtype, hook_soln):
+    def __finalize__(self, env, domain_sizes, pad_sizes, dtype, hook_soln):
         """
         Finalize instantiation.
 
         :param env: Global environment (e.g., MPI).
-        :param dim_sizes: Domain size along each dimension.
+        :param domain_sizes: Domain size along each dimension.
+        :param pad_sizes: Padding size along each dimension.
         :param dtype: The data type used in kernels, as a NumPy dtype.
         :param hook_soln: "Fake" solution to track YASK grids.
         """
         self.env = env
-        self.dim_sizes = dim_sizes
+        self.domain_sizes = domain_sizes
+        self.pad_sizes = pad_sizes
         self.dtype = dtype
         self.hook_soln = hook_soln
 
@@ -78,14 +81,14 @@ class YaskContext(object):
     @property
     def space_shape(self):
         ret = []
-        for k, v in self.dim_sizes.items():
+        for k, v in self.domain_sizes.items():
             if k in self.space_dimensions:
                 ret.append(v)
         return tuple(ret)
 
     @property
     def shape(self):
-        return tuple(self.dim_sizes.values())
+        return tuple(self.domain_sizes.values())
 
     @property
     def grids(self):
@@ -133,7 +136,7 @@ class YaskContext(object):
         return self._kernels[key]
 
 
-def init(dimensions, shape, dtype):
+def init(dimensions, shape, dtype, radius):
     """
     Create a new :class:`YaskContext`.
 
@@ -179,14 +182,21 @@ def init(dimensions, shape, dtype):
     # Silence YASK
     hook_soln.set_debug_output(yk.yask_output_factory().new_string_output())
 
-    # Setup hook solution
-    dim_sizes = OrderedDict(zip(dimensions, shape))
+    # Calculate domain and padding regions
+    domain_sizes = OrderedDict()
+    pad_sizes = OrderedDict()
+    for i, j in zip(dimensions, shape):
+        if namespace['time-dim'] != i:
+            # Padding only meaningful in space dimensions
+            pad_sizes[i] = radius  # TODO: need a proper use of /radius/ here
+            domain_sizes[i] = j - pad_sizes[i]*2
+        else:
+            domain_sizes[i] = j
+
+    # Setup domain and padding regions in the hook solution
     for dm in hook_soln.get_domain_dim_names():
-        ds = dim_sizes[dm]
-        # Set domain size in each dim.
-        hook_soln.set_rank_domain_size(dm, ds)
-        # TODO: Add something like: hook_soln.set_min_pad_size(dm, 16)
-        # Set block size to 64 in z dim and 32 in other dims.
+        hook_soln.set_rank_domain_size(dm, domain_sizes[dm])
+        hook_soln.set_min_pad_size(dm, pad_sizes[dm])
 
     # Simple rank configuration in 1st dim only.
     # In production runs, the ranks would be distributed along all domain dimensions.
@@ -194,7 +204,7 @@ def init(dimensions, shape, dtype):
     hook_soln.set_num_ranks(hook_soln.get_domain_dim_name(0), env.get_num_ranks())
 
     # Finish off YASK initialization
-    YASK.__finalize__(env, dim_sizes, dtype, hook_soln)
+    YASK.__finalize__(env, domain_sizes, pad_sizes, dtype, hook_soln)
 
     info("YASK backend successfully initialized!")
 

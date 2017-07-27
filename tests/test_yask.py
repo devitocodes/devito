@@ -13,14 +13,14 @@ pytestmark = pytest.mark.skipif(configuration['backend'] != 'yask',
 
 
 def test_data_type():
-    u = DenseData(name='yu3D', shape=(16, 16, 16), dimensions=(x, y, z))
+    u = DenseData(name='yu3D', shape=(16, 16, 16), dimensions=(x, y, z), space_order=0)
     u.data  # Trigger initialization
     assert type(u._data_object) == YaskGrid
 
 
 @pytest.mark.xfail(reason="YASK always seems to use 3D grids")
 def test_data_movement_1D():
-    u = DenseData(name='yu1D', shape=(16,), dimensions=(x,))
+    u = DenseData(name='yu1D', shape=(16,), dimensions=(x,), space_order=0)
     u.data
     assert type(u._data_object) == YaskGrid
 
@@ -31,7 +31,7 @@ def test_data_movement_1D():
 
 
 def test_data_movement_nD():
-    u = DenseData(name='yu3D', shape=(16, 16, 16), dimensions=(x, y, z))
+    u = DenseData(name='yu3D', shape=(16, 16, 16), dimensions=(x, y, z), space_order=0)
     u.data
     assert type(u._data_object) == YaskGrid
 
@@ -69,7 +69,7 @@ def test_data_movement_nD():
 
 
 def test_data_arithmetic_nD():
-    u = DenseData(name='yu3D', shape=(16, 16, 16), dimensions=(x, y, z))
+    u = DenseData(name='yu3D', shape=(16, 16, 16), dimensions=(x, y, z), space_order=0)
 
     # Simple arithmetic
     u.data[:] = 1
@@ -94,8 +94,10 @@ def test_data_arithmetic_nD():
     assert np.all(arr - u.data == -1.)
 
 
-def test_trivial_operator():
-    u = DenseData(name='yu4D', shape=(2, 16, 16, 16), dimensions=(t, x, y, z))
+@pytest.mark.parametrize("space_order", [0])
+def test_trivial_operator(space_order):
+    u = DenseData(name='yu4D', shape=(2, 16, 16, 16), dimensions=(t, x, y, z),
+                  space_order=space_order)
     op = Operator(Eq(u.indexed[t + 1, x, y, z], u.indexed[t, x, y, z] + 1.))
     op(u, t=1)
     assert np.all(u.data == 1.)

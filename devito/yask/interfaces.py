@@ -17,10 +17,14 @@ class DenseData(interfaces.DenseData):
     def _allocate_memory(self):
         """Allocate memory in terms of Yask grids."""
         debug("Allocating YaskGrid for %s (%s)" % (self.name, str(self.shape)))
-        self._data_object = YaskGrid(self.name, self.shape, self.indices, self.dtype)
+        self._data_object = YaskGrid(self.name, self.shape, self.indices, self.dtype,
+                                     self.space_order)
         if self._data_object is None:
             debug("Failed. Reverting to plain allocation...")
             super(DenseData, self)._allocate_memory()
+
+    def initialize(self):
+        raise NotImplementedError
 
 
 class TimeData(interfaces.TimeData, DenseData):
@@ -40,27 +44,28 @@ class YaskGrid(object):
     # Force __rOP__ methods (OP={add,mul,...) to get arrays, not scalars, for efficiency
     __array_priority__ = 1000
 
-    def __new__(cls, name, shape, dimensions, dtype, buffer=None):
+    def __new__(cls, name, shape, dimensions, dtype, radius, buffer=None):
         """
         Create a new YASK Grid and attach it to a "fake" solution.
         """
         # Init YASK if not initialized already
-        init(dimensions, shape, dtype)
+        init(dimensions, shape, dtype, radius)
         # Only create a YaskGrid if the requested grid is a dense one
         dimensions = tuple(i.name for i in dimensions)
         # TODO : following check fails if not using BufferedDimension ('time' != 't')
         if dimensions in [YASK.dimensions, YASK.space_dimensions]:
             obj = super(YaskGrid, cls).__new__(cls)
-            obj.__init__(name, shape, dimensions, dtype, buffer)
+            obj.__init__(name, shape, dimensions, dtype, radius, buffer)
             return obj
         else:
             return None
 
-    def __init__(self, name, shape, dimensions, dtype, buffer=None):
+    def __init__(self, name, shape, dimensions, dtype, radius, buffer=None):
         self.name = name
         self.shape = shape
         self.dimensions = dimensions
         self.dtype = dtype
+        self.radius = radius
 
         self.grid = YASK.add_grid(name, dimensions)
 
