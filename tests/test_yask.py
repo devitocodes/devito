@@ -56,6 +56,11 @@ def test_data_movement_nD():
     u.data[5, :, 5] = 5.
     assert np.all(u.data[5, :, 5] == 5.)
 
+    # Test extraction of block with negative indices
+    sliced = u.data[-11, :, -11]
+    assert sliced.shape == (16,)
+    assert np.all(sliced == 5.)
+
     # Test insertion of block into block
     block = np.ndarray(shape=(1, 16, 1), dtype=np.float32)
     block.fill(4.)

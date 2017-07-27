@@ -49,8 +49,9 @@ def convert_multislice(multislice, shape, mode='get'):
         if isinstance(v, slice):
             if v.step is not None:
                 raise NotImplementedError("Unsupported stepping != 1.")
-            cstart.append(v.start or 0)
-            cstop.append((v.stop or shape[i]) - 1)
+            cstart.append(normalize_index(v.start if v.start is not None else 0, shape))
+            cstop.append(normalize_index(v.stop if v.stop is not None else shape[i],
+                                         shape) - 1)
             cshape.append(cstop[-1] - cstart[-1] + 1)
         else:
             cstart.append(normalize_index(v if v is not None else 0, shape))
