@@ -100,8 +100,8 @@ class Operator(OperatorRunnable):
         arguments, dim_sizes = self.arguments(*args, **kwargs)
 
         # Set the domain sizes
-        for dm in self.ksoln.get_domain_dim_names():
-            self.ksoln.set_rank_domain_size(dm, dim_sizes[dm])
+        for i in self.ksoln.get_domain_dim_names():
+            self.ksoln.set_rank_domain_size(i, self.context.domain_sizes[i])
 
         # Share the grids from the hook solution
         for kgrid in self.ksoln.get_grids():
@@ -110,21 +110,26 @@ class Operator(OperatorRunnable):
                 hook_grid = self.context.grids[name]
             except KeyError:
                 _force_exit("Unknown grid %s" % name)
+            for i in self.ksoln.get_domain_dim_names():
+                kgrid.set_halo_size(i, self.context.pad_sizes[i])
             kgrid.share_storage(hook_grid)
             log("Shared storage from grid <%s>" % hook_grid.get_name())
 
         # Print some info about the solution.
-        log("YASK Stencil-solution '" + self.ksoln.get_name() + "':")
+        log("Stencil-solution '" + self.ksoln.get_name() + "':")
         log("  Step dimension: " + repr(self.ksoln.get_step_dim_name()))
         log("  Domain dimensions: " + repr(self.ksoln.get_domain_dim_names()))
         log("  Grids:")
         for grid in self.ksoln.get_grids():
-            log("    " + grid.get_name() + repr(grid.get_dim_names()))
+            # TODO un-HACK me
+            pad = str([grid.get_pad_size(i) for i in self.context.space_dimensions])
+            log("    %s%s, pad=%s" % (grid.get_name(), str(grid.get_dim_names()), pad))
 
         log("Running Operator through YASK...")
         self.ksoln.prepare_solution()
         # TODO: getting number of timesteps in a hacky way
         self.ksoln.run_solution(arguments["%s_size" % self.context.time_dimension])
+        log("YASK Operator successfully run!")
 
 
 class sympy2yask(object):

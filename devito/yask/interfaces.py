@@ -1,3 +1,4 @@
+from collections import OrderedDict
 import sys
 
 import numpy as np
@@ -30,7 +31,8 @@ class DenseData(interfaces.DenseData):
         # TODO : following check fails if not using BufferedDimension ('time' != 't')
         if dimensions in [context.dimensions, context.space_dimensions]:
             grid = context.add_grid(self.name, dimensions)
-            self._data_object = YaskGrid(grid, context)
+            dim_shape = OrderedDict(zip(dimensions, self.shape))
+            self._data_object = YaskGrid(grid, dim_shape, self.dtype)
         else:
             log("Failed. Reverting to plain allocation...")
             super(DenseData, self)._allocate_memory()
@@ -58,19 +60,20 @@ class YaskGrid(object):
     # Force __rOP__ methods (OP={add,mul,...) to get arrays, not scalars, for efficiency
     __array_priority__ = 1000
 
-    def __init__(self, grid, context, buffer=None):
+    def __init__(self, grid, dim_shape, dtype, buffer=None):
         """
         Initialize a new :class:`YaskGrid`.
         """
         self.grid = grid
-        self.context = context
+        self.dim_shape = dim_shape
+        self.dtype = dtype
 
         # Always init the grid, at least with 0.0
         self[:] = 0.0 if buffer is None else buffer
 
     def __getitem__(self, index):
         # TODO: ATM, no MPI support.
-        start, stop, shape = convert_multislice(as_tuple(index), self.shape)
+        start, stop, shape = convert_multislice(index, self.grid, self.dim_shape)
         if not shape:
             log("YaskGrid: Getting single entry")
             assert start == stop
@@ -83,7 +86,7 @@ class YaskGrid(object):
 
     def __setitem__(self, index, val):
         # TODO: ATM, no MPI support.
-        start, stop, shape = convert_multislice(as_tuple(index), self.shape, 'set')
+        start, stop, shape = convert_multislice(index, self.grid, self.dim_shape, 'set')
         if all(i == 1 for i in shape):
             log("YaskGrid: Setting single entry")
             assert start == stop
@@ -91,12 +94,12 @@ class YaskGrid(object):
         elif isinstance(val, np.ndarray):
             log("YaskGrid: Setting full-array/block via index [%s]" % str(index))
             self.grid.set_elements_in_slice(val, start, stop)
-        elif all(i == j-1 for i, j in zip(shape, self.shape)):
+        elif all(i == j-1 for i, j in zip(shape, self.dim_shape.values())):
             log("YaskGrid: Setting full-array to given scalar via single grid sweep")
             self.grid.set_all_elements_same(val)
         else:
             log("YaskGrid: Setting block to given scalar via index [%s]" % str(index))
-            self.grid.set_elements_in_slice_same(val, start, stop)
+            self.grid.set_elements_in_slice_same(val, start, stop, True)
 
     def __getslice__(self, start, stop):
         if stop == sys.maxint:
@@ -141,14 +144,6 @@ class YaskGrid(object):
     @property
     def name(self):
         return self.grid.get_name()
-
-    @property
-    def shape(self):
-        return self.context.shape
-
-    @property
-    def dtype(self):
-        return self.context.dtype
 
     @property
     def ndpointer(self):

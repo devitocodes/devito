@@ -3,7 +3,7 @@ from devito.tools import as_tuple
 __all__ = ['convert_multislice']
 
 
-def convert_multislice(multislice, shape, mode='get'):
+def convert_multislice(multislice, grid, dim_shape, mode='get'):
     """
     Convert a multislice into a format suitable to YASK's get_elements_{...}
     and set_elements_{...} grid routines.
@@ -41,6 +41,9 @@ def convert_multislice(multislice, shape, mode='get'):
     assert mode in ['get', 'set']
     multislice = as_tuple(multislice)
 
+    # TODO: THIS NEEDS GENERALIZATION
+    shape = dim_shape.values()
+
     # Convert dimensions
     cstart = []
     cstop = []
@@ -64,6 +67,15 @@ def convert_multislice(multislice, shape, mode='get'):
     cstart.extend([0]*nremainder)
     cstop.extend([shape[i + j] - 1 for j in range(1, nremainder + 1)])
     cshape.extend([shape[i + j] for j in range(1, nremainder + 1)])
+
+    assert len(dim_shape) == len(cstart) == len(cstop)
+
+    # Shift by the halo size
+    # TODO: look at hacky t !
+    cstart = [j - grid.get_pad_size(i) if i != 't' else j
+              for i, j in zip(list(dim_shape), cstart)]
+    cstop = [j - grid.get_pad_size(i) if i != 't' else j
+             for i, j in zip(list(dim_shape), cstop)]
 
     return cstart, cstop, cshape
 

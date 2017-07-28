@@ -94,10 +94,12 @@ def test_data_arithmetic_nD():
     assert np.all(arr - u.data == -1.)
 
 
-@pytest.mark.parametrize("space_order", [0])
+@pytest.mark.parametrize("space_order", [0, 1, 2])
 def test_simple_operator(space_order):
     u = TimeData(name='yu4D', shape=(16, 16, 16), dimensions=(x, y, z),
                  space_order=space_order)
     op = Operator(Eq(u.indexed[t + 1, x, y, z], u.indexed[t, x, y, z] + 1.))
     op(u, t=1)
-    assert np.all(u.data == 1.)
+    lbound, rbound = space_order, 16 - space_order
+    written_region = u.data[1,lbound:rbound,lbound:rbound,lbound:rbound]
+    assert np.all(written_region == 1.)
