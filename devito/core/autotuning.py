@@ -30,7 +30,7 @@ def autotune(operator, arguments, tunable, mode='basic'):
     # Squeeze dimensions to minimize auto-tuning time
     iterations = FindNodes(Iteration).visit(operator.body)
     dim_mapper = {i.dim.name: i.dim for i in iterations}
-    squeezable = [i.dim.parent.name for i in iterations
+    squeezable = [i.dim.parent.symbolic_size.name for i in iterations
                   if i.is_Sequential and i.dim.is_Buffered]
 
     # Attempted block sizes
