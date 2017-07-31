@@ -111,7 +111,7 @@ class Operator(OperatorRunnable):
             except KeyError:
                 _force_exit("Unknown grid %s" % name)
             for i in self.ksoln.get_domain_dim_names():
-                kgrid.set_halo_size(i, self.context.pad_sizes[i])
+                kgrid.set_halo_size(i, self.context.dim_halo[i])
             kgrid.share_storage(hook_grid)
             log("Shared storage from grid <%s>" % hook_grid.get_name())
 
@@ -121,7 +121,6 @@ class Operator(OperatorRunnable):
         log("  Domain dimensions: " + repr(self.ksoln.get_domain_dim_names()))
         log("  Grids:")
         for grid in self.ksoln.get_grids():
-            # TODO un-HACK me
             pad = str([grid.get_pad_size(i) for i in self.context.space_dimensions])
             log("    %s%s, pad=%s" % (grid.get_name(), str(grid.get_dim_names()), pad))
 

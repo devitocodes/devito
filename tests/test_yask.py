@@ -12,9 +12,14 @@ pytestmark = pytest.mark.skipif(configuration['backend'] != 'yask',
                                 reason="'yask' wasn't selected as backend on startup")
 
 
-def test_data_type():
+@pytest.fixture(scope="module")
+def u(dims):
     u = DenseData(name='yu3D', shape=(16, 16, 16), dimensions=(x, y, z), space_order=0)
     u.data  # Trigger initialization
+    return u
+
+
+def test_data_type(u):
     assert type(u._data_object) == YaskGrid
 
 
@@ -30,11 +35,7 @@ def test_data_movement_1D():
     assert all(i == 0 for i in u.data[2:])
 
 
-def test_data_movement_nD():
-    u = DenseData(name='yu3D', shape=(16, 16, 16), dimensions=(x, y, z), space_order=0)
-    u.data
-    assert type(u._data_object) == YaskGrid
-
+def test_data_movement_nD(u):
     # Test simple insertion and extraction
     u.data[0, 1, 1] = 1.
     assert u.data[0, 0, 0] == 0.
@@ -68,11 +69,10 @@ def test_data_movement_nD():
     assert np.all(u.data[4, :, 4] == block)
 
 
-def test_data_arithmetic_nD():
-    u = DenseData(name='yu3D', shape=(16, 16, 16), dimensions=(x, y, z), space_order=0)
+def test_data_arithmetic_nD(u):
+    u.data[:] = 1
 
     # Simple arithmetic
-    u.data[:] = 1
     assert np.all(u.data == 1)
     assert np.all(u.data + 2. == 3.)
     assert np.all(u.data - 2. == -1.)
@@ -101,5 +101,5 @@ def test_simple_operator(space_order):
     op = Operator(Eq(u.indexed[t + 1, x, y, z], u.indexed[t, x, y, z] + 1.))
     op(u, t=1)
     lbound, rbound = space_order, 16 - space_order
-    written_region = u.data[1,lbound:rbound,lbound:rbound,lbound:rbound]
+    written_region = u.data[1, lbound:rbound, lbound:rbound, lbound:rbound]
     assert np.all(written_region == 1.)

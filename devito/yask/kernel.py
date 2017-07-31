@@ -11,7 +11,7 @@ from devito.logger import yask as log
 
 class YaskContext(object):
 
-    def __init__(self, env, core_sizes, pad_sizes, dtype, hook_soln):
+    def __init__(self, env, dimensions, core, halo, dtype, hook_soln):
         """
         Proxy between Devito and YASK.
 
@@ -20,19 +20,23 @@ class YaskContext(object):
             * YASK version
             * Target architecture (``arch``) and instruction set (``isa``)
             * Floating-point precision (``dtype``)
-            * Domain dimensions (``domain_sizes``) and padding dimensions (``pad_sizes``)
+            * Domain sizes (``core``) and halo sizes (``halo``)
             * Folding
             * Grid memory layout scheme
 
         :param env: Global environment (e.g., MPI).
-        :param core_sizes: Domain size along each dimension; includes time dimension
-        :param pad_sizes: Padding size along each dimension.
+        :param dimensions: Context dimensions (may include time dimension)
+        :param core: Domain size along each dimension; includes time dimension
+        :param halo: Halo size along each dimension.
         :param dtype: The data type used in kernels, as a NumPy dtype.
         :param hook_soln: "Fake" solution to track YASK grids.
         """
         self.env = env
-        self.core_sizes = core_sizes
-        self.pad_sizes = pad_sizes
+
+        self.dimensions = tuple(dimensions)
+        self.core = tuple(core)
+        self.halo = tuple(halo)
+
         self.dtype = dtype
         self.hook_soln = hook_soln
 
@@ -40,35 +44,32 @@ class YaskContext(object):
 
     @cached_property
     def space_dimensions(self):
-        return self.hook_soln.get_domain_dim_names()
+        return tuple(self.hook_soln.get_domain_dim_names())
 
     @cached_property
     def time_dimension(self):
         return self.hook_soln.get_step_dim_name()
 
     @cached_property
-    def dimensions(self):
-        return (self.time_dimension,) + self.space_dimensions
+    def dim_core(self):
+        return OrderedDict([(i, j) for i, j in zip(self.dimensions, self.core)])
+
+    @cached_property
+    def dim_halo(self):
+        return OrderedDict([(i, j) for i, j in zip(self.dimensions, self.halo)])
+
+    @cached_property
+    def dim_shape(self):
+        return OrderedDict([(d, i + j*2) for d, i, j in
+                            zip(self.dimensions, self.core, self.halo)])
 
     @cached_property
     def domain_sizes(self):
         ret = OrderedDict()
-        for k, v in self.core_sizes.items():
+        for k, v in self.dim_core.items():
             if k in self.space_dimensions:
                 ret[k] = v
         return ret
-
-    @cached_property
-    def dim_shape(self):
-        ret = OrderedDict()
-        for (k1, v1), (k2, v2) in zip(self.core_sizes.items(), self.pad_sizes.items()):
-            assert k1 == k2
-            ret[k1] = v1 + v2*2
-        return ret
-
-    @cached_property
-    def space_shape(self):
-        return tuple(v for k, v in self.dim_shape.items() if k in self.space_dimensions)
 
     @cached_property
     def shape(self):
@@ -89,23 +90,6 @@ class YaskContext(object):
     @property
     def ngrids(self):
         return len(self.grids)
-
-    def add_grid(self, name, dimensions):
-        """
-        Add and return a new grid ``name``. If a grid ``name`` already exists,
-        then simply return it, without further actions.
-        """
-        grids = self.grids
-        if name in grids:
-            return grids[name]
-        else:
-            # new_grid() also modifies the /hook_soln/ state
-            grid = self.hook_soln.new_grid(name, *dimensions)
-            for i in self.space_dimensions:
-                grid.set_halo_size(i, self.pad_sizes[i])
-            # Allocate memory
-            self.hook_soln.prepare_solution()
-            return grid
 
     def add_kernel(self, key, kernel):
         """
@@ -164,29 +148,26 @@ def yask_context(dimensions, shape, dtype, space_order):
     hook_soln = kfac.new_solution(env)
     hook_soln.set_debug_output(yk.yask_output_factory().new_string_output())
 
-    # Calculate inner and padding regions
+    # Setup hook solution
     # TODO: This will probably require using NBPML
-    core_sizes = OrderedDict()
-    pad_sizes = OrderedDict()
+    core = []
+    halo = []
     for i, j in zip(dimensions, shape):
         if namespace['time-dim'] != i:
             # Padding only meaningful in space dimensions
-            pad_sizes[i] = space_order
-            core_sizes[i] = j - pad_sizes[i]*2
+            halo.append(space_order)
+            core.append(j - space_order*2)
+            hook_soln.set_rank_domain_size(i, j - space_order*2)
         else:
-            pad_sizes[i] = 0
-            core_sizes[i] = j
-
-    # Setup domain and padding regions in the hook solution
-    for i in hook_soln.get_domain_dim_names():
-        hook_soln.set_rank_domain_size(i, core_sizes[i])
+            halo.append(0)
+            core.append(j)
 
     # Simple rank configuration in 1st dim only.
     # In production runs, the ranks would be distributed along all domain dimensions.
     # TODO Improve me
     hook_soln.set_num_ranks(hook_soln.get_domain_dim_name(0), env.get_num_ranks())
 
-    contexts[key] = YaskContext(env, core_sizes, pad_sizes, dtype, hook_soln)
+    contexts[key] = YaskContext(env, dimensions, core, halo, dtype, hook_soln)
 
     log("Context successfully created!")
 
