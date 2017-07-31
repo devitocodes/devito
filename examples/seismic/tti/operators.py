@@ -147,10 +147,9 @@ def ForwardOperator(model, source, receiver, time_order=2, space_order=4,
     second_stencil = Eq(v.forward, stencilr)
     stencils = [first_stencil, second_stencil]
 
-    ti = u.indices[0]
-    stencils += src.inject(field=u, u_t=ti + 1, expr=src * dt * dt / m,
+    stencils += src.inject(field=u.forward, expr=src * dt * dt / m,
                            offset=model.nbpml)
-    stencils += src.inject(field=v, u_t=ti + 1, expr=src * dt * dt / m,
+    stencils += src.inject(field=v.forward, expr=src * dt * dt / m,
                            offset=model.nbpml)
     stencils += rec.interpolate(expr=u + v, offset=model.nbpml)
     subs = dict([(t.spacing, dt)] + [(time.spacing, dt)] +

@@ -47,7 +47,7 @@ def test_interpolate(shape, coords, npoints=20):
 
     expr = p.interpolate(a)
     Operator(expr, subs={x.spacing: spacing, y.spacing: spacing,
-                         z.spacing: spacing})(a=a, t=1)
+                         z.spacing: spacing})(a=a, time=1)
 
     assert np.allclose(p.data[0, :], xcoords, rtol=1e-6)
 
@@ -119,7 +119,7 @@ def test_adjoint_inject_interpolate(shape, coords,
     p2 = points(name='points2', ranges=coords, npoints=npoints)
     expr2 = p2.interpolate(expr=c)
     Operator(expr + expr2, subs={x.spacing: spacing, y.spacing: spacing,
-                                 z.spacing: spacing})(a=a, c=c, t=1)
+                                 z.spacing: spacing})(a=a, c=c, time=1)
     # < P x, y > - < x, P^T y>
     # Px => p2
     # y => p

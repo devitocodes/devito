@@ -55,7 +55,7 @@ class PointData(CompositeData):
         :return: indices used for axis.
         """
         dimensions = kwargs.get('dimensions', None)
-        return dimensions or [t, p]
+        return dimensions or [time, p]
 
     @property
     def coefficients(self):
@@ -201,11 +201,18 @@ class PointData(CompositeData):
         :param u_t: (Optional) time index to use for indexing into `field`.
         :param p_t: (Optional) time index to use for indexing into `expr`.
         """
-        u_t = kwargs.get('u_t', field.indices[0])
-        p_t = kwargs.get('p_t', self.indices[0])
-        expr = indexify(expr).subs(self.indices[0], p_t)
-        field = indexify(field).subs(field.indices[0], u_t)
+        u_t = kwargs.get('u_t', None)
+        p_t = kwargs.get('p_t', None)
+
+        expr = indexify(expr)
+        field = indexify(field)
         variables = list(retrieve_indexed(expr)) + [field]
+
+        # Apply optional time symbol substitutions to field and expr
+        if u_t is not None:
+            field = field.subs(field.indices[0], u_t)
+        if p_t is not None:
+            expr = expr.subs(self.indices[0], p_t)
 
         # List of indirection indices for all adjacent grid points
         index_matrix = [tuple(idx + ii + offset for ii, idx
