@@ -54,7 +54,7 @@ def ForwardOperator(model, source, receiver, time_order=2, space_order=4,
                           expr=src * dt**2 / m, p_t=time)
 
     # Create interpolation expression for receivers
-    rec_term = rec.interpolate(expr=u, u_t=ti, offset=model.nbpml)
+    rec_term = rec.interpolate(expr=u, offset=model.nbpml)
     subs = dict([(t.spacing, dt)] + [(time.spacing, dt)] +
                 [(i.spacing, model.get_spacing()[j]) for i, j
                  in zip(u.indices[1:], range(len(model.shape)))])
@@ -104,7 +104,7 @@ def AdjointOperator(model, source, receiver, time_order=2, space_order=4, **kwar
                            expr=rec * dt**2 / m, p_t=time)
 
     # Create interpolation expression for the adjoint-source
-    source_a = srca.interpolate(expr=v, u_t=ti, offset=model.nbpml)
+    source_a = srca.interpolate(expr=v, offset=model.nbpml)
     subs = dict([(t.spacing, dt)] + [(time.spacing, dt)] +
                 [(i.spacing, model.get_spacing()[j]) for i, j
                  in zip(v.indices[1:], range(len(model.shape)))])
@@ -224,7 +224,7 @@ def BornOperator(model, source, receiver, time_order=2, space_order=4, **kwargs)
                         expr=src * dt * dt / m, p_t=time)
 
     # Create receiver interpolation expression from U
-    receivers = rec.interpolate(expr=U, u_t=ti, offset=model.nbpml)
+    receivers = rec.interpolate(expr=U, offset=model.nbpml)
     subs = dict([(t.spacing, dt)] + [(time.spacing, dt)] +
                 [(i.spacing, model.get_spacing()[j]) for i, j
                  in zip(u.indices[1:], range(len(model.shape)))])
