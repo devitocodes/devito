@@ -162,7 +162,7 @@ def GradientOperator(model, source, receiver, time_order=2, space_order=4, **kwa
     subs = dict([(t.spacing, dt)] + [(time.spacing, dt)] +
                 [(i.spacing, model.get_spacing()[j]) for i, j
                  in zip(v.indices[1:], range(len(model.shape)))])
-    return Operator([eqn] + [gradient_update] + receivers,
+    return Operator([eqn] + receivers + [gradient_update],
                     subs=subs,
                     time_axis=Backward, name='Gradient', **kwargs)
 
