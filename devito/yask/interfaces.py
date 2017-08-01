@@ -32,6 +32,8 @@ class DenseData(interfaces.DenseData):
             grid = context.hook_soln.new_grid(self.name, *dimensions)
             for i in context.space_dimensions:
                 grid.set_halo_size(i, context.dim_halo[i])
+            if grid.is_dim_used(context.time_dimension):
+                grid.set_alloc_size(context.time_dimension, self.shape[0])
             context.hook_soln.prepare_solution()
 
             self._data_object = YaskGrid(grid, dimensions, self.shape,

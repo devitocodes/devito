@@ -112,6 +112,9 @@ class Operator(OperatorRunnable):
                 _force_exit("Unknown grid %s" % name)
             for i in self.ksoln.get_domain_dim_names():
                 kgrid.set_halo_size(i, self.context.dim_halo[i])
+            if kgrid.is_dim_used(self.context.time_dimension):
+                size = hook_grid.get_alloc_size(self.context.time_dimension)
+                kgrid.set_alloc_size(self.context.time_dimension, size)
             kgrid.share_storage(hook_grid)
             log("Shared storage from grid <%s>" % hook_grid.get_name())
 
