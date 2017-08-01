@@ -30,6 +30,25 @@ def symbol(name, dimensions, value=0., mode='function'):
     return s.indexify() if mode == 'indexed' else s
 
 
+class TestAPI(object):
+
+    @classmethod
+    def setup_class(cls):
+        clear_cache()
+
+    def test_code_generation(self, const, a_dense):
+        """
+        Tests that we can actually generate code for a trivial operator
+        using constant and array data objects.
+        """
+        eqn = Eq(a_dense, a_dense + 2.*const)
+        op = Operator(eqn)
+        assert len(op.parameters) == 2
+        assert op.parameters[0].name == 'a_dense'
+        assert op.parameters[1].name == 'constant'
+        assert 'a_dense[i] = 2.0F*constant + a_dense[i]' in str(op.ccode)
+
+
 class TestArithmetic(object):
 
     @classmethod
