@@ -8,8 +8,8 @@ from devito.logger import yask as log, yask_warning as warning
 from devito.operator import OperatorRunnable
 from devito.visitors import FindSymbols
 
-from devito.yask.kernel import (cfac, nfac, ofac, namespace, yask_context,
-                                yask_jit, _force_exit)
+from devito.yask import cfac, nfac, ofac, namespace, exit
+from devito.yask.wrappers import yask_context
 
 __all__ = ['Operator']
 
@@ -32,15 +32,15 @@ class Operator(OperatorRunnable):
         log("Specializing a Devito Operator for YASK...")
 
         # Set up the YASK solution
-        self.soln = cfac.new_solution(namespace['kernel-real'])
+        ycsoln = cfac.new_solution(namespace['kernel-real'])
 
         # Silence YASK
         self.yask_compiler_output = ofac.new_string_output()
-        self.soln.set_debug_output(self.yask_compiler_output)
+        ycsoln.set_debug_output(self.yask_compiler_output)
 
         trees = retrieve_iteration_tree(nodes)
         if len(trees) > 1:
-            _force_exit("Currently unable to handle Operators w/ more than 1 loop nests")
+            exit("Currently unable to handle Operators w/ more than 1 loop nests")
 
         tree = trees[0]
         candidate = tree[-1]
@@ -49,88 +49,71 @@ class Operator(OperatorRunnable):
         functions = [i for i in FindSymbols().visit(candidate) if i.is_TimeData]
         keys = set([(i.indices, i.shape, i.dtype, i.space_order) for i in functions])
         if len(keys) > 1:
-            _force_exit("Currently unable to handle Operators w/ heterogeneous grids")
+            exit("Currently unable to handle Operators w/ heterogeneous grids")
         self.context = yask_context(*keys.pop())
 
         # Perform the translation on an expression basis
-        transform = sympy2yask(self.context, self.soln)
+        transform = sympy2yask(self.context, ycsoln)
         try:
             for i in expressions:
                 ast = transform(i.expr)
                 log("Converted %s into YASK AST [%s]", str(i.expr), ast.format_simple())
         except:
-            _force_exit("Couldn't convert %s into YASK format" % str(i.expr))
+            exit("Couldn't convert %s into YASK format" % str(i.expr))
 
         # Print some useful information about the newly constructed Yask solution
-        log("Solution '" + self.soln.get_name() + "' contains " +
-            str(self.soln.get_num_grids()) + " grid(s), and " +
-            str(self.soln.get_num_equations()) + " equation(s).")
+        log("Solution '%s' contains %d grid(s) and %d equation(s)." %
+            (ycsoln.get_name(), ycsoln.get_num_grids(), ycsoln.get_num_equations()))
 
         # Set necessary run-time parameters
-        self.soln.set_step_dim_name(self.context.time_dimension)
-        self.soln.set_domain_dim_names(self.context.space_dimensions)
-        self.soln.set_element_bytes(4)
+        ycsoln.set_step_dim_name(self.context.time_dimension)
+        ycsoln.set_domain_dim_names(self.context.space_dimensions)
+        ycsoln.set_element_bytes(4)
 
         # JIT YASK kernel
-        name = 'kernel%d' % self.context.nkernels
-        yk = yask_jit(self.soln, name)
+        self.ksoln = self.context.make_solution(ycsoln)
 
-        # Build an empty kernel solution
-        kfac = yk.yk_factory()
-        env = kfac.new_env()
-        self.ksoln = kfac.new_solution(env)
-
-        # Silence YASK
-        self.yask_kernel_output = yk.yask_output_factory().new_string_output()
-        self.ksoln.set_debug_output(self.yask_kernel_output)
-
-        self.ksoln.set_num_ranks(self.ksoln.get_domain_dim_name(0), env.get_num_ranks())
-
-        # Track this Operator
-        self.context.add_kernel(name, self)
-
-        # TODO: need to update nodes and elemental_functions
+        # TODO: need to update nodes
 
         log("Specialization successfully performed!")
 
-        return nodes, elemental_functions
+        return nodes, ()
 
     def apply(self, *args, **kwargs):
         # Build the arguments list to invoke the kernel function
         arguments, dim_sizes = self.arguments(*args, **kwargs)
 
         # Set the domain sizes
-        for i in self.ksoln.get_domain_dim_names():
-            self.ksoln.set_rank_domain_size(i, self.context.domain_sizes[i])
+        self.ksoln.set_rank_domain_size(self.context.domain_sizes)
 
         # Share the grids from the hook solution
-        for kgrid in self.ksoln.get_grids():
+        for kgrid in self.ksoln.grids:
             name = kgrid.get_name()
             try:
-                hook_grid = self.context.grids[name]
+                hgrid = self.context.grids[name]
             except KeyError:
-                _force_exit("Unknown grid %s" % name)
-            for i in self.ksoln.get_domain_dim_names():
+                exit("Unknown grid %s" % name)
+            for i in self.context.space_dimensions:
                 kgrid.set_halo_size(i, self.context.dim_halo[i])
             if kgrid.is_dim_used(self.context.time_dimension):
-                size = hook_grid.get_alloc_size(self.context.time_dimension)
+                size = hgrid.get_alloc_size(self.context.time_dimension)
                 kgrid.set_alloc_size(self.context.time_dimension, size)
-            kgrid.share_storage(hook_grid)
-            log("Shared storage from grid <%s>" % hook_grid.get_name())
+            kgrid.share_storage(hgrid)
+            log("Shared storage from hook grid <%s>" % hgrid.get_name())
 
         # Print some info about the solution.
-        log("Stencil-solution '" + self.ksoln.get_name() + "':")
-        log("  Step dimension: " + repr(self.ksoln.get_step_dim_name()))
-        log("  Domain dimensions: " + repr(self.ksoln.get_domain_dim_names()))
+        log("Stencil-solution '%s':" % self.ksoln.name)
+        log("  Step dimension: %s" % self.context.time_dimension)
+        log("  Domain dimensions: %s" % str(self.context.space_dimensions))
         log("  Grids:")
-        for grid in self.ksoln.get_grids():
+        for grid in self.ksoln.grids:
             pad = str([grid.get_pad_size(i) for i in self.context.space_dimensions])
             log("    %s%s, pad=%s" % (grid.get_name(), str(grid.get_dim_names()), pad))
 
         log("Running Operator through YASK...")
-        self.ksoln.prepare_solution()
+        self.ksoln.prepare()
         # TODO: getting number of timesteps in a hacky way
-        self.ksoln.run_solution(arguments["%s_size" % self.context.time_dimension])
+        self.ksoln.run(arguments["%s_size" % self.context.time_dimension])
         log("YASK Operator successfully run!")
 
 

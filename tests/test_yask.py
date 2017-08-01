@@ -7,7 +7,7 @@ pexpect = pytest.importorskip('yask_compiler')  # Run only if YASK is available
 
 from devito import (Operator, DenseData, TimeData, t, x, y, z,
                     configuration, clear_cache)  # noqa
-from devito.yask.interfaces import YaskGrid  # noqa
+from devito.yask.wrappers import YaskGrid  # noqa
 
 pytestmark = pytest.mark.skipif(configuration['backend'] != 'yask',
                                 reason="'yask' wasn't selected as backend on startup")
