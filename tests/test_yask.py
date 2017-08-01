@@ -148,3 +148,26 @@ class TestOperatorExecution(object):
         lbound, rbound = space_order, 16 - space_order
         written_region = u.data[1, lbound:rbound, lbound:rbound, lbound:rbound]
         assert np.all(written_region == 1.)
+
+    def test_fixed_halo_w_ofs(self):
+        """
+        Compute an N-point stencil sum, where N is the number of points sorrounding
+        an inner (i.e., non-border) grid point.
+        For example (in 2D view):
+
+            1 1 1 ... 1 1
+            1 4 4 ... 4 1
+            1 4 4 ... 4 1
+            1 4 4 ... 4 1
+            1 1 1 ... 1 1
+        """
+        space_order = 2
+        v = TimeData(name='yv4D', shape=(16, 16, 16), dimensions=(x, y, z),
+                     space_order=space_order)
+        v.data[:] = 1.
+        op = Operator(Eq(v.forward, v.laplace + 6*v),
+                      subs={t.spacing: 1, x.spacing: 1, y.spacing: 1, z.spacing: 1})
+        op(v, t=1)
+        lbound, rbound = space_order, 16 - space_order
+        written_region = v.data[1, lbound:rbound, lbound:rbound, lbound:rbound]
+        assert np.all(written_region == 6.)
