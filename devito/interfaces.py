@@ -95,6 +95,29 @@ class AbstractSymbol(Function, CachedSymbol):
     Note: The parameters :param name: and :param shape: must always be
     present and given as keyword arguments, since SymPy uses `*args`
     to (re-)create the dimension arguments of the symbolic function.
+
+    This class is the root of the Devito data objects hierarchy, which
+    is structured as follows.
+
+                             AbstractSymbol
+                                   |
+                 -------------------------------------
+                 |                                   |
+          SymbolicFunction                      SymbolicData
+                 |                                   |
+          ------------------                 ------------------
+          |                |                 |                |
+    ScalarFunction  TensorFunction     ConstantData           |
+                                                              |
+                                                ----------------------------
+                                                |             |            |
+                                            DenseData      TimeData  CompositeData
+                                                                           |
+                                                                       PointData
+
+    The key difference between a :class:`SymbolicData` and a :class:`SymbolicFunction`
+    is that the former is created directly by the user and employed in some
+    computation, while the latter is created and managed internally by Devito.
     """
 
     is_AbstractSymbol = True
