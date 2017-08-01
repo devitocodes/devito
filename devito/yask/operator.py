@@ -83,21 +83,9 @@ class Operator(OperatorRunnable):
         # Build the arguments list to invoke the kernel function
         arguments, dim_sizes = self.arguments(*args, **kwargs)
 
-        # Set the domain sizes
-        self.ksoln.set_rank_domain_size(self.context.domain_sizes)
-
         # Share the grids from the hook solution
         for kgrid in self.ksoln.grids:
-            name = kgrid.get_name()
-            try:
-                hgrid = self.context.grids[name]
-            except KeyError:
-                exit("Unknown grid %s" % name)
-            for i in self.context.space_dimensions:
-                kgrid.set_halo_size(i, self.context.dim_halo[i])
-            if kgrid.is_dim_used(self.context.time_dimension):
-                size = hgrid.get_alloc_size(self.context.time_dimension)
-                kgrid.set_alloc_size(self.context.time_dimension, size)
+            hgrid = self.context.grids[kgrid.get_name()]
             kgrid.share_storage(hgrid)
             log("Shared storage from hook grid <%s>" % hgrid.get_name())
 

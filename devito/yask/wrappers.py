@@ -294,25 +294,48 @@ class YaskContext(object):
     def ngrids(self):
         return len(self.grids)
 
-    def make_grid(self, name, dimensions, shape, space_order):
+    def make_grid(self, name, dimensions, shape, space_order, dtype):
+        """
+        Create and return a new :class:`YaskGrid`, which wraps a YASK grid.
+        """
         grid = self.hook.new_grid(name, dimensions)
         for i in self.space_dimensions:
-            # TODO: will need to use the space_order provided by the caller
             grid.set_halo_size(i, self.dim_halo[i])
         if grid.is_dim_used(self.time_dimension):
             grid.set_alloc_size(self.time_dimension, shape[0])
+
         # Allocate memory immediately as the user may simply want to use it
         self.hook.prepare()
-        return grid
+
+        return YaskGrid(grid, dimensions, shape, self.halo, dtype)
 
     def make_solution(self, ycsoln):
         """
         Create and return a new :class:`YaskSolution` using ``self`` as context
         and ``ycsoln`` as YASK compiler ("stencil") solution.
         """
-        name = 'ctx%d_kernel%d' % (len(contexts), self.nsolutions)
-        soln = YaskSolution(name, ycsoln)
+        soln = YaskSolution('ctx%d_kernel%d' % (len(contexts), self.nsolutions), ycsoln)
+
+        # Setup soln's domains
+        soln.set_rank_domain_size(self.domain_sizes)
+
+        # Setup soln's grids using the hook solution
+        for sgrid in soln.grids:
+            name = sgrid.get_name()
+            try:
+                hgrid = self.grids[name]
+            except KeyError:
+                exit("Unknown grid %s" % name)
+            # Halo in the space dimensions
+            for i in self.space_dimensions:
+                sgrid.set_halo_size(i, hgrid.get_halo_size(i))
+            # Extent of the time dimension
+            if sgrid.is_dim_used(self.time_dimension):
+                sgrid.set_alloc_size(self.time_dimension,
+                                     hgrid.get_alloc_size(self.time_dimension))
+
         self.solutions.append(soln)
+
         return soln
 
 
