@@ -246,6 +246,17 @@ class SymbolicDataArgProvider(ArgumentProvider):
         return [TensorArgument(self.name, self, self.dtype)]
 
 
+class ConstantDataArgProvider(ArgumentProvider):
+
+    """ Class used to decorate Constat Data objects with behaviour required for runtime
+        arguments.
+    """
+
+    @cached_property
+    def rtargs(self):
+        return [ScalarArgument(self.name, self, self.dtype)]
+
+
 class ScalarFunctionArgProvider(ArgumentProvider):
 
     """ Class used to decorate Scalar Function objects with behaviour required for runtime

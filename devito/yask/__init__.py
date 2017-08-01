@@ -52,6 +52,6 @@ log("Backend successfully initialized!")
 
 
 # The following used by backends.backendSelector
+from devito.yask.interfaces import ConstantData, DenseData, TimeData  # noqa
 from devito.pointdata import PointData  # noqa
-from devito.yask.interfaces import DenseData, TimeData  # noqa
 from devito.yask.operator import Operator  # noqa

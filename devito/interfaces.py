@@ -11,10 +11,10 @@ from devito.finite_difference import (centered, cross_derivative,
                                       second_derivative)
 from devito.logger import debug, error, warning
 from devito.memory import CMemory, first_touch
-from devito.arguments import (SymbolicDataArgProvider, ScalarFunctionArgProvider,
-                              TensorFunctionArgProvider)
+from devito.arguments import (ConstantDataArgProvider, SymbolicDataArgProvider,
+                              ScalarFunctionArgProvider, TensorFunctionArgProvider)
 
-__all__ = ['DenseData', 'TimeData', 'Forward', 'Backward']
+__all__ = ['ConstantData', 'DenseData', 'TimeData', 'Forward', 'Backward']
 
 
 # This cache stores a reference to each created data object
@@ -102,6 +102,8 @@ class AbstractSymbol(Function, CachedSymbol):
     is_SymbolicData = False
     is_ScalarFunction = False
     is_TensorFunction = False
+    is_ConstantData = False
+    is_TensorData = False
     is_DenseData = False
     is_TimeData = False
     is_CompositeData = False
@@ -283,12 +285,36 @@ class SymbolicData(AbstractSymbol, SymbolicDataArgProvider):
 
     is_SymbolicData = True
 
-    @property
-    def _mem_external(self):
-        return True
+
+class ConstantData(ConstantDataArgProvider, SymbolicData):
+
+    """
+    Data object for constant values.
+
+    Unlike :class:`ScalarFunction` objects, the state of a ConstantData
+    is immutable.
+    """
+
+    is_ConstantData = True
+
+    def __new__(cls, *args, **kwargs):
+        kwargs.update({'options': {'evaluate': False}})
+        return AbstractSymbol.__new__(cls, *args, **kwargs)
+
+    def __init__(self, *args, **kwargs):
+        if not self._cached():
+            self.name = kwargs.get('name')
+            self.shape = ()
+            self.indices = ()
+            self.dtype = kwargs.get('dtype', np.float32)
 
 
-class DenseData(SymbolicData):
+class TensorData(SymbolicData, SymbolicDataArgProvider):
+
+    is_TensorData = True
+
+
+class DenseData(TensorData):
     """Data object for spatially varying data acting as a :class:`SymbolicData`.
 
     :param name: Name of the symbol
