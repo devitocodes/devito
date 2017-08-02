@@ -67,6 +67,7 @@ class Model(object):
         else:
             self.m = 1/vp**2
 
+
         # Create dampening field as symbol `damp`
         self.damp = DenseData(name="damp", shape=self.shape_domain,
                               dtype=self.dtype)
@@ -84,7 +85,7 @@ class Model(object):
                 if np.max(self.epsilon.data) > 0:
                     self.scale = np.sqrt(np.max(self.epsilon.data))
             else:
-                self.epsilon = epsilon
+                self.epsilon = 1 + 2 * epsilon
                 self.scale = epsilon
         else:
             self.epsilon = 1

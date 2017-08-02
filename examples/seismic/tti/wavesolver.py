@@ -1,9 +1,11 @@
 # coding: utf-8
 from cached_property import cached_property
+from numpy import ndarray, ScalarType
 
-from devito import TimeData
+from devito import TimeData, DenseData, ConstantData
+from devito.logger import error
 from examples.seismic.tti.operators import ForwardOperator
-from examples.seismic import Receiver
+from examples.seismic import Receiver, Model
 
 
 class AnisotropicWaveSolver(object):
@@ -88,17 +90,9 @@ class AnisotropicWaveSolver(object):
                          time_order=self.time_order,
                          space_order=self.space_order,
                          dtype=self.model.dtype)
-        # Pick m from model unless explicitly provided
-        if m is None:
-            m = m or self.model.m
-        if epsilon is None:
-            epsilon = epsilon or self.model.epsilon
-        if delta is None:
-            delta = delta or self.model.delta
-        if theta is None:
-            theta = theta or self.model.theta
-        if phi is None:
-            phi = phi or self.model.phi
+
+        # Check physical parameters according to self
+        self.check_input(m, **kwargs)
 
         # Execute operator and return wavefield and receiver data
         if save:
@@ -106,10 +100,27 @@ class AnisotropicWaveSolver(object):
         else:
             op = self.op_fwd
 
-        if len(m.shape) == 2:
-            summary = op.apply(src=src, rec=rec, u=u, v=v, m=m, epsilon=epsilon,
-                               delta=delta, theta=theta, **kwargs)
-        else:
-            summary = op.apply(src=src, rec=rec, u=u, v=v, m=m, epsilon=epsilon,
-                               delta=delta, theta=theta, phi=phi, **kwargs)
+        summary = op.apply(src=src, rec=rec, u=u, v=v, **kwargs)
         return rec, u, v, summary
+
+    def check_input(self, m, kwargs):
+        if m is None:
+            return kwargs
+        elif self.model.m.is_DenseData:
+            if not isinstance(m, (DenseData, ndarray)):
+                error("The input square slowness has the wrong type "
+                      "This kernel is generated for a spatially varying velocity "
+                      "model and requires a ndarray or DenseData as input for m")
+            else:
+                kwargs.update({'m': m})
+                return kwargs
+        elif self.model.m.is_ConstantData:
+            if (not isinstance(m, ConstantData)) and (type(m) not in ScalarType):
+                error("The input square slowness has the wrong type "
+                      "This kernel is generated for a constant velocity "
+                      "model and requires a constant or ConstantData as input for m")
+            else:
+                kwargs.update({'m': m})
+                return kwargs
+        else:
+            return kwargs

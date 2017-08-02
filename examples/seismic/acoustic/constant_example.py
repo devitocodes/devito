@@ -79,13 +79,14 @@ def run(dimensions=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=1000.0,
         time_order=2, space_order=4, nbpml=40, full_run=False, **kwargs):
 
     solver = setup(dimensions=dimensions, spacing=spacing, nbpml=nbpml, tn=tn,
-                   space_order=space_order, time_order=time_order, **kwargs)
+                   space_order=space_order, time_order=time_order,
+                   dse='noop', dle='noop', **kwargs)
 
     initial_vp = 1.8
-    dm = (initial_vp**2 - solver.model.m) * np.ones(solver.model.shape_domain,
-                                                    dtype=np.float32)
+    dm = (initial_vp**2 - solver.model.m.value) * np.ones(solver.model.shape_domain,
+                                                          dtype=np.float32)
     info("Applying Forward")
-    rec, u, summary = solver.forward(save=full_run)
+    rec, u, summary = solver.forward(save=full_run, m=.25)
 
     if not full_run:
         return summary.gflopss, summary.oi, summary.timings, [rec, u.data]
@@ -99,4 +100,5 @@ def run(dimensions=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=1000.0,
 
 
 if __name__ == "__main__":
-    run(full_run=True, autotune=False, space_order=6, time_order=2)
+    run(full_run=True, autotune=False, space_order=6, time_order=2,
+        dimensions=(50, 50), tn=500.)

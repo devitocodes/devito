@@ -1,6 +1,7 @@
 from cached_property import cached_property
 
-from devito import DenseData, TimeData
+from devito import DenseData, TimeData, ConstantData
+from devito.logger import error
 from examples.seismic import PointSource, Receiver
 from examples.seismic.acoustic.operators import (
     ForwardOperator, AdjointOperator, GradientOperator, BornOperator
@@ -89,11 +90,13 @@ class AcousticWaveSolver(object):
         # Source term is read-only, so re-use the default
         if src is None:
             src = self.source
+
+        kwargs.update({'src': src})
         # Create a new receiver object to store the result
         if rec is None:
             rec = Receiver(name='rec', ntime=self.receiver.nt,
                            coordinates=self.receiver.coordinates.data)
-
+        kwargs.update({'rec': rec})
         # Create the forward wavefield if not provided
         if u is None:
             u = TimeData(name='u', shape=self.model.shape_domain,
@@ -102,15 +105,15 @@ class AcousticWaveSolver(object):
                          space_order=self.space_order,
                          dtype=self.model.dtype)
 
-        # Pick m from model unless explicitly provided
-        if m is None:
-            m = m or self.model.m
+        kwargs.update({'u': u})
 
+        # Pick m from model unless explicitly provided
+        kwargs = self.check_input(m, **kwargs)
         # Execute operator and return wavefield and receiver data
         if save:
-            summary = self.op_fwd_save.apply(src=src, rec=rec, u=u, m=m, **kwargs)
+            summary = self.op_fwd_save.apply(**kwargs)
         else:
-            summary = self.op_fwd.apply(src=src, rec=rec, u=u, m=m, **kwargs)
+            summary = self.op_fwd.apply(**kwargs)
         return rec, u, summary
 
     def adjoint(self, rec, srca=None, v=None, m=None, **kwargs):
@@ -139,12 +142,14 @@ class AcousticWaveSolver(object):
                          space_order=self.space_order,
                          dtype=self.model.dtype)
 
-        # Pick m from model unless explicitly provided
-        if m is None:
-            m = self.model.m
+        kwargs.update({'srca': srca})
+        kwargs.update({'v': v})
 
+        # Pick m from model unless explicitly provided
+        kwargs = self.check_input(m, **kwargs)
+        kwargs.update({'rec': rec})
         # Execute operator and return wavefield and receiver data
-        summary = self.op_adj.apply(srca=srca, rec=rec, v=v, m=m, **kwargs)
+        summary = self.op_adj.apply(**kwargs)
         return srca, v, summary
 
     def gradient(self, rec, u, v=None, grad=None, m=None, **kwargs):
@@ -173,12 +178,14 @@ class AcousticWaveSolver(object):
                          time_order=self.time_order,
                          space_order=self.space_order,
                          dtype=self.model.dtype)
-
+        kwargs.update({'v': v})
+        kwargs.update({'grad': grad})
         # Pick m from model unless explicitly provided
-        if m is None:
-            m = m or self.model.m
+        kwargs = self.check_input(m, **kwargs)
 
-        summary = self.op_grad.apply(rec=rec, grad=grad, v=v, u=u, m=m, **kwargs)
+        kwargs.update({'rec': rec})
+        kwargs.update({'u': u})
+        summary = self.op_grad.apply(**kwargs)
         return grad, summary
 
     def born(self, dmin, src=None, rec=None, u=None, U=None, m=None, **kwargs):
@@ -211,10 +218,37 @@ class AcousticWaveSolver(object):
                          save=False, time_order=self.time_order,
                          space_order=self.space_order, dtype=self.model.dtype)
 
-        # Pick m from model unless explicitly provided
-        if m is None:
-            m = self.model.m
+        kwargs.update({'src': src})
+        kwargs.update({'rec': rec})
+        kwargs.update({'u': u})
+        kwargs.update({'U': U})
 
+        # Pick m from model unless explicitly provided
+        kwargs = self.check_input(m, **kwargs)
+
+        kwargs.update({'dm': dmin})
         # Execute operator and return wavefield and receiver data
-        summary = self.op_born.apply(dm=dmin, u=u, U=U, src=src, rec=rec, m=m, **kwargs)
+        summary = self.op_born.apply(**kwargs)
         return rec, u, U, summary
+
+    def check_input(self, m, **kwargs):
+        if m is None:
+            return kwargs
+        elif self.model.m.is_DenseData:
+            if not isinstance(m, (DenseData, ndarray)):
+                error("The input square slowness has the wrong type "
+                      "This kernel is generated for a spatially varying velocity "
+                      "model and requires a ndarray or DenseData as input for m")
+            else:
+                kwargs.update({'m': m})
+                return kwargs
+        elif self.model.m.is_ConstantData:
+            if (not isinstance(m, ConstantData)) and (type(m) not in ScalarType):
+                error("The input square slowness has the wrong type "
+                      "This kernel is generated for a constant velocity "
+                      "model and requires a constant or ConstantData as input for m")
+            else:
+                kwargs.update({'m': m})
+                return kwargs
+        else:
+            return kwargs
