@@ -336,6 +336,12 @@ class TensorData(SymbolicData, SymbolicDataArgProvider):
 
     is_TensorData = True
 
+    @property
+    def _mem_external(self):
+        """Return True if the associated data was/is/will be allocated directly
+        from Python (e.g., via NumPy arrays), False otherwise."""
+        return True
+
 
 class DenseData(TensorData):
     """Data object for spatially varying data acting as a :class:`SymbolicData`.
