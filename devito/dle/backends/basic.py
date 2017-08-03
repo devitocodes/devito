@@ -89,11 +89,10 @@ class BasicRewriter(AbstractRewriter):
 
                 # Retrieve tensor arguments
                 for i in fsymbols:
-                    if i.is_SymbolicFunction:
-                        handle = "(%s*) %s" % (c.dtype_to_ctype(i.dtype), i.name)
-                    else:
-                        handle = "%s_vec" % i.name
-                    args.append((handle, i))
+                    if i.is_TensorFunction:
+                        args.append(("(%s*)%s" % (c.dtype_to_ctype(i.dtype), i.name), i))
+                    elif i.is_SymbolicData:
+                        args.append(("%s_vec" % i.name, i))
 
                 # Retrieve scalar arguments
                 not_required.update({i.output for i in expressions if i.is_scalar})

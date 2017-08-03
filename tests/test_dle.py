@@ -155,7 +155,7 @@ def test_create_elemental_functions_simple(simple_function):
   {
     for (int j = 0; j < 5; j += 1)
     {
-      f_0(0,7,(float*) a,(float*) b,(float*) c,(float*) d,i,j);
+      f_0(0,7,(float*)a,(float*)b,(float*)c,(float*)d,i,j);
     }
   }
 }
@@ -197,12 +197,12 @@ def test_create_elemental_functions_complex(complex_function):
   float (*restrict d)[5][7] __attribute__((aligned(64))) = (float (*)[5][7]) d_vec;
   for (int i = 0; i < 3; i += 1)
   {
-    f_0(0,4,(float*) a,(float*) b,i);
+    f_0(0,4,(float*)a,(float*)b,i);
     for (int j = 0; j < 5; j += 1)
     {
-      f_1(0,7,(float*) a,(float*) b,(float*) c,(float*) d,i,j);
+      f_1(0,7,(float*)a,(float*)b,(float*)c,(float*)d,i,j);
     }
-    f_2(0,4,(float*) a,(float*) b,i);
+    f_2(0,4,(float*)a,(float*)b,i);
   }
 }
 void f_0(const int s_start, const int s_finish,"""
