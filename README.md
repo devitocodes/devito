@@ -100,10 +100,11 @@ in a wide range of real-life kernels:
    manipulating abstract syntax trees. Some existing stencil optimizers
    are being integrated with the DLE: one of these is
    [YASK](https://github.com/01org/yask).
- 
-## Auto tuning block sizes
 
-Devito supports automatic auto-tuning of block sizes when cache blocking is
-enabled. Enabling auto-tuning is trivial, and can be done directly in the
-symbolic layer by passing the special flag `autotune=True` to an `Operator`.
-Auto-tuning parameters can be set through a special environment variable.
+Devito supports automatic auto-tuning of block sizes when loop blocking is
+enabled. Enabling auto-tuning is simple: it can be done by passing the special
+flag `autotune=True` to an `Operator`. Auto-tuning parameters can be set
+through the special environment variable `DEVITO_AUTOTUNING`.
+
+For more information on how to drive Devito for maximum run-time performance,
+the interested reader is invited to refer to `examples/PERFORMANCE.md`.
