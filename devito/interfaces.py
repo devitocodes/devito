@@ -121,16 +121,24 @@ class AbstractSymbol(Function, CachedSymbol):
     """
 
     is_AbstractSymbol = True
+
+    # Created internally by Devito
     is_SymbolicFunction = False
-    is_SymbolicData = False
     is_ScalarFunction = False
     is_TensorFunction = False
+
+    # User-provided
+    is_SymbolicData = False
     is_ConstantData = False
     is_TensorData = False
     is_DenseData = False
     is_TimeData = False
     is_CompositeData = False
     is_PointData = False
+
+    # Misc
+    is_Scalar = False
+    is_Tensor = False
 
     def __new__(cls, *args, **kwargs):
         if cls in _SymbolCache:
@@ -246,6 +254,7 @@ class ScalarFunction(SymbolicFunction, ScalarFunctionArgProvider):
     """
 
     is_ScalarFunction = True
+    is_Scalar = True
 
     def __init__(self, *args, **kwargs):
         if not self._cached():
@@ -275,6 +284,7 @@ class TensorFunction(SymbolicFunction, TensorFunctionArgProvider):
     """
 
     is_TensorFunction = True
+    is_Tensor = True
 
     def __init__(self, *args, **kwargs):
         if not self._cached():
@@ -309,7 +319,7 @@ class SymbolicData(AbstractSymbol, SymbolicDataArgProvider):
     is_SymbolicData = True
 
 
-class ConstantData(ConstantDataArgProvider, SymbolicData):
+class ConstantData(SymbolicData, ConstantDataArgProvider):
 
     """
     Data object for constant values.
@@ -319,6 +329,7 @@ class ConstantData(ConstantDataArgProvider, SymbolicData):
     """
 
     is_ConstantData = True
+    is_Scalar = True
 
     def __new__(cls, *args, **kwargs):
         kwargs.update({'options': {'evaluate': False}})
@@ -330,11 +341,17 @@ class ConstantData(ConstantDataArgProvider, SymbolicData):
             self.shape = ()
             self.indices = ()
             self.dtype = kwargs.get('dtype', np.float32)
+            self.value = kwargs.get('value', 0.)
+
+    @property
+    def data(self):
+        return self.value
 
 
 class TensorData(SymbolicData, SymbolicDataArgProvider):
 
     is_TensorData = True
+    is_Tensor = True
 
     @property
     def _mem_external(self):
