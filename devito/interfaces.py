@@ -314,7 +314,12 @@ class TensorFunction(SymbolicFunction, TensorFunctionArgProvider):
 
 
 class SymbolicData(AbstractSymbol):
-    """A symbolic object associated with data."""
+    """A symbolic object associated with data.
+
+    Unlike :class:`SymbolicFunction` objects, the structure of a SymbolicData
+    is immutable (e.g., shape, dtype, ...). Obviously, the object value (``data``)
+    may be altered, either directly by the user or by an :class:`Operator`.
+    """
 
     is_SymbolicData = True
 
@@ -323,9 +328,6 @@ class ConstantData(SymbolicData, ConstantDataArgProvider):
 
     """
     Data object for constant values.
-
-    Unlike :class:`ScalarFunction` objects, the state of a ConstantData
-    is immutable.
     """
 
     is_ConstantData = True
@@ -341,11 +343,15 @@ class ConstantData(SymbolicData, ConstantDataArgProvider):
             self.shape = ()
             self.indices = ()
             self.dtype = kwargs.get('dtype', np.float32)
-            self.value = kwargs.get('value', 0.)
+            self._value = kwargs.get('value', 0.)
 
     @property
     def data(self):
-        return self.value
+        return self._value
+
+    @data.setter
+    def data(self, val):
+        self._value = val
 
 
 class TensorData(SymbolicData, TensorDataArgProvider):
