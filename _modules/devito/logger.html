@@ -167,10 +167,10 @@
 <span class="kn">from</span> <span class="nn">contextlib</span> <span class="k">import</span> <span class="n">contextmanager</span>
 
 <span class="n">__all__</span> <span class="o">=</span> <span class="p">(</span><span class="s1">&#39;set_log_level&#39;</span><span class="p">,</span> <span class="s1">&#39;set_log_noperf&#39;</span><span class="p">,</span> <span class="s1">&#39;log&#39;</span><span class="p">,</span>
-           <span class="s1">&#39;DEBUG&#39;</span><span class="p">,</span> <span class="s1">&#39;INFO&#39;</span><span class="p">,</span> <span class="s1">&#39;AUTOTUNER&#39;</span><span class="p">,</span> <span class="s1">&#39;DSE&#39;</span><span class="p">,</span> <span class="s1">&#39;DSE_WARN&#39;</span><span class="p">,</span> <span class="s1">&#39;DLE&#39;</span><span class="p">,</span> <span class="s1">&#39;DLE_WARN&#39;</span><span class="p">,</span>
-           <span class="s1">&#39;WARNING&#39;</span><span class="p">,</span> <span class="s1">&#39;ERROR&#39;</span><span class="p">,</span> <span class="s1">&#39;CRITICAL&#39;</span><span class="p">,</span>
-           <span class="s1">&#39;log&#39;</span><span class="p">,</span> <span class="s1">&#39;warning&#39;</span><span class="p">,</span> <span class="s1">&#39;error&#39;</span><span class="p">,</span> <span class="s1">&#39;info_at&#39;</span><span class="p">,</span> <span class="s1">&#39;dse&#39;</span><span class="p">,</span> <span class="s1">&#39;dse_warning&#39;</span><span class="p">,</span> <span class="s1">&#39;dle&#39;</span><span class="p">,</span>
-           <span class="s1">&#39;dle_warning&#39;</span><span class="p">,</span>
+           <span class="s1">&#39;DEBUG&#39;</span><span class="p">,</span> <span class="s1">&#39;AUTOTUNER&#39;</span><span class="p">,</span> <span class="s1">&#39;YASK&#39;</span><span class="p">,</span> <span class="s1">&#39;YASK_WARN&#39;</span><span class="p">,</span> <span class="s1">&#39;INFO&#39;</span><span class="p">,</span> <span class="s1">&#39;DSE&#39;</span><span class="p">,</span> <span class="s1">&#39;DSE_WARN&#39;</span><span class="p">,</span>
+           <span class="s1">&#39;DLE&#39;</span><span class="p">,</span> <span class="s1">&#39;DLE_WARN&#39;</span><span class="p">,</span> <span class="s1">&#39;WARNING&#39;</span><span class="p">,</span> <span class="s1">&#39;ERROR&#39;</span><span class="p">,</span> <span class="s1">&#39;CRITICAL&#39;</span><span class="p">,</span>
+           <span class="s1">&#39;log&#39;</span><span class="p">,</span> <span class="s1">&#39;warning&#39;</span><span class="p">,</span> <span class="s1">&#39;error&#39;</span><span class="p">,</span> <span class="s1">&#39;info_at&#39;</span><span class="p">,</span> <span class="s1">&#39;dse&#39;</span><span class="p">,</span> <span class="s1">&#39;dse_warning&#39;</span><span class="p">,</span>
+           <span class="s1">&#39;dle&#39;</span><span class="p">,</span> <span class="s1">&#39;dle_warning&#39;</span><span class="p">,</span>
            <span class="s1">&#39;RED&#39;</span><span class="p">,</span> <span class="s1">&#39;GREEN&#39;</span><span class="p">,</span> <span class="s1">&#39;BLUE&#39;</span><span class="p">)</span>
 
 
@@ -178,9 +178,11 @@
 <span class="n">_ch</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">StreamHandler</span><span class="p">()</span>
 <span class="n">logger</span><span class="o">.</span><span class="n">addHandler</span><span class="p">(</span><span class="n">_ch</span><span class="p">)</span>
 
-<span class="c1"># Add extra levels between INFO (value=20) and WARNING (value=30)</span>
+<span class="c1"># Add extra logging levels (note: INFO has value=20, WARNING has value=30)</span>
 <span class="n">DEBUG</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">DEBUG</span>
 <span class="n">AUTOTUNER</span> <span class="o">=</span> <span class="mi">19</span>
+<span class="n">YASK</span> <span class="o">=</span> <span class="mi">19</span>
+<span class="n">YASK_WARN</span> <span class="o">=</span> <span class="n">YASK</span>
 <span class="n">INFO</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">INFO</span>
 <span class="n">DSE</span> <span class="o">=</span> <span class="mi">28</span>
 <span class="n">DLE</span> <span class="o">=</span> <span class="n">DSE</span>
@@ -191,6 +193,8 @@
 <span class="n">CRITICAL</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">CRITICAL</span>
 
 <span class="n">logging</span><span class="o">.</span><span class="n">addLevelName</span><span class="p">(</span><span class="n">AUTOTUNER</span><span class="p">,</span> <span class="s2">&quot;AUTOTUNER&quot;</span><span class="p">)</span>
+<span class="n">logging</span><span class="o">.</span><span class="n">addLevelName</span><span class="p">(</span><span class="n">YASK</span><span class="p">,</span> <span class="s2">&quot;YASK&quot;</span><span class="p">)</span>
+<span class="n">logging</span><span class="o">.</span><span class="n">addLevelName</span><span class="p">(</span><span class="n">YASK_WARN</span><span class="p">,</span> <span class="s2">&quot;YASK_WARN&quot;</span><span class="p">)</span>
 <span class="n">logging</span><span class="o">.</span><span class="n">addLevelName</span><span class="p">(</span><span class="n">DSE</span><span class="p">,</span> <span class="s2">&quot;DSE&quot;</span><span class="p">)</span>
 <span class="n">logging</span><span class="o">.</span><span class="n">addLevelName</span><span class="p">(</span><span class="n">DSE_WARN</span><span class="p">,</span> <span class="s2">&quot;DSE_WARN&quot;</span><span class="p">)</span>
 <span class="n">logging</span><span class="o">.</span><span class="n">addLevelName</span><span class="p">(</span><span class="n">DSE</span><span class="p">,</span> <span class="s2">&quot;DLE&quot;</span><span class="p">)</span>
@@ -199,6 +203,8 @@
 <span class="n">logger_registry</span> <span class="o">=</span> <span class="p">{</span>
     <span class="s1">&#39;DEBUG&#39;</span><span class="p">:</span> <span class="n">DEBUG</span><span class="p">,</span>
     <span class="s1">&#39;AUTOTUNER&#39;</span><span class="p">:</span> <span class="n">AUTOTUNER</span><span class="p">,</span>
+    <span class="s1">&#39;YASK&#39;</span><span class="p">:</span> <span class="n">YASK</span><span class="p">,</span>
+    <span class="s1">&#39;YASK_WARN&#39;</span><span class="p">:</span> <span class="n">YASK_WARN</span><span class="p">,</span>
     <span class="s1">&#39;INFO&#39;</span><span class="p">:</span> <span class="n">INFO</span><span class="p">,</span>
     <span class="s1">&#39;DSE&#39;</span><span class="p">:</span> <span class="n">DSE</span><span class="p">,</span>
     <span class="s1">&#39;DLE&#39;</span><span class="p">:</span> <span class="n">DSE</span><span class="p">,</span>
@@ -216,8 +222,10 @@
 
 <span class="n">COLORS</span> <span class="o">=</span> <span class="p">{</span>
     <span class="n">DEBUG</span><span class="p">:</span> <span class="n">NOCOLOR</span><span class="p">,</span>
-    <span class="n">INFO</span><span class="p">:</span> <span class="n">NOCOLOR</span><span class="p">,</span>
     <span class="n">AUTOTUNER</span><span class="p">:</span> <span class="n">GREEN</span><span class="p">,</span>
+    <span class="n">YASK</span><span class="p">:</span> <span class="n">GREEN</span><span class="p">,</span>
+    <span class="n">YASK_WARN</span><span class="p">:</span> <span class="n">GREEN</span><span class="p">,</span>
+    <span class="n">INFO</span><span class="p">:</span> <span class="n">NOCOLOR</span><span class="p">,</span>
     <span class="n">DSE</span><span class="p">:</span> <span class="n">NOCOLOR</span><span class="p">,</span>
     <span class="n">DSE_WARN</span><span class="p">:</span> <span class="n">BLUE</span><span class="p">,</span>
     <span class="n">DLE</span><span class="p">:</span> <span class="n">NOCOLOR</span><span class="p">,</span>
@@ -295,6 +303,14 @@
 
 <div class="viewcode-block" id="dle_warning"><a class="viewcode-back" href="../../devito.html#devito.logger.dle_warning">[docs]</a><span class="k">def</span> <span class="nf">dle_warning</span><span class="p">(</span><span class="n">msg</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
     <span class="n">log</span><span class="p">(</span><span class="s2">&quot;DLE: </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="n">msg</span><span class="p">,</span> <span class="n">DLE_WARN</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span></div>
+
+
+<span class="k">def</span> <span class="nf">yask</span><span class="p">(</span><span class="n">msg</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+    <span class="n">log</span><span class="p">(</span><span class="s2">&quot;YASK: </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="n">msg</span><span class="p">,</span> <span class="n">YASK</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">yask_warning</span><span class="p">(</span><span class="n">msg</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+    <span class="n">log</span><span class="p">(</span><span class="s2">&quot;YASK: </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="n">msg</span><span class="p">,</span> <span class="n">YASK_WARN</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
 
 
 <span class="nd">@contextmanager</span>
