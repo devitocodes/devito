@@ -1,4 +1,4 @@
-# Driving Devito for maximum runtime performance
+# Driving Devito for maximum run-time performance
 
 This file provides a number of suggestions to improve the run-time performance
 of the Operators generated through Devito. It also describes current
@@ -131,7 +131,7 @@ DEVITO_AUTOTUNING=aggressive
 
 For each Operator, Devito generates C code, which then gets compiled into a
 shared object through the user-selected "backend compiler". Supported backend
-compilers are `gcc`, `icc`, `llvm`. In theory, any C compiler would work, but
+compilers are `gcc`, `icc`, `clang`. In theory, any C compiler would work, but
 for the aforementioned ones, Devito is aware of the best compilation flags. If
 multiple compilers are available on the system, one can make a selection by
 exporting
@@ -143,6 +143,15 @@ DEVITO_ARCH=X
 For maximum performance, it is *highly recommended to use the Intel compiler*.
 Devito performs SIMD vectorization by resorting to the backend compiler
 auto-vectorizer, and Intel's is particularly effective in stencil codes.
+
+### Be aware of what's happening in Devito
+
+Run with
+```
+DEVITO_LOGGING=DEBUG
+```
+To get more info from Devito about the performance optimizations applied or
+on how auto-tuning is getting along.
 
 # Known limitations and possible work arounds
 
@@ -165,3 +174,8 @@ auto-vectorizer, and Intel's is particularly effective in stencil codes.
  * The DSE `aggressive` mode will not work with backend compilers that are not
    Intel. This is a known bug in GCC, which breaks when trying to compile the
    legal OpenMP code that Devito generates. This is issue #320 on GitHub.
+
+# Do not hesitate to contact us
+
+Should you encounter any issues, or for any sort of questions, do not hesitate
+to [get in touch with the development team](https://opesci-slackin.now.sh/)
