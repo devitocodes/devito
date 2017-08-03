@@ -3,10 +3,9 @@ import sys
 import numpy as np
 
 import devito.interfaces as interfaces
-from devito.logger import debug
-from devito.tools import as_tuple
+from devito.logger import yask as log
 
-from devito.yask.kernel import YASK, init
+from devito.yask.kernel import yask_context, _force_exit
 from devito.yask.utils import convert_multislice
 
 __all__ = ['DenseData', 'TimeData']
@@ -16,11 +15,35 @@ class DenseData(interfaces.DenseData):
 
     def _allocate_memory(self):
         """Allocate memory in terms of Yask grids."""
-        debug("Allocating YaskGrid for %s (%s)" % (self.name, str(self.shape)))
-        self._data_object = YaskGrid(self.name, self.shape, self.indices, self.dtype)
-        if self._data_object is None:
-            debug("Failed. Reverting to plain allocation...")
+
+        log("Allocating YaskGrid for %s (%s)" % (self.name, str(self.shape)))
+
+        context = yask_context(self.indices, self.shape, self.dtype, self.space_order)
+
+        # Sanity check
+        if self.name in context.grids:
+            _force_exit("A grid with name %s already exits" % self.name)
+
+        # Only create a YaskGrid if the requested grid is dense
+        dimensions = tuple(i.name for i in self.indices)
+        # TODO : following check fails if not using BufferedDimension ('time' != 't')
+        if dimensions in [context.dimensions, context.space_dimensions]:
+            # Set up the grid in YASK-land
+            grid = context.hook_soln.new_grid(self.name, *dimensions)
+            for i in context.space_dimensions:
+                grid.set_halo_size(i, context.dim_halo[i])
+            if grid.is_dim_used(context.time_dimension):
+                grid.set_alloc_size(context.time_dimension, self.shape[0])
+            context.hook_soln.prepare_solution()
+
+            self._data_object = YaskGrid(grid, dimensions, self.shape,
+                                         context.halo, self.dtype)
+        else:
+            log("Failed. Reverting to plain allocation...")
             super(DenseData, self)._allocate_memory()
+
+    def initialize(self):
+        raise NotImplementedError
 
 
 class TimeData(interfaces.TimeData, DenseData):
@@ -30,6 +53,8 @@ class TimeData(interfaces.TimeData, DenseData):
 class YaskGrid(object):
 
     """
+    A ``YaskGrid`` wraps a YASK grid.
+
     An implementation of an array that behaves similarly to a ``numpy.ndarray``,
     suitable for the YASK storage layout.
 
@@ -40,62 +65,48 @@ class YaskGrid(object):
     # Force __rOP__ methods (OP={add,mul,...) to get arrays, not scalars, for efficiency
     __array_priority__ = 1000
 
-    def __new__(cls, name, shape, dimensions, dtype, buffer=None):
+    def __init__(self, grid, dimensions, shape, halo, dtype, buffer=None):
         """
-        Create a new YASK Grid and attach it to a "fake" solution.
+        Initialize a new :class:`YaskGrid`.
         """
-        # Init YASK if not initialized already
-        init(dimensions, shape, dtype)
-        # Only create a YaskGrid if the requested grid is a dense one
-        dimensions = tuple(i.name for i in dimensions)
-        # TODO : following check fails if not using BufferedDimension ('time' != 't')
-        if dimensions in [YASK.dimensions, YASK.space_dimensions]:
-            obj = super(YaskGrid, cls).__new__(cls)
-            obj.__init__(name, shape, dimensions, dtype, buffer)
-            return obj
-        else:
-            return None
-
-    def __init__(self, name, shape, dimensions, dtype, buffer=None):
-        self.name = name
-        self.shape = shape
+        self.grid = grid
         self.dimensions = dimensions
+        self.shape = shape
+        self.halo = halo
         self.dtype = dtype
-
-        self.grid = YASK.add_grid(name, dimensions)
 
         # Always init the grid, at least with 0.0
         self[:] = 0.0 if buffer is None else buffer
 
     def __getitem__(self, index):
         # TODO: ATM, no MPI support.
-        start, stop, shape = convert_multislice(as_tuple(index), self.shape)
+        start, stop, shape = convert_multislice(index, self.shape, self.halo)
         if not shape:
-            debug("YaskGrid: Getting single entry")
+            log("YaskGrid: Getting single entry")
             assert start == stop
             out = self.grid.get_element(*start)
         else:
-            debug("YaskGrid: Getting full-array/block via index [%s]" % str(index))
+            log("YaskGrid: Getting full-array/block via index [%s]" % str(index))
             out = np.empty(shape, self.dtype, 'C')
             self.grid.get_elements_in_slice(out.data, start, stop)
         return out
 
     def __setitem__(self, index, val):
         # TODO: ATM, no MPI support.
-        start, stop, shape = convert_multislice(as_tuple(index), self.shape, 'set')
+        start, stop, shape = convert_multislice(index, self.shape, self.halo, 'set')
         if all(i == 1 for i in shape):
-            debug("YaskGrid: Setting single entry")
+            log("YaskGrid: Setting single entry")
             assert start == stop
             self.grid.set_element(val, *start)
         elif isinstance(val, np.ndarray):
-            debug("YaskGrid: Setting full-array/block via index [%s]" % str(index))
+            log("YaskGrid: Setting full-array/block via index [%s]" % str(index))
             self.grid.set_elements_in_slice(val, start, stop)
         elif all(i == j-1 for i, j in zip(shape, self.shape)):
-            debug("YaskGrid: Setting full-array to given scalar via single grid sweep")
+            log("YaskGrid: Setting full-array to given scalar via single grid sweep")
             self.grid.set_all_elements_same(val)
         else:
-            debug("YaskGrid: Setting block to given scalar via index [%s]" % str(index))
-            self.grid.set_elements_in_slice_same(val, start, stop)
+            log("YaskGrid: Setting block to given scalar via index [%s]" % str(index))
+            self.grid.set_elements_in_slice_same(val, start, stop, True)
 
     def __getslice__(self, start, stop):
         if stop == sys.maxint:
@@ -136,6 +147,10 @@ class YaskGrid(object):
     __rtruediv__ = __meta_binop('__truediv__')
     __mod__ = __meta_binop('__mod__')
     __rmod__ = __meta_binop('__mod__')
+
+    @property
+    def name(self):
+        return self.grid.get_name()
 
     @property
     def ndpointer(self):

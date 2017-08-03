@@ -5,10 +5,10 @@ import sys
 from contextlib import contextmanager
 
 __all__ = ('set_log_level', 'set_log_noperf', 'log',
-           'DEBUG', 'INFO', 'AUTOTUNER', 'DSE', 'DSE_WARN', 'DLE', 'DLE_WARN',
-           'WARNING', 'ERROR', 'CRITICAL',
-           'log', 'warning', 'error', 'info_at', 'dse', 'dse_warning', 'dle',
-           'dle_warning',
+           'DEBUG', 'AUTOTUNER', 'YASK', 'YASK_WARN', 'INFO', 'DSE', 'DSE_WARN',
+           'DLE', 'DLE_WARN', 'WARNING', 'ERROR', 'CRITICAL',
+           'log', 'warning', 'error', 'info_at', 'dse', 'dse_warning',
+           'dle', 'dle_warning',
            'RED', 'GREEN', 'BLUE')
 
 
@@ -16,9 +16,11 @@ logger = logging.getLogger('Devito')
 _ch = logging.StreamHandler()
 logger.addHandler(_ch)
 
-# Add extra levels between INFO (value=20) and WARNING (value=30)
+# Add extra logging levels (note: INFO has value=20, WARNING has value=30)
 DEBUG = logging.DEBUG
 AUTOTUNER = 19
+YASK = 19
+YASK_WARN = YASK
 INFO = logging.INFO
 DSE = 28
 DLE = DSE
@@ -29,6 +31,8 @@ ERROR = logging.ERROR
 CRITICAL = logging.CRITICAL
 
 logging.addLevelName(AUTOTUNER, "AUTOTUNER")
+logging.addLevelName(YASK, "YASK")
+logging.addLevelName(YASK_WARN, "YASK_WARN")
 logging.addLevelName(DSE, "DSE")
 logging.addLevelName(DSE_WARN, "DSE_WARN")
 logging.addLevelName(DSE, "DLE")
@@ -37,6 +41,8 @@ logging.addLevelName(DSE_WARN, "DLE_WARN")
 logger_registry = {
     'DEBUG': DEBUG,
     'AUTOTUNER': AUTOTUNER,
+    'YASK': YASK,
+    'YASK_WARN': YASK_WARN,
     'INFO': INFO,
     'DSE': DSE,
     'DLE': DSE,
@@ -54,8 +60,10 @@ GREEN = '\033[1;37;32m%s\033[0m'
 
 COLORS = {
     DEBUG: NOCOLOR,
-    INFO: NOCOLOR,
     AUTOTUNER: GREEN,
+    YASK: GREEN,
+    YASK_WARN: GREEN,
+    INFO: NOCOLOR,
     DSE: NOCOLOR,
     DSE_WARN: BLUE,
     DLE: NOCOLOR,
@@ -133,6 +141,14 @@ def dle(msg, *args, **kwargs):
 
 def dle_warning(msg, *args, **kwargs):
     log("DLE: %s" % msg, DLE_WARN, *args, **kwargs)
+
+
+def yask(msg, *args, **kwargs):
+    log("YASK: %s" % msg, YASK, *args, **kwargs)
+
+
+def yask_warning(msg, *args, **kwargs):
+    log("YASK: %s" % msg, YASK_WARN, *args, **kwargs)
 
 
 @contextmanager
