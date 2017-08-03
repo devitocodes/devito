@@ -169,7 +169,7 @@
 <span class="kn">from</span> <span class="nn">devito.compiler</span> <span class="k">import</span> <span class="n">compiler_registry</span><span class="p">,</span> <span class="n">set_compiler</span>
 <span class="kn">from</span> <span class="nn">devito.dse</span> <span class="k">import</span> <span class="n">modes</span> <span class="k">as</span> <span class="n">dse_registry</span>
 <span class="kn">from</span> <span class="nn">devito.dle</span> <span class="k">import</span> <span class="n">modes</span> <span class="k">as</span> <span class="n">dle_registry</span><span class="p">,</span> <span class="n">default_options</span> <span class="k">as</span> <span class="n">dle_default_options</span>
-<span class="kn">from</span> <span class="nn">devito.logger</span> <span class="k">import</span> <span class="n">debug</span><span class="p">,</span> <span class="n">logger_registry</span><span class="p">,</span> <span class="n">set_log_level</span>
+<span class="kn">from</span> <span class="nn">devito.logger</span> <span class="k">import</span> <span class="n">info</span><span class="p">,</span> <span class="n">logger_registry</span><span class="p">,</span> <span class="n">set_log_level</span>
 
 <span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;configuration&#39;</span><span class="p">,</span> <span class="s1">&#39;init_configuration&#39;</span><span class="p">,</span> <span class="s1">&#39;print_defaults&#39;</span><span class="p">,</span> <span class="s1">&#39;print_state&#39;</span><span class="p">]</span>
 
@@ -315,13 +315,13 @@
     <span class="sd">&quot;&quot;&quot;Print the environment variables accepted by Devito, their default value,</span>
 <span class="sd">    as well as all of the accepted values.&quot;&quot;&quot;</span>
     <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">env_vars_mapper</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
-        <span class="n">debug</span><span class="p">(</span><span class="s1">&#39;</span><span class="si">%s</span><span class="s1">: </span><span class="si">%s</span><span class="s1">. Default: </span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">accepted</span><span class="p">[</span><span class="n">v</span><span class="p">],</span> <span class="n">defaults</span><span class="p">[</span><span class="n">v</span><span class="p">]))</span></div>
+        <span class="n">info</span><span class="p">(</span><span class="s1">&#39;</span><span class="si">%s</span><span class="s1">: </span><span class="si">%s</span><span class="s1">. Default: </span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">accepted</span><span class="p">[</span><span class="n">v</span><span class="p">],</span> <span class="n">defaults</span><span class="p">[</span><span class="n">v</span><span class="p">]))</span></div>
 
 
 <div class="viewcode-block" id="print_state"><a class="viewcode-back" href="../../devito.html#devito.parameters.print_state">[docs]</a><span class="k">def</span> <span class="nf">print_state</span><span class="p">():</span>
     <span class="sd">&quot;&quot;&quot;Print the current configuration state.&quot;&quot;&quot;</span>
     <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">configuration</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
-        <span class="n">debug</span><span class="p">(</span><span class="s1">&#39;</span><span class="si">%s</span><span class="s1">: </span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">v</span><span class="p">))</span></div>
+        <span class="n">info</span><span class="p">(</span><span class="s1">&#39;</span><span class="si">%s</span><span class="s1">: </span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">v</span><span class="p">))</span></div>
 </pre></div>
 
            </div>
