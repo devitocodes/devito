@@ -94,7 +94,7 @@ class TestGrids(object):
         assert np.all(u.data / 2. == 0.5)
         assert np.all(u.data % 2 == 1.)
 
-        # Increments and parital increments
+        # Increments and partial increments
         u.data[:] += 2.
         assert np.all(u.data == 3.)
         u.data[9, :, :] += 1.
