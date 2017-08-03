@@ -7,7 +7,7 @@ from devito.backends import backends_registry
 from devito.compiler import compiler_registry, set_compiler
 from devito.dse import modes as dse_registry
 from devito.dle import modes as dle_registry, default_options as dle_default_options
-from devito.logger import debug, logger_registry, set_log_level
+from devito.logger import info, logger_registry, set_log_level
 
 __all__ = ['configuration', 'init_configuration', 'print_defaults', 'print_state']
 
@@ -153,10 +153,10 @@ def print_defaults():
     """Print the environment variables accepted by Devito, their default value,
     as well as all of the accepted values."""
     for k, v in env_vars_mapper.items():
-        debug('%s: %s. Default: %s' % (k, accepted[v], defaults[v]))
+        info('%s: %s. Default: %s' % (k, accepted[v], defaults[v]))
 
 
 def print_state():
     """Print the current configuration state."""
     for k, v in configuration.items():
-        debug('%s: %s' % (k, v))
+        info('%s: %s' % (k, v))
