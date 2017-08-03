@@ -81,7 +81,7 @@ Thread parallel execution via OpenMP can also be enabled by setting
 For a full list of the available environment variables and their
 possible values, simply execute:
 ```
-from devito.parameters import print_defaults
+from devito import print_defaults
 print_defaults()
 ```
 
