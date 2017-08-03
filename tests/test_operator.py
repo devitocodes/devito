@@ -45,7 +45,9 @@ class TestAPI(object):
         op = Operator(eqn)
         assert len(op.parameters) == 2
         assert op.parameters[0].name == 'a_dense'
+        assert op.parameters[0].is_TensorArgument
         assert op.parameters[1].name == 'constant'
+        assert op.parameters[1].is_ScalarArgument
         assert 'a_dense[i] = 2.0F*constant + a_dense[i]' in str(op.ccode)
 
 
