@@ -1,6 +1,7 @@
 import weakref
 
 import numpy as np
+import sympy
 from sympy import Function, IndexedBase, Symbol, as_finite_diff, symbols
 from sympy.abc import s
 
@@ -188,7 +189,7 @@ class AbstractSymbol(Function, CachedSymbol):
         indices = [a.subs(subs) for a in self.args]
 
         if indices:
-            return self.indexed[indices]
+            return Indexed(self.indexed, *indices)
         else:
             return EmptyIndexed(self.indexed)
 
@@ -665,6 +666,12 @@ class EmptyIndexed(Symbol):
 
     def func(self, *args):
         return super(EmptyIndexed, self).func(self.base.func(*self.base.args))
+
+
+class Indexed(sympy.Indexed):
+
+    def _hashable_content(self):
+        return super(Indexed, self)._hashable_content() + (self.base.function,)
 
 
 class CompositeData(DenseData):
