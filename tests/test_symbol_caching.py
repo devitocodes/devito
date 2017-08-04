@@ -121,3 +121,16 @@ def test_clear_cache(nx=1000, ny=1000):
         assert(len(_SymbolCache) == cache_size + 1)
 
         clear_cache()
+
+
+def test_cache_after_indexification():
+    """Test to assert that the SymPy cache retrieves the right Devito data object
+    after indexification.
+    """
+    u0 = DenseData(name='u', shape=(4, 4, 4), space_order=0)
+    u1 = DenseData(name='u', shape=(4, 4, 4), space_order=1)
+    u2 = DenseData(name='u', shape=(4, 4, 4), space_order=2)
+
+    for i in [u0, u1, u2]:
+        assert i.indexify().base.function.space_order ==\
+            (i.indexify() + 1.).args[1].base.function.space_order
