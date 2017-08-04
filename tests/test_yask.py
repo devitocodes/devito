@@ -143,8 +143,8 @@ class TestOperatorExecution(object):
         """
         u = TimeData(name='yu4D', shape=(16, 16, 16), dimensions=(x, y, z),
                      space_order=space_order)
-        op = Operator(Eq(u.indexed[t + 1, x, y, z], u.indexed[t, x, y, z] + 1.))
-        op(u, t=1)
+        op = Operator(Eq(u.forward, u + 1.), subs={t.spacing: 1})
+        op(yu4D=u, t=1)
         lbound, rbound = space_order, 16 - space_order
         written_region = u.data[1, lbound:rbound, lbound:rbound, lbound:rbound]
         assert np.all(written_region == 1.)
@@ -167,7 +167,7 @@ class TestOperatorExecution(object):
         v.data[:] = 1.
         op = Operator(Eq(v.forward, v.laplace + 6*v),
                       subs={t.spacing: 1, x.spacing: 1, y.spacing: 1, z.spacing: 1})
-        op(v, t=1)
+        op(yv4D=v, t=1)
         lbound, rbound = space_order, 16 - space_order
         written_region = v.data[1, lbound:rbound, lbound:rbound, lbound:rbound]
         assert np.all(written_region == 6.)

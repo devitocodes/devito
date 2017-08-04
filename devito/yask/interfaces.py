@@ -4,7 +4,11 @@ from devito.logger import yask as log
 from devito.yask import exit
 from devito.yask.wrappers import yask_context
 
-__all__ = ['DenseData', 'TimeData']
+__all__ = ['ConstantData', 'DenseData', 'TimeData']
+
+
+class ConstantData(interfaces.ConstantData):
+    pass
 
 
 class DenseData(interfaces.DenseData):
