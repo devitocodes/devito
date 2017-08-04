@@ -73,7 +73,7 @@ class TestArithmetic(object):
         fb = b.base.function if mode == 'indexed' else b
 
         eqn = eval(expr)
-        Operator(eqn)(fa, fb)
+        Operator(eqn)(a=fa, b=fb)
         assert np.allclose(fa.data, result, rtol=1e-12)
 
     @pytest.mark.parametrize('expr, result', [
@@ -92,7 +92,7 @@ class TestArithmetic(object):
         fb = b.base.function if mode == 'indexed' else b
 
         eqn = eval(expr)
-        Operator(eqn)(fa, fb)
+        Operator(eqn)(a=fa, b=fb)
         assert np.allclose(fa.data, result, rtol=1e-12)
 
     @pytest.mark.parametrize('expr, result', [
@@ -109,7 +109,7 @@ class TestArithmetic(object):
         fa.data[1:, 1:] = 0
 
         eqn = eval(expr)
-        Operator(eqn)(fa)
+        Operator(eqn)(a=fa)
         assert np.allclose(fa.data, result, rtol=1e-12)
 
     @pytest.mark.parametrize('expr, result', [
@@ -128,7 +128,7 @@ class TestArithmetic(object):
         fb = b.function
 
         eqn = eval(expr)
-        Operator(eqn)(fa, fb)
+        Operator(eqn)(a=fa, b=fb)
         assert np.allclose(fa.data[1:-1, 1:-1], result[1:-1, 1:-1], rtol=1e-12)
 
     @pytest.mark.parametrize('expr, result', [
@@ -145,7 +145,7 @@ class TestArithmetic(object):
         fa = a.function
 
         eqn = eval(expr)
-        Operator(eqn)(fa)
+        Operator(eqn)(a=fa)
         assert np.allclose(fa.data[1, 1:-1, 1:-1], result[1:-1, 1:-1], rtol=1e-12)
 
     @pytest.mark.parametrize('expr, result', [
@@ -163,7 +163,7 @@ class TestArithmetic(object):
         fa.data[0, :, :] = 2.
 
         eqn = eval(expr)
-        Operator(eqn)(fa)
+        Operator(eqn)(a=fa)
         assert np.allclose(fa.data[1, 1:-1, 1:-1], result[1:-1, 1:-1], rtol=1e-12)
         j.size, l.size = pushed
 
