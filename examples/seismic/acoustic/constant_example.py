@@ -3,6 +3,7 @@ import numpy as np
 from devito.logger import info
 from examples.seismic.acoustic import AcousticWaveSolver
 from examples.seismic import Model, PointSource, Receiver
+from devito import ConstantData
 
 
 # Velocity models
@@ -80,12 +81,15 @@ def run(dimensions=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=1000.0,
 
     solver = setup(dimensions=dimensions, spacing=spacing, nbpml=nbpml, tn=tn,
                    space_order=space_order, time_order=time_order,
-                   dse='noop', dle='noop', **kwargs)
+                   **kwargs)
 
     initial_vp = 1.8
-    dm = (initial_vp**2 - solver.model.m.value) * np.ones(solver.model.shape_domain,
+    dm = (initial_vp**2 - solver.model.m.data) * np.ones(solver.model.shape_domain,
                                                           dtype=np.float32)
     info("Applying Forward")
+    m0 = ConstantData(name="m", value=.25, dtype=np.float32)
+    rec, u, summary = solver.forward(save=full_run)
+    rec, u, summary = solver.forward(save=full_run, m=m0)
     rec, u, summary = solver.forward(save=full_run, m=.25)
 
     if not full_run:
