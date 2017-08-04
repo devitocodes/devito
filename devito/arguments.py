@@ -81,7 +81,7 @@ class ScalarArgument(Argument):
 
     @property
     def decl(self):
-        return c.Value(c.dtype_to_ctype(self.dtype), self.name)
+        return c.Value('const %s' % c.dtype_to_ctype(self.dtype), self.name)
 
     def verify(self, value):
         # Assuming self._value was initialised as appropriate for the reducer
