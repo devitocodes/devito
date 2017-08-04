@@ -28,20 +28,20 @@ def test_at_is_actually_working():
 
     shape = (30, 30, 30)
 
-    infield = DenseData(name='in', shape=shape, dtype=np.int32)
+    infield = DenseData(name='infield', shape=shape, dtype=np.int32)
     infield.data[:] = np.arange(reduce(mul, shape), dtype=np.int32).reshape(shape)
-    outfield = DenseData(name='out', shape=shape, dtype=np.int32)
+    outfield = DenseData(name='outfield', shape=shape, dtype=np.int32)
     stencil = Eq(outfield.indexify(), outfield.indexify() + infield.indexify()*3.0)
     op = Operator(stencil, dle=('blocking', {'blockalways': True}))
 
     # Expected 3 AT attempts for the given shape
-    op(infield, outfield, autotune=True)
+    op(infield=infield, outfield=outfield, autotune=True)
     out = [i for i in buffer.getvalue().split('\n') if 'AutoTuner:' in i]
     assert len(out) == 3
 
     # Now try the same with aggressive autotuning, which tries 9 more cases
     configuration['autotuning'] = 'aggressive'
-    op(infield, outfield, autotune=True)
+    op(infield=infield, outfield=outfield, autotune=True)
     out = [i for i in buffer.getvalue().split('\n') if 'AutoTuner:' in i]
     assert len(out) == 12
     configuration['autotuning'] = defaults['autotuning']

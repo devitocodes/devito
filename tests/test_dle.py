@@ -101,32 +101,33 @@ def complex_function(a, b, c, d, exprs, iters):
 
 
 def _new_operator1(shape, **kwargs):
-    infield = DenseData(name='in', shape=shape, dtype=np.int32)
+    infield = DenseData(name='infield', shape=shape, dtype=np.int32)
     infield.data[:] = np.arange(reduce(mul, shape), dtype=np.int32).reshape(shape)
 
-    outfield = DenseData(name='out', shape=shape, dtype=np.int32)
+    outfield = DenseData(name='outfield', shape=shape, dtype=np.int32)
 
     stencil = Eq(outfield.indexify(), outfield.indexify() + infield.indexify()*3.0)
 
     # Run the operator
     op = Operator(stencil, **kwargs)
-    op(infield, outfield)
+    op(infield=infield, outfield=outfield)
 
     return outfield, op
 
 
 def _new_operator2(shape, time_order, **kwargs):
-    infield = TimeData(name='in', shape=shape, time_order=time_order, dtype=np.int32)
+    infield = TimeData(name='infield', shape=shape, time_order=time_order, dtype=np.int32)
     infield.data[:] = np.arange(reduce(mul, shape), dtype=np.int32).reshape(shape)
 
-    outfield = TimeData(name='out', shape=shape, time_order=time_order, dtype=np.int32)
+    outfield = TimeData(name='outfield', shape=shape, time_order=time_order,
+                        dtype=np.int32)
 
     stencil = Eq(outfield.forward.indexify(),
                  outfield.indexify() + infield.indexify()*3.0)
 
     # Run the operator
     op = Operator(stencil, **kwargs)
-    op(infield, outfield, t=10)
+    op(infield=infield, outfield=outfield, t=10)
 
     return outfield, op
 

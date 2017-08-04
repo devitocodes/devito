@@ -142,7 +142,7 @@ class Operator(Function):
         for x in self.tensor_args + self.dims + self.scalar_args:
             x.reset()
 
-    def arguments(self, *args, **kwargs):
+    def arguments(self, **kwargs):
         """ Process any apply-time arguments passed to apply and derive values for
             any remaining arguments
         """
@@ -461,13 +461,13 @@ class OperatorRunnable(Operator):
     C code evaluating stencil expressions, can also execute the computation.
     """
 
-    def __call__(self, *args, **kwargs):
-        self.apply(*args, **kwargs)
+    def __call__(self, **kwargs):
+        self.apply(**kwargs)
 
-    def apply(self, *args, **kwargs):
+    def apply(self, **kwargs):
         """Apply the stencil kernel to a set of data objects"""
         # Build the arguments list to invoke the kernel function
-        arguments, dim_sizes = self.arguments(*args, **kwargs)
+        arguments, dim_sizes = self.arguments(**kwargs)
 
         # Invoke kernel function with args
         self.cfunction(*list(arguments.values()))
