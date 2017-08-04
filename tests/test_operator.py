@@ -8,7 +8,7 @@ import numpy as np
 import pytest
 from sympy import Eq  # noqa
 
-from devito import (clear_cache, Operator, DenseData, TimeData,
+from devito import (clear_cache, Operator, ConstantData, DenseData, TimeData,
                     PointData, Dimension, time, x, y, z, configuration)
 from devito.foreign import Operator as OperatorForeign
 from devito.dle import retrieve_iteration_tree
@@ -166,6 +166,21 @@ class TestArithmetic(object):
         Operator(eqn)(fa)
         assert np.allclose(fa.data[1, 1:-1, 1:-1], result[1:-1, 1:-1], rtol=1e-12)
         j.size, l.size = pushed
+
+    def test_constant_time_dense(self):
+        """Test arithmetic between different data objects, namely ConstantData
+        and DenseData."""
+        const = ConstantData(name='truc', value=2.)
+        a = DenseData(name='a', shape=(20, 20))
+        a.data[:] = 2.
+        eqn = Eq(a, a + 2.*const)
+        op = Operator(eqn)
+        op.apply(a=a, truc=const)
+        assert(np.allclose(a.data, 6.))
+
+        # Applying a different constant still works
+        op.apply(a=a, truc=ConstantData(name='truc2', value=3.))
+        assert(np.allclose(a.data, 12.))
 
 
 class TestArguments(object):
