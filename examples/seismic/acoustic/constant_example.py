@@ -85,7 +85,7 @@ def run(dimensions=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=1000.0,
 
     initial_vp = 1.8
     dm = (initial_vp**2 - solver.model.m.data) * np.ones(solver.model.shape_domain,
-                                                          dtype=np.float32)
+                                                         dtype=np.float32)
     info("Applying Forward")
     m0 = ConstantData(name="m", value=.25, dtype=np.float32)
     rec, u, summary = solver.forward(save=full_run)
