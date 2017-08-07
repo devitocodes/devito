@@ -164,7 +164,7 @@
 
 <span class="kn">from</span> <span class="nn">collections</span> <span class="k">import</span> <span class="n">OrderedDict</span>
 
-<span class="kn">from</span> <span class="nn">sympy</span> <span class="k">import</span> <span class="n">Eq</span><span class="p">,</span> <span class="n">Indexed</span>
+<span class="kn">from</span> <span class="nn">sympy</span> <span class="k">import</span> <span class="n">Eq</span>
 
 <span class="kn">from</span> <span class="nn">devito.dse.aliases</span> <span class="k">import</span> <span class="n">collect</span>
 <span class="kn">from</span> <span class="nn">devito.dse.backends</span> <span class="k">import</span> <span class="n">BasicRewriter</span><span class="p">,</span> <span class="n">dse_pass</span>
@@ -173,7 +173,7 @@
 <span class="kn">from</span> <span class="nn">devito.dse.manipulation</span> <span class="k">import</span> <span class="p">(</span><span class="n">common_subexprs_elimination</span><span class="p">,</span> <span class="n">collect_nested</span><span class="p">,</span>
                                      <span class="n">xreplace_constrained</span><span class="p">)</span>
 <span class="kn">from</span> <span class="nn">devito.dse.queries</span> <span class="k">import</span> <span class="n">iq_timeinvariant</span>
-<span class="kn">from</span> <span class="nn">devito.interfaces</span> <span class="k">import</span> <span class="n">ScalarFunction</span><span class="p">,</span> <span class="n">TensorFunction</span>
+<span class="kn">from</span> <span class="nn">devito.interfaces</span> <span class="k">import</span> <span class="n">Indexed</span><span class="p">,</span> <span class="n">ScalarFunction</span><span class="p">,</span> <span class="n">TensorFunction</span>
 
 
 <div class="viewcode-block" id="AdvancedRewriter"><a class="viewcode-back" href="../../../../devito.dse.backends.html#devito.dse.backends.advanced.AdvancedRewriter">[docs]</a><span class="k">class</span> <span class="nc">AdvancedRewriter</span><span class="p">(</span><span class="n">BasicRewriter</span><span class="p">):</span>

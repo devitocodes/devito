@@ -163,7 +163,8 @@
 <span></span><span class="kn">import</span> <span class="nn">weakref</span>
 
 <span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
-<span class="kn">from</span> <span class="nn">sympy</span> <span class="k">import</span> <span class="n">Function</span><span class="p">,</span> <span class="n">IndexedBase</span><span class="p">,</span> <span class="n">Symbol</span><span class="p">,</span> <span class="n">as_finite_diff</span><span class="p">,</span> <span class="n">symbols</span>
+<span class="kn">import</span> <span class="nn">sympy</span>
+<span class="kn">from</span> <span class="nn">sympy</span> <span class="k">import</span> <span class="n">Function</span><span class="p">,</span> <span class="n">IndexedBase</span><span class="p">,</span> <span class="n">as_finite_diff</span><span class="p">,</span> <span class="n">symbols</span>
 <span class="kn">from</span> <span class="nn">sympy.abc</span> <span class="k">import</span> <span class="n">s</span>
 
 <span class="kn">from</span> <span class="nn">devito.dimension</span> <span class="k">import</span> <span class="n">t</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">z</span><span class="p">,</span> <span class="n">time</span>
@@ -350,9 +351,9 @@
         <span class="n">indices</span> <span class="o">=</span> <span class="p">[</span><span class="n">a</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">subs</span><span class="p">)</span> <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">args</span><span class="p">]</span>
 
         <span class="k">if</span> <span class="n">indices</span><span class="p">:</span>
-            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">indexed</span><span class="p">[</span><span class="n">indices</span><span class="p">]</span>
+            <span class="k">return</span> <span class="n">Indexed</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">indexed</span><span class="p">,</span> <span class="o">*</span><span class="n">indices</span><span class="p">)</span>
         <span class="k">else</span><span class="p">:</span>
-            <span class="k">return</span> <span class="n">EmptyIndexed</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">indexed</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">Symbol</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">indexed</span><span class="p">)</span>
 
 
 <span class="k">class</span> <span class="nc">SymbolicFunction</span><span class="p">(</span><span class="n">AbstractSymbol</span><span class="p">):</span>
@@ -800,35 +801,6 @@
         <span class="k">return</span> <span class="n">as_finite_diff</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">diff</span><span class="p">(</span><span class="n">_t</span><span class="p">,</span> <span class="n">_t</span><span class="p">),</span> <span class="n">indt</span><span class="p">)</span></div>
 
 
-<span class="k">class</span> <span class="nc">IndexedData</span><span class="p">(</span><span class="n">IndexedBase</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;Wrapper class that inserts a pointer to the symbolic data object&quot;&quot;&quot;</span>
-
-    <span class="k">def</span> <span class="nf">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">label</span><span class="p">,</span> <span class="n">shape</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">function</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
-        <span class="n">obj</span> <span class="o">=</span> <span class="n">IndexedBase</span><span class="o">.</span><span class="fm">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">label</span><span class="p">,</span> <span class="n">shape</span><span class="p">)</span>
-        <span class="n">obj</span><span class="o">.</span><span class="n">function</span> <span class="o">=</span> <span class="n">function</span>
-        <span class="k">return</span> <span class="n">obj</span>
-
-    <span class="k">def</span> <span class="nf">func</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">):</span>
-        <span class="n">obj</span> <span class="o">=</span> <span class="nb">super</span><span class="p">(</span><span class="n">IndexedData</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">)</span>
-        <span class="n">obj</span><span class="o">.</span><span class="n">function</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">function</span>
-        <span class="k">return</span> <span class="n">obj</span>
-
-
-<span class="k">class</span> <span class="nc">EmptyIndexed</span><span class="p">(</span><span class="n">Symbol</span><span class="p">):</span>
-
-    <span class="sd">&quot;&quot;&quot;A :class:`sympy.Symbol` capable of mimicking an :class:`sympy.Indexed`&quot;&quot;&quot;</span>
-
-    <span class="k">def</span> <span class="nf">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">base</span><span class="p">):</span>
-        <span class="n">obj</span> <span class="o">=</span> <span class="n">Symbol</span><span class="o">.</span><span class="fm">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">base</span><span class="o">.</span><span class="n">label</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
-        <span class="n">obj</span><span class="o">.</span><span class="n">base</span> <span class="o">=</span> <span class="n">base</span>
-        <span class="n">obj</span><span class="o">.</span><span class="n">indices</span> <span class="o">=</span> <span class="p">()</span>
-        <span class="n">obj</span><span class="o">.</span><span class="n">function</span> <span class="o">=</span> <span class="n">base</span><span class="o">.</span><span class="n">function</span>
-        <span class="k">return</span> <span class="n">obj</span>
-
-    <span class="k">def</span> <span class="nf">func</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">):</span>
-        <span class="k">return</span> <span class="nb">super</span><span class="p">(</span><span class="n">EmptyIndexed</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">base</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">base</span><span class="o">.</span><span class="n">args</span><span class="p">))</span>
-
-
 <span class="k">class</span> <span class="nc">CompositeData</span><span class="p">(</span><span class="n">DenseData</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Base class for DenseData classes that have DenseData children</span>
@@ -843,6 +815,46 @@
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">children</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_children</span>
+
+
+<span class="c1"># Extended SymPy hierarchy follows, for essentially two reasons:</span>
+<span class="c1"># - To keep track of `function`</span>
+<span class="c1"># - To override SymPy caching behaviour</span>
+
+
+<span class="k">class</span> <span class="nc">IndexedData</span><span class="p">(</span><span class="n">IndexedBase</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Wrapper class that inserts a pointer to the symbolic data object&quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">label</span><span class="p">,</span> <span class="n">shape</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">function</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="n">obj</span> <span class="o">=</span> <span class="n">IndexedBase</span><span class="o">.</span><span class="fm">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">label</span><span class="p">,</span> <span class="n">shape</span><span class="p">)</span>
+        <span class="n">obj</span><span class="o">.</span><span class="n">function</span> <span class="o">=</span> <span class="n">function</span>
+        <span class="k">return</span> <span class="n">obj</span>
+
+    <span class="k">def</span> <span class="nf">func</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">):</span>
+        <span class="n">obj</span> <span class="o">=</span> <span class="nb">super</span><span class="p">(</span><span class="n">IndexedData</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">)</span>
+        <span class="n">obj</span><span class="o">.</span><span class="n">function</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">function</span>
+        <span class="k">return</span> <span class="n">obj</span>
+
+
+<span class="k">class</span> <span class="nc">Symbol</span><span class="p">(</span><span class="n">sympy</span><span class="o">.</span><span class="n">Symbol</span><span class="p">):</span>
+
+    <span class="sd">&quot;&quot;&quot;A :class:`sympy.Symbol` capable of mimicking an :class:`sympy.Indexed`&quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">base</span><span class="p">):</span>
+        <span class="n">obj</span> <span class="o">=</span> <span class="n">sympy</span><span class="o">.</span><span class="n">Symbol</span><span class="o">.</span><span class="fm">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">base</span><span class="o">.</span><span class="n">label</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+        <span class="n">obj</span><span class="o">.</span><span class="n">base</span> <span class="o">=</span> <span class="n">base</span>
+        <span class="n">obj</span><span class="o">.</span><span class="n">indices</span> <span class="o">=</span> <span class="p">()</span>
+        <span class="n">obj</span><span class="o">.</span><span class="n">function</span> <span class="o">=</span> <span class="n">base</span><span class="o">.</span><span class="n">function</span>
+        <span class="k">return</span> <span class="n">obj</span>
+
+    <span class="k">def</span> <span class="nf">func</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">):</span>
+        <span class="k">return</span> <span class="nb">super</span><span class="p">(</span><span class="n">Symbol</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">base</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">base</span><span class="o">.</span><span class="n">args</span><span class="p">))</span>
+
+
+<span class="k">class</span> <span class="nc">Indexed</span><span class="p">(</span><span class="n">sympy</span><span class="o">.</span><span class="n">Indexed</span><span class="p">):</span>
+
+    <span class="k">def</span> <span class="nf">_hashable_content</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="nb">super</span><span class="p">(</span><span class="n">Indexed</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">_hashable_content</span><span class="p">()</span> <span class="o">+</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">base</span><span class="o">.</span><span class="n">function</span><span class="p">,)</span>
 </pre></div>
 
            </div>
