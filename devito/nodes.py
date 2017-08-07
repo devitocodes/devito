@@ -147,9 +147,9 @@ class FunCall(Node):
 
     is_FunCall = True
 
-    def __init__(self, name, params):
+    def __init__(self, name, params=None):
         self.name = name
-        self.params = params
+        self.params = as_tuple(params)
 
     def __repr__(self):
         return "FunCall::\n\t%s(...)" % self.name
