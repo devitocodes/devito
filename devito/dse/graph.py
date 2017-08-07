@@ -178,7 +178,7 @@ class TemporariesGraph(OrderedDict):
                                     [(k, v)] + list(queue.items()))
         if strict is True:
             found.pop(key)
-        return found.values()
+        return tuple(found.values())
 
     def reschedule(self, context):
         """
