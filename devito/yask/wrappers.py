@@ -220,6 +220,10 @@ class YaskSolution(object):
     def grids(self):
         return self.soln.get_grids()
 
+    @property
+    def rawpointer(self):
+        return int(self.soln)
+
 
 class YaskContext(object):
 

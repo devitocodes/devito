@@ -1,12 +1,16 @@
 from __future__ import absolute_import
 
+from collections import OrderedDict
+
+from ctypes import c_void_p
 from sympy import Indexed
 
 from devito.dimension import LoweredDimension
-from devito.dle import retrieve_iteration_tree
+from devito.dle import filter_iterations, retrieve_iteration_tree
+from devito.nodes import FunCall
 from devito.logger import yask as log, yask_warning as warning
 from devito.operator import OperatorRunnable
-from devito.visitors import FindSymbols
+from devito.visitors import FindSymbols, Transformer
 
 from devito.yask import cfac, nfac, ofac, compiler, namespace, exit
 from devito.yask.wrappers import yask_context
@@ -25,6 +29,7 @@ class Operator(OperatorRunnable):
     def __init__(self, expressions, **kwargs):
         kwargs['dle'] = 'noop'
         super(Operator, self).__init__(expressions, **kwargs)
+        from IPython import embed; embed()
 
     def _specialize(self, nodes, elemental_functions):
         """
@@ -43,7 +48,6 @@ class Operator(OperatorRunnable):
         trees = retrieve_iteration_tree(nodes)
         if len(trees) > 1:
             exit("Currently unable to handle Operators w/ more than 1 loop nests")
-
         tree = trees[0]
         candidate = tree[-1]
 
@@ -79,10 +83,31 @@ class Operator(OperatorRunnable):
         compiler.libraries.append(self.ksoln.soname)
 
         # TODO: need to update nodes
+        key = lambda i: i.dim.name == self.ksoln.space_dimensions[0]
+        root = filter_iterations(tree, key=key, stop='asap')
+        if len(root) != 1:
+            exit("Couldn't find the root space loop within:\n%s" % str(tree[0]))
+        root = root[0]
+
+        processed = Transformer({root: FunCall('soln.run_solution', 't')}).visit(nodes)
+        # TODO: create self.func_table
+        # update it with DLE functions asap (so here I'm actually in the constructor)
+        # Add a flag to say whether a function is an external call
+        # Tweak `insert_declarations` using such a flag
+        from IPython import embed; embed()
 
         log("Specialization successfully performed!")
 
-        return nodes, ()
+        return processed, ()
+
+    def _extra_arguments(self):
+        return OrderedDict([(c_void_p, self.ksoln.rawpointer)])
+
+    @property
+    def _cparameters(self):
+        cparameters = super(Operator, self)._cparameters
+        cparameters += [c.Pointer(c.Value(c_void_p, 'soln'))]
+        return cparameters
 
     def apply(self, **kwargs):
         # Build the arguments list to invoke the kernel function
