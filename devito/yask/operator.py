@@ -8,7 +8,7 @@ from devito.logger import yask as log, yask_warning as warning
 from devito.operator import OperatorRunnable
 from devito.visitors import FindSymbols
 
-from devito.yask import cfac, nfac, ofac, namespace, exit
+from devito.yask import cfac, nfac, ofac, compiler, namespace, exit
 from devito.yask.wrappers import yask_context
 
 __all__ = ['Operator']
@@ -19,6 +19,8 @@ class Operator(OperatorRunnable):
     """
     A special :class:`OperatorCore` to JIT-compile and run operators through YASK.
     """
+
+    _default_includes = OperatorRunnable._default_includes + ['yask_kernel_api.hpp']
 
     def __init__(self, expressions, **kwargs):
         kwargs['dle'] = 'noop'
@@ -70,8 +72,11 @@ class Operator(OperatorRunnable):
         ycsoln.set_domain_dim_names(self.context.space_dimensions)
         ycsoln.set_element_bytes(4)
 
-        # JIT YASK kernel
+        # JIT-compile the newly-created YASK kernel
         self.ksoln = self.context.make_solution(ycsoln)
+
+        # The Devito compiler needs to know about the created shared object
+        compiler.libraries.append(self.ksoln.soname)
 
         # TODO: need to update nodes
 

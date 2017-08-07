@@ -6,6 +6,7 @@ JIT-compile, and run kernels.
 from collections import OrderedDict
 import os
 
+from devito import configuration
 from devito.exceptions import InvalidOperator
 from devito.logger import yask as log
 
@@ -34,8 +35,8 @@ except KeyError:
 
 # YASK conventions
 namespace = OrderedDict()
-namespace['kernel-hook'] = 'devito_hook'
-namespace['kernel-real'] = 'devito_kernel'
+namespace['kernel-hook'] = 'hook'
+namespace['kernel-real'] = 'kernel'
 namespace['kernel-filename'] = 'yask_stencil_code.hpp'
 namespace['path'] = path
 namespace['kernel-path'] = os.path.join(path, 'src', 'kernel')
@@ -44,8 +45,14 @@ namespace['kernel-output'] = os.path.join(namespace['kernel-path-gen'],
                                           namespace['kernel-filename'])
 namespace['time-dim'] = 't'
 
+# Tell Devito where to go look for YASK headers and shared objects
+compiler = configuration['compiler']
+compiler.include_dirs.append(os.path.join(namespace['path'], 'include'))
+compiler.library_dirs.append(os.path.join(namespace['path'], 'lib'))
+
+
 # TODO: this should be moved into /configuration/
-arch = 'hsw'
+arch = 'snb'
 isa = 'cpp'
 
 log("Backend successfully initialized!")
