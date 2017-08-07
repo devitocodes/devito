@@ -6,11 +6,11 @@ import inspect
 from collections import Iterable, OrderedDict
 
 import cgen as c
-from sympy import Eq, Indexed
+from sympy import Eq
 
 from devito.cgen_utils import ccode
 from devito.dse import as_symbol, terminals
-from devito.interfaces import EmptyIndexed, TensorFunction
+from devito.interfaces import Indexed, Symbol, TensorFunction
 from devito.stencil import Stencil
 from devito.tools import as_tuple, filter_ordered, flatten
 from devito.arguments import ArgumentProvider, Argument, TensorArgument
@@ -173,7 +173,7 @@ class Expression(Node):
         # Traverse /expression/ to determine meta information
         # Note: at this point, expressions have already been indexified
         self.functions = [i.base.function for i in terminals(self.expr)
-                          if isinstance(i, (Indexed, EmptyIndexed))]
+                          if isinstance(i, (Indexed, Symbol))]
         self.dimensions = flatten(i.indices for i in self.functions)
         # Filter collected dimensions and functions
         self.functions = filter_ordered(self.functions)
