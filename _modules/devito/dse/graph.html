@@ -310,9 +310,12 @@
         <span class="c1"># Determine the indices along the time dimension</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">time_indices</span> <span class="o">=</span> <span class="p">[</span><span class="n">t</span><span class="p">,</span> <span class="n">time</span><span class="p">]</span>
 
-    <span class="k">def</span> <span class="nf">trace</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">trace</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="n">readby</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">strict</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Return the sequence of operations required to compute the temporary ``key``.</span>
+<span class="sd">        If ``readby = True``, then return the sequence of operations that will</span>
+<span class="sd">        depend on ``key``, instead. With ``strict = True``, drop ``key`` from the</span>
+<span class="sd">        result.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">if</span> <span class="n">key</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="p">:</span>
             <span class="k">return</span> <span class="p">[]</span>
@@ -323,7 +326,7 @@
         <span class="n">queue</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">([(</span><span class="n">key</span><span class="p">,</span> <span class="bp">self</span><span class="p">[</span><span class="n">key</span><span class="p">])])</span>
         <span class="k">while</span> <span class="n">queue</span><span class="p">:</span>
             <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="o">=</span> <span class="n">queue</span><span class="o">.</span><span class="n">popitem</span><span class="p">(</span><span class="n">last</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
-            <span class="n">reads</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">extract</span><span class="p">(</span><span class="n">k</span><span class="p">)</span>
+            <span class="n">reads</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">extract</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">readby</span><span class="o">=</span><span class="n">readby</span><span class="p">)</span>
             <span class="k">if</span> <span class="nb">set</span><span class="p">(</span><span class="n">reads</span><span class="p">)</span><span class="o">.</span><span class="n">issubset</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="n">found</span><span class="o">.</span><span class="n">values</span><span class="p">())):</span>
                 <span class="c1"># All dependencies satisfied, schedulable</span>
                 <span class="n">found</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="n">v</span>
@@ -335,7 +338,9 @@
                 <span class="n">scalars</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">reads</span> <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">is_scalar</span><span class="p">]</span>
                 <span class="n">queue</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">([(</span><span class="n">i</span><span class="o">.</span><span class="n">lhs</span><span class="p">,</span> <span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">scalars</span><span class="p">]</span> <span class="o">+</span>
                                     <span class="p">[(</span><span class="n">k</span><span class="p">,</span> <span class="n">v</span><span class="p">)]</span> <span class="o">+</span> <span class="nb">list</span><span class="p">(</span><span class="n">queue</span><span class="o">.</span><span class="n">items</span><span class="p">()))</span>
-        <span class="k">return</span> <span class="n">found</span><span class="o">.</span><span class="n">values</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">strict</span> <span class="ow">is</span> <span class="kc">True</span><span class="p">:</span>
+            <span class="n">found</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+        <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">found</span><span class="o">.</span><span class="n">values</span><span class="p">())</span>
 
     <span class="k">def</span> <span class="nf">reschedule</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">context</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
