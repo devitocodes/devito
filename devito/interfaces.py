@@ -2,7 +2,7 @@ import weakref
 
 import numpy as np
 import sympy
-from sympy import Function, IndexedBase, Symbol, as_finite_diff, symbols
+from sympy import Function, IndexedBase, as_finite_diff, symbols
 from sympy.abc import s
 
 from devito.dimension import t, x, y, z, time
@@ -191,7 +191,7 @@ class AbstractSymbol(Function, CachedSymbol):
         if indices:
             return Indexed(self.indexed, *indices)
         else:
-            return EmptyIndexed(self.indexed)
+            return Symbol(self.indexed)
 
 
 class SymbolicFunction(AbstractSymbol):
@@ -639,41 +639,6 @@ class TimeData(DenseData):
         return as_finite_diff(self.diff(_t, _t), indt)
 
 
-class IndexedData(IndexedBase):
-    """Wrapper class that inserts a pointer to the symbolic data object"""
-
-    def __new__(cls, label, shape=None, function=None):
-        obj = IndexedBase.__new__(cls, label, shape)
-        obj.function = function
-        return obj
-
-    def func(self, *args):
-        obj = super(IndexedData, self).func(*args)
-        obj.function = self.function
-        return obj
-
-
-class EmptyIndexed(Symbol):
-
-    """A :class:`sympy.Symbol` capable of mimicking an :class:`sympy.Indexed`"""
-
-    def __new__(cls, base):
-        obj = Symbol.__new__(cls, base.label.name)
-        obj.base = base
-        obj.indices = ()
-        obj.function = base.function
-        return obj
-
-    def func(self, *args):
-        return super(EmptyIndexed, self).func(self.base.func(*self.base.args))
-
-
-class Indexed(sympy.Indexed):
-
-    def _hashable_content(self):
-        return super(Indexed, self)._hashable_content() + (self.base.function,)
-
-
 class CompositeData(DenseData):
     """
     Base class for DenseData classes that have DenseData children
@@ -688,3 +653,43 @@ class CompositeData(DenseData):
     @property
     def children(self):
         return self._children
+
+
+# Extended SymPy hierarchy follows, for essentially two reasons:
+# - To keep track of `function`
+# - To override SymPy caching behaviour
+
+
+class IndexedData(IndexedBase):
+    """Wrapper class that inserts a pointer to the symbolic data object"""
+
+    def __new__(cls, label, shape=None, function=None):
+        obj = IndexedBase.__new__(cls, label, shape)
+        obj.function = function
+        return obj
+
+    def func(self, *args):
+        obj = super(IndexedData, self).func(*args)
+        obj.function = self.function
+        return obj
+
+
+class Symbol(sympy.Symbol):
+
+    """A :class:`sympy.Symbol` capable of mimicking an :class:`sympy.Indexed`"""
+
+    def __new__(cls, base):
+        obj = sympy.Symbol.__new__(cls, base.label.name)
+        obj.base = base
+        obj.indices = ()
+        obj.function = base.function
+        return obj
+
+    def func(self, *args):
+        return super(Symbol, self).func(self.base.func(*self.base.args))
+
+
+class Indexed(sympy.Indexed):
+
+    def _hashable_content(self):
+        return super(Indexed, self)._hashable_content() + (self.base.function,)
