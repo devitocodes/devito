@@ -2,7 +2,7 @@ from __future__ import absolute_import
 
 from collections import OrderedDict
 
-from sympy import Eq, Indexed
+from sympy import Eq
 
 from devito.dse.aliases import collect
 from devito.dse.backends import BasicRewriter, dse_pass
@@ -11,7 +11,7 @@ from devito.dse.inspection import estimate_cost
 from devito.dse.manipulation import (common_subexprs_elimination, collect_nested,
                                      xreplace_constrained)
 from devito.dse.queries import iq_timeinvariant
-from devito.interfaces import ScalarFunction, TensorFunction
+from devito.interfaces import Indexed, ScalarFunction, TensorFunction
 
 
 class AdvancedRewriter(BasicRewriter):

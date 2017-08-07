@@ -6,7 +6,7 @@ from sympy import Indexed
 
 from devito.exceptions import DSEException
 from devito.dse.search import retrieve_indexed
-from devito.dse.queries import q_indirect
+from devito.dse.queries import q_indexed, q_indirect
 from devito.stencil import Stencil
 
 __all__ = ['collect']
@@ -39,10 +39,14 @@ def collect(exprs):
     """
     ExprData = namedtuple('ExprData', 'dimensions offsets')
 
-    # Discard expressions that surely won't alias to anything
+    # Discard expressions:
+    # - that surely won't alias to anything
+    # - that are non-scalar
     candidates = OrderedDict()
     for expr in exprs:
-        indexeds = retrieve_indexed(expr, mode='all')
+        if q_indexed(expr):
+            continue
+        indexeds = retrieve_indexed(expr.rhs, mode='all')
         if indexeds and not any(q_indirect(i) for i in indexeds):
             handle = calculate_offsets(indexeds)
             if handle:
