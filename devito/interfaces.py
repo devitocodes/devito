@@ -14,7 +14,9 @@ from devito.memory import CMemory, first_touch
 from devito.arguments import (ConstantDataArgProvider, TensorDataArgProvider,
                               ScalarFunctionArgProvider, TensorFunctionArgProvider)
 
-__all__ = ['ConstantData', 'DenseData', 'TimeData', 'Forward', 'Backward']
+__all__ = ['Symbol', 'Indexed',
+           'ConstantData', 'DenseData', 'TimeData',
+           'Forward', 'Backward']
 
 
 # This cache stores a reference to each created data object
@@ -216,11 +218,13 @@ class AbstractSymbol(Function, CachedSymbol):
         in a C module, False otherwise."""
         return False
 
-    def indexify(self):
+    def indexify(self, indices=None):
         """Create a :class:`sympy.Indexed` object from the current object."""
+        if indices is not None:
+            return Indexed(self.indexed, *indices)
+
         subs = dict([(i.spacing, 1) for i in self.indices])
         indices = [a.subs(subs) for a in self.args]
-
         if indices:
             return Indexed(self.indexed, *indices)
         else:

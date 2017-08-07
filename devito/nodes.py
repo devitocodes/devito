@@ -534,7 +534,6 @@ class Function(Node):
         else:
             assert(all(isinstance(i, Argument) for i in parameters))
             args = parameters
-
         self.parameters = as_tuple(args)
 
         # At this point, all objects in args should be objects of the RuntimeArgument
