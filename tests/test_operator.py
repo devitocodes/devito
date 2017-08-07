@@ -450,6 +450,23 @@ class TestLoopScheduler(object):
         assert outer[-1].nodes[0].expr.rhs == eq1.rhs
         assert inner[-1].nodes[0].expr.rhs == eq2.rhs
 
+    def test_equations_emulate_bc(self, t0):
+        """
+        Test that bc-like equations get inserted into the same loop nest
+        as the "main" equations.
+        """
+        shape = (3, 3, 3)
+        a = DenseData(name='a', shape=shape).indexed
+        b = TimeData(name='b', shape=shape, save=True, time_dim=6).indexed
+        main = Eq(b[time + 1, x, y, z], b[time - 1, x, y, z] + a[x, y, z] + 3.*t0)
+        bcs = [Eq(b[time, 0, y, z], 0.),
+               Eq(b[time, x, 0, z], 0.),
+               Eq(b[time, x, y, 0], 0.)]
+        op = Operator([main] + bcs, dse='noop', dle='noop')
+        trees = retrieve_iteration_tree(op)
+        assert len(trees) == 4
+        assert all(id(trees[0][0]) == id(i[0]) for i in trees)
+
     def test_different_section_nests(self, tu, ti0, t0, t1):
         eq1 = Eq(ti0, t0*3.)
         eq2 = Eq(tu, ti0 + t1*3.)
@@ -467,7 +484,8 @@ class TestLoopScheduler(object):
     ])
     def test_directly_indexed_expression(self, fa, ti0, t0, exprs):
         """
-        Emulates a potential implementation of boundary condition loops
+        Test that equations using integer indices are inserted in the right
+        loop nest, at the right loop nest depth.
         """
         eqs = EVAL(exprs, ti0.base, t0)
         op = Operator(eqs, dse='noop', dle='noop')
