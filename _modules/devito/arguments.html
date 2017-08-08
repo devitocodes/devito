@@ -165,6 +165,7 @@
 <span class="kn">from</span> <span class="nn">cached_property</span> <span class="k">import</span> <span class="n">cached_property</span>
 
 <span class="kn">from</span> <span class="nn">devito.cgen_utils</span> <span class="k">import</span> <span class="n">ccode</span>
+<span class="kn">from</span> <span class="nn">devito.exceptions</span> <span class="k">import</span> <span class="n">InvalidArgument</span>
 <span class="kn">from</span> <span class="nn">devito.logger</span> <span class="k">import</span> <span class="n">debug</span>
 
 <span class="sd">&quot;&quot;&quot; This module provides a set of classes that help in processing runtime arguments for</span>
@@ -196,7 +197,14 @@
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">value</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_value</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_value</span><span class="o">.</span><span class="n">is_SymbolicData</span><span class="p">:</span>
+                <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_value</span><span class="o">.</span><span class="n">data</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="n">InvalidArgument</span><span class="p">(</span><span class="s2">&quot;Unexpected data object </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="nb">type</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_value</span><span class="p">))</span>
+        <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>
+            <span class="c1"># A user-provided scalar, e.g. a dimension value</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_value</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">ready</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
@@ -205,6 +213,10 @@
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">decl</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">raise</span> <span class="bp">NotImplemented</span><span class="p">()</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">dtype</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">provider</span><span class="o">.</span><span class="n">dtype</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">ccode</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
@@ -231,11 +243,7 @@
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">decl</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">return</span> <span class="n">c</span><span class="o">.</span><span class="n">Value</span><span class="p">(</span><span class="s1">&#39;const int&#39;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
-
-    <span class="nd">@property</span>
-    <span class="k">def</span> <span class="nf">dtype</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">int32</span>
+        <span class="k">return</span> <span class="n">c</span><span class="o">.</span><span class="n">Value</span><span class="p">(</span><span class="s1">&#39;const </span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="n">c</span><span class="o">.</span><span class="n">dtype_to_ctype</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dtype</span><span class="p">),</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
 
 <div class="viewcode-block" id="ScalarArgument.verify"><a class="viewcode-back" href="../../devito.html#devito.arguments.ScalarArgument.verify">[docs]</a>    <span class="k">def</span> <span class="nf">verify</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
         <span class="c1"># Assuming self._value was initialised as appropriate for the reducer</span>
@@ -255,17 +263,9 @@
 
     <span class="n">is_TensorArgument</span> <span class="o">=</span> <span class="kc">True</span>
 
-    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">provider</span><span class="p">,</span> <span class="n">dtype</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">provider</span><span class="p">):</span>
         <span class="nb">super</span><span class="p">(</span><span class="n">TensorArgument</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">provider</span><span class="p">)</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">dtype</span> <span class="o">=</span> <span class="n">dtype</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_value</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_default_value</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">provider</span>
-
-    <span class="nd">@property</span>
-    <span class="k">def</span> <span class="nf">value</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_value</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">):</span>
-            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_value</span>
-        <span class="k">else</span><span class="p">:</span>
-            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_value</span><span class="o">.</span><span class="n">data</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">decl</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
@@ -397,7 +397,18 @@
         <span class="k">return</span> <span class="n">verify</span></div></div>
 
 
-<div class="viewcode-block" id="SymbolicDataArgProvider"><a class="viewcode-back" href="../../devito.html#devito.arguments.SymbolicDataArgProvider">[docs]</a><span class="k">class</span> <span class="nc">SymbolicDataArgProvider</span><span class="p">(</span><span class="n">ArgumentProvider</span><span class="p">):</span>
+<div class="viewcode-block" id="ConstantDataArgProvider"><a class="viewcode-back" href="../../devito.html#devito.arguments.ConstantDataArgProvider">[docs]</a><span class="k">class</span> <span class="nc">ConstantDataArgProvider</span><span class="p">(</span><span class="n">ArgumentProvider</span><span class="p">):</span>
+
+    <span class="sd">&quot;&quot;&quot; Class used to decorate Constat Data objects with behaviour required for runtime</span>
+<span class="sd">        arguments.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="nd">@cached_property</span>
+    <span class="k">def</span> <span class="nf">rtargs</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="p">[</span><span class="n">ScalarArgument</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="bp">self</span><span class="p">,</span> <span class="k">lambda</span> <span class="n">old</span><span class="p">,</span> <span class="n">new</span><span class="p">:</span> <span class="n">new</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="p">)]</span></div>
+
+
+<div class="viewcode-block" id="TensorDataArgProvider"><a class="viewcode-back" href="../../devito.html#devito.arguments.TensorDataArgProvider">[docs]</a><span class="k">class</span> <span class="nc">TensorDataArgProvider</span><span class="p">(</span><span class="n">ArgumentProvider</span><span class="p">):</span>
 
     <span class="sd">&quot;&quot;&quot; Class used to decorate Symbolic Data objects with behaviour required for runtime</span>
 <span class="sd">        arguments.</span>
@@ -405,7 +416,7 @@
 
     <span class="nd">@cached_property</span>
     <span class="k">def</span> <span class="nf">rtargs</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">return</span> <span class="p">[</span><span class="n">TensorArgument</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="bp">self</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">dtype</span><span class="p">)]</span></div>
+        <span class="k">return</span> <span class="p">[</span><span class="n">TensorArgument</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="bp">self</span><span class="p">)]</span></div>
 
 
 <div class="viewcode-block" id="ScalarFunctionArgProvider"><a class="viewcode-back" href="../../devito.html#devito.arguments.ScalarFunctionArgProvider">[docs]</a><span class="k">class</span> <span class="nc">ScalarFunctionArgProvider</span><span class="p">(</span><span class="n">ArgumentProvider</span><span class="p">):</span>
@@ -427,7 +438,7 @@
 
     <span class="nd">@cached_property</span>
     <span class="k">def</span> <span class="nf">rtargs</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">return</span> <span class="p">[</span><span class="n">TensorArgument</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="bp">self</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">dtype</span><span class="p">)]</span></div>
+        <span class="k">return</span> <span class="p">[</span><span class="n">TensorArgument</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="bp">self</span><span class="p">)]</span></div>
 
 
 <div class="viewcode-block" id="log_args"><a class="viewcode-back" href="../../devito.html#devito.arguments.log_args">[docs]</a><span class="k">def</span> <span class="nf">log_args</span><span class="p">(</span><span class="n">arguments</span><span class="p">):</span>

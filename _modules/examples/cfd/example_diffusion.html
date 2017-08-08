@@ -300,7 +300,7 @@
 
     <span class="c1"># Execute the generated Devito stencil operator</span>
     <span class="n">tstart</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span>
-    <span class="n">op</span><span class="o">.</span><span class="n">apply</span><span class="p">(</span><span class="n">u</span><span class="p">,</span> <span class="n">t</span><span class="o">=</span><span class="n">timesteps</span><span class="p">)</span>
+    <span class="n">op</span><span class="o">.</span><span class="n">apply</span><span class="p">(</span><span class="n">u</span><span class="o">=</span><span class="n">u</span><span class="p">,</span> <span class="n">t</span><span class="o">=</span><span class="n">timesteps</span><span class="p">)</span>
     <span class="n">runtime</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span> <span class="o">-</span> <span class="n">tstart</span>
     <span class="n">log</span><span class="p">(</span><span class="s2">&quot;Devito: Diffusion with dx=</span><span class="si">%0.4f</span><span class="s2">, dy=</span><span class="si">%0.4f</span><span class="s2">, executed </span><span class="si">%d</span><span class="s2"> timesteps in </span><span class="si">%f</span><span class="s2"> seconds&quot;</span>
         <span class="o">%</span> <span class="p">(</span><span class="n">spacing</span><span class="p">,</span> <span class="n">spacing</span><span class="p">,</span> <span class="n">timesteps</span><span class="p">,</span> <span class="n">runtime</span><span class="p">))</span>

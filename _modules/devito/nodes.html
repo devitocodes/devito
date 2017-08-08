@@ -168,11 +168,11 @@
 <span class="kn">from</span> <span class="nn">collections</span> <span class="k">import</span> <span class="n">Iterable</span><span class="p">,</span> <span class="n">OrderedDict</span>
 
 <span class="kn">import</span> <span class="nn">cgen</span> <span class="k">as</span> <span class="nn">c</span>
-<span class="kn">from</span> <span class="nn">sympy</span> <span class="k">import</span> <span class="n">Eq</span><span class="p">,</span> <span class="n">preorder_traversal</span>
+<span class="kn">from</span> <span class="nn">sympy</span> <span class="k">import</span> <span class="n">Eq</span>
 
 <span class="kn">from</span> <span class="nn">devito.cgen_utils</span> <span class="k">import</span> <span class="n">ccode</span>
-<span class="kn">from</span> <span class="nn">devito.dse</span> <span class="k">import</span> <span class="n">as_symbol</span>
-<span class="kn">from</span> <span class="nn">devito.interfaces</span> <span class="k">import</span> <span class="n">IndexedData</span><span class="p">,</span> <span class="n">SymbolicData</span><span class="p">,</span> <span class="n">TensorFunction</span>
+<span class="kn">from</span> <span class="nn">devito.dse</span> <span class="k">import</span> <span class="n">as_symbol</span><span class="p">,</span> <span class="n">terminals</span>
+<span class="kn">from</span> <span class="nn">devito.interfaces</span> <span class="k">import</span> <span class="n">Indexed</span><span class="p">,</span> <span class="n">Symbol</span><span class="p">,</span> <span class="n">TensorFunction</span>
 <span class="kn">from</span> <span class="nn">devito.stencil</span> <span class="k">import</span> <span class="n">Stencil</span>
 <span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">as_tuple</span><span class="p">,</span> <span class="n">filter_ordered</span><span class="p">,</span> <span class="n">flatten</span>
 <span class="kn">from</span> <span class="nn">devito.arguments</span> <span class="k">import</span> <span class="n">ArgumentProvider</span><span class="p">,</span> <span class="n">Argument</span><span class="p">,</span> <span class="n">TensorArgument</span>
@@ -332,19 +332,14 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">expr</span> <span class="o">=</span> <span class="n">expr</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">dtype</span> <span class="o">=</span> <span class="n">dtype</span>
 
-        <span class="bp">self</span><span class="o">.</span><span class="n">dimensions</span> <span class="o">=</span> <span class="p">[]</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">functions</span> <span class="o">=</span> <span class="p">[]</span>
         <span class="c1"># Traverse /expression/ to determine meta information</span>
-        <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">preorder_traversal</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">expr</span><span class="p">):</span>
-            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">e</span><span class="p">,</span> <span class="n">SymbolicData</span><span class="p">):</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">dimensions</span> <span class="o">+=</span> <span class="nb">list</span><span class="p">(</span><span class="n">e</span><span class="o">.</span><span class="n">indices</span><span class="p">)</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">functions</span> <span class="o">+=</span> <span class="p">[</span><span class="n">e</span><span class="p">]</span>
-            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">e</span><span class="p">,</span> <span class="n">IndexedData</span><span class="p">):</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">dimensions</span> <span class="o">+=</span> <span class="nb">list</span><span class="p">(</span><span class="n">e</span><span class="o">.</span><span class="n">function</span><span class="o">.</span><span class="n">indices</span><span class="p">)</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">functions</span> <span class="o">+=</span> <span class="p">[</span><span class="n">e</span><span class="o">.</span><span class="n">function</span><span class="p">]</span>
+        <span class="c1"># Note: at this point, expressions have already been indexified</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">functions</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span><span class="o">.</span><span class="n">base</span><span class="o">.</span><span class="n">function</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">terminals</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">expr</span><span class="p">)</span>
+                          <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="p">(</span><span class="n">Indexed</span><span class="p">,</span> <span class="n">Symbol</span><span class="p">))]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">dimensions</span> <span class="o">=</span> <span class="n">flatten</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">indices</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">functions</span><span class="p">)</span>
         <span class="c1"># Filter collected dimensions and functions</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">dimensions</span> <span class="o">=</span> <span class="n">filter_ordered</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dimensions</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">functions</span> <span class="o">=</span> <span class="n">filter_ordered</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">functions</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">dimensions</span> <span class="o">=</span> <span class="n">filter_ordered</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dimensions</span><span class="p">)</span>
 
     <span class="k">def</span> <span class="nf">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">return</span> <span class="s2">&quot;&lt;</span><span class="si">%s</span><span class="s2">::</span><span class="si">%s</span><span class="s2">&gt;&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="vm">__class__</span><span class="o">.</span><span class="vm">__name__</span><span class="p">,</span>
@@ -701,11 +696,10 @@
         <span class="k">else</span><span class="p">:</span>
             <span class="k">assert</span><span class="p">(</span><span class="nb">all</span><span class="p">(</span><span class="nb">isinstance</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">Argument</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">parameters</span><span class="p">))</span>
             <span class="n">args</span> <span class="o">=</span> <span class="n">parameters</span>
-
         <span class="bp">self</span><span class="o">.</span><span class="n">parameters</span> <span class="o">=</span> <span class="n">as_tuple</span><span class="p">(</span><span class="n">args</span><span class="p">)</span>
 
         <span class="c1"># At this point, all objects in args should be objects of the RuntimeArgument</span>
-        <span class="c1"># heirarchy. Separate the tensor arguments from the scalar ones</span>
+        <span class="c1"># hierarchy. Separate the tensor arguments from the scalar ones</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">tensor_args</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">args</span> <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">is_TensorArgument</span><span class="p">]</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">scalar_args</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">args</span> <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">is_ScalarArgument</span><span class="p">]</span>
 

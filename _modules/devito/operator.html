@@ -164,7 +164,6 @@
 
 <span class="kn">import</span> <span class="nn">operator</span>
 <span class="kn">from</span> <span class="nn">collections</span> <span class="k">import</span> <span class="n">OrderedDict</span>
-<span class="kn">from</span> <span class="nn">ctypes</span> <span class="k">import</span> <span class="n">c_int</span>
 
 <span class="kn">import</span> <span class="nn">cgen</span> <span class="k">as</span> <span class="nn">c</span>
 <span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
@@ -181,11 +180,11 @@
 <span class="kn">from</span> <span class="nn">devito.parameters</span> <span class="k">import</span> <span class="n">configuration</span>
 <span class="kn">from</span> <span class="nn">devito.profiling</span> <span class="k">import</span> <span class="n">Profiler</span><span class="p">,</span> <span class="n">create_profile</span>
 <span class="kn">from</span> <span class="nn">devito.stencil</span> <span class="k">import</span> <span class="n">Stencil</span>
-<span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">as_tuple</span><span class="p">,</span> <span class="n">filter_ordered</span><span class="p">,</span> <span class="n">flatten</span>
+<span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">as_tuple</span><span class="p">,</span> <span class="n">convert_dtype_to_ctype</span><span class="p">,</span> <span class="n">filter_ordered</span><span class="p">,</span> <span class="n">flatten</span>
 <span class="kn">from</span> <span class="nn">devito.visitors</span> <span class="k">import</span> <span class="p">(</span><span class="n">FindSymbols</span><span class="p">,</span> <span class="n">FindScopes</span><span class="p">,</span> <span class="n">ResolveIterationVariable</span><span class="p">,</span>
                              <span class="n">SubstituteExpression</span><span class="p">,</span> <span class="n">Transformer</span><span class="p">,</span> <span class="n">NestedTransformer</span><span class="p">)</span>
 <span class="kn">from</span> <span class="nn">devito.exceptions</span> <span class="k">import</span> <span class="n">InvalidArgument</span><span class="p">,</span> <span class="n">InvalidOperator</span>
-<span class="kn">from</span> <span class="nn">devito.arguments</span> <span class="k">import</span> <span class="n">ScalarArgument</span><span class="p">,</span> <span class="n">log_args</span><span class="p">,</span> <span class="n">ArgumentProvider</span>
+<span class="kn">from</span> <span class="nn">devito.arguments</span> <span class="k">import</span> <span class="n">log_args</span><span class="p">,</span> <span class="n">ArgumentProvider</span>
 
 
 <div class="viewcode-block" id="Operator"><a class="viewcode-back" href="../../devito.html#devito.operator.Operator">[docs]</a><span class="k">class</span> <span class="nc">Operator</span><span class="p">(</span><span class="n">Function</span><span class="p">):</span>
@@ -305,7 +304,7 @@
         <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">tensor_args</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">dims</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">scalar_args</span><span class="p">:</span>
             <span class="n">x</span><span class="o">.</span><span class="n">reset</span><span class="p">()</span>
 
-<div class="viewcode-block" id="Operator.arguments"><a class="viewcode-back" href="../../devito.html#devito.operator.Operator.arguments">[docs]</a>    <span class="k">def</span> <span class="nf">arguments</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+<div class="viewcode-block" id="Operator.arguments"><a class="viewcode-back" href="../../devito.html#devito.operator.Operator.arguments">[docs]</a>    <span class="k">def</span> <span class="nf">arguments</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot; Process any apply-time arguments passed to apply and derive values for</span>
 <span class="sd">            any remaining arguments</span>
 <span class="sd">        &quot;&quot;&quot;</span>
@@ -441,9 +440,12 @@
 
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cfunction</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_cfunction</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_lib</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
-            <span class="n">argtypes</span> <span class="o">=</span> <span class="p">[</span><span class="n">c_int</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="n">ScalarArgument</span><span class="p">)</span> <span class="k">else</span>
-                        <span class="n">np</span><span class="o">.</span><span class="n">ctypeslib</span><span class="o">.</span><span class="n">ndpointer</span><span class="p">(</span><span class="n">dtype</span><span class="o">=</span><span class="n">v</span><span class="o">.</span><span class="n">dtype</span><span class="p">,</span> <span class="n">flags</span><span class="o">=</span><span class="s1">&#39;C&#39;</span><span class="p">)</span>
-                        <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">parameters</span><span class="p">]</span>
+            <span class="n">argtypes</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">parameters</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">is_ScalarArgument</span><span class="p">:</span>
+                    <span class="n">argtypes</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">convert_dtype_to_ctype</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">dtype</span><span class="p">))</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">argtypes</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">ctypeslib</span><span class="o">.</span><span class="n">ndpointer</span><span class="p">(</span><span class="n">dtype</span><span class="o">=</span><span class="n">i</span><span class="o">.</span><span class="n">dtype</span><span class="p">,</span> <span class="n">flags</span><span class="o">=</span><span class="s1">&#39;C&#39;</span><span class="p">))</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_cfunction</span><span class="o">.</span><span class="n">argtypes</span> <span class="o">=</span> <span class="n">argtypes</span>
 
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cfunction</span>
@@ -621,13 +623,13 @@
 <span class="sd">    C code evaluating stencil expressions, can also execute the computation.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="k">def</span> <span class="nf">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">apply</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+    <span class="k">def</span> <span class="nf">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">apply</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
 
-<div class="viewcode-block" id="OperatorRunnable.apply"><a class="viewcode-back" href="../../devito.html#devito.operator.OperatorRunnable.apply">[docs]</a>    <span class="k">def</span> <span class="nf">apply</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+<div class="viewcode-block" id="OperatorRunnable.apply"><a class="viewcode-back" href="../../devito.html#devito.operator.OperatorRunnable.apply">[docs]</a>    <span class="k">def</span> <span class="nf">apply</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;Apply the stencil kernel to a set of data objects&quot;&quot;&quot;</span>
         <span class="c1"># Build the arguments list to invoke the kernel function</span>
-        <span class="n">arguments</span><span class="p">,</span> <span class="n">dim_sizes</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">arguments</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="n">arguments</span><span class="p">,</span> <span class="n">dim_sizes</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">arguments</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
 
         <span class="c1"># Invoke kernel function with args</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">cfunction</span><span class="p">(</span><span class="o">*</span><span class="nb">list</span><span class="p">(</span><span class="n">arguments</span><span class="o">.</span><span class="n">values</span><span class="p">()))</span>

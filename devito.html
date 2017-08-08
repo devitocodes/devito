@@ -279,6 +279,11 @@ generated kernels.</p>
 <dd></dd></dl>
 
 <dl class="attribute">
+<dt id="devito.arguments.Argument.dtype">
+<code class="descname">dtype</code><a class="headerlink" href="#devito.arguments.Argument.dtype" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
 <dt id="devito.arguments.Argument.is_ScalarArgument">
 <code class="descname">is_ScalarArgument</code><em class="property"> = False</em><a class="headerlink" href="#devito.arguments.Argument.is_ScalarArgument" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
@@ -322,6 +327,19 @@ SymbolicData) might provide multiple runtime arguments.</p>
 <code class="descname">rtargs</code><a class="headerlink" href="#devito.arguments.ArgumentProvider.rtargs" title="Permalink to this definition">¶</a></dt>
 <dd><p>Return a list of RuntimeArgument objects that this object needs.</p>
 </dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="devito.arguments.ConstantDataArgProvider">
+<em class="property">class </em><code class="descclassname">devito.arguments.</code><code class="descname">ConstantDataArgProvider</code><span class="sig-paren">(</span><em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/arguments.html#ConstantDataArgProvider"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.arguments.ConstantDataArgProvider" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#devito.arguments.ArgumentProvider" title="devito.arguments.ArgumentProvider"><code class="xref py py-class docutils literal"><span class="pre">devito.arguments.ArgumentProvider</span></code></a></p>
+<p>Class used to decorate Constat Data objects with behaviour required for runtime
+arguments.</p>
+<dl class="attribute">
+<dt id="devito.arguments.ConstantDataArgProvider.rtargs">
+<code class="descname">rtargs</code><a class="headerlink" href="#devito.arguments.ConstantDataArgProvider.rtargs" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
 
 </dd></dl>
 
@@ -392,11 +410,6 @@ Most commonly used to pass dimension sizes</p>
 <dd></dd></dl>
 
 <dl class="attribute">
-<dt id="devito.arguments.ScalarArgument.dtype">
-<code class="descname">dtype</code><a class="headerlink" href="#devito.arguments.ScalarArgument.dtype" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="attribute">
 <dt id="devito.arguments.ScalarArgument.is_ScalarArgument">
 <code class="descname">is_ScalarArgument</code><em class="property"> = True</em><a class="headerlink" href="#devito.arguments.ScalarArgument.is_ScalarArgument" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
@@ -422,21 +435,8 @@ arguments.</p>
 </dd></dl>
 
 <dl class="class">
-<dt id="devito.arguments.SymbolicDataArgProvider">
-<em class="property">class </em><code class="descclassname">devito.arguments.</code><code class="descname">SymbolicDataArgProvider</code><span class="sig-paren">(</span><em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/arguments.html#SymbolicDataArgProvider"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.arguments.SymbolicDataArgProvider" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <a class="reference internal" href="#devito.arguments.ArgumentProvider" title="devito.arguments.ArgumentProvider"><code class="xref py py-class docutils literal"><span class="pre">devito.arguments.ArgumentProvider</span></code></a></p>
-<p>Class used to decorate Symbolic Data objects with behaviour required for runtime
-arguments.</p>
-<dl class="attribute">
-<dt id="devito.arguments.SymbolicDataArgProvider.rtargs">
-<code class="descname">rtargs</code><a class="headerlink" href="#devito.arguments.SymbolicDataArgProvider.rtargs" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-</dd></dl>
-
-<dl class="class">
 <dt id="devito.arguments.TensorArgument">
-<em class="property">class </em><code class="descclassname">devito.arguments.</code><code class="descname">TensorArgument</code><span class="sig-paren">(</span><em>name</em>, <em>provider</em>, <em>dtype</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/arguments.html#TensorArgument"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.arguments.TensorArgument" title="Permalink to this definition">¶</a></dt>
+<em class="property">class </em><code class="descclassname">devito.arguments.</code><code class="descname">TensorArgument</code><span class="sig-paren">(</span><em>name</em>, <em>provider</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/arguments.html#TensorArgument"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.arguments.TensorArgument" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <a class="reference internal" href="#devito.arguments.Argument" title="devito.arguments.Argument"><code class="xref py py-class docutils literal"><span class="pre">devito.arguments.Argument</span></code></a></p>
 <p>Class representing tensor arguments that a kernel might expect.
 Most commonly used to pass numpy-like multi-dimensional arrays.</p>
@@ -455,14 +455,22 @@ Most commonly used to pass numpy-like multi-dimensional arrays.</p>
 <code class="descname">is_TensorArgument</code><em class="property"> = True</em><a class="headerlink" href="#devito.arguments.TensorArgument.is_TensorArgument" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
-<dl class="attribute">
-<dt id="devito.arguments.TensorArgument.value">
-<code class="descname">value</code><a class="headerlink" href="#devito.arguments.TensorArgument.value" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
 <dl class="method">
 <dt id="devito.arguments.TensorArgument.verify">
 <code class="descname">verify</code><span class="sig-paren">(</span><em>value</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/arguments.html#TensorArgument.verify"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.arguments.TensorArgument.verify" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="devito.arguments.TensorDataArgProvider">
+<em class="property">class </em><code class="descclassname">devito.arguments.</code><code class="descname">TensorDataArgProvider</code><span class="sig-paren">(</span><em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/arguments.html#TensorDataArgProvider"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.arguments.TensorDataArgProvider" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#devito.arguments.ArgumentProvider" title="devito.arguments.ArgumentProvider"><code class="xref py py-class docutils literal"><span class="pre">devito.arguments.ArgumentProvider</span></code></a></p>
+<p>Class used to decorate Symbolic Data objects with behaviour required for runtime
+arguments.</p>
+<dl class="attribute">
+<dt id="devito.arguments.TensorDataArgProvider.rtargs">
+<code class="descname">rtargs</code><a class="headerlink" href="#devito.arguments.TensorDataArgProvider.rtargs" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 </dd></dl>
@@ -528,6 +536,18 @@ arguments.</p>
 <div class="section" id="module-devito.base">
 <span id="devito-base-module"></span><h2>devito.base module<a class="headerlink" href="#module-devito.base" title="Permalink to this headline">¶</a></h2>
 <p>Metaclasses used to construct classes of proper backend type at runtime.</p>
+<dl class="class">
+<dt id="devito.base.ConstantData">
+<em class="property">class </em><code class="descclassname">devito.base.</code><code class="descname">ConstantData</code><span class="sig-paren">(</span><em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/base.html#ConstantData"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.base.ConstantData" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#devito.interfaces.ConstantData" title="devito.interfaces.ConstantData"><code class="xref py py-class docutils literal"><span class="pre">devito.interfaces.ConstantData</span></code></a></p>
+<p>Data object for constant values.</p>
+<dl class="attribute">
+<dt id="devito.base.ConstantData.default_assumptions">
+<code class="descname">default_assumptions</code><em class="property"> = {}</em><a class="headerlink" href="#devito.base.ConstantData.default_assumptions" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
 <dl class="class">
 <dt id="devito.base.DenseData">
 <em class="property">class </em><code class="descclassname">devito.base.</code><code class="descname">DenseData</code><span class="sig-paren">(</span><em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/base.html#DenseData"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.base.DenseData" title="Permalink to this definition">¶</a></dt>
@@ -1229,9 +1249,69 @@ results in:
 <div class="section" id="module-devito.interfaces">
 <span id="devito-interfaces-module"></span><h2>devito.interfaces module<a class="headerlink" href="#module-devito.interfaces" title="Permalink to this headline">¶</a></h2>
 <dl class="class">
+<dt id="devito.interfaces.Symbol">
+<em class="property">class </em><code class="descclassname">devito.interfaces.</code><code class="descname">Symbol</code><a class="reference internal" href="_modules/devito/interfaces.html#Symbol"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.interfaces.Symbol" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">sympy.core.symbol.Symbol</span></code></p>
+<p>A <code class="xref py py-class docutils literal"><span class="pre">sympy.Symbol</span></code> capable of mimicking an <code class="xref py py-class docutils literal"><span class="pre">sympy.Indexed</span></code></p>
+<dl class="attribute">
+<dt id="devito.interfaces.Symbol.default_assumptions">
+<code class="descname">default_assumptions</code><em class="property"> = {}</em><a class="headerlink" href="#devito.interfaces.Symbol.default_assumptions" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="devito.interfaces.Symbol.func">
+<code class="descname">func</code><span class="sig-paren">(</span><em>*args</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/interfaces.html#Symbol.func"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.interfaces.Symbol.func" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="devito.interfaces.Indexed">
+<em class="property">class </em><code class="descclassname">devito.interfaces.</code><code class="descname">Indexed</code><a class="reference internal" href="_modules/devito/interfaces.html#Indexed"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.interfaces.Indexed" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">sympy.tensor.indexed.Indexed</span></code></p>
+<dl class="attribute">
+<dt id="devito.interfaces.Indexed.default_assumptions">
+<code class="descname">default_assumptions</code><em class="property"> = {‘commutative’: True}</em><a class="headerlink" href="#devito.interfaces.Indexed.default_assumptions" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="devito.interfaces.Indexed.is_commutative">
+<code class="descname">is_commutative</code><em class="property"> = True</em><a class="headerlink" href="#devito.interfaces.Indexed.is_commutative" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="devito.interfaces.ConstantData">
+<em class="property">class </em><code class="descclassname">devito.interfaces.</code><code class="descname">ConstantData</code><span class="sig-paren">(</span><em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/interfaces.html#ConstantData"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.interfaces.ConstantData" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">devito.interfaces.SymbolicData</span></code>, <a class="reference internal" href="#devito.arguments.ConstantDataArgProvider" title="devito.arguments.ConstantDataArgProvider"><code class="xref py py-class docutils literal"><span class="pre">devito.arguments.ConstantDataArgProvider</span></code></a></p>
+<p>Data object for constant values.</p>
+<dl class="attribute">
+<dt id="devito.interfaces.ConstantData.data">
+<code class="descname">data</code><a class="headerlink" href="#devito.interfaces.ConstantData.data" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="devito.interfaces.ConstantData.default_assumptions">
+<code class="descname">default_assumptions</code><em class="property"> = {}</em><a class="headerlink" href="#devito.interfaces.ConstantData.default_assumptions" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="devito.interfaces.ConstantData.is_ConstantData">
+<code class="descname">is_ConstantData</code><em class="property"> = True</em><a class="headerlink" href="#devito.interfaces.ConstantData.is_ConstantData" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="devito.interfaces.ConstantData.is_Scalar">
+<code class="descname">is_Scalar</code><em class="property"> = True</em><a class="headerlink" href="#devito.interfaces.ConstantData.is_Scalar" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="class">
 <dt id="devito.interfaces.DenseData">
 <em class="property">class </em><code class="descclassname">devito.interfaces.</code><code class="descname">DenseData</code><span class="sig-paren">(</span><em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/interfaces.html#DenseData"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.interfaces.DenseData" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">devito.interfaces.SymbolicData</span></code></p>
+<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">devito.interfaces.TensorData</span></code></p>
 <p>Data object for spatially varying data acting as a <code class="xref py py-class docutils literal"><span class="pre">SymbolicData</span></code>.</p>
 <table class="docutils field-list" frame="void" rules="none">
 <col class="field-name" />
@@ -2116,7 +2196,7 @@ an internally generated tag is used.</p>
 <dd><p>Bases: <a class="reference internal" href="#devito.nodes.Function" title="devito.nodes.Function"><code class="xref py py-class docutils literal"><span class="pre">devito.nodes.Function</span></code></a></p>
 <dl class="method">
 <dt id="devito.operator.Operator.arguments">
-<code class="descname">arguments</code><span class="sig-paren">(</span><em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/operator.html#Operator.arguments"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.operator.Operator.arguments" title="Permalink to this definition">¶</a></dt>
+<code class="descname">arguments</code><span class="sig-paren">(</span><em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/operator.html#Operator.arguments"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.operator.Operator.arguments" title="Permalink to this definition">¶</a></dt>
 <dd><p>Process any apply-time arguments passed to apply and derive values for
 any remaining arguments</p>
 </dd></dl>
@@ -2163,7 +2243,7 @@ configuration dictionary (<code class="docutils literal"><span class="pre">confi
 C code evaluating stencil expressions, can also execute the computation.</p>
 <dl class="method">
 <dt id="devito.operator.OperatorRunnable.apply">
-<code class="descname">apply</code><span class="sig-paren">(</span><em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/operator.html#OperatorRunnable.apply"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.operator.OperatorRunnable.apply" title="Permalink to this definition">¶</a></dt>
+<code class="descname">apply</code><span class="sig-paren">(</span><em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/operator.html#OperatorRunnable.apply"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.operator.OperatorRunnable.apply" title="Permalink to this definition">¶</a></dt>
 <dd><p>Apply the stencil kernel to a set of data objects</p>
 </dd></dl>
 

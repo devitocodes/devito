@@ -173,10 +173,12 @@
                                       <span class="n">second_derivative</span><span class="p">)</span>
 <span class="kn">from</span> <span class="nn">devito.logger</span> <span class="k">import</span> <span class="n">debug</span><span class="p">,</span> <span class="n">error</span><span class="p">,</span> <span class="n">warning</span>
 <span class="kn">from</span> <span class="nn">devito.memory</span> <span class="k">import</span> <span class="n">CMemory</span><span class="p">,</span> <span class="n">first_touch</span>
-<span class="kn">from</span> <span class="nn">devito.arguments</span> <span class="k">import</span> <span class="p">(</span><span class="n">SymbolicDataArgProvider</span><span class="p">,</span> <span class="n">ScalarFunctionArgProvider</span><span class="p">,</span>
-                              <span class="n">TensorFunctionArgProvider</span><span class="p">)</span>
+<span class="kn">from</span> <span class="nn">devito.arguments</span> <span class="k">import</span> <span class="p">(</span><span class="n">ConstantDataArgProvider</span><span class="p">,</span> <span class="n">TensorDataArgProvider</span><span class="p">,</span>
+                              <span class="n">ScalarFunctionArgProvider</span><span class="p">,</span> <span class="n">TensorFunctionArgProvider</span><span class="p">)</span>
 
-<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;DenseData&#39;</span><span class="p">,</span> <span class="s1">&#39;TimeData&#39;</span><span class="p">,</span> <span class="s1">&#39;Forward&#39;</span><span class="p">,</span> <span class="s1">&#39;Backward&#39;</span><span class="p">]</span>
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;Symbol&#39;</span><span class="p">,</span> <span class="s1">&#39;Indexed&#39;</span><span class="p">,</span>
+           <span class="s1">&#39;ConstantData&#39;</span><span class="p">,</span> <span class="s1">&#39;DenseData&#39;</span><span class="p">,</span> <span class="s1">&#39;TimeData&#39;</span><span class="p">,</span>
+           <span class="s1">&#39;Forward&#39;</span><span class="p">,</span> <span class="s1">&#39;Backward&#39;</span><span class="p">]</span>
 
 
 <span class="c1"># This cache stores a reference to each created data object</span>
@@ -257,17 +259,50 @@
 <span class="sd">    Note: The parameters :param name: and :param shape: must always be</span>
 <span class="sd">    present and given as keyword arguments, since SymPy uses `*args`</span>
 <span class="sd">    to (re-)create the dimension arguments of the symbolic function.</span>
+
+<span class="sd">    This class is the root of the Devito data objects hierarchy, which</span>
+<span class="sd">    is structured as follows.</span>
+
+<span class="sd">                             AbstractSymbol</span>
+<span class="sd">                                   |</span>
+<span class="sd">                 -------------------------------------</span>
+<span class="sd">                 |                                   |</span>
+<span class="sd">          SymbolicFunction                      SymbolicData</span>
+<span class="sd">                 |                                   |</span>
+<span class="sd">          ------------------                 ------------------</span>
+<span class="sd">          |                |                 |                |</span>
+<span class="sd">    ScalarFunction  TensorFunction     ConstantData           |</span>
+<span class="sd">                                                              |</span>
+<span class="sd">                                                ----------------------------</span>
+<span class="sd">                                                |             |            |</span>
+<span class="sd">                                            DenseData      TimeData  CompositeData</span>
+<span class="sd">                                                                           |</span>
+<span class="sd">                                                                       PointData</span>
+
+<span class="sd">    The key difference between a :class:`SymbolicData` and a :class:`SymbolicFunction`</span>
+<span class="sd">    is that the former is created directly by the user and employed in some</span>
+<span class="sd">    computation, while the latter is created and managed internally by Devito.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">is_AbstractSymbol</span> <span class="o">=</span> <span class="kc">True</span>
+
+    <span class="c1"># Created internally by Devito</span>
     <span class="n">is_SymbolicFunction</span> <span class="o">=</span> <span class="kc">False</span>
-    <span class="n">is_SymbolicData</span> <span class="o">=</span> <span class="kc">False</span>
     <span class="n">is_ScalarFunction</span> <span class="o">=</span> <span class="kc">False</span>
     <span class="n">is_TensorFunction</span> <span class="o">=</span> <span class="kc">False</span>
+
+    <span class="c1"># User-provided</span>
+    <span class="n">is_SymbolicData</span> <span class="o">=</span> <span class="kc">False</span>
+    <span class="n">is_ConstantData</span> <span class="o">=</span> <span class="kc">False</span>
+    <span class="n">is_TensorData</span> <span class="o">=</span> <span class="kc">False</span>
     <span class="n">is_DenseData</span> <span class="o">=</span> <span class="kc">False</span>
     <span class="n">is_TimeData</span> <span class="o">=</span> <span class="kc">False</span>
     <span class="n">is_CompositeData</span> <span class="o">=</span> <span class="kc">False</span>
     <span class="n">is_PointData</span> <span class="o">=</span> <span class="kc">False</span>
+
+    <span class="c1"># Misc</span>
+    <span class="n">is_Scalar</span> <span class="o">=</span> <span class="kc">False</span>
+    <span class="n">is_Tensor</span> <span class="o">=</span> <span class="kc">False</span>
 
     <span class="k">def</span> <span class="nf">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
         <span class="k">if</span> <span class="bp">cls</span> <span class="ow">in</span> <span class="n">_SymbolCache</span><span class="p">:</span>
@@ -345,11 +380,13 @@
 <span class="sd">        in a C module, False otherwise.&quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="kc">False</span>
 
-    <span class="k">def</span> <span class="nf">indexify</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">indexify</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">indices</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;Create a :class:`sympy.Indexed` object from the current object.&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">indices</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">Indexed</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">indexed</span><span class="p">,</span> <span class="o">*</span><span class="n">indices</span><span class="p">)</span>
+
         <span class="n">subs</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">([(</span><span class="n">i</span><span class="o">.</span><span class="n">spacing</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">indices</span><span class="p">])</span>
         <span class="n">indices</span> <span class="o">=</span> <span class="p">[</span><span class="n">a</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="n">subs</span><span class="p">)</span> <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">args</span><span class="p">]</span>
-
         <span class="k">if</span> <span class="n">indices</span><span class="p">:</span>
             <span class="k">return</span> <span class="n">Indexed</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">indexed</span><span class="p">,</span> <span class="o">*</span><span class="n">indices</span><span class="p">)</span>
         <span class="k">else</span><span class="p">:</span>
@@ -383,6 +420,7 @@
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">is_ScalarFunction</span> <span class="o">=</span> <span class="kc">True</span>
+    <span class="n">is_Scalar</span> <span class="o">=</span> <span class="kc">True</span>
 
     <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cached</span><span class="p">():</span>
@@ -412,6 +450,7 @@
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">is_TensorFunction</span> <span class="o">=</span> <span class="kc">True</span>
+    <span class="n">is_Tensor</span> <span class="o">=</span> <span class="kc">True</span>
 
     <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cached</span><span class="p">():</span>
@@ -440,17 +479,60 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">_onstack</span> <span class="o">=</span> <span class="n">onstack</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">_mem_stack</span>
 
 
-<span class="k">class</span> <span class="nc">SymbolicData</span><span class="p">(</span><span class="n">AbstractSymbol</span><span class="p">,</span> <span class="n">SymbolicDataArgProvider</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;A symbolic object associated with data.&quot;&quot;&quot;</span>
+<span class="k">class</span> <span class="nc">SymbolicData</span><span class="p">(</span><span class="n">AbstractSymbol</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;A symbolic object associated with data.</span>
+
+<span class="sd">    Unlike :class:`SymbolicFunction` objects, the structure of a SymbolicData</span>
+<span class="sd">    is immutable (e.g., shape, dtype, ...). Obviously, the object value (``data``)</span>
+<span class="sd">    may be altered, either directly by the user or by an :class:`Operator`.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">is_SymbolicData</span> <span class="o">=</span> <span class="kc">True</span>
 
+
+<div class="viewcode-block" id="ConstantData"><a class="viewcode-back" href="../../devito.html#devito.interfaces.ConstantData">[docs]</a><span class="k">class</span> <span class="nc">ConstantData</span><span class="p">(</span><span class="n">SymbolicData</span><span class="p">,</span> <span class="n">ConstantDataArgProvider</span><span class="p">):</span>
+
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Data object for constant values.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">is_ConstantData</span> <span class="o">=</span> <span class="kc">True</span>
+    <span class="n">is_Scalar</span> <span class="o">=</span> <span class="kc">True</span>
+
+    <span class="k">def</span> <span class="nf">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="n">kwargs</span><span class="o">.</span><span class="n">update</span><span class="p">({</span><span class="s1">&#39;options&#39;</span><span class="p">:</span> <span class="p">{</span><span class="s1">&#39;evaluate&#39;</span><span class="p">:</span> <span class="kc">False</span><span class="p">}})</span>
+        <span class="k">return</span> <span class="n">AbstractSymbol</span><span class="o">.</span><span class="fm">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cached</span><span class="p">():</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">name</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;name&#39;</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">shape</span> <span class="o">=</span> <span class="p">()</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">indices</span> <span class="o">=</span> <span class="p">()</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">dtype</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;dtype&#39;</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_value</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;value&#39;</span><span class="p">,</span> <span class="mf">0.</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">data</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_value</span>
+
+    <span class="nd">@data</span><span class="o">.</span><span class="n">setter</span>
+    <span class="k">def</span> <span class="nf">data</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">val</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_value</span> <span class="o">=</span> <span class="n">val</span></div>
+
+
+<span class="k">class</span> <span class="nc">TensorData</span><span class="p">(</span><span class="n">SymbolicData</span><span class="p">,</span> <span class="n">TensorDataArgProvider</span><span class="p">):</span>
+
+    <span class="n">is_TensorData</span> <span class="o">=</span> <span class="kc">True</span>
+    <span class="n">is_Tensor</span> <span class="o">=</span> <span class="kc">True</span>
+
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">_mem_external</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return True if the associated data was/is/will be allocated directly</span>
+<span class="sd">        from Python (e.g., via NumPy arrays), False otherwise.&quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="kc">True</span>
 
 
-<div class="viewcode-block" id="DenseData"><a class="viewcode-back" href="../../devito.html#devito.interfaces.DenseData">[docs]</a><span class="k">class</span> <span class="nc">DenseData</span><span class="p">(</span><span class="n">SymbolicData</span><span class="p">):</span>
+<div class="viewcode-block" id="DenseData"><a class="viewcode-back" href="../../devito.html#devito.interfaces.DenseData">[docs]</a><span class="k">class</span> <span class="nc">DenseData</span><span class="p">(</span><span class="n">TensorData</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;Data object for spatially varying data acting as a :class:`SymbolicData`.</span>
 
 <span class="sd">    :param name: Name of the symbol</span>
@@ -835,8 +917,15 @@
         <span class="n">obj</span><span class="o">.</span><span class="n">function</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">function</span>
         <span class="k">return</span> <span class="n">obj</span>
 
+    <span class="k">def</span> <span class="nf">__getitem__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">indices</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Return :class:`Indexed`, rather than :class:`sympy.Indexed`.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">indexed</span> <span class="o">=</span> <span class="nb">super</span><span class="p">(</span><span class="n">IndexedData</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__getitem__</span><span class="p">(</span><span class="n">indices</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">Indexed</span><span class="p">(</span><span class="o">*</span><span class="n">indexed</span><span class="o">.</span><span class="n">args</span><span class="p">)</span>
 
-<span class="k">class</span> <span class="nc">Symbol</span><span class="p">(</span><span class="n">sympy</span><span class="o">.</span><span class="n">Symbol</span><span class="p">):</span>
+
+<div class="viewcode-block" id="Symbol"><a class="viewcode-back" href="../../devito.html#devito.interfaces.Symbol">[docs]</a><span class="k">class</span> <span class="nc">Symbol</span><span class="p">(</span><span class="n">sympy</span><span class="o">.</span><span class="n">Symbol</span><span class="p">):</span>
 
     <span class="sd">&quot;&quot;&quot;A :class:`sympy.Symbol` capable of mimicking an :class:`sympy.Indexed`&quot;&quot;&quot;</span>
 
@@ -847,14 +936,14 @@
         <span class="n">obj</span><span class="o">.</span><span class="n">function</span> <span class="o">=</span> <span class="n">base</span><span class="o">.</span><span class="n">function</span>
         <span class="k">return</span> <span class="n">obj</span>
 
-    <span class="k">def</span> <span class="nf">func</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">):</span>
-        <span class="k">return</span> <span class="nb">super</span><span class="p">(</span><span class="n">Symbol</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">base</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">base</span><span class="o">.</span><span class="n">args</span><span class="p">))</span>
+<div class="viewcode-block" id="Symbol.func"><a class="viewcode-back" href="../../devito.html#devito.interfaces.Symbol.func">[docs]</a>    <span class="k">def</span> <span class="nf">func</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">):</span>
+        <span class="k">return</span> <span class="nb">super</span><span class="p">(</span><span class="n">Symbol</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">base</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">base</span><span class="o">.</span><span class="n">args</span><span class="p">))</span></div></div>
 
 
-<span class="k">class</span> <span class="nc">Indexed</span><span class="p">(</span><span class="n">sympy</span><span class="o">.</span><span class="n">Indexed</span><span class="p">):</span>
+<div class="viewcode-block" id="Indexed"><a class="viewcode-back" href="../../devito.html#devito.interfaces.Indexed">[docs]</a><span class="k">class</span> <span class="nc">Indexed</span><span class="p">(</span><span class="n">sympy</span><span class="o">.</span><span class="n">Indexed</span><span class="p">):</span>
 
     <span class="k">def</span> <span class="nf">_hashable_content</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">return</span> <span class="nb">super</span><span class="p">(</span><span class="n">Indexed</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">_hashable_content</span><span class="p">()</span> <span class="o">+</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">base</span><span class="o">.</span><span class="n">function</span><span class="p">,)</span>
+        <span class="k">return</span> <span class="nb">super</span><span class="p">(</span><span class="n">Indexed</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">_hashable_content</span><span class="p">()</span> <span class="o">+</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">base</span><span class="o">.</span><span class="n">function</span><span class="p">,)</span></div>
 </pre></div>
 
            </div>
