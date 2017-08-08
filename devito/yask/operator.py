@@ -31,7 +31,7 @@ class Operator(OperatorRunnable):
         super(Operator, self).__init__(expressions, **kwargs)
         from IPython import embed; embed()
 
-    def _specialize(self, nodes, elemental_functions):
+    def _specialize(self, nodes):
         """
         Create a YASK representation of this Iteration/Expression tree.
         """
@@ -98,7 +98,7 @@ class Operator(OperatorRunnable):
 
         log("Specialization successfully performed!")
 
-        return processed, ()
+        return processed
 
     def _extra_arguments(self):
         return OrderedDict([(c_void_p, self.ksoln.rawpointer)])
