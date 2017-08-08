@@ -3,7 +3,7 @@ from collections import OrderedDict
 from time import time
 
 from devito.dse.inspection import estimate_cost
-from devito.dse.manipulation import freeze_expression
+from devito.dse.manipulation import freeze_expression, pow_to_mul
 
 from devito.logger import dse
 from devito.tools import flatten
@@ -110,11 +110,14 @@ class AbstractRewriter(object):
         """
         Finalize the DSE output: ::
 
+            * Pow-->Mul. Convert integer powers in an expression to Muls,
+              like a**2 => a*a.
             * Freezing. Make sure that subsequent SymPy operations applied to
               the expressions in ``cluster.exprs`` will not alter the effect of
               the DSE passes.
         """
-        return cluster.rebuild([freeze_expression(e) for e in cluster.exprs])
+        exprs = [pow_to_mul(e) for e in cluster.exprs]
+        return cluster.rebuild([freeze_expression(e) for e in exprs])
 
     def _summary(self):
         """
