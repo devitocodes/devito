@@ -755,6 +755,13 @@ class IndexedData(IndexedBase):
         obj.function = self.function
         return obj
 
+    def __getitem__(self, indices, **kwargs):
+        """
+        Return :class:`Indexed`, rather than :class:`sympy.Indexed`.
+        """
+        indexed = super(IndexedData, self).__getitem__(indices, **kwargs)
+        return Indexed(*indexed.args)
+
 
 class Symbol(sympy.Symbol):
 
