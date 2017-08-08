@@ -253,13 +253,13 @@ def test_graph_isindex(fa, fb, fc, t0, t1, t2, exprs, expected):
 @pytest.mark.parametrize('exprs,expected', [
     # none (different distance)
     (['Eq(t0, fa[x] + fb[x])', 'Eq(t1, fa[x+1] + fb[x])'],
-     {}),
+     {'fa[x] + fb[x]': None, 'fa[x+1] + fb[x]': None}),
     # none (different dimension)
     (['Eq(t0, fa[x] + fb[x])', 'Eq(t1, fa[x] + fb[y])'],
-     {}),
+     {'fa[x] + fb[x]': None, 'fa[x] + fb[y]': None}),
     # none (different operation)
     (['Eq(t0, fa[x] + fb[x])', 'Eq(t1, fa[x] - fb[x])'],
-     {}),
+     {'fa[x] + fb[x]': None, 'fa[x] - fb[x]': None}),
     # simple
     (['Eq(t0, fa[x] + fb[x])', 'Eq(t1, fa[x+1] + fb[x+1])', 'Eq(t2, fa[x-1] + fb[x-1])'],
      {'fa[x] + fb[x]': Stencil([(x, {-1, 0, 1})])}),
@@ -281,7 +281,7 @@ def test_collect_aliases(fa, fb, fc, fd, t0, t1, t2, t3, exprs, expected):
     _, aliases = collect(EVAL(exprs, *scope))
     for k, v in aliases.items():
         assert k in mapper
-        assert v.anti_stencil == mapper[k]
+        assert (len(v.aliased) == 1 and mapper[k] is None) or v.anti_stencil == mapper[k]
 
 
 @pytest.mark.parametrize('expr,expected', [
