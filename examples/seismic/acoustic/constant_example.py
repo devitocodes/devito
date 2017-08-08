@@ -6,21 +6,6 @@ from examples.seismic import Model, PointSource, Receiver
 from devito import ConstantData
 
 
-# Velocity models
-def smooth10(vel, shape):
-    out = np.ones(shape, dtype=np.float32)
-    out[:] = vel[:]
-    nz = shape[-1]
-
-    for a in range(5, nz-6):
-        if len(shape) == 2:
-            out[:, a] = np.sum(vel[:, a - 5:a + 5], axis=1) / 10
-        else:
-            out[:, :, a] = np.sum(vel[:, :, a - 5:a + 5], axis=2) / 10
-
-    return out
-
-
 # Set up the source as Ricker wavelet for f0
 def source(t, f0):
     r = (np.pi * f0 * (t - 1./f0))
@@ -56,7 +41,6 @@ def setup(dimensions=(50, 50, 50), spacing=(15.0, 15.0, 15.0), tn=500.,
     if time_order == 4:
         dt *= 1.73
     t0 = 0.0
-    tn = tn
     nt = int(1+(tn-t0)/dt)
 
     # Set up the source as Ricker wavelet for f0
@@ -72,25 +56,26 @@ def setup(dimensions=(50, 50, 50), spacing=(15.0, 15.0, 15.0), tn=500.,
     src = PointSource(name='src', data=time_series, coordinates=location)
     rec = Receiver(name='rec', ntime=nt, coordinates=receiver_coords)
     return AcousticWaveSolver(model, source=src, receiver=rec,
-                              time_order=time_order, space_order=space_order,
-                              **kwargs)
+                              time_order=time_order, space_order=space_order, **kwargs)
 
 
 def run(dimensions=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=1000.0,
         time_order=2, space_order=4, nbpml=40, full_run=False, **kwargs):
 
     solver = setup(dimensions=dimensions, spacing=spacing, nbpml=nbpml, tn=tn,
-                   space_order=space_order, time_order=time_order,
-                   **kwargs)
+                   space_order=space_order, time_order=time_order, **kwargs)
 
     initial_vp = 1.8
     dm = (initial_vp**2 - solver.model.m.data) * np.ones(solver.model.shape_domain,
                                                          dtype=np.float32)
     info("Applying Forward")
-    m0 = ConstantData(name="m", value=.25, dtype=np.float32)
+    # Default model.m
     rec, u, summary = solver.forward(save=full_run)
-    rec, u, summary = solver.forward(save=full_run, m=m0)
-    rec, u, summary = solver.forward(save=full_run, m=.25)
+    # With  a new m as ConstantData
+    m0 = ConstantData(name="m", value=.25, dtype=np.float32)
+    solver.forward(save=full_run, m=m0)
+    # With a new m as a scalar value
+    solver.forward(save=full_run, m=.25)
 
     if not full_run:
         return summary.gflopss, summary.oi, summary.timings, [rec, u.data]
@@ -105,4 +90,4 @@ def run(dimensions=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=1000.0,
 
 if __name__ == "__main__":
     run(full_run=True, autotune=False, space_order=6, time_order=2,
-        dimensions=(50, 50), tn=500.)
+        dimensions=(50, 50), tn=500., nbpml=0)

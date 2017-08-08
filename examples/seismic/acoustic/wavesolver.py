@@ -84,7 +84,7 @@ class AcousticWaveSolver(object):
         :param u: (Optional) Symbol to store the computed wavefield
         :param m: (Optional) Symbol for the time-constant square slowness
         :param save: Option to store the entire (unrolled) wavefield
-
+s
         :returns: Receiver, wavefield and performance summary
         """
         # Source term is read-only, so re-use the default
