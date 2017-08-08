@@ -79,9 +79,9 @@ class Operator(OperatorRunnable):
 
         return nodes, ()
 
-    def apply(self, *args, **kwargs):
+    def apply(self, **kwargs):
         # Build the arguments list to invoke the kernel function
-        arguments, dim_sizes = self.arguments(*args, **kwargs)
+        arguments, dim_sizes = self.arguments(**kwargs)
 
         # Share the grids from the hook solution
         for kgrid in self.ksoln.grids:

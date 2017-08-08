@@ -101,32 +101,33 @@ def complex_function(a, b, c, d, exprs, iters):
 
 
 def _new_operator1(shape, **kwargs):
-    infield = DenseData(name='in', shape=shape, dtype=np.int32)
+    infield = DenseData(name='infield', shape=shape, dtype=np.int32)
     infield.data[:] = np.arange(reduce(mul, shape), dtype=np.int32).reshape(shape)
 
-    outfield = DenseData(name='out', shape=shape, dtype=np.int32)
+    outfield = DenseData(name='outfield', shape=shape, dtype=np.int32)
 
     stencil = Eq(outfield.indexify(), outfield.indexify() + infield.indexify()*3.0)
 
     # Run the operator
     op = Operator(stencil, **kwargs)
-    op(infield, outfield)
+    op(infield=infield, outfield=outfield)
 
     return outfield, op
 
 
 def _new_operator2(shape, time_order, **kwargs):
-    infield = TimeData(name='in', shape=shape, time_order=time_order, dtype=np.int32)
+    infield = TimeData(name='infield', shape=shape, time_order=time_order, dtype=np.int32)
     infield.data[:] = np.arange(reduce(mul, shape), dtype=np.int32).reshape(shape)
 
-    outfield = TimeData(name='out', shape=shape, time_order=time_order, dtype=np.int32)
+    outfield = TimeData(name='outfield', shape=shape, time_order=time_order,
+                        dtype=np.int32)
 
     stencil = Eq(outfield.forward.indexify(),
                  outfield.indexify() + infield.indexify()*3.0)
 
     # Run the operator
     op = Operator(stencil, **kwargs)
-    op(infield, outfield, t=10)
+    op(infield=infield, outfield=outfield, t=10)
 
     return outfield, op
 
@@ -155,7 +156,7 @@ def test_create_elemental_functions_simple(simple_function):
   {
     for (int j = 0; j < 5; j += 1)
     {
-      f_0(0,7,(float*) a,(float*) b,(float*) c,(float*) d,i,j);
+      f_0(0,7,(float*)a,(float*)b,(float*)c,(float*)d,i,j);
     }
   }
 }
@@ -197,12 +198,12 @@ def test_create_elemental_functions_complex(complex_function):
   float (*restrict d)[5][7] __attribute__((aligned(64))) = (float (*)[5][7]) d_vec;
   for (int i = 0; i < 3; i += 1)
   {
-    f_0(0,4,(float*) a,(float*) b,i);
+    f_0(0,4,(float*)a,(float*)b,i);
     for (int j = 0; j < 5; j += 1)
     {
-      f_1(0,7,(float*) a,(float*) b,(float*) c,(float*) d,i,j);
+      f_1(0,7,(float*)a,(float*)b,(float*)c,(float*)d,i,j);
     }
-    f_2(0,4,(float*) a,(float*) b,i);
+    f_2(0,4,(float*)a,(float*)b,i);
   }
 }
 void f_0(const int s_start, const int s_finish,"""

@@ -262,8 +262,8 @@ class DevitoRewriter(BasicRewriter):
                     for i in vector_iterations:
                         handle = FindSymbols('symbolics').visit(i)
                         try:
-                            aligned = [j for j in handle
-                                       if j.shape[-1] % get_simd_items(j.dtype) == 0]
+                            aligned = [j for j in handle if j.is_Tensor and
+                                       j.shape[-1] % get_simd_items(j.dtype) == 0]
                         except KeyError:
                             aligned = []
                         if aligned:
@@ -328,7 +328,7 @@ class DevitoRewriter(BasicRewriter):
 
                     # Track the thread-private and thread-shared variables
                     private.extend([i for i in FindSymbols('symbolics').visit(root)
-                                    if i._mem_stack])
+                                    if i.is_TensorFunction and i._mem_stack])
 
                 # Build the parallel region
                 private = sorted(set([i.name for i in private]))

@@ -6,11 +6,11 @@ import inspect
 from collections import Iterable, OrderedDict
 
 import cgen as c
-from sympy import Eq, preorder_traversal
+from sympy import Eq
 
 from devito.cgen_utils import ccode
-from devito.dse import as_symbol
-from devito.interfaces import IndexedData, SymbolicData, TensorFunction
+from devito.dse import as_symbol, terminals
+from devito.interfaces import Indexed, Symbol, TensorFunction
 from devito.stencil import Stencil
 from devito.tools import as_tuple, filter_ordered, flatten
 from devito.arguments import ArgumentProvider, Argument, TensorArgument
@@ -170,19 +170,14 @@ class Expression(Node):
         self.expr = expr
         self.dtype = dtype
 
-        self.dimensions = []
-        self.functions = []
         # Traverse /expression/ to determine meta information
-        for e in preorder_traversal(self.expr):
-            if isinstance(e, SymbolicData):
-                self.dimensions += list(e.indices)
-                self.functions += [e]
-            if isinstance(e, IndexedData):
-                self.dimensions += list(e.function.indices)
-                self.functions += [e.function]
+        # Note: at this point, expressions have already been indexified
+        self.functions = [i.base.function for i in terminals(self.expr)
+                          if isinstance(i, (Indexed, Symbol))]
+        self.dimensions = flatten(i.indices for i in self.functions)
         # Filter collected dimensions and functions
-        self.dimensions = filter_ordered(self.dimensions)
         self.functions = filter_ordered(self.functions)
+        self.dimensions = filter_ordered(self.dimensions)
 
     def __repr__(self):
         return "<%s::%s>" % (self.__class__.__name__,
@@ -539,11 +534,10 @@ class Function(Node):
         else:
             assert(all(isinstance(i, Argument) for i in parameters))
             args = parameters
-
         self.parameters = as_tuple(args)
 
         # At this point, all objects in args should be objects of the RuntimeArgument
-        # heirarchy. Separate the tensor arguments from the scalar ones
+        # hierarchy. Separate the tensor arguments from the scalar ones
         self.tensor_args = [i for i in args if i.is_TensorArgument]
         self.scalar_args = [i for i in args if i.is_ScalarArgument]
 

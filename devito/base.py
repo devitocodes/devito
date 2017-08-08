@@ -18,6 +18,10 @@ class TensorFunction(with_metaclass(_BackendSelector, interfaces.TensorFunction)
     pass
 
 
+class ConstantData(with_metaclass(_BackendSelector, interfaces.ConstantData)):
+    pass
+
+
 class DenseData(with_metaclass(_BackendSelector, interfaces.DenseData)):
     pass
 

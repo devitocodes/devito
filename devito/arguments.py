@@ -3,6 +3,7 @@ import numpy as np
 from cached_property import cached_property
 
 from devito.cgen_utils import ccode
+from devito.exceptions import InvalidArgument
 from devito.logger import debug
 
 """ This module provides a set of classes that help in processing runtime arguments for
@@ -34,7 +35,14 @@ class Argument(object):
 
     @property
     def value(self):
-        return self._value
+        try:
+            if self._value.is_SymbolicData:
+                return self._value.data
+            else:
+                raise InvalidArgument("Unexpected data object %s" % type(self._value))
+        except AttributeError:
+            # A user-provided scalar, e.g. a dimension value
+            return self._value
 
     @property
     def ready(self):
@@ -43,6 +51,10 @@ class Argument(object):
     @property
     def decl(self):
         raise NotImplemented()
+
+    @property
+    def dtype(self):
+        return self.provider.dtype
 
     @property
     def ccode(self):
@@ -69,11 +81,7 @@ class ScalarArgument(Argument):
 
     @property
     def decl(self):
-        return c.Value('const int', self.name)
-
-    @property
-    def dtype(self):
-        return np.int32
+        return c.Value('const %s' % c.dtype_to_ctype(self.dtype), self.name)
 
     def verify(self, value):
         # Assuming self._value was initialised as appropriate for the reducer
@@ -93,17 +101,9 @@ class TensorArgument(Argument):
 
     is_TensorArgument = True
 
-    def __init__(self, name, provider, dtype):
+    def __init__(self, name, provider):
         super(TensorArgument, self).__init__(name, provider)
-        self.dtype = dtype
         self._value = self._default_value = self.provider
-
-    @property
-    def value(self):
-        if isinstance(self._value, np.ndarray):
-            return self._value
-        else:
-            return self._value.data
 
     @property
     def decl(self):
@@ -235,7 +235,18 @@ class DimensionArgProvider(ArgumentProvider):
         return verify
 
 
-class SymbolicDataArgProvider(ArgumentProvider):
+class ConstantDataArgProvider(ArgumentProvider):
+
+    """ Class used to decorate Constat Data objects with behaviour required for runtime
+        arguments.
+    """
+
+    @cached_property
+    def rtargs(self):
+        return [ScalarArgument(self.name, self, lambda old, new: new, self.data)]
+
+
+class TensorDataArgProvider(ArgumentProvider):
 
     """ Class used to decorate Symbolic Data objects with behaviour required for runtime
         arguments.
@@ -243,7 +254,7 @@ class SymbolicDataArgProvider(ArgumentProvider):
 
     @cached_property
     def rtargs(self):
-        return [TensorArgument(self.name, self, self.dtype)]
+        return [TensorArgument(self.name, self)]
 
 
 class ScalarFunctionArgProvider(ArgumentProvider):
@@ -265,7 +276,7 @@ class TensorFunctionArgProvider(ArgumentProvider):
 
     @cached_property
     def rtargs(self):
-        return [TensorArgument(self.name, self, self.dtype)]
+        return [TensorArgument(self.name, self)]
 
 
 def log_args(arguments):

@@ -8,7 +8,7 @@ import numpy as np
 import pytest
 from sympy import Eq  # noqa
 
-from devito import (clear_cache, Operator, DenseData, TimeData,
+from devito import (clear_cache, Operator, ConstantData, DenseData, TimeData,
                     PointData, Dimension, time, x, y, z, configuration)
 from devito.foreign import Operator as OperatorForeign
 from devito.dle import retrieve_iteration_tree
@@ -28,6 +28,27 @@ def symbol(name, dimensions, value=0., mode='function'):
     s = DenseData(name=name, dimensions=dimensions)
     s.data[:] = value
     return s.indexify() if mode == 'indexed' else s
+
+
+class TestAPI(object):
+
+    @classmethod
+    def setup_class(cls):
+        clear_cache()
+
+    def test_code_generation(self, const, a_dense):
+        """
+        Tests that we can actually generate code for a trivial operator
+        using constant and array data objects.
+        """
+        eqn = Eq(a_dense, a_dense + 2.*const)
+        op = Operator(eqn)
+        assert len(op.parameters) == 2
+        assert op.parameters[0].name == 'a_dense'
+        assert op.parameters[0].is_TensorArgument
+        assert op.parameters[1].name == 'constant'
+        assert op.parameters[1].is_ScalarArgument
+        assert 'a_dense[i] = 2.0F*constant + a_dense[i]' in str(op.ccode)
 
 
 class TestArithmetic(object):
@@ -52,7 +73,7 @@ class TestArithmetic(object):
         fb = b.base.function if mode == 'indexed' else b
 
         eqn = eval(expr)
-        Operator(eqn)(fa, fb)
+        Operator(eqn)(a=fa, b=fb)
         assert np.allclose(fa.data, result, rtol=1e-12)
 
     @pytest.mark.parametrize('expr, result', [
@@ -71,7 +92,7 @@ class TestArithmetic(object):
         fb = b.base.function if mode == 'indexed' else b
 
         eqn = eval(expr)
-        Operator(eqn)(fa, fb)
+        Operator(eqn)(a=fa, b=fb)
         assert np.allclose(fa.data, result, rtol=1e-12)
 
     @pytest.mark.parametrize('expr, result', [
@@ -88,7 +109,7 @@ class TestArithmetic(object):
         fa.data[1:, 1:] = 0
 
         eqn = eval(expr)
-        Operator(eqn)(fa)
+        Operator(eqn)(a=fa)
         assert np.allclose(fa.data, result, rtol=1e-12)
 
     @pytest.mark.parametrize('expr, result', [
@@ -107,7 +128,7 @@ class TestArithmetic(object):
         fb = b.function
 
         eqn = eval(expr)
-        Operator(eqn)(fa, fb)
+        Operator(eqn)(a=fa, b=fb)
         assert np.allclose(fa.data[1:-1, 1:-1], result[1:-1, 1:-1], rtol=1e-12)
 
     @pytest.mark.parametrize('expr, result', [
@@ -124,7 +145,7 @@ class TestArithmetic(object):
         fa = a.function
 
         eqn = eval(expr)
-        Operator(eqn)(fa)
+        Operator(eqn)(a=fa)
         assert np.allclose(fa.data[1, 1:-1, 1:-1], result[1:-1, 1:-1], rtol=1e-12)
 
     @pytest.mark.parametrize('expr, result', [
@@ -142,9 +163,24 @@ class TestArithmetic(object):
         fa.data[0, :, :] = 2.
 
         eqn = eval(expr)
-        Operator(eqn)(fa)
+        Operator(eqn)(a=fa)
         assert np.allclose(fa.data[1, 1:-1, 1:-1], result[1:-1, 1:-1], rtol=1e-12)
         j.size, l.size = pushed
+
+    def test_constant_time_dense(self):
+        """Test arithmetic between different data objects, namely ConstantData
+        and DenseData."""
+        const = ConstantData(name='truc', value=2.)
+        a = DenseData(name='a', shape=(20, 20))
+        a.data[:] = 2.
+        eqn = Eq(a, a + 2.*const)
+        op = Operator(eqn)
+        op.apply(a=a, truc=const)
+        assert(np.allclose(a.data, 6.))
+
+        # Applying a different constant still works
+        op.apply(a=a, truc=ConstantData(name='truc2', value=3.))
+        assert(np.allclose(a.data, 12.))
 
 
 class TestArguments(object):
