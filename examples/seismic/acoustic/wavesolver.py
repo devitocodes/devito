@@ -106,9 +106,12 @@ s
                          dtype=self.model.dtype)
 
         kwargs.update({'u': u})
+        kwargs.update({'m': self.model.m})
 
         # Pick m from model unless explicitly provided
-        kwargs = self.check_input(m, **kwargs)
+        if m is not None:
+            kwargs.update({'m': m})
+
         # Execute operator and return wavefield and receiver data
         if save:
             summary = self.op_fwd_save.apply(**kwargs)
@@ -144,9 +147,12 @@ s
 
         kwargs.update({'srca': srca})
         kwargs.update({'v': v})
+        kwargs.update({'m': self.model.m})
 
         # Pick m from model unless explicitly provided
-        kwargs = self.check_input(m, **kwargs)
+        if m is not None:
+            kwargs.update({'m': m})
+
         kwargs.update({'rec': rec})
         # Execute operator and return wavefield and receiver data
         summary = self.op_adj.apply(**kwargs)
@@ -180,8 +186,11 @@ s
                          dtype=self.model.dtype)
         kwargs.update({'v': v})
         kwargs.update({'grad': grad})
+        kwargs.update({'m': self.model.m})
+
         # Pick m from model unless explicitly provided
-        kwargs = self.check_input(m, **kwargs)
+        if m is not None:
+            kwargs.update({'m': m})
 
         kwargs.update({'rec': rec})
         kwargs.update({'u': u})
@@ -222,33 +231,13 @@ s
         kwargs.update({'rec': rec})
         kwargs.update({'u': u})
         kwargs.update({'U': U})
+        kwargs.update({'m': self.model.m})
 
         # Pick m from model unless explicitly provided
-        kwargs = self.check_input(m, **kwargs)
+        if m is not None:
+            kwargs.update({'m': m})
 
         kwargs.update({'dm': dmin})
         # Execute operator and return wavefield and receiver data
         summary = self.op_born.apply(**kwargs)
         return rec, u, U, summary
-
-    def check_input(self, m, **kwargs):
-        if m is None:
-            return kwargs
-        elif self.model.m.is_DenseData:
-            if not isinstance(m, (DenseData, ndarray)):
-                error("The input square slowness has the wrong type "
-                      "This kernel is generated for a spatially varying velocity "
-                      "model and requires a ndarray or DenseData as input for m")
-            else:
-                kwargs.update({'m': m})
-                return kwargs
-        elif self.model.m.is_ConstantData:
-            if (not isinstance(m, ConstantData)) and (type(m) not in ScalarType):
-                error("The input square slowness has the wrong type "
-                      "This kernel is generated for a constant velocity "
-                      "model and requires a constant or ConstantData as input for m")
-            else:
-                kwargs.update({'m': m})
-                return kwargs
-        else:
-            return kwargs

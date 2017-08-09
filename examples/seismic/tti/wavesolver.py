@@ -91,9 +91,18 @@ class AnisotropicWaveSolver(object):
                          space_order=self.space_order,
                          dtype=self.model.dtype)
 
-        # Check physical parameters according to self
-        self.check_input(m, **kwargs)
+        # Pick m from model unless explicitly provided
+        if m is not None:
+            kwargs.update({'m': m})
 
+        if epsilon is None:
+            kwargs.update({'epsilon': epsilon})
+        if delta is None:
+            kwargs.update({'delta': delta})
+        if theta is None:
+            kwargs.update({'theta': theta})
+        if phi is None:
+            kwargs.update({'phi': phi})
         # Execute operator and return wavefield and receiver data
         if save:
             op = self.op_fwd_save
@@ -103,24 +112,3 @@ class AnisotropicWaveSolver(object):
         summary = op.apply(src=src, rec=rec, u=u, v=v, **kwargs)
         return rec, u, v, summary
 
-    def check_input(self, m, kwargs):
-        if m is None:
-            return kwargs
-        elif self.model.m.is_DenseData:
-            if not isinstance(m, (DenseData, ndarray)):
-                error("The input square slowness has the wrong type "
-                      "This kernel is generated for a spatially varying velocity "
-                      "model and requires a ndarray or DenseData as input for m")
-            else:
-                kwargs.update({'m': m})
-                return kwargs
-        elif self.model.m.is_ConstantData:
-            if (not isinstance(m, ConstantData)) and (type(m) not in ScalarType):
-                error("The input square slowness has the wrong type "
-                      "This kernel is generated for a constant velocity "
-                      "model and requires a constant or ConstantData as input for m")
-            else:
-                kwargs.update({'m': m})
-                return kwargs
-        else:
-            return kwargs
