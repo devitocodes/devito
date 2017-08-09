@@ -174,6 +174,11 @@
 <span class="kn">from</span> <span class="nn">devito.logger</span> <span class="k">import</span> <span class="n">error</span>
 <span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">convert_dtype_to_ctype</span>
 
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">Pre-load ``libc`` to explicitly manage C memory</span>
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="n">libc</span> <span class="o">=</span> <span class="n">ctypes</span><span class="o">.</span><span class="n">CDLL</span><span class="p">(</span><span class="n">find_library</span><span class="p">(</span><span class="s1">&#39;c&#39;</span><span class="p">))</span>
+
 
 <div class="viewcode-block" id="CMemory"><a class="viewcode-back" href="../../devito.html#devito.memory.CMemory">[docs]</a><span class="k">class</span> <span class="nc">CMemory</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
 
@@ -200,7 +205,6 @@
 <span class="sd">    object. The second element is the low-level reference that is</span>
 <span class="sd">    needed only for the call to free.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
-    <span class="n">libc</span> <span class="o">=</span> <span class="n">ctypes</span><span class="o">.</span><span class="n">CDLL</span><span class="p">(</span><span class="n">find_library</span><span class="p">(</span><span class="s1">&#39;c&#39;</span><span class="p">))</span>
     <span class="n">data_pointer</span> <span class="o">=</span> <span class="n">ctypes</span><span class="o">.</span><span class="n">cast</span><span class="p">(</span><span class="n">ctypes</span><span class="o">.</span><span class="n">c_void_p</span><span class="p">(),</span> <span class="n">ctypes</span><span class="o">.</span><span class="n">POINTER</span><span class="p">(</span><span class="n">ctypes</span><span class="o">.</span><span class="n">c_float</span><span class="p">))</span>
     <span class="n">arraysize</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">reduce</span><span class="p">(</span><span class="n">mul</span><span class="p">,</span> <span class="n">shape</span><span class="p">))</span>
     <span class="n">ctype</span> <span class="o">=</span> <span class="n">convert_dtype_to_ctype</span><span class="p">(</span><span class="n">dtype</span><span class="p">)</span>
@@ -229,7 +233,6 @@
     <span class="sd">&quot;&quot;&quot;Use the C function free to free the memory allocated for the</span>
 <span class="sd">    given pointer.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
-    <span class="n">libc</span> <span class="o">=</span> <span class="n">ctypes</span><span class="o">.</span><span class="n">CDLL</span><span class="p">(</span><span class="n">find_library</span><span class="p">(</span><span class="s1">&#39;c&#39;</span><span class="p">))</span>
     <span class="n">libc</span><span class="o">.</span><span class="n">free</span><span class="p">(</span><span class="n">internal_pointer</span><span class="p">)</span></div>
 
 
