@@ -1,11 +1,9 @@
 # coding: utf-8
 from cached_property import cached_property
-from numpy import ndarray, ScalarType
 
-from devito import TimeData, DenseData, ConstantData
-from devito.logger import error
+from devito import TimeData
 from examples.seismic.tti.operators import ForwardOperator
-from examples.seismic import Receiver, Model
+from examples.seismic import Receiver
 
 
 class AnisotropicWaveSolver(object):
@@ -111,4 +109,3 @@ class AnisotropicWaveSolver(object):
 
         summary = op.apply(src=src, rec=rec, u=u, v=v, **kwargs)
         return rec, u, v, summary
-

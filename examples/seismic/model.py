@@ -67,7 +67,6 @@ class Model(object):
         else:
             self.m = ConstantData(name="m", value=1/vp**2, dtype=self.dtype)
 
-
         # Create dampening field as symbol `damp`
         self.damp = DenseData(name="damp", shape=self.shape_domain,
                               dtype=self.dtype)

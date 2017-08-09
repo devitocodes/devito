@@ -1,7 +1,6 @@
 from cached_property import cached_property
 
-from devito import DenseData, TimeData, ConstantData
-from devito.logger import error
+from devito import DenseData, TimeData
 from examples.seismic import PointSource, Receiver
 from examples.seismic.acoustic.operators import (
     ForwardOperator, AdjointOperator, GradientOperator, BornOperator

@@ -57,5 +57,6 @@ def test_acoustic_constant(dimensions, fix_dim):
     print(term1, term2, ("%12.12f") % (term1 - term2), term1 / term2)
     assert np.isclose(term1 / term2, 1.0, atol=0.001)
 
+
 if __name__ == "__main__":
     test_acoustic(dimensions=(60, 70), time_order=2, space_order=4, fix_dim=False)
