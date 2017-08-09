@@ -93,13 +93,13 @@ class AnisotropicWaveSolver(object):
         if m is not None:
             kwargs.update({'m': m})
 
-        if epsilon is None:
+        if epsilon is not None:
             kwargs.update({'epsilon': epsilon})
-        if delta is None:
+        if delta is not None:
             kwargs.update({'delta': delta})
-        if theta is None:
+        if theta is not None:
             kwargs.update({'theta': theta})
-        if phi is None:
+        if phi is not None:
             kwargs.update({'phi': phi})
         # Execute operator and return wavefield and receiver data
         if save:
