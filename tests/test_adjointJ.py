@@ -9,9 +9,9 @@ from examples.seismic.acoustic.acoustic_example import acoustic_setup as setup
 @pytest.mark.parametrize('space_order', [4, 8, 12])
 @pytest.mark.parametrize('dimensions', [(60, 70), (40, 50, 30)])
 def test_acousticJ(dimensions, space_order):
-    solver = setup(dimensions=dimensions,
-                   space_order=space_order,
-                   nbpml=10+space_order/2)
+    spacing = tuple(15. for _ in dimensions)
+    solver = setup(dimensions=dimensions, spacing=spacing,
+                   space_order=space_order, nbpml=10+space_order/2)
     initial_vp = np.ones(solver.model.shape_domain) + .5
     m0 = np.float32(initial_vp**-2)
     dm = np.float32(solver.model.m.data - m0)

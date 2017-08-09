@@ -3,7 +3,7 @@ from argparse import ArgumentParser
 
 from devito.logger import info
 from examples.seismic.acoustic import AcousticWaveSolver
-from examples.seismic import Model, RickerSource, Receiver
+from examples.seismic import demo_model, RickerSource, Receiver
 
 
 # Velocity models
@@ -23,18 +23,14 @@ def smooth10(vel, shape):
 
 def acoustic_setup(dimensions=(50, 50, 50), spacing=(15.0, 15.0, 15.0),
                    tn=500., time_order=2, space_order=4, nbpml=10, **kwargs):
+    model = demo_model('layers', ratio=3, shape=dimensions,
+                       spacing=spacing, nbpml=nbpml)
 
-    ndim = len(dimensions)
     nrec = dimensions[0]
-    origin = tuple([0.]*ndim)
-    spacing = spacing[:ndim]
-
-    # Velocity model, two layers
-    true_vp = np.ones(dimensions) + .5
-    true_vp[..., int(dimensions[-1] / 3):dimensions[-1]] = 2.5
-
-    # Define seismic data
-    model = Model(origin, spacing, dimensions, true_vp, nbpml=int(nbpml))
+    origin = model.origin
+    spacing = model.spacing
+    dimensions = model.shape
+    ndim = len(dimensions)
 
     # Derive timestepping from model spacing
     dt = model.critical_dt

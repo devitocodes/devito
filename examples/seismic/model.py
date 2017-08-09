@@ -26,9 +26,9 @@ def demo_model(preset, **kwargs):
         # the bottom part of the domain has 1.5 km/s.
 
         shape = kwargs.get('shape', (101, 101))
-        spacing = kwargs.get('spacing', (10., 10.))
-        origin = kwargs.get('origin', (0., 0.))
-        nbpml = kwargs.get('nbpml', 20)
+        spacing = kwargs.get('spacing', tuple([10. for _ in shape]))
+        origin = kwargs.get('origin', tuple([0. for _ in shape]))
+        nbpml = kwargs.get('nbpml', 10)
         ratio = kwargs.get('ratio', 2)
 
         # Define a velocity profile in km/s

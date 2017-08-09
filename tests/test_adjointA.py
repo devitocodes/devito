@@ -14,8 +14,10 @@ from examples.seismic import PointSource
 @pytest.mark.parametrize('dimensions', [(60, 70), (60, 70, 80)])
 @pytest.mark.parametrize('fix_dim', [True, False])
 def test_acoustic(dimensions, time_order, space_order, fix_dim):
-    solver = setup(dimensions=dimensions, time_order=time_order,
-                   space_order=space_order, nbpml=10+space_order/2)
+    spacing = tuple(15. for _ in dimensions)
+    solver = setup(dimensions=dimensions, spacing=spacing,
+                   time_order=time_order, space_order=space_order,
+                   nbpml=10+space_order/2)
     srca = PointSource(name='srca', ntime=solver.source.nt,
                        coordinates=solver.source.coordinates.data)
 
