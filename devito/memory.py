@@ -12,6 +12,11 @@ from devito.dimension import t
 from devito.logger import error
 from devito.tools import convert_dtype_to_ctype
 
+"""
+Pre-load ``libc`` to explicitly manage C memory
+"""
+libc = ctypes.CDLL(find_library('c'))
+
 
 class CMemory(object):
 
@@ -38,7 +43,6 @@ def malloc_aligned(shape, alignment=None, dtype=np.float32):
     object. The second element is the low-level reference that is
     needed only for the call to free.
     """
-    libc = ctypes.CDLL(find_library('c'))
     data_pointer = ctypes.cast(ctypes.c_void_p(), ctypes.POINTER(ctypes.c_float))
     arraysize = int(reduce(mul, shape))
     ctype = convert_dtype_to_ctype(dtype)
@@ -67,7 +71,6 @@ def free(internal_pointer):
     """Use the C function free to free the memory allocated for the
     given pointer.
     """
-    libc = ctypes.CDLL(find_library('c'))
     libc.free(internal_pointer)
 
 
