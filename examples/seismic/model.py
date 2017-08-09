@@ -19,20 +19,22 @@ def demo_model(preset, **kwargs):
                     filepath. Requires the ``opesci/data`` repository
                     to be available on your machine.
     """
-    if preset.lower() == 'layer2d':
-        # 2D two-layer model with domain shape (101, 101),
-        # grid spacing of 10m and the origin at (1., 0.).
-        # The physical extent with defaults will be 1km x 1km.
+    if preset.lower() in ['layers', 'twolayer', '2layer']:
+        # A two-layer model in a 2D or 3D domain with two different
+        # velocities split across the height dimension:
+        # The top part of the domain has 1.5 km/s,
+        # the bottom part of the domain has 1.5 km/s.
 
         shape = kwargs.get('shape', (101, 101))
         spacing = kwargs.get('spacing', (10., 10.))
         origin = kwargs.get('origin', (0., 0.))
         nbpml = kwargs.get('nbpml', 20)
+        ratio = kwargs.get('ratio', 2)
 
         # Define a velocity profile in km/s
         v = np.empty(shape, dtype=np.float32)
-        v[:, :51] = 1.5
-        v[:, 51:] = 2.5
+        v[:] = 1.5  # Top velocity (background)
+        v[..., shape[-1] / ratio:] = 2.5  # Bottom velocity
 
         return Model(vp=v, origin=origin, shape=shape,
                      spacing=spacing, nbpml=nbpml)
@@ -113,9 +115,14 @@ class Model(object):
         self._vp = vp
         self.origin = origin
         self.spacing = spacing
+        self.shape = shape
         self.nbpml = nbpml
         self.dtype = dtype
-        self.shape = shape
+
+        # Ensure same dimensions on all inpute parameters
+        assert(len(origin) == len(spacing))
+        assert(len(origin) == len(shape))
+
         # Create square slowness of the wave as symbol `m`
         if isinstance(vp, np.ndarray):
             self.m = DenseData(name="m", shape=self.shape_domain, dtype=self.dtype)
