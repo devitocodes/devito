@@ -469,16 +469,16 @@ class Iteration(Node):
         ``finish``). ``None`` is used as a placeholder in the returned 2-tuple
         if a limit is unknown."""
         try:
-            start = int(self.limits[0]) - self.offsets[0]
+            lower = int(self.limits[0]) - self.offsets[0]
         except (TypeError, ValueError):
-            if not start:
-                start = None
+            if isinstance(start, int):
+                lower = start - self.offsets[0]
         try:
-            finish = int(self.limits[1]) - self.offsets[1]
+            upper = int(self.limits[1]) - self.offsets[1]
         except (TypeError, ValueError):
-            if not finish:
-                finish = None
-        return (start, finish)
+            if isinstance(finish, int):
+                upper = finish - self.offsets[1]
+        return (lower, upper)
 
     def extent(self, start=None, finish=None):
         """Return the number of iterations executed if the limits are known,
