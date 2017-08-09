@@ -118,10 +118,10 @@ class Operator(Function):
         self.symbolic_data = [i for i in parameters if isinstance(i, SymbolicData)]
         dims = [i for i in parameters if isinstance(i, Dimension)]
         dims_parents = [d.parent for d in dims if d.is_Buffered]
-        self.dims = list(set(dims + dims_parents))
+        self.dims = filter_ordered(dims + dims_parents)
         assert(all(isinstance(i, ArgumentProvider) for i in self.symbolic_data +
                    self.dims))
-        parameters = list(set(parameters + dims_parents))
+        parameters = filter_ordered(parameters + dims_parents)
 
         # Translate into backend-specific representation (e.g., GPU, Yask)
         nodes, elemental_functions = self._specialize(nodes, elemental_functions)
