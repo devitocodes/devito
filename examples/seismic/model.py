@@ -25,11 +25,11 @@ def demo_model(preset, **kwargs):
         # The top part of the domain has 1.5 km/s,
         # the bottom part of the domain has 1.5 km/s.
 
-        shape = kwargs.get('shape', (101, 101))
-        spacing = kwargs.get('spacing', tuple([10. for _ in shape]))
-        origin = kwargs.get('origin', tuple([0. for _ in shape]))
-        nbpml = kwargs.get('nbpml', 10)
-        ratio = kwargs.get('ratio', 2)
+        shape = kwargs.pop('shape', (101, 101))
+        spacing = kwargs.pop('spacing', tuple([10. for _ in shape]))
+        origin = kwargs.pop('origin', tuple([0. for _ in shape]))
+        nbpml = kwargs.pop('nbpml', 10)
+        ratio = kwargs.pop('ratio', 2)
 
         # Define a velocity profile in km/s
         v = np.empty(shape, dtype=np.float32)
@@ -37,7 +37,7 @@ def demo_model(preset, **kwargs):
         v[..., shape[-1] / ratio:] = 2.5  # Bottom velocity
 
         return Model(vp=v, origin=origin, shape=shape,
-                     spacing=spacing, nbpml=nbpml)
+                     spacing=spacing, nbpml=nbpml, **kwargs)
 
     elif preset.lower() in ['marmousi', 'marmousi2d']:
         shape = (1601, 401)

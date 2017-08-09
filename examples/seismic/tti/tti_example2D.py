@@ -1,7 +1,7 @@
 import numpy as np
 
 from devito.logger import warning
-from examples.seismic import Model, GaborSource, Receiver
+from examples.seismic import demo_model, GaborSource, Receiver
 from examples.seismic.tti import AnisotropicWaveSolver
 
 
@@ -12,16 +12,13 @@ def setup(dimensions=(150, 150), spacing=(15.0, 15.0), tn=750.0,
     nrec = 101
     origin = (0., 0.)
 
-    # True velocity
-    true_vp = np.ones(dimensions) + 1.0
-    true_vp[:, int(dimensions[0] / 3):int(2*dimensions[0]/3)] = 3.0
-    true_vp[:, int(2*dimensions[0] / 3):int(dimensions[0])] = 4.0
-
-    model = Model(origin, spacing, dimensions, true_vp,
-                  nbpml=nbpml,
-                  epsilon=.4*np.ones(dimensions),
-                  delta=-.1*np.ones(dimensions),
-                  theta=-np.pi/7*np.ones(dimensions))
+    # Two layer model for true velocity
+    model = demo_model('layers', ratio=3, shape=dimensions,
+                       spacing=spacing, nbpml=nbpml,
+                       epsilon=np.zeros(dimensions),
+                       delta=np.zeros(dimensions),
+                       theta=np.zeros(dimensions),
+                       phi=np.zeros(dimensions))
 
     # Derive timestepping from model spacing
     dt = model.critical_dt
