@@ -1,4 +1,5 @@
 import numpy as np
+import os
 
 from devito import DenseData, ConstantData
 from devito.logger import error
@@ -35,6 +36,28 @@ def demo_model(preset, **kwargs):
 
         return Model(vp=v, origin=origin, shape=shape,
                      spacing=spacing, nbpml=nbpml)
+
+    elif preset.lower() in ['marmousi', 'marmousi2d']:
+        shape = (1601, 401)
+        spacing = (7.5, 7.5)
+        origin = (0., 0.)
+
+        # Read 2D Marmousi model from opesc/data repo
+        data_path = kwargs.get('data_path', None)
+        if data_path is None:
+            error("Path to opesci/data not found! Please specify with "
+                  "'data_path=<path/to/opesci/data>'")
+            raise ValueError("Path to model data unspecified")
+        path = os.path.join(data_path, 'Simple2D/vp_marmousi_bi')
+        v = np.fromfile(path, dtype='float32', sep="")
+        v = v.reshape(shape)
+
+        # Cut the model to make it slightly cheaper
+        v = v[301:-300, :]
+
+        return Model(vp=v, origin=origin, shape=v.shape,
+                     spacing=spacing, nbpml=20)
+
     else:
         error('Unknown model preset name %s' % preset)
 
