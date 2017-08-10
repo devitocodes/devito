@@ -65,8 +65,6 @@ def collect(exprs):
                 group.append(e)
                 unseen.remove(e)
         mapper.update([(i, group) for i in group])
-        if len(group) == 1:
-            continue
 
         # Try creating a basis for the aliasing expressions' offsets
         offsets = [tuple(candidates[e].offsets) for e in group]
