@@ -40,9 +40,9 @@ def ForwardOperator(model, source, receiver, time_order=2, space_order=4,
 
     s = t.spacing
 
-    stencil = 1 / (2 * m + s * damp) * (
-        4 * m * u + (s * damp - 2 * m) * u.backward +
-        2 * s**2 * (u.laplace + s**2 / 12 * biharmonic))
+    stencil = 1.0 / (2.0 * m + s * damp) * (
+        4.0 * m * u + (s * damp - 2.0 * m) * u.backward +
+        2.0 * s**2 * (u.laplace + s**2 / 12.0 * biharmonic))
     eqn = [Eq(u.forward, stencil)]
 
     # Construct expression to inject source values
@@ -93,9 +93,9 @@ def AdjointOperator(model, source, receiver, time_order=2, space_order=4, **kwar
         dt = 1.73 * model.critical_dt
 
     # Derive both stencils from symbolic equation
-    stencil = 1 / (2 * m + s * damp) * (
-        4 * m * v + (s * damp - 2 * m) * v.forward +
-        2 * s**2 * (v.laplace + s**2 / 12 * biharmonic))
+    stencil = 1.0 / (2.0 * m + s * damp) * (
+        4.0 * m * v + (s * damp - 2.0 * m) * v.forward +
+        2.0 * s**2 * (v.laplace + s**2 / 12.0 * biharmonic))
     eqn = Eq(v.backward, stencil)
 
     # Construct expression to inject receiver values
@@ -210,11 +210,11 @@ def BornOperator(model, source, receiver, time_order=2, space_order=4, **kwargs)
     s = t.spacing
     stencil1 = 1.0 / (2.0 * m + s * damp) * \
         (4.0 * m * u + (s * damp - 2.0 * m) *
-         u.backward + 2.0 * s ** 2 * (u.laplace + s**2 / 12 * biharmonicu))
+         u.backward + 2.0 * s ** 2 * (u.laplace + s**2 / 12.0 * biharmonicu))
     stencil2 = 1.0 / (2.0 * m + s * damp) * \
         (4.0 * m * U + (s * damp - 2.0 * m) *
          U.backward + 2.0 * s ** 2 * (U.laplace +
-                                      s**2 / 12 * biharmonicU - dm * u.dt2))
+                                      s**2 / 12.0 * biharmonicU - dm * u.dt2))
     eqn1 = Eq(u.forward, stencil1)
     eqn2 = Eq(U.forward, stencil2)
 
