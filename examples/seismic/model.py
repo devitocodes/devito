@@ -125,6 +125,13 @@ class Model(object):
         return tuple(d + 2*self.nbpml for d in self.shape)
 
     @property
+    def domain_size(self):
+        """
+        Physical size of the domain as determined by shape and spacing
+        """
+        return tuple(d * s for d, s in zip(self.shape, self.spacing))
+
+    @property
     def critical_dt(self):
         """Critical computational time step value from the CFL condition."""
         # For a fixed time order this number goes down as the space order increases.
