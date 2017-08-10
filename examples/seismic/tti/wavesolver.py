@@ -88,24 +88,28 @@ class AnisotropicWaveSolver(object):
                          time_order=self.time_order,
                          space_order=self.space_order,
                          dtype=self.model.dtype)
-
         # Pick m from model unless explicitly provided
-        if m is not None:
-            kwargs.update({'m': m})
+        if m is None:
+            m = m or self.model.m
+        if epsilon is None:
+            epsilon = epsilon or self.model.epsilon
+        if delta is None:
+            delta = delta or self.model.delta
+        if theta is None:
+            theta = theta or self.model.theta
+        if phi is None:
+            phi = phi or self.model.phi
 
-        if epsilon is not None:
-            kwargs.update({'epsilon': epsilon})
-        if delta is not None:
-            kwargs.update({'delta': delta})
-        if theta is not None:
-            kwargs.update({'theta': theta})
-        if phi is not None:
-            kwargs.update({'phi': phi})
         # Execute operator and return wavefield and receiver data
         if save:
             op = self.op_fwd_save
         else:
             op = self.op_fwd
 
-        summary = op.apply(src=src, rec=rec, u=u, v=v, **kwargs)
+        if len(m.shape) == 2:
+            summary = op.apply(src=src, rec=rec, u=u, v=v, m=m, epsilon=epsilon,
+                               delta=delta, theta=theta, **kwargs)
+        else:
+            summary = op.apply(src=src, rec=rec, u=u, v=v, m=m, epsilon=epsilon,
+                               delta=delta, theta=theta, phi=phi, **kwargs)
         return rec, u, v, summary

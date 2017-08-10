@@ -83,18 +83,17 @@ class AcousticWaveSolver(object):
         :param u: (Optional) Symbol to store the computed wavefield
         :param m: (Optional) Symbol for the time-constant square slowness
         :param save: Option to store the entire (unrolled) wavefield
+
         :returns: Receiver, wavefield and performance summary
         """
         # Source term is read-only, so re-use the default
         if src is None:
             src = self.source
-
-        kwargs.update({'src': src})
         # Create a new receiver object to store the result
         if rec is None:
             rec = Receiver(name='rec', ntime=self.receiver.nt,
                            coordinates=self.receiver.coordinates.data)
-        kwargs.update({'rec': rec})
+
         # Create the forward wavefield if not provided
         if u is None:
             u = TimeData(name='u', shape=self.model.shape_domain,
@@ -103,18 +102,15 @@ class AcousticWaveSolver(object):
                          space_order=self.space_order,
                          dtype=self.model.dtype)
 
-        kwargs.update({'u': u})
-        kwargs.update({'m': self.model.m})
-
         # Pick m from model unless explicitly provided
-        if m is not None:
-            kwargs.update({'m': m})
+        if m is None:
+            m = m or self.model.m
 
         # Execute operator and return wavefield and receiver data
         if save:
-            summary = self.op_fwd_save.apply(**kwargs)
+            summary = self.op_fwd_save.apply(src=src, rec=rec, u=u, m=m, **kwargs)
         else:
-            summary = self.op_fwd.apply(**kwargs)
+            summary = self.op_fwd.apply(src=src, rec=rec, u=u, m=m, **kwargs)
         return rec, u, summary
 
     def adjoint(self, rec, srca=None, v=None, m=None, **kwargs):
@@ -143,17 +139,12 @@ class AcousticWaveSolver(object):
                          space_order=self.space_order,
                          dtype=self.model.dtype)
 
-        kwargs.update({'srca': srca})
-        kwargs.update({'v': v})
-        kwargs.update({'m': self.model.m})
-
         # Pick m from model unless explicitly provided
-        if m is not None:
-            kwargs.update({'m': m})
+        if m is None:
+            m = self.model.m
 
-        kwargs.update({'rec': rec})
         # Execute operator and return wavefield and receiver data
-        summary = self.op_adj.apply(**kwargs)
+        summary = self.op_adj.apply(srca=srca, rec=rec, v=v, m=m, **kwargs)
         return srca, v, summary
 
     def gradient(self, rec, u, v=None, grad=None, m=None, **kwargs):
@@ -182,17 +173,12 @@ class AcousticWaveSolver(object):
                          time_order=self.time_order,
                          space_order=self.space_order,
                          dtype=self.model.dtype)
-        kwargs.update({'v': v})
-        kwargs.update({'grad': grad})
-        kwargs.update({'m': self.model.m})
 
         # Pick m from model unless explicitly provided
-        if m is not None:
-            kwargs.update({'m': m})
+        if m is None:
+            m = m or self.model.m
 
-        kwargs.update({'rec': rec})
-        kwargs.update({'u': u})
-        summary = self.op_grad.apply(**kwargs)
+        summary = self.op_grad.apply(rec=rec, grad=grad, v=v, u=u, m=m, **kwargs)
         return grad, summary
 
     def born(self, dmin, src=None, rec=None, u=None, U=None, m=None, **kwargs):
@@ -225,17 +211,10 @@ class AcousticWaveSolver(object):
                          save=False, time_order=self.time_order,
                          space_order=self.space_order, dtype=self.model.dtype)
 
-        kwargs.update({'src': src})
-        kwargs.update({'rec': rec})
-        kwargs.update({'u': u})
-        kwargs.update({'U': U})
-        kwargs.update({'m': self.model.m})
-
         # Pick m from model unless explicitly provided
-        if m is not None:
-            kwargs.update({'m': m})
+        if m is None:
+            m = self.model.m
 
-        kwargs.update({'dm': dmin})
         # Execute operator and return wavefield and receiver data
-        summary = self.op_born.apply(**kwargs)
+        summary = self.op_born.apply(dm=dmin, u=u, U=U, src=src, rec=rec, m=m, **kwargs)
         return rec, u, U, summary
