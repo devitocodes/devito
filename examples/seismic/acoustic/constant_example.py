@@ -55,7 +55,12 @@ def setup(dimensions=(50, 50, 50), spacing=(15.0, 15.0, 15.0), tn=500.,
     # Define source and receivers and create acoustic wave solver
     src = PointSource(name='src', data=time_series, coordinates=location)
     rec = Receiver(name='rec', ntime=nt, coordinates=receiver_coords)
-    return AcousticWaveSolver(model, source=src, receiver=rec,
+
+    # Note: A potential bug in GCC requires using less aggressive loop
+    # transformations. In particular, the DLE `_avoid_denormals` pass is skipped
+    # by using `advanced-safemath`, rather than the default DLE mode `advanced`.
+
+    return AcousticWaveSolver(model, source=src, receiver=rec, dle='advanced-safemath',
                               time_order=time_order, space_order=space_order, **kwargs)
 
 
