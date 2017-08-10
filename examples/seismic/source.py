@@ -34,14 +34,18 @@ class PointSource(PointData):
             ntime = ntime or data.shape[0]
 
         # Create the underlying PointData object
-        obj = PointData(name=name, dimensions=[time, p_dim],
-                        npoint=npoint, nt=ntime, ndim=ndim,
-                        coordinates=coordinates, **kwargs)
+        obj = PointData.__new__(cls, name=name, dimensions=[time, p_dim],
+                                npoint=npoint, nt=ntime, ndim=ndim,
+                                coordinates=coordinates, **kwargs)
 
         # If provided, copy initial data into the allocated buffer
         if data is not None:
             obj.data[:] = data
         return obj
+
+    def __init__(self, *args, **kwargs):
+        if not self._cached():
+            super(PointSource, self).__init__(*args, **kwargs)
 
 
 Receiver = PointSource
