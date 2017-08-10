@@ -165,7 +165,7 @@
 <span class="kn">from</span> <span class="nn">time</span> <span class="k">import</span> <span class="n">time</span>
 
 <span class="kn">from</span> <span class="nn">devito.dse.inspection</span> <span class="k">import</span> <span class="n">estimate_cost</span>
-<span class="kn">from</span> <span class="nn">devito.dse.manipulation</span> <span class="k">import</span> <span class="n">freeze_expression</span>
+<span class="kn">from</span> <span class="nn">devito.dse.manipulation</span> <span class="k">import</span> <span class="n">freeze_expression</span><span class="p">,</span> <span class="n">pow_to_mul</span>
 
 <span class="kn">from</span> <span class="nn">devito.logger</span> <span class="k">import</span> <span class="n">dse</span>
 <span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">flatten</span>
@@ -272,11 +272,14 @@
         <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Finalize the DSE output: ::</span>
 
+<span class="sd">            * Pow--&gt;Mul. Convert integer powers in an expression to Muls,</span>
+<span class="sd">              like a**2 =&gt; a*a.</span>
 <span class="sd">            * Freezing. Make sure that subsequent SymPy operations applied to</span>
 <span class="sd">              the expressions in ``cluster.exprs`` will not alter the effect of</span>
 <span class="sd">              the DSE passes.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">return</span> <span class="n">cluster</span><span class="o">.</span><span class="n">rebuild</span><span class="p">([</span><span class="n">freeze_expression</span><span class="p">(</span><span class="n">e</span><span class="p">)</span> <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">cluster</span><span class="o">.</span><span class="n">exprs</span><span class="p">])</span>
+        <span class="n">exprs</span> <span class="o">=</span> <span class="p">[</span><span class="n">pow_to_mul</span><span class="p">(</span><span class="n">e</span><span class="p">)</span> <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">cluster</span><span class="o">.</span><span class="n">exprs</span><span class="p">]</span>
+        <span class="k">return</span> <span class="n">cluster</span><span class="o">.</span><span class="n">rebuild</span><span class="p">([</span><span class="n">freeze_expression</span><span class="p">(</span><span class="n">e</span><span class="p">)</span> <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">exprs</span><span class="p">])</span>
 
     <span class="k">def</span> <span class="nf">_summary</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>

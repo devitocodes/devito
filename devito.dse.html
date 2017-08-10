@@ -619,6 +619,17 @@ name appears in <code class="docutils literal"><span class="pre">candidates</spa
 <dd><p>Transform a collection of scalar expressions into tensor expressions.</p>
 </dd></dl>
 
+<dl class="function">
+<dt id="devito.dse.manipulation.pow_to_mul">
+<code class="descclassname">devito.dse.manipulation.</code><code class="descname">pow_to_mul</code><span class="sig-paren">(</span><em>expr</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/dse/manipulation.html#pow_to_mul"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.dse.manipulation.pow_to_mul" title="Permalink to this definition">¶</a></dt>
+<dd><p>Convert integer powers in an expression to Muls, like a**2 =&gt; a*a.
+Readapted from:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="n">stackoverflow</span><span class="o">.</span><span class="n">com</span><span class="o">/</span><span class="n">questions</span><span class="o">/</span><span class="mi">14264431</span><span class="o">/</span><span class="n">expanding</span><span class="o">-</span><span class="n">algebraic</span><span class="o">-</span><span class="n">powers</span><span class="o">-</span><span class="ow">in</span><span class="o">-</span><span class="n">python</span><span class="o">-</span><span class="n">sympy</span>
+</pre></div>
+</div>
+<p>The readaptation was necessary to make it work with Indexed.</p>
+</dd></dl>
+
 </div>
 <div class="section" id="module-devito.dse.queries">
 <span id="devito-dse-queries-module"></span><h2>devito.dse.queries module<a class="headerlink" href="#module-devito.dse.queries" title="Permalink to this headline">¶</a></h2>
