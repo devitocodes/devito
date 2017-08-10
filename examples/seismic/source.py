@@ -2,8 +2,10 @@ from devito.dimension import Dimension, time
 from devito.pointdata import PointData
 from devito.logger import error
 
+import numpy as np
+import matplotlib.pyplot as plt
 
-__all__ = ['PointSource', 'Receiver', 'Shot']
+__all__ = ['PointSource', 'Receiver', 'Shot', 'RickerSource']
 
 
 class PointSource(PointData):
@@ -50,3 +52,51 @@ class PointSource(PointData):
 
 Receiver = PointSource
 Shot = PointSource
+
+
+class RickerSource(PointSource):
+    """
+    Symbolic object to encapsulate a set of sources with a
+    pre-defined Ricker wavelet.
+
+    :param name: Name for the reuslting symbol
+    :param f0: Peak frequency for Ricker wavelet
+    :param time: Discretized values of time
+    :param ndim: Number of spatial dimensions
+    """
+
+    def __new__(cls, *args, **kwargs):
+        time = kwargs.get('time')
+        f0 = kwargs.get('f0')
+        npoint = kwargs.get('npoint', 1)
+        kwargs['ntime'] = len(time)
+        kwargs['npoint'] = npoint
+        obj = PointSource.__new__(cls, *args, **kwargs)
+        for p in range(npoint):
+            obj.data[:, p] = obj.wavelet(f0, time)
+        return obj
+
+    def __init__(self, *args, **kwargs):
+        if not self._cached():
+            super(RickerSource, self).__init__(*args, **kwargs)
+
+    def wavelet(self, f0, t):
+        """
+        Create Ricker wavelet with a peak frequency f0 at time t.
+
+        :param f0: Peak frequency
+        :param t: Discretized values of time
+        """
+        r = (np.pi * f0 * (t - 1./f0))
+        return (1-2.*r**2)*np.exp(-r**2)
+
+    def show(self, f, t):
+        """
+        Plot the signal of the specified source data.
+        """
+        plt.figure()
+        plt.plot(t, f)
+        plt.xlabel('Time (s)')
+        plt.ylabel('Velocity (km/s)')
+        plt.tick_params()
+        plt.show()
