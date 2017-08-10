@@ -3,7 +3,6 @@ import pytest
 from numpy import linalg
 
 from devito import time
-from devito.logger import set_log_level
 from examples.seismic.acoustic.acoustic_example import setup
 from examples.seismic.acoustic.constant_example import setup as setup_c
 from examples.seismic import PointSource
@@ -55,4 +54,3 @@ def test_acoustic_constant(dimensions, fix_dim):
     term2 = linalg.norm(rec.data) ** 2
     print(term1, term2, ("%12.12f") % (term1 - term2), term1 / term2)
     assert np.isclose(term1 / term2, 1.0, atol=0.001)
-

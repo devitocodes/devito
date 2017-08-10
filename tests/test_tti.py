@@ -36,10 +36,10 @@ def test_tti(dimensions, space_order):
 
     model = Model(origin, spacing, dimensions,
                   true_vp, nbpml=nbpml,
-                  epsilon=None,
-                  delta=None,
-                  theta=None,
-                  phi=None)
+                  epsilon=0.0*np.ones(dimensions),
+                  delta=0.0*np.ones(dimensions),
+                  theta=0.0*np.ones(dimensions),
+                  phi=0.0*np.ones(dimensions))
     # Define seismic data.
 
     f0 = .010
