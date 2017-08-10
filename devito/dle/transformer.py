@@ -1,7 +1,8 @@
 from collections import Sequence
 
 from devito.dle.backends import (State, BasicRewriter, DevitoCustomRewriter,
-                                 DevitoRewriter, DevitoSpeculativeRewriter)
+                                 DevitoRewriter, DevitoRewriterSafeMath,
+                                 DevitoSpeculativeRewriter)
 from devito.exceptions import DLEException
 from devito.logger import dle_warning
 
@@ -11,6 +12,7 @@ __all__ = ['transform', 'modes', 'default_options']
 modes = {
     'basic': BasicRewriter,
     'advanced': DevitoRewriter,
+    'advanced-safemath': DevitoRewriterSafeMath,
     'speculative': DevitoSpeculativeRewriter
 }
 """The DLE transformation modes."""
