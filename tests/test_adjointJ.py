@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 from numpy import linalg
 
-from examples.seismic.acoustic.acoustic_example import setup
+from examples.seismic.acoustic.acoustic_example import acoustic_setup as setup
 
 
 @pytest.mark.parametrize('space_order', [4, 8, 12])

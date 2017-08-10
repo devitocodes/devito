@@ -13,8 +13,8 @@ def source(t, f0):
     return (1-2.*r**2)*np.exp(-r**2)
 
 
-def setup(dimensions=(50, 50, 50), spacing=(15.0, 15.0, 15.0), tn=500.,
-          time_order=2, space_order=4, nbpml=10, vp=1.5, **kwargs):
+def acoustic_setup(dimensions=(50, 50, 50), spacing=(15.0, 15.0, 15.0), tn=500.,
+                   time_order=2, space_order=4, nbpml=10, vp=1.5, **kwargs):
 
     ndim = len(dimensions)
     origin = tuple([0.]*ndim)
@@ -67,8 +67,9 @@ def setup(dimensions=(50, 50, 50), spacing=(15.0, 15.0, 15.0), tn=500.,
 def run(dimensions=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=1000.0,
         time_order=2, space_order=4, nbpml=40, full_run=False, **kwargs):
 
-    solver = setup(dimensions=dimensions, spacing=spacing, nbpml=nbpml, tn=tn,
-                   space_order=space_order, time_order=time_order, **kwargs)
+    solver = acoustic_setup(dimensions=dimensions, spacing=spacing, nbpml=nbpml,
+                            tn=tn, space_order=space_order,
+                            time_order=time_order, **kwargs)
 
     initial_vp = 1.8
     dm = (initial_vp**2 - solver.model.m.data) * np.ones(solver.model.shape_domain,

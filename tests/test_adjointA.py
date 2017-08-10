@@ -3,8 +3,8 @@ import pytest
 from numpy import linalg
 
 from devito import time
-from examples.seismic.acoustic.acoustic_example import setup
-from examples.seismic.acoustic.constant_example import setup as setup_c
+from examples.seismic.acoustic.acoustic_example import acoustic_setup as setup
+from examples.seismic.acoustic.constant_example import acoustic_setup as setup_c
 from examples.seismic import PointSource
 
 
