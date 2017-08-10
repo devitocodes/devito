@@ -3,6 +3,7 @@ import pytest
 from numpy import linalg
 
 from devito import time
+from devito.logger import info
 from examples.seismic.acoustic.acoustic_example import acoustic_setup as setup
 from examples.seismic.acoustic.constant_example import acoustic_setup as setup_c
 from examples.seismic import PointSource
@@ -18,18 +19,18 @@ def test_acoustic(dimensions, time_order, space_order, fix_dim):
     srca = PointSource(name='srca', ntime=solver.source.nt,
                        coordinates=solver.source.coordinates.data)
 
-    if fix_dim:
-        time.size = solver.source.nt
-    else:
-        time.size = None
+    # Set fixed ("baked-in") time dimension if requested
+    time.size = solver.source.nt if fix_dim else None
+
     # Run forward and adjoint operators
     rec, _, _ = solver.forward(save=False)
     solver.adjoint(rec=rec, srca=srca)
 
-    # Actual adjoint test
+    # Adjoint test: Verify <Ax,y> matches  <x, A^Ty> closely
     term1 = np.dot(srca.data.reshape(-1), solver.source.data)
     term2 = linalg.norm(rec.data) ** 2
-    print(term1, term2, ("%12.12f") % (term1 - term2), term1 / term2)
+    info('<Ax,y>: %f, <x, A^Ty>: %f, difference: %12.12f, ratio: %f'
+         % (term1, term2, term1 - term2, term1 / term2))
     assert np.isclose(term1 / term2, 1.0, atol=0.001)
 
 

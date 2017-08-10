@@ -2,6 +2,7 @@ import numpy as np
 import pytest
 from numpy import linalg
 
+from devito.logger import info
 from examples.seismic.acoustic.acoustic_example import smooth10, acoustic_setup as setup
 from examples.seismic import Receiver
 
@@ -61,19 +62,12 @@ def test_gradientFWI(dimensions, time_order, space_order):
         error1[i] = np.absolute(.5*linalg.norm(d.data - rec.data)**2 - F0)
         # Second order term r Phi(m0+dm) - Phi(m0) - <J(m0)^T \delta d, dm>
         error2[i] = np.absolute(.5*linalg.norm(d.data - rec.data)**2 - F0 - H[i] * G)
-        # print(F0, .5*linalg.norm(d - rec)**2, error1[i], H[i] *G, error2[i])
-        # print('For h = ', H[i], '\nFirst order errors is : ', error1[i],
-        #       '\nSecond order errors is ', error2[i])
-
-    hh = np.zeros(7)
-    for i in range(0, 7):
-        hh[i] = H[i] * H[i]
 
     # Test slope of the  tests
     p1 = np.polyfit(np.log10(H), np.log10(error1), 1)
     p2 = np.polyfit(np.log10(H), np.log10(error2), 1)
-    print(p1)
-    print(p2)
+    info('1st order error, Phi(m0+dm)-Phi(m0): %s' % (p1))
+    info('2nd order error, Phi(m0+dm)-Phi(m0) - <J(m0)^T \delta d, dm>: %s' % (p2))
     assert np.isclose(p1[0], 1.0, rtol=0.1)
     assert np.isclose(p2[0], 2.0, rtol=0.1)
 
@@ -120,19 +114,12 @@ def test_gradientJ(dimensions, time_order, space_order):
         error1[i] = np.linalg.norm(d.data - rec.data, 1)
         # Second order term F(m0 + hdm) - F(m0) - J dm
         error2[i] = np.linalg.norm(d.data - rec.data - H[i] * Jdm.data, 1)
-        # print(F0, .5*linalg.norm(d - rec)**2, error1[i], H[i] *G, error2[i])
-        # print('For h = ', H[i], '\nFirst order errors is : ', error1[i],
-        #       '\nSecond order errors is ', error2[i])
-
-    hh = np.zeros(7)
-    for i in range(0, 7):
-        hh[i] = H[i] * H[i]
 
     # Test slope of the  tests
     p1 = np.polyfit(np.log10(H), np.log10(error1), 1)
     p2 = np.polyfit(np.log10(H), np.log10(error2), 1)
-    print(p1)
-    print(p2)
+    info('1st order error, Phi(m0+dm)-Phi(m0): %s' % (p1))
+    info('2nd order error, Phi(m0+dm)-Phi(m0) - <J(m0)^T \delta d, dm>: %s' % (p2))
     assert np.isclose(p1[0], 1.0, rtol=0.1)
     assert np.isclose(p2[0], 2.0, rtol=0.1)
 
