@@ -215,7 +215,7 @@
 <dd><p>Bases: <a class="reference internal" href="#devito.dle.backends.advanced.DevitoSpeculativeRewriter" title="devito.dle.backends.advanced.DevitoSpeculativeRewriter"><code class="xref py py-class docutils literal"><span class="pre">devito.dle.backends.advanced.DevitoSpeculativeRewriter</span></code></a></p>
 <dl class="attribute">
 <dt id="devito.dle.backends.advanced.DevitoCustomRewriter.passes_mapper">
-<code class="descname">passes_mapper</code><em class="property"> = {‘padding’: &lt;unbound method DevitoSpeculativeRewriter.wrapper&gt;, ‘openmp’: &lt;unbound method DevitoSpeculativeRewriter.wrapper&gt;, ‘blocking’: &lt;unbound method DevitoSpeculativeRewriter.wrapper&gt;, ‘fission’: &lt;unbound method DevitoSpeculativeRewriter.wrapper&gt;, ‘split’: &lt;unbound method DevitoSpeculativeRewriter.wrapper&gt;}</em><a class="headerlink" href="#devito.dle.backends.advanced.DevitoCustomRewriter.passes_mapper" title="Permalink to this definition">¶</a></dt>
+<code class="descname">passes_mapper</code><em class="property"> = {‘fission’: &lt;unbound method DevitoSpeculativeRewriter.wrapper&gt;, ‘padding’: &lt;unbound method DevitoSpeculativeRewriter.wrapper&gt;, ‘split’: &lt;unbound method DevitoSpeculativeRewriter.wrapper&gt;, ‘simd’: &lt;unbound method DevitoSpeculativeRewriter.wrapper&gt;, ‘openmp’: &lt;unbound method DevitoSpeculativeRewriter.wrapper&gt;, ‘blocking’: &lt;unbound method DevitoSpeculativeRewriter.wrapper&gt;}</em><a class="headerlink" href="#devito.dle.backends.advanced.DevitoCustomRewriter.passes_mapper" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 </dd></dl>
@@ -224,6 +224,15 @@
 <dt id="devito.dle.backends.advanced.DevitoRewriter">
 <em class="property">class </em><code class="descclassname">devito.dle.backends.advanced.</code><code class="descname">DevitoRewriter</code><span class="sig-paren">(</span><em>nodes</em>, <em>params</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/dle/backends/advanced.html#DevitoRewriter"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.dle.backends.advanced.DevitoRewriter" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <a class="reference internal" href="#devito.dle.backends.basic.BasicRewriter" title="devito.dle.backends.basic.BasicRewriter"><code class="xref py py-class docutils literal"><span class="pre">devito.dle.backends.basic.BasicRewriter</span></code></a></p>
+</dd></dl>
+
+<dl class="class">
+<dt id="devito.dle.backends.advanced.DevitoRewriterSafeMath">
+<em class="property">class </em><code class="descclassname">devito.dle.backends.advanced.</code><code class="descname">DevitoRewriterSafeMath</code><span class="sig-paren">(</span><em>nodes</em>, <em>params</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/dle/backends/advanced.html#DevitoRewriterSafeMath"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.dle.backends.advanced.DevitoRewriterSafeMath" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#devito.dle.backends.advanced.DevitoRewriter" title="devito.dle.backends.advanced.DevitoRewriter"><code class="xref py py-class docutils literal"><span class="pre">devito.dle.backends.advanced.DevitoRewriter</span></code></a></p>
+<p>This Rewriter is slightly less aggressive than <a class="reference internal" href="#devito.dle.backends.advanced.DevitoRewriter" title="devito.dle.backends.advanced.DevitoRewriter"><code class="xref py py-class docutils literal"><span class="pre">DevitoRewriter</span></code></a>, as it
+doesn’t drop denormal numbers, which may sometimes harm the numerical precision.
+Loop fission is also avoided (to avoid reassociation of operations).</p>
 </dd></dl>
 
 <dl class="class">

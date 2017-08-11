@@ -576,6 +576,23 @@
         <span class="k">return</span> <span class="p">{</span><span class="s1">&#39;nodes&#39;</span><span class="p">:</span> <span class="n">nodes</span><span class="p">,</span> <span class="s1">&#39;elemental_functions&#39;</span><span class="p">:</span> <span class="n">elemental_functions</span><span class="p">}</span></div>
 
 
+<div class="viewcode-block" id="DevitoRewriterSafeMath"><a class="viewcode-back" href="../../../../devito.dle.backends.html#devito.dle.backends.advanced.DevitoRewriterSafeMath">[docs]</a><span class="k">class</span> <span class="nc">DevitoRewriterSafeMath</span><span class="p">(</span><span class="n">DevitoRewriter</span><span class="p">):</span>
+
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    This Rewriter is slightly less aggressive than :class:`DevitoRewriter`, as it</span>
+<span class="sd">    doesn&#39;t drop denormal numbers, which may sometimes harm the numerical precision.</span>
+<span class="sd">    Loop fission is also avoided (to avoid reassociation of operations).</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">_pipeline</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">state</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_loop_blocking</span><span class="p">(</span><span class="n">state</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_simdize</span><span class="p">(</span><span class="n">state</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">params</span><span class="p">[</span><span class="s1">&#39;openmp&#39;</span><span class="p">]</span> <span class="ow">is</span> <span class="kc">True</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_ompize</span><span class="p">(</span><span class="n">state</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_create_elemental_functions</span><span class="p">(</span><span class="n">state</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_minimize_remainders</span><span class="p">(</span><span class="n">state</span><span class="p">)</span></div>
+
+
 <div class="viewcode-block" id="DevitoSpeculativeRewriter"><a class="viewcode-back" href="../../../../devito.dle.backends.html#devito.dle.backends.advanced.DevitoSpeculativeRewriter">[docs]</a><span class="k">class</span> <span class="nc">DevitoSpeculativeRewriter</span><span class="p">(</span><span class="n">DevitoRewriter</span><span class="p">):</span>
 
     <span class="k">def</span> <span class="nf">_pipeline</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">state</span><span class="p">):</span>
@@ -688,6 +705,7 @@
     <span class="n">passes_mapper</span> <span class="o">=</span> <span class="p">{</span>
         <span class="s1">&#39;blocking&#39;</span><span class="p">:</span> <span class="n">DevitoSpeculativeRewriter</span><span class="o">.</span><span class="n">_loop_blocking</span><span class="p">,</span>
         <span class="s1">&#39;openmp&#39;</span><span class="p">:</span> <span class="n">DevitoSpeculativeRewriter</span><span class="o">.</span><span class="n">_ompize</span><span class="p">,</span>
+        <span class="s1">&#39;simd&#39;</span><span class="p">:</span> <span class="n">DevitoSpeculativeRewriter</span><span class="o">.</span><span class="n">_simdize</span><span class="p">,</span>
         <span class="s1">&#39;fission&#39;</span><span class="p">:</span> <span class="n">DevitoSpeculativeRewriter</span><span class="o">.</span><span class="n">_loop_fission</span><span class="p">,</span>
         <span class="s1">&#39;padding&#39;</span><span class="p">:</span> <span class="n">DevitoSpeculativeRewriter</span><span class="o">.</span><span class="n">_padding</span><span class="p">,</span>
         <span class="s1">&#39;split&#39;</span><span class="p">:</span> <span class="n">DevitoSpeculativeRewriter</span><span class="o">.</span><span class="n">_create_elemental_functions</span>
