@@ -68,6 +68,7 @@ script:
   - python examples/benchmark.py test -P tti -so 4 -a -d 20 20 20 -n 5
   - python examples/benchmark.py test -P acoustic -a
   - python examples/seismic/acoustic/acoustic_example.py
+  - python examples/seismic/acoustic/constant_example.py
   - py.test -vs examples/seismic/tutorials
   - py.test -vs examples/cfd
 

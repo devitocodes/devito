@@ -1,6 +1,6 @@
 import numpy as np
 
-from devito import DenseData
+from devito import DenseData, ConstantData
 
 
 __all__ = ['Model']
@@ -65,7 +65,7 @@ class Model(object):
             self.m = DenseData(name="m", shape=self.shape_domain, dtype=self.dtype)
             self.m.data[:] = self.pad(1 / (self.vp * self.vp))
         else:
-            self.m = 1/vp**2
+            self.m = ConstantData(name="m", value=1/vp**2, dtype=self.dtype)
 
         # Create dampening field as symbol `damp`
         self.damp = DenseData(name="damp", shape=self.shape_domain,
@@ -84,7 +84,7 @@ class Model(object):
                 if np.max(self.epsilon.data) > 0:
                     self.scale = np.sqrt(np.max(self.epsilon.data))
             else:
-                self.epsilon = epsilon
+                self.epsilon = 1 + 2 * epsilon
                 self.scale = epsilon
         else:
             self.epsilon = 1
