@@ -27,6 +27,7 @@ class Argument(object):
 
     is_ScalarArgument = False
     is_TensorArgument = False
+    is_PtrArgument = False
 
     def __init__(self, name, provider, default_value=None):
         self.name = name
@@ -41,7 +42,6 @@ class Argument(object):
             else:
                 raise InvalidArgument("Unexpected data object %s" % type(self._value))
         except AttributeError:
-            # A user-provided scalar, e.g. a dimension value
             return self._value
 
     @property
@@ -132,6 +132,22 @@ class TensorArgument(Argument):
             self._value = value
 
         return self._value is not None and verify
+
+
+class PtrArgument(Argument):
+
+    """ Class representing arbitrary arguments that a kernel might expect.
+        These are passed as void pointers and then promptly casted to their
+        actual type.
+    """
+
+    is_PtrArgument = True
+
+    def __init__(self, name, provider):
+        super(PtrArgument, self).__init__(name, provider, provider.value)
+
+    def verify(self, value):
+        return True
 
 
 class ArgumentProvider(object):
@@ -277,6 +293,16 @@ class TensorFunctionArgProvider(ArgumentProvider):
     @cached_property
     def rtargs(self):
         return [TensorArgument(self.name, self)]
+
+
+class ObjectArgProvider(ArgumentProvider):
+
+    """ Class used to decorate Objects with behaviour required for runtime arguments.
+    """
+
+    @cached_property
+    def rtargs(self):
+        return [PtrArgument(self.name, self)]
 
 
 def log_args(arguments):
