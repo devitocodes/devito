@@ -12,7 +12,7 @@ from devito.compiler import jit_compile, load
 from devito.dimension import time, Dimension
 from devito.dle import compose_nodes, filter_iterations, transform
 from devito.dse import clusterize, indexify, rewrite, q_indexed
-from devito.interfaces import Forward, Backward, CompositeData, SymbolicData
+from devito.interfaces import Forward, Backward, CompositeData, SymbolicData, Object
 from devito.logger import bar, error, info
 from devito.nodes import Element, Expression, Function, Iteration, List, LocalExpression
 from devito.parameters import configuration
@@ -90,15 +90,15 @@ class Operator(Function):
         # Wrap expressions with Iterations according to dimensions
         nodes = self._schedule_expressions(clusters, ordering)
 
-        # Introduce C-level profiling infrastructure
-        nodes, self.profiler = self._profile_sections(nodes)
-
         # Parameters of the Operator (Dimensions necessary for data casts)
         parameters = FindSymbols('kernel-data').visit(nodes)
         dimensions = FindSymbols('dimensions').visit(nodes)
         dimensions += [d.parent for d in dimensions if d.is_Buffered]
         parameters += filter_ordered([d for d in dimensions if d.size is None],
                                      key=operator.attrgetter('name'))
+
+        # Introduce C-level profiling infrastructure
+        nodes, self.profiler = self._profile_sections(nodes, parameters)
 
         # Resolve and substitute dimensions for loop index variables
         subs = {}
@@ -127,7 +127,7 @@ class Operator(Function):
         parameters = filter_ordered(parameters + dims_parents)
 
         # Translate into backend-specific representation (e.g., GPU, Yask)
-        nodes = self._specialize(dle_state.nodes)
+        nodes = self._specialize(dle_state.nodes, parameters)
 
         # Introduce all required C declarations
         nodes = self._insert_declarations(nodes)
@@ -188,8 +188,6 @@ class Operator(Function):
             assert(dim_names[d].verify(v))
 
         arguments = self._default_args()
-
-        arguments.update(self._extra_arguments())
 
         if autotune:
             arguments = self._autotune(arguments)
@@ -283,13 +281,7 @@ class Operator(Function):
 
         return self._cfunction
 
-    def _arg_shape(self, argument):
-        return argument.shape
-
-    def _extra_arguments(self):
-        return {}
-
-    def _profile_sections(self, nodes):
+    def _profile_sections(self, nodes, parameters):
         """Introduce C-level profiling nodes within the Iteration/Expression tree."""
         return List(body=nodes), Profiler()
 
@@ -349,7 +341,7 @@ class Operator(Function):
 
         return List(body=processed)
 
-    def _specialize(self, nodes):
+    def _specialize(self, nodes, parameters):
         """Transform the Iteration/Expression tree into a backend-specific
         representation, such as code to be executed on a GPU or through a
         lower-level tool."""
@@ -476,26 +468,15 @@ class OperatorRunnable(Operator):
 
         return summary
 
-    def _arg_shape(self, argument):
-        return argument.data.shape
-
-    def _profile_sections(self, nodes):
+    def _profile_sections(self, nodes, parameters):
         """Introduce C-level profiling nodes within the Iteration/Expression tree."""
-        return create_profile(nodes)
-
-    def _extra_arguments(self):
-        return OrderedDict([(self.profiler.typename, self.profiler.setup())])
-
-    @property
-    def _cparameters(self):
-        cparameters = super(OperatorRunnable, self)._cparameters
-        cparameters += [c.Pointer(c.Value('struct %s' % self.profiler.typename,
-                                          self.profiler.varname))]
-        return cparameters
+        nodes, profiler = create_profile(nodes)
+        parameters.append(Object(profiler.varname, profiler.dtype, profiler.setup()))
+        return nodes, profiler
 
     @property
     def _cglobals(self):
-        return [self.profiler.ctype, blankline]
+        return [self.profiler.cdef, blankline]
 
 
 # Misc helpers
