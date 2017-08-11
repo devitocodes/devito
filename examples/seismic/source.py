@@ -60,8 +60,8 @@ class RickerSource(PointSource):
     pre-defined Ricker wavelet.
 
     :param name: Name for the reuslting symbol
-    :param f0: Peak frequency for Ricker wavelet
-    :param time: Discretized values of time
+    :param f0: Peak frequency for Ricker wavelet in kHz
+    :param time: Discretized values of time in ms
     :param ndim: Number of spatial dimensions
     """
 
@@ -104,7 +104,7 @@ class RickerSource(PointSource):
         time = time or self.time
         plt.figure()
         plt.plot(time, wavelet)
-        plt.xlabel('Time (s)')
+        plt.xlabel('Time (ms)')
         plt.ylabel('Velocity (km/s)')
         plt.tick_params()
         plt.show()
