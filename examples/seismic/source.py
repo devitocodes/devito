@@ -67,13 +67,15 @@ class RickerSource(PointSource):
 
     def __new__(cls, *args, **kwargs):
         time = kwargs.get('time')
-        f0 = kwargs.get('f0')
         npoint = kwargs.get('npoint', 1)
         kwargs['ntime'] = len(time)
         kwargs['npoint'] = npoint
         obj = PointSource.__new__(cls, *args, **kwargs)
+
+        obj.time = time
+        obj.f0 = kwargs.get('f0')
         for p in range(npoint):
-            obj.data[:, p] = obj.wavelet(f0, time)
+            obj.data[:, p] = obj.wavelet(obj.f0, obj.time)
         return obj
 
     def __init__(self, *args, **kwargs):
@@ -90,12 +92,18 @@ class RickerSource(PointSource):
         r = (np.pi * f0 * (t - 1./f0))
         return (1-2.*r**2)*np.exp(-r**2)
 
-    def show(self, f, t):
+    def show(self, idx=0, time=None, wavelet=None):
         """
-        Plot the signal of the specified source data.
+        Plot the wavelet of the specified source.
+
+        :param idx: Index of the source point for which to plot wavelet
+        :param wavelet: Prescribed wavelet instead of one from this symbol
+        :param time: Prescribed time instead of time from this symbol
         """
+        wavelet = wavelet or self.data[:, idx]
+        time = time or self.time
         plt.figure()
-        plt.plot(t, f)
+        plt.plot(time, wavelet)
         plt.xlabel('Time (s)')
         plt.ylabel('Velocity (km/s)')
         plt.tick_params()
