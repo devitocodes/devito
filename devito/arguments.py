@@ -177,14 +177,6 @@ class DimensionArgProvider(ArgumentProvider):
             return [size]
 
     @property
-    def ccode(self):
-        """C-level variable name of this dimension"""
-        if self.size is not None:
-            return "%d" % self.size
-        else:
-            return self.rtargs[0].ccode
-
-    @property
     def decl(self):
         return self.rtargs[0].decl
 

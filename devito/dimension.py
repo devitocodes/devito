@@ -6,9 +6,6 @@ __all__ = ['Dimension', 'x', 'y', 'z', 't', 'p', 'd', 'time']
 
 class Dimension(Symbol, DimensionArgProvider):
 
-    is_Buffered = False
-    is_Lowered = False
-
     """Index object that represents a problem dimension and thus
     defines a potential iteration space.
 
@@ -17,6 +14,11 @@ class Dimension(Symbol, DimensionArgProvider):
     :param buffered: Optional, boolean flag indicating whether to
                      buffer variables when iterating this dimension.
     """
+
+    is_Buffered = False
+    is_Lowered = False
+
+    _size_suffix = '_size'
 
     def __new__(cls, name, **kwargs):
         newobj = Symbol.__new__(cls, name)
@@ -31,10 +33,10 @@ class Dimension(Symbol, DimensionArgProvider):
     @property
     def symbolic_size(self):
         """The symbolic size of this dimension."""
-        try:
-            return Number(self.ccode)
-        except ValueError:
-            return Symbol(self.ccode)
+        if self.size is not None:
+            return Number(self.size)
+        else:
+            return Symbol('%s%s' % (self.name, Dimension._size_suffix))
 
 
 class BufferedDimension(Dimension):
