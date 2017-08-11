@@ -9,6 +9,7 @@ import os
 from devito import configuration
 from devito.exceptions import InvalidOperator
 from devito.logger import yask as log
+from devito.tools import ctypes_pointer
 
 
 def exit(emsg):
@@ -44,6 +45,7 @@ namespace['kernel-path-gen'] = os.path.join(namespace['kernel-path'], 'gen')
 namespace['kernel-output'] = os.path.join(namespace['kernel-path-gen'],
                                           namespace['kernel-filename'])
 namespace['time-dim'] = 't'
+namespace['type-solution'] = ctypes_pointer('yk_solution_ptr')
 
 # Tell Devito where to go look for YASK headers and shared objects
 compiler = configuration['compiler']
