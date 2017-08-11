@@ -18,7 +18,7 @@ from devito.nodes import Element, Expression, Function, Iteration, List, LocalEx
 from devito.parameters import configuration
 from devito.profiling import Profiler, create_profile
 from devito.stencil import Stencil
-from devito.tools import as_tuple, convert_dtype_to_ctype, filter_ordered, flatten
+from devito.tools import as_tuple, filter_ordered, flatten
 from devito.visitors import (FindSymbols, FindScopes, ResolveIterationVariable,
                              SubstituteExpression, Transformer, NestedTransformer)
 from devito.exceptions import InvalidArgument, InvalidOperator
@@ -279,13 +279,7 @@ class Operator(Function):
 
         if self._cfunction is None:
             self._cfunction = getattr(self._lib, self.name)
-            argtypes = []
-            for i in self.parameters:
-                if i.is_ScalarArgument:
-                    argtypes.append(convert_dtype_to_ctype(i.dtype))
-                else:
-                    argtypes.append(np.ctypeslib.ndpointer(dtype=i.dtype, flags='C'))
-            self._cfunction.argtypes = argtypes
+            self._cfunction.argtypes = self._cargtypes
 
         return self._cfunction
 
@@ -449,10 +443,6 @@ class Operator(Function):
                     i[mapper[d]] = i.pop(d).union(i.get(mapper[d], set()))
 
         return stencils
-
-    @property
-    def _cparameters(self):
-        return super(Operator, self)._cparameters
 
     @property
     def _cglobals(self):

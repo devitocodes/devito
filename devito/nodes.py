@@ -6,14 +6,16 @@ import inspect
 from collections import Iterable, OrderedDict
 
 import cgen as c
+import ctypes
+from numpy import ctypeslib
 from sympy import Eq
 
 from devito.cgen_utils import ccode
 from devito.dse import as_symbol, terminals
-from devito.interfaces import Indexed, Symbol, TensorFunction
+from devito.interfaces import Indexed, Symbol
 from devito.stencil import Stencil
-from devito.tools import as_tuple, filter_ordered, flatten
-from devito.arguments import ArgumentProvider, Argument, TensorArgument
+from devito.tools import as_tuple, filter_ordered, flatten, numpy_to_ctypes, ctypes_to_C
+from devito.arguments import ArgumentProvider, Argument
 
 __all__ = ['Node', 'Block', 'Denormals', 'Expression', 'Function', 'FunCall',
            'Iteration', 'List', 'LocalExpression', 'TimedList']
@@ -547,16 +549,51 @@ class Function(Node):
         return "Function[%s]<%s; %s>::\n\t%s" % (self.name, self.retval, parameters, body)
 
     @property
+    def _cargtypes(self):
+        """Return a list containing the C type of each argument, as a ``ctypes`` type."""
+        argtypes = []
+        for i in self.parameters:
+            if i.is_ScalarArgument:
+                argtypes.append(numpy_to_ctypes(i.dtype))
+            elif i.is_TensorArgument:
+                argtypes.append(ctypeslib.ndpointer(dtype=i.dtype, flags='C'))
+            else:
+                argtypes.append(ctypes.c_void_p)
+        return argtypes
+
+    @property
     def _cparameters(self):
-        """Generate arguments signature."""
-        return [v.decl for v in self.parameters]
+        """Return a list containing the Function arguments in ``cgen`` format."""
+        decls = []
+        for i in self.parameters:
+            if i.is_ScalarArgument:
+                decls.append(c.Value('const %s' % c.dtype_to_ctype(i.dtype), i.name))
+            elif i.is_TensorArgument:
+                decls.append(c.Value(c.dtype_to_ctype(i.dtype),
+                                     '*restrict %s_vec' % i.name))
+            else:
+                decls.append(c.Value('void', '*_%s' % i.name))
+        return decls
 
     @property
     def _ccasts(self):
         """Generate data casts."""
-        tensors = [i for i in self.parameters
-                   if isinstance(i, (TensorArgument, TensorFunction))]
-        return [v.ccast for v in tensors]
+        ccasts = []
+        for i in self.parameters:
+            if i.is_TensorArgument:
+                align = "__attribute__((aligned(64)))"
+                shape = ''.join(["[%s]" % ccode(j)
+                                 for j in i.provider.symbolic_shape[1:]])
+                lvalue = c.POD(i.dtype, '(*restrict %s)%s %s' % (i.name, shape, align))
+                rvalue = '(%s (*)%s) %s' % (c.dtype_to_ctype(i.dtype), shape,
+                                            '%s_vec' % i.name)
+                ccasts.append(c.Initializer(lvalue, rvalue))
+            elif i.is_PtrArgument:
+                ctype = ctypes_to_C(i.dtype)
+                lvalue = c.Pointer(c.Value(ctype, i.name))
+                rvalue = '(%s*) %s' % (ctype, '_%s' % i.name)
+                ccasts.append(c.Initializer(lvalue, rvalue))
+        return ccasts
 
     @property
     def _ctop(self):

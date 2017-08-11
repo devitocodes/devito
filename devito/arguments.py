@@ -1,8 +1,8 @@
-import cgen as c
+import abc
+
 import numpy as np
 from cached_property import cached_property
 
-from devito.cgen_utils import ccode
 from devito.exceptions import InvalidArgument
 from devito.logger import debug
 
@@ -24,6 +24,8 @@ class Argument(object):
     """ Abstract base class for any object that represents a run time argument for
         generated kernels.
     """
+
+    __metaclass__ = abc.ABCMeta
 
     is_ScalarArgument = False
     is_TensorArgument = False
@@ -49,22 +51,15 @@ class Argument(object):
         return self._value is not None
 
     @property
-    def decl(self):
-        raise NotImplemented()
-
-    @property
     def dtype(self):
         return self.provider.dtype
-
-    @property
-    def ccode(self):
-        return self.name
 
     def reset(self):
         self._value = self._default_value
 
+    @abc.abstractproperty
     def verify(self, kwargs):
-        raise NotImplemented()
+        return
 
 
 class ScalarArgument(Argument):
@@ -78,10 +73,6 @@ class ScalarArgument(Argument):
     def __init__(self, name, provider, reducer, default_value=None):
         super(ScalarArgument, self).__init__(name, provider, default_value)
         self.reducer = reducer
-
-    @property
-    def decl(self):
-        return c.Value('const %s' % c.dtype_to_ctype(self.dtype), self.name)
 
     def verify(self, value):
         # Assuming self._value was initialised as appropriate for the reducer
@@ -102,23 +93,7 @@ class TensorArgument(Argument):
     is_TensorArgument = True
 
     def __init__(self, name, provider):
-        super(TensorArgument, self).__init__(name, provider)
-        self._value = self._default_value = self.provider
-
-    @property
-    def decl(self):
-        return c.Value(c.dtype_to_ctype(self.dtype), '*restrict %s_vec' % self.name)
-
-    @property
-    def ccast(self):
-        alignment = "__attribute__((aligned(64)))"
-        shape = ''.join(["[%s]" % ccode(i) for i in self.provider.symbolic_shape[1:]])
-
-        cast = c.Initializer(c.POD(self.dtype,
-                                   '(*restrict %s)%s %s' % (self.name, shape, alignment)),
-                             '(%s (*)%s) %s' % (c.dtype_to_ctype(self.dtype),
-                                                shape, '%s_vec' % self.name))
-        return cast
+        super(TensorArgument, self).__init__(name, provider, provider)
 
     def verify(self, value):
         if value is None:
