@@ -19,12 +19,23 @@ def demo_model(preset, **kwargs):
                     filepath. Requires the ``opesci/data`` repository
                     to be available on your machine.
     """
-    if preset.lower() in ['layers', 'twolayer', '2layer']:
+    if preset.lower() in ['constant']:
+        # A constant single-layer model in a 2D or 3D domain
+        # with velocity 1.5km/s.
+        shape = kwargs.pop('shape', (101, 101))
+        spacing = kwargs.pop('spacing', tuple([10. for _ in shape]))
+        origin = kwargs.pop('origin', tuple([0. for _ in shape]))
+        nbpml = kwargs.pop('nbpml', 10)
+        vp = kwargs.pop('vp', 1.5)
+
+        return Model(vp=vp, origin=origin, shape=shape,
+                     spacing=spacing, nbpml=nbpml, **kwargs)
+
+    elif preset.lower() in ['layers', 'twolayer', '2layer']:
         # A two-layer model in a 2D or 3D domain with two different
         # velocities split across the height dimension:
         # The top part of the domain has 1.5 km/s,
         # the bottom part of the domain has 1.5 km/s.
-
         shape = kwargs.pop('shape', (101, 101))
         spacing = kwargs.pop('spacing', tuple([10. for _ in shape]))
         origin = kwargs.pop('origin', tuple([0. for _ in shape]))
