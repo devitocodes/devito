@@ -122,16 +122,32 @@ def partial_order(elements):
     return ordering
 
 
-def convert_dtype_to_ctype(dtype):
-    """Maps numpy types to C types.
+def numpy_to_ctypes(dtype):
+    """Map numpy types to ctypes types."""
+    return {np.int32: ctypes.c_int,
+            np.float32: ctypes.c_float,
+            np.int64: ctypes.c_int64,
+            np.float64: ctypes.c_double}[dtype]
 
-    :param dtype: A Python numpy type of int32, float32, int64 or float64
-    :returns: Corresponding C type
-    """
-    conversion_dict = {np.int32: ctypes.c_int, np.float32: ctypes.c_float,
-                       np.int64: ctypes.c_int64, np.float64: ctypes.c_double}
 
-    return conversion_dict[dtype]
+def ctypes_to_C(ctype):
+    """Map ctypes types to C types."""
+    if issubclass(ctype, ctypes.Structure):
+        return 'struct %s' % ctype.__name__
+    elif issubclass(ctype, ctypes.Union):
+        return 'union %s' % ctype.__name__
+    elif ctype.__name__.startswith('c_'):
+        # FIXME: Is there a better way of extracting the C typename ?
+        # Here, we're following the ctypes convention that each basic type has
+        # the format c_X_p, where X is the C typename, for instance `int` or `float`.
+        return ctype.__name__[2:-2]
+    else:
+        raise TypeError('Unrecognised %s during converstion to C type' % str(ctype))
+
+
+def ctypes_pointer(name):
+    """Create a ctypes type representing a C pointer to a custom data type ``name``."""
+    return type("c_%s_p" % name, (ctypes.c_void_p,), {})
 
 
 def pprint(node, verbose=True):
