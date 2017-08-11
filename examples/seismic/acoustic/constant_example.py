@@ -1,4 +1,5 @@
 import numpy as np
+from argparse import ArgumentParser
 
 from devito.logger import info
 from examples.seismic.acoustic import AcousticWaveSolver
@@ -77,5 +78,20 @@ def run(dimensions=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=1000.0,
 
 
 if __name__ == "__main__":
-    run(full_run=True, autotune=False, space_order=6, time_order=2,
-        dimensions=(50, 50), tn=500., nbpml=0)
+    description = ("Example script for a set of acoustic operators.")
+    parser = ArgumentParser(description=description)
+    parser.add_argument('-f', '--full', default=False, action='store_true',
+                        help="Execute all operators and store forward wavefield")
+    parser.add_argument('-a', '--autotune', default=False, action='store_true',
+                        help="Enable autotuning for block sizes")
+    parser.add_argument("-to", "--time_order", default=2,
+                        type=int, help="Time order of the simulation")
+    parser.add_argument("-so", "--space_order", default=6,
+                        type=int, help="Space order of the simulation")
+    parser.add_argument("--nbpml", default=0,
+                        type=int, help="Number of PML layers around the domain")
+    args = parser.parse_args()
+
+    run(full_run=args.full, autotune=args.autotune,
+        space_order=args.space_order, time_order=args.time_order,
+        dimensions=(50, 50), tn=500., nbpml=args.nbpml)
