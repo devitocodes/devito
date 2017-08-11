@@ -23,30 +23,23 @@ def smooth10(vel, shape):
 
 def acoustic_setup(dimensions=(50, 50, 50), spacing=(15.0, 15.0, 15.0),
                    tn=500., time_order=2, space_order=4, nbpml=10, **kwargs):
+    nrec = dimensions[0]
     model = demo_model('layers', ratio=3, shape=dimensions,
                        spacing=spacing, nbpml=nbpml)
 
-    nrec = dimensions[0]
-    origin = model.origin
-    spacing = model.spacing
-    dimensions = model.shape
-    ndim = len(dimensions)
-
     # Derive timestepping from model spacing
-    dt = model.critical_dt
-    if time_order == 4:
-        dt *= 1.73
+    dt = model.critical_dt * (1.73 if time_order == 4 else 1.0)
     t0 = 0.0
-    nt = int(1 + (tn-t0) / dt)
-    time = np.linspace(t0, tn, nt)
+    nt = int(1 + (tn-t0) / dt)  # Number of timesteps
+    time = np.linspace(t0, tn, nt)  # Discretized time axis
 
     # Define source geometry (center of domain, just below surface)
-    src = RickerSource(name='src', ndim=ndim, f0=0.01, time=time)
+    src = RickerSource(name='src', ndim=model.dim, f0=0.01, time=time)
     src.coordinates.data[0, :] = np.array(model.domain_size) * .5
     src.coordinates.data[0, -1] = model.origin[-1] + 2 * spacing[-1]
 
-    # Define receiver geometry (spread across x, lust below surface)
-    rec = Receiver(name='nrec', ntime=nt, npoint=nrec, ndim=ndim)
+    # Define receiver geometry (spread across x, just below surface)
+    rec = Receiver(name='nrec', ntime=nt, npoint=nrec, ndim=model.dim)
     rec.coordinates.data[:, 0] = np.linspace(0., model.domain_size[0], num=nrec)
     rec.coordinates.data[:, 1:] = src.coordinates.data[0, 1:]
 
