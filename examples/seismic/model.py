@@ -183,6 +183,13 @@ class Model(object):
             self.phi = 0
 
     @property
+    def dim(self):
+        """
+        Spatial dimension of the model domain
+        """
+        return len(self.shape)
+
+    @property
     def shape_domain(self):
         """Computational shape of the model domain, with PML layers"""
         return tuple(d + 2*self.nbpml for d in self.shape)
