@@ -52,10 +52,13 @@ class Argument(object):
         return Symbol(self.name)
 
     @property
+<<<<<<< HEAD
     def ready(self):
         return self._value is not None
 
     @property
+=======
+>>>>>>> Move code gen from Arguments to Nodes
     def dtype(self):
         return self.provider.dtype
 
