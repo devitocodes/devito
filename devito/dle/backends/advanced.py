@@ -262,8 +262,8 @@ class DevitoRewriter(BasicRewriter):
                     for i in vector_iterations:
                         handle = FindSymbols('symbolics').visit(i)
                         try:
-                            aligned = [j for j in handle
-                                       if j.shape[-1] % get_simd_items(j.dtype) == 0]
+                            aligned = [j for j in handle if j.is_Tensor and
+                                       j.shape[-1] % get_simd_items(j.dtype) == 0]
                         except KeyError:
                             aligned = []
                         if aligned:
@@ -328,7 +328,7 @@ class DevitoRewriter(BasicRewriter):
 
                     # Track the thread-private and thread-shared variables
                     private.extend([i for i in FindSymbols('symbolics').visit(root)
-                                    if i._mem_stack])
+                                    if i.is_TensorFunction and i._mem_stack])
 
                 # Build the parallel region
                 private = sorted(set([i.name for i in private]))
@@ -412,6 +412,23 @@ class DevitoRewriter(BasicRewriter):
         elemental_functions = Transformer(mapper).visit(state.elemental_functions)
 
         return {'nodes': nodes, 'elemental_functions': elemental_functions}
+
+
+class DevitoRewriterSafeMath(DevitoRewriter):
+
+    """
+    This Rewriter is slightly less aggressive than :class:`DevitoRewriter`, as it
+    doesn't drop denormal numbers, which may sometimes harm the numerical precision.
+    Loop fission is also avoided (to avoid reassociation of operations).
+    """
+
+    def _pipeline(self, state):
+        self._loop_blocking(state)
+        self._simdize(state)
+        if self.params['openmp'] is True:
+            self._ompize(state)
+        self._create_elemental_functions(state)
+        self._minimize_remainders(state)
 
 
 class DevitoSpeculativeRewriter(DevitoRewriter):
@@ -526,6 +543,7 @@ class DevitoCustomRewriter(DevitoSpeculativeRewriter):
     passes_mapper = {
         'blocking': DevitoSpeculativeRewriter._loop_blocking,
         'openmp': DevitoSpeculativeRewriter._ompize,
+        'simd': DevitoSpeculativeRewriter._simdize,
         'fission': DevitoSpeculativeRewriter._loop_fission,
         'padding': DevitoSpeculativeRewriter._padding,
         'split': DevitoSpeculativeRewriter._create_elemental_functions

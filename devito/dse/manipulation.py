@@ -4,17 +4,19 @@ Routines to construct new SymPy expressions transforming the provided input.
 
 from collections import Iterable, OrderedDict
 
-from sympy import Indexed, collect, collect_const, flatten
+import sympy
+from sympy import collect, collect_const, flatten
 
 from devito.dse.extended_sympy import Add, Eq, Mul
 from devito.dse.inspection import count, estimate_cost, retrieve_indexed
 from devito.dse.graph import temporaries_graph
-from devito.dse.queries import q_op
-from devito.interfaces import TensorFunction
+from devito.dse.queries import q_indexed, q_op
+from devito.interfaces import Indexed, TensorFunction
 from devito.tools import as_tuple
 
 __all__ = ['collect_nested', 'common_subexprs_elimination', 'freeze_expression',
-           'xreplace_constrained', 'xreplace_indices', 'promote_scalar_expressions']
+           'xreplace_constrained', 'xreplace_indices', 'promote_scalar_expressions',
+           'pow_to_mul']
 
 
 def freeze_expression(expr):
@@ -22,7 +24,7 @@ def freeze_expression(expr):
     Reconstruct ``expr`` turning all :class:`sympy.Mul` and :class:`sympy.Add`
     into, respectively, :class:`devito.Mul` and :class:`devito.Add`.
     """
-    if expr.is_Atom or isinstance(expr, Indexed):
+    if expr.is_Atom or q_indexed(expr):
         return expr
     elif expr.is_Add:
         rebuilt_args = [freeze_expression(e) for e in expr.args]
@@ -75,7 +77,7 @@ def collect_nested(expr, aggressive=False):
 
         if expr.is_Number or expr.is_Symbol:
             return expr, [expr]
-        elif isinstance(expr, Indexed) or expr.is_Atom:
+        elif q_indexed(expr) or expr.is_Atom:
             return expr, []
         elif expr.is_Add:
             rebuilt, candidates = zip(*[run(arg) for arg in expr.args])
@@ -144,7 +146,7 @@ def xreplace_constrained(exprs, make, rule, costmodel=lambda e: True, repeat=Fal
     replace.c = 0  # Unique identifier for new temporaries
 
     def run(expr):
-        if expr.is_Atom or isinstance(expr, Indexed):
+        if expr.is_Atom or q_indexed(expr):
             return expr, rule(expr)
         elif expr.is_Pow:
             base, flag = run(expr.base)
@@ -274,3 +276,26 @@ def compact_temporaries(exprs):
             processed.append(v.xreplace(mapper))
 
     return processed
+
+
+def pow_to_mul(expr):
+    """
+    Convert integer powers in an expression to Muls, like a**2 => a*a.
+    Readapted from: ::
+
+        stackoverflow.com/questions/14264431/expanding-algebraic-powers-in-python-sympy
+
+    The readaptation was necessary to make it work with Indexed.
+    """
+    lhs, rhs = expr.args
+    pows = [i for i in rhs.args if i.is_Pow]
+    non_pows = [i for i in rhs.args if i not in pows]
+    if not pows:
+        return expr
+    if any(not e.is_Integer or e <= 0 for b, e in (i.as_base_exp() for i in pows)):
+        # Cannot handle powers containing non-integer non-positive exponents
+        return expr
+    muls = [sympy.Mul(*[b]*e, evaluate=False)
+            for b, e in (i.as_base_exp() for i in pows)]
+    rhs = rhs.func(*(muls + non_pows), evaluate=False)
+    return expr.func(expr.lhs, rhs.func(*(muls + non_pows), evaluate=False))

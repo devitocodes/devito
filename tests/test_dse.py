@@ -2,12 +2,13 @@ from conftest import EVAL
 
 import numpy as np
 import pytest
-from sympy import Eq, Symbol  # noqa
+from sympy import Eq  # noqa
 
 from devito.dse import (clusterize, rewrite, xreplace_constrained, iq_timeinvariant,
                         iq_timevarying, estimate_cost, temporaries_graph,
                         common_subexprs_elimination, collect)
 from devito import Dimension, x, y, z, time, TimeData, clear_cache  # noqa
+from devito.interfaces import ScalarFunction
 from devito.nodes import Expression
 from devito.stencil import Stencil
 from devito.visitors import FindNodes
@@ -158,8 +159,8 @@ def test_tti_rewrite_aggressive(tti_nodse):
 def test_xreplace_constrained_time_invariants(tu, tv, tw, ti0, ti1, t0, t1,
                                               exprs, expected):
     exprs = EVAL(exprs, tu, tv, tw, ti0, ti1, t0, t1)
-    processed, found = xreplace_constrained(exprs,
-                                            lambda i: Symbol('r%d' % i),
+    make = lambda i: ScalarFunction(name='r%d' % i).indexify()
+    processed, found = xreplace_constrained(exprs, make,
                                             iq_timeinvariant(temporaries_graph(exprs)),
                                             lambda i: estimate_cost(i) > 0)
     assert len(found) == len(expected)
@@ -183,8 +184,8 @@ def test_xreplace_constrained_time_invariants(tu, tv, tw, ti0, ti1, t0, t1,
 def test_xreplace_constrained_time_varying(tu, tv, tw, ti0, ti1, t0, t1,
                                            exprs, expected):
     exprs = EVAL(exprs, tu, tv, tw, ti0, ti1, t0, t1)
-    processed, found = xreplace_constrained(exprs,
-                                            lambda i: Symbol('r%d' % i),
+    make = lambda i: ScalarFunction(name='r%d' % i).indexify()
+    processed, found = xreplace_constrained(exprs, make,
                                             iq_timevarying(temporaries_graph(exprs)),
                                             lambda i: estimate_cost(i) > 0)
     assert len(found) == len(expected)
@@ -198,14 +199,15 @@ def test_xreplace_constrained_time_varying(tu, tv, tw, ti0, ti1, t0, t1,
       'r0*(t0 + t1) + r0*(tv[t, x, y, z] + tw[t, x, y, z] + 5.0)']),
     # across expressions
     (['Eq(tu, tv*4 + tw*5 + tw*5*t0)', 'Eq(tv, tw*5)'],
-     ['5*tw[t, x, y, z]', '5*t0*tw[t, x, y, z] + r0 + 4*tv[t, x, y, z]', 'r0']),
+     ['5*tw[t, x, y, z]', 'r0 + 5*t0*tw[t, x, y, z] + 4*tv[t, x, y, z]', 'r0']),
     # intersecting
     pytest.mark.xfail((['Eq(tu, ti0*ti1 + ti0*ti1*t0 + ti0*ti1*t0*t1)'],
                        ['ti0*ti1', 'r0', 'r0*t0', 'r0*t0*t1'])),
 ])
 def test_common_subexprs_elimination(tu, tv, tw, ti0, ti1, t0, t1, exprs, expected):
+    make = lambda i: ScalarFunction(name='r%d' % i).indexify()
     processed = common_subexprs_elimination(EVAL(exprs, tu, tv, tw, ti0, ti1, t0, t1),
-                                            lambda i: Symbol('r%d' % i))
+                                            make)
     assert len(processed) == len(expected)
     assert all(str(i.rhs) == j for i, j in zip(processed, expected))
 
@@ -251,13 +253,13 @@ def test_graph_isindex(fa, fb, fc, t0, t1, t2, exprs, expected):
 @pytest.mark.parametrize('exprs,expected', [
     # none (different distance)
     (['Eq(t0, fa[x] + fb[x])', 'Eq(t1, fa[x+1] + fb[x])'],
-     {}),
+     {'fa[x] + fb[x]': None, 'fa[x+1] + fb[x]': None}),
     # none (different dimension)
     (['Eq(t0, fa[x] + fb[x])', 'Eq(t1, fa[x] + fb[y])'],
-     {}),
+     {'fa[x] + fb[x]': None, 'fa[x] + fb[y]': None}),
     # none (different operation)
     (['Eq(t0, fa[x] + fb[x])', 'Eq(t1, fa[x] - fb[x])'],
-     {}),
+     {'fa[x] + fb[x]': None, 'fa[x] - fb[x]': None}),
     # simple
     (['Eq(t0, fa[x] + fb[x])', 'Eq(t1, fa[x+1] + fb[x+1])', 'Eq(t2, fa[x-1] + fb[x-1])'],
      {'fa[x] + fb[x]': Stencil([(x, {-1, 0, 1})])}),
@@ -279,7 +281,7 @@ def test_collect_aliases(fa, fb, fc, fd, t0, t1, t2, t3, exprs, expected):
     _, aliases = collect(EVAL(exprs, *scope))
     for k, v in aliases.items():
         assert k in mapper
-        assert v.anti_stencil == mapper[k]
+        assert (len(v.aliased) == 1 and mapper[k] is None) or v.anti_stencil == mapper[k]
 
 
 @pytest.mark.parametrize('expr,expected', [

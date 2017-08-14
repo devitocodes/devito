@@ -1,6 +1,6 @@
 import numpy as np
 
-from devito import DenseData
+from devito import DenseData, ConstantData
 
 
 __all__ = ['Model']
@@ -18,10 +18,11 @@ class Model(object):
     :param epsilon: Thomsen epsilon parameter (0<epsilon<1)
     :param delta: Thomsen delta parameter (0<delta<1), delta<epsilon
     :param theta: Tilt angle in radian
-    :param phi : Asymuth angle in radian
+    :param phi: Asymuth angle in radian
 
     The :class:`Model` provides two symbolic data objects for the
-    creation of seismic wve propagation operators:
+    creation of seismic wave propagation operators:
+
     :param m: The square slowness of the wave
     :param damp: The damping field for absorbing boundarycondition
     """
@@ -38,7 +39,7 @@ class Model(object):
             self.m = DenseData(name="m", shape=self.shape_domain, dtype=self.dtype)
             self.m.data[:] = self.pad(1 / (self.vp * self.vp))
         else:
-            self.m = 1/vp**2
+            self.m = ConstantData(name="m", value=1/vp**2, dtype=self.dtype)
 
         # Additional parameter fields for TTI operators
         self.scale = 1.
@@ -52,7 +53,7 @@ class Model(object):
                 if np.max(self.epsilon.data) > 0:
                     self.scale = np.sqrt(np.max(self.epsilon.data))
             else:
-                self.epsilon = epsilon
+                self.epsilon = 1 + 2 * epsilon
                 self.scale = epsilon
         else:
             self.epsilon = 1

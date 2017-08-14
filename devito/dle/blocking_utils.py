@@ -61,15 +61,15 @@ def unfold_blocked_tree(node):
     """
     Unfold nested :class:`IterationFold`.
 
-    Examples
-    ========
+    :Example:
+
     Given a section of Iteration/Expression tree as below: ::
 
         for i = 1 to N-1  // folded
           for j = 1 to N-1  // folded
             foo1()
 
-    Assuming a fold with offset 1 in both /i/ and /j/ and body ``foo2()``, create:
+    Assuming a fold with offset 1 in both /i/ and /j/ and body ``foo2()``, create: ::
 
         for i = 1 to N-1
           for j = 1 to N-1

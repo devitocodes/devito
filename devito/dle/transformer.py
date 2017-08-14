@@ -1,7 +1,8 @@
 from collections import Sequence
 
 from devito.dle.backends import (State, BasicRewriter, DevitoCustomRewriter,
-                                 DevitoRewriter, DevitoSpeculativeRewriter)
+                                 DevitoRewriter, DevitoRewriterSafeMath,
+                                 DevitoSpeculativeRewriter)
 from devito.exceptions import DLEException
 from devito.logger import dle_warning
 
@@ -11,6 +12,7 @@ __all__ = ['transform', 'modes', 'default_options']
 modes = {
     'basic': BasicRewriter,
     'advanced': DevitoRewriter,
+    'advanced-safemath': DevitoRewriterSafeMath,
     'speculative': DevitoSpeculativeRewriter
 }
 """The DLE transformation modes."""
@@ -30,7 +32,10 @@ def transform(node, mode='basic', options=None):
     :param node: The Iteration/Expression tree to be transformed, or an iterable
                  of Iteration/Expression trees.
     :param mode: Drive the tree transformation. ``mode`` is a string indicating
-                 a certain optimization pipeline. The following values are accepted: ::
+                 a certain optimization pipeline.
+    :param options: A dictionary with additional information to drive the DLE.
+
+    The ``mode`` parameter accepts the following values: ::
 
         * 'noop': Do nothing.
         * 'basic': Add instructions to avoid denormal numbers and create elemental
@@ -39,8 +44,8 @@ def transform(node, mode='basic', options=None):
         * 'speculative': Apply all of the 'advanced' transformations, plus other
                          transformations that might increase (or possibly decrease)
                          performance.
-    :param options: A dictionary with additional information to drive the DLE. The
-                    following values are accepted: ::
+
+    The ``options`` parameter accepts the following values: ::
 
         * 'blockshape': The block shape for loop blocking (a tuple).
         * 'blockinner': By default, loop blocking is not applied to the innermost

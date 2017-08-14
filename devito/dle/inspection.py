@@ -8,7 +8,8 @@ def retrieve_iteration_tree(node, mode='normal'):
     """Return a list of all :class:`Iteration` sub-trees rooted in ``node``.
     For example, given the Iteration tree:
 
-        .. code-block::
+        .. code-block:: c
+
            Iteration i
              expr0
              Iteration j

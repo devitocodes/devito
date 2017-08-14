@@ -3,7 +3,7 @@ from devito.tools import as_tuple
 __all__ = ['convert_multislice']
 
 
-def convert_multislice(multislice, shape, mode='get'):
+def convert_multislice(multislice, shape, halo, mode='get'):
     """
     Convert a multislice into a format suitable to YASK's get_elements_{...}
     and set_elements_{...} grid routines.
@@ -49,8 +49,9 @@ def convert_multislice(multislice, shape, mode='get'):
         if isinstance(v, slice):
             if v.step is not None:
                 raise NotImplementedError("Unsupported stepping != 1.")
-            cstart.append(v.start or 0)
-            cstop.append((v.stop or shape[i]) - 1)
+            cstart.append(normalize_index(v.start if v.start is not None else 0, shape))
+            cstop.append(normalize_index(v.stop if v.stop is not None else shape[i],
+                                         shape) - 1)
             cshape.append(cstop[-1] - cstart[-1] + 1)
         else:
             cstart.append(normalize_index(v if v is not None else 0, shape))
@@ -63,6 +64,12 @@ def convert_multislice(multislice, shape, mode='get'):
     cstart.extend([0]*nremainder)
     cstop.extend([shape[i + j] - 1 for j in range(1, nremainder + 1)])
     cshape.extend([shape[i + j] for j in range(1, nremainder + 1)])
+
+    assert len(shape) == len(cstart) == len(cstop)
+
+    # Shift by the halo size
+    cstart = [j - i for i, j in zip(halo, cstart)]
+    cstop = [j - i for i, j in zip(halo, cstop)]
 
     return cstart, cstop, cshape
 

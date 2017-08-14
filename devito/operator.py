@@ -2,7 +2,6 @@ from __future__ import absolute_import
 
 import operator
 from collections import OrderedDict
-from ctypes import c_int
 
 import cgen as c
 import numpy as np
@@ -19,11 +18,11 @@ from devito.nodes import Element, Expression, Function, Iteration, List, LocalEx
 from devito.parameters import configuration
 from devito.profiling import Profiler, create_profile
 from devito.stencil import Stencil
-from devito.tools import as_tuple, filter_ordered, flatten
+from devito.tools import as_tuple, convert_dtype_to_ctype, filter_ordered, flatten
 from devito.visitors import (FindSymbols, FindScopes, ResolveIterationVariable,
                              SubstituteExpression, Transformer, NestedTransformer)
 from devito.exceptions import InvalidArgument, InvalidOperator
-from devito.arguments import ScalarArgument, log_args, ArgumentProvider
+from devito.arguments import log_args, ArgumentProvider
 
 
 class Operator(Function):
@@ -119,10 +118,10 @@ class Operator(Function):
         self.symbolic_data = [i for i in parameters if isinstance(i, SymbolicData)]
         dims = [i for i in parameters if isinstance(i, Dimension)]
         dims_parents = [d.parent for d in dims if d.is_Buffered]
-        self.dims = list(set(dims + dims_parents))
+        self.dims = filter_ordered(dims + dims_parents)
         assert(all(isinstance(i, ArgumentProvider) for i in self.symbolic_data +
                    self.dims))
-        parameters = list(set(parameters + dims_parents))
+        parameters = filter_ordered(parameters + dims_parents)
 
         # Translate into backend-specific representation (e.g., GPU, Yask)
         nodes, elemental_functions = self._specialize(nodes, elemental_functions)
@@ -143,7 +142,7 @@ class Operator(Function):
         for x in self.tensor_args + self.dims + self.scalar_args:
             x.reset()
 
-    def arguments(self, *args, **kwargs):
+    def arguments(self, **kwargs):
         """ Process any apply-time arguments passed to apply and derive values for
             any remaining arguments
         """
@@ -279,9 +278,12 @@ class Operator(Function):
 
         if self._cfunction is None:
             self._cfunction = getattr(self._lib, self.name)
-            argtypes = [c_int if isinstance(v, ScalarArgument) else
-                        np.ctypeslib.ndpointer(dtype=v.dtype, flags='C')
-                        for v in self.parameters]
+            argtypes = []
+            for i in self.parameters:
+                if i.is_ScalarArgument:
+                    argtypes.append(convert_dtype_to_ctype(i.dtype))
+                else:
+                    argtypes.append(np.ctypeslib.ndpointer(dtype=i.dtype, flags='C'))
             self._cfunction.argtypes = argtypes
 
         return self._cfunction
@@ -459,13 +461,13 @@ class OperatorRunnable(Operator):
     C code evaluating stencil expressions, can also execute the computation.
     """
 
-    def __call__(self, *args, **kwargs):
-        self.apply(*args, **kwargs)
+    def __call__(self, **kwargs):
+        self.apply(**kwargs)
 
-    def apply(self, *args, **kwargs):
+    def apply(self, **kwargs):
         """Apply the stencil kernel to a set of data objects"""
         # Build the arguments list to invoke the kernel function
-        arguments, dim_sizes = self.arguments(*args, **kwargs)
+        arguments, dim_sizes = self.arguments(**kwargs)
 
         # Invoke kernel function with args
         self.cfunction(*list(arguments.values()))

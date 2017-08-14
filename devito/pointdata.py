@@ -132,7 +132,7 @@ class PointData(CompositeData):
     def coordinate_symbols(self):
         """Symbol representing the coordinate values in each dimension"""
         p_dim = self.indices[1]
-        return tuple([self.coordinates.indexed[p_dim, i]
+        return tuple([self.coordinates.indexify((p_dim, i))
                       for i in range(self.ndim)])
 
     @property

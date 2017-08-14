@@ -2,7 +2,7 @@ from __future__ import absolute_import
 
 from collections import OrderedDict
 
-from sympy import Eq, Indexed
+from sympy import Eq
 
 from devito.dse.aliases import collect
 from devito.dse.backends import BasicRewriter, dse_pass
@@ -11,7 +11,7 @@ from devito.dse.inspection import estimate_cost
 from devito.dse.manipulation import (common_subexprs_elimination, collect_nested,
                                      xreplace_constrained)
 from devito.dse.queries import iq_timeinvariant
-from devito.interfaces import ScalarFunction, TensorFunction
+from devito.interfaces import Indexed, ScalarFunction, TensorFunction
 
 
 class AdvancedRewriter(BasicRewriter):
@@ -123,7 +123,8 @@ class AdvancedRewriter(BasicRewriter):
             # Cost check (to keep the memory footprint under control)
             naliases = len(mapper.get(v.rhs, []))
             cost = estimate_cost(v, True)*naliases
-            if cost >= self.thresholds['min-cost-alias'] and naliases > 1:
+            if cost >= self.thresholds['min-cost-alias'] and\
+                    (naliases > 1 or time_invariants[v.rhs]):
                 candidates[v.rhs] = k
             else:
                 processed.append(Eq(k, v.rhs))

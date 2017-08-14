@@ -173,7 +173,7 @@ def aggregate(exprs, stencils):
 
 def clusterize(exprs, stencils, atomics=None):
     """
-    Derive :class:`Cluster`s from an iterator of expressions; a stencil for
+    Derive :class:`Cluster` objetcs from an iterator of expressions; a stencil for
     each expression must be provided. A list of atomic dimensions (see description
     in Cluster.__doc__) may be provided.
     """
@@ -184,7 +184,7 @@ def clusterize(exprs, stencils, atomics=None):
     Info = namedtuple('Info', 'trace stencil')
 
     g = temporaries_graph(exprs)
-    mapper = OrderedDict([(k, Info(g.trace(k), j))
+    mapper = OrderedDict([(k, Info(g.trace(k) + g.trace(k, readby=True, strict=True), j))
                           for (k, v), j in zip(g.items(), stencils) if v.is_tensor])
 
     # A cluster stencil is determined iteratively, by first calculating the
