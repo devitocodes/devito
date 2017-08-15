@@ -5,7 +5,7 @@ from devito.logger import error
 import numpy as np
 import matplotlib.pyplot as plt
 
-__all__ = ['PointSource', 'Receiver', 'Shot', 'RickerSource']
+__all__ = ['PointSource', 'Receiver', 'Shot', 'RickerSource', 'GaborSource']
 
 
 class PointSource(PointData):
@@ -54,12 +54,12 @@ Receiver = PointSource
 Shot = PointSource
 
 
-class RickerSource(PointSource):
+class WaveletSource(PointSource):
     """
-    Symbolic object to encapsulate a set of sources with a
-    pre-defined Ricker wavelet.
+    Abstract base class for symbolic objects that encapsulate a set of
+    sources with a pre-defined source signal wavelet.
 
-    :param name: Name for the reuslting symbol
+    :param name: Name for the resulting symbol
     :param f0: Peak frequency for Ricker wavelet in kHz
     :param time: Discretized values of time in ms
     :param ndim: Number of spatial dimensions
@@ -80,17 +80,16 @@ class RickerSource(PointSource):
 
     def __init__(self, *args, **kwargs):
         if not self._cached():
-            super(RickerSource, self).__init__(*args, **kwargs)
+            super(WaveletSource, self).__init__(*args, **kwargs)
 
     def wavelet(self, f0, t):
         """
-        Create Ricker wavelet with a peak frequency f0 at time t.
+        Defines a wavelet with a peak frequency f0 at time t.
 
-        :param f0: Peak frequency
-        :param t: Discretized values of time
+        :param f0: Peak frequency in kHz
+        :param t: Discretized values of time in ms
         """
-        r = (np.pi * f0 * (t - 1./f0))
-        return (1-2.*r**2)*np.exp(-r**2)
+        raise NotImplementedError('Wavelet not defined')
 
     def show(self, idx=0, time=None, wavelet=None):
         """
@@ -108,3 +107,53 @@ class RickerSource(PointSource):
         plt.ylabel('Velocity (km/s)')
         plt.tick_params()
         plt.show()
+
+
+class RickerSource(WaveletSource):
+    """
+    Symbolic object that encapsulate a set of sources with a
+    pre-defined Ricker wavelet:
+
+    http://subsurfwiki.org/wiki/Ricker_wavelet
+
+    :param name: Name for the resulting symbol
+    :param f0: Peak frequency for Ricker wavelet in kHz
+    :param time: Discretized values of time in ms
+    :param ndim: Number of spatial dimensions
+    """
+
+    def wavelet(self, f0, t):
+        """
+        Defines a Ricker wavelet with a peak frequency f0 at time t.
+
+        :param f0: Peak frequency in kHz
+        :param t: Discretized values of time in ms
+        """
+        r = (np.pi * f0 * (t - 1./f0))
+        return (1-2.*r**2)*np.exp(-r**2)
+
+
+class GaborSource(WaveletSource):
+    """
+    Symbolic object that encapsulate a set of sources with a
+    pre-defined Gabor wavelet:
+
+    https://en.wikipedia.org/wiki/Gabor_wavelet
+
+    :param name: Name for the resulting symbol
+    :param f0: Peak frequency for Ricker wavelet in kHz
+    :param time: Discretized values of time in ms
+    :param ndim: Number of spatial dimensions
+    """
+
+    def wavelet(self, f0, t):
+        """
+        Defines a Gabor wavelet with a peak frequency f0 at time t.
+
+        :param f0: Peak frequency in kHz
+        :param t: Discretized values of time in ms
+        """
+        agauss = 0.5 * f0
+        tcut = 1.5 / agauss
+        s = (t-tcut) * agauss
+        return np.exp(-2*s**2) * np.cos(2 * np.pi * s)
