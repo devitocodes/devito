@@ -73,7 +73,7 @@ def plot_shotrecord(rec, origin, spacing, dimensions, t0, tn, diff=False):
     :param tn: End of time dimension to plot
     """
     aspect = (dimensions[0] * spacing[0])/tn
-    scale = np.max(rec)/100
+    scale = np.max(rec)/10.
     plt.figure()
     plt.imshow(rec, vmin=-scale, vmax=scale, cmap=cm.gray, aspect=aspect,
                extent=[origin[0], origin[0] + 1e-3*dimensions[0] * spacing[0],
