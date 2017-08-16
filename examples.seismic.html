@@ -257,6 +257,12 @@ creation of seismic wave propagation operators:</p>
 <dd><p>Critical computational time step value from the CFL condition.</p>
 </dd></dl>
 
+<dl class="attribute">
+<dt id="examples.seismic.model.Model.domain_size">
+<code class="descname">domain_size</code><a class="headerlink" href="#examples.seismic.model.Model.domain_size" title="Permalink to this definition">¶</a></dt>
+<dd><p>Physical size of the domain as determined by shape and spacing</p>
+</dd></dl>
+
 <dl class="method">
 <dt id="examples.seismic.model.Model.get_spacing">
 <code class="descname">get_spacing</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/examples/seismic/model.html#Model.get_spacing"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#examples.seismic.model.Model.get_spacing" title="Permalink to this definition">¶</a></dt>
@@ -375,6 +381,98 @@ initialised <cite>data</cite> array need to be provided.</p>
 <dt id="examples.seismic.source.Shot">
 <code class="descclassname">examples.seismic.source.</code><code class="descname">Shot</code><a class="headerlink" href="#examples.seismic.source.Shot" title="Permalink to this definition">¶</a></dt>
 <dd><p>alias of <a class="reference internal" href="#examples.seismic.source.PointSource" title="examples.seismic.source.PointSource"><code class="xref py py-class docutils literal"><span class="pre">PointSource</span></code></a></p>
+</dd></dl>
+
+<dl class="class">
+<dt id="examples.seismic.source.RickerSource">
+<em class="property">class </em><code class="descclassname">examples.seismic.source.</code><code class="descname">RickerSource</code><span class="sig-paren">(</span><em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/examples/seismic/source.html#RickerSource"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#examples.seismic.source.RickerSource" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">examples.seismic.source.WaveletSource</span></code></p>
+<p>Symbolic object that encapsulate a set of sources with a
+pre-defined Ricker wavelet:</p>
+<p><a class="reference external" href="http://subsurfwiki.org/wiki/Ricker_wavelet">http://subsurfwiki.org/wiki/Ricker_wavelet</a></p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>name</strong> – Name for the resulting symbol</li>
+<li><strong>f0</strong> – Peak frequency for Ricker wavelet in kHz</li>
+<li><strong>time</strong> – Discretized values of time in ms</li>
+<li><strong>ndim</strong> – Number of spatial dimensions</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+<dl class="attribute">
+<dt id="examples.seismic.source.RickerSource.default_assumptions">
+<code class="descname">default_assumptions</code><em class="property"> = {}</em><a class="headerlink" href="#examples.seismic.source.RickerSource.default_assumptions" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="examples.seismic.source.RickerSource.wavelet">
+<code class="descname">wavelet</code><span class="sig-paren">(</span><em>f0</em>, <em>t</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/examples/seismic/source.html#RickerSource.wavelet"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#examples.seismic.source.RickerSource.wavelet" title="Permalink to this definition">¶</a></dt>
+<dd><p>Defines a Ricker wavelet with a peak frequency f0 at time t.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>f0</strong> – Peak frequency in kHz</li>
+<li><strong>t</strong> – Discretized values of time in ms</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="examples.seismic.source.GaborSource">
+<em class="property">class </em><code class="descclassname">examples.seismic.source.</code><code class="descname">GaborSource</code><span class="sig-paren">(</span><em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/examples/seismic/source.html#GaborSource"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#examples.seismic.source.GaborSource" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">examples.seismic.source.WaveletSource</span></code></p>
+<p>Symbolic object that encapsulate a set of sources with a
+pre-defined Gabor wavelet:</p>
+<p><a class="reference external" href="https://en.wikipedia.org/wiki/Gabor_wavelet">https://en.wikipedia.org/wiki/Gabor_wavelet</a></p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>name</strong> – Name for the resulting symbol</li>
+<li><strong>f0</strong> – Peak frequency for Ricker wavelet in kHz</li>
+<li><strong>time</strong> – Discretized values of time in ms</li>
+<li><strong>ndim</strong> – Number of spatial dimensions</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+<dl class="attribute">
+<dt id="examples.seismic.source.GaborSource.default_assumptions">
+<code class="descname">default_assumptions</code><em class="property"> = {}</em><a class="headerlink" href="#examples.seismic.source.GaborSource.default_assumptions" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="examples.seismic.source.GaborSource.wavelet">
+<code class="descname">wavelet</code><span class="sig-paren">(</span><em>f0</em>, <em>t</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/examples/seismic/source.html#GaborSource.wavelet"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#examples.seismic.source.GaborSource.wavelet" title="Permalink to this definition">¶</a></dt>
+<dd><p>Defines a Gabor wavelet with a peak frequency f0 at time t.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>f0</strong> – Peak frequency in kHz</li>
+<li><strong>t</strong> – Discretized values of time in ms</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
 </dd></dl>
 
 </div>

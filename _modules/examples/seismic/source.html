@@ -162,8 +162,10 @@
 <span class="kn">from</span> <span class="nn">devito.pointdata</span> <span class="k">import</span> <span class="n">PointData</span>
 <span class="kn">from</span> <span class="nn">devito.logger</span> <span class="k">import</span> <span class="n">error</span>
 
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">import</span> <span class="nn">matplotlib.pyplot</span> <span class="k">as</span> <span class="nn">plt</span>
 
-<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;PointSource&#39;</span><span class="p">,</span> <span class="s1">&#39;Receiver&#39;</span><span class="p">,</span> <span class="s1">&#39;Shot&#39;</span><span class="p">]</span>
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;PointSource&#39;</span><span class="p">,</span> <span class="s1">&#39;Receiver&#39;</span><span class="p">,</span> <span class="s1">&#39;Shot&#39;</span><span class="p">,</span> <span class="s1">&#39;RickerSource&#39;</span><span class="p">,</span> <span class="s1">&#39;GaborSource&#39;</span><span class="p">]</span>
 
 
 <div class="viewcode-block" id="PointSource"><a class="viewcode-back" href="../../../examples.seismic.html#examples.seismic.source.PointSource">[docs]</a><span class="k">class</span> <span class="nc">PointSource</span><span class="p">(</span><span class="n">PointData</span><span class="p">):</span>
@@ -194,18 +196,127 @@
             <span class="n">ntime</span> <span class="o">=</span> <span class="n">ntime</span> <span class="ow">or</span> <span class="n">data</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
 
         <span class="c1"># Create the underlying PointData object</span>
-        <span class="n">obj</span> <span class="o">=</span> <span class="n">PointData</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="n">name</span><span class="p">,</span> <span class="n">dimensions</span><span class="o">=</span><span class="p">[</span><span class="n">time</span><span class="p">,</span> <span class="n">p_dim</span><span class="p">],</span>
-                        <span class="n">npoint</span><span class="o">=</span><span class="n">npoint</span><span class="p">,</span> <span class="n">nt</span><span class="o">=</span><span class="n">ntime</span><span class="p">,</span> <span class="n">ndim</span><span class="o">=</span><span class="n">ndim</span><span class="p">,</span>
-                        <span class="n">coordinates</span><span class="o">=</span><span class="n">coordinates</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="n">obj</span> <span class="o">=</span> <span class="n">PointData</span><span class="o">.</span><span class="fm">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="n">name</span><span class="p">,</span> <span class="n">dimensions</span><span class="o">=</span><span class="p">[</span><span class="n">time</span><span class="p">,</span> <span class="n">p_dim</span><span class="p">],</span>
+                                <span class="n">npoint</span><span class="o">=</span><span class="n">npoint</span><span class="p">,</span> <span class="n">nt</span><span class="o">=</span><span class="n">ntime</span><span class="p">,</span> <span class="n">ndim</span><span class="o">=</span><span class="n">ndim</span><span class="p">,</span>
+                                <span class="n">coordinates</span><span class="o">=</span><span class="n">coordinates</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
 
         <span class="c1"># If provided, copy initial data into the allocated buffer</span>
         <span class="k">if</span> <span class="n">data</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
             <span class="n">obj</span><span class="o">.</span><span class="n">data</span><span class="p">[:]</span> <span class="o">=</span> <span class="n">data</span>
-        <span class="k">return</span> <span class="n">obj</span></div>
+        <span class="k">return</span> <span class="n">obj</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cached</span><span class="p">():</span>
+            <span class="nb">super</span><span class="p">(</span><span class="n">PointSource</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span></div>
 
 
 <span class="n">Receiver</span> <span class="o">=</span> <span class="n">PointSource</span>
 <span class="n">Shot</span> <span class="o">=</span> <span class="n">PointSource</span>
+
+
+<span class="k">class</span> <span class="nc">WaveletSource</span><span class="p">(</span><span class="n">PointSource</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Abstract base class for symbolic objects that encapsulate a set of</span>
+<span class="sd">    sources with a pre-defined source signal wavelet.</span>
+
+<span class="sd">    :param name: Name for the resulting symbol</span>
+<span class="sd">    :param f0: Peak frequency for Ricker wavelet in kHz</span>
+<span class="sd">    :param time: Discretized values of time in ms</span>
+<span class="sd">    :param ndim: Number of spatial dimensions</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="n">time</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;time&#39;</span><span class="p">)</span>
+        <span class="n">npoint</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;npoint&#39;</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;ntime&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">time</span><span class="p">)</span>
+        <span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;npoint&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">npoint</span>
+        <span class="n">obj</span> <span class="o">=</span> <span class="n">PointSource</span><span class="o">.</span><span class="fm">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+
+        <span class="n">obj</span><span class="o">.</span><span class="n">time</span> <span class="o">=</span> <span class="n">time</span>
+        <span class="n">obj</span><span class="o">.</span><span class="n">f0</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;f0&#39;</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">npoint</span><span class="p">):</span>
+            <span class="n">obj</span><span class="o">.</span><span class="n">data</span><span class="p">[:,</span> <span class="n">p</span><span class="p">]</span> <span class="o">=</span> <span class="n">obj</span><span class="o">.</span><span class="n">wavelet</span><span class="p">(</span><span class="n">obj</span><span class="o">.</span><span class="n">f0</span><span class="p">,</span> <span class="n">obj</span><span class="o">.</span><span class="n">time</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">obj</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cached</span><span class="p">():</span>
+            <span class="nb">super</span><span class="p">(</span><span class="n">WaveletSource</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">wavelet</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">f0</span><span class="p">,</span> <span class="n">t</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Defines a wavelet with a peak frequency f0 at time t.</span>
+
+<span class="sd">        :param f0: Peak frequency in kHz</span>
+<span class="sd">        :param t: Discretized values of time in ms</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="s1">&#39;Wavelet not defined&#39;</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">show</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">idx</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">time</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">wavelet</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Plot the wavelet of the specified source.</span>
+
+<span class="sd">        :param idx: Index of the source point for which to plot wavelet</span>
+<span class="sd">        :param wavelet: Prescribed wavelet instead of one from this symbol</span>
+<span class="sd">        :param time: Prescribed time instead of time from this symbol</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">wavelet</span> <span class="o">=</span> <span class="n">wavelet</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="p">[:,</span> <span class="n">idx</span><span class="p">]</span>
+        <span class="n">time</span> <span class="o">=</span> <span class="n">time</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">time</span>
+        <span class="n">plt</span><span class="o">.</span><span class="n">figure</span><span class="p">()</span>
+        <span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">time</span><span class="p">,</span> <span class="n">wavelet</span><span class="p">)</span>
+        <span class="n">plt</span><span class="o">.</span><span class="n">xlabel</span><span class="p">(</span><span class="s1">&#39;Time (ms)&#39;</span><span class="p">)</span>
+        <span class="n">plt</span><span class="o">.</span><span class="n">ylabel</span><span class="p">(</span><span class="s1">&#39;Velocity (km/s)&#39;</span><span class="p">)</span>
+        <span class="n">plt</span><span class="o">.</span><span class="n">tick_params</span><span class="p">()</span>
+        <span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+
+
+<div class="viewcode-block" id="RickerSource"><a class="viewcode-back" href="../../../examples.seismic.html#examples.seismic.source.RickerSource">[docs]</a><span class="k">class</span> <span class="nc">RickerSource</span><span class="p">(</span><span class="n">WaveletSource</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Symbolic object that encapsulate a set of sources with a</span>
+<span class="sd">    pre-defined Ricker wavelet:</span>
+
+<span class="sd">    http://subsurfwiki.org/wiki/Ricker_wavelet</span>
+
+<span class="sd">    :param name: Name for the resulting symbol</span>
+<span class="sd">    :param f0: Peak frequency for Ricker wavelet in kHz</span>
+<span class="sd">    :param time: Discretized values of time in ms</span>
+<span class="sd">    :param ndim: Number of spatial dimensions</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+<div class="viewcode-block" id="RickerSource.wavelet"><a class="viewcode-back" href="../../../examples.seismic.html#examples.seismic.source.RickerSource.wavelet">[docs]</a>    <span class="k">def</span> <span class="nf">wavelet</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">f0</span><span class="p">,</span> <span class="n">t</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Defines a Ricker wavelet with a peak frequency f0 at time t.</span>
+
+<span class="sd">        :param f0: Peak frequency in kHz</span>
+<span class="sd">        :param t: Discretized values of time in ms</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">r</span> <span class="o">=</span> <span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">pi</span> <span class="o">*</span> <span class="n">f0</span> <span class="o">*</span> <span class="p">(</span><span class="n">t</span> <span class="o">-</span> <span class="mf">1.</span><span class="o">/</span><span class="n">f0</span><span class="p">))</span>
+        <span class="k">return</span> <span class="p">(</span><span class="mi">1</span><span class="o">-</span><span class="mf">2.</span><span class="o">*</span><span class="n">r</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="o">-</span><span class="n">r</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span></div></div>
+
+
+<div class="viewcode-block" id="GaborSource"><a class="viewcode-back" href="../../../examples.seismic.html#examples.seismic.source.GaborSource">[docs]</a><span class="k">class</span> <span class="nc">GaborSource</span><span class="p">(</span><span class="n">WaveletSource</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Symbolic object that encapsulate a set of sources with a</span>
+<span class="sd">    pre-defined Gabor wavelet:</span>
+
+<span class="sd">    https://en.wikipedia.org/wiki/Gabor_wavelet</span>
+
+<span class="sd">    :param name: Name for the resulting symbol</span>
+<span class="sd">    :param f0: Peak frequency for Ricker wavelet in kHz</span>
+<span class="sd">    :param time: Discretized values of time in ms</span>
+<span class="sd">    :param ndim: Number of spatial dimensions</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+<div class="viewcode-block" id="GaborSource.wavelet"><a class="viewcode-back" href="../../../examples.seismic.html#examples.seismic.source.GaborSource.wavelet">[docs]</a>    <span class="k">def</span> <span class="nf">wavelet</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">f0</span><span class="p">,</span> <span class="n">t</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Defines a Gabor wavelet with a peak frequency f0 at time t.</span>
+
+<span class="sd">        :param f0: Peak frequency in kHz</span>
+<span class="sd">        :param t: Discretized values of time in ms</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">agauss</span> <span class="o">=</span> <span class="mf">0.5</span> <span class="o">*</span> <span class="n">f0</span>
+        <span class="n">tcut</span> <span class="o">=</span> <span class="mf">1.5</span> <span class="o">/</span> <span class="n">agauss</span>
+        <span class="n">s</span> <span class="o">=</span> <span class="p">(</span><span class="n">t</span><span class="o">-</span><span class="n">tcut</span><span class="p">)</span> <span class="o">*</span> <span class="n">agauss</span>
+        <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="o">-</span><span class="mi">2</span><span class="o">*</span><span class="n">s</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="mi">2</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">pi</span> <span class="o">*</span> <span class="n">s</span><span class="p">)</span></div></div>
 </pre></div>
 
            </div>
