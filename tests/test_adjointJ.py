@@ -2,7 +2,8 @@ import numpy as np
 import pytest
 from numpy import linalg
 
-from examples.seismic.acoustic.acoustic_example import setup
+from devito.logger import info
+from examples.seismic.acoustic.acoustic_example import acoustic_setup as setup
 
 
 @pytest.mark.parametrize('space_order', [4, 8, 12])
@@ -21,10 +22,11 @@ def test_acousticJ(dimensions, space_order):
     du, _, _, _ = solver.born(dm, m=m0)
     im, _ = solver.gradient(du, u0, m=m0)
 
-    # Actual adjoint test
+    # Adjoint test: Verify <Ax,y> matches  <x, A^Ty> closely
     term1 = np.dot(im.data.reshape(-1), dm.reshape(-1))
     term2 = linalg.norm(du.data)**2
-    print(term1, term2, term1 - term2, term1 / term2)
+    info('<Ax,y>: %f, <x, A^Ty>: %f, difference: %12.12f, ratio: %f'
+         % (term1, term2, term1 - term2, term1 / term2))
     assert np.isclose(term1 / term2, 1.0, atol=0.001)
 
 

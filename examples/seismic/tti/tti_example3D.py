@@ -1,20 +1,15 @@
 import numpy as np
 
 from devito.logger import warning
-from examples.seismic import Model, PointSource, Receiver
+from examples.seismic import Model, GaborSource, Receiver
 from examples.seismic.tti import AnisotropicWaveSolver
-
-
-def source(t, f0):
-    agauss = 0.5*f0
-    tcut = 1.5/agauss
-    s = (t-tcut)*agauss
-    return np.exp(-2*s**2)*np.cos(2*np.pi*s)
 
 
 def setup(dimensions=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=250.0, time_order=2,
           space_order=4, nbpml=10, dse='advanced', dle='advanced'):
 
+    ndim = len(dimensions)
+    nrec = 101
     origin = (0., 0., 0.)
 
     # True velocity
@@ -29,32 +24,21 @@ def setup(dimensions=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=250.0, time_or
                   theta=-np.pi/7*np.ones(dimensions),
                   phi=np.pi/5*np.ones(dimensions))
 
-    # Define seismic data.
-
-    f0 = .010
+    # Derive timestepping from model spacing
     dt = model.critical_dt
     t0 = 0.0
-    nt = int(1+(tn-t0)/dt)
-    # Set up the source as Ricker wavelet for f0
+    nt = int(1 + (tn-t0) / dt)
+    time = np.linspace(t0, tn, nt)
 
-    # Source geometry
-    time_series = np.zeros((nt, 1))
+    # Define source geometry (center of domain, just below surface)
+    src = GaborSource(name='src', ndim=ndim, f0=0.01, time=time)
+    src.coordinates.data[0, :] = np.array(model.domain_size) * .5
+    src.coordinates.data[0, -1] = model.origin[-1] + 2 * spacing[-1]
 
-    time_series[:, 0] = source(np.linspace(t0, tn, nt), f0)
-
-    location = np.zeros((1, 3))
-    location[0, 0] = origin[0] + dimensions[0] * spacing[0] * 0.5
-    location[0, 1] = origin[1] + dimensions[1] * spacing[1] * 0.5
-    location[0, 2] = origin[1] + 2 * spacing[2]
-    src = PointSource(name='src', data=time_series, coordinates=location)
-
-    # Receiver geometry
-    receiver_coords = np.zeros((101, 3))
-    receiver_coords[:, 0] = np.linspace(0, origin[0] +
-                                        dimensions[0] * spacing[0], num=101)
-    receiver_coords[:, 1] = origin[1] + dimensions[1] * spacing[1] * 0.5
-    receiver_coords[:, 2] = location[0, 1]
-    rec = Receiver(name='rec', ntime=nt, coordinates=receiver_coords)
+    # Define receiver geometry (spread across x, lust below surface)
+    rec = Receiver(name='nrec', ntime=nt, npoint=nrec, ndim=ndim)
+    rec.coordinates.data[:, 0] = np.linspace(0., model.domain_size[0], num=nrec)
+    rec.coordinates.data[:, 1:] = src.coordinates.data[0, 1:]
 
     return AnisotropicWaveSolver(model, source=src, time_order=time_order,
                                  space_order=space_order, receiver=rec, dse=dse, dle=dle)
