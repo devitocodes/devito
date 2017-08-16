@@ -11,7 +11,7 @@ from sympy import Eq
 from devito.dimension import t
 from devito.logger import error
 from devito.tools import convert_dtype_to_ctype
-
+import devito
 """
 Pre-load ``libc`` to explicitly manage C memory
 """
@@ -78,36 +78,6 @@ def first_touch(array):
     """Uses the Propagator low-level API to initialize the given array(in Devito types)
     in the same pattern that would later be used to access it.
     """
-    from devito.propagator import Propagator
-    from devito.interfaces import TimeData
-    from devito.nodes import Iteration
-    from devito.pointdata import PointData
-
     exp_init = [Eq(array.indexed[array.indices], 0)]
-    it_init = []
-    time_dim = t
-    if isinstance(array, TimeData):
-        shape = array.shape
-        time_steps = shape[0]
-        shape = shape[1:]
-        space_dims = array.indices[1:]
-    else:
-        if isinstance(array, PointData):
-            it_init = [Iteration(exp_init, dimension=array.indices[1],
-                                 limits=array.shape[1])]
-            exp_init = []
-            time_steps = array.shape[0]
-            time_dim = array.indices[0]
-            shape = []
-            space_dims = []
-        else:
-            shape = array.shape
-            time_steps = 1
-            space_dims = array.indices
-    prop = Propagator(name="init", nt=time_steps, shape=shape,
-                      stencils=exp_init, space_dims=space_dims,
-                      time_dim=time_dim)
-    prop.add_devito_param(array)
-    prop.save_vars[array.name] = True
-    prop.time_loop_stencils_a = it_init
-    prop.run([array.data])
+    op = devito.Operator(exp_init)
+    op.apply()

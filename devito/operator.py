@@ -199,8 +199,6 @@ class Operator(Function):
         # into the OrderedDict object above
         self._reset_args()
 
-        log_args(arguments)
-
         return arguments, dim_sizes
 
     def _default_args(self):

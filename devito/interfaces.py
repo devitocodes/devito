@@ -402,7 +402,7 @@ class DenseData(TensorData):
             self.initializer = kwargs.get('initializer', None)
             if self.initializer is not None:
                 assert(callable(self.initializer))
-            self.numa = kwargs.get('numa', False)
+            self.first_touch = kwargs.get('first_touch', False)
             self._data_object = None
 
     @classmethod
@@ -434,7 +434,7 @@ class DenseData(TensorData):
         """Allocate memory in terms of numpy ndarrays."""
         debug("Allocating memory for %s (%s)" % (self.name, str(self.shape)))
         self._data_object = CMemory(self.shape, dtype=self.dtype)
-        if self.numa:
+        if self.first_touch:
             first_touch(self)
         else:
             self.data.fill(0)
