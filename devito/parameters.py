@@ -148,7 +148,6 @@ def init_configuration():
     configuration['compiler'] = set_compiler(configuration['compiler'],
                                              configuration['openmp'])
     configuration['openmp'] = bool(configuration['openmp'])
-    print(configuration)
     configuration['first_touch'] = bool(configuration['first_touch'])
 
     configuration.initialize()

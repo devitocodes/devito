@@ -2,10 +2,10 @@ import weakref
 
 import numpy as np
 import sympy
-from sympy import Function, IndexedBase, as_finite_diff, symbols
+from sympy import Function, IndexedBase, as_finite_diff
 from sympy.abc import s
 
-from devito.dimension import t, x, y, z, time
+from devito.dimension import t, x, y, z, time, Dimension
 from devito.finite_difference import (centered, cross_derivative,
                                       first_derivative, left, right,
                                       second_derivative)
@@ -427,7 +427,7 @@ class DenseData(TensorData):
             if len(shape) <= 3:
                 dimensions = _indices[:len(shape)]
             else:
-                dimensions = [symbols("x%d" % i) for i in range(1, len(shape) + 1)]
+                dimensions = [Dimension("x%d" % i) for i in range(1, len(shape) + 1)]
         return dimensions
 
     def _allocate_memory(self):
