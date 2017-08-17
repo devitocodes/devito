@@ -34,18 +34,20 @@ def demo_model(preset, **kwargs):
     elif preset.lower() in ['layers', 'twolayer', '2layer']:
         # A two-layer model in a 2D or 3D domain with two different
         # velocities split across the height dimension:
-        # The top part of the domain has 1.5 km/s,
-        # the bottom part of the domain has 1.5 km/s.
+        # By default, the top part of the domain has 1.5 km/s,
+        # and the bottom part of the domain has 2.5 km/s.
         shape = kwargs.pop('shape', (101, 101))
         spacing = kwargs.pop('spacing', tuple([10. for _ in shape]))
         origin = kwargs.pop('origin', tuple([0. for _ in shape]))
         nbpml = kwargs.pop('nbpml', 10)
         ratio = kwargs.pop('ratio', 2)
+        vp_top = kwargs.pop('vp_top', 1.5)
+        vp_bottom = kwargs.pop('vp_bottom', 2.5)
 
         # Define a velocity profile in km/s
         v = np.empty(shape, dtype=np.float32)
-        v[:] = 1.5  # Top velocity (background)
-        v[..., shape[-1] / ratio:] = 2.5  # Bottom velocity
+        v[:] = vp_top  # Top velocity (background)
+        v[..., int(shape[-1] / ratio):] = vp_bottom  # Bottom velocity
 
         return Model(vp=v, origin=origin, shape=shape,
                      spacing=spacing, nbpml=nbpml, **kwargs)
