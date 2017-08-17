@@ -2,10 +2,10 @@ import weakref
 
 import numpy as np
 import sympy
-from sympy import Function, IndexedBase, as_finite_diff
+from sympy import Function, IndexedBase, as_finite_diff, symbols
 from sympy.abc import s
 
-from devito.dimension import t, x, y, z, time, Dimension
+from devito.dimension import t, x, y, z, time
 from devito.finite_difference import (centered, cross_derivative,
                                       first_derivative, left, right,
                                       second_derivative)
@@ -23,6 +23,16 @@ __all__ = ['Symbol', 'Indexed',
 # so that we may re-create equivalent symbols during symbolic
 # manipulation with the correct shapes, pointers, etc.
 _SymbolCache = {}
+
+# This global stores whether newly allocated memory should be initialised
+# using Devito's own JIT engine. It will otherwise be initialised using
+# numpy.
+Global_First_Touch = None
+
+def set_global_first_touch(flag):
+    assert(flag is True or flag is False)
+    global Global_First_Touch
+    Global_First_Touch = flag
 
 
 class TimeAxis(object):
@@ -45,6 +55,8 @@ class TimeAxis(object):
 
 Forward = TimeAxis('Forward')
 Backward = TimeAxis('Backward')
+
+
 
 
 class CachedSymbol(object):
@@ -402,7 +414,10 @@ class DenseData(TensorData):
             self.initializer = kwargs.get('initializer', None)
             if self.initializer is not None:
                 assert(callable(self.initializer))
-            self.first_touch = kwargs.get('first_touch', False)
+            first_touch = kwargs.get('first_touch', None)
+            if first_touch is None:
+                first_touch = Global_First_Touch
+            self.first_touch = first_touch
             self._data_object = None
 
     @classmethod
