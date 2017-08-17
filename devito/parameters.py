@@ -72,7 +72,8 @@ defaults = {
     'openmp': '0',
     'dse': 'advanced',
     'dle': 'advanced',
-    'dle_options': ';'.join('%s:%s' % (k, v) for k, v in dle_default_options.items())
+    'dle_options': ';'.join('%s:%s' % (k, v) for k, v in dle_default_options.items()),
+    'first_touch': '0'
 }
 """The default Devito configuration parameters"""
 
@@ -84,7 +85,8 @@ accepted = {
     'openmp': [1, 0],
     'dse': list(dse_registry),
     'dle': list(dle_registry),
-    'dle_options': list(dle_default_options)
+    'dle_options': list(dle_default_options),
+    'first_touch': [1, 0]
 }
 """Accepted values for the Devito environment variables."""
 
@@ -96,7 +98,8 @@ env_vars_mapper = {
     'DEVITO_DLE': 'dle',
     'DEVITO_DLE_OPTIONS': 'dle_options',
     'DEVITO_OPENMP': 'openmp',
-    'DEVITO_LOGGING': 'log_level'
+    'DEVITO_LOGGING': 'log_level',
+    'DEVITO_FIRST_TOUCH': 'first_touch'
 }
 
 
@@ -145,6 +148,8 @@ def init_configuration():
     configuration['compiler'] = set_compiler(configuration['compiler'],
                                              configuration['openmp'])
     configuration['openmp'] = bool(configuration['openmp'])
+    print(configuration)
+    configuration['first_touch'] = bool(configuration['first_touch'])
 
     configuration.initialize()
 
