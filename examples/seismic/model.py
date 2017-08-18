@@ -1,9 +1,80 @@
 import numpy as np
+import os
 
 from devito import DenseData, ConstantData
+from devito.logger import error
 
 
-__all__ = ['Model']
+__all__ = ['Model', 'demo_model']
+
+
+def demo_model(preset, **kwargs):
+    """
+    Utility function to create preset :class:`Model` objects for
+    demonstration and testing purposes. The particular presets are ::
+
+    * 'layer2D': Simple two-layer model with velocities 1.5 km/s
+                 and 2.5 km/s in the top and bottom layer respectively.
+    * 'marmousi2D': Loads the 2D Marmousi data set from the given
+                    filepath. Requires the ``opesci/data`` repository
+                    to be available on your machine.
+    """
+    if preset.lower() in ['constant']:
+        # A constant single-layer model in a 2D or 3D domain
+        # with velocity 1.5km/s.
+        shape = kwargs.pop('shape', (101, 101))
+        spacing = kwargs.pop('spacing', tuple([10. for _ in shape]))
+        origin = kwargs.pop('origin', tuple([0. for _ in shape]))
+        nbpml = kwargs.pop('nbpml', 10)
+        vp = kwargs.pop('vp', 1.5)
+
+        return Model(vp=vp, origin=origin, shape=shape,
+                     spacing=spacing, nbpml=nbpml, **kwargs)
+
+    elif preset.lower() in ['layers', 'twolayer', '2layer']:
+        # A two-layer model in a 2D or 3D domain with two different
+        # velocities split across the height dimension:
+        # By default, the top part of the domain has 1.5 km/s,
+        # and the bottom part of the domain has 2.5 km/s.
+        shape = kwargs.pop('shape', (101, 101))
+        spacing = kwargs.pop('spacing', tuple([10. for _ in shape]))
+        origin = kwargs.pop('origin', tuple([0. for _ in shape]))
+        nbpml = kwargs.pop('nbpml', 10)
+        ratio = kwargs.pop('ratio', 2)
+        vp_top = kwargs.pop('vp_top', 1.5)
+        vp_bottom = kwargs.pop('vp_bottom', 2.5)
+
+        # Define a velocity profile in km/s
+        v = np.empty(shape, dtype=np.float32)
+        v[:] = vp_top  # Top velocity (background)
+        v[..., int(shape[-1] / ratio):] = vp_bottom  # Bottom velocity
+
+        return Model(vp=v, origin=origin, shape=shape,
+                     spacing=spacing, nbpml=nbpml, **kwargs)
+
+    elif preset.lower() in ['marmousi', 'marmousi2d']:
+        shape = (1601, 401)
+        spacing = (7.5, 7.5)
+        origin = (0., 0.)
+
+        # Read 2D Marmousi model from opesc/data repo
+        data_path = kwargs.get('data_path', None)
+        if data_path is None:
+            error("Path to opesci/data not found! Please specify with "
+                  "'data_path=<path/to/opesci/data>'")
+            raise ValueError("Path to model data unspecified")
+        path = os.path.join(data_path, 'Simple2D/vp_marmousi_bi')
+        v = np.fromfile(path, dtype='float32', sep="")
+        v = v.reshape(shape)
+
+        # Cut the model to make it slightly cheaper
+        v = v[301:-300, :]
+
+        return Model(vp=v, origin=origin, shape=v.shape,
+                     spacing=spacing, nbpml=20)
+
+    else:
+        error('Unknown model preset name %s' % preset)
 
 
 def damp_boundary(damp, nbpml, spacing):
@@ -54,12 +125,17 @@ class Model(object):
     """
     def __init__(self, origin, spacing, shape, vp, nbpml=0, dtype=np.float32,
                  epsilon=None, delta=None, theta=None, phi=None):
-        self.vp = vp
+        self._vp = vp
         self.origin = origin
         self.spacing = spacing
-        self.nbpml = nbpml
-        self.dtype = dtype
         self.shape = shape
+        self.nbpml = int(nbpml)
+        self.dtype = dtype
+
+        # Ensure same dimensions on all inpute parameters
+        assert(len(origin) == len(spacing))
+        assert(len(origin) == len(shape))
+
         # Create square slowness of the wave as symbol `m`
         if isinstance(vp, np.ndarray):
             self.m = DenseData(name="m", shape=self.shape_domain, dtype=self.dtype)
@@ -70,7 +146,7 @@ class Model(object):
         # Create dampening field as symbol `damp`
         self.damp = DenseData(name="damp", shape=self.shape_domain,
                               dtype=self.dtype)
-        damp_boundary(self.damp.data, nbpml, spacing=self.get_spacing())
+        damp_boundary(self.damp.data, self.nbpml, spacing=self.get_spacing())
 
         # Additional parameter fields for TTI operators
         self.scale = 1.
@@ -120,6 +196,13 @@ class Model(object):
             self.phi = 0
 
     @property
+    def dim(self):
+        """
+        Spatial dimension of the model domain
+        """
+        return len(self.shape)
+
+    @property
     def shape_domain(self):
         """Computational shape of the model domain, with PML layers"""
         return tuple(d + 2*self.nbpml for d in self.shape)
@@ -141,12 +224,25 @@ class Model(object):
         coeff = 0.38 if len(self.shape) == 3 else 0.42
         return coeff * np.min(self.spacing) / (self.scale*np.max(self.vp))
 
-    def set_vp(self, vp):
+    @property
+    def vp(self):
+        """:class:`numpy.ndarray` holding the model velocity in km/s.
+
+        .. note::
+
+        Updating the velocity field also updates the square slowness
+        ``self.m``. However, only ``self.m`` should be used in seismic
+        operators, since it is of type :class:`DenseData`.
+        """
+        return self._vp
+
+    @vp.setter
+    def vp(self, vp):
         """Set a new velocity model and update square slowness
 
         :param vp : new velocity in km/s
         """
-        self.vp = vp
+        self._vp = vp
         self.m.data[:] = self.pad(1 / (self.vp * self.vp))
 
     def get_spacing(self):

@@ -31,8 +31,10 @@ def test_gradientFWI(dimensions, time_order, space_order):
     :param space_order: order of the spacial discretization scheme
     :return: assertion that the Taylor properties are satisfied
     """
-    wave = setup(dimensions=dimensions, time_order=time_order,
-                 space_order=space_order, nbpml=10+space_order/2)
+    spacing = tuple(15. for _ in dimensions)
+    wave = setup(dimensions=dimensions, spacing=spacing,
+                 time_order=time_order, space_order=space_order,
+                 nbpml=10+space_order/2)
     m0 = smooth10(wave.model.m.data, wave.model.shape_domain)
     dm = np.float32(wave.model.m.data - m0)
 
@@ -90,9 +92,10 @@ def test_gradientJ(dimensions, time_order, space_order):
     :param space_order: order of the spacial discretization scheme
     :return: assertion that the Taylor properties are satisfied
     """
-    wave = setup(dimensions=dimensions, time_order=time_order,
-                 space_order=space_order, tn=1000.,
-                 nbpml=10+space_order/2)
+    spacing = tuple(15. for _ in dimensions)
+    wave = setup(dimensions=dimensions, spacing=spacing,
+                 time_order=time_order, space_order=space_order,
+                 tn=1000., nbpml=10+space_order/2)
     m0 = smooth10(wave.model.m.data, wave.model.shape_domain)
     dm = np.float32(wave.model.m.data - m0)
     linrec = Receiver(name='rec', ntime=wave.receiver.nt,
