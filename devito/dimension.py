@@ -6,13 +6,16 @@ __all__ = ['Dimension', 'x', 'y', 'z', 't', 'p', 'd', 'time']
 
 class Dimension(Symbol, DimensionArgProvider):
 
+    is_Buffered = False
+    is_Lowered = False
+    is_Fixed = False
+
     """Index object that represents a problem dimension and thus
     defines a potential iteration space.
 
     :param size: Optional, size of the array dimension.
     :param reverse: Traverse dimension in reverse order (default False)
-    :param buffered: Optional, boolean flag indicating whether to
-                     buffer variables when iterating this dimension.
+    :param spacing: Optional, symbol for the spacing along this dimension.
     """
 
     is_Buffered = False
@@ -20,7 +23,6 @@ class Dimension(Symbol, DimensionArgProvider):
 
     def __new__(cls, name, **kwargs):
         newobj = Symbol.__new__(cls, name)
-        newobj.size = kwargs.get('size', None)
         newobj.reverse = kwargs.get('reverse', False)
         newobj.spacing = kwargs.get('spacing', Symbol('h_%s' % name))
         return newobj
@@ -31,10 +33,21 @@ class Dimension(Symbol, DimensionArgProvider):
     @property
     def symbolic_size(self):
         """The symbolic size of this dimension."""
-        try:
-            return Number(self.size)
-        except TypeError:
-            return self.rtargs[0].as_symbol
+        return Symbol(self.ccode)
+
+
+class FixedDimension(FixedDimensionArgProvider, Dimension):
+    is_Fixed = True
+
+    def __new__(cls, name, **kwargs):
+        newobj = super(FixedDimension, cls).__new__(cls)
+        newobj.size = kwargs.get('size', None)
+        return newobj
+
+    @property
+    def symbolic_size(self):
+        """The symbolic size of this dimension."""
+        return Number(self.ccode)
 
 
 class BufferedDimension(Dimension):
