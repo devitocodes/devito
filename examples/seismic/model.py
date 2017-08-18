@@ -125,7 +125,6 @@ class Model(object):
     """
     def __init__(self, origin, spacing, shape, vp, nbpml=20, dtype=np.float32,
                  epsilon=None, delta=None, theta=None, phi=None):
-        self._vp = vp
         self.origin = origin
         self.spacing = spacing
         self.shape = shape
@@ -139,9 +138,11 @@ class Model(object):
         # Create square slowness of the wave as symbol `m`
         if isinstance(vp, np.ndarray):
             self.m = DenseData(name="m", shape=self.shape_domain, dtype=self.dtype)
-            self.m.data[:] = self.pad(1 / (self.vp * self.vp))
         else:
             self.m = ConstantData(name="m", value=1/vp**2, dtype=self.dtype)
+
+        # Set model velocity, which will also set `m`
+        self.vp = vp
 
         # Create dampening field as symbol `damp`
         self.damp = DenseData(name="damp", shape=self.shape_domain,
@@ -243,7 +244,12 @@ class Model(object):
         :param vp : new velocity in km/s
         """
         self._vp = vp
-        self.m.data[:] = self.pad(1 / (self.vp * self.vp))
+
+        # Update the square slowness according to new value
+        if isinstance(vp, np.ndarray):
+            self.m.data[:] = self.pad(1 / (self.vp * self.vp))
+        else:
+            self.m.data = 1 / vp**2
 
     def get_spacing(self):
         """Return the grid size"""
