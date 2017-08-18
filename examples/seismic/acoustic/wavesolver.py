@@ -96,8 +96,8 @@ class AcousticWaveSolver(object):
 
         # Create the forward wavefield if not provided
         if u is None:
-            u = TimeData(name='u', shape=self.model.shape_domain,
-                         save=save, time_dim=self.source.nt,
+            u = TimeData(name='u', shape=self.model.shape_domain, save=save,
+                         time_dim=self.source.nt if save else None,
                          time_order=self.time_order,
                          space_order=self.space_order,
                          dtype=self.model.dtype)

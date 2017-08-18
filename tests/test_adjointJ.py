@@ -3,24 +3,55 @@ import pytest
 from numpy import linalg
 
 from devito.logger import info
-from examples.seismic.acoustic.acoustic_example import acoustic_setup as setup
+from examples.seismic import demo_model, RickerSource, Receiver
+from examples.seismic.acoustic import AcousticWaveSolver
 
 
 @pytest.mark.parametrize('space_order', [4, 8, 12])
 @pytest.mark.parametrize('dimensions', [(60, 70), (40, 50, 30)])
 def test_acousticJ(dimensions, space_order):
-    solver = setup(dimensions=dimensions,
-                   space_order=space_order,
-                   nbpml=10+space_order/2)
-    initial_vp = np.ones(solver.model.shape_domain) + .5
-    m0 = np.float32(initial_vp**-2)
-    dm = np.float32(solver.model.m.data - m0)
+    t0 = 0.0  # Start time
+    tn = 500.  # Final time
+    nrec = dimensions[0]  # Number of receivers
+    nbpml = 10 + space_order / 2
+    spacing = [15. for _ in dimensions]
 
-    # Compute the full wavefield
-    _, u0, _ = solver.forward(save=True, m=m0)
+    # Create two-layer "true" model from preset with a fault 1/3 way down
+    model = demo_model('layers', ratio=3, vp_top=1.5, vp_bottom=2.5,
+                       spacing=spacing, shape=dimensions, nbpml=nbpml)
 
-    du, _, _, _ = solver.born(dm, m=m0)
-    im, _ = solver.gradient(du, u0, m=m0)
+    # Derive timestepping from model spacing
+    dt = model.critical_dt
+    nt = int(1 + (tn-t0) / dt)  # Number of timesteps
+    time_values = np.linspace(t0, tn, nt)  # Discretized time axis
+
+    # Define source geometry (center of domain, just below surface)
+    src = RickerSource(name='src', ndim=model.dim, f0=0.01, time=time_values)
+    src.coordinates.data[0, :] = np.array(model.domain_size) * .5
+    src.coordinates.data[0, -1] = 30.
+
+    # Define receiver geometry (same as source, but spread across x)
+    rec = Receiver(name='nrec', ntime=nt, npoint=nrec, ndim=model.dim)
+    rec.coordinates.data[:, 0] = np.linspace(0., model.domain_size[0], num=nrec)
+    rec.coordinates.data[:, 1:] = src.coordinates.data[0, 1:]
+
+    # Create solver object to provide relevant operators
+    solver = AcousticWaveSolver(model, source=src, receiver=rec,
+                                time_order=2, space_order=space_order)
+
+    # Create initial model (m0) with a constant velocity throughout
+    model0 = demo_model('layers', ratio=3, vp_top=1.5, vp_bottom=1.5,
+                        spacing=spacing, shape=dimensions, nbpml=nbpml)
+
+    # Compute the full wavefield u0
+    _, u0, _ = solver.forward(save=True, m=model0.m)
+
+    # Compute initial born perturbation from m - m0
+    dm = model.m.data - model0.m.data
+    du, _, _, _ = solver.born(dm, m=model0.m)
+
+    # Compute gradientfrom initial perturbation
+    im, _ = solver.gradient(du, u0, m=model0.m)
 
     # Adjoint test: Verify <Ax,y> matches  <x, A^Ty> closely
     term1 = np.dot(im.data.reshape(-1), dm.reshape(-1))
