@@ -8,6 +8,7 @@ from devito.compiler import compiler_registry, set_compiler
 from devito.dse import modes as dse_registry
 from devito.dle import modes as dle_registry, default_options as dle_default_options
 from devito.logger import info, logger_registry, set_log_level
+from devito.interfaces import set_global_first_touch as set_first_touch
 
 __all__ = ['configuration', 'init_configuration', 'print_defaults', 'print_state']
 
@@ -149,7 +150,7 @@ def init_configuration():
                                              configuration['openmp'])
     configuration['openmp'] = bool(configuration['openmp'])
     configuration['first_touch'] = bool(configuration['first_touch'])
-
+    configuration.set_update_function('first_touch', lambda i: set_first_touch(i))
     configuration.initialize()
 
 
