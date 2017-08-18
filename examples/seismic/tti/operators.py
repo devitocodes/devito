@@ -24,12 +24,12 @@ def ForwardOperator(model, source, receiver, time_order=2, space_order=4,
                                            model.delta, model.theta, model.phi)
 
     # Create symbols for forward wavefield, source and receivers
-    u = TimeData(name='u', shape=model.shape_domain, time_dim=source.nt,
-                 time_order=time_order, space_order=space_order, save=save,
-                 dtype=model.dtype)
-    v = TimeData(name='v', shape=model.shape_domain, time_dim=source.nt,
-                 time_order=time_order, space_order=space_order, save=save,
-                 dtype=model.dtype)
+    u = TimeData(name='u', shape=model.shape_domain, dtype=model.dtype,
+                 save=save, time_dim=source.nt if save else None,
+                 time_order=time_order, space_order=space_order)
+    v = TimeData(name='v', shape=model.shape_domain, dtype=model.dtype,
+                 save=save, time_dim=source.nt if save else None,
+                 time_order=time_order, space_order=space_order)
     src = PointSource(name='src', ntime=source.nt, ndim=source.ndim,
                       npoint=source.npoint)
     rec = Receiver(name='rec', ntime=receiver.nt, ndim=receiver.ndim,
