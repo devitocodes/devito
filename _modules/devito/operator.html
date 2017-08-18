@@ -184,7 +184,7 @@
 <span class="kn">from</span> <span class="nn">devito.visitors</span> <span class="k">import</span> <span class="p">(</span><span class="n">FindSymbols</span><span class="p">,</span> <span class="n">FindScopes</span><span class="p">,</span> <span class="n">ResolveIterationVariable</span><span class="p">,</span>
                              <span class="n">SubstituteExpression</span><span class="p">,</span> <span class="n">Transformer</span><span class="p">,</span> <span class="n">NestedTransformer</span><span class="p">)</span>
 <span class="kn">from</span> <span class="nn">devito.exceptions</span> <span class="k">import</span> <span class="n">InvalidArgument</span><span class="p">,</span> <span class="n">InvalidOperator</span>
-<span class="kn">from</span> <span class="nn">devito.arguments</span> <span class="k">import</span> <span class="n">log_args</span><span class="p">,</span> <span class="n">ArgumentProvider</span>
+<span class="kn">from</span> <span class="nn">devito.arguments</span> <span class="k">import</span> <span class="n">ArgumentProvider</span>
 
 
 <div class="viewcode-block" id="Operator"><a class="viewcode-back" href="../../devito.html#devito.operator.Operator">[docs]</a><span class="k">class</span> <span class="nc">Operator</span><span class="p">(</span><span class="n">Function</span><span class="p">):</span>
@@ -360,8 +360,6 @@
         <span class="c1"># Clear the temp values we stored in the arg objects since we&#39;ve pulled them out</span>
         <span class="c1"># into the OrderedDict object above</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_reset_args</span><span class="p">()</span>
-
-        <span class="n">log_args</span><span class="p">(</span><span class="n">arguments</span><span class="p">)</span>
 
         <span class="k">return</span> <span class="n">arguments</span><span class="p">,</span> <span class="n">dim_sizes</span></div>
 
