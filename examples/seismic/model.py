@@ -129,7 +129,7 @@ class Model(object):
         self.origin = origin
         self.spacing = spacing
         self.shape = shape
-        self.nbpml = nbpml
+        self.nbpml = int(nbpml)
         self.dtype = dtype
 
         # Ensure same dimensions on all inpute parameters
@@ -146,7 +146,7 @@ class Model(object):
         # Create dampening field as symbol `damp`
         self.damp = DenseData(name="damp", shape=self.shape_domain,
                               dtype=self.dtype)
-        damp_boundary(self.damp.data, nbpml, spacing=self.get_spacing())
+        damp_boundary(self.damp.data, self.nbpml, spacing=self.get_spacing())
 
         # Additional parameter fields for TTI operators
         self.scale = 1.
