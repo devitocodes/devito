@@ -457,7 +457,7 @@ functions (eg, sin, cos).</li>
 
 <dl class="function">
 <dt id="devito.dse.inspection.estimate_memory">
-<code class="descclassname">devito.dse.inspection.</code><code class="descname">estimate_memory</code><span class="sig-paren">(</span><em>handle</em>, <em>mode=’realistic’</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/dse/inspection.html#estimate_memory"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.dse.inspection.estimate_memory" title="Permalink to this definition">¶</a></dt>
+<code class="descclassname">devito.dse.inspection.</code><code class="descname">estimate_memory</code><span class="sig-paren">(</span><em>handle</em>, <em>mode='realistic'</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/dse/inspection.html#estimate_memory"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.dse.inspection.estimate_memory" title="Permalink to this definition">¶</a></dt>
 <dd><p>Estimate the number of memory reads and writes.</p>
 <table class="docutils field-list" frame="void" rules="none">
 <col class="field-name" />
@@ -543,7 +543,7 @@ functions (eg, sin, cos).</li>
 
 <dl class="function">
 <dt id="devito.dse.manipulation.common_subexprs_elimination">
-<code class="descclassname">devito.dse.manipulation.</code><code class="descname">common_subexprs_elimination</code><span class="sig-paren">(</span><em>exprs</em>, <em>make</em>, <em>mode=’default’</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/dse/manipulation.html#common_subexprs_elimination"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.dse.manipulation.common_subexprs_elimination" title="Permalink to this definition">¶</a></dt>
+<code class="descclassname">devito.dse.manipulation.</code><code class="descname">common_subexprs_elimination</code><span class="sig-paren">(</span><em>exprs</em>, <em>make</em>, <em>mode='default'</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/dse/manipulation.html#common_subexprs_elimination"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.dse.manipulation.common_subexprs_elimination" title="Permalink to this definition">¶</a></dt>
 <dd><p>Perform common subexpressions elimination.</p>
 <p>Note: the output is not guranteed to be topologically sorted.</p>
 <table class="docutils field-list" frame="void" rules="none">
@@ -700,7 +700,7 @@ a[b[i]] –&gt; True</p>
 <span id="devito-dse-search-module"></span><h2>devito.dse.search module<a class="headerlink" href="#module-devito.dse.search" title="Permalink to this headline">¶</a></h2>
 <dl class="function">
 <dt id="devito.dse.search.retrieve_indexed">
-<code class="descclassname">devito.dse.search.</code><code class="descname">retrieve_indexed</code><span class="sig-paren">(</span><em>expr</em>, <em>mode=’unique’</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/dse/search.html#retrieve_indexed"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.dse.search.retrieve_indexed" title="Permalink to this definition">¶</a></dt>
+<code class="descclassname">devito.dse.search.</code><code class="descname">retrieve_indexed</code><span class="sig-paren">(</span><em>expr</em>, <em>mode='unique'</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/dse/search.html#retrieve_indexed"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.dse.search.retrieve_indexed" title="Permalink to this definition">¶</a></dt>
 <dd><p>Shorthand to retrieve <code class="xref py py-class docutils literal"><span class="pre">Indexed</span></code> objects in <code class="docutils literal"><span class="pre">expr</span></code>.</p>
 </dd></dl>
 
@@ -721,7 +721,7 @@ a[b[i]] –&gt; True</p>
 <span id="devito-dse-symbolics-module"></span><h2>devito.dse.symbolics module<a class="headerlink" href="#module-devito.dse.symbolics" title="Permalink to this headline">¶</a></h2>
 <dl class="function">
 <dt id="devito.dse.symbolics.rewrite">
-<code class="descclassname">devito.dse.symbolics.</code><code class="descname">rewrite</code><span class="sig-paren">(</span><em>clusters</em>, <em>mode=’advanced’</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/dse/symbolics.html#rewrite"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.dse.symbolics.rewrite" title="Permalink to this definition">¶</a></dt>
+<code class="descclassname">devito.dse.symbolics.</code><code class="descname">rewrite</code><span class="sig-paren">(</span><em>clusters</em>, <em>mode='advanced'</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/dse/symbolics.html#rewrite"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.dse.symbolics.rewrite" title="Permalink to this definition">¶</a></dt>
 <dd><p>Transform N <code class="xref py py-class docutils literal"><span class="pre">Cluster</span></code> objects of SymPy expressions into M
 <code class="xref py py-class docutils literal"><span class="pre">Cluster</span></code> objects of SymPy expressions with reduced
 operation count, with M &gt;= N.</p>
@@ -754,7 +754,7 @@ operation count, with M &gt;= N.</p>
 
 <dl class="data">
 <dt id="devito.dse.symbolics.modes">
-<code class="descclassname">devito.dse.symbolics.</code><code class="descname">modes</code><em class="property"> = {‘speculative’: &lt;class ‘devito.dse.backends.speculative.SpeculativeRewriter’&gt;, ‘aggressive’: &lt;class ‘devito.dse.backends.speculative.AggressiveRewriter’&gt;, ‘advanced’: &lt;class ‘devito.dse.backends.advanced.AdvancedRewriter’&gt;, ‘basic’: &lt;class ‘devito.dse.backends.basic.BasicRewriter’&gt;}</em><a class="headerlink" href="#devito.dse.symbolics.modes" title="Permalink to this definition">¶</a></dt>
+<code class="descclassname">devito.dse.symbolics.</code><code class="descname">modes</code><em class="property"> = {'speculative': &lt;class 'devito.dse.backends.speculative.SpeculativeRewriter'&gt;, 'aggressive': &lt;class 'devito.dse.backends.speculative.AggressiveRewriter'&gt;, 'advanced': &lt;class 'devito.dse.backends.advanced.AdvancedRewriter'&gt;, 'basic': &lt;class 'devito.dse.backends.basic.BasicRewriter'&gt;}</em><a class="headerlink" href="#devito.dse.symbolics.modes" title="Permalink to this definition">¶</a></dt>
 <dd><p>The DSE transformation modes.</p>
 </dd></dl>
 
@@ -818,7 +818,7 @@ operation count, with M &gt;= N.</p>
       <script type="text/javascript" src="_static/jquery.js"></script>
       <script type="text/javascript" src="_static/underscore.js"></script>
       <script type="text/javascript" src="_static/doctools.js"></script>
-      <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.0/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+      <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
 
   
 

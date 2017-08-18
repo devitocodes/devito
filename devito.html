@@ -993,7 +993,7 @@ derived time dimensions symbol. For example:</p>
 
 <dl class="function">
 <dt id="devito.compiler.jit_compile">
-<code class="descclassname">devito.compiler.</code><code class="descname">jit_compile</code><span class="sig-paren">(</span><em>ccode</em>, <em>compiler=&lt;class ‘devito.compiler.GNUCompiler’&gt;</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/compiler.html#jit_compile"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.compiler.jit_compile" title="Permalink to this definition">¶</a></dt>
+<code class="descclassname">devito.compiler.</code><code class="descname">jit_compile</code><span class="sig-paren">(</span><em>ccode</em>, <em>compiler=&lt;class 'devito.compiler.GNUCompiler'&gt;</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/compiler.html#jit_compile"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.compiler.jit_compile" title="Permalink to this definition">¶</a></dt>
 <dd><p>JIT compile the given ccode.</p>
 <table class="docutils field-list" frame="void" rules="none">
 <col class="field-name" />
@@ -1014,7 +1014,7 @@ derived time dimensions symbol. For example:</p>
 
 <dl class="function">
 <dt id="devito.compiler.load">
-<code class="descclassname">devito.compiler.</code><code class="descname">load</code><span class="sig-paren">(</span><em>basename</em>, <em>compiler=&lt;class ‘devito.compiler.GNUCompiler’&gt;</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/compiler.html#load"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.compiler.load" title="Permalink to this definition">¶</a></dt>
+<code class="descclassname">devito.compiler.</code><code class="descname">load</code><span class="sig-paren">(</span><em>basename</em>, <em>compiler=&lt;class 'devito.compiler.GNUCompiler'&gt;</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/compiler.html#load"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.compiler.load" title="Permalink to this definition">¶</a></dt>
 <dd><p>Load a compiled library</p>
 <table class="docutils field-list" frame="void" rules="none">
 <col class="field-name" />
@@ -1271,7 +1271,7 @@ results in:
 <dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">sympy.tensor.indexed.Indexed</span></code></p>
 <dl class="attribute">
 <dt id="devito.interfaces.Indexed.default_assumptions">
-<code class="descname">default_assumptions</code><em class="property"> = {‘commutative’: True}</em><a class="headerlink" href="#devito.interfaces.Indexed.default_assumptions" title="Permalink to this definition">¶</a></dt>
+<code class="descname">default_assumptions</code><em class="property"> = {'commutative': True}</em><a class="headerlink" href="#devito.interfaces.Indexed.default_assumptions" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 <dl class="attribute">
@@ -1701,7 +1701,7 @@ DLE, DLE_WARN, WARNING, ERROR, CRITICAL</li>
 <span id="devito-memory-module"></span><h2>devito.memory module<a class="headerlink" href="#module-devito.memory" title="Permalink to this headline">¶</a></h2>
 <dl class="class">
 <dt id="devito.memory.CMemory">
-<em class="property">class </em><code class="descclassname">devito.memory.</code><code class="descname">CMemory</code><span class="sig-paren">(</span><em>shape</em>, <em>dtype=&lt;type ‘numpy.float32’&gt;</em>, <em>alignment=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/memory.html#CMemory"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.memory.CMemory" title="Permalink to this definition">¶</a></dt>
+<em class="property">class </em><code class="descclassname">devito.memory.</code><code class="descname">CMemory</code><span class="sig-paren">(</span><em>shape</em>, <em>dtype=&lt;type 'numpy.float32'&gt;</em>, <em>alignment=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/memory.html#CMemory"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.memory.CMemory" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">object</span></code></p>
 <dl class="method">
 <dt id="devito.memory.CMemory.fill">
@@ -1726,7 +1726,7 @@ given pointer.</p>
 
 <dl class="function">
 <dt id="devito.memory.malloc_aligned">
-<code class="descclassname">devito.memory.</code><code class="descname">malloc_aligned</code><span class="sig-paren">(</span><em>shape</em>, <em>alignment=None</em>, <em>dtype=&lt;type ‘numpy.float32’&gt;</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/memory.html#malloc_aligned"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.memory.malloc_aligned" title="Permalink to this definition">¶</a></dt>
+<code class="descclassname">devito.memory.</code><code class="descname">malloc_aligned</code><span class="sig-paren">(</span><em>shape</em>, <em>alignment=None</em>, <em>dtype=&lt;type 'numpy.float32'&gt;</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/memory.html#malloc_aligned"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.memory.malloc_aligned" title="Permalink to this definition">¶</a></dt>
 <dd><p>Allocate memory using the C function malloc_aligned
 :param shape: Shape of the array to allocate
 :param alignment: number of bytes to align to. Defaults to
@@ -1924,7 +1924,7 @@ the stored expression.</td>
 
 <dl class="class">
 <dt id="devito.nodes.Function">
-<em class="property">class </em><code class="descclassname">devito.nodes.</code><code class="descname">Function</code><span class="sig-paren">(</span><em>name</em>, <em>body</em>, <em>retval</em>, <em>parameters=None</em>, <em>prefix=(‘static’</em>, <em>’inline’)</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/nodes.html#Function"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.nodes.Function" title="Permalink to this definition">¶</a></dt>
+<em class="property">class </em><code class="descclassname">devito.nodes.</code><code class="descname">Function</code><span class="sig-paren">(</span><em>name</em>, <em>body</em>, <em>retval</em>, <em>parameters=None</em>, <em>prefix=('static'</em>, <em>'inline')</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/nodes.html#Function"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.nodes.Function" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <a class="reference internal" href="#devito.nodes.Node" title="devito.nodes.Node"><code class="xref py py-class docutils literal"><span class="pre">devito.nodes.Node</span></code></a></p>
 <p>Represent a C function.</p>
 <table class="docutils field-list" frame="void" rules="none">
@@ -2267,7 +2267,7 @@ C code evaluating stencil expressions, can also execute the computation.</p>
 <p>The parameters dictionary contains global parameter settings.</p>
 <dl class="data">
 <dt id="devito.parameters.configuration">
-<code class="descclassname">devito.parameters.</code><code class="descname">configuration</code><em class="property"> = Parameters([(‘compiler’, DevitoJITCompiler[GNUCompiler]), (‘autotuning’, ‘basic’), (‘backend’, ‘core’), (‘dle’, ‘advanced’), (‘dle_options’, {‘blockalways’: False, ‘blockshape’: None, ‘blockinner’: False}), (‘dse’, ‘advanced’), (‘log_level’, ‘DEBUG’), (‘openmp’, False)])</em><a class="headerlink" href="#devito.parameters.configuration" title="Permalink to this definition">¶</a></dt>
+<code class="descclassname">devito.parameters.</code><code class="descname">configuration</code><em class="property"> = Parameters([('compiler', DevitoJITCompiler[GNUCompiler]), ('autotuning', 'basic'), ('backend', 'core'), ('dle', 'advanced'), ('dle_options', {'blockalways': False, 'blockshape': None, 'blockinner': False}), ('dse', 'advanced'), ('log_level', 'DEBUG'), ('openmp', False)])</em><a class="headerlink" href="#devito.parameters.configuration" title="Permalink to this definition">¶</a></dt>
 <dd><p>The Devito configuration parameters.</p>
 </dd></dl>
 
@@ -2711,7 +2711,7 @@ possible, determinism in ensured.</p>
 <p>The main Visitor class is extracted from <a class="reference external" href="https://github.com/coneoproject/COFFEE">https://github.com/coneoproject/COFFEE</a>.</p>
 <dl class="class">
 <dt id="devito.visitors.FindNodes">
-<em class="property">class </em><code class="descclassname">devito.visitors.</code><code class="descname">FindNodes</code><span class="sig-paren">(</span><em>match</em>, <em>mode=’type’</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/visitors.html#FindNodes"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.visitors.FindNodes" title="Permalink to this definition">¶</a></dt>
+<em class="property">class </em><code class="descclassname">devito.visitors.</code><code class="descname">FindNodes</code><span class="sig-paren">(</span><em>match</em>, <em>mode='type'</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/visitors.html#FindNodes"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.visitors.FindNodes" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">devito.visitors.Visitor</span></code></p>
 <dl class="classmethod">
 <dt id="devito.visitors.FindNodes.default_retval">
@@ -2720,7 +2720,7 @@ possible, determinism in ensured.</p>
 
 <dl class="attribute">
 <dt id="devito.visitors.FindNodes.rules">
-<code class="descname">rules</code><em class="property"> = {‘scope’: &lt;function &lt;lambda&gt;&gt;, ‘type’: &lt;function &lt;lambda&gt;&gt;}</em><a class="headerlink" href="#devito.visitors.FindNodes.rules" title="Permalink to this definition">¶</a></dt>
+<code class="descname">rules</code><em class="property"> = {'scope': &lt;function &lt;lambda&gt;&gt;, 'type': &lt;function &lt;lambda&gt;&gt;}</em><a class="headerlink" href="#devito.visitors.FindNodes.rules" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 <dl class="method">
@@ -2783,7 +2783,7 @@ possible, determinism in ensured.</p>
 
 <dl class="class">
 <dt id="devito.visitors.FindSymbols">
-<em class="property">class </em><code class="descclassname">devito.visitors.</code><code class="descname">FindSymbols</code><span class="sig-paren">(</span><em>mode=’kernel-data’</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/visitors.html#FindSymbols"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.visitors.FindSymbols" title="Permalink to this definition">¶</a></dt>
+<em class="property">class </em><code class="descclassname">devito.visitors.</code><code class="descname">FindSymbols</code><span class="sig-paren">(</span><em>mode='kernel-data'</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/visitors.html#FindSymbols"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.visitors.FindSymbols" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">devito.visitors.Visitor</span></code></p>
 <dl class="classmethod">
 <dt id="devito.visitors.FindSymbols.default_retval">
@@ -2792,7 +2792,7 @@ possible, determinism in ensured.</p>
 
 <dl class="attribute">
 <dt id="devito.visitors.FindSymbols.rules">
-<code class="descname">rules</code><em class="property"> = {‘free-symbols’: &lt;function &lt;lambda&gt;&gt;, ‘kernel-data’: &lt;function &lt;lambda&gt;&gt;, ‘symbolics-writes’: &lt;function &lt;lambda&gt;&gt;, ‘dimensions’: &lt;function &lt;lambda&gt;&gt;, ‘symbolics’: &lt;function &lt;lambda&gt;&gt;}</em><a class="headerlink" href="#devito.visitors.FindSymbols.rules" title="Permalink to this definition">¶</a></dt>
+<code class="descname">rules</code><em class="property"> = {'free-symbols': &lt;function &lt;lambda&gt;&gt;, 'kernel-data': &lt;function &lt;lambda&gt;&gt;, 'symbolics-writes': &lt;function &lt;lambda&gt;&gt;, 'dimensions': &lt;function &lt;lambda&gt;&gt;, 'symbolics': &lt;function &lt;lambda&gt;&gt;}</em><a class="headerlink" href="#devito.visitors.FindSymbols.rules" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 <dl class="method">
@@ -2910,13 +2910,13 @@ for exaple.:</p>
 </div></blockquote>
 <dl class="method">
 <dt id="devito.visitors.ResolveIterationVariable.visit_Expression">
-<code class="descname">visit_Expression</code><span class="sig-paren">(</span><em>o</em>, <em>subs={}</em>, <em>offsets=defaultdict(&lt;type ‘set’&gt;</em>, <em>{})</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/visitors.html#ResolveIterationVariable.visit_Expression"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.visitors.ResolveIterationVariable.visit_Expression" title="Permalink to this definition">¶</a></dt>
+<code class="descname">visit_Expression</code><span class="sig-paren">(</span><em>o</em>, <em>subs={}</em>, <em>offsets=defaultdict(&lt;type 'set'&gt;</em>, <em>{})</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/visitors.html#ResolveIterationVariable.visit_Expression"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.visitors.ResolveIterationVariable.visit_Expression" title="Permalink to this definition">¶</a></dt>
 <dd><p>Collect all offsets used with a dimension</p>
 </dd></dl>
 
 <dl class="method">
 <dt id="devito.visitors.ResolveIterationVariable.visit_Iteration">
-<code class="descname">visit_Iteration</code><span class="sig-paren">(</span><em>o</em>, <em>subs={}</em>, <em>offsets=defaultdict(&lt;type ‘set’&gt;</em>, <em>{})</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/visitors.html#ResolveIterationVariable.visit_Iteration"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.visitors.ResolveIterationVariable.visit_Iteration" title="Permalink to this definition">¶</a></dt>
+<code class="descname">visit_Iteration</code><span class="sig-paren">(</span><em>o</em>, <em>subs={}</em>, <em>offsets=defaultdict(&lt;type 'set'&gt;</em>, <em>{})</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/visitors.html#ResolveIterationVariable.visit_Iteration"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.visitors.ResolveIterationVariable.visit_Iteration" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 </dd></dl>
@@ -3072,7 +3072,7 @@ replacements in a depth-first fashion.</p>
       <script type="text/javascript" src="_static/jquery.js"></script>
       <script type="text/javascript" src="_static/underscore.js"></script>
       <script type="text/javascript" src="_static/doctools.js"></script>
-      <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.0/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+      <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
 
   
 
