@@ -198,8 +198,7 @@
 <li class="toctree-l1"><a class="reference internal" href="examples.seismic.tti.html">examples.seismic.tti package</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="examples.seismic.tti.html#submodules">Submodules</a></li>
 <li class="toctree-l2"><a class="reference internal" href="examples.seismic.tti.html#module-examples.seismic.tti.operators">examples.seismic.tti.operators module</a></li>
-<li class="toctree-l2"><a class="reference internal" href="examples.seismic.tti.html#module-examples.seismic.tti.tti_example2D">examples.seismic.tti.tti_example2D module</a></li>
-<li class="toctree-l2"><a class="reference internal" href="examples.seismic.tti.html#module-examples.seismic.tti.tti_example3D">examples.seismic.tti.tti_example3D module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="examples.seismic.tti.html#module-examples.seismic.tti.tti_example">examples.seismic.tti.tti_example module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="examples.seismic.tti.html#module-examples.seismic.tti.wavesolver">examples.seismic.tti.wavesolver module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="examples.seismic.tti.html#module-examples.seismic.tti">Module contents</a></li>
 </ul>
@@ -258,6 +257,12 @@ creation of seismic wave propagation operators:</p>
 </dd></dl>
 
 <dl class="attribute">
+<dt id="examples.seismic.model.Model.dim">
+<code class="descname">dim</code><a class="headerlink" href="#examples.seismic.model.Model.dim" title="Permalink to this definition">¶</a></dt>
+<dd><p>Spatial dimension of the model domain</p>
+</dd></dl>
+
+<dl class="attribute">
 <dt id="examples.seismic.model.Model.domain_size">
 <code class="descname">domain_size</code><a class="headerlink" href="#examples.seismic.model.Model.domain_size" title="Permalink to this definition">¶</a></dt>
 <dd><p>Physical size of the domain as determined by shape and spacing</p>
@@ -277,19 +282,41 @@ absorbing boundary conditions.</p>
 <p>:param data : Data array to be padded</p>
 </dd></dl>
 
-<dl class="method">
-<dt id="examples.seismic.model.Model.set_vp">
-<code class="descname">set_vp</code><span class="sig-paren">(</span><em>vp</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/examples/seismic/model.html#Model.set_vp"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#examples.seismic.model.Model.set_vp" title="Permalink to this definition">¶</a></dt>
-<dd><p>Set a new velocity model and update square slowness</p>
-<p>:param vp : new velocity in km/s</p>
-</dd></dl>
-
 <dl class="attribute">
 <dt id="examples.seismic.model.Model.shape_domain">
 <code class="descname">shape_domain</code><a class="headerlink" href="#examples.seismic.model.Model.shape_domain" title="Permalink to this definition">¶</a></dt>
 <dd><p>Computational shape of the model domain, with PML layers</p>
 </dd></dl>
 
+<dl class="attribute">
+<dt id="examples.seismic.model.Model.vp">
+<code class="descname">vp</code><a class="headerlink" href="#examples.seismic.model.Model.vp" title="Permalink to this definition">¶</a></dt>
+<dd><p><code class="xref py py-class docutils literal"><span class="pre">numpy.ndarray</span></code> holding the model velocity in km/s.</p>
+<p>Updating the velocity field also updates the square slowness
+<code class="docutils literal"><span class="pre">self.m</span></code>. However, only <code class="docutils literal"><span class="pre">self.m</span></code> should be used in seismic
+operators, since it is of type <code class="xref py py-class docutils literal"><span class="pre">DenseData</span></code>.</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="function">
+<dt id="examples.seismic.model.demo_model">
+<code class="descclassname">examples.seismic.model.</code><code class="descname">demo_model</code><span class="sig-paren">(</span><em>preset</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/examples/seismic/model.html#demo_model"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#examples.seismic.model.demo_model" title="Permalink to this definition">¶</a></dt>
+<dd><p>Utility function to create preset <a class="reference internal" href="#examples.seismic.model.Model" title="examples.seismic.model.Model"><code class="xref py py-class docutils literal"><span class="pre">Model</span></code></a> objects for
+demonstration and testing purposes. The particular presets are</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="o">*</span> <span class="s1">&#39;layer2D&#39;</span><span class="p">:</span> <span class="n">Simple</span> <span class="n">two</span><span class="o">-</span><span class="n">layer</span> <span class="n">model</span> <span class="k">with</span> <span class="n">velocities</span> <span class="mf">1.5</span> <span class="n">km</span><span class="o">/</span><span class="n">s</span>
+</pre></div>
+</div>
+<blockquote>
+<div>and 2.5 km/s in the top and bottom layer respectively.</div></blockquote>
+<ul class="simple">
+<li><dl class="first docutils">
+<dt>‘marmousi2D’: Loads the 2D Marmousi data set from the given</dt>
+<dd>filepath. Requires the <code class="docutils literal"><span class="pre">opesci/data</span></code> repository
+to be available on your machine.</dd>
+</dl>
+</li>
+</ul>
 </dd></dl>
 
 </div>

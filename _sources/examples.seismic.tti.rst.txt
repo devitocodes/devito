@@ -12,18 +12,10 @@ examples\.seismic\.tti\.operators module
     :undoc-members:
     :show-inheritance:
 
-examples\.seismic\.tti\.tti\_example2D module
----------------------------------------------
+examples\.seismic\.tti\.tti\_example module
+-------------------------------------------
 
-.. automodule:: examples.seismic.tti.tti_example2D
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
-examples\.seismic\.tti\.tti\_example3D module
----------------------------------------------
-
-.. automodule:: examples.seismic.tti.tti_example3D
+.. automodule:: examples.seismic.tti.tti_example
     :members:
     :undoc-members:
     :show-inheritance:
