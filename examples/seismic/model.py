@@ -52,6 +52,31 @@ def demo_model(preset, **kwargs):
         return Model(vp=v, origin=origin, shape=shape,
                      spacing=spacing, nbpml=nbpml, **kwargs)
 
+    elif preset.lower() in ['circle']:
+        # A simple circle in a 2D domain with a background velocity.
+        # By default, the circle velocity is 2.5 km/s,
+        # and the background veloity is 3.0 km/s.
+        shape = kwargs.pop('shape', (101, 101))
+        spacing = kwargs.pop('spacing', tuple([10. for _ in shape]))
+        origin = kwargs.pop('origin', tuple([0. for _ in shape]))
+        nbpml = kwargs.pop('nbpml', 10)
+        vp = kwargs.pop('vp', 3.0)
+        vp_background = kwargs.pop('vp_background', 2.5)
+        r = kwargs.pop('r', 15)
+
+        # Only a 2D preset is available currently
+        assert(len(shape) == 2)
+
+        v = np.empty(shape, dtype=np.float32)
+        v[:] = vp_background
+
+        a, b = shape[0] / 2, shape[1] / 2
+        y, x = np.ogrid[-a:shape[0]-a, -b:shape[1]-b]
+        v[x*x + y*y <= r*r] = vp
+
+        return Model(vp=v, origin=origin, shape=shape,
+                     spacing=spacing, nbpml=nbpml)
+
     elif preset.lower() in ['marmousi', 'marmousi2d']:
         shape = (1601, 401)
         spacing = (7.5, 7.5)
