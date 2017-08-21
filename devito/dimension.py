@@ -1,5 +1,5 @@
 from sympy import Number, Symbol
-from devito.arguments import DimensionArgProvider
+from devito.arguments import DimensionArgProvider, FixedDimensionArgProvider
 
 __all__ = ['Dimension', 'x', 'y', 'z', 't', 'p', 'd', 'time']
 
@@ -35,10 +35,17 @@ class Dimension(Symbol, DimensionArgProvider):
         """The symbolic size of this dimension."""
         return Symbol(self.ccode)
 
+    @property
+    def size(self):
+        return self.symbolic_size
+
 
 class FixedDimension(FixedDimensionArgProvider, Dimension):
+    
     is_Fixed = True
-
+    """This class defines the behaviour of a dimension whose size is fixed
+       at the time of problem definition and can thus be baked into generated
+       code """
     def __new__(cls, name, **kwargs):
         newobj = super(FixedDimension, cls).__new__(cls)
         newobj.size = kwargs.get('size', None)

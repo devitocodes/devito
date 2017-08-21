@@ -277,13 +277,6 @@ class Iteration(Node):
         else:
             self.limits = list((0, limits, 1))
 
-        # Replace open limits with variables names
-        if self.limits[1] is None:
-            # FIXME: Add dimension size as variable bound.
-            # Needs further generalisation to support loop blocking.
-            dim = self.dim.parent if self.dim.is_Buffered else self.dim
-            self.limits[1] = dim.size or dim.symbolic_size
-
         # Record offsets to later adjust loop limits accordingly
         self.offsets = [0, 0]
         for off in (offsets or {}):
