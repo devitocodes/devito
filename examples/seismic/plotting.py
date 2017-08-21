@@ -53,9 +53,7 @@ def plot_velocity(model, source=None, receiver=None, colorbar=True):
     plt.figure()
     ax = plt.gca()
     plot = plt.imshow(np.transpose(model.vp), animated=True, cmap=cm.jet,
-                      vmin=min(model.vp.reshape(-1)),
-                      vmax=max(model.vp.reshape(-1)),
-                      extent=extent)
+                      vmin=np.min(model.vp), vmax=np.max(model.vp), extent=extent)
     plt.xlabel('X position (km)')
     plt.ylabel('Depth (km)')
 
@@ -106,5 +104,26 @@ def plot_shotrecord(rec, model, t0, tn, colorbar=True):
         cax = divider.append_axes("right", size="5%", pad=0.05)
         cbar = plt.colorbar(plot, cax=cax)
         cbar.set_label('Velocity (km/s)')
+
+    plt.show()
+
+
+def plot_image(data, vmin=None, vmax=None, colorbar=True):
+    """
+    Plot image data, such as RTM images or FWI gradients.
+
+    :param data: Image data to plot
+    """
+    plt.figure()
+    ax = plt.gca()
+    plot = plt.imshow(np.transpose(data),
+                      vmin=vmin or 0.9 * np.min(data),
+                      vmax=vmax or 1.1 * np.max(data))
+
+    # Create aligned colorbar on the right
+    if colorbar:
+        divider = make_axes_locatable(ax)
+        cax = divider.append_axes("right", size="5%", pad=0.05)
+        plt.colorbar(plot, cax=cax)
 
     plt.show()
