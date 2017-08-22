@@ -112,17 +112,20 @@ def plot_shotrecord(rec, model, t0, tn, colorbar=True):
     plt.show()
 
 
-def plot_image(data, vmin=None, vmax=None, colorbar=True):
+def plot_image(data, vmin=None, vmax=None, colorbar=True, cmap="gray"):
     """
     Plot image data, such as RTM images or FWI gradients.
 
     :param data: Image data to plot
+    :param cmap: Choice of colormap, default is gray scale for images as a
+    seismic convention
     """
     plt.figure()
     ax = plt.gca()
     plot = plt.imshow(np.transpose(data),
                       vmin=vmin or 0.9 * np.min(data),
-                      vmax=vmax or 1.1 * np.max(data))
+                      vmax=vmax or 1.1 * np.max(data),
+                      cmap=cmap)
 
     # Create aligned colorbar on the right
     if colorbar:
