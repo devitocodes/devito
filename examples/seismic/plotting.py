@@ -67,6 +67,10 @@ def plot_velocity(model, source=None, receiver=None, colorbar=True):
         plt.scatter(1e-3*source[:, 0], 1e-3*source[:, 1],
                     s=25, c='red', marker='o')
 
+    # Ensure axis limits
+    plt.xlim(model.origin[0], model.origin[0] + domain_size[0])
+    plt.ylim(model.origin[1] + domain_size[1], model.origin[1])
+
     # Create aligned colorbar on the right
     if colorbar:
         divider = make_axes_locatable(ax)

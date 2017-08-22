@@ -238,7 +238,7 @@ class Model(object):
         """
         Physical size of the domain as determined by shape and spacing
         """
-        return tuple(d * s for d, s in zip(self.shape, self.spacing))
+        return tuple((d-1) * s for d, s in zip(self.shape, self.spacing))
 
     @property
     def critical_dt(self):
