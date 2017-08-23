@@ -213,7 +213,7 @@
 <span id="examples-seismic-model-module"></span><h2>examples.seismic.model module<a class="headerlink" href="#module-examples.seismic.model" title="Permalink to this headline">¶</a></h2>
 <dl class="class">
 <dt id="examples.seismic.model.Model">
-<em class="property">class </em><code class="descclassname">examples.seismic.model.</code><code class="descname">Model</code><span class="sig-paren">(</span><em>origin</em>, <em>spacing</em>, <em>shape</em>, <em>vp</em>, <em>nbpml=0</em>, <em>dtype=&lt;type 'numpy.float32'&gt;</em>, <em>epsilon=None</em>, <em>delta=None</em>, <em>theta=None</em>, <em>phi=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/examples/seismic/model.html#Model"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#examples.seismic.model.Model" title="Permalink to this definition">¶</a></dt>
+<em class="property">class </em><code class="descclassname">examples.seismic.model.</code><code class="descname">Model</code><span class="sig-paren">(</span><em>origin</em>, <em>spacing</em>, <em>shape</em>, <em>vp</em>, <em>nbpml=20</em>, <em>dtype=&lt;type 'numpy.float32'&gt;</em>, <em>epsilon=None</em>, <em>delta=None</em>, <em>theta=None</em>, <em>phi=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/examples/seismic/model.html#Model"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#examples.seismic.model.Model" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">object</span></code></p>
 <p>The physical model used in seismic inversion processes.</p>
 <table class="docutils field-list" frame="void" rules="none">
@@ -323,8 +323,48 @@ to be available on your machine.</dd>
 <div class="section" id="module-examples.seismic.plotting">
 <span id="examples-seismic-plotting-module"></span><h2>examples.seismic.plotting module<a class="headerlink" href="#module-examples.seismic.plotting" title="Permalink to this headline">¶</a></h2>
 <dl class="function">
+<dt id="examples.seismic.plotting.plot_image">
+<code class="descclassname">examples.seismic.plotting.</code><code class="descname">plot_image</code><span class="sig-paren">(</span><em>data</em>, <em>vmin=None</em>, <em>vmax=None</em>, <em>colorbar=True</em>, <em>cmap='gray'</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/examples/seismic/plotting.html#plot_image"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#examples.seismic.plotting.plot_image" title="Permalink to this definition">¶</a></dt>
+<dd><p>Plot image data, such as RTM images or FWI gradients.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>data</strong> – Image data to plot</li>
+<li><strong>cmap</strong> – Choice of colormap, default is gray scale for images as a</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+<p>seismic convention</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="examples.seismic.plotting.plot_perturbation">
+<code class="descclassname">examples.seismic.plotting.</code><code class="descname">plot_perturbation</code><span class="sig-paren">(</span><em>model</em>, <em>model1</em>, <em>colorbar=True</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/examples/seismic/plotting.html#plot_perturbation"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#examples.seismic.plotting.plot_perturbation" title="Permalink to this definition">¶</a></dt>
+<dd><p>Plot a two-dimensional velocity difference from two seismic <code class="xref py py-class docutils literal"><span class="pre">Model</span></code>
+objects.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>model</strong> – <code class="xref py py-class docutils literal"><span class="pre">Model</span></code> object of first velocity model.</li>
+<li><strong>model1</strong> – <code class="xref py py-class docutils literal"><span class="pre">Model</span></code> object of the second velocity model.</li>
+<li><strong>source</strong> – Coordinates of the source point.</li>
+<li><strong>receiver</strong> – Coordinates of the receiver points.</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="function">
 <dt id="examples.seismic.plotting.plot_shotrecord">
-<code class="descclassname">examples.seismic.plotting.</code><code class="descname">plot_shotrecord</code><span class="sig-paren">(</span><em>rec</em>, <em>origin</em>, <em>spacing</em>, <em>dimensions</em>, <em>t0</em>, <em>tn</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/examples/seismic/plotting.html#plot_shotrecord"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#examples.seismic.plotting.plot_shotrecord" title="Permalink to this definition">¶</a></dt>
+<code class="descclassname">examples.seismic.plotting.</code><code class="descname">plot_shotrecord</code><span class="sig-paren">(</span><em>rec</em>, <em>model</em>, <em>t0</em>, <em>tn</em>, <em>colorbar=True</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/examples/seismic/plotting.html#plot_shotrecord"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#examples.seismic.plotting.plot_shotrecord" title="Permalink to this definition">¶</a></dt>
 <dd><p>Plot a shot record (receiver values over time).</p>
 <table class="docutils field-list" frame="void" rules="none">
 <col class="field-name" />
@@ -332,9 +372,7 @@ to be available on your machine.</dd>
 <tbody valign="top">
 <tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
 <li><strong>rec</strong> – Receiver data with shape (time, points)</li>
-<li><strong>origin</strong> – Origin of the domain</li>
-<li><strong>spacing</strong> – Spacing in all dimensions of the domain</li>
-<li><strong>dimensions</strong> – Number of grid points in each dimension of the domain</li>
+<li><strong>model</strong> – <code class="xref py py-class docutils literal"><span class="pre">Model</span></code> object that holds the velocity model.</li>
 <li><strong>t0</strong> – Start of time dimension to plot</li>
 <li><strong>tn</strong> – End of time dimension to plot</li>
 </ul>
@@ -346,7 +384,7 @@ to be available on your machine.</dd>
 
 <dl class="function">
 <dt id="examples.seismic.plotting.plot_velocity">
-<code class="descclassname">examples.seismic.plotting.</code><code class="descname">plot_velocity</code><span class="sig-paren">(</span><em>model</em>, <em>source=None</em>, <em>receiver=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/examples/seismic/plotting.html#plot_velocity"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#examples.seismic.plotting.plot_velocity" title="Permalink to this definition">¶</a></dt>
+<code class="descclassname">examples.seismic.plotting.</code><code class="descname">plot_velocity</code><span class="sig-paren">(</span><em>model</em>, <em>source=None</em>, <em>receiver=None</em>, <em>colorbar=True</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/examples/seismic/plotting.html#plot_velocity"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#examples.seismic.plotting.plot_velocity" title="Permalink to this definition">¶</a></dt>
 <dd><p>Plot a two-dimensional velocity field from a seismic <code class="xref py py-class docutils literal"><span class="pre">Model</span></code>
 object. Optionally also includes point markers for sources and receivers.</p>
 <table class="docutils field-list" frame="void" rules="none">
