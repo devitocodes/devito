@@ -74,7 +74,8 @@ defaults = {
     'dse': 'advanced',
     'dle': 'advanced',
     'dle_options': ';'.join('%s:%s' % (k, v) for k, v in dle_default_options.items()),
-    'first_touch': '0'
+    'first_touch': '0',
+    'travis_test': '0',
 }
 """The default Devito configuration parameters"""
 
@@ -87,7 +88,8 @@ accepted = {
     'dse': list(dse_registry),
     'dle': list(dle_registry),
     'dle_options': list(dle_default_options),
-    'first_touch': [1, 0]
+    'first_touch': [1, 0],
+    'travis_test': [1, 0],
 }
 """Accepted values for the Devito environment variables."""
 
@@ -100,7 +102,8 @@ env_vars_mapper = {
     'DEVITO_DLE_OPTIONS': 'dle_options',
     'DEVITO_OPENMP': 'openmp',
     'DEVITO_LOGGING': 'log_level',
-    'DEVITO_FIRST_TOUCH': 'first_touch'
+    'DEVITO_FIRST_TOUCH': 'first_touch',
+    'DEVITO_TRAVIS_TEST': 'travis_test',
 }
 
 

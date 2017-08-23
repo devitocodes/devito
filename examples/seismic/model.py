@@ -52,6 +52,31 @@ def demo_model(preset, **kwargs):
         return Model(vp=v, origin=origin, shape=shape,
                      spacing=spacing, nbpml=nbpml, **kwargs)
 
+    elif preset.lower() in ['circle']:
+        # A simple circle in a 2D domain with a background velocity.
+        # By default, the circle velocity is 2.5 km/s,
+        # and the background veloity is 3.0 km/s.
+        shape = kwargs.pop('shape', (101, 101))
+        spacing = kwargs.pop('spacing', tuple([10. for _ in shape]))
+        origin = kwargs.pop('origin', tuple([0. for _ in shape]))
+        nbpml = kwargs.pop('nbpml', 10)
+        vp = kwargs.pop('vp', 3.0)
+        vp_background = kwargs.pop('vp_background', 2.5)
+        r = kwargs.pop('r', 15)
+
+        # Only a 2D preset is available currently
+        assert(len(shape) == 2)
+
+        v = np.empty(shape, dtype=np.float32)
+        v[:] = vp_background
+
+        a, b = shape[0] / 2, shape[1] / 2
+        y, x = np.ogrid[-a:shape[0]-a, -b:shape[1]-b]
+        v[x*x + y*y <= r*r] = vp
+
+        return Model(vp=v, origin=origin, shape=shape,
+                     spacing=spacing, nbpml=nbpml)
+
     elif preset.lower() in ['marmousi', 'marmousi2d']:
         shape = (1601, 401)
         spacing = (7.5, 7.5)
@@ -123,9 +148,8 @@ class Model(object):
     :param m: The square slowness of the wave
     :param damp: The damping field for absorbing boundarycondition
     """
-    def __init__(self, origin, spacing, shape, vp, nbpml=0, dtype=np.float32,
+    def __init__(self, origin, spacing, shape, vp, nbpml=20, dtype=np.float32,
                  epsilon=None, delta=None, theta=None, phi=None):
-        self._vp = vp
         self.origin = origin
         self.spacing = spacing
         self.shape = shape
@@ -139,9 +163,11 @@ class Model(object):
         # Create square slowness of the wave as symbol `m`
         if isinstance(vp, np.ndarray):
             self.m = DenseData(name="m", shape=self.shape_domain, dtype=self.dtype)
-            self.m.data[:] = self.pad(1 / (self.vp * self.vp))
         else:
             self.m = ConstantData(name="m", value=1/vp**2, dtype=self.dtype)
+
+        # Set model velocity, which will also set `m`
+        self.vp = vp
 
         # Create dampening field as symbol `damp`
         self.damp = DenseData(name="damp", shape=self.shape_domain,
@@ -212,7 +238,7 @@ class Model(object):
         """
         Physical size of the domain as determined by shape and spacing
         """
-        return tuple(d * s for d, s in zip(self.shape, self.spacing))
+        return tuple((d-1) * s for d, s in zip(self.shape, self.spacing))
 
     @property
     def critical_dt(self):
@@ -243,7 +269,12 @@ class Model(object):
         :param vp : new velocity in km/s
         """
         self._vp = vp
-        self.m.data[:] = self.pad(1 / (self.vp * self.vp))
+
+        # Update the square slowness according to new value
+        if isinstance(vp, np.ndarray):
+            self.m.data[:] = self.pad(1 / (self.vp * self.vp))
+        else:
+            self.m.data = 1 / vp**2
 
     def get_spacing(self):
         """Return the grid size"""
