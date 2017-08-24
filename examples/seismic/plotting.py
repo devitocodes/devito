@@ -1,7 +1,11 @@
 import numpy as np
+import matplotlib as mpl
 import matplotlib.pyplot as plt
 from matplotlib import cm
 from mpl_toolkits.axes_grid1 import make_axes_locatable
+
+mpl.rc('font', size=16)
+mpl.rc('figure', figsize=(8, 6))
 
 
 def plot_perturbation(model, model1, colorbar=True):
@@ -19,8 +23,6 @@ def plot_perturbation(model, model1, colorbar=True):
               model.origin[1] + domain_size[1], model.origin[1]]
     dv = np.transpose(model.vp) - np.transpose(model1.vp)
 
-    plt.figure()
-    ax = plt.gca()
     plot = plt.imshow(dv, animated=True, cmap=cm.jet,
                       vmin=min(dv.reshape(-1)), vmax=max(dv.reshape(-1)),
                       extent=extent)
@@ -29,6 +31,7 @@ def plot_perturbation(model, model1, colorbar=True):
 
     # Create aligned colorbar on the right
     if colorbar:
+        ax = plt.gca()
         divider = make_axes_locatable(ax)
         cax = divider.append_axes("right", size="5%", pad=0.05)
         cbar = plt.colorbar(plot, cax=cax)
@@ -50,8 +53,6 @@ def plot_velocity(model, source=None, receiver=None, colorbar=True):
     extent = [model.origin[0], model.origin[0] + domain_size[0],
               model.origin[1] + domain_size[1], model.origin[1]]
 
-    plt.figure()
-    ax = plt.gca()
     plot = plt.imshow(np.transpose(model.vp), animated=True, cmap=cm.jet,
                       vmin=np.min(model.vp), vmax=np.max(model.vp), extent=extent)
     plt.xlabel('X position (km)')
@@ -73,6 +74,7 @@ def plot_velocity(model, source=None, receiver=None, colorbar=True):
 
     # Create aligned colorbar on the right
     if colorbar:
+        ax = plt.gca()
         divider = make_axes_locatable(ax)
         cax = divider.append_axes("right", size="5%", pad=0.05)
         cbar = plt.colorbar(plot, cax=cax)
@@ -95,8 +97,6 @@ def plot_shotrecord(rec, model, t0, tn, colorbar=True):
     extent = [model.origin[0], model.origin[0] + 1e-3*model.domain_size[0],
               1e-3*tn, t0]
 
-    plt.figure()
-    ax = plt.gca()
     plot = plt.imshow(rec, vmin=-scale, vmax=scale, cmap=cm.gray,
                       aspect=aspect, extent=extent)
     plt.xlabel('X position (km)')
@@ -104,6 +104,7 @@ def plot_shotrecord(rec, model, t0, tn, colorbar=True):
 
     # Create aligned colorbar on the right
     if colorbar:
+        ax = plt.gca()
         divider = make_axes_locatable(ax)
         cax = divider.append_axes("right", size="5%", pad=0.05)
         cbar = plt.colorbar(plot, cax=cax)
@@ -120,8 +121,6 @@ def plot_image(data, vmin=None, vmax=None, colorbar=True, cmap="gray"):
     :param cmap: Choice of colormap, default is gray scale for images as a
     seismic convention
     """
-    plt.figure()
-    ax = plt.gca()
     plot = plt.imshow(np.transpose(data),
                       vmin=vmin or 0.9 * np.min(data),
                       vmax=vmax or 1.1 * np.max(data),
@@ -129,6 +128,7 @@ def plot_image(data, vmin=None, vmax=None, colorbar=True, cmap="gray"):
 
     # Create aligned colorbar on the right
     if colorbar:
+        ax = plt.gca()
         divider = make_axes_locatable(ax)
         cax = divider.append_axes("right", size="5%", pad=0.05)
         plt.colorbar(plot, cax=cax)
