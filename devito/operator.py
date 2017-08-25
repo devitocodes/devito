@@ -454,7 +454,7 @@ class OperatorRunnable(Operator):
 
         # Invoke kernel function with args
         self.cfunction(*list(arguments.values()))
-
+        
         # Output summary of performance achieved
         return self._profile_output(dim_sizes)
 
@@ -464,6 +464,7 @@ class OperatorRunnable(Operator):
         with bar():
             for k, v in summary.items():
                 name = '%s<%s>' % (k, ','.join('%d' % i for i in v.itershape))
+                print(v.oi)
                 info("Section %s with OI=%.2f computed in %.3f s [Perf: %.2f GFlops/s]" %
                      (name, v.oi, v.time, v.gflopss))
         return summary
