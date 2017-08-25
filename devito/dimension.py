@@ -35,10 +35,6 @@ class Dimension(Symbol, DimensionArgProvider):
         """The symbolic size of this dimension."""
         return Symbol(self.ccode)
 
-    @property
-    def size(self):
-        return self.symbolic_size
-
 
 class FixedDimension(FixedDimensionArgProvider, Dimension):
     
@@ -73,10 +69,6 @@ class BufferedDimension(Dimension):
         newobj.parent = parent
         newobj.modulo = kwargs.get('modulo', 2)
         return newobj
-
-    @property
-    def size(self):
-        return self.parent.size
 
     @property
     def reverse(self):

@@ -146,7 +146,7 @@ class Profiler(object):
             datashape = [i.dim.size or dim_sizes[dims[i].name] for i in itspace]
             dataspace = reduce(operator.mul, datashape)
             traffic = profile.memory*dataspace*dtype().itemsize
-
+            print(traffic)
             # Derived metrics
             oi = flops/traffic
             gflopss = gflops/time
