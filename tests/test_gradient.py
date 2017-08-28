@@ -2,7 +2,8 @@ import numpy as np
 import pytest
 from numpy import linalg
 
-from examples.seismic.acoustic.acoustic_example import setup, smooth10
+from devito.logger import info
+from examples.seismic.acoustic.acoustic_example import smooth10, acoustic_setup as setup
 from examples.seismic import Receiver
 
 
@@ -30,9 +31,10 @@ def test_gradientFWI(dimensions, time_order, space_order):
     :param space_order: order of the spacial discretization scheme
     :return: assertion that the Taylor properties are satisfied
     """
-    wave = setup(dimensions=dimensions, time_order=time_order,
-                 space_order=space_order, nbpml=40, tn=500.,
-                 dse='noop', dle='noop')
+    spacing = tuple(15. for _ in dimensions)
+    wave = setup(dimensions=dimensions, spacing=spacing,
+                 time_order=time_order, space_order=space_order,
+                 nbpml=10+space_order/2)
     m0 = smooth10(wave.model.m.data, wave.model.shape_domain)
     dm = np.float32(wave.model.m.data - m0)
 
@@ -62,19 +64,12 @@ def test_gradientFWI(dimensions, time_order, space_order):
         error1[i] = np.absolute(.5*linalg.norm(d.data - rec.data)**2 - F0)
         # Second order term r Phi(m0+dm) - Phi(m0) - <J(m0)^T \delta d, dm>
         error2[i] = np.absolute(.5*linalg.norm(d.data - rec.data)**2 - F0 - H[i] * G)
-        # print(F0, .5*linalg.norm(d - rec)**2, error1[i], H[i] *G, error2[i])
-        # print('For h = ', H[i], '\nFirst order errors is : ', error1[i],
-        #       '\nSecond order errors is ', error2[i])
-
-    hh = np.zeros(7)
-    for i in range(0, 7):
-        hh[i] = H[i] * H[i]
 
     # Test slope of the  tests
     p1 = np.polyfit(np.log10(H), np.log10(error1), 1)
     p2 = np.polyfit(np.log10(H), np.log10(error2), 1)
-    print(p1)
-    print(p2)
+    info('1st order error, Phi(m0+dm)-Phi(m0): %s' % (p1))
+    info('2nd order error, Phi(m0+dm)-Phi(m0) - <J(m0)^T \delta d, dm>: %s' % (p2))
     assert np.isclose(p1[0], 1.0, rtol=0.1)
     assert np.isclose(p2[0], 2.0, rtol=0.1)
 
@@ -97,15 +92,18 @@ def test_gradientJ(dimensions, time_order, space_order):
     :param space_order: order of the spacial discretization scheme
     :return: assertion that the Taylor properties are satisfied
     """
-    wave = setup(dimensions=dimensions, time_order=time_order,
-                 space_order=space_order, tn=750.,
-                 nbpml=20)
+    spacing = tuple(15. for _ in dimensions)
+    wave = setup(dimensions=dimensions, spacing=spacing,
+                 time_order=time_order, space_order=space_order,
+                 tn=1000., nbpml=10+space_order/2)
     m0 = smooth10(wave.model.m.data, wave.model.shape_domain)
     dm = np.float32(wave.model.m.data - m0)
+    linrec = Receiver(name='rec', ntime=wave.receiver.nt,
+                      coordinates=wave.receiver.coordinates.data)
     # Compute receiver data and full wavefield for the smooth velocity
     rec, u0, _ = wave.forward(m=m0, save=False)
     # Gradient: J dm
-    Jdm, _, _, _ = wave.born(dm, m=m0)
+    Jdm, _, _, _ = wave.born(dm, rec=linrec, m=m0)
     # FWI Gradient test
     H = [0.5, 0.25, .125, 0.0625, 0.0312, 0.015625, 0.0078125]
     error1 = np.zeros(7)
@@ -119,19 +117,12 @@ def test_gradientJ(dimensions, time_order, space_order):
         error1[i] = np.linalg.norm(d.data - rec.data, 1)
         # Second order term F(m0 + hdm) - F(m0) - J dm
         error2[i] = np.linalg.norm(d.data - rec.data - H[i] * Jdm.data, 1)
-        # print(F0, .5*linalg.norm(d - rec)**2, error1[i], H[i] *G, error2[i])
-        # print('For h = ', H[i], '\nFirst order errors is : ', error1[i],
-        #       '\nSecond order errors is ', error2[i])
-
-    hh = np.zeros(7)
-    for i in range(0, 7):
-        hh[i] = H[i] * H[i]
 
     # Test slope of the  tests
     p1 = np.polyfit(np.log10(H), np.log10(error1), 1)
     p2 = np.polyfit(np.log10(H), np.log10(error2), 1)
-    print(p1)
-    print(p2)
+    info('1st order error, Phi(m0+dm)-Phi(m0): %s' % (p1))
+    info('2nd order error, Phi(m0+dm)-Phi(m0) - <J(m0)^T \delta d, dm>: %s' % (p2))
     assert np.isclose(p1[0], 1.0, rtol=0.1)
     assert np.isclose(p2[0], 2.0, rtol=0.1)
 

@@ -8,6 +8,7 @@ from devito.compiler import compiler_registry, set_compiler
 from devito.dse import modes as dse_registry
 from devito.dle import modes as dle_registry, default_options as dle_default_options
 from devito.logger import info, logger_registry, set_log_level
+from devito.interfaces import set_global_first_touch as set_first_touch
 
 __all__ = ['configuration', 'init_configuration', 'print_defaults', 'print_state']
 
@@ -72,7 +73,9 @@ defaults = {
     'openmp': '0',
     'dse': 'advanced',
     'dle': 'advanced',
-    'dle_options': ';'.join('%s:%s' % (k, v) for k, v in dle_default_options.items())
+    'dle_options': ';'.join('%s:%s' % (k, v) for k, v in dle_default_options.items()),
+    'first_touch': '0',
+    'travis_test': '0',
 }
 """The default Devito configuration parameters"""
 
@@ -84,7 +87,9 @@ accepted = {
     'openmp': [1, 0],
     'dse': list(dse_registry),
     'dle': list(dle_registry),
-    'dle_options': list(dle_default_options)
+    'dle_options': list(dle_default_options),
+    'first_touch': [1, 0],
+    'travis_test': [1, 0],
 }
 """Accepted values for the Devito environment variables."""
 
@@ -96,7 +101,9 @@ env_vars_mapper = {
     'DEVITO_DLE': 'dle',
     'DEVITO_DLE_OPTIONS': 'dle_options',
     'DEVITO_OPENMP': 'openmp',
-    'DEVITO_LOGGING': 'log_level'
+    'DEVITO_LOGGING': 'log_level',
+    'DEVITO_FIRST_TOUCH': 'first_touch',
+    'DEVITO_TRAVIS_TEST': 'travis_test',
 }
 
 
@@ -145,7 +152,8 @@ def init_configuration():
     configuration['compiler'] = set_compiler(configuration['compiler'],
                                              configuration['openmp'])
     configuration['openmp'] = bool(configuration['openmp'])
-
+    configuration['first_touch'] = bool(configuration['first_touch'])
+    configuration.set_update_function('first_touch', lambda i: set_first_touch(i))
     configuration.initialize()
 
 

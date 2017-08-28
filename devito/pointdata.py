@@ -55,7 +55,7 @@ class PointData(CompositeData):
         :return: indices used for axis.
         """
         dimensions = kwargs.get('dimensions', None)
-        return dimensions or [t, p]
+        return dimensions or [time, p]
 
     @property
     def coefficients(self):
@@ -163,9 +163,14 @@ class PointData(CompositeData):
         :param p_t: (Optional) time index to use for indexing into
                     the sparse point data.
         """
-        u_t = kwargs.get('u_t', self.indices[0])
-        p_t = kwargs.get('p_t', self.indices[0])
-        expr = indexify(expr).subs(t, u_t).subs(time, u_t)
+        u_t = kwargs.get('u_t', None)
+        p_t = kwargs.get('p_t', None)
+        expr = indexify(expr)
+
+        # Apply optional time symbol substitutions to expr
+        if u_t is not None:
+            expr = expr.subs(t, u_t).subs(time, u_t)
+
         variables = list(retrieve_indexed(expr))
         # List of indirection indices for all adjacent grid points
         index_matrix = [tuple(idx + ii + offset for ii, idx
@@ -181,7 +186,10 @@ class PointData(CompositeData):
         subs = OrderedDict(zip(self.point_symbols, self.coordinate_bases))
         rhs = sum([expr.subs(vsub) * b.subs(subs)
                    for b, vsub in zip(self.coefficients, idx_subs)])
-        return [Eq(self.subs(self.indices[0], p_t), rhs)]
+
+        # Apply optional time symbol substitutions to lhs of assignment
+        lhs = self if p_t is None else self.subs(self.indices[0], p_t)
+        return [Eq(lhs, rhs)]
 
     def inject(self, field, expr, offset=0, **kwargs):
         """Symbol for injection of an expression onto a grid
@@ -193,11 +201,18 @@ class PointData(CompositeData):
         :param u_t: (Optional) time index to use for indexing into `field`.
         :param p_t: (Optional) time index to use for indexing into `expr`.
         """
-        u_t = kwargs.get('u_t', field.indices[0])
-        p_t = kwargs.get('p_t', self.indices[0])
-        expr = indexify(expr).subs(self.indices[0], p_t)
-        field = indexify(field).subs(field.indices[0], u_t)
+        u_t = kwargs.get('u_t', None)
+        p_t = kwargs.get('p_t', None)
+
+        expr = indexify(expr)
+        field = indexify(field)
         variables = list(retrieve_indexed(expr)) + [field]
+
+        # Apply optional time symbol substitutions to field and expr
+        if u_t is not None:
+            field = field.subs(field.indices[0], u_t)
+        if p_t is not None:
+            expr = expr.subs(self.indices[0], p_t)
 
         # List of indirection indices for all adjacent grid points
         index_matrix = [tuple(idx + ii + offset for ii, idx
