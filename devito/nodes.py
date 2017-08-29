@@ -6,15 +6,13 @@ import inspect
 from collections import Iterable, OrderedDict
 
 import cgen as c
-import ctypes
-from numpy import ctypeslib
 from sympy import Eq
 
 from devito.cgen_utils import ccode
 from devito.dse import as_symbol, terminals
 from devito.interfaces import Indexed, Symbol
 from devito.stencil import Stencil
-from devito.tools import as_tuple, filter_ordered, flatten, numpy_to_ctypes
+from devito.tools import as_tuple, filter_ordered, flatten
 from devito.arguments import ArgumentProvider, Argument
 
 __all__ = ['Node', 'Block', 'Denormals', 'Expression', 'Function', 'FunCall',
@@ -471,28 +469,10 @@ class Function(Node):
             args = parameters
         self.parameters = as_tuple(args)
 
-        # At this point, all objects in args should be objects of the RuntimeArgument
-        # hierarchy. Separate the tensor arguments from the scalar ones
-        self.tensor_args = [i for i in args if i.is_TensorArgument]
-        self.scalar_args = [i for i in args if i.is_ScalarArgument]
-
     def __repr__(self):
         parameters = ",".join([c.dtype_to_ctype(i.dtype) for i in self.parameters])
         body = "\n\t".join([str(s) for s in self.body])
         return "Function[%s]<%s; %s>::\n\t%s" % (self.name, self.retval, parameters, body)
-
-    @property
-    def _cargtypes(self):
-        """Return a list containing the C type of each argument, as a ``ctypes`` type."""
-        argtypes = []
-        for i in self.parameters:
-            if i.is_ScalarArgument:
-                argtypes.append(numpy_to_ctypes(i.dtype))
-            elif i.is_TensorArgument:
-                argtypes.append(ctypeslib.ndpointer(dtype=i.dtype, flags='C'))
-            else:
-                argtypes.append(ctypes.c_void_p)
-        return argtypes
 
     @property
     def children(self):
