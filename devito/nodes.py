@@ -14,7 +14,7 @@ from devito.cgen_utils import ccode
 from devito.dse import as_symbol, terminals
 from devito.interfaces import Indexed, Symbol
 from devito.stencil import Stencil
-from devito.tools import as_tuple, filter_ordered, flatten, numpy_to_ctypes, ctypes_to_C
+from devito.tools import as_tuple, filter_ordered, flatten, numpy_to_ctypes
 from devito.arguments import ArgumentProvider, Argument
 
 __all__ = ['Node', 'Block', 'Denormals', 'Expression', 'Function', 'FunCall',
@@ -58,8 +58,16 @@ class Node(object):
 
     @property
     def ccode(self):
-        """Generate C code."""
-        raise NotImplementedError()
+        """Generate C code.
+
+        This is a shorthand for
+
+            .. code-block::
+              from devito.visitors import CGen
+              CGen().visit(self)
+        """
+        from devito.visitors import CGen
+        return CGen().visit(self)
 
     @property
     def view(self):
@@ -89,8 +97,6 @@ class Block(Node):
 
     is_Block = True
 
-    _wrapper = c.Block
-
     _traversable = ['body']
 
     def __init__(self, header=None, body=None, footer=None):
@@ -103,11 +109,6 @@ class Block(Node):
                                       len(self.body), len(self.footer))
 
     @property
-    def ccode(self):
-        body = tuple(s.ccode for s in self.body)
-        return c.Module(self.header + (self._wrapper(body),) + self.footer)
-
-    @property
     def children(self):
         return (self.body,)
 
@@ -117,8 +118,6 @@ class List(Block):
     """Class representing a sequence of one or more statements."""
 
     is_List = True
-
-    _wrapper = c.Collection
 
 
 class Element(Node):
@@ -138,10 +137,6 @@ class Element(Node):
     def __repr__(self):
         return "Element::\n\t%s" % (self.element)
 
-    @property
-    def ccode(self):
-        return self.element
-
 
 class FunCall(Node):
 
@@ -155,10 +150,6 @@ class FunCall(Node):
 
     def __repr__(self):
         return "FunCall::\n\t%s(...)" % self.name
-
-    @property
-    def ccode(self):
-        return c.Statement('%s(%s)' % (self.name, ','.join(self.params)))
 
 
 class Expression(Node):
@@ -192,10 +183,6 @@ class Expression(Node):
                               the stored expression.
         """
         self.expr = self.expr.xreplace(substitutions)
-
-    @property
-    def ccode(self):
-        return c.Assign(ccode(self.expr.lhs), ccode(self.expr.rhs))
 
     @property
     def output(self):
@@ -321,60 +308,6 @@ class Iteration(Node):
         if self.uindices:
             index += '[%s]' % ','.join(ccode(i.index) for i in self.uindices)
         return "<%sIteration %s; %s>" % (properties, index, self.limits)
-
-    @property
-    def ccode(self):
-        """Generate C code for the represented stencil loop
-
-        :returns: :class:`cgen.For` object representing the loop
-        """
-        loop_body = [s.ccode for s in self.nodes]
-
-        # Start
-        if self.offsets[0] != 0:
-            start = "%s + %s" % (self.limits[0], -self.offsets[0])
-            try:
-                start = eval(start)
-            except (NameError, TypeError):
-                pass
-        else:
-            start = self.limits[0]
-
-        # Bound
-        if self.offsets[1] != 0:
-            end = "%s - %s" % (self.limits[1], self.offsets[1])
-            try:
-                end = eval(end)
-            except (NameError, TypeError):
-                pass
-        else:
-            end = self.limits[1]
-
-        # For reverse dimensions flip loop bounds
-        if self.reverse:
-            loop_init = 'int %s = %s' % (self.index, ccode('%s - 1' % end))
-            loop_cond = '%s >= %s' % (self.index, ccode(start))
-            loop_inc = '%s -= %s' % (self.index, self.limits[2])
-        else:
-            loop_init = 'int %s = %s' % (self.index, ccode(start))
-            loop_cond = '%s < %s' % (self.index, ccode(end))
-            loop_inc = '%s += %s' % (self.index, self.limits[2])
-
-        # Append unbounded indices, if any
-        if self.uindices:
-            uinit = ['%s = %s' % (i.index, ccode(i.start)) for i in self.uindices]
-            loop_init = c.Line(', '.join([loop_init] + uinit))
-            ustep = ['%s = %s' % (i.index, ccode(i.step)) for i in self.uindices]
-            loop_inc = c.Line(', '.join([loop_inc] + ustep))
-
-        # Create For header+body
-        handle = c.For(loop_init, loop_cond, loop_inc, c.Block(loop_body))
-
-        # Attach pragmas, if any
-        if self.pragmas:
-            handle = c.Module(self.pragmas + (handle,))
-
-        return handle
 
     @property
     def is_Open(self):
@@ -562,54 +495,6 @@ class Function(Node):
         return argtypes
 
     @property
-    def _cparameters(self):
-        """Return a list containing the Function arguments in ``cgen`` format."""
-        decls = []
-        for i in self.parameters:
-            if i.is_ScalarArgument:
-                decls.append(c.Value('const %s' % c.dtype_to_ctype(i.dtype), i.name))
-            elif i.is_TensorArgument:
-                decls.append(c.Value(c.dtype_to_ctype(i.dtype),
-                                     '*restrict %s_vec' % i.name))
-            else:
-                decls.append(c.Value('void', '*_%s' % i.name))
-        return decls
-
-    @property
-    def _ccasts(self):
-        """Generate data casts."""
-        ccasts = []
-        for i in self.parameters:
-            if i.is_TensorArgument:
-                align = "__attribute__((aligned(64)))"
-                shape = ''.join(["[%s]" % ccode(j)
-                                 for j in i.provider.symbolic_shape[1:]])
-                lvalue = c.POD(i.dtype, '(*restrict %s)%s %s' % (i.name, shape, align))
-                rvalue = '(%s (*)%s) %s' % (c.dtype_to_ctype(i.dtype), shape,
-                                            '%s_vec' % i.name)
-                ccasts.append(c.Initializer(lvalue, rvalue))
-            elif i.is_PtrArgument:
-                ctype = ctypes_to_C(i.dtype)
-                lvalue = c.Pointer(c.Value(ctype, i.name))
-                rvalue = '(%s*) %s' % (ctype, '_%s' % i.name)
-                ccasts.append(c.Initializer(lvalue, rvalue))
-        return ccasts
-
-    @property
-    def _ctop(self):
-        """Generate the function declaration."""
-        return c.FunctionDeclaration(c.Value(self.retval, self.name), self._cparameters)
-
-    @property
-    def ccode(self):
-        """Generate C code for the represented C routine.
-
-        :returns: :class:`cgen.FunctionDeclaration` object representing the function.
-        """
-        body = [e.ccode for e in self.body]
-        return c.FunctionBody(self._ctop, c.Block(self._ccasts + body))
-
-    @property
     def children(self):
         return (self.body,)
 
@@ -672,11 +557,6 @@ class LocalExpression(Expression):
     def __init__(self, expr, dtype):
         super(LocalExpression, self).__init__(expr)
         self.dtype = dtype
-
-    @property
-    def ccode(self):
-        ctype = c.dtype_to_ctype(self.dtype)
-        return c.Initializer(c.Value(ctype, ccode(self.expr.lhs)), ccode(self.expr.rhs))
 
 
 # Iteration utilities
