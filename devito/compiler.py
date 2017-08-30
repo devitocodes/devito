@@ -12,15 +12,14 @@ from codepy.toolchain import GCCToolchain
 
 from devito.exceptions import CompilationError
 from devito.logger import log
+from devito.parameters import configuration
 from devito.tools import change_directory
 
-__all__ = ['get_tmp_dir', 'set_compiler', 'jit_compile', 'load', 'GNUCompiler']
+__all__ = ['jit_compile', 'load', 'make', 'GNUCompiler']
 
 
 class Compiler(GCCToolchain):
     """Base class for all compiler classes.
-
-    :param openmp: Boolean indicating if openmp is enabled. False by default
 
     The base class defaults all compiler specific settings to empty lists.
     Preset configurations can be built by inheriting from `Compiler` and setting
@@ -46,7 +45,7 @@ class Compiler(GCCToolchain):
 
     fields = ['cc', 'ld']
 
-    def __init__(self, openmp=False, **kwargs):
+    def __init__(self, **kwargs):
         self.cc = 'unknown'
         self.ld = 'unknown'
         self.cflags = []
@@ -58,7 +57,6 @@ class Compiler(GCCToolchain):
         self.undefines = []
         self.src_ext = 'c'
         self.lib_ext = 'so'
-        self.openmp = openmp
 
     def __str__(self):
         return self.__class__.__name__
@@ -68,10 +66,7 @@ class Compiler(GCCToolchain):
 
 
 class GNUCompiler(Compiler):
-    """Set of standard compiler flags for the GCC toolchain
-
-    :param openmp: Boolean indicating if openmp is enabled. False by default
-    """
+    """Set of standard compiler flags for the GCC toolchain."""
 
     def __init__(self, *args, **kwargs):
         super(GNUCompiler, self).__init__(*args, **kwargs)
@@ -82,7 +77,7 @@ class GNUCompiler(Compiler):
                        '-Wno-unused-result', '-Wno-unused-variable']
         self.ldflags = ['-shared']
 
-        if self.openmp:
+        if configuration['openmp']:
             self.ldflags += ['-fopenmp']
 
 
@@ -115,10 +110,6 @@ class ClangCompiler(Compiler):
         self.ldflags = ['-shared']
         self.lib_ext = 'dylib'
 
-        if self.openmp:
-            log("WARNING: Disabling OpenMP because clang does not support it.")
-            self.openmp = False
-
 
 class IntelCompiler(Compiler):
     """Set of standard compiler flags for the Intel toolchain
@@ -133,7 +124,7 @@ class IntelCompiler(Compiler):
         self.cflags = ['-O3', '-g', '-fPIC', '-Wall', '-std=c99', "-xhost"]
         self.ldflags = ['-shared']
 
-        if self.openmp:
+        if configuration['openmp']:
             self.ldflags += ['-qopenmp']
 
 
@@ -152,7 +143,7 @@ class IntelMICCompiler(Compiler):
         self.cflags = ['-O3', '-g', '-fPIC', '-Wall', '-std=c99', "-mmic"]
         self.ldflags = ['-shared']
 
-        if self.openmp:
+        if configuration['openmp']:
             self.ldflags += ['-qopenmp']
         else:
             log("WARNING: Running on Intel MIC without OpenMP is highly discouraged")
@@ -168,7 +159,7 @@ class IntelKNLCompiler(Compiler):
         self.ld = 'icc'
         self.cflags = ['-O3', '-g', '-fPIC', '-Wall', '-std=c99', "-xMIC-AVX512"]
         self.ldflags = ['-shared']
-        if self.openmp:
+        if configuration['openmp']:
             self.ldflags += ['-qopenmp']
         else:
             log("WARNING: Running on Intel KNL without OpenMP is highly discouraged")
@@ -191,31 +182,8 @@ class CustomCompiler(Compiler):
         default = '-O3 -g -march=native -fPIC -Wall -std=c99'
         self.cflags = environ.get('CFLAGS', default).split(' ')
         self.ldflags = environ.get('LDFLAGS', '-shared').split(' ')
-        if self.openmp:
+        if configuration['openmp']:
             self.ldflags += environ.get('OMP_LDFLAGS', '-fopenmp').split(' ')
-
-
-# Registry dict for deriving Compiler classes according to the environment variable
-# DEVITO_ARCH. Developers should add new compiler classes here.
-compiler_registry = {
-    'custom': CustomCompiler,
-    'gcc': GNUCompiler, 'gnu': GNUCompiler,
-    'gcc-4.9': partial(GNUCompiler, version='4.9'),
-    'gcc-5': partial(GNUCompiler, version='5'),
-    'gcc-noavx': GNUCompilerNoAVX, 'gnu-noavx': GNUCompilerNoAVX,
-    'clang': ClangCompiler, 'osx': ClangCompiler,
-    'intel': IntelCompiler, 'icpc': IntelCompiler,
-    'icc': IntelCompiler,
-    'intel-mic': IntelMICCompiler, 'mic': IntelMICCompiler,
-    'intel-knl': IntelKNLCompiler, 'knl': IntelKNLCompiler,
-}
-
-
-def set_compiler(key, openmp=False):
-    """Derive compiler class and settings. ``key`` supports the values in
-    ``compiler_registry``.
-    """
-    return compiler_registry[key](openmp=openmp)
 
 
 def get_tmp_dir():
@@ -231,11 +199,11 @@ def get_tmp_dir():
     return tmpdir
 
 
-def load(basename, compiler=GNUCompiler):
+def load(basename, compiler):
     """Load a compiled library
 
     :param basename: Name of the .so file.
-    :param compiler: The toolchain used for compilation. GNUCompiler by default.
+    :param compiler: The toolchain used for compilation.
     :return: The loaded library.
 
     Note: If the provided compiler is of type `IntelMICCompiler`
@@ -251,15 +219,14 @@ def load(basename, compiler=GNUCompiler):
     return npct.load_library(basename, '.')
 
 
-def jit_compile(ccode, compiler=GNUCompiler):
+def jit_compile(ccode, compiler):
     """JIT compile the given ccode.
 
     :param ccode: String of C source code.
-    :param compiler: The toolchain used for compilation. GNUCompiler by default.
+    :param compiler: The toolchain used for compilation.
 
     :return: The name of the compilation unit.
     """
-
     hash_key = sha1(str(ccode).encode()).hexdigest()
     basename = path.join(get_tmp_dir(), hash_key)
 
@@ -304,3 +271,24 @@ def make(loc, args):
                                            'Compile log in %s\n'
                                            'Compile errors in %s\n' %
                                            (e.cmd, e.returncode, logfile, errfile))
+
+
+# Registry dict for deriving Compiler classes according to the environment variable
+# DEVITO_ARCH. Developers should add new compiler classes here.
+compiler_registry = {
+    'custom': CustomCompiler,
+    'gcc': GNUCompiler, 'gnu': GNUCompiler,
+    'gcc-4.9': partial(GNUCompiler, version='4.9'),
+    'gcc-5': partial(GNUCompiler, version='5'),
+    'gcc-noavx': GNUCompilerNoAVX, 'gnu-noavx': GNUCompilerNoAVX,
+    'clang': ClangCompiler, 'osx': ClangCompiler,
+    'intel': IntelCompiler, 'icpc': IntelCompiler,
+    'icc': IntelCompiler,
+    'intel-mic': IntelMICCompiler, 'mic': IntelMICCompiler,
+    'intel-knl': IntelKNLCompiler, 'knl': IntelKNLCompiler,
+}
+
+
+configuration.add('compiler', 'custom', list(compiler_registry),
+                  lambda i: compiler_registry[i]())
+configuration.add('openmp', 0, [0, 1], lambda i: bool(i))
