@@ -45,13 +45,27 @@ namespace['kernel-path-gen'] = os.path.join(namespace['kernel-path'], 'gen')
 namespace['kernel-output'] = os.path.join(namespace['kernel-path-gen'],
                                           namespace['kernel-filename'])
 namespace['time-dim'] = 't'
-namespace['type-solution'] = ctypes_pointer('yk_solution_ptr')
+namespace['type-solution'] = ctypes_pointer('yask::yk_solution_ptr')
 
-# Tell Devito where to go look for YASK headers and shared objects
-compiler = configuration['compiler']
-compiler.include_dirs.append(os.path.join(namespace['path'], 'include'))
-compiler.library_dirs.append(os.path.join(namespace['path'], 'lib'))
 
+# Need a custom compiler to compile YASK kernels
+# This is derived from the user-selected compiler
+class YaskCompiler(configuration['compiler'].__class__):
+
+    def __init__(self, *args, **kwargs):
+        super(YaskCompiler, self).__init__(*args, **kwargs)
+        # Switch to C++
+        self.cc = self.cpp_mapper[configuration['compiler'].cc]
+        self.ld = self.cpp_mapper[configuration['compiler'].ld]
+        self.cflags = configuration['compiler'].cflags + ['-std=c++11']
+        self.src_ext = 'cpp'
+        # Tell the compiler where to get YASK header files and shared objects
+        self.include_dirs.append(os.path.join(namespace['path'], 'include'))
+        self.library_dirs.append(os.path.join(namespace['path'], 'lib'))
+        self.ldflags.append('-Wl,-rpath,%s' % os.path.join(namespace['path'], 'lib'))
+
+
+configuration['compiler-yask'] = YaskCompiler()
 
 # TODO: this should be moved into /configuration/
 arch = 'snb'

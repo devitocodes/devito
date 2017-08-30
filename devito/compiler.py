@@ -43,6 +43,8 @@ class Compiler(GCCToolchain):
         * :data:`self.undefines`
     """
 
+    cpp_mapper = {'gcc': 'g++', 'clang': 'clang++', 'icc': 'icpc'}
+
     fields = ['cc', 'ld']
 
     def __init__(self, **kwargs):
