@@ -28,6 +28,7 @@ class Operator(Function):
 
     _default_headers = ['#define _POSIX_C_SOURCE 200809L']
     _default_includes = ['stdlib.h', 'math.h', 'sys/time.h']
+    _default_globals = []
 
     """A special :class:`Function` to generate and compile C code evaluating
     an ordered sequence of stencil expressions.
@@ -59,11 +60,14 @@ class Operator(Function):
         dse = kwargs.get("dse", configuration['dse'])
         dle = kwargs.get("dle", configuration['dle'])
 
-        # Default attributes required for compilation
+        # Header files, etc.
         self._headers = list(self._default_headers)
         self._includes = list(self._default_includes)
-        self._lib = None
+        self._globals = list(self._default_globals)
+
+        # Required for compilation
         self._compiler = configuration['compiler']
+        self._lib = None
         self._cfunction = None
 
         # Set the direction of time acoording to the given TimeAxis
@@ -453,6 +457,7 @@ class OperatorRunnable(Operator):
     def _profile_sections(self, nodes, parameters):
         """Introduce C-level profiling nodes within the Iteration/Expression tree."""
         nodes, profiler = create_profile(nodes)
+        self._globals.append(profiler.cdef)
         parameters.append(Object(profiler.varname, profiler.dtype, profiler.setup()))
         return nodes, profiler
 
