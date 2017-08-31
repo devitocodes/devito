@@ -13,7 +13,6 @@ from sympy import Eq
 
 from devito import DenseData, Operator, configuration
 from devito.logger import logger, logging, set_log_level
-from devito.parameters import defaults
 
 
 def test_at_is_actually_working():
@@ -44,7 +43,7 @@ def test_at_is_actually_working():
     op(infield=infield, outfield=outfield, autotune=True)
     out = [i for i in buffer.getvalue().split('\n') if 'AutoTuner:' in i]
     assert len(out) == 12
-    configuration['autotuning'] = defaults['autotuning']
+    configuration['autotuning'] = configuration._defaults['autotuning']
 
     logger.removeHandler(temporary_handler)
 
