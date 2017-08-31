@@ -5,11 +5,13 @@ from collections import OrderedDict
 
 from cached_property import cached_property
 
+import ctypes
 import numpy as np
 
 from devito.compiler import make
 from devito.exceptions import CompilationError
 from devito.logger import yask as log
+from devito.tools import numpy_to_ctypes
 
 from devito.yask import arch, isa, cfac, ofac, namespace, exit
 from devito.yask.utils import convert_multislice
@@ -119,8 +121,14 @@ class YaskGrid(object):
 
     @property
     def ndpointer(self):
-        # TODO: see corresponding comment in interfaces.py about CMemory
-        return self
+        """Return a :class:`numpy.ndarray` view of the grid content."""
+        ctype = numpy_to_ctypes(self.dtype)
+        cpointer = ctypes.cast(int(self.grid.get_raw_storage_buffer()),
+                               ctypes.POINTER(ctype))
+        ndpointer = np.ctypeslib.ndpointer(dtype=self.dtype, shape=self.shape)
+        casted = ctypes.cast(cpointer, ndpointer)
+        ndarray = np.ctypeslib.as_array(casted, shape=self.shape)
+        return ndarray
 
     def view(self):
         """
