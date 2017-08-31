@@ -92,7 +92,8 @@ class Operator(OperatorRunnable):
             exit("Couldn't find the root space loop within:\n%s" % str(tree[0]))
         root = root[0]
 
-        funcall = '(*soln)->run_solution'
+        # TODO: improve this
+        funcall = 'soln->get()->run_solution'
         processed = Transformer({root: FunCall(funcall, 'time')}).visit(nodes)
 
         # Track this is an external function call
@@ -128,14 +129,11 @@ class Operator(OperatorRunnable):
         # Required by YASK before running any stencils
         self.ksoln.prepare()
 
-        ntimesteps = dim_sizes[self.context.time_dimension]
-        # TODO: will be able to run through either YASK or Devito
-        if True:
+        if yask_configuration['python-exec']:
             log("Running YASK Operator through YASK...")
-            self.ksoln.run(ntimesteps)
+            self.ksoln.run(dim_sizes[self.context.time_dimension])
         else:
             log("Running YASK Operator through Devito...")
-            from IPython import embed; embed()
             self.cfunction(*list(arguments.values()))
         log("YASK Operator successfully run!")
 

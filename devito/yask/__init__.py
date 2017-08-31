@@ -68,6 +68,7 @@ class YaskCompiler(configuration['compiler'].__class__):
 
 yask_configuration = Parameters('YASK-Configuration')
 yask_configuration['compiler'] = YaskCompiler()
+yask_configuration['python-exec'] = False
 # TODO: this should be somewhat sniffed
 yask_configuration['arch'] = 'snb'
 yask_configuration['isa'] = 'cpp'

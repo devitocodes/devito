@@ -187,8 +187,8 @@ class YaskSolution(object):
         self.set_num_ranks()
 
         # Redirect stdout/strerr to a string
-        output = yk.yask_output_factory().new_string_output()
-        self.strout = self.soln.set_debug_output(output)
+        self.output = yk.yask_output_factory().new_string_output()
+        self.soln.set_debug_output(self.output)
 
         self.name = name
 
@@ -231,7 +231,7 @@ class YaskSolution(object):
 
     @property
     def rawpointer(self):
-        return int(self.soln)
+        return ctypes.cast(int(self.soln), ctypes.c_void_p)
 
 
 class YaskContext(object):
@@ -314,7 +314,7 @@ class YaskContext(object):
             grid.set_alloc_size(self.time_dimension, shape[0])
 
         # Allocate memory immediately as the user may simply want to use it
-        self.hook.prepare()
+        grid.alloc_storage()
 
         return YaskGrid(grid, dimensions, shape, self.halo, dtype)
 
@@ -370,7 +370,7 @@ def yask_context(dimensions, shape, dtype, space_order):
     soln = cfac.new_solution(namespace['kernel-hook'])
 
     # Silence YASK
-    soln.set_debug_output(ofac.new_string_output())
+    soln.set_debug_output(ofac.new_null_output())
 
     # Setup hook solution builder
     soln.set_step_dim_name(namespace['time-dim'])
