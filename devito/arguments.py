@@ -41,7 +41,7 @@ class Argument(object):
     def value(self):
         try:
             if self._value.is_SymbolicData:
-                return self._value.data
+                return self._value.data_as_ndarray
             else:
                 raise InvalidArgument("Unexpected data object %s" % type(self._value))
         except AttributeError:

@@ -35,6 +35,17 @@ class DenseData(interfaces.DenseData):
             log("Failed. Reverting to plain allocation...")
             super(DenseData, self)._allocate_memory()
 
+    @property
+    def data(self):
+        """Reference to the :class:`YaskGrid` wrapping the data."""
+        super(DenseData, self).data
+        return self._data_object
+
+    @property
+    def data_as_ndarray(self):
+        """A reference to the data interpreted as a :class:`numpy.ndarray`."""
+        return super(DenseData, self).data
+
     def initialize(self):
         raise NotImplementedError
 

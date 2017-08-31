@@ -471,14 +471,16 @@ class DenseData(TensorData):
 
     @property
     def data(self):
-        """Reference to the :class:`numpy.ndarray` containing the data
-
-        :returns: The ndarray containing the data
-        """
+        """Reference to the :class:`numpy.ndarray` containing the data."""
         if self._data_object is None:
             self._allocate_memory()
 
         return self._data_object.ndpointer
+
+    @property
+    def data_as_ndarray(self):
+        """Reference to the :class:`numpy.ndarray` containing the data."""
+        return self.data
 
     def initialize(self):
         """Apply the data initilisation function, if it is not None."""
