@@ -9,6 +9,7 @@ import os
 from devito import configuration
 from devito.exceptions import InvalidOperator
 from devito.logger import yask as log
+from devito.parameters import Parameters
 from devito.tools import ctypes_pointer
 
 
@@ -65,11 +66,12 @@ class YaskCompiler(configuration['compiler'].__class__):
         self.ldflags.append('-Wl,-rpath,%s' % os.path.join(namespace['path'], 'lib'))
 
 
-configuration['compiler-yask'] = YaskCompiler()
-
-# TODO: this should be moved into /configuration/
-arch = 'snb'
-isa = 'cpp'
+yask_configuration = Parameters('YASK-Configuration')
+yask_configuration['compiler'] = YaskCompiler()
+# TODO: this should be somewhat sniffed
+yask_configuration['arch'] = 'snb'
+yask_configuration['isa'] = 'cpp'
+configuration['yask'] = yask_configuration
 
 log("Backend successfully initialized!")
 

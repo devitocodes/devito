@@ -2,7 +2,6 @@ from __future__ import absolute_import
 
 from sympy import Indexed
 
-from devito import configuration
 from devito.compiler import jit_compile
 from devito.dimension import LoweredDimension
 from devito.dle import filter_iterations, retrieve_iteration_tree
@@ -12,7 +11,7 @@ from devito.logger import yask as log, yask_warning as warning
 from devito.operator import OperatorRunnable, FunMeta
 from devito.visitors import FindSymbols, Transformer
 
-from devito.yask import cfac, nfac, ofac, namespace, exit
+from devito.yask import cfac, nfac, ofac, namespace, exit, yask_configuration
 from devito.yask.wrappers import yask_context
 
 __all__ = ['Operator']
@@ -34,7 +33,7 @@ class Operator(OperatorRunnable):
         # Each YASK Operator needs to have its own compiler (hence the copy()
         # below) because Operator-specific shared object will be added to the
         # list of linked libraries
-        self._compiler = configuration['compiler-yask'].copy()
+        self._compiler = yask_configuration['compiler'].copy()
 
     def _specialize(self, nodes, parameters):
         """

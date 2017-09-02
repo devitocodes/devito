@@ -13,7 +13,7 @@ from devito.exceptions import CompilationError
 from devito.logger import yask as log
 from devito.tools import numpy_to_ctypes
 
-from devito.yask import arch, isa, cfac, ofac, namespace, exit
+from devito.yask import cfac, ofac, namespace, exit, yask_configuration
 from devito.yask.utils import convert_multislice
 
 
@@ -159,7 +159,8 @@ class YaskSolution(object):
         # Write out the stencil file
         if not os.path.exists(namespace['kernel-path-gen']):
             os.makedirs(namespace['kernel-path-gen'])
-        ycsoln.format(isa, ofac.new_file_output(namespace['kernel-output']))
+        ycsoln.format(yask_configuration['isa'],
+                      ofac.new_file_output(namespace['kernel-output']))
 
         # JIT-compile it
         try:
@@ -192,7 +193,7 @@ class YaskSolution(object):
         self.name = name
 
         # Shared object name
-        self.soname = "%s.%s.%s" % (name, ycsoln.get_name(), arch)
+        self.soname = "%s.%s.%s" % (name, ycsoln.get_name(), yask_configuration['arch'])
 
     def set_num_ranks(self):
         """
@@ -239,14 +240,7 @@ class YaskContext(object):
         """
         Proxy between Devito and YASK.
 
-        A new YaskContext is required wheneven any of the following change: ::
-
-            * YASK version
-            * Target architecture (``arch``) and instruction set (``isa``)
-            * Floating-point precision (``dtype``)
-            * Domain sizes (``core``) and halo sizes (``halo``)
-            * Folding
-            * Grid memory layout scheme
+        A YaskContext is required for any single kernel executed through YASK.
 
         :param dimensions: Context dimensions (may include time dimension)
         :param core: Domain size along each dimension; includes time dimension
