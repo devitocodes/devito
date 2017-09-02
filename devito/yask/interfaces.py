@@ -14,7 +14,7 @@ class ConstantData(interfaces.ConstantData):
 class DenseData(interfaces.DenseData):
 
     def _allocate_memory(self):
-        """Allocate memory in terms of Yask grids."""
+        """Allocate memory in terms of YASK grids."""
 
         log("Allocating YaskGrid for %s (%s)" % (self.name, str(self.shape)))
 

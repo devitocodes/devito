@@ -73,7 +73,7 @@ class Operator(OperatorRunnable):
         except:
             exit("Couldn't convert %s into YASK format" % str(i.expr))
 
-        # Print some useful information about the newly constructed Yask solution
+        # Print some useful information about the newly constructed solution
         log("Solution '%s' contains %d grid(s) and %d equation(s)." %
             (ycsoln.get_name(), ycsoln.get_num_grids(), ycsoln.get_num_equations()))
 
@@ -99,7 +99,7 @@ class Operator(OperatorRunnable):
         # Track this is an external function call
         self.func_table[funcall] = FunMeta(None, False)
 
-        # Add the Yask solution to the parameters list
+        # Add the kernel solution to the parameters list
         parameters.append(Object('soln', namespace['type-solution'],
                                  self.ksoln.rawpointer))
 
