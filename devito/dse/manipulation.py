@@ -4,6 +4,7 @@ Routines to construct new SymPy expressions transforming the provided input.
 
 from collections import Iterable, OrderedDict
 
+import sympy
 from sympy import collect, collect_const, flatten
 
 from devito.dse.extended_sympy import Add, Eq, Mul
@@ -14,7 +15,8 @@ from devito.interfaces import Indexed, TensorFunction
 from devito.tools import as_tuple
 
 __all__ = ['collect_nested', 'common_subexprs_elimination', 'freeze_expression',
-           'xreplace_constrained', 'xreplace_indices', 'promote_scalar_expressions']
+           'xreplace_constrained', 'xreplace_indices', 'promote_scalar_expressions',
+           'pow_to_mul']
 
 
 def freeze_expression(expr):
@@ -274,3 +276,26 @@ def compact_temporaries(exprs):
             processed.append(v.xreplace(mapper))
 
     return processed
+
+
+def pow_to_mul(expr):
+    """
+    Convert integer powers in an expression to Muls, like a**2 => a*a.
+    Readapted from: ::
+
+        stackoverflow.com/questions/14264431/expanding-algebraic-powers-in-python-sympy
+
+    The readaptation was necessary to make it work with Indexed.
+    """
+    lhs, rhs = expr.args
+    pows = [i for i in rhs.args if i.is_Pow]
+    non_pows = [i for i in rhs.args if i not in pows]
+    if not pows:
+        return expr
+    if any(not e.is_Integer or e <= 0 for b, e in (i.as_base_exp() for i in pows)):
+        # Cannot handle powers containing non-integer non-positive exponents
+        return expr
+    muls = [sympy.Mul(*[b]*e, evaluate=False)
+            for b, e in (i.as_base_exp() for i in pows)]
+    rhs = rhs.func(*(muls + non_pows), evaluate=False)
+    return expr.func(expr.lhs, rhs.func(*(muls + non_pows), evaluate=False))

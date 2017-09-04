@@ -123,7 +123,8 @@ class AdvancedRewriter(BasicRewriter):
             # Cost check (to keep the memory footprint under control)
             naliases = len(mapper.get(v.rhs, []))
             cost = estimate_cost(v, True)*naliases
-            if cost >= self.thresholds['min-cost-alias'] and naliases > 1:
+            if cost >= self.thresholds['min-cost-alias'] and\
+                    (naliases > 1 or time_invariants[v.rhs]):
                 candidates[v.rhs] = k
             else:
                 processed.append(Eq(k, v.rhs))

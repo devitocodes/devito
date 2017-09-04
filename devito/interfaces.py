@@ -2,10 +2,10 @@ import weakref
 
 import numpy as np
 import sympy
-from sympy import Function, IndexedBase, as_finite_diff, symbols
+from sympy import Function, IndexedBase, as_finite_diff
 from sympy.abc import s
 
-from devito.dimension import t, x, y, z, time
+from devito.dimension import t, x, y, z, time, Dimension
 from devito.finite_difference import (centered, cross_derivative,
                                       first_derivative, left, right,
                                       second_derivative)
@@ -13,11 +13,13 @@ from devito.logger import debug, error, warning
 from devito.memory import CMemory, first_touch
 from devito.arguments import (ConstantDataArgProvider, TensorDataArgProvider,
                               ScalarFunctionArgProvider, TensorFunctionArgProvider)
+from devito.parameters import configuration
 
 __all__ = ['Symbol', 'Indexed',
            'ConstantData', 'DenseData', 'TimeData',
            'Forward', 'Backward']
 
+configuration.add('first_touch', 0, [0, 1], lambda i: bool(i))
 
 # This cache stores a reference to each created data object
 # so that we may re-create equivalent symbols during symbolic
@@ -402,7 +404,7 @@ class DenseData(TensorData):
             self.initializer = kwargs.get('initializer', None)
             if self.initializer is not None:
                 assert(callable(self.initializer))
-            self.numa = kwargs.get('numa', False)
+            self._first_touch = kwargs.get('first_touch', configuration['first_touch'])
             self._data_object = None
 
     @classmethod
@@ -427,14 +429,14 @@ class DenseData(TensorData):
             if len(shape) <= 3:
                 dimensions = _indices[:len(shape)]
             else:
-                dimensions = [symbols("x%d" % i) for i in range(1, len(shape) + 1)]
+                dimensions = [Dimension("x%d" % i) for i in range(1, len(shape) + 1)]
         return dimensions
 
     def _allocate_memory(self):
         """Allocate memory in terms of numpy ndarrays."""
         debug("Allocating memory for %s (%s)" % (self.name, str(self.shape)))
         self._data_object = CMemory(self.shape, dtype=self.dtype)
-        if self.numa:
+        if self._first_touch:
             first_touch(self)
         else:
             self.data.fill(0)

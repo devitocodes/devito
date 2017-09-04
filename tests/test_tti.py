@@ -4,7 +4,7 @@ from numpy import linalg
 
 from devito import TimeData
 from devito.logger import log
-from examples.seismic import Model, PointSource, Receiver
+from examples.seismic import PointSource, Receiver, demo_model
 from examples.seismic.acoustic import AcousticWaveSolver
 from examples.seismic.tti import AnisotropicWaveSolver
 
@@ -14,11 +14,9 @@ from examples.seismic.tti import AnisotropicWaveSolver
 def test_tti(dimensions, space_order):
     nbpml = 10
     ndim = len(dimensions)
-    origin = tuple([0.]*ndim)
-    spacing = tuple([10.]*ndim)
-    # Velocity model, two layers
-    true_vp = np.ones(dimensions) + .5
-    true_vp[..., int(dimensions[-1] / 3):dimensions[-1]] = 2.5
+    origin = [0. for _ in dimensions]
+    spacing = [10. for _ in dimensions]
+
     # Source location
     location = np.zeros((1, ndim), dtype=np.float32)
     location[0, :-1] = [origin[i] + dimensions[i] * spacing[i] * .5
@@ -31,17 +29,15 @@ def test_tti(dimensions, space_order):
                                         num=dimensions[0])
     receiver_coords[:, 1:] = location[0, 1:]
 
-    # True velocity
-    true_vp = np.ones(dimensions) + .5
+    # Two layer model for true velocity
+    model = demo_model('layers', ratio=3, shape=dimensions,
+                       spacing=spacing, nbpml=nbpml,
+                       epsilon=np.zeros(dimensions),
+                       delta=np.zeros(dimensions),
+                       theta=np.zeros(dimensions),
+                       phi=np.zeros(dimensions))
 
-    model = Model(origin, spacing, dimensions,
-                  true_vp, nbpml=nbpml,
-                  epsilon=0.0 * true_vp,
-                  delta=0.0 * true_vp,
-                  theta=0.0 * true_vp,
-                  phi=0.0 * true_vp)
-    # Define seismic data.
-
+    # Define seismic data and parameters
     f0 = .010
     dt = model.critical_dt
     t0 = 0.0

@@ -52,3 +52,7 @@ inversion problems.
 
 * `01 - Introduction to seismic modelling
   <http://nbviewer.jupyter.org/github/opesci/devito/blob/master/examples/seismic/tutorials/test_01_modelling.ipynb>`_
+* `02 - Reverse Time Migration
+  <http://nbviewer.jupyter.org/github/opesci/devito/blob/master/examples/seismic/tutorials/test_02_rtm.ipynb>`_
+* `03 - Full-Waveform Inversion (FWI)
+  <http://nbviewer.jupyter.org/github/opesci/devito/blob/master/examples/seismic/tutorials/test_03_fwi.ipynb>`_

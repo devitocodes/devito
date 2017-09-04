@@ -415,6 +415,23 @@ class DevitoRewriter(BasicRewriter):
         return {'nodes': nodes, 'elemental_functions': elemental_functions}
 
 
+class DevitoRewriterSafeMath(DevitoRewriter):
+
+    """
+    This Rewriter is slightly less aggressive than :class:`DevitoRewriter`, as it
+    doesn't drop denormal numbers, which may sometimes harm the numerical precision.
+    Loop fission is also avoided (to avoid reassociation of operations).
+    """
+
+    def _pipeline(self, state):
+        self._loop_blocking(state)
+        self._simdize(state)
+        if self.params['openmp'] is True:
+            self._ompize(state)
+        self._create_elemental_functions(state)
+        self._minimize_remainders(state)
+
+
 class DevitoSpeculativeRewriter(DevitoRewriter):
 
     def _pipeline(self, state):
@@ -527,6 +544,7 @@ class DevitoCustomRewriter(DevitoSpeculativeRewriter):
     passes_mapper = {
         'blocking': DevitoSpeculativeRewriter._loop_blocking,
         'openmp': DevitoSpeculativeRewriter._ompize,
+        'simd': DevitoSpeculativeRewriter._simdize,
         'fission': DevitoSpeculativeRewriter._loop_fission,
         'padding': DevitoSpeculativeRewriter._padding,
         'split': DevitoSpeculativeRewriter._create_elemental_functions

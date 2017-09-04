@@ -1,9 +1,11 @@
 from collections import Sequence
 
 from devito.dle.backends import (State, BasicRewriter, DevitoCustomRewriter,
-                                 DevitoRewriter, DevitoSpeculativeRewriter)
+                                 DevitoRewriter, DevitoRewriterSafeMath,
+                                 DevitoSpeculativeRewriter)
 from devito.exceptions import DLEException
 from devito.logger import dle_warning
+from devito.parameters import configuration
 
 __all__ = ['transform', 'modes', 'default_options']
 
@@ -11,6 +13,7 @@ __all__ = ['transform', 'modes', 'default_options']
 modes = {
     'basic': BasicRewriter,
     'advanced': DevitoRewriter,
+    'advanced-safemath': DevitoRewriterSafeMath,
     'speculative': DevitoSpeculativeRewriter
 }
 """The DLE transformation modes."""
@@ -21,6 +24,11 @@ default_options = {
     'blockalways': False
 }
 """Default values for the various optimization options."""
+
+configuration.add('dle', 'advanced', list(modes))
+configuration.add('dle_options',
+                  ';'.join('%s:%s' % (k, v) for k, v in default_options.items()),
+                  list(default_options))
 
 
 def transform(node, mode='basic', options=None):
@@ -53,8 +61,6 @@ def transform(node, mode='basic', options=None):
         * 'blockalways': Apply blocking even though the DLE thinks it's not
                          worthwhile applying it.
     """
-    from devito.parameters import configuration
-
     # Check input parameters
     if not (mode is None or isinstance(mode, str)):
         raise ValueError("Parameter 'mode' should be a string, not %s." % type(mode))

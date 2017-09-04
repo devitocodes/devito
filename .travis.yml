@@ -8,25 +8,27 @@ env:
   global:
   - ENCRYPTION_LABEL: "1909213e8aea"
   - COMMIT_AUTHOR_EMAIL: "pandolfovince@gmail.com"
+  - DEVITO_LOGGING: "DEBUG"
+  - DEVITO_TRAVIS_TEST: "1"
 
 matrix:
   include:
     - os: linux
       python: "2.7"
-      env: DEVITO_ARCH=gcc-4.9 DEVITO_OPENMP=0 DEVITO_LOGGING=DEBUG
+      env: DEVITO_ARCH=gcc-4.9 DEVITO_OPENMP=0
     - os: linux
       python: "2.7"
-      env: DEVITO_ARCH=gcc-5 DEVITO_OPENMP=0 DEVITO_LOGGING=DEBUG
+      env: DEVITO_ARCH=gcc-5 DEVITO_OPENMP=0
     - os: linux
       python: "3.5"
-      env: DEVITO_ARCH=gcc-4.9 DEVITO_OPENMP=0 DEVITO_LOGGING=DEBUG
+      env: DEVITO_ARCH=gcc-4.9 DEVITO_OPENMP=0
     - os: linux
       python: "2.7"
-      env: DEVITO_ARCH=gcc-4.9 DEVITO_OPENMP=1 OMP_NUM_THREADS=2 DEVITO_LOGGING=DEBUG
+      env: DEVITO_ARCH=gcc-4.9 DEVITO_OPENMP=1 OMP_NUM_THREADS=2
   allow_failures:
     - os: osx
       python: "2.7"
-      env: DEVITO_ARCH=clang DEVITO_OPENMP=0 DEVITO_LOGGING=DEBUG
+      env: DEVITO_ARCH=clang DEVITO_OPENMP=0
 
 addons:
   apt:
@@ -67,7 +69,8 @@ script:
   - DEVITO_BACKEND=foreign py.test -vs tests/test_operator.py -k TestForeign
   - python examples/benchmark.py test -P tti -so 4 -a -d 20 20 20 -n 5
   - python examples/benchmark.py test -P acoustic -a
-  - python examples/seismic/acoustic/acoustic_example.py
+  - python examples/seismic/acoustic/acoustic_example.py --full
+  - python examples/seismic/acoustic/constant_example.py --full
   - py.test -vs examples/seismic/tutorials
   - py.test -vs examples/cfd
 

@@ -13,53 +13,41 @@ from devito.nodes import Expression
 from devito.stencil import Stencil
 from devito.visitors import FindNodes
 from examples.seismic.acoustic import AcousticWaveSolver
-from examples.seismic import Model, PointSource, Receiver
-from examples.seismic.tti.tti_example3D import setup
+from examples.seismic import demo_model, RickerSource, GaborSource, Receiver
+from examples.seismic.tti import AnisotropicWaveSolver
 
 
 # Acoustic
 
 def run_acoustic_forward(dse=None):
     dimensions = (50, 50, 50)
-    origin = (0., 0., 0.)
     spacing = (10., 10., 10.)
     nbpml = 10
-
-    # True velocity
-    true_vp = np.ones(dimensions) + 2.0
-    true_vp[:, :, int(dimensions[0] / 2):int(dimensions[0])] = 4.5
-
-    model = Model(origin, spacing, dimensions, true_vp, nbpml=nbpml)
-
-    # Define seismic data.
-    f0 = .010
-    dt = model.critical_dt
+    nrec = 101
     t0 = 0.0
     tn = 250.0
-    nt = int(1+(tn-t0)/dt)
 
-    t = np.linspace(t0, tn, nt)
-    r = (np.pi * f0 * (t - 1./f0))
-    # Source geometry
-    time_series = np.zeros((nt, 1))
-    time_series[:, 0] = (1-2.*r**2)*np.exp(-r**2)
+    # Create two-layer model from preset
+    model = demo_model(preset='layers', vp_top=3., vp_bottom=4.5,
+                       spacing=spacing, shape=dimensions, nbpml=nbpml)
 
-    location = np.zeros((1, 3))
-    location[0, 0] = origin[0] + dimensions[0] * spacing[0] * 0.5
-    location[0, 1] = origin[1] + dimensions[1] * spacing[1] * 0.5
-    location[0, 2] = origin[1] + 2 * spacing[2]
+    # Derive timestepping from model spacing
+    dt = model.critical_dt
+    nt = int(1 + (tn-t0) / dt)  # Number of timesteps
+    time_values = np.linspace(t0, tn, nt)  # Discretized time axis
 
-    # Receiver geometry
-    receiver_coords = np.zeros((101, 3))
-    receiver_coords[:, 0] = np.linspace(0, origin[0] +
-                                        dimensions[0] * spacing[0], num=101)
-    receiver_coords[:, 1] = origin[1] + dimensions[1] * spacing[1] * 0.5
-    receiver_coords[:, 2] = location[0, 1]
+    # Define source geometry (center of domain, just below surface)
+    src = RickerSource(name='src', ndim=model.dim, f0=0.01, time=time_values)
+    src.coordinates.data[0, :] = np.array(model.domain_size) * .5
+    src.coordinates.data[0, -1] = 20.
 
-    src = PointSource(name='src', data=time_series, coordinates=location)
-    rec = Receiver(name='rec', ntime=nt, coordinates=receiver_coords)
-    acoustic = AcousticWaveSolver(model, source=src, receiver=rec, dse=dse, dle='basic')
-    rec, u, _ = acoustic.forward(save=False)
+    # Define receiver geometry (same as source, but spread across x)
+    rec = Receiver(name='nrec', ntime=nt, npoint=nrec, ndim=model.dim)
+    rec.coordinates.data[:, 0] = np.linspace(0., model.domain_size[0], num=nrec)
+    rec.coordinates.data[:, 1:] = src.coordinates.data[0, 1:]
+
+    solver = AcousticWaveSolver(model, source=src, receiver=rec, dse=dse, dle='basic')
+    rec, u, _ = solver.forward(save=False)
 
     return u, rec
 
@@ -75,9 +63,38 @@ def test_acoustic_rewrite_basic():
 # TTI
 
 def tti_operator(dse=False):
-    handle = setup(dimensions=(50, 50, 50), time_order=2, space_order=4, tn=250.0,
-                   dse=dse)
-    return handle
+    nrec = 101
+    t0 = 0.0
+    tn = 250.
+    nbpml = 10
+    dimensions = (50, 50, 50)
+    spacing = (20., 20., 20.)
+
+    # Two layer model for true velocity
+    model = demo_model('layers', ratio=3, nbpml=nbpml,
+                       shape=dimensions, spacing=spacing,
+                       epsilon=.4*np.ones(dimensions),
+                       delta=-.1*np.ones(dimensions),
+                       theta=-np.pi/7*np.ones(dimensions),
+                       phi=np.pi/5*np.ones(dimensions))
+
+    # Derive timestepping from model spacing
+    dt = model.critical_dt
+    nt = int(1 + (tn-t0) / dt)  # Number of timesteps
+    time_values = np.linspace(t0, tn, nt)  # Discretized time axis
+
+    # Define source geometry (center of domain, just below surface)
+    src = GaborSource(name='src', ndim=model.dim, f0=0.01, time=time_values)
+    src.coordinates.data[0, :] = np.array(model.domain_size) * .5
+    src.coordinates.data[0, -1] = model.origin[-1] + 2 * spacing[-1]
+
+    # Define receiver geometry (spread across x, lust below surface)
+    rec = Receiver(name='nrec', ntime=nt, npoint=nrec, ndim=model.dim)
+    rec.coordinates.data[:, 0] = np.linspace(0., model.domain_size[0], num=nrec)
+    rec.coordinates.data[:, 1:] = src.coordinates.data[0, 1:]
+
+    return AnisotropicWaveSolver(model, source=src, receiver=rec,
+                                 time_order=2, space_order=4, dse=dse)
 
 
 @pytest.fixture(scope="session")
@@ -253,13 +270,13 @@ def test_graph_isindex(fa, fb, fc, t0, t1, t2, exprs, expected):
 @pytest.mark.parametrize('exprs,expected', [
     # none (different distance)
     (['Eq(t0, fa[x] + fb[x])', 'Eq(t1, fa[x+1] + fb[x])'],
-     {}),
+     {'fa[x] + fb[x]': None, 'fa[x+1] + fb[x]': None}),
     # none (different dimension)
     (['Eq(t0, fa[x] + fb[x])', 'Eq(t1, fa[x] + fb[y])'],
-     {}),
+     {'fa[x] + fb[x]': None, 'fa[x] + fb[y]': None}),
     # none (different operation)
     (['Eq(t0, fa[x] + fb[x])', 'Eq(t1, fa[x] - fb[x])'],
-     {}),
+     {'fa[x] + fb[x]': None, 'fa[x] - fb[x]': None}),
     # simple
     (['Eq(t0, fa[x] + fb[x])', 'Eq(t1, fa[x+1] + fb[x+1])', 'Eq(t2, fa[x-1] + fb[x-1])'],
      {'fa[x] + fb[x]': Stencil([(x, {-1, 0, 1})])}),
@@ -281,7 +298,7 @@ def test_collect_aliases(fa, fb, fc, fd, t0, t1, t2, t3, exprs, expected):
     _, aliases = collect(EVAL(exprs, *scope))
     for k, v in aliases.items():
         assert k in mapper
-        assert v.anti_stencil == mapper[k]
+        assert (len(v.aliased) == 1 and mapper[k] is None) or v.anti_stencil == mapper[k]
 
 
 @pytest.mark.parametrize('expr,expected', [

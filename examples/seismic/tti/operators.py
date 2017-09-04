@@ -24,12 +24,12 @@ def ForwardOperator(model, source, receiver, time_order=2, space_order=4,
                                            model.delta, model.theta, model.phi)
 
     # Create symbols for forward wavefield, source and receivers
-    u = TimeData(name='u', shape=model.shape_domain, time_dim=source.nt,
-                 time_order=time_order, space_order=space_order, save=save,
-                 dtype=model.dtype)
-    v = TimeData(name='v', shape=model.shape_domain, time_dim=source.nt,
-                 time_order=time_order, space_order=space_order, save=save,
-                 dtype=model.dtype)
+    u = TimeData(name='u', shape=model.shape_domain, dtype=model.dtype,
+                 save=save, time_dim=source.nt if save else None,
+                 time_order=time_order, space_order=space_order)
+    v = TimeData(name='v', shape=model.shape_domain, dtype=model.dtype,
+                 save=save, time_dim=source.nt if save else None,
+                 time_order=time_order, space_order=space_order)
     src = PointSource(name='src', ntime=source.nt, ndim=source.ndim,
                       npoint=source.npoint)
     rec = Receiver(name='rec', ntime=receiver.nt, ndim=receiver.ndim,
@@ -147,12 +147,11 @@ def ForwardOperator(model, source, receiver, time_order=2, space_order=4,
     second_stencil = Eq(v.forward, stencilr)
     stencils = [first_stencil, second_stencil]
 
-    ti = u.indices[0]
-    stencils += src.inject(field=u, u_t=ti + 1, expr=src * dt * dt / m,
+    stencils += src.inject(field=u.forward, expr=src * dt * dt / m,
                            offset=model.nbpml)
-    stencils += src.inject(field=v, u_t=ti + 1, expr=src * dt * dt / m,
+    stencils += src.inject(field=v.forward, expr=src * dt * dt / m,
                            offset=model.nbpml)
-    stencils += rec.interpolate(expr=u + v, u_t=ti, offset=model.nbpml)
+    stencils += rec.interpolate(expr=u + v, offset=model.nbpml)
     subs = dict([(t.spacing, dt)] + [(time.spacing, dt)] +
                 [(i.spacing, model.get_spacing()[j]) for i, j
                  in zip(u.indices[1:], range(len(model.shape)))])

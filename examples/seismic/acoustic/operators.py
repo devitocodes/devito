@@ -19,9 +19,9 @@ def ForwardOperator(model, source, receiver, time_order=2, space_order=4,
     m, damp = model.m, model.damp
 
     # Create symbols for forward wavefield, source and receivers
-    u = TimeData(name='u', shape=model.shape_domain, time_dim=source.nt,
-                 time_order=time_order, space_order=space_order, save=save,
-                 dtype=model.dtype)
+    u = TimeData(name='u', shape=model.shape_domain, dtype=model.dtype,
+                 save=save, time_dim=source.nt if save else None,
+                 time_order=time_order, space_order=space_order)
     src = PointSource(name='src', ntime=source.nt, ndim=source.ndim,
                       npoint=source.npoint)
     rec = Receiver(name='rec', ntime=receiver.nt, ndim=receiver.ndim,
@@ -40,21 +40,17 @@ def ForwardOperator(model, source, receiver, time_order=2, space_order=4,
 
     s = t.spacing
 
-    stencil = 1 / (2 * m + s * damp) * (
-        4 * m * u + (s * damp - 2 * m) * u.backward +
-        2 * s**2 * (u.laplace + s**2 / 12 * biharmonic))
+    stencil = 1.0 / (2.0 * m + s * damp) * (
+        4.0 * m * u + (s * damp - 2.0 * m) * u.backward +
+        2.0 * s**2 * (u.laplace + s**2 / 12.0 * biharmonic))
     eqn = [Eq(u.forward, stencil)]
 
     # Construct expression to inject source values
-    # Note that src and field terms have differing time indices:
-    #   src[time, ...] - always accesses the "unrolled" time index
-    #   u[ti + 1, ...] - accesses the forward stencil value
-    ti = u.indices[0]
-    src_term = src.inject(field=u, u_t=ti + 1, offset=model.nbpml,
-                          expr=src * dt**2 / m, p_t=time)
+    src_term = src.inject(field=u.forward, expr=src * dt**2 / m,
+                          offset=model.nbpml)
 
     # Create interpolation expression for receivers
-    rec_term = rec.interpolate(expr=u, u_t=ti, offset=model.nbpml)
+    rec_term = rec.interpolate(expr=u, offset=model.nbpml)
     subs = dict([(t.spacing, dt)] + [(time.spacing, dt)] +
                 [(i.spacing, model.get_spacing()[j]) for i, j
                  in zip(u.indices[1:], range(len(model.shape)))])
@@ -93,18 +89,17 @@ def AdjointOperator(model, source, receiver, time_order=2, space_order=4, **kwar
         dt = 1.73 * model.critical_dt
 
     # Derive both stencils from symbolic equation
-    stencil = 1 / (2 * m + s * damp) * (
-        4 * m * v + (s * damp - 2 * m) * v.forward +
-        2 * s**2 * (v.laplace + s**2 / 12 * biharmonic))
+    stencil = 1.0 / (2.0 * m + s * damp) * (
+        4.0 * m * v + (s * damp - 2.0 * m) * v.forward +
+        2.0 * s**2 * (v.laplace + s**2 / 12.0 * biharmonic))
     eqn = Eq(v.backward, stencil)
 
     # Construct expression to inject receiver values
-    ti = v.indices[0]
-    receivers = rec.inject(field=v, u_t=ti - 1, offset=model.nbpml,
-                           expr=rec * dt**2 / m, p_t=time)
+    receivers = rec.inject(field=v.backward, expr=rec * dt**2 / m,
+                           offset=model.nbpml)
 
     # Create interpolation expression for the adjoint-source
-    source_a = srca.interpolate(expr=v, u_t=ti, offset=model.nbpml)
+    source_a = srca.interpolate(expr=v, offset=model.nbpml)
     subs = dict([(t.spacing, dt)] + [(time.spacing, dt)] +
                 [(i.spacing, model.get_spacing()[j]) for i, j
                  in zip(v.indices[1:], range(len(model.shape)))])
@@ -156,13 +151,13 @@ def GradientOperator(model, source, receiver, time_order=2, space_order=4, **kwa
     eqn = Eq(v.backward, stencil)
 
     # Add expression for receiver injection
-    ti = v.indices[0]
-    receivers = rec.inject(field=v, u_t=ti - 1, offset=model.nbpml,
-                           expr=rec * dt * dt / m, p_t=time)
+    receivers = rec.inject(field=v.backward, expr=rec * dt**2 / m,
+                           offset=model.nbpml)
+
     subs = dict([(t.spacing, dt)] + [(time.spacing, dt)] +
                 [(i.spacing, model.get_spacing()[j]) for i, j
                  in zip(v.indices[1:], range(len(model.shape)))])
-    return Operator([eqn] + [gradient_update] + receivers,
+    return Operator([eqn] + receivers + [gradient_update],
                     subs=subs,
                     time_axis=Backward, name='Gradient', **kwargs)
 
@@ -210,21 +205,20 @@ def BornOperator(model, source, receiver, time_order=2, space_order=4, **kwargs)
     s = t.spacing
     stencil1 = 1.0 / (2.0 * m + s * damp) * \
         (4.0 * m * u + (s * damp - 2.0 * m) *
-         u.backward + 2.0 * s ** 2 * (u.laplace + s**2 / 12 * biharmonicu))
+         u.backward + 2.0 * s ** 2 * (u.laplace + s**2 / 12.0 * biharmonicu))
     stencil2 = 1.0 / (2.0 * m + s * damp) * \
         (4.0 * m * U + (s * damp - 2.0 * m) *
          U.backward + 2.0 * s ** 2 * (U.laplace +
-                                      s**2 / 12 * biharmonicU - dm * u.dt2))
+                                      s**2 / 12.0 * biharmonicU - dm * u.dt2))
     eqn1 = Eq(u.forward, stencil1)
     eqn2 = Eq(U.forward, stencil2)
 
     # Add source term expression for u
-    ti = u.indices[0]
-    source = src.inject(field=u, u_t=ti + 1, offset=model.nbpml,
-                        expr=src * dt * dt / m, p_t=time)
+    source = src.inject(field=u.forward, expr=src * dt**2 / m,
+                        offset=model.nbpml)
 
     # Create receiver interpolation expression from U
-    receivers = rec.interpolate(expr=U, u_t=ti, offset=model.nbpml)
+    receivers = rec.interpolate(expr=U, offset=model.nbpml)
     subs = dict([(t.spacing, dt)] + [(time.spacing, dt)] +
                 [(i.spacing, model.get_spacing()[j]) for i, j
                  in zip(u.indices[1:], range(len(model.shape)))])

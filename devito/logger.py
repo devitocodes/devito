@@ -4,6 +4,8 @@ import logging
 import sys
 from contextlib import contextmanager
 
+from devito.parameters import configuration
+
 __all__ = ('set_log_level', 'set_log_noperf', 'log',
            'DEBUG', 'AUTOTUNER', 'YASK', 'YASK_WARN', 'INFO', 'DSE', 'DSE_WARN',
            'DLE', 'DLE_WARN', 'WARNING', 'ERROR', 'CRITICAL',
@@ -89,6 +91,10 @@ def set_log_level(level):
 def set_log_noperf():
     """Do not print performance-related messages."""
     logger.setLevel(WARNING)
+
+
+configuration.add('log_level', 'INFO', list(logger_registry),
+                  lambda i: set_log_level(i))
 
 
 def log(msg, level=INFO, *args, **kwargs):

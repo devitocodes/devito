@@ -5,7 +5,6 @@ from devito.cgen_utils import printmark
 from devito.dle import filter_iterations, retrieve_iteration_tree
 from devito.nodes import List
 from devito.operator import OperatorRunnable
-from devito.parameters import configuration
 from devito.visitors import Transformer
 from devito.tools import flatten
 
@@ -20,8 +19,7 @@ class OperatorCore(OperatorRunnable):
         best block sizes when loop blocking is in use.
         """
         if self.dle_flags.get('blocking', False):
-            return autotune(self, arguments, self.dle_arguments,
-                            mode=configuration['autotuning'])
+            return autotune(self, arguments, self.dle_arguments)
         else:
             return arguments
 
