@@ -1,4 +1,5 @@
 import weakref
+import abc
 
 import numpy as np
 import sympy
@@ -93,6 +94,10 @@ class Basic(object):
     # Basic symbolic object properties
     is_Scalar = False
     is_Tensor = False
+
+    @abc.abstractmethod
+    def __init__(self, *args, **kwargs):
+        return
 
 
 class CachedSymbol(Basic):
@@ -363,10 +368,10 @@ class SymbolicData(AbstractSymbol):
         This method is for internal use only."""
         return self.data
 
-    @property
+    @abc.abstractproperty
     def data(self):
         """The value of the data object."""
-        return None
+        return
 
 
 class ConstantData(SymbolicData, ConstantDataArgProvider):
