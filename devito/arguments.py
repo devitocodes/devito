@@ -313,4 +313,4 @@ def log_args(arguments):
                            (k, str(v.shape), np.linalg.norm(v.view())))
         else:
             arg_str.append('(%s, value=%s)' % (k, str(v)))
-    debug("Passing Arguments: " + ", ".join(arg_str))
+    print("Passing Arguments: " + ", ".join(arg_str))

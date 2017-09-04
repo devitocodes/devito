@@ -198,7 +198,7 @@ class Operator(Function):
         dle_arguments = OrderedDict()
         autotune = True
         for i in self.dle_arguments:
-            dim_size = dim_sizes.get(i.original_dim.name, i.original_dim.size)
+            dim_size = dim_sizes.get(i.original_dim.name, i.original_dim.size if i.original_dim.is_Fixed else None)
             if dim_size is None:
                 error('Unable to derive size of dimension %s from defaults. '
                       'Please provide an explicit value.' % i.original_dim.name)
@@ -302,7 +302,13 @@ class Operator(Function):
                 needed = entries[index:]
 
                 # Build and insert the required Iterations
-                iters = [Iteration([], j.dim, j.dim.size, offsets=j.ofs) for j in needed]
+                iters = []
+                for j in needed:
+                    if hasattr(j.dim, 'size'):
+                        size = j.dim.size
+                    else:
+                        size = j.dim.symbolic_size
+                    iters.append(Iteration([], j.dim, size, offsets=j.ofs))
                 body, tree = compose_nodes(iters + [expressions], retrieve=True)
                 scheduling = OrderedDict(zip(needed, tree))
                 if root is None:
