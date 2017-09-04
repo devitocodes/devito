@@ -166,6 +166,8 @@
 <span class="kn">import</span> <span class="nn">sys</span>
 <span class="kn">from</span> <span class="nn">contextlib</span> <span class="k">import</span> <span class="n">contextmanager</span>
 
+<span class="kn">from</span> <span class="nn">devito.parameters</span> <span class="k">import</span> <span class="n">configuration</span>
+
 <span class="n">__all__</span> <span class="o">=</span> <span class="p">(</span><span class="s1">&#39;set_log_level&#39;</span><span class="p">,</span> <span class="s1">&#39;set_log_noperf&#39;</span><span class="p">,</span> <span class="s1">&#39;log&#39;</span><span class="p">,</span>
            <span class="s1">&#39;DEBUG&#39;</span><span class="p">,</span> <span class="s1">&#39;AUTOTUNER&#39;</span><span class="p">,</span> <span class="s1">&#39;YASK&#39;</span><span class="p">,</span> <span class="s1">&#39;YASK_WARN&#39;</span><span class="p">,</span> <span class="s1">&#39;INFO&#39;</span><span class="p">,</span> <span class="s1">&#39;DSE&#39;</span><span class="p">,</span> <span class="s1">&#39;DSE_WARN&#39;</span><span class="p">,</span>
            <span class="s1">&#39;DLE&#39;</span><span class="p">,</span> <span class="s1">&#39;DLE_WARN&#39;</span><span class="p">,</span> <span class="s1">&#39;WARNING&#39;</span><span class="p">,</span> <span class="s1">&#39;ERROR&#39;</span><span class="p">,</span> <span class="s1">&#39;CRITICAL&#39;</span><span class="p">,</span>
@@ -251,6 +253,10 @@
 <div class="viewcode-block" id="set_log_noperf"><a class="viewcode-back" href="../../devito.html#devito.logger.set_log_noperf">[docs]</a><span class="k">def</span> <span class="nf">set_log_noperf</span><span class="p">():</span>
     <span class="sd">&quot;&quot;&quot;Do not print performance-related messages.&quot;&quot;&quot;</span>
     <span class="n">logger</span><span class="o">.</span><span class="n">setLevel</span><span class="p">(</span><span class="n">WARNING</span><span class="p">)</span></div>
+
+
+<span class="n">configuration</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="s1">&#39;log_level&#39;</span><span class="p">,</span> <span class="s1">&#39;INFO&#39;</span><span class="p">,</span> <span class="nb">list</span><span class="p">(</span><span class="n">logger_registry</span><span class="p">),</span>
+                  <span class="k">lambda</span> <span class="n">i</span><span class="p">:</span> <span class="n">set_log_level</span><span class="p">(</span><span class="n">i</span><span class="p">))</span>
 
 
 <div class="viewcode-block" id="log"><a class="viewcode-back" href="../../devito.html#devito.logger.log">[docs]</a><span class="k">def</span> <span class="nf">log</span><span class="p">(</span><span class="n">msg</span><span class="p">,</span> <span class="n">level</span><span class="o">=</span><span class="n">INFO</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>

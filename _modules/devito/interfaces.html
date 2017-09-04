@@ -175,27 +175,18 @@
 <span class="kn">from</span> <span class="nn">devito.memory</span> <span class="k">import</span> <span class="n">CMemory</span><span class="p">,</span> <span class="n">first_touch</span>
 <span class="kn">from</span> <span class="nn">devito.arguments</span> <span class="k">import</span> <span class="p">(</span><span class="n">ConstantDataArgProvider</span><span class="p">,</span> <span class="n">TensorDataArgProvider</span><span class="p">,</span>
                               <span class="n">ScalarFunctionArgProvider</span><span class="p">,</span> <span class="n">TensorFunctionArgProvider</span><span class="p">)</span>
+<span class="kn">from</span> <span class="nn">devito.parameters</span> <span class="k">import</span> <span class="n">configuration</span>
 
 <span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;Symbol&#39;</span><span class="p">,</span> <span class="s1">&#39;Indexed&#39;</span><span class="p">,</span>
            <span class="s1">&#39;ConstantData&#39;</span><span class="p">,</span> <span class="s1">&#39;DenseData&#39;</span><span class="p">,</span> <span class="s1">&#39;TimeData&#39;</span><span class="p">,</span>
            <span class="s1">&#39;Forward&#39;</span><span class="p">,</span> <span class="s1">&#39;Backward&#39;</span><span class="p">]</span>
 
+<span class="n">configuration</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="s1">&#39;first_touch&#39;</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">],</span> <span class="k">lambda</span> <span class="n">i</span><span class="p">:</span> <span class="nb">bool</span><span class="p">(</span><span class="n">i</span><span class="p">))</span>
 
 <span class="c1"># This cache stores a reference to each created data object</span>
 <span class="c1"># so that we may re-create equivalent symbols during symbolic</span>
 <span class="c1"># manipulation with the correct shapes, pointers, etc.</span>
 <span class="n">_SymbolCache</span> <span class="o">=</span> <span class="p">{}</span>
-
-<span class="c1"># This global stores whether newly allocated memory should be initialised</span>
-<span class="c1"># using Devito&#39;s own JIT engine. It will otherwise be initialised using</span>
-<span class="c1"># numpy.</span>
-<span class="n">Global_First_Touch</span> <span class="o">=</span> <span class="kc">None</span>
-
-
-<span class="k">def</span> <span class="nf">set_global_first_touch</span><span class="p">(</span><span class="n">flag</span><span class="p">):</span>
-    <span class="k">assert</span><span class="p">(</span><span class="n">flag</span> <span class="ow">is</span> <span class="kc">True</span> <span class="ow">or</span> <span class="n">flag</span> <span class="ow">is</span> <span class="kc">False</span><span class="p">)</span>
-    <span class="k">global</span> <span class="n">Global_First_Touch</span>
-    <span class="n">Global_First_Touch</span> <span class="o">=</span> <span class="n">flag</span>
 
 
 <span class="k">class</span> <span class="nc">TimeAxis</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
@@ -575,7 +566,7 @@
             <span class="bp">self</span><span class="o">.</span><span class="n">initializer</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;initializer&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
             <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">initializer</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
                 <span class="k">assert</span><span class="p">(</span><span class="n">callable</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">initializer</span><span class="p">))</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">first_touch</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;first_touch&#39;</span><span class="p">,</span> <span class="n">Global_First_Touch</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_first_touch</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;first_touch&#39;</span><span class="p">,</span> <span class="n">configuration</span><span class="p">[</span><span class="s1">&#39;first_touch&#39;</span><span class="p">])</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_data_object</span> <span class="o">=</span> <span class="kc">None</span>
 
     <span class="nd">@classmethod</span>
@@ -607,7 +598,7 @@
         <span class="sd">&quot;&quot;&quot;Allocate memory in terms of numpy ndarrays.&quot;&quot;&quot;</span>
         <span class="n">debug</span><span class="p">(</span><span class="s2">&quot;Allocating memory for </span><span class="si">%s</span><span class="s2"> (</span><span class="si">%s</span><span class="s2">)&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="nb">str</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">shape</span><span class="p">)))</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_data_object</span> <span class="o">=</span> <span class="n">CMemory</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">dtype</span><span class="p">)</span>
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">first_touch</span><span class="p">:</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_first_touch</span><span class="p">:</span>
             <span class="n">first_touch</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">fill</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>

@@ -166,8 +166,9 @@
                                  <span class="n">AggressiveRewriter</span><span class="p">,</span> <span class="n">CustomRewriter</span><span class="p">)</span>
 <span class="kn">from</span> <span class="nn">devito.exceptions</span> <span class="k">import</span> <span class="n">DSEException</span>
 <span class="kn">from</span> <span class="nn">devito.logger</span> <span class="k">import</span> <span class="n">dse_warning</span>
+<span class="kn">from</span> <span class="nn">devito.parameters</span> <span class="k">import</span> <span class="n">configuration</span>
 
-<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;rewrite&#39;</span><span class="p">,</span> <span class="s1">&#39;modes&#39;</span><span class="p">]</span>
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;rewrite&#39;</span><span class="p">]</span>
 
 
 <span class="n">modes</span> <span class="o">=</span> <span class="p">{</span>
@@ -177,6 +178,8 @@
     <span class="s1">&#39;aggressive&#39;</span><span class="p">:</span> <span class="n">AggressiveRewriter</span>
 <span class="p">}</span>
 <span class="sd">&quot;&quot;&quot;The DSE transformation modes.&quot;&quot;&quot;</span>
+
+<span class="n">configuration</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="s1">&#39;dse&#39;</span><span class="p">,</span> <span class="s1">&#39;advanced&#39;</span><span class="p">,</span> <span class="nb">list</span><span class="p">(</span><span class="n">modes</span><span class="p">))</span>
 
 
 <div class="viewcode-block" id="rewrite"><a class="viewcode-back" href="../../../devito.dse.html#devito.dse.symbolics.rewrite">[docs]</a><span class="k">def</span> <span class="nf">rewrite</span><span class="p">(</span><span class="n">clusters</span><span class="p">,</span> <span class="n">mode</span><span class="o">=</span><span class="s1">&#39;advanced&#39;</span><span class="p">):</span>

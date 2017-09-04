@@ -174,15 +174,14 @@
 
 <span class="kn">from</span> <span class="nn">devito.exceptions</span> <span class="k">import</span> <span class="n">CompilationError</span>
 <span class="kn">from</span> <span class="nn">devito.logger</span> <span class="k">import</span> <span class="n">log</span>
+<span class="kn">from</span> <span class="nn">devito.parameters</span> <span class="k">import</span> <span class="n">configuration</span>
 <span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">change_directory</span>
 
-<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;get_tmp_dir&#39;</span><span class="p">,</span> <span class="s1">&#39;set_compiler&#39;</span><span class="p">,</span> <span class="s1">&#39;jit_compile&#39;</span><span class="p">,</span> <span class="s1">&#39;load&#39;</span><span class="p">,</span> <span class="s1">&#39;GNUCompiler&#39;</span><span class="p">]</span>
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;jit_compile&#39;</span><span class="p">,</span> <span class="s1">&#39;load&#39;</span><span class="p">,</span> <span class="s1">&#39;make&#39;</span><span class="p">,</span> <span class="s1">&#39;GNUCompiler&#39;</span><span class="p">]</span>
 
 
 <span class="k">class</span> <span class="nc">Compiler</span><span class="p">(</span><span class="n">GCCToolchain</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;Base class for all compiler classes.</span>
-
-<span class="sd">    :param openmp: Boolean indicating if openmp is enabled. False by default</span>
 
 <span class="sd">    The base class defaults all compiler specific settings to empty lists.</span>
 <span class="sd">    Preset configurations can be built by inheriting from `Compiler` and setting</span>
@@ -208,7 +207,7 @@
 
     <span class="n">fields</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;cc&#39;</span><span class="p">,</span> <span class="s1">&#39;ld&#39;</span><span class="p">]</span>
 
-    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">openmp</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">cc</span> <span class="o">=</span> <span class="s1">&#39;unknown&#39;</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">ld</span> <span class="o">=</span> <span class="s1">&#39;unknown&#39;</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">cflags</span> <span class="o">=</span> <span class="p">[]</span>
@@ -220,7 +219,6 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">undefines</span> <span class="o">=</span> <span class="p">[]</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">src_ext</span> <span class="o">=</span> <span class="s1">&#39;c&#39;</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">lib_ext</span> <span class="o">=</span> <span class="s1">&#39;so&#39;</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">openmp</span> <span class="o">=</span> <span class="n">openmp</span>
 
     <span class="k">def</span> <span class="nf">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="vm">__class__</span><span class="o">.</span><span class="vm">__name__</span>
@@ -230,10 +228,7 @@
 
 
 <div class="viewcode-block" id="GNUCompiler"><a class="viewcode-back" href="../../devito.html#devito.compiler.GNUCompiler">[docs]</a><span class="k">class</span> <span class="nc">GNUCompiler</span><span class="p">(</span><span class="n">Compiler</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;Set of standard compiler flags for the GCC toolchain</span>
-
-<span class="sd">    :param openmp: Boolean indicating if openmp is enabled. False by default</span>
-<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="sd">&quot;&quot;&quot;Set of standard compiler flags for the GCC toolchain.&quot;&quot;&quot;</span>
 
     <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
         <span class="nb">super</span><span class="p">(</span><span class="n">GNUCompiler</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
@@ -244,7 +239,7 @@
                        <span class="s1">&#39;-Wno-unused-result&#39;</span><span class="p">,</span> <span class="s1">&#39;-Wno-unused-variable&#39;</span><span class="p">]</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">ldflags</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;-shared&#39;</span><span class="p">]</span>
 
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">openmp</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">configuration</span><span class="p">[</span><span class="s1">&#39;openmp&#39;</span><span class="p">]:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">ldflags</span> <span class="o">+=</span> <span class="p">[</span><span class="s1">&#39;-fopenmp&#39;</span><span class="p">]</span></div>
 
 
@@ -277,10 +272,6 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">ldflags</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;-shared&#39;</span><span class="p">]</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">lib_ext</span> <span class="o">=</span> <span class="s1">&#39;dylib&#39;</span>
 
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">openmp</span><span class="p">:</span>
-            <span class="n">log</span><span class="p">(</span><span class="s2">&quot;WARNING: Disabling OpenMP because clang does not support it.&quot;</span><span class="p">)</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">openmp</span> <span class="o">=</span> <span class="kc">False</span>
-
 
 <span class="k">class</span> <span class="nc">IntelCompiler</span><span class="p">(</span><span class="n">Compiler</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;Set of standard compiler flags for the Intel toolchain</span>
@@ -295,7 +286,7 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">cflags</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;-O3&#39;</span><span class="p">,</span> <span class="s1">&#39;-g&#39;</span><span class="p">,</span> <span class="s1">&#39;-fPIC&#39;</span><span class="p">,</span> <span class="s1">&#39;-Wall&#39;</span><span class="p">,</span> <span class="s1">&#39;-std=c99&#39;</span><span class="p">,</span> <span class="s2">&quot;-xhost&quot;</span><span class="p">]</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">ldflags</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;-shared&#39;</span><span class="p">]</span>
 
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">openmp</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">configuration</span><span class="p">[</span><span class="s1">&#39;openmp&#39;</span><span class="p">]:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">ldflags</span> <span class="o">+=</span> <span class="p">[</span><span class="s1">&#39;-qopenmp&#39;</span><span class="p">]</span>
 
 
@@ -314,7 +305,7 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">cflags</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;-O3&#39;</span><span class="p">,</span> <span class="s1">&#39;-g&#39;</span><span class="p">,</span> <span class="s1">&#39;-fPIC&#39;</span><span class="p">,</span> <span class="s1">&#39;-Wall&#39;</span><span class="p">,</span> <span class="s1">&#39;-std=c99&#39;</span><span class="p">,</span> <span class="s2">&quot;-mmic&quot;</span><span class="p">]</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">ldflags</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;-shared&#39;</span><span class="p">]</span>
 
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">openmp</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">configuration</span><span class="p">[</span><span class="s1">&#39;openmp&#39;</span><span class="p">]:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">ldflags</span> <span class="o">+=</span> <span class="p">[</span><span class="s1">&#39;-qopenmp&#39;</span><span class="p">]</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="n">log</span><span class="p">(</span><span class="s2">&quot;WARNING: Running on Intel MIC without OpenMP is highly discouraged&quot;</span><span class="p">)</span>
@@ -330,7 +321,7 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">ld</span> <span class="o">=</span> <span class="s1">&#39;icc&#39;</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">cflags</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;-O3&#39;</span><span class="p">,</span> <span class="s1">&#39;-g&#39;</span><span class="p">,</span> <span class="s1">&#39;-fPIC&#39;</span><span class="p">,</span> <span class="s1">&#39;-Wall&#39;</span><span class="p">,</span> <span class="s1">&#39;-std=c99&#39;</span><span class="p">,</span> <span class="s2">&quot;-xMIC-AVX512&quot;</span><span class="p">]</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">ldflags</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;-shared&#39;</span><span class="p">]</span>
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">openmp</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">configuration</span><span class="p">[</span><span class="s1">&#39;openmp&#39;</span><span class="p">]:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">ldflags</span> <span class="o">+=</span> <span class="p">[</span><span class="s1">&#39;-qopenmp&#39;</span><span class="p">]</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="n">log</span><span class="p">(</span><span class="s2">&quot;WARNING: Running on Intel KNL without OpenMP is highly discouraged&quot;</span><span class="p">)</span>
@@ -353,34 +344,11 @@
         <span class="n">default</span> <span class="o">=</span> <span class="s1">&#39;-O3 -g -march=native -fPIC -Wall -std=c99&#39;</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">cflags</span> <span class="o">=</span> <span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;CFLAGS&#39;</span><span class="p">,</span> <span class="n">default</span><span class="p">)</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39; &#39;</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">ldflags</span> <span class="o">=</span> <span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;LDFLAGS&#39;</span><span class="p">,</span> <span class="s1">&#39;-shared&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39; &#39;</span><span class="p">)</span>
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">openmp</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">configuration</span><span class="p">[</span><span class="s1">&#39;openmp&#39;</span><span class="p">]:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">ldflags</span> <span class="o">+=</span> <span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;OMP_LDFLAGS&#39;</span><span class="p">,</span> <span class="s1">&#39;-fopenmp&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39; &#39;</span><span class="p">)</span>
 
 
-<span class="c1"># Registry dict for deriving Compiler classes according to the environment variable</span>
-<span class="c1"># DEVITO_ARCH. Developers should add new compiler classes here.</span>
-<span class="n">compiler_registry</span> <span class="o">=</span> <span class="p">{</span>
-    <span class="s1">&#39;custom&#39;</span><span class="p">:</span> <span class="n">CustomCompiler</span><span class="p">,</span>
-    <span class="s1">&#39;gcc&#39;</span><span class="p">:</span> <span class="n">GNUCompiler</span><span class="p">,</span> <span class="s1">&#39;gnu&#39;</span><span class="p">:</span> <span class="n">GNUCompiler</span><span class="p">,</span>
-    <span class="s1">&#39;gcc-4.9&#39;</span><span class="p">:</span> <span class="n">partial</span><span class="p">(</span><span class="n">GNUCompiler</span><span class="p">,</span> <span class="n">version</span><span class="o">=</span><span class="s1">&#39;4.9&#39;</span><span class="p">),</span>
-    <span class="s1">&#39;gcc-5&#39;</span><span class="p">:</span> <span class="n">partial</span><span class="p">(</span><span class="n">GNUCompiler</span><span class="p">,</span> <span class="n">version</span><span class="o">=</span><span class="s1">&#39;5&#39;</span><span class="p">),</span>
-    <span class="s1">&#39;gcc-noavx&#39;</span><span class="p">:</span> <span class="n">GNUCompilerNoAVX</span><span class="p">,</span> <span class="s1">&#39;gnu-noavx&#39;</span><span class="p">:</span> <span class="n">GNUCompilerNoAVX</span><span class="p">,</span>
-    <span class="s1">&#39;clang&#39;</span><span class="p">:</span> <span class="n">ClangCompiler</span><span class="p">,</span> <span class="s1">&#39;osx&#39;</span><span class="p">:</span> <span class="n">ClangCompiler</span><span class="p">,</span>
-    <span class="s1">&#39;intel&#39;</span><span class="p">:</span> <span class="n">IntelCompiler</span><span class="p">,</span> <span class="s1">&#39;icpc&#39;</span><span class="p">:</span> <span class="n">IntelCompiler</span><span class="p">,</span>
-    <span class="s1">&#39;icc&#39;</span><span class="p">:</span> <span class="n">IntelCompiler</span><span class="p">,</span>
-    <span class="s1">&#39;intel-mic&#39;</span><span class="p">:</span> <span class="n">IntelMICCompiler</span><span class="p">,</span> <span class="s1">&#39;mic&#39;</span><span class="p">:</span> <span class="n">IntelMICCompiler</span><span class="p">,</span>
-    <span class="s1">&#39;intel-knl&#39;</span><span class="p">:</span> <span class="n">IntelKNLCompiler</span><span class="p">,</span> <span class="s1">&#39;knl&#39;</span><span class="p">:</span> <span class="n">IntelKNLCompiler</span><span class="p">,</span>
-<span class="p">}</span>
-
-
-<div class="viewcode-block" id="set_compiler"><a class="viewcode-back" href="../../devito.html#devito.compiler.set_compiler">[docs]</a><span class="k">def</span> <span class="nf">set_compiler</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">openmp</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;Derive compiler class and settings. ``key`` supports the values in</span>
-<span class="sd">    ``compiler_registry``.</span>
-<span class="sd">    &quot;&quot;&quot;</span>
-    <span class="k">return</span> <span class="n">compiler_registry</span><span class="p">[</span><span class="n">key</span><span class="p">](</span><span class="n">openmp</span><span class="o">=</span><span class="n">openmp</span><span class="p">)</span></div>
-
-
-<div class="viewcode-block" id="get_tmp_dir"><a class="viewcode-back" href="../../devito.html#devito.compiler.get_tmp_dir">[docs]</a><span class="k">def</span> <span class="nf">get_tmp_dir</span><span class="p">():</span>
+<span class="k">def</span> <span class="nf">get_tmp_dir</span><span class="p">():</span>
     <span class="sd">&quot;&quot;&quot;Function to get a temp directory.</span>
 
 <span class="sd">    :return: Path to a devito-specific tmp directory</span>
@@ -390,14 +358,14 @@
     <span class="k">if</span> <span class="ow">not</span> <span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">tmpdir</span><span class="p">):</span>
         <span class="n">mkdir</span><span class="p">(</span><span class="n">tmpdir</span><span class="p">)</span>
 
-    <span class="k">return</span> <span class="n">tmpdir</span></div>
+    <span class="k">return</span> <span class="n">tmpdir</span>
 
 
-<div class="viewcode-block" id="load"><a class="viewcode-back" href="../../devito.html#devito.compiler.load">[docs]</a><span class="k">def</span> <span class="nf">load</span><span class="p">(</span><span class="n">basename</span><span class="p">,</span> <span class="n">compiler</span><span class="o">=</span><span class="n">GNUCompiler</span><span class="p">):</span>
+<div class="viewcode-block" id="load"><a class="viewcode-back" href="../../devito.html#devito.compiler.load">[docs]</a><span class="k">def</span> <span class="nf">load</span><span class="p">(</span><span class="n">basename</span><span class="p">,</span> <span class="n">compiler</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;Load a compiled library</span>
 
 <span class="sd">    :param basename: Name of the .so file.</span>
-<span class="sd">    :param compiler: The toolchain used for compilation. GNUCompiler by default.</span>
+<span class="sd">    :param compiler: The toolchain used for compilation.</span>
 <span class="sd">    :return: The loaded library.</span>
 
 <span class="sd">    Note: If the provided compiler is of type `IntelMICCompiler`</span>
@@ -413,15 +381,14 @@
     <span class="k">return</span> <span class="n">npct</span><span class="o">.</span><span class="n">load_library</span><span class="p">(</span><span class="n">basename</span><span class="p">,</span> <span class="s1">&#39;.&#39;</span><span class="p">)</span></div>
 
 
-<div class="viewcode-block" id="jit_compile"><a class="viewcode-back" href="../../devito.html#devito.compiler.jit_compile">[docs]</a><span class="k">def</span> <span class="nf">jit_compile</span><span class="p">(</span><span class="n">ccode</span><span class="p">,</span> <span class="n">compiler</span><span class="o">=</span><span class="n">GNUCompiler</span><span class="p">):</span>
+<div class="viewcode-block" id="jit_compile"><a class="viewcode-back" href="../../devito.html#devito.compiler.jit_compile">[docs]</a><span class="k">def</span> <span class="nf">jit_compile</span><span class="p">(</span><span class="n">ccode</span><span class="p">,</span> <span class="n">compiler</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;JIT compile the given ccode.</span>
 
 <span class="sd">    :param ccode: String of C source code.</span>
-<span class="sd">    :param compiler: The toolchain used for compilation. GNUCompiler by default.</span>
+<span class="sd">    :param compiler: The toolchain used for compilation.</span>
 
 <span class="sd">    :return: The name of the compilation unit.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
-
     <span class="n">hash_key</span> <span class="o">=</span> <span class="n">sha1</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">ccode</span><span class="p">)</span><span class="o">.</span><span class="n">encode</span><span class="p">())</span><span class="o">.</span><span class="n">hexdigest</span><span class="p">()</span>
     <span class="n">basename</span> <span class="o">=</span> <span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">get_tmp_dir</span><span class="p">(),</span> <span class="n">hash_key</span><span class="p">)</span>
 
@@ -442,7 +409,7 @@
     <span class="k">return</span> <span class="n">basename</span></div>
 
 
-<span class="k">def</span> <span class="nf">make</span><span class="p">(</span><span class="n">loc</span><span class="p">,</span> <span class="n">args</span><span class="p">):</span>
+<div class="viewcode-block" id="make"><a class="viewcode-back" href="../../devito.html#devito.compiler.make">[docs]</a><span class="k">def</span> <span class="nf">make</span><span class="p">(</span><span class="n">loc</span><span class="p">,</span> <span class="n">args</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Invoke ``make`` command from within ``loc`` with arguments ``args``.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
@@ -465,7 +432,28 @@
                                            <span class="s1">&#39;Unable to compile code.</span><span class="se">\n</span><span class="s1">&#39;</span>
                                            <span class="s1">&#39;Compile log in </span><span class="si">%s</span><span class="se">\n</span><span class="s1">&#39;</span>
                                            <span class="s1">&#39;Compile errors in </span><span class="si">%s</span><span class="se">\n</span><span class="s1">&#39;</span> <span class="o">%</span>
-                                           <span class="p">(</span><span class="n">e</span><span class="o">.</span><span class="n">cmd</span><span class="p">,</span> <span class="n">e</span><span class="o">.</span><span class="n">returncode</span><span class="p">,</span> <span class="n">logfile</span><span class="p">,</span> <span class="n">errfile</span><span class="p">))</span>
+                                           <span class="p">(</span><span class="n">e</span><span class="o">.</span><span class="n">cmd</span><span class="p">,</span> <span class="n">e</span><span class="o">.</span><span class="n">returncode</span><span class="p">,</span> <span class="n">logfile</span><span class="p">,</span> <span class="n">errfile</span><span class="p">))</span></div>
+
+
+<span class="c1"># Registry dict for deriving Compiler classes according to the environment variable</span>
+<span class="c1"># DEVITO_ARCH. Developers should add new compiler classes here.</span>
+<span class="n">compiler_registry</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;custom&#39;</span><span class="p">:</span> <span class="n">CustomCompiler</span><span class="p">,</span>
+    <span class="s1">&#39;gcc&#39;</span><span class="p">:</span> <span class="n">GNUCompiler</span><span class="p">,</span> <span class="s1">&#39;gnu&#39;</span><span class="p">:</span> <span class="n">GNUCompiler</span><span class="p">,</span>
+    <span class="s1">&#39;gcc-4.9&#39;</span><span class="p">:</span> <span class="n">partial</span><span class="p">(</span><span class="n">GNUCompiler</span><span class="p">,</span> <span class="n">version</span><span class="o">=</span><span class="s1">&#39;4.9&#39;</span><span class="p">),</span>
+    <span class="s1">&#39;gcc-5&#39;</span><span class="p">:</span> <span class="n">partial</span><span class="p">(</span><span class="n">GNUCompiler</span><span class="p">,</span> <span class="n">version</span><span class="o">=</span><span class="s1">&#39;5&#39;</span><span class="p">),</span>
+    <span class="s1">&#39;gcc-noavx&#39;</span><span class="p">:</span> <span class="n">GNUCompilerNoAVX</span><span class="p">,</span> <span class="s1">&#39;gnu-noavx&#39;</span><span class="p">:</span> <span class="n">GNUCompilerNoAVX</span><span class="p">,</span>
+    <span class="s1">&#39;clang&#39;</span><span class="p">:</span> <span class="n">ClangCompiler</span><span class="p">,</span> <span class="s1">&#39;osx&#39;</span><span class="p">:</span> <span class="n">ClangCompiler</span><span class="p">,</span>
+    <span class="s1">&#39;intel&#39;</span><span class="p">:</span> <span class="n">IntelCompiler</span><span class="p">,</span> <span class="s1">&#39;icpc&#39;</span><span class="p">:</span> <span class="n">IntelCompiler</span><span class="p">,</span>
+    <span class="s1">&#39;icc&#39;</span><span class="p">:</span> <span class="n">IntelCompiler</span><span class="p">,</span>
+    <span class="s1">&#39;intel-mic&#39;</span><span class="p">:</span> <span class="n">IntelMICCompiler</span><span class="p">,</span> <span class="s1">&#39;mic&#39;</span><span class="p">:</span> <span class="n">IntelMICCompiler</span><span class="p">,</span>
+    <span class="s1">&#39;intel-knl&#39;</span><span class="p">:</span> <span class="n">IntelKNLCompiler</span><span class="p">,</span> <span class="s1">&#39;knl&#39;</span><span class="p">:</span> <span class="n">IntelKNLCompiler</span><span class="p">,</span>
+<span class="p">}</span>
+
+
+<span class="n">configuration</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="s1">&#39;compiler&#39;</span><span class="p">,</span> <span class="s1">&#39;custom&#39;</span><span class="p">,</span> <span class="nb">list</span><span class="p">(</span><span class="n">compiler_registry</span><span class="p">),</span>
+                  <span class="k">lambda</span> <span class="n">i</span><span class="p">:</span> <span class="n">compiler_registry</span><span class="p">[</span><span class="n">i</span><span class="p">]())</span>
+<span class="n">configuration</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="s1">&#39;openmp&#39;</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">],</span> <span class="k">lambda</span> <span class="n">i</span><span class="p">:</span> <span class="nb">bool</span><span class="p">(</span><span class="n">i</span><span class="p">))</span>
 </pre></div>
 
            </div>

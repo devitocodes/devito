@@ -167,6 +167,7 @@
                                  <span class="n">DevitoSpeculativeRewriter</span><span class="p">)</span>
 <span class="kn">from</span> <span class="nn">devito.exceptions</span> <span class="k">import</span> <span class="n">DLEException</span>
 <span class="kn">from</span> <span class="nn">devito.logger</span> <span class="k">import</span> <span class="n">dle_warning</span>
+<span class="kn">from</span> <span class="nn">devito.parameters</span> <span class="k">import</span> <span class="n">configuration</span>
 
 <span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;transform&#39;</span><span class="p">,</span> <span class="s1">&#39;modes&#39;</span><span class="p">,</span> <span class="s1">&#39;default_options&#39;</span><span class="p">]</span>
 
@@ -185,6 +186,11 @@
     <span class="s1">&#39;blockalways&#39;</span><span class="p">:</span> <span class="kc">False</span>
 <span class="p">}</span>
 <span class="sd">&quot;&quot;&quot;Default values for the various optimization options.&quot;&quot;&quot;</span>
+
+<span class="n">configuration</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="s1">&#39;dle&#39;</span><span class="p">,</span> <span class="s1">&#39;advanced&#39;</span><span class="p">,</span> <span class="nb">list</span><span class="p">(</span><span class="n">modes</span><span class="p">))</span>
+<span class="n">configuration</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="s1">&#39;dle_options&#39;</span><span class="p">,</span>
+                  <span class="s1">&#39;;&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="s1">&#39;</span><span class="si">%s</span><span class="s1">:</span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">v</span><span class="p">)</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">default_options</span><span class="o">.</span><span class="n">items</span><span class="p">()),</span>
+                  <span class="nb">list</span><span class="p">(</span><span class="n">default_options</span><span class="p">))</span>
 
 
 <div class="viewcode-block" id="transform"><a class="viewcode-back" href="../../../devito.dle.html#devito.dle.transformer.transform">[docs]</a><span class="k">def</span> <span class="nf">transform</span><span class="p">(</span><span class="n">node</span><span class="p">,</span> <span class="n">mode</span><span class="o">=</span><span class="s1">&#39;basic&#39;</span><span class="p">,</span> <span class="n">options</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
@@ -217,8 +223,6 @@
 <span class="sd">        * &#39;blockalways&#39;: Apply blocking even though the DLE thinks it&#39;s not</span>
 <span class="sd">                         worthwhile applying it.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
-    <span class="kn">from</span> <span class="nn">devito.parameters</span> <span class="k">import</span> <span class="n">configuration</span>
-
     <span class="c1"># Check input parameters</span>
     <span class="k">if</span> <span class="ow">not</span> <span class="p">(</span><span class="n">mode</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">mode</span><span class="p">,</span> <span class="nb">str</span><span class="p">)):</span>
         <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Parameter &#39;mode&#39; should be a string, not </span><span class="si">%s</span><span class="s2">.&quot;</span> <span class="o">%</span> <span class="nb">type</span><span class="p">(</span><span class="n">mode</span><span class="p">))</span>

@@ -173,6 +173,7 @@
 
 <span class="kn">from</span> <span class="nn">devito.exceptions</span> <span class="k">import</span> <span class="n">DevitoError</span>
 <span class="kn">from</span> <span class="nn">devito.logger</span> <span class="k">import</span> <span class="n">warning</span>
+<span class="kn">from</span> <span class="nn">devito.parameters</span> <span class="k">import</span> <span class="n">configuration</span>
 
 <span class="n">backends</span> <span class="o">=</span> <span class="p">{}</span>
 
@@ -306,6 +307,9 @@
             <span class="n">set_backend</span><span class="p">(</span><span class="n">backend</span><span class="p">)</span>
         <span class="k">except</span> <span class="p">(</span><span class="ne">ImportError</span><span class="p">,</span> <span class="ne">RuntimeError</span><span class="p">):</span>
             <span class="k">raise</span> <span class="n">DevitoError</span><span class="p">(</span><span class="s2">&quot;Couldn&#39;t initialize Devito.&quot;</span><span class="p">)</span></div>
+
+
+<span class="n">configuration</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="s1">&#39;backend&#39;</span><span class="p">,</span> <span class="s1">&#39;core&#39;</span><span class="p">,</span> <span class="nb">list</span><span class="p">(</span><span class="n">backends_registry</span><span class="p">))</span>
 </pre></div>
 
            </div>

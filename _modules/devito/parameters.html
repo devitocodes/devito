@@ -165,14 +165,7 @@
 <span class="kn">from</span> <span class="nn">collections</span> <span class="k">import</span> <span class="n">OrderedDict</span>
 <span class="kn">from</span> <span class="nn">os</span> <span class="k">import</span> <span class="n">environ</span>
 
-<span class="kn">from</span> <span class="nn">devito.backends</span> <span class="k">import</span> <span class="n">backends_registry</span>
-<span class="kn">from</span> <span class="nn">devito.compiler</span> <span class="k">import</span> <span class="n">compiler_registry</span><span class="p">,</span> <span class="n">set_compiler</span>
-<span class="kn">from</span> <span class="nn">devito.dse</span> <span class="k">import</span> <span class="n">modes</span> <span class="k">as</span> <span class="n">dse_registry</span>
-<span class="kn">from</span> <span class="nn">devito.dle</span> <span class="k">import</span> <span class="n">modes</span> <span class="k">as</span> <span class="n">dle_registry</span><span class="p">,</span> <span class="n">default_options</span> <span class="k">as</span> <span class="n">dle_default_options</span>
-<span class="kn">from</span> <span class="nn">devito.logger</span> <span class="k">import</span> <span class="n">info</span><span class="p">,</span> <span class="n">logger_registry</span><span class="p">,</span> <span class="n">set_log_level</span>
-<span class="kn">from</span> <span class="nn">devito.interfaces</span> <span class="k">import</span> <span class="n">set_global_first_touch</span> <span class="k">as</span> <span class="n">set_first_touch</span>
-
-<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;configuration&#39;</span><span class="p">,</span> <span class="s1">&#39;init_configuration&#39;</span><span class="p">,</span> <span class="s1">&#39;print_defaults&#39;</span><span class="p">,</span> <span class="s1">&#39;print_state&#39;</span><span class="p">]</span>
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;configuration&#39;</span><span class="p">,</span> <span class="s1">&#39;init_configuration&#39;</span><span class="p">]</span>
 
 <span class="c1"># Be EXTREMELY careful when writing to a Parameters dictionary</span>
 <span class="c1"># Read here for reference: http://wiki.c2.com/?GlobalVariablesAreBad</span>
@@ -191,6 +184,8 @@
     <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
         <span class="nb">super</span><span class="p">(</span><span class="n">Parameters</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_name</span> <span class="o">=</span> <span class="n">name</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_accepted</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_defaults</span> <span class="o">=</span> <span class="p">{}</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_update_functions</span> <span class="o">=</span> <span class="p">{}</span>
         <span class="k">if</span> <span class="n">kwargs</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
             <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
@@ -206,14 +201,32 @@
 <span class="sd">        been updated.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">if</span> <span class="n">key</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_update_functions</span><span class="p">:</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">_update_functions</span><span class="p">[</span><span class="n">key</span><span class="p">](</span><span class="n">value</span><span class="p">)</span>
+            <span class="n">retval</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_update_functions</span><span class="p">[</span><span class="n">key</span><span class="p">](</span><span class="n">value</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">retval</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="nb">super</span><span class="p">(</span><span class="n">Parameters</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__setitem__</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">retval</span><span class="p">)</span>
 
-    <span class="k">def</span> <span class="nf">set_update_function</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="n">callable</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">add</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span><span class="p">,</span> <span class="n">accepted</span><span class="p">,</span> <span class="n">callback</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Make ``callable`` be executed when the value of ``key`` changes.</span>
+<span class="sd">        Add a new parameter ``key`` with default value ``value``.</span>
+
+<span class="sd">        Associate ``key`` with a list of ``accepted`` values.</span>
+
+<span class="sd">        If provided, make sure ``callback`` is executed when the value of ``key``</span>
+<span class="sd">        changes.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">Parameters</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__setitem__</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">value</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_accepted</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">accepted</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_defaults</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">value</span>
+        <span class="k">if</span> <span class="n">callable</span><span class="p">(</span><span class="n">callback</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_update_functions</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">callback</span>
+
+    <span class="k">def</span> <span class="nf">update</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Update the parameter ``key`` to ``value``. This is different from</span>
+<span class="sd">        ``self[key] = value`` as the callback, if any, is bypassed.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">assert</span> <span class="n">key</span> <span class="ow">in</span> <span class="bp">self</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_update_functions</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">callable</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">Parameters</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__setitem__</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">value</span><span class="p">)</span>
 
     <span class="k">def</span> <span class="nf">initialize</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
@@ -226,34 +239,6 @@
 
 <span class="n">configuration</span> <span class="o">=</span> <span class="n">Parameters</span><span class="p">(</span><span class="s2">&quot;Devito-Configuration&quot;</span><span class="p">)</span>
 <span class="sd">&quot;&quot;&quot;The Devito configuration parameters.&quot;&quot;&quot;</span>
-
-<span class="n">defaults</span> <span class="o">=</span> <span class="p">{</span>
-    <span class="s1">&#39;backend&#39;</span><span class="p">:</span> <span class="s1">&#39;core&#39;</span><span class="p">,</span>
-    <span class="s1">&#39;log_level&#39;</span><span class="p">:</span> <span class="s1">&#39;INFO&#39;</span><span class="p">,</span>
-    <span class="s1">&#39;autotuning&#39;</span><span class="p">:</span> <span class="s1">&#39;basic&#39;</span><span class="p">,</span>
-    <span class="s1">&#39;compiler&#39;</span><span class="p">:</span> <span class="s1">&#39;custom&#39;</span><span class="p">,</span>
-    <span class="s1">&#39;openmp&#39;</span><span class="p">:</span> <span class="s1">&#39;0&#39;</span><span class="p">,</span>
-    <span class="s1">&#39;dse&#39;</span><span class="p">:</span> <span class="s1">&#39;advanced&#39;</span><span class="p">,</span>
-    <span class="s1">&#39;dle&#39;</span><span class="p">:</span> <span class="s1">&#39;advanced&#39;</span><span class="p">,</span>
-    <span class="s1">&#39;dle_options&#39;</span><span class="p">:</span> <span class="s1">&#39;;&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="s1">&#39;</span><span class="si">%s</span><span class="s1">:</span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">v</span><span class="p">)</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">dle_default_options</span><span class="o">.</span><span class="n">items</span><span class="p">()),</span>
-    <span class="s1">&#39;first_touch&#39;</span><span class="p">:</span> <span class="s1">&#39;0&#39;</span><span class="p">,</span>
-    <span class="s1">&#39;travis_test&#39;</span><span class="p">:</span> <span class="s1">&#39;0&#39;</span><span class="p">,</span>
-<span class="p">}</span>
-<span class="sd">&quot;&quot;&quot;The default Devito configuration parameters&quot;&quot;&quot;</span>
-
-<span class="n">accepted</span> <span class="o">=</span> <span class="p">{</span>
-    <span class="s1">&#39;backend&#39;</span><span class="p">:</span> <span class="nb">list</span><span class="p">(</span><span class="n">backends_registry</span><span class="p">),</span>
-    <span class="s1">&#39;log_level&#39;</span><span class="p">:</span> <span class="nb">list</span><span class="p">(</span><span class="n">logger_registry</span><span class="p">),</span>
-    <span class="s1">&#39;autotuning&#39;</span><span class="p">:</span> <span class="p">(</span><span class="s1">&#39;none&#39;</span><span class="p">,</span> <span class="s1">&#39;basic&#39;</span><span class="p">,</span> <span class="s1">&#39;aggressive&#39;</span><span class="p">),</span>
-    <span class="s1">&#39;compiler&#39;</span><span class="p">:</span> <span class="nb">list</span><span class="p">(</span><span class="n">compiler_registry</span><span class="p">),</span>
-    <span class="s1">&#39;openmp&#39;</span><span class="p">:</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span>
-    <span class="s1">&#39;dse&#39;</span><span class="p">:</span> <span class="nb">list</span><span class="p">(</span><span class="n">dse_registry</span><span class="p">),</span>
-    <span class="s1">&#39;dle&#39;</span><span class="p">:</span> <span class="nb">list</span><span class="p">(</span><span class="n">dle_registry</span><span class="p">),</span>
-    <span class="s1">&#39;dle_options&#39;</span><span class="p">:</span> <span class="nb">list</span><span class="p">(</span><span class="n">dle_default_options</span><span class="p">),</span>
-    <span class="s1">&#39;first_touch&#39;</span><span class="p">:</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span>
-    <span class="s1">&#39;travis_test&#39;</span><span class="p">:</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span>
-<span class="p">}</span>
-<span class="sd">&quot;&quot;&quot;Accepted values for the Devito environment variables.&quot;&quot;&quot;</span>
 
 <span class="n">env_vars_mapper</span> <span class="o">=</span> <span class="p">{</span>
     <span class="s1">&#39;DEVITO_ARCH&#39;</span><span class="p">:</span> <span class="s1">&#39;compiler&#39;</span><span class="p">,</span>
@@ -270,25 +255,29 @@
 
 
 <div class="viewcode-block" id="init_configuration"><a class="viewcode-back" href="../../devito.html#devito.parameters.init_configuration">[docs]</a><span class="k">def</span> <span class="nf">init_configuration</span><span class="p">():</span>
-    <span class="c1"># Populate /parameters/</span>
+    <span class="c1"># Populate /configuration/ with user-provided options</span>
     <span class="k">if</span> <span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;DEVITO_CONFIG&#39;</span><span class="p">)</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-        <span class="c1"># Try env variables, otherwise pick defaults</span>
+        <span class="c1"># Try env variables, otherwise stick to defaults</span>
         <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">env_vars_mapper</span><span class="o">.</span><span class="n">items</span><span class="p">()):</span>
-            <span class="n">configuration</span><span class="p">[</span><span class="n">v</span><span class="p">]</span> <span class="o">=</span> <span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">defaults</span><span class="p">[</span><span class="n">v</span><span class="p">])</span>
+            <span class="n">configuration</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">configuration</span><span class="o">.</span><span class="n">_defaults</span><span class="p">[</span><span class="n">v</span><span class="p">]))</span>
     <span class="k">else</span><span class="p">:</span>
         <span class="c1"># Attempt reading from the specified configuration file</span>
-        <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="s2">&quot;Devito doesn&#39;t support configuration via file.&quot;</span><span class="p">)</span>
+        <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="s2">&quot;Devito doesn&#39;t support configuration via file yet.&quot;</span><span class="p">)</span>
 
     <span class="c1"># Parameters validation</span>
     <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="nb">list</span><span class="p">(</span><span class="n">configuration</span><span class="o">.</span><span class="n">items</span><span class="p">()):</span>
-        <span class="n">items</span> <span class="o">=</span> <span class="n">v</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;;&#39;</span><span class="p">)</span>
         <span class="k">try</span><span class="p">:</span>
-            <span class="c1"># Env variable format: &#39;k1:v1;k2:v2:k3:v3:...&#39;</span>
+            <span class="n">items</span> <span class="o">=</span> <span class="n">v</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;;&#39;</span><span class="p">)</span>
+            <span class="c1"># Env variable format: &#39;var=k1:v1;k2:v2:k3:v3:...&#39;</span>
             <span class="n">keys</span><span class="p">,</span> <span class="n">values</span> <span class="o">=</span> <span class="nb">zip</span><span class="p">(</span><span class="o">*</span><span class="p">[</span><span class="n">i</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;:&#39;</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">items</span><span class="p">])</span>
             <span class="c1"># Casting</span>
             <span class="n">values</span> <span class="o">=</span> <span class="p">[</span><span class="nb">eval</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">values</span><span class="p">]</span>
+        <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>
+            <span class="c1"># Env variable format: &#39;var=v&#39;, &#39;v&#39; is not a string</span>
+            <span class="n">keys</span> <span class="o">=</span> <span class="p">[</span><span class="n">v</span><span class="p">]</span>
+            <span class="n">values</span> <span class="o">=</span> <span class="p">[]</span>
         <span class="k">except</span> <span class="ne">ValueError</span><span class="p">:</span>
-            <span class="c1"># Env variable format: &#39;k1;k2:...&#39; or even just &#39;k1&#39;</span>
+            <span class="c1"># Env variable format: &#39;var=k1;k2:v2...&#39; or even just &#39;var=v&#39;</span>
             <span class="n">keys</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;:&#39;</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">items</span><span class="p">]</span>
             <span class="n">values</span> <span class="o">=</span> <span class="p">[]</span>
             <span class="c1"># Cast to integer</span>
@@ -297,39 +286,18 @@
                     <span class="n">keys</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">j</span><span class="p">)</span>
                 <span class="k">except</span> <span class="p">(</span><span class="ne">TypeError</span><span class="p">,</span> <span class="ne">ValueError</span><span class="p">):</span>
                     <span class="n">keys</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">j</span>
-        <span class="k">if</span> <span class="nb">any</span><span class="p">(</span><span class="n">i</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">accepted</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">keys</span><span class="p">):</span>
+        <span class="n">accepted</span> <span class="o">=</span> <span class="n">configuration</span><span class="o">.</span><span class="n">_accepted</span><span class="p">[</span><span class="n">k</span><span class="p">]</span>
+        <span class="k">if</span> <span class="nb">any</span><span class="p">(</span><span class="n">i</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">accepted</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">keys</span><span class="p">):</span>
             <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Illegal configuration parameter (</span><span class="si">%s</span><span class="s2">, </span><span class="si">%s</span><span class="s2">). &quot;</span>
-                             <span class="s2">&quot;Accepted: </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">v</span><span class="p">,</span> <span class="nb">str</span><span class="p">(</span><span class="n">accepted</span><span class="p">[</span><span class="n">k</span><span class="p">])))</span>
+                             <span class="s2">&quot;Accepted: </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">v</span><span class="p">,</span> <span class="nb">str</span><span class="p">(</span><span class="n">accepted</span><span class="p">)))</span>
         <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">keys</span><span class="p">)</span> <span class="o">==</span> <span class="nb">len</span><span class="p">(</span><span class="n">values</span><span class="p">):</span>
-            <span class="n">configuration</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="nb">zip</span><span class="p">(</span><span class="n">keys</span><span class="p">,</span> <span class="n">values</span><span class="p">))</span>
+            <span class="n">configuration</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="nb">dict</span><span class="p">(</span><span class="nb">zip</span><span class="p">(</span><span class="n">keys</span><span class="p">,</span> <span class="n">values</span><span class="p">)))</span>
         <span class="k">elif</span> <span class="nb">len</span><span class="p">(</span><span class="n">keys</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
-            <span class="n">configuration</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="n">keys</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+            <span class="n">configuration</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">keys</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
         <span class="k">else</span><span class="p">:</span>
-            <span class="n">configuration</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="n">keys</span>
+            <span class="n">configuration</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">keys</span><span class="p">)</span>
 
-    <span class="c1"># Global setup</span>
-    <span class="c1"># - Logger</span>
-    <span class="n">configuration</span><span class="o">.</span><span class="n">set_update_function</span><span class="p">(</span><span class="s1">&#39;log_level&#39;</span><span class="p">,</span> <span class="k">lambda</span> <span class="n">i</span><span class="p">:</span> <span class="n">set_log_level</span><span class="p">(</span><span class="n">i</span><span class="p">))</span>
-    <span class="c1"># - Compilation toolchain</span>
-    <span class="n">configuration</span><span class="p">[</span><span class="s1">&#39;compiler&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">set_compiler</span><span class="p">(</span><span class="n">configuration</span><span class="p">[</span><span class="s1">&#39;compiler&#39;</span><span class="p">],</span>
-                                             <span class="n">configuration</span><span class="p">[</span><span class="s1">&#39;openmp&#39;</span><span class="p">])</span>
-    <span class="n">configuration</span><span class="p">[</span><span class="s1">&#39;openmp&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="nb">bool</span><span class="p">(</span><span class="n">configuration</span><span class="p">[</span><span class="s1">&#39;openmp&#39;</span><span class="p">])</span>
-    <span class="n">configuration</span><span class="p">[</span><span class="s1">&#39;first_touch&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="nb">bool</span><span class="p">(</span><span class="n">configuration</span><span class="p">[</span><span class="s1">&#39;first_touch&#39;</span><span class="p">])</span>
-    <span class="n">configuration</span><span class="o">.</span><span class="n">set_update_function</span><span class="p">(</span><span class="s1">&#39;first_touch&#39;</span><span class="p">,</span> <span class="k">lambda</span> <span class="n">i</span><span class="p">:</span> <span class="n">set_first_touch</span><span class="p">(</span><span class="n">i</span><span class="p">))</span>
     <span class="n">configuration</span><span class="o">.</span><span class="n">initialize</span><span class="p">()</span></div>
-
-
-<div class="viewcode-block" id="print_defaults"><a class="viewcode-back" href="../../devito.html#devito.parameters.print_defaults">[docs]</a><span class="k">def</span> <span class="nf">print_defaults</span><span class="p">():</span>
-    <span class="sd">&quot;&quot;&quot;Print the environment variables accepted by Devito, their default value,</span>
-<span class="sd">    as well as all of the accepted values.&quot;&quot;&quot;</span>
-    <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">env_vars_mapper</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
-        <span class="n">info</span><span class="p">(</span><span class="s1">&#39;</span><span class="si">%s</span><span class="s1">: </span><span class="si">%s</span><span class="s1">. Default: </span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">accepted</span><span class="p">[</span><span class="n">v</span><span class="p">],</span> <span class="n">defaults</span><span class="p">[</span><span class="n">v</span><span class="p">]))</span></div>
-
-
-<div class="viewcode-block" id="print_state"><a class="viewcode-back" href="../../devito.html#devito.parameters.print_state">[docs]</a><span class="k">def</span> <span class="nf">print_state</span><span class="p">():</span>
-    <span class="sd">&quot;&quot;&quot;Print the current configuration state.&quot;&quot;&quot;</span>
-    <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">configuration</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
-        <span class="n">info</span><span class="p">(</span><span class="s1">&#39;</span><span class="si">%s</span><span class="s1">: </span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">v</span><span class="p">))</span></div>
 </pre></div>
 
            </div>
