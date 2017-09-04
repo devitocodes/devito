@@ -254,7 +254,7 @@
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">varname</span> <span class="o">=</span> <span class="s2">&quot;timings&quot;</span>
-    <span class="n">typename</span> <span class="o">=</span> <span class="s2">&quot;profiler&quot;</span>
+    <span class="n">structname</span> <span class="o">=</span> <span class="s2">&quot;profile&quot;</span>
 
     <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="c1"># To be populated as new sections are tracked</span>
@@ -277,9 +277,7 @@
 <span class="sd">        Allocate and return a pointer to the timers C-level Struct, which includes</span>
 <span class="sd">        all timers added to ``self`` through ``self.add(...)``.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="bp">cls</span> <span class="o">=</span> <span class="nb">type</span><span class="p">(</span><span class="s2">&quot;Timings&quot;</span><span class="p">,</span> <span class="p">(</span><span class="n">Structure</span><span class="p">,),</span>
-                   <span class="p">{</span><span class="s2">&quot;_fields_&quot;</span><span class="p">:</span> <span class="p">[(</span><span class="n">i</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">c_double</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sections</span><span class="o">.</span><span class="n">values</span><span class="p">()]})</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_C_timings</span> <span class="o">=</span> <span class="bp">cls</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_C_timings</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">dtype</span><span class="p">()</span>
         <span class="k">return</span> <span class="n">byref</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_C_timings</span><span class="p">)</span>
 
     <span class="k">def</span> <span class="nf">summary</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dim_sizes</span><span class="p">,</span> <span class="n">dtype</span><span class="p">):</span>
@@ -334,11 +332,20 @@
                 <span class="k">for</span> <span class="n">field</span><span class="p">,</span> <span class="n">_</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_C_timings</span><span class="o">.</span><span class="n">_fields_</span><span class="p">}</span>
 
     <span class="nd">@property</span>
-    <span class="k">def</span> <span class="nf">ctype</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">dtype</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Returns a :class:`cgen.Struct` relative to the profiler.</span>
+<span class="sd">        Return the profiler C type in ctypes format.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">return</span> <span class="n">Struct</span><span class="p">(</span><span class="n">Profiler</span><span class="o">.</span><span class="n">typename</span><span class="p">,</span>
+        <span class="k">return</span> <span class="nb">type</span><span class="p">(</span><span class="n">Profiler</span><span class="o">.</span><span class="n">structname</span><span class="p">,</span> <span class="p">(</span><span class="n">Structure</span><span class="p">,),</span>
+                    <span class="p">{</span><span class="s2">&quot;_fields_&quot;</span><span class="p">:</span> <span class="p">[(</span><span class="n">i</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">c_double</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sections</span><span class="o">.</span><span class="n">values</span><span class="p">()]})</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">cdef</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Returns a :class:`cgen.Struct` representing the profiler data structure in C</span>
+<span class="sd">        (a ``struct``).</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">Struct</span><span class="p">(</span><span class="n">Profiler</span><span class="o">.</span><span class="n">structname</span><span class="p">,</span>
                       <span class="p">[</span><span class="n">Value</span><span class="p">(</span><span class="s1">&#39;double&#39;</span><span class="p">,</span> <span class="n">i</span><span class="o">.</span><span class="n">name</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sections</span><span class="o">.</span><span class="n">values</span><span class="p">()])</span>
 
 

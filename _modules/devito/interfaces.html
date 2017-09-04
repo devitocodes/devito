@@ -174,7 +174,8 @@
 <span class="kn">from</span> <span class="nn">devito.logger</span> <span class="k">import</span> <span class="n">debug</span><span class="p">,</span> <span class="n">error</span><span class="p">,</span> <span class="n">warning</span>
 <span class="kn">from</span> <span class="nn">devito.memory</span> <span class="k">import</span> <span class="n">CMemory</span><span class="p">,</span> <span class="n">first_touch</span>
 <span class="kn">from</span> <span class="nn">devito.arguments</span> <span class="k">import</span> <span class="p">(</span><span class="n">ConstantDataArgProvider</span><span class="p">,</span> <span class="n">TensorDataArgProvider</span><span class="p">,</span>
-                              <span class="n">ScalarFunctionArgProvider</span><span class="p">,</span> <span class="n">TensorFunctionArgProvider</span><span class="p">)</span>
+                              <span class="n">ScalarFunctionArgProvider</span><span class="p">,</span> <span class="n">TensorFunctionArgProvider</span><span class="p">,</span>
+                              <span class="n">ObjectArgProvider</span><span class="p">)</span>
 <span class="kn">from</span> <span class="nn">devito.parameters</span> <span class="k">import</span> <span class="n">configuration</span>
 
 <span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;Symbol&#39;</span><span class="p">,</span> <span class="s1">&#39;Indexed&#39;</span><span class="p">,</span>
@@ -211,7 +212,52 @@
 <span class="n">Backward</span> <span class="o">=</span> <span class="n">TimeAxis</span><span class="p">(</span><span class="s1">&#39;Backward&#39;</span><span class="p">)</span>
 
 
-<span class="k">class</span> <span class="nc">CachedSymbol</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+<span class="k">class</span> <span class="nc">Basic</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Base class for API objects, used to build and run :class:`Operator`s.</span>
+
+<span class="sd">    There are two main types of objects: symbolic and generic. Symbolic objects</span>
+<span class="sd">    may carry data, and are used to build equations. Generic objects may be</span>
+<span class="sd">    used to represent or pass arbitrary data structures. The following diagram</span>
+<span class="sd">    outlines the top of this hierarchy.</span>
+
+<span class="sd">                                 Basic</span>
+<span class="sd">                                   |</span>
+<span class="sd">                    ----------------------------------</span>
+<span class="sd">                    |                                |</span>
+<span class="sd">              CachedSymbol                         Object</span>
+<span class="sd">                    |                       &lt;see Object.__doc__&gt;</span>
+<span class="sd">             AbstractSymbol</span>
+<span class="sd">    &lt;see diagram in AbstractSymbol.__doc__&gt;</span>
+
+<span class="sd">    All derived :class:`Basic` objects may be emitted through code generation</span>
+<span class="sd">    to create a just-in-time compilable kernel.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="c1"># Top hierarchy</span>
+    <span class="n">is_AbstractSymbol</span> <span class="o">=</span> <span class="kc">False</span>
+    <span class="n">is_Object</span> <span class="o">=</span> <span class="kc">False</span>
+
+    <span class="c1"># Symbolic objects created internally by Devito</span>
+    <span class="n">is_SymbolicFunction</span> <span class="o">=</span> <span class="kc">False</span>
+    <span class="n">is_ScalarFunction</span> <span class="o">=</span> <span class="kc">False</span>
+    <span class="n">is_TensorFunction</span> <span class="o">=</span> <span class="kc">False</span>
+
+    <span class="c1"># Symbolic objects created by user</span>
+    <span class="n">is_SymbolicData</span> <span class="o">=</span> <span class="kc">False</span>
+    <span class="n">is_ConstantData</span> <span class="o">=</span> <span class="kc">False</span>
+    <span class="n">is_TensorData</span> <span class="o">=</span> <span class="kc">False</span>
+    <span class="n">is_DenseData</span> <span class="o">=</span> <span class="kc">False</span>
+    <span class="n">is_TimeData</span> <span class="o">=</span> <span class="kc">False</span>
+    <span class="n">is_CompositeData</span> <span class="o">=</span> <span class="kc">False</span>
+    <span class="n">is_PointData</span> <span class="o">=</span> <span class="kc">False</span>
+
+    <span class="c1"># Basic symbolic object properties</span>
+    <span class="n">is_Scalar</span> <span class="o">=</span> <span class="kc">False</span>
+    <span class="n">is_Tensor</span> <span class="o">=</span> <span class="kc">False</span>
+
+
+<span class="k">class</span> <span class="nc">CachedSymbol</span><span class="p">(</span><span class="n">Basic</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;Base class for symbolic objects that caches on the class type.&quot;&quot;&quot;</span>
 
     <span class="nd">@classmethod</span>
@@ -287,24 +333,6 @@
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">is_AbstractSymbol</span> <span class="o">=</span> <span class="kc">True</span>
-
-    <span class="c1"># Created internally by Devito</span>
-    <span class="n">is_SymbolicFunction</span> <span class="o">=</span> <span class="kc">False</span>
-    <span class="n">is_ScalarFunction</span> <span class="o">=</span> <span class="kc">False</span>
-    <span class="n">is_TensorFunction</span> <span class="o">=</span> <span class="kc">False</span>
-
-    <span class="c1"># User-provided</span>
-    <span class="n">is_SymbolicData</span> <span class="o">=</span> <span class="kc">False</span>
-    <span class="n">is_ConstantData</span> <span class="o">=</span> <span class="kc">False</span>
-    <span class="n">is_TensorData</span> <span class="o">=</span> <span class="kc">False</span>
-    <span class="n">is_DenseData</span> <span class="o">=</span> <span class="kc">False</span>
-    <span class="n">is_TimeData</span> <span class="o">=</span> <span class="kc">False</span>
-    <span class="n">is_CompositeData</span> <span class="o">=</span> <span class="kc">False</span>
-    <span class="n">is_PointData</span> <span class="o">=</span> <span class="kc">False</span>
-
-    <span class="c1"># Misc</span>
-    <span class="n">is_Scalar</span> <span class="o">=</span> <span class="kc">False</span>
-    <span class="n">is_Tensor</span> <span class="o">=</span> <span class="kc">False</span>
 
     <span class="k">def</span> <span class="nf">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
         <span class="k">if</span> <span class="bp">cls</span> <span class="ow">in</span> <span class="n">_SymbolCache</span><span class="p">:</span>
@@ -899,6 +927,27 @@
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">children</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_children</span>
+
+
+<span class="c1"># Objects belonging to the Devito API not involving data, such as data structures</span>
+<span class="c1"># that need to be passed to external libraries</span>
+
+
+<span class="k">class</span> <span class="nc">Object</span><span class="p">(</span><span class="n">ObjectArgProvider</span><span class="p">):</span>
+
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Represent a generic pointer object.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">is_Object</span> <span class="o">=</span> <span class="kc">True</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">dtype</span><span class="p">,</span> <span class="n">value</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">name</span> <span class="o">=</span> <span class="n">name</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">dtype</span> <span class="o">=</span> <span class="n">dtype</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">value</span> <span class="o">=</span> <span class="n">value</span>
+
+    <span class="k">def</span> <span class="nf">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span>
 
 
 <span class="c1"># Extended SymPy hierarchy follows, for essentially two reasons:</span>

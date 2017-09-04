@@ -207,21 +207,7 @@
             <span class="bp">self</span><span class="o">.</span><span class="n">elemental_functions</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">arguments</span> <span class="o">+=</span> <span class="n">as_tuple</span><span class="p">(</span><span class="n">arguments</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">includes</span> <span class="o">+=</span> <span class="n">as_tuple</span><span class="p">(</span><span class="n">includes</span><span class="p">)</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">flags</span><span class="o">.</span><span class="n">update</span><span class="p">({</span><span class="n">i</span><span class="p">:</span> <span class="kc">True</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">as_tuple</span><span class="p">(</span><span class="n">flags</span><span class="p">)})</span></div>
-
-    <span class="nd">@property</span>
-    <span class="k">def</span> <span class="nf">trees</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">nodes</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">elemental_functions</span>
-
-    <span class="nd">@property</span>
-    <span class="k">def</span> <span class="nf">has_applied_blocking</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;True if loop blocking was applied, False otherwise.&quot;&quot;&quot;</span>
-        <span class="k">return</span> <span class="s1">&#39;blocking&#39;</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">flags</span>
-
-    <span class="nd">@property</span>
-    <span class="k">def</span> <span class="nf">func_table</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;Return a mapper from elemental function names to :class:`Function`.&quot;&quot;&quot;</span>
-        <span class="k">return</span> <span class="n">OrderedDict</span><span class="p">([(</span><span class="n">i</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">elemental_functions</span><span class="p">])</span></div>
+        <span class="bp">self</span><span class="o">.</span><span class="n">flags</span><span class="o">.</span><span class="n">update</span><span class="p">({</span><span class="n">i</span><span class="p">:</span> <span class="kc">True</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">as_tuple</span><span class="p">(</span><span class="n">flags</span><span class="p">)})</span></div></div>
 
 
 <div class="viewcode-block" id="Arg"><a class="viewcode-back" href="../../../../devito.dle.backends.html#devito.dle.backends.common.Arg">[docs]</a><span class="k">class</span> <span class="nc">Arg</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
