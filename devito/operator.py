@@ -145,15 +145,16 @@ class Operator(Function):
                     new_params[orig_child.name] = new_child
         kwargs.update(new_params)
 
-        # Derivation
+        # Derivation. It must happen in the order [tensors -> dimensions -> scalars]
         for i in self.parameters:
             if i.is_TensorArgument:
                 assert(i.verify(kwargs.pop(i.name, None)))
-            else:
-                i.verify(kwargs.pop(i.name, None))
         runtime_dimensions = [d for d in self.dimensions if d.value is not None]
         for d in runtime_dimensions:
             d.verify(kwargs.pop(d.name, None))
+        for i in self.parameters:
+            if i.is_ScalarArgument:
+                i.verify(kwargs.pop(i.name, None))
 
         dim_sizes = OrderedDict([(d.name, d.value) for d in runtime_dimensions])
         dle_arguments, autotune = self._dle_arguments(dim_sizes)

@@ -18,8 +18,6 @@ class Dimension(Symbol, DimensionArgProvider):
     is_Buffered = False
     is_Lowered = False
 
-    _size_suffix = '_size'
-
     def __new__(cls, name, **kwargs):
         newobj = Symbol.__new__(cls, name)
         newobj.size = kwargs.get('size', None)
@@ -33,10 +31,10 @@ class Dimension(Symbol, DimensionArgProvider):
     @property
     def symbolic_size(self):
         """The symbolic size of this dimension."""
-        if self.size is not None:
+        try:
             return Number(self.size)
-        else:
-            return Symbol('%s%s' % (self.name, Dimension._size_suffix))
+        except TypeError:
+            return self.rtargs[0].as_symbol
 
 
 class BufferedDimension(Dimension):
