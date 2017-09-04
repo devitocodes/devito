@@ -67,12 +67,12 @@ class YaskCompiler(configuration['compiler'].__class__):
 
 
 yask_configuration = Parameters('YASK-Configuration')
-yask_configuration['compiler'] = YaskCompiler()
-yask_configuration['python-exec'] = False
+yask_configuration.add('compiler', YaskCompiler())
+yask_configuration.add('python-exec', False, [False, True])
 # TODO: this should be somewhat sniffed
-yask_configuration['arch'] = 'snb'
-yask_configuration['isa'] = 'cpp'
-configuration['yask'] = yask_configuration
+yask_configuration.add('arch', 'snb', ['snb'])
+yask_configuration.add('isa', 'cpp', ['cpp'])
+configuration.add('yask', yask_configuration)
 
 log("Backend successfully initialized!")
 
