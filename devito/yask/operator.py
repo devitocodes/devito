@@ -3,12 +3,14 @@ from __future__ import absolute_import
 from sympy import Indexed
 
 from devito.dimension import LoweredDimension
-from devito.dle import retrieve_iteration_tree
+from devito.dle import filter_iterations, retrieve_iteration_tree
+from devito.interfaces import Object
+from devito.nodes import FunCall
 from devito.logger import yask as log, yask_warning as warning
-from devito.operator import OperatorRunnable
-from devito.visitors import FindSymbols
+from devito.operator import OperatorRunnable, FunMeta
+from devito.visitors import FindSymbols, Transformer
 
-from devito.yask import cfac, nfac, ofac, namespace, exit
+from devito.yask import cfac, nfac, ofac, compiler, namespace, exit
 from devito.yask.wrappers import yask_context
 
 __all__ = ['Operator']
@@ -20,13 +22,17 @@ class Operator(OperatorRunnable):
     A special :class:`OperatorCore` to JIT-compile and run operators through YASK.
     """
 
+    _default_includes = OperatorRunnable._default_includes + ['yask_kernel_api.hpp']
+
     def __init__(self, expressions, **kwargs):
         kwargs['dle'] = 'noop'
         super(Operator, self).__init__(expressions, **kwargs)
 
-    def _specialize(self, nodes, elemental_functions):
+    def _specialize(self, nodes, parameters):
         """
         Create a YASK representation of this Iteration/Expression tree.
+
+        ``parameters`` is modified in-place adding YASK-related arguments.
         """
 
         log("Specializing a Devito Operator for YASK...")
@@ -41,7 +47,6 @@ class Operator(OperatorRunnable):
         trees = retrieve_iteration_tree(nodes)
         if len(trees) > 1:
             exit("Currently unable to handle Operators w/ more than 1 loop nests")
-
         tree = trees[0]
         candidate = tree[-1]
 
@@ -70,14 +75,32 @@ class Operator(OperatorRunnable):
         ycsoln.set_domain_dim_names(self.context.space_dimensions)
         ycsoln.set_element_bytes(4)
 
-        # JIT YASK kernel
+        # JIT-compile the newly-created YASK kernel
         self.ksoln = self.context.make_solution(ycsoln)
 
+        # The Devito compiler needs to know about the created shared object
+        compiler.libraries.append(self.ksoln.soname)
+
         # TODO: need to update nodes
+        key = lambda i: i.dim.name == self.ksoln.space_dimensions[0]
+        root = filter_iterations(tree, key=key, stop='asap')
+        if len(root) != 1:
+            exit("Couldn't find the root space loop within:\n%s" % str(tree[0]))
+        root = root[0]
+
+        funcall = 'soln->run_solution'
+        processed = Transformer({root: FunCall(funcall, 'time')}).visit(nodes)
+
+        # Track this is an external function call
+        self.func_table[funcall] = FunMeta(None, False)
+
+        # Add the Yask solution to the parameters list
+        parameters.append(Object('soln', namespace['type-solution'],
+                                 self.ksoln.rawpointer))
 
         log("Specialization successfully performed!")
 
-        return nodes, ()
+        return processed
 
     def apply(self, **kwargs):
         # Build the arguments list to invoke the kernel function

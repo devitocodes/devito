@@ -9,8 +9,9 @@ import numpy as np
 from sympy import Eq
 
 from devito.logger import error
-from devito.tools import convert_dtype_to_ctype
+from devito.tools import numpy_to_ctypes
 import devito
+
 """
 Pre-load ``libc`` to explicitly manage C memory
 """
@@ -44,7 +45,7 @@ def malloc_aligned(shape, alignment=None, dtype=np.float32):
     """
     data_pointer = ctypes.cast(ctypes.c_void_p(), ctypes.POINTER(ctypes.c_float))
     arraysize = int(reduce(mul, shape))
-    ctype = convert_dtype_to_ctype(dtype)
+    ctype = numpy_to_ctypes(dtype)
     if alignment is None:
         alignment = libc.getpagesize()
 

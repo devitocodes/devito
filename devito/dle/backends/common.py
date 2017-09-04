@@ -47,20 +47,6 @@ class State(object):
         self.includes += as_tuple(includes)
         self.flags.update({i: True for i in as_tuple(flags)})
 
-    @property
-    def trees(self):
-        return self.nodes, self.elemental_functions
-
-    @property
-    def has_applied_blocking(self):
-        """True if loop blocking was applied, False otherwise."""
-        return 'blocking' in self.flags
-
-    @property
-    def func_table(self):
-        """Return a mapper from elemental function names to :class:`Function`."""
-        return OrderedDict([(i.name, i) for i in self.elemental_functions])
-
 
 class Arg(object):
 

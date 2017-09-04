@@ -12,7 +12,8 @@ from devito.finite_difference import (centered, cross_derivative,
 from devito.logger import debug, error, warning
 from devito.memory import CMemory, first_touch
 from devito.arguments import (ConstantDataArgProvider, TensorDataArgProvider,
-                              ScalarFunctionArgProvider, TensorFunctionArgProvider)
+                              ScalarFunctionArgProvider, TensorFunctionArgProvider,
+                              ObjectArgProvider)
 from devito.parameters import configuration
 
 __all__ = ['Symbol', 'Indexed',
@@ -49,7 +50,52 @@ Forward = TimeAxis('Forward')
 Backward = TimeAxis('Backward')
 
 
-class CachedSymbol(object):
+class Basic(object):
+    """
+    Base class for API objects, used to build and run :class:`Operator`s.
+
+    There are two main types of objects: symbolic and generic. Symbolic objects
+    may carry data, and are used to build equations. Generic objects may be
+    used to represent or pass arbitrary data structures. The following diagram
+    outlines the top of this hierarchy.
+
+                                 Basic
+                                   |
+                    ----------------------------------
+                    |                                |
+              CachedSymbol                         Object
+                    |                       <see Object.__doc__>
+             AbstractSymbol
+    <see diagram in AbstractSymbol.__doc__>
+
+    All derived :class:`Basic` objects may be emitted through code generation
+    to create a just-in-time compilable kernel.
+    """
+
+    # Top hierarchy
+    is_AbstractSymbol = False
+    is_Object = False
+
+    # Symbolic objects created internally by Devito
+    is_SymbolicFunction = False
+    is_ScalarFunction = False
+    is_TensorFunction = False
+
+    # Symbolic objects created by user
+    is_SymbolicData = False
+    is_ConstantData = False
+    is_TensorData = False
+    is_DenseData = False
+    is_TimeData = False
+    is_CompositeData = False
+    is_PointData = False
+
+    # Basic symbolic object properties
+    is_Scalar = False
+    is_Tensor = False
+
+
+class CachedSymbol(Basic):
     """Base class for symbolic objects that caches on the class type."""
 
     @classmethod
@@ -125,24 +171,6 @@ class AbstractSymbol(Function, CachedSymbol):
     """
 
     is_AbstractSymbol = True
-
-    # Created internally by Devito
-    is_SymbolicFunction = False
-    is_ScalarFunction = False
-    is_TensorFunction = False
-
-    # User-provided
-    is_SymbolicData = False
-    is_ConstantData = False
-    is_TensorData = False
-    is_DenseData = False
-    is_TimeData = False
-    is_CompositeData = False
-    is_PointData = False
-
-    # Misc
-    is_Scalar = False
-    is_Tensor = False
 
     def __new__(cls, *args, **kwargs):
         if cls in _SymbolCache:
@@ -737,6 +765,27 @@ class CompositeData(DenseData):
     @property
     def children(self):
         return self._children
+
+
+# Objects belonging to the Devito API not involving data, such as data structures
+# that need to be passed to external libraries
+
+
+class Object(ObjectArgProvider):
+
+    """
+    Represent a generic pointer object.
+    """
+
+    is_Object = True
+
+    def __init__(self, name, dtype, value=None):
+        self.name = name
+        self.dtype = dtype
+        self.value = value
+
+    def __repr__(self):
+        return self.name
 
 
 # Extended SymPy hierarchy follows, for essentially two reasons:
