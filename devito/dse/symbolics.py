@@ -4,8 +4,9 @@ from devito.dse.backends import (BasicRewriter, AdvancedRewriter, SpeculativeRew
                                  AggressiveRewriter, CustomRewriter)
 from devito.exceptions import DSEException
 from devito.logger import dse_warning
+from devito.parameters import configuration
 
-__all__ = ['rewrite', 'modes']
+__all__ = ['rewrite']
 
 
 modes = {
@@ -15,6 +16,8 @@ modes = {
     'aggressive': AggressiveRewriter
 }
 """The DSE transformation modes."""
+
+configuration.add('dse', 'advanced', list(modes))
 
 
 def rewrite(clusters, mode='advanced'):

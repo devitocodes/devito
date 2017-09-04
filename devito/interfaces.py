@@ -13,27 +13,18 @@ from devito.logger import debug, error, warning
 from devito.memory import CMemory, first_touch
 from devito.arguments import (ConstantDataArgProvider, TensorDataArgProvider,
                               ScalarFunctionArgProvider, TensorFunctionArgProvider)
+from devito.parameters import configuration
 
 __all__ = ['Symbol', 'Indexed',
            'ConstantData', 'DenseData', 'TimeData',
            'Forward', 'Backward']
 
+configuration.add('first_touch', 0, [0, 1], lambda i: bool(i))
 
 # This cache stores a reference to each created data object
 # so that we may re-create equivalent symbols during symbolic
 # manipulation with the correct shapes, pointers, etc.
 _SymbolCache = {}
-
-# This global stores whether newly allocated memory should be initialised
-# using Devito's own JIT engine. It will otherwise be initialised using
-# numpy.
-Global_First_Touch = None
-
-
-def set_global_first_touch(flag):
-    assert(flag is True or flag is False)
-    global Global_First_Touch
-    Global_First_Touch = flag
 
 
 class TimeAxis(object):
@@ -413,7 +404,7 @@ class DenseData(TensorData):
             self.initializer = kwargs.get('initializer', None)
             if self.initializer is not None:
                 assert(callable(self.initializer))
-            self.first_touch = kwargs.get('first_touch', Global_First_Touch)
+            self._first_touch = kwargs.get('first_touch', configuration['first_touch'])
             self._data_object = None
 
     @classmethod
@@ -445,7 +436,7 @@ class DenseData(TensorData):
         """Allocate memory in terms of numpy ndarrays."""
         debug("Allocating memory for %s (%s)" % (self.name, str(self.shape)))
         self._data_object = CMemory(self.shape, dtype=self.dtype)
-        if self.first_touch:
+        if self._first_touch:
             first_touch(self)
         else:
             self.data.fill(0)
