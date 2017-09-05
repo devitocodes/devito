@@ -625,19 +625,18 @@ class DenseData(TensorData):
     @property
     def laplace(self):
         """Symbol for the second derivative wrt all spatial dimensions"""
-        derivs = ['dx2', 'dy2', 'dz2']
 
-        return sum([getattr(self, d) for d in derivs[:self.dim]])
+        return sum([getattr(self, 'd%s2' % d) for d in self.indices if d in (x, y, z)])
 
     def laplace2(self, weight=1):
         """Symbol for the double laplacian wrt all spatial dimensions"""
         order = self.space_order/2 + self.space_order/2 % 2
         first = sum([second_derivative(self, dim=d,
                                        order=order)
-                     for d in self.indices[1:]])
+                     for d in self.indices if d in (x, y, z)])
         second = sum([second_derivative(first * weight, dim=d,
                                         order=order)
-                      for d in self.indices[1:]])
+                      for d in self.indices if d in (x, y, z)])
         return second
 
 
@@ -745,7 +744,7 @@ class TimeData(DenseData):
     @property
     def dt(self):
         """Symbol for the first derivative wrt the time dimension"""
-        _t = self.indices[0]
+        _t = [var for var in self.indices if var in (t, time)][0]
         if self.time_order == 1:
             # This hack is needed for the first-order diffusion test
             indices = [_t, _t + s]
@@ -758,7 +757,7 @@ class TimeData(DenseData):
     @property
     def dt2(self):
         """Symbol for the second derivative wrt the t dimension"""
-        _t = self.indices[0]
+        _t = [var for var in self.indices if var in (t, time)][0]
         width_t = int(self.time_order / 2)
         indt = [(_t + i * s) for i in range(-width_t, width_t + 1)]
 
