@@ -704,7 +704,7 @@ class TimeData(DenseData):
             if dimensions is None:
                 self.shape = (time_dim,) + self.shape
             else:
-                warning("All dimensions sizes must be provided for custom"
+                warning("All dimensions sizes must be provided for custom "
                         "dimensions ordering")
 
     def initialize(self):

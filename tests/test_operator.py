@@ -585,20 +585,22 @@ class TestMixedDimensions(object):
         Operator is stuck in an infinite while loop at
         "/Users/mloubout/Dropbox/London/CodeGen/devito/devito/tools.py line 120
         if b indices are (p_aux, y, x)
+
+        All good with dse/dle to `noop` and p_aux as the last dimension
         """
         time_dim = 6
         a = TimeData(name='a', shape=(11, 11), time_order=2,
-                     time_dim=time_dim, save=True)
+                     time_dim=time_dim, save=False)
         p_aux = Dimension(name='p_aux', size=10)
         # Same object, different ordering of dimensions, need
         # to declare shape
-        b = DenseData(name='a2', shape=(10, 11, 11),
-                      dimensions=(p_aux, x, y))
+        b = DenseData(name='a2', shape=(11, 11, 10),
+                      dimensions=(x, y, p_aux))
         # Equations
         eqn1 = [Eq(a.forward, a + 1.)]
         eqn2 = [Eq(b, time*b*a + b)]
         # Operator
-        op1 = Operator(eqn1 + eqn2)
+        op1 = Operator(eqn1 + eqn2, dse='noop', dle='noop')
         # run
         op1.cfunction
 
