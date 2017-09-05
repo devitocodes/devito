@@ -10,16 +10,18 @@ import inspect
 from collections import Iterable, OrderedDict, defaultdict
 from operator import attrgetter
 
+import cgen as c
 from sympy import Symbol
 
+from devito.cgen_utils import blankline, ccode
 from devito.dimension import LoweredDimension
 from devito.exceptions import VisitorException
 from devito.nodes import Iteration, Node, UnboundedIndex
-from devito.tools import as_tuple, filter_ordered, filter_sorted, flatten
+from devito.tools import as_tuple, filter_ordered, filter_sorted, flatten, ctypes_to_C
 
 
 __all__ = ['FindNodes', 'FindSections', 'FindSymbols', 'FindScopes',
-           'IsPerfectIteration', 'SubstituteExpression', 'printAST',
+           'IsPerfectIteration', 'SubstituteExpression', 'printAST', 'CGen',
            'ResolveIterationVariable', 'Transformer', 'NestedTransformer',
            'FindAdjacentIterations']
 
@@ -150,6 +152,12 @@ class PrintAST(Visitor):
 
     _depth = 0
 
+    """
+    Return a representation of the Iteration/Expression tree as a string,
+    highlighting tree structure and node properties while dropping non-essential
+    information.
+    """
+
     def __init__(self, verbose=True):
         super(PrintAST, self).__init__()
         self.verbose = verbose
@@ -212,6 +220,147 @@ class PrintAST(Visitor):
             return self.indent + "<Expression %s>" % body
         else:
             return self.indent + str(o)
+
+
+class CGen(Visitor):
+
+    """
+    Return a representation of the Iteration/Expression tree as a :module:`cgen` tree.
+    """
+
+    def _args_decl(self, args):
+        """Convert an iterable of :class:`Argument` into cgen format."""
+        ret = []
+        for i in args:
+            if i.is_ScalarArgument:
+                ret.append(c.Value('const %s' % c.dtype_to_ctype(i.dtype), i.name))
+            elif i.is_TensorArgument:
+                ret.append(c.Value(c.dtype_to_ctype(i.dtype),
+                                   '*restrict %s_vec' % i.name))
+            else:
+                ret.append(c.Value('void', '*_%s' % i.name))
+        return ret
+
+    def _args_cast(self, args):
+        """Build cgen type casts for an iterable of :class:`Argument`."""
+        ret = []
+        for i in args:
+            if i.is_TensorArgument:
+                align = "__attribute__((aligned(64)))"
+                shape = ''.join(["[%s]" % ccode(j)
+                                 for j in i.provider.symbolic_shape[1:]])
+                lvalue = c.POD(i.dtype, '(*restrict %s)%s %s' % (i.name, shape, align))
+                rvalue = '(%s (*)%s) %s' % (c.dtype_to_ctype(i.dtype), shape,
+                                            '%s_vec' % i.name)
+                ret.append(c.Initializer(lvalue, rvalue))
+            elif i.is_PtrArgument:
+                ctype = ctypes_to_C(i.dtype)
+                lvalue = c.Pointer(c.Value(ctype, i.name))
+                rvalue = '(%s*) %s' % (ctype, '_%s' % i.name)
+                ret.append(c.Initializer(lvalue, rvalue))
+        return ret
+
+    def visit_tuple(self, o):
+        return tuple(self.visit(i) for i in o)
+
+    def visit_Block(self, o):
+        body = flatten(self.visit(i) for i in o.children)
+        return c.Module(o.header + (c.Block(body),) + o.footer)
+
+    def visit_List(self, o):
+        body = flatten(self.visit(i) for i in o.children)
+        return c.Module(o.header + (c.Collection(body),) + o.footer)
+
+    def visit_Element(self, o):
+        return o.element
+
+    def visit_Expression(self, o):
+        return c.Assign(ccode(o.expr.lhs), ccode(o.expr.rhs))
+
+    def visit_LocalExpression(self, o):
+        return c.Initializer(c.Value(c.dtype_to_ctype(o.dtype),
+                             ccode(o.expr.lhs)), ccode(o.expr.rhs))
+
+    def visit_FunCall(self, o):
+        return c.Statement('%s(%s)' % (o.name, ','.join(o.params)))
+
+    def visit_Iteration(self, o):
+        body = flatten(self.visit(i) for i in o.children)
+
+        # Start
+        if o.offsets[0] != 0:
+            start = "%s + %s" % (o.limits[0], -o.offsets[0])
+            try:
+                start = eval(start)
+            except (NameError, TypeError):
+                pass
+        else:
+            start = o.limits[0]
+
+        # Bound
+        if o.offsets[1] != 0:
+            end = "%s - %s" % (o.limits[1], o.offsets[1])
+            try:
+                end = eval(end)
+            except (NameError, TypeError):
+                pass
+        else:
+            end = o.limits[1]
+
+        # For reverse dimensions flip loop bounds
+        if o.reverse:
+            loop_init = 'int %s = %s' % (o.index, ccode('%s - 1' % end))
+            loop_cond = '%s >= %s' % (o.index, ccode(start))
+            loop_inc = '%s -= %s' % (o.index, o.limits[2])
+        else:
+            loop_init = 'int %s = %s' % (o.index, ccode(start))
+            loop_cond = '%s < %s' % (o.index, ccode(end))
+            loop_inc = '%s += %s' % (o.index, o.limits[2])
+
+        # Append unbounded indices, if any
+        if o.uindices:
+            uinit = ['%s = %s' % (i.index, ccode(i.start)) for i in o.uindices]
+            loop_init = c.Line(', '.join([loop_init] + uinit))
+            ustep = ['%s = %s' % (i.index, ccode(i.step)) for i in o.uindices]
+            loop_inc = c.Line(', '.join([loop_inc] + ustep))
+
+        # Create For header+body
+        handle = c.For(loop_init, loop_cond, loop_inc, c.Block(body))
+
+        # Attach pragmas, if any
+        if o.pragmas:
+            handle = c.Module(o.pragmas + (handle,))
+
+        return handle
+
+    def visit_Function(self, o):
+        body = flatten(self.visit(i) for i in o.children)
+        decls = self._args_decl(o.parameters)
+        casts = self._args_cast(o.parameters)
+        signature = c.FunctionDeclaration(c.Value(o.retval, o.name), decls)
+        return c.FunctionBody(signature, c.Block(casts + body))
+
+    def visit_Operator(self, o):
+        # Kernel signature and body
+        body = flatten(self.visit(i) for i in o.children)
+        decls = self._args_decl(o.parameters)
+        casts = self._args_cast(o.parameters)
+        signature = c.FunctionDeclaration(c.Value(o.retval, o.name), decls)
+        retval = [c.Statement("return 0")]
+        kernel = c.FunctionBody(signature, c.Block(casts + body + retval))
+
+        # Elemental functions
+        efuncs = [i.root.ccode for i in o.func_table.values() if i.local] + [blankline]
+
+        # Header files, extra definitions, ...
+        header = [c.Line(i) for i in o._headers]
+        includes = [c.Include(i, system=False) for i in o._includes]
+        includes += [blankline]
+        cglobals = []
+        if o.profiler is not None:
+            cglobals += [o.profiler.cdef, blankline]
+
+        return c.Module(header + includes + cglobals + efuncs + [kernel])
 
 
 class FindSections(Visitor):

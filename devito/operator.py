@@ -1,28 +1,27 @@
 from __future__ import absolute_import
 
-import operator
-from collections import OrderedDict
+from collections import OrderedDict, namedtuple
+from operator import attrgetter
 
-import cgen as c
+import ctypes
 import numpy as np
 import sympy
 
-from devito.cgen_utils import Allocator, blankline
+from devito.cgen_utils import Allocator
 from devito.compiler import jit_compile, load
 from devito.dimension import time, Dimension
 from devito.dle import compose_nodes, filter_iterations, transform
-from devito.dse import clusterize, indexify, rewrite, q_indexed
-from devito.interfaces import Forward, Backward, CompositeData, SymbolicData
+from devito.dse import clusterize, indexify, rewrite, q_indexed, terminals
+from devito.interfaces import Forward, Backward, CompositeData, Object
 from devito.logger import bar, error, info
 from devito.nodes import Element, Expression, Function, Iteration, List, LocalExpression
 from devito.parameters import configuration
-from devito.profiling import Profiler, create_profile
+from devito.profiling import create_profile
 from devito.stencil import Stencil
-from devito.tools import as_tuple, convert_dtype_to_ctype, filter_ordered, flatten
-from devito.visitors import (FindSymbols, FindScopes, ResolveIterationVariable,
+from devito.tools import as_tuple, filter_sorted, flatten, numpy_to_ctypes
+from devito.visitors import (FindScopes, ResolveIterationVariable,
                              SubstituteExpression, Transformer, NestedTransformer)
 from devito.exceptions import InvalidArgument, InvalidOperator
-from devito.arguments import ArgumentProvider
 
 
 class Operator(Function):
@@ -75,72 +74,53 @@ class Operator(Function):
 
         # Analysis 1 - required *also after* the Operator construction
         self.dtype = self._retrieve_dtype(expressions)
-        self.output = self._retrieve_output_fields(expressions)
+        self.input, self.output, self.dimensions = self._retrieve_symbols(expressions)
 
         # Analysis 2 - required *for* the Operator construction
         ordering = self._retrieve_loop_ordering(expressions)
         stencils = self._retrieve_stencils(expressions)
 
+        # Parameters of the Operator (Dimensions necessary for data casts)
+        parameters = self.input + [i for i in self.dimensions if i.size is None]
+
         # Group expressions based on their Stencil
         clusters = clusterize(expressions, stencils)
 
-        # Apply the Devito Symbolic Engine for symbolic optimization
+        # Apply the Devito Symbolic Engine (DSE) for symbolic optimization
         clusters = rewrite(clusters, mode=set_dse_mode(dse))
 
         # Wrap expressions with Iterations according to dimensions
         nodes = self._schedule_expressions(clusters, ordering)
 
         # Introduce C-level profiling infrastructure
-        nodes, self.profiler = self._profile_sections(nodes)
-
-        # Parameters of the Operator (Dimensions necessary for data casts)
-        parameters = FindSymbols('kernel-data').visit(nodes)
-        dimensions = FindSymbols('dimensions').visit(nodes)
-        dimensions += [d.parent for d in dimensions if d.is_Buffered]
-        parameters += filter_ordered([d for d in dimensions if d.size is None],
-                                     key=operator.attrgetter('name'))
+        nodes, self.profiler = self._profile_sections(nodes, parameters)
 
         # Resolve and substitute dimensions for loop index variables
         subs = {}
         nodes = ResolveIterationVariable().visit(nodes, subs=subs)
         nodes = SubstituteExpression(subs=subs).visit(nodes)
 
-        # Apply the Devito Loop Engine for loop optimization
+        # Apply the Devito Loop Engine (DLE) for loop optimization
         dle_state = transform(nodes, *set_dle_mode(dle))
-        nodes, elemental_functions = dle_state.trees
+
+        # Update the Operator state based on the DLE
         self.dle_arguments = dle_state.arguments
         self.dle_flags = dle_state.flags
-
-        # Update the Operator arguments
-        parameters += [i.argument for i in self.dle_arguments]
+        self.func_table = OrderedDict([(i.name, FunMeta(i, True))
+                                       for i in dle_state.elemental_functions])
+        parameters.extend([i.argument for i in self.dle_arguments])
+        self.dimensions.extend([i.argument for i in self.dle_arguments
+                                if isinstance(i.argument, Dimension)])
         self._includes.extend(list(dle_state.includes))
 
-        self.symbolic_data = [i for i in parameters if isinstance(i, SymbolicData)]
-        dims = [i for i in parameters if isinstance(i, Dimension)]
-        dims_parents = [d.parent for d in dims if d.is_Buffered]
-        self.dims = filter_ordered(dims + dims_parents)
-        assert(all(isinstance(i, ArgumentProvider) for i in self.symbolic_data +
-                   self.dims))
-        parameters = filter_ordered(parameters + dims_parents)
-
         # Translate into backend-specific representation (e.g., GPU, Yask)
-        nodes, elemental_functions = self._specialize(nodes, elemental_functions)
+        nodes = self._specialize(dle_state.nodes, parameters)
 
         # Introduce all required C declarations
-        nodes, elemental_functions = self._insert_declarations(nodes,
-                                                               elemental_functions,
-                                                               dle_state.func_table,
-                                                               parameters)
+        nodes = self._insert_declarations(nodes)
 
         # Finish instantiation
         super(Operator, self).__init__(self.name, nodes, 'int', parameters, ())
-        self.elemental_functions = elemental_functions
-
-    def _reset_args(self):
-        """ Reset any runtime argument derivation information from a previous run
-        """
-        for x in self.tensor_args + self.dims + self.scalar_args:
-            x.reset()
 
     def arguments(self, **kwargs):
         """ Process any apply-time arguments passed to apply and derive values for
@@ -151,7 +131,7 @@ class Operator(Function):
         # that need to be substituted as well.
         for k, v in kwargs.items():
             if isinstance(v, CompositeData):
-                orig_param_l = [i for i in self.symbolic_data if i.name == k]
+                orig_param_l = [i for i in self.input if i.name == k]
                 # If I have been passed a parameter, I must have seen it before
                 if len(orig_param_l) == 0:
                     raise InvalidArgument("Parameter %s does not exist in expressions " +
@@ -165,17 +145,18 @@ class Operator(Function):
                     new_params[orig_child.name] = new_child
         kwargs.update(new_params)
 
-        for ta in self.tensor_args:
-            assert(ta.verify(kwargs.pop(ta.name, None)))
-
-        for d in self.dims:
+        # Derivation. It must happen in the order [tensors -> dimensions -> scalars]
+        for i in self.parameters:
+            if i.is_TensorArgument:
+                assert(i.verify(kwargs.pop(i.name, None)))
+        runtime_dimensions = [d for d in self.dimensions if d.value is not None]
+        for d in runtime_dimensions:
             d.verify(kwargs.pop(d.name, None))
+        for i in self.parameters:
+            if i.is_ScalarArgument:
+                i.verify(kwargs.pop(i.name, None))
 
-        for s in self.scalar_args:
-            s.verify(kwargs.pop(s.name, None))
-
-        dim_sizes = OrderedDict([(d.name, d.value) for d in self.dims])
-        dim_names = OrderedDict([(d.name, d) for d in self.dims])
+        dim_sizes = OrderedDict([(d.name, d.value) for d in runtime_dimensions])
         dle_arguments, autotune = self._dle_arguments(dim_sizes)
         dim_sizes.update(dle_arguments)
 
@@ -185,12 +166,11 @@ class Operator(Function):
         if len(kwargs) > 0:
             raise InvalidArgument("Unknown arguments passed: " + ", ".join(kwargs.keys()))
 
+        mapper = OrderedDict([(d.name, d) for d in self.dimensions])
         for d, v in dim_sizes.items():
-            assert(dim_names[d].verify(v))
+            assert(mapper[d].verify(v))
 
         arguments = self._default_args()
-
-        arguments.update(self._extra_arguments())
 
         if autotune:
             arguments = self._autotune(arguments)
@@ -203,6 +183,13 @@ class Operator(Function):
 
     def _default_args(self):
         return OrderedDict([(x.name, x.value) for x in self.parameters])
+
+    def _reset_args(self):
+        """
+        Reset any runtime argument derivation information from a previous run.
+        """
+        for x in list(self.parameters) + self.dimensions:
+            x.reset()
 
     def _dle_arguments(self, dim_sizes):
         # Add user-provided block sizes, if any
@@ -225,29 +212,8 @@ class Operator(Function):
         return dle_arguments, autotune
 
     @property
-    def ccode(self):
-        """Returns the C code generated by this kernel.
-
-        This function generates the internal code block from Iteration
-        and Expression objects, and adds the necessary template code
-        around it.
-        """
-        # Generate function body with all the trimmings
-        body = [e.ccode for e in self.body]
-        ret = [c.Statement("return 0")]
-        kernel = c.FunctionBody(self._ctop, c.Block(self._ccasts + body + ret))
-
-        # Generate elemental functions produced by the DLE
-        elemental_functions = [e.ccode for e in self.elemental_functions]
-        elemental_functions += [blankline]
-
-        # Generate file header with includes and definitions
-        header = [c.Line(i) for i in self._headers]
-        includes = [c.Include(i, system=False) for i in self._includes]
-        includes += [blankline]
-
-        return c.Module(header + includes + self._cglobals +
-                        elemental_functions + [kernel])
+    def elemental_functions(self):
+        return tuple(i.root for i in self.func_table.values())
 
     @property
     def compile(self):
@@ -276,25 +242,22 @@ class Operator(Function):
 
         if self._cfunction is None:
             self._cfunction = getattr(self._lib, self.name)
+            # Associate a C type to each argument for runtime type check
             argtypes = []
             for i in self.parameters:
                 if i.is_ScalarArgument:
-                    argtypes.append(convert_dtype_to_ctype(i.dtype))
-                else:
+                    argtypes.append(numpy_to_ctypes(i.dtype))
+                elif i.is_TensorArgument:
                     argtypes.append(np.ctypeslib.ndpointer(dtype=i.dtype, flags='C'))
+                else:
+                    argtypes.append(ctypes.c_void_p)
             self._cfunction.argtypes = argtypes
 
         return self._cfunction
 
-    def _arg_shape(self, argument):
-        return argument.shape
-
-    def _extra_arguments(self):
-        return {}
-
-    def _profile_sections(self, nodes):
+    def _profile_sections(self, nodes, parameters):
         """Introduce C-level profiling nodes within the Iteration/Expression tree."""
-        return List(body=nodes), Profiler()
+        return List(body=nodes), None
 
     def _autotune(self, arguments):
         """Use auto-tuning on this Operator to determine empirically the
@@ -352,13 +315,13 @@ class Operator(Function):
 
         return List(body=processed)
 
-    def _specialize(self, nodes, elemental_functions):
+    def _specialize(self, nodes, parameters):
         """Transform the Iteration/Expression tree into a backend-specific
         representation, such as code to be executed on a GPU or through a
         lower-level tool."""
-        return nodes, elemental_functions
+        return nodes
 
-    def _insert_declarations(self, nodes, elemental_functions, func_table, parameters):
+    def _insert_declarations(self, nodes):
         """Populate the Operator's body with the required array and variable
         declarations, to generate a legal C file."""
 
@@ -366,8 +329,9 @@ class Operator(Function):
         scopes = []
         for k, v in FindScopes().visit(nodes).items():
             if k.is_FunCall:
-                function = func_table[k.name]
-                scopes.extend(FindScopes().visit(function, queue=list(v)).items())
+                func = self.func_table[k.name]
+                if func.local:
+                    scopes.extend(FindScopes().visit(func.root, queue=list(v)).items())
             else:
                 scopes.append((k, v))
 
@@ -394,14 +358,16 @@ class Operator(Function):
         for k, v in allocator.onstack:
             mapper[k] = tuple(Element(i) for i in v)
         nodes = NestedTransformer(mapper).visit(nodes)
-        elemental_functions = Transformer(mapper).visit(elemental_functions)
+        for k, v in list(self.func_table.items()):
+            if v.local:
+                self.func_table[k] = FunMeta(Transformer(mapper).visit(v.root), v.local)
 
         # Introduce declarations on the heap (if any)
         if allocator.onheap:
             decls, allocs, frees = zip(*allocator.onheap)
             nodes = List(header=decls + allocs, body=nodes, footer=frees)
 
-        return nodes, elemental_functions
+        return nodes
 
     def _retrieve_dtype(self, expressions):
         """
@@ -426,10 +392,6 @@ class Operator(Function):
                 ordering.extend([i, i.parent] if i.is_Buffered else [i])
         return ordering
 
-    def _retrieve_output_fields(self, expressions):
-        """Retrieve the fields computed by the Operator."""
-        return [i.lhs.base.function for i in expressions if q_indexed(i.lhs)]
-
     def _retrieve_stencils(self, expressions):
         """Determine the :class:`Stencil` of each provided expression."""
         stencils = [Stencil(i) for i in expressions]
@@ -444,13 +406,21 @@ class Operator(Function):
 
         return stencils
 
-    @property
-    def _cparameters(self):
-        return super(Operator, self)._cparameters
+    def _retrieve_symbols(self, expressions):
+        """
+        Retrieve the symbolic functions read or written by the Operator,
+        as well as all traversed dimensions.
+        """
+        input = flatten(terminals(i) for i in expressions)
+        input = filter_sorted([i.base.function for i in input], key=attrgetter('name'))
 
-    @property
-    def _cglobals(self):
-        return []
+        output = [i.lhs.base.function for i in expressions if q_indexed(i.lhs)]
+
+        dimensions = flatten(i.indices for i in input)
+        dimensions.extend([d.parent for d in dimensions if d.is_Buffered])
+        dimensions = filter_sorted(dimensions, key=attrgetter('name'))
+
+        return input, output, dimensions
 
 
 class OperatorRunnable(Operator):
@@ -480,29 +450,21 @@ class OperatorRunnable(Operator):
 
         return summary
 
-    def _arg_shape(self, argument):
-        return argument.data.shape
-
-    def _profile_sections(self, nodes):
+    def _profile_sections(self, nodes, parameters):
         """Introduce C-level profiling nodes within the Iteration/Expression tree."""
-        return create_profile(nodes)
-
-    def _extra_arguments(self):
-        return OrderedDict([(self.profiler.typename, self.profiler.setup())])
-
-    @property
-    def _cparameters(self):
-        cparameters = super(OperatorRunnable, self)._cparameters
-        cparameters += [c.Pointer(c.Value('struct %s' % self.profiler.typename,
-                                          self.profiler.varname))]
-        return cparameters
-
-    @property
-    def _cglobals(self):
-        return [self.profiler.ctype, blankline]
+        nodes, profiler = create_profile(nodes)
+        parameters.append(Object(profiler.varname, profiler.dtype, profiler.setup()))
+        return nodes, profiler
 
 
 # Misc helpers
+
+
+FunMeta = namedtuple('FunMeta', 'root local')
+"""
+Metadata for functions called by an Operator. ``local = True`` means that
+the function was generated by Devito itself.
+"""
 
 
 def set_dse_mode(mode):
