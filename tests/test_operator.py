@@ -562,20 +562,28 @@ class TestMixedDimensions(object):
         # Same object, different ordering of dimensions, need
         # to declare shape or it breaks...
         a2 = TimeData(name='a2', shape=(11, 6, 11),
-                      dimensions=(y, t, x), time_order=2,
+                      dimensions=(y, time, x), time_order=2,
                       time_dim=time_dim, save=True)
+
+        print(a)
+        print(a2)
+        print(a.data.shape)
+        print(a2.data.shape)
         # Equations
         eqn1 = Eq(a.forward, a + 1.)
         eqn2 = Eq(a2.forward, a2 + 1.)
         # Operator
         op1 = Operator(eqn1)
-        op2 = Operator(eqn1)
+        op2 = Operator(eqn2)
         # run
         op1()
         op2()
         # Check same output for corresponding indices
-        assert(np.allclose(a.data[1, :, 1].reshape(-1) - a.data[1, 1, :].reshape(-1), 0.))
-        assert (np.allclose(a.data[1, 1, :].reshape(-1) - a.data[:, 1, 1].reshape(-1), 0.))
+        print(a.data[1, :, 1].reshape(-1))
+        print(a2.data[1, 1, :].reshape(-1))
+        print(a.data[1, 1, :].reshape(-1) - a2.data[:, 1, 1].reshape(-1))
+        assert(np.allclose(a.data[1, :, 1].reshape(-1) - a2.data[1, 1, :].reshape(-1), 0.))
+        assert (np.allclose(a.data[1, 1, :].reshape(-1) - a2.data[:, 1, 1].reshape(-1), 0.))
 
 
 if __name__ == "__main__":

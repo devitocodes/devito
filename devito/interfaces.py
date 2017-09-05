@@ -699,7 +699,12 @@ class TimeData(DenseData):
                     error('Time dimension (time_dim) is required'
                           'to save intermediate data with save=True')
                     raise ValueError("Unknown time dimensions")
-            self.shape = (time_dim,) + self.shape
+            dimensions = kwargs.get('dimensions', None)
+            if dimensions is None:
+                self.shape = (time_dim,) + self.shape
+            else:
+                warning(" All dimensions sizes must be provided for custom"
+                        "dimensions ordering")
 
     def initialize(self):
         if self.initializer is not None:
@@ -715,10 +720,14 @@ class TimeData(DenseData):
                       automatically infer dimension symbols.
         :return: Dimension indices used for each axis.
         """
-        save = kwargs.get('save', None)
-        tidx = time if save else t
-        _indices = DenseData._indices(**kwargs)
-        return tuple([tidx] + list(_indices))
+        dimensions = kwargs.get('dimensions', None)
+        if dimensions is None:
+            save = kwargs.get('save', None)
+            tidx = time if save else t
+            _indices = DenseData._indices(**kwargs)
+            return tuple([tidx] + list(_indices))
+        else:
+            return dimensions
 
     @property
     def dim(self):
