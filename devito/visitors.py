@@ -356,9 +356,10 @@ class CGen(Visitor):
         header = [c.Line(i) for i in o._headers]
         includes = [c.Include(i, system=False) for i in o._includes]
         includes += [blankline]
-        cglobals = []
-        if o.profiler is not None:
-            cglobals += [o.profiler.cdef, blankline]
+        cglobals = o._globals
+        if o._compiler.src_ext == 'cpp':
+            cglobals += [c.Extern('C', signature)]
+        cglobals = [i for j in cglobals for i in (j, blankline)]
 
         return c.Module(header + includes + cglobals + efuncs + [kernel])
 

@@ -43,7 +43,7 @@ class Parameters(OrderedDict):
             if retval is not None:
                 super(Parameters, self).__setitem__(key, retval)
 
-    def add(self, key, value, accepted, callback=None):
+    def add(self, key, value, accepted=None, callback=None):
         """
         Add a new parameter ``key`` with default value ``value``.
 
