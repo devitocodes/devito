@@ -21,7 +21,10 @@ def terminals(expr, discard_indexed=False):
 
     # Use '.name' for quickly checking uniqueness
     junk = flatten([i.free_symbols for i in indexed])
-    junk = [i.name for i in junk] + [i.parent.name if (i.is_Buffered if hasattr(i, "is_Buffered") else False) else None for i in junk]
+    junk = [i.name for i in junk] + \
+           [i.parent.name if
+            (i.is_Buffered if hasattr(i, "is_Buffered") else False)
+            else None for i in junk]
 
     symbols = {i for i in expr.free_symbols if i.name not in junk}
 
