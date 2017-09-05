@@ -5,7 +5,7 @@ import pytest  # noqa
 
 pexpect = pytest.importorskip('yask_compiler')  # Run only if YASK is available
 
-from devito import (Operator, DenseData, TimeData, t, x, y, z,
+from devito import (Operator, Dimension, DenseData, TimeData, t, x, y, z,
                     configuration, clear_cache)  # noqa
 from devito.yask.wrappers import YaskGrid  # noqa
 
@@ -171,3 +171,33 @@ class TestOperatorExecution(object):
         lbound, rbound = space_order, 16 - space_order
         written_region = v.data[1, lbound:rbound, lbound:rbound, lbound:rbound]
         assert np.all(written_region == 6.)
+
+    def test_multiple_loop_nests(self):
+        """
+        Compute a simple stencil S, preceded by an "initialization loop" I and
+        followed by a "random loop" R.
+
+            * S is the trivial equation ``u[t+1,x,y,z] = u[t,x,y,z] + 1``
+            * I initializes ``u`` to 3
+            * R adds 1 to another field ``v``
+
+        Out of these three loop nests, only S should be "offloaded" to YASK; indeed,
+        I is outside the time loop, while R does not loop over space dimensions.
+        This test checks that S is the only loop nest "offloaded" to YASK, and
+        that the numerical output is correct.
+        """
+        i = Dimension(name='i', size=16)
+        j = Dimension(name='j', size=16)
+        k = Dimension(name='k', size=16)
+        space_order = 0
+        u = TimeData(name='yu4D', shape=(16, 16, 16), dimensions=(x, y, z),
+                     space_order=space_order)
+        v = TimeData(name='yv4D', shape=(16, 16, 16), dimensions=(x, y, z),
+                     space_order=space_order)
+        v.data[:] = 0.
+        eqs = [Eq(u.indexed[0, x, y, z], 0),
+               Eq(u.forward, u + 1.),
+               Eq(v.indexed[t + 1, i, j, k], v.indexed[t + 1, i, j, k] + 2.)]
+        op = Operator(eqs, subs={t.spacing: 1})
+        op(yu4D=u, yv4D=v, t=1)
+        assert np.all(u.data[1] == 1.)

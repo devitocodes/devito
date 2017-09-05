@@ -4,12 +4,13 @@ from sympy import Indexed
 
 from devito.compiler import jit_compile
 from devito.dimension import LoweredDimension
-from devito.dle import filter_iterations, retrieve_iteration_tree
+from devito.dle import retrieve_iteration_tree
 from devito.interfaces import Object
 from devito.nodes import FunCall
 from devito.logger import yask as log, yask_warning as warning
 from devito.operator import OperatorRunnable, FunMeta
-from devito.visitors import FindSymbols, Transformer
+from devito.tools import flatten
+from devito.visitors import IsPerfectIteration, Transformer
 
 from devito.yask import cfac, nfac, ofac, namespace, exit, yask_configuration
 from devito.yask.wrappers import yask_context
@@ -51,23 +52,37 @@ class Operator(OperatorRunnable):
         self.yask_compiler_output = ofac.new_string_output()
         ycsoln.set_debug_output(self.yask_compiler_output)
 
-        trees = retrieve_iteration_tree(nodes)
-        if len(trees) > 1:
-            exit("Currently unable to handle Operators w/ more than 1 loop nests")
-        tree = trees[0]
-        candidate = tree[-1]
+        # Find offloadable Iteration/Expression trees
+        candidates = []
+        for tree in retrieve_iteration_tree(nodes):
+            if not (IsPerfectIteration().visit(tree) and
+                    all(i.is_Expression for i in tree[-1].nodes)):
+                # Don't know how to offload this Iteration/Expression to YASK
+                continue
+            functions = flatten(i.functions for i in tree[-1].nodes)
+            keys = set([(i.indices, i.shape, i.dtype, i.space_order) for i in functions
+                        if i.is_TimeData])
+            if len(keys) > 1:
+                exit("Cannot handle Operators w/ heterogeneous grids")
+            dimensions, shape, dtype, space_order = keys.pop()
+            if len(dimensions) == len(tree) and\
+                    all(i.dim == j for i, j in zip(tree, dimensions)):
+                # Detected a "full" Iteration/Expression tree (over both
+                # time and space dimensions)
+                candidates.append((tree, dimensions, shape, dtype, space_order))
 
-        expressions = [e for e in candidate.nodes if e.is_Expression]
-        functions = [i for i in FindSymbols().visit(candidate) if i.is_TimeData]
-        keys = set([(i.indices, i.shape, i.dtype, i.space_order) for i in functions])
-        if len(keys) > 1:
-            exit("Currently unable to handle Operators w/ heterogeneous grids")
-        self.context = yask_context(*keys.pop())
+        # Fetch a YaskContext
+        if len(candidates) == 0:
+            exit("Currently unable to handle YASK Operators w/o offloadable trees")
+        elif len(candidates) > 1:
+            exit("Currently unable to handle YASK Operators w/ > 1 offloadable trees")
+        tree, dimensions, shape, dtype, space_order = candidates[0]
+        self.context = yask_context(dimensions, shape, dtype, space_order)
 
         # Perform the translation on an expression basis
         transform = sympy2yask(self.context, ycsoln)
         try:
-            for i in expressions:
+            for i in tree[-1].nodes:
                 ast = transform(i.expr)
                 log("Converted %s into YASK AST [%s]", str(i.expr), ast.format_simple())
         except:
@@ -85,16 +100,10 @@ class Operator(OperatorRunnable):
         # JIT-compile the newly-created YASK kernel
         self.ksoln = self.context.make_solution(ycsoln)
 
-        # TODO: need to update nodes
-        key = lambda i: i.dim.name == self.ksoln.space_dimensions[0]
-        root = filter_iterations(tree, key=key, stop='asap')
-        if len(root) != 1:
-            exit("Couldn't find the root space loop within:\n%s" % str(tree[0]))
-        root = root[0]
-
-        # TODO: improve this
+        # TODO: improve the following tree rewrite
+        space_tree = tree[1]
         funcall = 'soln->get()->run_solution'
-        processed = Transformer({root: FunCall(funcall, 'time')}).visit(nodes)
+        processed = Transformer({space_tree: FunCall(funcall, 'time')}).visit(nodes)
 
         # Track this is an external function call
         self.func_table[funcall] = FunMeta(None, False)
