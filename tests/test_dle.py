@@ -131,12 +131,12 @@ def _new_operator2(shape, time_order, **kwargs):
 
     return outfield, op
 
+
 def _new_operator3(shape, time_order, **kwargs):
     spacing = 0.1
     a = 0.5
     c = 0.5
     dx2, dy2 = spacing**2, spacing**2
-    dx, dy = spacing, spacing
     dt = dx2 * dy2 / (2 * a * (dx2 + dy2))
 
     # Allocate the grid and set initial condition
@@ -146,14 +146,13 @@ def _new_operator3(shape, time_order, **kwargs):
 
     # Derive the stencil according to devito conventions
     eqn = Eq(u.dt, a * (u.dx2 + u.dy2) - c * (u.dxl + u.dyl))
-    stencil = solve(eqn, u.forward,rational=False)[0]
+    stencil = solve(eqn, u.forward, rational=False)[0]
     op = Operator(Eq(u.forward, stencil), subs={x.spacing: spacing,
                                                 y.spacing: spacing,
                                                 t.spacing: dt}, **kwargs)
 
     # Execute the generated Devito stencil operator
     op.apply(u=u, t=10)
-    print(u.data[1, :])
     return u.data[1, :], op
 
 
@@ -343,6 +342,7 @@ def test_cache_blocking_edge_cases(shape, blockshape):
                                                      'blockinner': True}))
 
     assert np.equal(wo_blocking.data, w_blocking.data).all()
+
 
 @pytest.mark.parametrize("shape,blockshape", [
     ((3, 3), (3, 4)),
