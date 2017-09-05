@@ -693,19 +693,20 @@ class TimeData(DenseData):
                             'dimension (save=False). This value will be ignored!'
                             % self.name)
                 time_dim = self.time_order + 1
+                # Get time index
                 _t = [var for var in self.indices if var in (t, time)][0]
+                # Set pmodulo
                 _t.modulo = time_dim
             else:
                 if time_dim is None:
                     error('Time dimension (time_dim) is required'
                           'to save intermediate data with save=True')
                     raise ValueError("Unknown time dimensions")
+            # Get dimensions
             dimensions = kwargs.get('dimensions', None)
-            if dimensions is None:
+            # Add time dimension if not specified
+            if dimensions is None or (t not in dimensions and time not in dimensions):
                 self.shape = (time_dim,) + self.shape
-            else:
-                warning("All dimensions sizes must be provided for custom "
-                        "dimensions ordering")
 
     def initialize(self):
         if self.initializer is not None:
@@ -721,8 +722,10 @@ class TimeData(DenseData):
                       automatically infer dimension symbols.
         :return: Dimension indices used for each axis.
         """
+        # Get dimensions
         dimensions = kwargs.get('dimensions', None)
-        if dimensions is None:
+        # Add time index if not specified
+        if dimensions is None or (t not in dimensions and time not in dimensions):
             save = kwargs.get('save', None)
             tidx = time if save else t
             _indices = DenseData._indices(**kwargs)

@@ -9,7 +9,7 @@ import pytest
 from sympy import Eq  # noqa
 
 from devito import (clear_cache, Operator, ConstantData, DenseData, TimeData,
-                    PointData, Dimension, time, t, x, y, z, configuration)
+                    PointData, Dimension, time, x, y, z, configuration)
 from devito.foreign import Operator as OperatorForeign
 from devito.dle import retrieve_iteration_tree
 from devito.visitors import IsPerfectIteration
@@ -556,13 +556,13 @@ class TestForeign(object):
 
 class TestMixedDimensions(object):
 
-    def test_indices_ordering(self):
+    def test_indices_ordering_custom_time(self):
         time_dim = 6
         a = TimeData(name='a', shape=(11, 11), time_order=2,
                      time_dim=time_dim, save=True)
         # Same object, different ordering of dimensions, need
         # to declare shape
-        a2 = TimeData(name='a2', shape=(11, 6, 11),
+        a2 = TimeData(name='a2', shape=(11, time_dim, 11),
                       dimensions=(y, time, x), time_order=2,
                       time_dim=time_dim, save=True)
         # Equations
@@ -575,8 +575,34 @@ class TestMixedDimensions(object):
         op1()
         op2()
         # Check same output for corresponding indices
-        assert(np.allclose(a.data[1, :, 1].reshape(-1) - a2.data[1, 1, :].reshape(-1), 0.))
-        assert (np.allclose(a.data[1, 1, :].reshape(-1) - a2.data[:, 1, 1].reshape(-1), 0.))
+        assert(np.allclose(a.data[1, :, 1].reshape(-1) - a2.data[1, 1, :].reshape(-1),
+                           0.))
+        assert (np.allclose(a.data[1, 1, :].reshape(-1) - a2.data[:, 1, 1].reshape(-1),
+                            0.))
+
+    def test_indices_ordering_default_time(self):
+        time_dim = 6
+        a = TimeData(name='a', shape=(11, 11), time_order=2,
+                     time_dim=time_dim, save=True)
+        # Same object, different ordering of dimensions, need
+        # to declare shape
+        a2 = TimeData(name='a2', shape=(11, 11),
+                      dimensions=(y, x), time_order=2,
+                      time_dim=time_dim, save=True)
+        # Equations
+        eqn1 = Eq(a.forward, a + 1.)
+        eqn2 = Eq(a2.forward, a2 + 1.)
+        # Operator
+        op1 = Operator(eqn1)
+        op2 = Operator(eqn2)
+        # run
+        op1()
+        op2()
+        # Check same output for corresponding indices
+        assert(np.allclose(a.data[1, :, 1].reshape(-1) - a2.data[1, 1, :].reshape(-1),
+                           0.))
+        assert (np.allclose(a.data[1, 1, :].reshape(-1) - a2.data[1, :, 1].reshape(-1),
+                            0.))
 
     def test_mixed_dims(self):
         """
@@ -603,8 +629,4 @@ class TestMixedDimensions(object):
         op1 = Operator(eqn1 + eqn2, dse='noop', dle='noop')
         # run
         op1.cfunction
-
-
-if __name__ == "__main__":
-    Testing = TestMixedDimensions()
-    Testing.test_mixed_dims()
+        # TODO : define actual test
