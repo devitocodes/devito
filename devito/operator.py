@@ -415,12 +415,18 @@ class Operator(Function):
         Retrieve the symbolic functions read or written by the Operator,
         as well as all traversed dimensions.
         """
-        input = flatten(terminals(i) for i in expressions)
-        input = filter_sorted([i.base.function for i in input], key=attrgetter('name'))
+        terms = flatten(terminals(i) for i in expressions)
+        input = filter_sorted([i.base.function for i in terms], key=attrgetter('name'))
 
         output = [i.lhs.base.function for i in expressions if q_indexed(i.lhs)]
 
-        dimensions = flatten(i.indices for i in input)
+        indexeds = [i for i in terms if q_indexed(i)]
+        dimensions = []
+        for indexed in indexeds:
+            for i in indexed.indices:
+                dimensions.extend([k for k in i.free_symbols
+                                   if isinstance(k, Dimension)])
+            dimensions.extend(list(indexed.base.function.indices))
         dimensions.extend([d.parent for d in dimensions if d.is_Buffered])
         dimensions = filter_sorted(dimensions, key=attrgetter('name'))
 
