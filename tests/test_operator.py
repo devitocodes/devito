@@ -553,6 +553,7 @@ class TestForeign(object):
         op.cfunction(*list(args.values()))
         assert all(np.allclose(args['a'][i], i) for i in range(time_dim))
 
+
 class TestMixedDimensions(object):
 
     def test_indices_ordering(self):
@@ -560,15 +561,10 @@ class TestMixedDimensions(object):
         a = TimeData(name='a', shape=(11, 11), time_order=2,
                      time_dim=time_dim, save=True)
         # Same object, different ordering of dimensions, need
-        # to declare shape or it breaks...
+        # to declare shape
         a2 = TimeData(name='a2', shape=(11, 6, 11),
                       dimensions=(y, time, x), time_order=2,
                       time_dim=time_dim, save=True)
-
-        print(a)
-        print(a2)
-        print(a.data.shape)
-        print(a2.data.shape)
         # Equations
         eqn1 = Eq(a.forward, a + 1.)
         eqn2 = Eq(a2.forward, a2 + 1.)
@@ -579,13 +575,34 @@ class TestMixedDimensions(object):
         op1()
         op2()
         # Check same output for corresponding indices
-        print(a.data[1, :, 1].reshape(-1))
-        print(a2.data[1, 1, :].reshape(-1))
-        print(a.data[1, 1, :].reshape(-1) - a2.data[:, 1, 1].reshape(-1))
         assert(np.allclose(a.data[1, :, 1].reshape(-1) - a2.data[1, 1, :].reshape(-1), 0.))
         assert (np.allclose(a.data[1, 1, :].reshape(-1) - a2.data[:, 1, 1].reshape(-1), 0.))
+
+    def test_mixed_dims(self):
+        """
+        This one produces wrong C code with two seperate time loops if
+        the dimensions of b are (p_aux, x, y)
+        Operator is stuck in an infinite while loop at
+        "/Users/mloubout/Dropbox/London/CodeGen/devito/devito/tools.py line 120
+        if b indices are (p_aux, y, x)
+        """
+        time_dim = 6
+        a = TimeData(name='a', shape=(11, 11), time_order=2,
+                     time_dim=time_dim, save=True)
+        p_aux = Dimension(name='p_aux', size=10)
+        # Same object, different ordering of dimensions, need
+        # to declare shape
+        b = DenseData(name='a2', shape=(10, 11, 11),
+                      dimensions=(p_aux, x, y))
+        # Equations
+        eqn1 = [Eq(a.forward, a + 1.)]
+        eqn2 = [Eq(b, time*b*a + b)]
+        # Operator
+        op1 = Operator(eqn1 + eqn2)
+        # run
+        op1.cfunction
 
 
 if __name__ == "__main__":
     Testing = TestMixedDimensions()
-    Testing.test_indices_ordering()
+    Testing.test_mixed_dims()

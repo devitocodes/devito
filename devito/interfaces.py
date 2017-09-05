@@ -693,7 +693,8 @@ class TimeData(DenseData):
                             'dimension (save=False). This value will be ignored!'
                             % self.name)
                 time_dim = self.time_order + 1
-                self.indices[0].modulo = time_dim
+                _t = [var for var in self.indices if var in (t, time)][0]
+                _t.modulo = time_dim
             else:
                 if time_dim is None:
                     error('Time dimension (time_dim) is required'
@@ -703,7 +704,7 @@ class TimeData(DenseData):
             if dimensions is None:
                 self.shape = (time_dim,) + self.shape
             else:
-                warning(" All dimensions sizes must be provided for custom"
+                warning("All dimensions sizes must be provided for custom"
                         "dimensions ordering")
 
     def initialize(self):
@@ -738,7 +739,7 @@ class TimeData(DenseData):
     def forward(self):
         """Symbol for the time-forward state of the function"""
         i = int(self.time_order / 2) if self.time_order >= 2 else 1
-        _t = self.indices[0]
+        _t = [var for var in self.indices if var in (t, time)][0]
 
         return self.subs(_t, _t + i * s)
 
@@ -746,7 +747,7 @@ class TimeData(DenseData):
     def backward(self):
         """Symbol for the time-backward state of the function"""
         i = int(self.time_order / 2) if self.time_order >= 2 else 1
-        _t = self.indices[0]
+        _t = [var for var in self.indices if var in (t, time)][0]
 
         return self.subs(_t, _t - i * s)
 
