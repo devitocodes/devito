@@ -13,7 +13,7 @@ from devito.tools import flatten
 from devito.visitors import IsPerfectIteration, Transformer
 
 from devito.yask import cfac, nfac, ofac, namespace, exit, yask_configuration
-from devito.yask.wrappers import yask_context
+from devito.yask.wrappers import YaskGrid, yask_context
 
 __all__ = ['Operator']
 
@@ -108,13 +108,31 @@ class Operator(OperatorRunnable):
         # Track this is an external function call
         self.func_table[funcall] = FunMeta(None, False)
 
-        # Add the kernel solution to the parameters list
-        parameters.append(Object('soln', namespace['type-solution'],
+        # Update the parameters list adding YASK grids and solution
+        for i in list(parameters):
+            try:
+                if i.is_SymbolicData and isinstance(i.data, YaskGrid):
+                    parameters.append(Object(namespace['code-grid'](i.name),
+                                             namespace['type-grid'], i.data.rawpointer))
+            except AttributeError:
+                # Ignore e.g. Dimensions
+                pass
+        parameters.append(Object(namespace['code-soln'], namespace['type-solution'],
                                  self.ksoln.rawpointer))
 
         log("Specialization successfully performed!")
 
         return processed
+
+    def arguments(self, **kwargs):
+        # The user has the illusion to provide plain data objects to the
+        # generated kernels, but what we will actually also drop in are
+        # pointers to the wrapped YASK grids
+        for i in self.parameters:
+            obj = kwargs.get(i.name)
+            if i.is_PtrArgument and obj is not None:
+                assert(i.verify(obj.data))
+        return super(Operator, self).arguments(**kwargs)
 
     def apply(self, **kwargs):
         # Build the arguments list to invoke the kernel function

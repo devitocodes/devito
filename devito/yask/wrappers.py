@@ -130,6 +130,10 @@ class YaskGrid(object):
         ndarray = np.ctypeslib.as_array(casted, shape=self.shape)
         return ndarray
 
+    @property
+    def rawpointer(self):
+        return ctypes.cast(int(self.grid), ctypes.c_void_p)
+
     def view(self):
         """
         View of the YASK grid in standard (i.e., Devito) row-major layout.
