@@ -9,7 +9,7 @@ import pytest
 from sympy import Eq  # noqa
 
 from devito import (clear_cache, Operator, ConstantData, DenseData, TimeData,
-                    PointData, Dimension, time, x, y, z, configuration)
+                    PointData, Dimension, time, t, x, y, z, configuration)
 from devito.foreign import Operator as OperatorForeign
 from devito.dle import retrieve_iteration_tree
 from devito.visitors import IsPerfectIteration
@@ -552,3 +552,32 @@ class TestForeign(object):
         args['a'] = array
         op.cfunction(*list(args.values()))
         assert all(np.allclose(args['a'][i], i) for i in range(time_dim))
+
+class TestMixedDimensions(object):
+
+    def test_indices_ordering(self):
+        time_dim = 6
+        a = TimeData(name='a', shape=(11, 11), time_order=2,
+                     time_dim=time_dim, save=True)
+        # Same object, different ordering of dimensions, need
+        # to declare shape or it breaks...
+        a2 = TimeData(name='a2', shape=(11, 6, 11),
+                      dimensions=(y, t, x), time_order=2,
+                      time_dim=time_dim, save=True)
+        # Equations
+        eqn1 = Eq(a.forward, a + 1.)
+        eqn2 = Eq(a2.forward, a2 + 1.)
+        # Operator
+        op1 = Operator(eqn1)
+        op2 = Operator(eqn1)
+        # run
+        op1()
+        op2()
+        # Check same output for corresponding indices
+        assert(np.allclose(a.data[1, :, 1].reshape(-1) - a.data[1, 1, :].reshape(-1), 0.))
+        assert (np.allclose(a.data[1, 1, :].reshape(-1) - a.data[:, 1, 1].reshape(-1), 0.))
+
+
+if __name__ == "__main__":
+    Testing = TestMixedDimensions()
+    Testing.test_indices_ordering()
