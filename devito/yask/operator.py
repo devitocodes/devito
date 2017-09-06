@@ -11,7 +11,7 @@ from devito.logger import yask as log, yask_warning as warning
 from devito.operator import OperatorRunnable, FunMeta
 from devito.visitors import FindSymbols, Transformer
 
-from devito.yask import cfac, nfac, ofac, compiler, namespace, exit
+from devito.yask import cfac, nfac, ofac, namespace, exit, yask_configuration
 from devito.yask.wrappers import yask_context
 
 __all__ = ['Operator']
@@ -84,9 +84,6 @@ class Operator(OperatorRunnable):
 
         # JIT-compile the newly-created YASK kernel
         self.ksoln = self.context.make_solution(ycsoln)
-
-        # The Devito compiler needs to know about the created shared object
-        compiler.libraries.append(self.ksoln.soname)
 
         # TODO: need to update nodes
         key = lambda i: i.dim.name == self.ksoln.space_dimensions[0]

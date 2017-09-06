@@ -83,7 +83,7 @@ class Operator(Function):
         stencils = self._retrieve_stencils(expressions)
 
         # Parameters of the Operator (Dimensions necessary for data casts)
-        parameters = self.input + [i for i in self.dimensions if i.size is None]
+        parameters = self.input + [i for i in self.dimensions if not i.is_Fixed]
 
         # Group expressions based on their Stencil
         clusters = clusterize(expressions, stencils)

@@ -166,15 +166,6 @@ class FixedDimensionArgProvider(ArgumentProvider):
     def rtargs(self):
         return []
 
-    @property
-    def ccode(self):
-        """How C code will refer to this dimension"""
-        return "%d" % self.size
-
-    @property
-    def decl(self):
-        raise NotImplemented("A fixed dimension can not have a C declaration")
-
     def verify(self, value):
         if value is None:
             return True
@@ -220,10 +211,6 @@ class DimensionArgProvider(ArgumentProvider):
     def rtargs(self):
         size = ScalarArgument("%s_size" % self.name, self, max)
         return [size]
-
-    @property
-    def decl(self):
-        return self.rtargs[0].decl
 
     # TODO: Can we do without a verify on a dimension?
     def verify(self, value):
@@ -322,4 +309,4 @@ def log_args(arguments):
                            (k, str(v.shape), np.linalg.norm(v.view())))
         else:
             arg_str.append('(%s, value=%s)' % (k, str(v)))
-    print("Passing Arguments: " + ", ".join(arg_str))
+    debug("Passing Arguments: " + ", ".join(arg_str))
