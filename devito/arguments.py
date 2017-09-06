@@ -197,14 +197,10 @@ class DimensionArgProvider(ArgumentProvider):
 
     def __init__(self, *args, **kwargs):
         super(DimensionArgProvider, self).__init__(*args, **kwargs)
-        self._value = self._default_value
 
     def reset(self):
-        self._value = self._default_value
-
-    @property
-    def value(self):
-        return self._value
+        for i in self.rtargs:
+            i.reset()
 
     @property
     def dtype(self):
@@ -253,7 +249,7 @@ class DimensionArgProvider(ArgumentProvider):
 
 class ConstantDataArgProvider(ArgumentProvider):
 
-    """ Class used to decorate Constat Data objects with behaviour required for runtime
+    """ Class used to decorate Constant Data objects with behaviour required for runtime
         arguments.
     """
 
