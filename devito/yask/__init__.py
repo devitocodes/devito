@@ -9,6 +9,7 @@ import os
 from devito import configuration
 from devito.exceptions import InvalidOperator
 from devito.logger import yask as log
+from devito.parameters import Parameters
 from devito.tools import ctypes_pointer
 
 
@@ -45,17 +46,33 @@ namespace['kernel-path-gen'] = os.path.join(namespace['kernel-path'], 'gen')
 namespace['kernel-output'] = os.path.join(namespace['kernel-path-gen'],
                                           namespace['kernel-filename'])
 namespace['time-dim'] = 't'
-namespace['type-solution'] = ctypes_pointer('yk_solution_ptr')
-
-# Tell Devito where to go look for YASK headers and shared objects
-compiler = configuration['compiler']
-compiler.include_dirs.append(os.path.join(namespace['path'], 'include'))
-compiler.library_dirs.append(os.path.join(namespace['path'], 'lib'))
+namespace['type-solution'] = ctypes_pointer('yask::yk_solution_ptr')
 
 
-# TODO: this should be moved into /configuration/
-arch = 'snb'
-isa = 'cpp'
+# Need a custom compiler to compile YASK kernels
+# This is derived from the user-selected compiler
+class YaskCompiler(configuration['compiler'].__class__):
+
+    def __init__(self, *args, **kwargs):
+        super(YaskCompiler, self).__init__(*args, **kwargs)
+        # Switch to C++
+        self.cc = self.cpp_mapper[configuration['compiler'].cc]
+        self.ld = self.cpp_mapper[configuration['compiler'].ld]
+        self.cflags = configuration['compiler'].cflags + ['-std=c++11']
+        self.src_ext = 'cpp'
+        # Tell the compiler where to get YASK header files and shared objects
+        self.include_dirs.append(os.path.join(namespace['path'], 'include'))
+        self.library_dirs.append(os.path.join(namespace['path'], 'lib'))
+        self.ldflags.append('-Wl,-rpath,%s' % os.path.join(namespace['path'], 'lib'))
+
+
+yask_configuration = Parameters('YASK-Configuration')
+yask_configuration.add('compiler', YaskCompiler())
+yask_configuration.add('python-exec', False, [False, True])
+# TODO: this should be somewhat sniffed
+yask_configuration.add('arch', 'snb', ['snb'])
+yask_configuration.add('isa', 'cpp', ['cpp'])
+configuration.add('yask', yask_configuration)
 
 log("Backend successfully initialized!")
 

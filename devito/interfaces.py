@@ -1,4 +1,5 @@
 import weakref
+import abc
 
 import numpy as np
 import sympy
@@ -93,6 +94,10 @@ class Basic(object):
     # Basic symbolic object properties
     is_Scalar = False
     is_Tensor = False
+
+    @abc.abstractmethod
+    def __init__(self, *args, **kwargs):
+        return
 
 
 class CachedSymbol(Basic):
@@ -357,6 +362,17 @@ class SymbolicData(AbstractSymbol):
 
     is_SymbolicData = True
 
+    @property
+    def _data_buffer(self):
+        """Reference to the actual data. This is *not* a view of the data.
+        This method is for internal use only."""
+        return self.data
+
+    @abc.abstractproperty
+    def data(self):
+        """The value of the data object."""
+        return
+
 
 class ConstantData(SymbolicData, ConstantDataArgProvider):
 
@@ -381,6 +397,7 @@ class ConstantData(SymbolicData, ConstantDataArgProvider):
 
     @property
     def data(self):
+        """The value of the data object, as a scalar (int, float, ...)."""
         return self._value
 
     @data.setter
@@ -471,13 +488,10 @@ class DenseData(TensorData):
 
     @property
     def data(self):
-        """Reference to the :class:`numpy.ndarray` containing the data
-
-        :returns: The ndarray containing the data
-        """
+        """The value of the data object, as a :class:`numpy.ndarray` storing
+        elements in the classical row-major storage layout."""
         if self._data_object is None:
             self._allocate_memory()
-
         return self._data_object.ndpointer
 
     def initialize(self):

@@ -5,13 +5,15 @@ from collections import OrderedDict
 
 from cached_property import cached_property
 
+import ctypes
 import numpy as np
 
 from devito.compiler import make
 from devito.exceptions import CompilationError
 from devito.logger import yask as log
+from devito.tools import numpy_to_ctypes
 
-from devito.yask import arch, isa, cfac, ofac, namespace, exit
+from devito.yask import cfac, ofac, namespace, exit, yask_configuration
 from devito.yask.utils import convert_multislice
 
 
@@ -119,8 +121,14 @@ class YaskGrid(object):
 
     @property
     def ndpointer(self):
-        # TODO: see corresponding comment in interfaces.py about CMemory
-        return self
+        """Return a :class:`numpy.ndarray` view of the grid content."""
+        ctype = numpy_to_ctypes(self.dtype)
+        cpointer = ctypes.cast(int(self.grid.get_raw_storage_buffer()),
+                               ctypes.POINTER(ctype))
+        ndpointer = np.ctypeslib.ndpointer(dtype=self.dtype, shape=self.shape)
+        casted = ctypes.cast(cpointer, ndpointer)
+        ndarray = np.ctypeslib.as_array(casted, shape=self.shape)
+        return ndarray
 
     def view(self):
         """
@@ -151,7 +159,8 @@ class YaskSolution(object):
         # Write out the stencil file
         if not os.path.exists(namespace['kernel-path-gen']):
             os.makedirs(namespace['kernel-path-gen'])
-        ycsoln.format(isa, ofac.new_file_output(namespace['kernel-output']))
+        ycsoln.format(yask_configuration['isa'],
+                      ofac.new_file_output(namespace['kernel-output']))
 
         # JIT-compile it
         try:
@@ -178,13 +187,13 @@ class YaskSolution(object):
         self.set_num_ranks()
 
         # Redirect stdout/strerr to a string
-        output = yk.yask_output_factory().new_string_output()
-        self.strout = self.soln.set_debug_output(output)
+        self.output = yk.yask_output_factory().new_string_output()
+        self.soln.set_debug_output(self.output)
 
         self.name = name
 
         # Shared object name
-        self.soname = "%s.%s.%s" % (name, ycsoln.get_name(), arch)
+        self.soname = "%s.%s.%s" % (name, ycsoln.get_name(), yask_configuration['arch'])
 
     def set_num_ranks(self):
         """
@@ -222,7 +231,7 @@ class YaskSolution(object):
 
     @property
     def rawpointer(self):
-        return int(self.soln)
+        return ctypes.cast(int(self.soln), ctypes.c_void_p)
 
 
 class YaskContext(object):
@@ -231,14 +240,7 @@ class YaskContext(object):
         """
         Proxy between Devito and YASK.
 
-        A new YaskContext is required wheneven any of the following change: ::
-
-            * YASK version
-            * Target architecture (``arch``) and instruction set (``isa``)
-            * Floating-point precision (``dtype``)
-            * Domain sizes (``core``) and halo sizes (``halo``)
-            * Folding
-            * Grid memory layout scheme
+        A YaskContext is required for any single kernel executed through YASK.
 
         :param dimensions: Context dimensions (may include time dimension)
         :param core: Domain size along each dimension; includes time dimension
@@ -312,7 +314,7 @@ class YaskContext(object):
             grid.set_alloc_size(self.time_dimension, shape[0])
 
         # Allocate memory immediately as the user may simply want to use it
-        self.hook.prepare()
+        grid.alloc_storage()
 
         return YaskGrid(grid, dimensions, shape, self.halo, dtype)
 
@@ -368,7 +370,7 @@ def yask_context(dimensions, shape, dtype, space_order):
     soln = cfac.new_solution(namespace['kernel-hook'])
 
     # Silence YASK
-    soln.set_debug_output(ofac.new_string_output())
+    soln.set_debug_output(ofac.new_null_output())
 
     # Setup hook solution builder
     soln.set_step_dim_name(namespace['time-dim'])
