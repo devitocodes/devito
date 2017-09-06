@@ -532,22 +532,46 @@ class TestLoopScheduler(object):
         assert trees[0][-1].nodes[0].expr.rhs == eqs[0].rhs
         assert trees[1][-1].nodes[0].expr.rhs == eqs[1].rhs
 
-    def test_equations_mixed_densedata_timedata(self):
+    @pytest.mark.parametrize('shape', [(11, 11), (11, 11), (11, 11, 11), (11, 11, 11),
+                                       (11, 11, 11),  (11, 11, 11),
+                                       (11, 11, 11), (11, 11, 11)])
+    @pytest.mark.parametrize('dimensions', [(x, y), (y, x), (x, y, z), (x, z, y),
+                                            (y, x, z), (z, y, x), (z, x, y), (y, x, z)])
+    def test_equations_mixed_densedata_timedata(self, shape, dimensions):
         """
         Test that equations using a mixture of DenseData and TimeData objects
         are embedded within the same time loop.
         """
-        a = TimeData(name='a', shape=(11, 3), time_order=2, dimensions=(x, y),
+        a = TimeData(name='a', shape=shape, time_order=2, dimensions=dimensions,
                      space_order=2, time_dim=6, save=False)
         p_aux = Dimension(name='p_aux', size=10)
-        b = DenseData(name='a2', shape=(10, 11, 11), dimensions=(p_aux, x, y))
+        b = DenseData(name='b', shape=shape + (10,), dimensions=dimensions + (p_aux,),
+                      space_order=2)
+        b.data[:] = 1.0
+        b2 = DenseData(name='b2', shape=(10,) + shape, dimensions=(p_aux,) + dimensions,
+                       space_order=2)
+        b2.data[:] = 1.0
         eqns = [Eq(a.forward, a.laplace + 1.),
                 Eq(b, time*b*a + b)]
+        eqns2 = [Eq(a.forward, a.laplace + 1.),
+                 Eq(b2, time*b2*a + b2)]
         subs = {x.spacing: 2.5, y.spacing: 1.5, z.spacing: 2.0}
         op = Operator(eqns, subs=subs, dle='noop')
         trees = retrieve_iteration_tree(op)
         assert len(trees) == 2
         assert all(trees[0][i] is trees[1][i] for i in range(3))
+
+        op2 = Operator(eqns2, subs=subs, dle='noop')
+        trees = retrieve_iteration_tree(op2)
+        assert len(trees) == 2
+        assert all(trees[0][i] is trees[1][i] for i in range(3))
+
+        # Verify both operators produce the same result
+        op()
+        op2()
+
+        assert(np.allclose(b2.data[2, ...].reshape(-1) -
+                           b.data[..., 2].reshape(-1), 0.))
 
 
 @pytest.mark.skipif(configuration['backend'] != 'foreign',
