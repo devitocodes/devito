@@ -143,7 +143,8 @@ class Profiler(object):
             gflops = flops/10**9
 
             # Compulsory traffic
-            datashape = [i.dim.size or dim_sizes[dims[i].name] for i in itspace]
+            datashape = [i.dim.size if i.dim.is_Fixed
+                         else dim_sizes[dims[i].name] for i in itspace]
             dataspace = reduce(operator.mul, datashape)
             traffic = profile.memory*dataspace*dtype().itemsize
             print(traffic)

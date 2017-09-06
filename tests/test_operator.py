@@ -2,7 +2,7 @@ from __future__ import absolute_import
 
 from collections import OrderedDict
 
-from conftest import EVAL, dims
+from conftest import EVAL, dims, dims_open
 
 import numpy as np
 import pytest
@@ -15,9 +15,9 @@ from devito.dle import retrieve_iteration_tree
 from devito.visitors import IsPerfectIteration
 
 
-def dimify(dimensions):
+def dimify(dimensions, open=False):
     assert isinstance(dimensions, str)
-    mapper = dims()
+    mapper = dims() if not open else dims_open()
     return tuple(mapper[i] for i in dimensions.split())
 
 
@@ -156,10 +156,7 @@ class TestArithmetic(object):
     def test_indexed_open_loops(self, expr, result):
         """Test point-wise arithmetic with stencil offsets and open loop
         boundaries in indexed expression format"""
-        i, j, l = dimify('i j l')
-        pushed = [d.size for d in [j, l]]
-        j.size = None
-        l.size = None
+        i, j, l = dimify('i j l', open=True)
         a = DenseData(name='a', dimensions=(i, j, l), shape=(3, 5, 6)).indexed
         fa = a.function
         fa.data[0, :, :] = 2.
@@ -167,7 +164,6 @@ class TestArithmetic(object):
         eqn = eval(expr)
         Operator(eqn)(a=fa)
         assert np.allclose(fa.data[1, 1:-1, 1:-1], result[1:-1, 1:-1], rtol=1e-12)
-        j.size, l.size = pushed
 
     def test_constant_time_dense(self):
         """Test arithmetic between different data objects, namely ConstantData

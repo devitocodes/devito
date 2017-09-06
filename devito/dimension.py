@@ -1,7 +1,7 @@
 from sympy import Number, Symbol
 from devito.arguments import DimensionArgProvider, FixedDimensionArgProvider
 
-__all__ = ['Dimension', 'x', 'y', 'z', 't', 'p', 'd', 'time']
+__all__ = ['Dimension', 'FixedDimension', 'x', 'y', 'z', 't', 'p', 'd', 'time']
 
 
 class Dimension(Symbol, DimensionArgProvider):
@@ -17,9 +17,6 @@ class Dimension(Symbol, DimensionArgProvider):
     :param reverse: Traverse dimension in reverse order (default False)
     :param spacing: Optional, symbol for the spacing along this dimension.
     """
-
-    is_Buffered = False
-    is_Lowered = False
 
     def __new__(cls, name, **kwargs):
         newobj = Symbol.__new__(cls, name)
@@ -37,7 +34,7 @@ class Dimension(Symbol, DimensionArgProvider):
 
 
 class FixedDimension(FixedDimensionArgProvider, Dimension):
-    
+
     is_Fixed = True
     """This class defines the behaviour of a dimension whose size is fixed
        at the time of problem definition and can thus be baked into generated

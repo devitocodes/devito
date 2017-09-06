@@ -146,6 +146,7 @@ class ArgumentProvider(object):
         """
         raise NotImplemented()
 
+
 class FixedDimensionArgProvider(ArgumentProvider):
 
     """ This class is used to decorate the FixedDimension class with behaviour required
@@ -187,6 +188,7 @@ class FixedDimensionArgProvider(ArgumentProvider):
             # object has enough buffers as my modulo
             verify = (value >= self.modulo)
         return verify
+
 
 class DimensionArgProvider(ArgumentProvider):
 
