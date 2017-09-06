@@ -4,7 +4,7 @@ import abc
 from collections import OrderedDict, defaultdict
 from time import time
 
-from devito.dse import as_symbol, terminals
+from devito.dse import as_symbol, retrieve_terminals
 from devito.logger import dle
 from devito.nodes import Iteration, SEQUENTIAL, PARALLEL, VECTOR
 from devito.tools import as_tuple
@@ -143,7 +143,7 @@ class AbstractRewriter(object):
             exprs = [e.expr for e in nexprs]
 
             # "Prefetch" objects to speed up the analsys
-            terms = {e: tuple(terminals(e.rhs)) for e in exprs}
+            terms = {e: tuple(retrieve_terminals(e.rhs)) for e in exprs}
 
             # Determine whether the Iteration tree ...
             is_FP = True  # ... is fully parallel (FP)

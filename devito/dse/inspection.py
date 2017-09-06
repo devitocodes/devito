@@ -9,27 +9,7 @@ from devito.logger import warning
 from devito.tools import flatten
 
 __all__ = ['estimate_cost', 'estimate_memory', 'indexify', 'as_symbol',
-           'terminals', 'tolambda']
-
-
-def terminals(expr, discard_indexed=False):
-    """
-    Return all Indexed and Symbols in a SymPy expression.
-    """
-
-    indexed = retrieve_indexed(expr)
-
-    # Use '.name' for quickly checking uniqueness
-    junk = flatten([i.free_symbols for i in indexed])
-    junk = [i.name for i in junk]
-
-    symbols = {i for i in expr.free_symbols if i.name not in junk}
-
-    if discard_indexed:
-        return symbols
-    else:
-        indexed.update(symbols)
-        return indexed
+           'tolambda']
 
 
 def count(exprs, query):
