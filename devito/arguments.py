@@ -35,7 +35,7 @@ class Argument(object):
     def __init__(self, name, provider, default_value=None):
         self.name = name
         self.provider = provider
-        self._value = self._default_value = default_value
+        self._value = self.default_value = default_value
 
     @property
     def value(self):
@@ -63,7 +63,7 @@ class Argument(object):
         return self.provider.dtype
 
     def reset(self):
-        self._value = self._default_value
+        self._value = self.default_value
 
     @abc.abstractproperty
     def verify(self, kwargs):
@@ -203,6 +203,11 @@ class DimensionArgProvider(ArgumentProvider):
             i.reset()
 
     @property
+    def value(self):
+        child_values = tuple([i.value for i in self.rtargs])
+        return child_values if all(i is not None for i in child_values) else None
+
+    @property
     def dtype(self):
         """The data type of the iteration variable"""
         return np.int32
@@ -210,7 +215,9 @@ class DimensionArgProvider(ArgumentProvider):
     @cached_property
     def rtargs(self):
         size = ScalarArgument("%s_size" % self.name, self, max)
-        return [size]
+        start = ScalarArgument("%s_start" % self.name, self, max, 0)
+        end = ScalarArgument("%s_end" % self.name, self, max)
+        return [size, start, end]
 
     # TODO: Can we do without a verify on a dimension?
     def verify(self, value):
