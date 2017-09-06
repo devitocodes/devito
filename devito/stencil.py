@@ -1,8 +1,9 @@
-from collections import namedtuple
+from collections import OrderedDict, namedtuple
 
 from sympy import Eq
 
-from devito.dse.search import retrieve_indexed
+from devito.dse.queries import q_indexed
+from devito.dse.search import retrieve_indexed, retrieve_terminals
 from devito.exceptions import StencilOperationError
 from devito.dimension import Dimension
 from devito.tools import DefaultOrderedDict, flatten, partial_order
@@ -28,7 +29,7 @@ class Stencil(DefaultOrderedDict):
 
         :param args: A Stencil may be created in several ways: ::
 
-            * A single SymPy equation, or
+            * From a SymPy equation, or
             * A list of elements of type: ::
                 * SymPy equation, or
                 * StencilEntry, or
@@ -57,32 +58,38 @@ class Stencil(DefaultOrderedDict):
         assert expr.is_Equality
 
         # Collect all indexed objects appearing in /expr/
-        indexed = list(retrieve_indexed(expr.lhs))
-        indexed += list(retrieve_indexed(expr.rhs))
-        indexed += flatten([retrieve_indexed(i) for i in e.indices] for e in indexed)
+        terminals = retrieve_terminals(expr, mode='all')
+        indexeds = [i for i in terminals if q_indexed(i)]
+        indexeds += flatten([retrieve_indexed(i) for i in e.indices] for e in indexeds)
 
-        # Enforce deterministic ordering
-        dims = []
-        for e in indexed:
-            d = []
-            for a in e.indices:
-                found = [idx for idx in a.free_symbols if isinstance(idx, Dimension)]
-                d.extend([idx for idx in found if idx not in d])
-            dims.append(tuple(d))
+        # Enforce deterministic dimension ordering...
+        dims = OrderedDict()
+        for e in terminals:
+            if isinstance(e, Dimension):
+                dims[(e,)] = e
+            elif q_indexed(e):
+                d = []
+                for a in e.indices:
+                    found = [i for i in a.free_symbols if isinstance(i, Dimension)]
+                    d.extend([i for i in found if i not in d])
+                dims[tuple(d)] = e
+        # ... giving higher priority to TimeData objects; time always go first
+        dims = sorted(list(dims), key=lambda i: not (isinstance(dims[i], Dimension) or
+                                                     dims[i].base.function.is_TimeData))
         stencil = Stencil([(i, set()) for i in partial_order(dims)])
 
         # Determine the points accessed along each dimension
-        for e in indexed:
+        for e in indexeds:
             for a in e.indices:
                 if isinstance(a, Dimension):
                     stencil[a].update([0])
                 d = None
                 off = [0]
-                for idx in a.args:
-                    if isinstance(idx, Dimension):
-                        d = idx
-                    elif idx.is_integer:
-                        off += [idx]
+                for i in a.args:
+                    if isinstance(i, Dimension):
+                        d = i
+                    elif i.is_integer:
+                        off += [i]
                 if d is not None:
                     stencil[d].update(off)
 
