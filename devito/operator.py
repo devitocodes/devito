@@ -11,7 +11,7 @@ from devito.cgen_utils import Allocator
 from devito.compiler import jit_compile, load
 from devito.dimension import time, Dimension
 from devito.dle import compose_nodes, filter_iterations, transform
-from devito.dse import clusterize, indexify, rewrite, q_indexed, terminals
+from devito.dse import clusterize, indexify, rewrite, q_indexed, retrieve_terminals
 from devito.interfaces import Forward, Backward, CompositeData, Object
 from devito.logger import bar, error, info
 from devito.nodes import Element, Expression, Function, Iteration, List, LocalExpression
@@ -415,8 +415,15 @@ class Operator(Function):
         Retrieve the symbolic functions read or written by the Operator,
         as well as all traversed dimensions.
         """
-        terms = flatten(terminals(i) for i in expressions)
-        input = filter_sorted([i.base.function for i in terms], key=attrgetter('name'))
+        terms = flatten(retrieve_terminals(i) for i in expressions)
+
+        input = []
+        for i in terms:
+            try:
+                input.append(i.base.function)
+            except AttributeError:
+                pass
+        input = filter_sorted(input, key=attrgetter('name'))
 
         output = [i.lhs.base.function for i in expressions if q_indexed(i.lhs)]
 
