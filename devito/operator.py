@@ -181,8 +181,6 @@ class Operator(Function):
         # into the OrderedDict object above
         self._reset_args()
 
-        log_args(arguments)
-
         return arguments, dim_sizes
 
     def _default_args(self):
@@ -233,7 +231,7 @@ class Operator(Function):
         """
         if self._lib is None:
             # No need to recompile if a shared object has already been loaded.
-            return jit_compile(self.ccode, self._compiler)
+            return jit_compile(self.ccode, configuration['compiler'])
         else:
             return self._lib.name
 
@@ -242,7 +240,7 @@ class Operator(Function):
         """Returns the JIT-compiled C function as a ctypes.FuncPtr object."""
         if self._lib is None:
             basename = self.compile
-            self._lib = load(basename, self._compiler)
+            self._lib = load(basename, configuration['compiler'])
             self._lib.name = basename
 
         if self._cfunction is None:
@@ -456,7 +454,7 @@ class OperatorRunnable(Operator):
 
         # Invoke kernel function with args
         self.cfunction(*list(arguments.values()))
-        
+
         # Output summary of performance achieved
         return self._profile_output(dim_sizes)
 
@@ -466,7 +464,6 @@ class OperatorRunnable(Operator):
         with bar():
             for k, v in summary.items():
                 name = '%s<%s>' % (k, ','.join('%d' % i for i in v.itershape))
-                print(v.oi)
                 info("Section %s with OI=%.2f computed in %.3f s [Perf: %.2f GFlops/s]" %
                      (name, v.oi, v.time, v.gflopss))
         return summary
