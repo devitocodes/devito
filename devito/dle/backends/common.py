@@ -8,7 +8,7 @@ from devito.dse import as_symbol, terminals
 from devito.logger import dle
 from devito.nodes import Iteration, SEQUENTIAL, PARALLEL, VECTOR
 from devito.tools import as_tuple
-from devito.visitors import FindSections, NestedTransformer
+from devito.visitors import FindSections, IsPerfectIteration, NestedTransformer
 
 
 __all__ = ['AbstractRewriter', 'Arg', 'BlockingArg', 'State', 'dle_pass']
@@ -176,7 +176,7 @@ class AbstractRewriter(object):
                 mapper.setdefault(tree[0], []).append(SEQUENTIAL)
                 for i in tree[1:]:
                     mapper.setdefault(i, []).append(PARALLEL)
-            if is_FP or is_OSIP or is_US:
+            if IsPerfectIteration().visit(tree[-1]) and (is_FP or is_OSIP or is_US):
                 # Vectorizable
                 if len(tree) > 1 and SEQUENTIAL not in mapper.get(tree[-2], []):
                     # Heuristic: there's at least an outer parallel Iteration
