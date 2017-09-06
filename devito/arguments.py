@@ -219,6 +219,20 @@ class DimensionArgProvider(ArgumentProvider):
         end = ScalarArgument("%s_end" % self.name, self, max)
         return [size, start, end]
 
+    def promote(self, value):
+        if not isinstance(value, tuple):
+            size, start, end = self.rtargs
+            value = (value, start.default_value, value)
+        else:
+            if len(value) == 2:
+                # Assume we've been passed a (start, end) tuple
+                start, end = value
+                value = (end, start, end)
+            elif len(value) != 3:
+                print(value)
+                raise InvalidArgument("Expected either a single value or a tuple(2/3)")
+        return value
+
     # TODO: Can we do without a verify on a dimension?
     def verify(self, value):
         verify = True
@@ -233,10 +247,12 @@ class DimensionArgProvider(ArgumentProvider):
             except AttributeError:
                 return False
 
+        value = self.promote(value)
         try:
             parent_value = self.parent.value
             if parent_value is not None:
-                value = self.reducer(value, parent_value)
+                parent_value = self.promote(parent_value)
+                value = tuple([self.reducer(i1, i2) for i1, i2 in zip(value, parent_value)])
             verify = verify and self.parent.verify(value)
         except AttributeError:
             pass
@@ -248,7 +264,7 @@ class DimensionArgProvider(ArgumentProvider):
         # At this point, a constraint needs to be added that enforces
         # dim_e - dim_s < SOME_MAX
         # Also need a default constraint that dim_e > dim_s (or vice-versa)
-        verify = verify and all([a.verify(v) for a, v in zip(self.rtargs, (value,))])
+        verify = verify and all([a.verify(v) for a, v in zip(self.rtargs, value)])
         if verify:
             self._value = value
         return verify
