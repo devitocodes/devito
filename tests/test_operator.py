@@ -532,6 +532,23 @@ class TestLoopScheduler(object):
         assert trees[0][-1].nodes[0].expr.rhs == eqs[0].rhs
         assert trees[1][-1].nodes[0].expr.rhs == eqs[1].rhs
 
+    def test_equations_mixed_densedata_timedata(self):
+        """
+        Test that equations using a mixture of DenseData and TimeData objects
+        are embedded within the same time loop.
+        """
+        a = TimeData(name='a', shape=(11, 3), time_order=2, dimensions=(x, y),
+                     space_order=2, time_dim=6, save=False)
+        p_aux = Dimension(name='p_aux', size=10)
+        b = DenseData(name='a2', shape=(10, 11, 11), dimensions=(p_aux, x, y))
+        eqns = [Eq(a.forward, a.laplace + 1.),
+                Eq(b, time*b*a + b)]
+        subs = {x.spacing: 2.5, y.spacing: 1.5, z.spacing: 2.0}
+        op = Operator(eqns, subs=subs, dle='noop')
+        trees = retrieve_iteration_tree(op)
+        assert len(trees) == 2
+        assert all(trees[0][i] is trees[1][i] for i in range(3))
+
 
 @pytest.mark.skipif(configuration['backend'] != 'foreign',
                     reason="'foreign' wasn't selected as backend on startup")
