@@ -47,6 +47,18 @@ class Dimension(Symbol, DimensionArgProvider):
         _, start, end = self.rtargs
         return (start.as_symbol, end.as_symbol, 1)
 
+    @property
+    def size_name(self):
+        return "%s_size" % self.name
+
+    @property
+    def start_name(self):
+        return "%s_start" % self.name
+
+    @property
+    def end_name(self):
+        return "%s_end" % self.name
+
 
 class FixedDimension(FixedDimensionArgProvider, Dimension):
 

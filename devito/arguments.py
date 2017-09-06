@@ -214,9 +214,9 @@ class DimensionArgProvider(ArgumentProvider):
 
     @cached_property
     def rtargs(self):
-        size = ScalarArgument("%s_size" % self.name, self, max)
-        start = ScalarArgument("%s_start" % self.name, self, max, 0)
-        end = ScalarArgument("%s_end" % self.name, self, max)
+        size = ScalarArgument(self.size_name, self, max)
+        start = ScalarArgument(self.start_name, self, max, 0)
+        end = ScalarArgument(self.end_name, self, max)
         return [size, start, end]
 
     def promote(self, value):
@@ -229,7 +229,6 @@ class DimensionArgProvider(ArgumentProvider):
                 start, end = value
                 value = (end, start, end)
             elif len(value) != 3:
-                print(value)
                 raise InvalidArgument("Expected either a single value or a tuple(2/3)")
         return value
 

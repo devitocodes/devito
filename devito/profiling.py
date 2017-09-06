@@ -118,7 +118,7 @@ class Profiler(object):
         self._C_timings = self.dtype()
         return byref(self._C_timings)
 
-    def summary(self, dim_sizes, dtype):
+    def summary(self, arguments, dtype):
         """
         Return a summary of the performance numbers measured.
 
@@ -137,14 +137,14 @@ class Profiler(object):
             time = self.timings[profile.name]
 
             # Flops
-            itershape = [i.extent(finish=dim_sizes.get(dims[i].name)) for i in itspace]
+            itershape = [i.extent(finish=arguments[dims[i].end_name], start=arguments[dims[i].start_name]) for i in itspace]
             iterspace = reduce(operator.mul, itershape)
             flops = float(profile.ops*iterspace)
             gflops = flops/10**9
 
             # Compulsory traffic
             datashape = [i.dim.size if i.dim.is_Fixed
-                         else dim_sizes[dims[i].name] for i in itspace]
+                         else (arguments[dims[i].end_name] - arguments[dims[i].start_name]) for i in itspace]
             dataspace = reduce(operator.mul, datashape)
             traffic = profile.memory*dataspace*dtype().itemsize
             print(traffic)
