@@ -226,20 +226,27 @@ class DimensionArgProvider(ArgumentProvider):
     # TODO: Can we do without a verify on a dimension?
     def verify(self, value):
         verify = True
+        if value is None:
+            if self.value is not None:
+                return True
 
-        if value is None and self._value is not None:
-            return verify
-
-        if value is not None and value == self._value:
-            return verify
-
-        if value is not None and self._value is not None:
-            value = self.reducer(self._value, value)
-        if hasattr(self, 'parent'):
-            verify = verify and self.parent.verify(value)
-            # If I don't know my value, ask my parent
-            if value is None:
+            try:
                 value = self.parent.value
+                if value is None:
+                    return False
+            except AttributeError:
+                return False
+
+        try:
+            parent_value = self.parent.value
+            if parent_value is not None:
+                value = self.reducer(value, parent_value)
+            verify = verify and self.parent.verify(value)
+        except AttributeError:
+            pass
+
+        if value == self.value:
+            return True
 
         # Derived dimensions could be linked through constraints
         # At this point, a constraint needs to be added that enforces
