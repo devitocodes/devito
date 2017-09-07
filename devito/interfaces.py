@@ -708,6 +708,10 @@ class TimeData(DenseData):
             if dimensions is None or (t not in dimensions and time not in dimensions):
                 self.shape = (time_dim,) + self.shape
 
+            if self.indices[0] not in (t, time):
+                warning(" First dimension is not time, the generated code may "
+                        "produce incorect results")
+
     def initialize(self):
         if self.initializer is not None:
             self.initializer(self.data)

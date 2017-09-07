@@ -555,9 +555,9 @@ class TestLoopScheduler(object):
                        space_order=2)
         b2.data[:] = 1.0
         eqns = [Eq(a.forward, a.laplace + 1.),
-                Eq(b, time*b*a + b)]
+                Eq(b, time*b*a + b.laplace)]
         eqns2 = [Eq(a.forward, a.laplace + 1.),
-                 Eq(b2, time*b2*a + b2)]
+                 Eq(b2, time*b2*a + b2.laplace)]
         subs = {x.spacing: 2.5, y.spacing: 1.5, z.spacing: 2.0}
         op = Operator(eqns, subs=subs, dle='noop')
         trees = retrieve_iteration_tree(op)
@@ -569,7 +569,7 @@ class TestLoopScheduler(object):
         assert len(trees) == 2
         assert all(trees[0][i] is trees[1][i] for i in range(3))
 
-        # Verify both operators produce the same result
+        # Verify both operators produce the same resultsx
         op()
         op2()
 
@@ -597,107 +597,6 @@ class TestForeign(object):
         op.cfunction(*list(args.values()))
         assert all(np.allclose(args['a'][i], i) for i in range(time_dim))
 
-
-class TestMixedDimensions(object):
-
-    def test_indices_ordering_custom_time(self):
-        """
-        Test the correctness of the result for two different indices
-        ordering:
-        (t, x, y) and (x, t, y)
-        The test currently fails are the loop are not reordered  according to
-        the stencil
-        """
-        time_dim = 6
-        a = TimeData(name='a', shape=(11, 11), time_order=2,
-                     time_dim=time_dim, save=True, space_order=2)
-        # Same object, different ordering of dimensions, need
-        # to declare shape
-        a2 = TimeData(name='a2', shape=(11, time_dim, 11),
-                      dimensions=(y, time, x), time_order=2,
-                      time_dim=time_dim, save=True, space_order=2)
-        # Equations
-        eqn1 = Eq(a.forward, a.laplace + x**2*y**2)
-        eqn2 = Eq(a2.forward, a2.laplace + x**2*y**2)
-        # Operator
-        op1 = Operator(eqn1, subs=({x.spacing: 2.5, y.spacing:1.5}))
-        op1()
-
-        op2 = Operator(eqn2, subs=({x.spacing: 2.5, y.spacing:1.5}))
-        op2()
-        # run
-        # Check same output for corresponding indices
-        # TODO : This currently fails as the loop dependencies are no resoved and reorganized
-        # This a very tricky problem as Devito needs to figure out what needs to be already
-        # computed and
-        # rearrange loops accordingly
-        assert(np.allclose(a.data[5, :, 1].reshape(-1) - a2.data[1, 5, :].reshape(-1),
-                           0.))
-        assert (np.allclose(a.data[5, 1, :].reshape(-1) - a2.data[:, 5, 1].reshape(-1),
-                            0.))
-
-    def test_indices_ordering_default_time(self):
-        """
-        Test the correctness of the result for two different indices
-        ordering:
-        (t, x, y) and (t, y, x)
-        This test on the other hand passes as the time dimension is artificially
-        made the outer one through the indices
-        :return:
-        """
-        time_dim = 6
-        a = TimeData(name='a', shape=(11, 11), time_order=2,
-                     time_dim=time_dim, save=True, space_order=2)
-        # Same object, different ordering of dimensions, need
-        # to declare shape
-        a2 = TimeData(name='a2', shape=(11, 11),
-                      dimensions=(y, x), time_order=2,
-                      time_dim=time_dim, save=True, space_order=2)
-        # Equations
-        eqn1 = Eq(a.forward, a.laplace + 1.)
-        eqn2 = Eq(a2.forward, a2.laplace + 1.)
-        # Operator
-        op1 = Operator(eqn1, subs=({x.spacing: 2.5, y.spacing:1.5}))
-        op2 = Operator(eqn2, subs=({x.spacing: 2.5, y.spacing:1.5}))
-        # run
-        op1()
-        op2()
-        # Check same output for corresponding indices
-        assert(np.allclose(a.data[5, :, 1].reshape(-1) - a2.data[5, 1, :].reshape(-1),
-                           0.))
-        assert (np.allclose(a.data[5, 1, :].reshape(-1) - a2.data[5, :, 1].reshape(-1),
-                            0.))
-
-    def test_mixed_dims(self):
-        """
-        This one produces wrong C code with two seperate time loops if
-        the dimensions of b are (p_aux, x, y)
-
-        Operator is stuck in an infinite while loop at
-        "/Users/mloubout/Dropbox/London/CodeGen/devito/devito/tools.py line 120
-        if b indices are (p_aux, y, x)
-
-        All good with dse/dle to `noop` and p_aux as the last dimension
-        """
-        time_dim = 6
-        a = TimeData(name='a', shape=(11, 3, 11), time_order=2,
-                     dimensions=(x, t, y), space_order=2,
-                     time_dim=time_dim, save=False)
-        p_aux = Dimension(name='p_aux', size=10)
-        # Same object, different ordering of dimensions, need
-        # to declare shape
-        b = DenseData(name='a2', shape=(10, 11, 11),
-                      dimensions=(p_aux, x, y))
-        # Equations
-        print(a.laplace)
-        eqn1 = [Eq(a.forward, a.laplace + 1.)]
-        eqn2 = [Eq(b, time*b*a + b)]
-        # Operator
-        op1 = Operator(eqn1 + eqn2, subs=({x.spacing: 2.5, y.spacing:1.5}))
-        # run
-        op1.cfunction
-
-
 if __name__ == "__main__":
-    Testing = TestMixedDimensions()
-    Testing.test_indices_ordering_default_time()
+    Testing = TestLoopScheduler()
+    Testing.test_equations_mixed_densedata_timedata((11,11), (x,y))
