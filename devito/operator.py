@@ -471,12 +471,9 @@ class OperatorRunnable(Operator):
     def _profile_sections(self, nodes, parameters):
         """Introduce C-level profiling nodes within the Iteration/Expression tree."""
         nodes, profiler = create_profile(nodes)
+        self._globals.append(profiler.cdef)
         parameters.append(Object(profiler.varname, profiler.dtype, profiler.setup()))
         return nodes, profiler
-
-    @property
-    def _cglobals(self):
-        return [self.profiler.cdef, blankline]
 
 
 # Misc helpers

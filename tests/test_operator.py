@@ -249,8 +249,9 @@ class TestArguments(object):
         eqn = Eq(b[time, x, y, z], a[x, y, z])
         op = Operator(eqn)
 
-        _, op_dim_sizes = op.arguments()
-        assert(op_dim_sizes[time.name] == nt)
+        op_arguments, _ = op.arguments()
+        assert(op_arguments[time.start_name] == 0)
+        assert(op_arguments[time.end_name] == nt)
 
     def test_dimension_size_override(self, nt=100):
         """Test explicit overrides for the leading time dimension"""

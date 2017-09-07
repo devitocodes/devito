@@ -244,7 +244,8 @@ class DimensionArgProvider(ArgumentProvider):
             parent_value = self.parent.value
             if parent_value is not None:
                 parent_value = self.promote(parent_value)
-                value = tuple([self.reducer(i1, i2) for i1, i2 in zip(value, parent_value)])
+                value = tuple([self.reducer(i1, i2) for i1, i2 in zip(value,
+                                                                      parent_value)])
             verify = verify and self.parent.verify(value)
         except AttributeError:
             pass
@@ -324,4 +325,4 @@ def log_args(arguments):
                            (k, str(v.shape), np.linalg.norm(v.view())))
         else:
             arg_str.append('(%s, value=%s)' % (k, str(v)))
-    print("Passing Arguments: " + ", ".join(arg_str))
+    debug("Passing Arguments: " + ", ".join(arg_str))

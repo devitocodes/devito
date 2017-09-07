@@ -152,10 +152,10 @@ class Profiler(object):
 
             # Compulsory traffic
             datashape = [i.dim.size if i.dim.is_Fixed
-                         else (arguments[dims[i].end_name] - arguments[dims[i].start_name]) for i in itspace]
+                         else (arguments[dims[i].end_name]
+                               - arguments[dims[i].start_name]) for i in itspace]
             dataspace = reduce(operator.mul, datashape)
             traffic = profile.memory*dataspace*dtype().itemsize
-            print(traffic)
             # Derived metrics
             oi = flops/traffic
             gflopss = gflops/time
