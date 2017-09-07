@@ -9,7 +9,7 @@ import pytest
 from sympy import Eq  # noqa
 
 from devito import (clear_cache, Operator, ConstantData, DenseData, TimeData,
-                    PointData, Dimension, time, t, x, y, z, configuration)
+                    PointData, Dimension, time, x, y, z, configuration)
 from devito.foreign import Operator as OperatorForeign
 from devito.dle import retrieve_iteration_tree
 from devito.visitors import IsPerfectIteration
@@ -596,4 +596,3 @@ class TestForeign(object):
         args['a'] = array
         op.cfunction(*list(args.values()))
         assert all(np.allclose(args['a'][i], i) for i in range(time_dim))
-
