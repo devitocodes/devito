@@ -116,8 +116,8 @@ def partial_order(elements):
     while queue:
         item, prev = queue.pop(0)
         if item not in ordering:
-            ordering += [item]
-        queue += [(i, item) for i in mapper[item]]
+            ordering.append(item)
+        queue = [(i, item) for i in mapper[item]] + queue
 
     return ordering
 
