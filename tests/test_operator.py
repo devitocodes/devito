@@ -546,7 +546,7 @@ class TestLoopScheduler(object):
         are embedded within the same time loop.
         """
         a = TimeData(name='a', shape=shape, time_order=2, dimensions=dimensions,
-                     space_order=2, time_dim=6, save=False)
+                     space_order=2, time_dim=6, save=True)
         p_aux = Dimension(name='p_aux', size=10)
         b = DenseData(name='b', shape=shape + (10,), dimensions=dimensions + (p_aux,),
                       space_order=2)
@@ -597,6 +597,3 @@ class TestForeign(object):
         op.cfunction(*list(args.values()))
         assert all(np.allclose(args['a'][i], i) for i in range(time_dim))
 
-if __name__ == "__main__":
-    Testing = TestLoopScheduler()
-    Testing.test_equations_mixed_densedata_timedata((11,11), (x,y))
