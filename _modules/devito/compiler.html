@@ -404,7 +404,8 @@
 
     <span class="n">tic</span> <span class="o">=</span> <span class="n">time</span><span class="p">()</span>
     <span class="n">extension_file_from_string</span><span class="p">(</span><span class="n">toolchain</span><span class="o">=</span><span class="n">compiler</span><span class="p">,</span> <span class="n">ext_file</span><span class="o">=</span><span class="n">lib_file</span><span class="p">,</span>
-                               <span class="n">source_string</span><span class="o">=</span><span class="n">ccode</span><span class="p">,</span> <span class="n">source_name</span><span class="o">=</span><span class="n">src_file</span><span class="p">)</span>
+                               <span class="n">source_string</span><span class="o">=</span><span class="n">ccode</span><span class="p">,</span> <span class="n">source_name</span><span class="o">=</span><span class="n">src_file</span><span class="p">,</span>
+                               <span class="n">debug</span><span class="o">=</span><span class="n">configuration</span><span class="p">[</span><span class="s1">&#39;debug_compiler&#39;</span><span class="p">])</span>
     <span class="n">toc</span> <span class="o">=</span> <span class="n">time</span><span class="p">()</span>
     <span class="n">log</span><span class="p">(</span><span class="s2">&quot;</span><span class="si">%s</span><span class="s2">: compiled </span><span class="si">%s</span><span class="s2"> [</span><span class="si">%.2f</span><span class="s2"> s]&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">compiler</span><span class="p">,</span> <span class="n">src_file</span><span class="p">,</span> <span class="n">toc</span><span class="o">-</span><span class="n">tic</span><span class="p">))</span>
 
@@ -456,6 +457,7 @@
 <span class="n">configuration</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="s1">&#39;compiler&#39;</span><span class="p">,</span> <span class="s1">&#39;custom&#39;</span><span class="p">,</span> <span class="nb">list</span><span class="p">(</span><span class="n">compiler_registry</span><span class="p">),</span>
                   <span class="k">lambda</span> <span class="n">i</span><span class="p">:</span> <span class="n">compiler_registry</span><span class="p">[</span><span class="n">i</span><span class="p">]())</span>
 <span class="n">configuration</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="s1">&#39;openmp&#39;</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">],</span> <span class="k">lambda</span> <span class="n">i</span><span class="p">:</span> <span class="nb">bool</span><span class="p">(</span><span class="n">i</span><span class="p">))</span>
+<span class="n">configuration</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="s1">&#39;debug_compiler&#39;</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">],</span> <span class="k">lambda</span> <span class="n">i</span><span class="p">:</span> <span class="nb">bool</span><span class="p">(</span><span class="n">i</span><span class="p">))</span>
 </pre></div>
 
            </div>
