@@ -395,6 +395,7 @@ class Iteration(Node):
         available (either statically known or provided through ``start``/
         ``finish``). ``None`` is used as a placeholder in the returned 2-tuple
         if a limit is unknown."""
+        lower = None
         try:
             lower = int(self.limits[0]) - self.offsets[0]
         except (TypeError, ValueError):

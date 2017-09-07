@@ -151,7 +151,7 @@ class Operator(Function):
         for i in self.parameters:
             if i.is_TensorArgument:
                 assert(i.verify(kwargs.pop(i.name, None)))
-        runtime_dimensions = [d for d in self.dimensions if d.value is not None]
+        runtime_dimensions = [d for d in self.dimensions if not d.is_Fixed]
         for d in runtime_dimensions:
             d.verify(kwargs.pop(d.name, None))
         for i in self.parameters:
