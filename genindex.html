@@ -379,8 +379,6 @@
         <li><a href="devito.html#devito.interfaces.DenseData.data">(devito.interfaces.DenseData attribute)</a>
 </li>
       </ul></li>
-      <li><a href="devito.html#devito.arguments.DimensionArgProvider.decl">decl (devito.arguments.DimensionArgProvider attribute)</a>
-</li>
       <li><a href="devito.html#devito.base.ConstantData.default_assumptions">default_assumptions (devito.base.ConstantData attribute)</a>
 
       <ul>
@@ -397,6 +395,8 @@
         <li><a href="devito.html#devito.base.TimeData.default_assumptions">(devito.base.TimeData attribute)</a>
 </li>
         <li><a href="devito.html#devito.dimension.Dimension.default_assumptions">(devito.dimension.Dimension attribute)</a>
+</li>
+        <li><a href="devito.html#devito.dimension.FixedDimension.default_assumptions">(devito.dimension.FixedDimension attribute)</a>
 </li>
         <li><a href="devito.dse.html#devito.dse.extended_sympy.Add.default_assumptions">(devito.dse.extended_sympy.Add attribute)</a>
 </li>
@@ -612,6 +612,8 @@
       <ul>
         <li><a href="devito.html#devito.arguments.DimensionArgProvider.dtype">(devito.arguments.DimensionArgProvider attribute)</a>
 </li>
+        <li><a href="devito.html#devito.arguments.FixedDimensionArgProvider.dtype">(devito.arguments.FixedDimensionArgProvider attribute)</a>
+</li>
       </ul></li>
       <li><a href="devito.html#devito.interfaces.DenseData.dx">dx (devito.interfaces.DenseData attribute)</a>
 </li>
@@ -775,10 +777,14 @@
 </li>
       <li><a href="devito.html#devito.memory.first_touch">first_touch() (in module devito.memory)</a>
 </li>
-      <li><a href="devito.html#devito.tools.flatten">flatten() (in module devito.tools)</a>
+      <li><a href="devito.html#devito.dimension.FixedDimension">FixedDimension (class in devito.dimension)</a>
+</li>
+      <li><a href="devito.html#devito.arguments.FixedDimensionArgProvider">FixedDimensionArgProvider (class in devito.arguments)</a>
 </li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="devito.html#devito.tools.flatten">flatten() (in module devito.tools)</a>
+</li>
       <li><a href="devito.dle.html#devito.dle.blocking_utils.fold_blockable_tree">fold_blockable_tree() (in module devito.dle.blocking_utils)</a>
 </li>
       <li><a href="devito.html#devito.interfaces.TimeData.forward">forward (devito.interfaces.TimeData attribute)</a>
@@ -937,6 +943,12 @@
       </ul></li>
       <li><a href="devito.html#devito.base.Operator.is_finite">is_finite (devito.base.Operator attribute)</a>
 </li>
+      <li><a href="devito.html#devito.dimension.Dimension.is_Fixed">is_Fixed (devito.dimension.Dimension attribute)</a>
+
+      <ul>
+        <li><a href="devito.html#devito.dimension.FixedDimension.is_Fixed">(devito.dimension.FixedDimension attribute)</a>
+</li>
+      </ul></li>
       <li><a href="devito.dle.html#devito.dle.inspection.is_foldable">is_foldable() (in module devito.dle.inspection)</a>
 </li>
       <li><a href="devito.html#devito.nodes.FunCall.is_FunCall">is_FunCall (devito.nodes.FunCall attribute)</a>
@@ -953,10 +965,10 @@
       </ul></li>
       <li><a href="devito.html#devito.base.Operator.is_hermitian">is_hermitian (devito.base.Operator attribute)</a>
 </li>
-      <li><a href="devito.html#devito.base.Operator.is_imaginary">is_imaginary (devito.base.Operator attribute)</a>
-</li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="devito.html#devito.base.Operator.is_imaginary">is_imaginary (devito.base.Operator attribute)</a>
+</li>
       <li><a href="devito.html#devito.base.Operator.is_infinite">is_infinite (devito.base.Operator attribute)</a>
 </li>
       <li><a href="devito.html#devito.base.Operator.is_integer">is_integer (devito.base.Operator attribute)</a>
@@ -1320,6 +1332,8 @@
 </li>
         <li><a href="devito.html#devito.arguments.DimensionArgProvider.rtargs">(devito.arguments.DimensionArgProvider attribute)</a>
 </li>
+        <li><a href="devito.html#devito.arguments.FixedDimensionArgProvider.rtargs">(devito.arguments.FixedDimensionArgProvider attribute)</a>
+</li>
         <li><a href="devito.html#devito.arguments.ObjectArgProvider.rtargs">(devito.arguments.ObjectArgProvider attribute)</a>
 </li>
         <li><a href="devito.html#devito.arguments.ScalarFunctionArgProvider.rtargs">(devito.arguments.ScalarFunctionArgProvider attribute)</a>
@@ -1389,10 +1403,10 @@
         <li><a href="examples.seismic.acoustic.html#examples.seismic.acoustic.gradient_example.smooth10">(in module examples.seismic.acoustic.gradient_example)</a>
 </li>
       </ul></li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="examples.seismic.acoustic.html#examples.seismic.acoustic.gradient_example.source">source() (in module examples.seismic.acoustic.gradient_example)</a>
 </li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="devito.dse.backends.html#devito.dse.backends.speculative.SpeculativeRewriter">SpeculativeRewriter (class in devito.dse.backends.speculative)</a>
 </li>
       <li><a href="devito.html#devito.stencil.Stencil.split">split() (devito.stencil.Stencil method)</a>
@@ -1424,7 +1438,11 @@
       <li><a href="devito.html#devito.interfaces.Symbol">Symbol (class in devito.interfaces)</a>
 </li>
       <li><a href="devito.html#devito.dimension.Dimension.symbolic_size">symbolic_size (devito.dimension.Dimension attribute)</a>
+
+      <ul>
+        <li><a href="devito.html#devito.dimension.FixedDimension.symbolic_size">(devito.dimension.FixedDimension attribute)</a>
 </li>
+      </ul></li>
   </ul></td>
 </tr></table>
 
@@ -1500,12 +1518,16 @@
       <ul>
         <li><a href="devito.html#devito.arguments.DimensionArgProvider.value">(devito.arguments.DimensionArgProvider attribute)</a>
 </li>
+        <li><a href="devito.html#devito.arguments.FixedDimensionArgProvider.value">(devito.arguments.FixedDimensionArgProvider attribute)</a>
+</li>
       </ul></li>
       <li><a href="devito.html#devito.arguments.Argument.verify">verify (devito.arguments.Argument attribute)</a>
 </li>
       <li><a href="devito.html#devito.arguments.DimensionArgProvider.verify">verify() (devito.arguments.DimensionArgProvider method)</a>
 
       <ul>
+        <li><a href="devito.html#devito.arguments.FixedDimensionArgProvider.verify">(devito.arguments.FixedDimensionArgProvider method)</a>
+</li>
         <li><a href="devito.html#devito.arguments.PtrArgument.verify">(devito.arguments.PtrArgument method)</a>
 </li>
         <li><a href="devito.html#devito.arguments.ScalarArgument.verify">(devito.arguments.ScalarArgument method)</a>

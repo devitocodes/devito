@@ -351,11 +351,6 @@ arguments.</p>
 to handle runtime arguments. All properties/methods defined here are available
 in any Dimension object.</p>
 <dl class="attribute">
-<dt id="devito.arguments.DimensionArgProvider.decl">
-<code class="descname">decl</code><a class="headerlink" href="#devito.arguments.DimensionArgProvider.decl" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="attribute">
 <dt id="devito.arguments.DimensionArgProvider.dtype">
 <code class="descname">dtype</code><a class="headerlink" href="#devito.arguments.DimensionArgProvider.dtype" title="Permalink to this definition">¶</a></dt>
 <dd><p>The data type of the iteration variable</p>
@@ -388,6 +383,36 @@ With two or more arguments, return the largest argument.</p>
 <dl class="method">
 <dt id="devito.arguments.DimensionArgProvider.verify">
 <code class="descname">verify</code><span class="sig-paren">(</span><em>value</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/arguments.html#DimensionArgProvider.verify"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.arguments.DimensionArgProvider.verify" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="devito.arguments.FixedDimensionArgProvider">
+<em class="property">class </em><code class="descclassname">devito.arguments.</code><code class="descname">FixedDimensionArgProvider</code><span class="sig-paren">(</span><em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/arguments.html#FixedDimensionArgProvider"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.arguments.FixedDimensionArgProvider" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#devito.arguments.ArgumentProvider" title="devito.arguments.ArgumentProvider"><code class="xref py py-class docutils literal"><span class="pre">devito.arguments.ArgumentProvider</span></code></a></p>
+<p>This class is used to decorate the FixedDimension class with behaviour required
+to handle runtime arguments. All properties/methods defined here are available
+in any Dimension object.</p>
+<dl class="attribute">
+<dt id="devito.arguments.FixedDimensionArgProvider.dtype">
+<code class="descname">dtype</code><a class="headerlink" href="#devito.arguments.FixedDimensionArgProvider.dtype" title="Permalink to this definition">¶</a></dt>
+<dd><p>The data type of the iteration variable</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="devito.arguments.FixedDimensionArgProvider.rtargs">
+<code class="descname">rtargs</code><a class="headerlink" href="#devito.arguments.FixedDimensionArgProvider.rtargs" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="devito.arguments.FixedDimensionArgProvider.value">
+<code class="descname">value</code><a class="headerlink" href="#devito.arguments.FixedDimensionArgProvider.value" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="devito.arguments.FixedDimensionArgProvider.verify">
+<code class="descname">verify</code><span class="sig-paren">(</span><em>value</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/arguments.html#FixedDimensionArgProvider.verify"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.arguments.FixedDimensionArgProvider.verify" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 </dd></dl>
@@ -1044,22 +1069,6 @@ we utilise the <cite>pymic</cite> package to manage device streams.</p>
 <dt id="devito.dimension.Dimension">
 <em class="property">class </em><code class="descclassname">devito.dimension.</code><code class="descname">Dimension</code><span class="sig-paren">(</span><em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/dimension.html#Dimension"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.dimension.Dimension" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">sympy.core.symbol.Symbol</span></code>, <a class="reference internal" href="#devito.arguments.DimensionArgProvider" title="devito.arguments.DimensionArgProvider"><code class="xref py py-class docutils literal"><span class="pre">devito.arguments.DimensionArgProvider</span></code></a></p>
-<p>Index object that represents a problem dimension and thus
-defines a potential iteration space.</p>
-<table class="docutils field-list" frame="void" rules="none">
-<col class="field-name" />
-<col class="field-body" />
-<tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
-<li><strong>size</strong> – Optional, size of the array dimension.</li>
-<li><strong>reverse</strong> – Traverse dimension in reverse order (default False)</li>
-<li><strong>buffered</strong> – Optional, boolean flag indicating whether to
-buffer variables when iterating this dimension.</li>
-</ul>
-</td>
-</tr>
-</tbody>
-</table>
 <dl class="attribute">
 <dt id="devito.dimension.Dimension.default_assumptions">
 <code class="descname">default_assumptions</code><em class="property"> = {}</em><a class="headerlink" href="#devito.dimension.Dimension.default_assumptions" title="Permalink to this definition">¶</a></dt>
@@ -1071,6 +1080,26 @@ buffer variables when iterating this dimension.</li>
 <dd></dd></dl>
 
 <dl class="attribute">
+<dt id="devito.dimension.Dimension.is_Fixed">
+<code class="descname">is_Fixed</code><em class="property"> = False</em><a class="headerlink" href="#devito.dimension.Dimension.is_Fixed" title="Permalink to this definition">¶</a></dt>
+<dd><p>Index object that represents a problem dimension and thus
+defines a potential iteration space.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>size</strong> – Optional, size of the array dimension.</li>
+<li><strong>reverse</strong> – Traverse dimension in reverse order (default False)</li>
+<li><strong>spacing</strong> – Optional, symbol for the spacing along this dimension.</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="attribute">
 <dt id="devito.dimension.Dimension.is_Lowered">
 <code class="descname">is_Lowered</code><em class="property"> = False</em><a class="headerlink" href="#devito.dimension.Dimension.is_Lowered" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
@@ -1078,6 +1107,31 @@ buffer variables when iterating this dimension.</li>
 <dl class="attribute">
 <dt id="devito.dimension.Dimension.symbolic_size">
 <code class="descname">symbolic_size</code><a class="headerlink" href="#devito.dimension.Dimension.symbolic_size" title="Permalink to this definition">¶</a></dt>
+<dd><p>The symbolic size of this dimension.</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="devito.dimension.FixedDimension">
+<em class="property">class </em><code class="descclassname">devito.dimension.</code><code class="descname">FixedDimension</code><span class="sig-paren">(</span><em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/dimension.html#FixedDimension"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.dimension.FixedDimension" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#devito.arguments.FixedDimensionArgProvider" title="devito.arguments.FixedDimensionArgProvider"><code class="xref py py-class docutils literal"><span class="pre">devito.arguments.FixedDimensionArgProvider</span></code></a>, <a class="reference internal" href="#devito.dimension.Dimension" title="devito.dimension.Dimension"><code class="xref py py-class docutils literal"><span class="pre">devito.dimension.Dimension</span></code></a></p>
+<dl class="attribute">
+<dt id="devito.dimension.FixedDimension.default_assumptions">
+<code class="descname">default_assumptions</code><em class="property"> = {}</em><a class="headerlink" href="#devito.dimension.FixedDimension.default_assumptions" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="devito.dimension.FixedDimension.is_Fixed">
+<code class="descname">is_Fixed</code><em class="property"> = True</em><a class="headerlink" href="#devito.dimension.FixedDimension.is_Fixed" title="Permalink to this definition">¶</a></dt>
+<dd><p>This class defines the behaviour of a dimension whose size is fixed
+at the time of problem definition and can thus be baked into generated
+code</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="devito.dimension.FixedDimension.symbolic_size">
+<code class="descname">symbolic_size</code><a class="headerlink" href="#devito.dimension.FixedDimension.symbolic_size" title="Permalink to this definition">¶</a></dt>
 <dd><p>The symbolic size of this dimension.</p>
 </dd></dl>
 
