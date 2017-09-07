@@ -189,8 +189,8 @@
 
 <span class="kn">from</span> <span class="nn">devito.dimension</span> <span class="k">import</span> <span class="n">Dimension</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">z</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">time</span>
 <span class="kn">from</span> <span class="nn">devito.dse.extended_sympy</span> <span class="k">import</span> <span class="n">Eq</span>
-<span class="kn">from</span> <span class="nn">devito.dse.search</span> <span class="k">import</span> <span class="n">retrieve_indexed</span>
-<span class="kn">from</span> <span class="nn">devito.dse.inspection</span> <span class="k">import</span> <span class="n">as_symbol</span><span class="p">,</span> <span class="n">terminals</span>
+<span class="kn">from</span> <span class="nn">devito.dse.search</span> <span class="k">import</span> <span class="n">retrieve_indexed</span><span class="p">,</span> <span class="n">retrieve_terminals</span>
+<span class="kn">from</span> <span class="nn">devito.dse.inspection</span> <span class="k">import</span> <span class="n">as_symbol</span>
 <span class="kn">from</span> <span class="nn">devito.dse.queries</span> <span class="k">import</span> <span class="n">q_indexed</span><span class="p">,</span> <span class="n">q_indirect</span>
 <span class="kn">from</span> <span class="nn">devito.exceptions</span> <span class="k">import</span> <span class="n">DSEException</span>
 <span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">flatten</span>
@@ -400,7 +400,7 @@
         <span class="k">while</span> <span class="n">queue</span><span class="p">:</span>
             <span class="n">item</span> <span class="o">=</span> <span class="n">queue</span><span class="o">.</span><span class="n">pop</span><span class="p">()</span>
             <span class="n">temporaries</span> <span class="o">=</span> <span class="p">[]</span>
-            <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">terminals</span><span class="p">(</span><span class="n">item</span><span class="p">):</span>
+            <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">retrieve_terminals</span><span class="p">(</span><span class="n">item</span><span class="p">):</span>
                 <span class="k">if</span> <span class="nb">any</span><span class="p">(</span><span class="n">j</span> <span class="ow">in</span> <span class="n">i</span><span class="o">.</span><span class="n">free_symbols</span> <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">time_indices</span><span class="p">):</span>
                     <span class="c1"># Definitely not time-invariant</span>
                     <span class="k">return</span> <span class="kc">False</span>
@@ -488,7 +488,7 @@
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="n">known</span> <span class="o">=</span> <span class="p">{</span><span class="n">v</span><span class="o">.</span><span class="n">function</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">values</span><span class="p">()}</span>
         <span class="n">reads</span> <span class="o">=</span> <span class="nb">set</span><span class="p">([</span><span class="n">i</span><span class="o">.</span><span class="n">base</span><span class="o">.</span><span class="n">function</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span>
-                     <span class="n">flatten</span><span class="p">(</span><span class="n">terminals</span><span class="p">(</span><span class="n">v</span><span class="o">.</span><span class="n">rhs</span><span class="p">)</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">values</span><span class="p">())])</span>
+                     <span class="n">flatten</span><span class="p">(</span><span class="n">retrieve_terminals</span><span class="p">(</span><span class="n">v</span><span class="o">.</span><span class="n">rhs</span><span class="p">)</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">values</span><span class="p">())])</span>
         <span class="k">return</span> <span class="n">reads</span> <span class="o">-</span> <span class="n">known</span>
 
     <span class="nd">@cached_property</span>
@@ -526,13 +526,13 @@
 
     <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">graph</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
         <span class="c1"># Scalars</span>
-        <span class="n">handle</span> <span class="o">=</span> <span class="n">terminals</span><span class="p">(</span><span class="n">v</span><span class="o">.</span><span class="n">rhs</span><span class="p">)</span>
+        <span class="n">handle</span> <span class="o">=</span> <span class="n">retrieve_terminals</span><span class="p">(</span><span class="n">v</span><span class="o">.</span><span class="n">rhs</span><span class="p">)</span>
 
         <span class="c1"># Tensors (does not inspect indirections such as A[B[i]])</span>
         <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">list</span><span class="p">(</span><span class="n">handle</span><span class="p">):</span>
             <span class="k">if</span> <span class="n">q_indexed</span><span class="p">(</span><span class="n">i</span><span class="p">):</span>
                 <span class="k">for</span> <span class="n">idx</span> <span class="ow">in</span> <span class="n">i</span><span class="o">.</span><span class="n">indices</span><span class="p">:</span>
-                    <span class="n">handle</span> <span class="o">|=</span> <span class="n">terminals</span><span class="p">(</span><span class="n">idx</span><span class="p">)</span>
+                    <span class="n">handle</span> <span class="o">|=</span> <span class="n">retrieve_terminals</span><span class="p">(</span><span class="n">idx</span><span class="p">)</span>
 
         <span class="c1"># Derive actual reads</span>
         <span class="n">reads</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">flatten</span><span class="p">([</span><span class="n">mapper</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">as_symbol</span><span class="p">(</span><span class="n">i</span><span class="p">),</span> <span class="p">[])</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">handle</span><span class="p">]))</span>

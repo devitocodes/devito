@@ -162,36 +162,14 @@
   <h1>Source code for devito.dse.inspection</h1><div class="highlight"><pre>
 <span></span><span class="kn">from</span> <span class="nn">collections</span> <span class="k">import</span> <span class="n">OrderedDict</span>
 
-<span class="kn">from</span> <span class="nn">sympy</span> <span class="k">import</span> <span class="p">(</span><span class="n">Function</span><span class="p">,</span> <span class="n">Indexed</span><span class="p">,</span> <span class="n">Number</span><span class="p">,</span> <span class="n">Symbol</span><span class="p">,</span> <span class="n">cos</span><span class="p">,</span> <span class="n">lambdify</span><span class="p">,</span>
-                   <span class="n">preorder_traversal</span><span class="p">,</span> <span class="n">sin</span><span class="p">)</span>
+<span class="kn">from</span> <span class="nn">sympy</span> <span class="k">import</span> <span class="n">Function</span><span class="p">,</span> <span class="n">Indexed</span><span class="p">,</span> <span class="n">Number</span><span class="p">,</span> <span class="n">Symbol</span><span class="p">,</span> <span class="n">cos</span><span class="p">,</span> <span class="n">preorder_traversal</span><span class="p">,</span> <span class="n">sin</span>
 
 <span class="kn">from</span> <span class="nn">devito.dimension</span> <span class="k">import</span> <span class="n">Dimension</span><span class="p">,</span> <span class="n">t</span>
 <span class="kn">from</span> <span class="nn">devito.dse.search</span> <span class="k">import</span> <span class="n">retrieve_indexed</span><span class="p">,</span> <span class="n">retrieve_ops</span><span class="p">,</span> <span class="n">search</span>
 <span class="kn">from</span> <span class="nn">devito.logger</span> <span class="k">import</span> <span class="n">warning</span>
 <span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">flatten</span>
 
-<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;estimate_cost&#39;</span><span class="p">,</span> <span class="s1">&#39;estimate_memory&#39;</span><span class="p">,</span> <span class="s1">&#39;indexify&#39;</span><span class="p">,</span> <span class="s1">&#39;as_symbol&#39;</span><span class="p">,</span>
-           <span class="s1">&#39;terminals&#39;</span><span class="p">,</span> <span class="s1">&#39;tolambda&#39;</span><span class="p">]</span>
-
-
-<div class="viewcode-block" id="terminals"><a class="viewcode-back" href="../../../devito.dse.html#devito.dse.inspection.terminals">[docs]</a><span class="k">def</span> <span class="nf">terminals</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">discard_indexed</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    Return all Indexed and Symbols in a SymPy expression.</span>
-<span class="sd">    &quot;&quot;&quot;</span>
-
-    <span class="n">indexed</span> <span class="o">=</span> <span class="n">retrieve_indexed</span><span class="p">(</span><span class="n">expr</span><span class="p">)</span>
-
-    <span class="c1"># Use &#39;.name&#39; for quickly checking uniqueness</span>
-    <span class="n">junk</span> <span class="o">=</span> <span class="n">flatten</span><span class="p">([</span><span class="n">i</span><span class="o">.</span><span class="n">free_symbols</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">indexed</span><span class="p">])</span>
-    <span class="n">junk</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span><span class="o">.</span><span class="n">name</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">junk</span><span class="p">]</span>
-
-    <span class="n">symbols</span> <span class="o">=</span> <span class="p">{</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">expr</span><span class="o">.</span><span class="n">free_symbols</span> <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">name</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">junk</span><span class="p">}</span>
-
-    <span class="k">if</span> <span class="n">discard_indexed</span><span class="p">:</span>
-        <span class="k">return</span> <span class="n">symbols</span>
-    <span class="k">else</span><span class="p">:</span>
-        <span class="n">indexed</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">symbols</span><span class="p">)</span>
-        <span class="k">return</span> <span class="n">indexed</span></div>
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;estimate_cost&#39;</span><span class="p">,</span> <span class="s1">&#39;estimate_memory&#39;</span><span class="p">,</span> <span class="s1">&#39;indexify&#39;</span><span class="p">,</span> <span class="s1">&#39;as_symbol&#39;</span><span class="p">]</span>
 
 
 <span class="k">def</span> <span class="nf">count</span><span class="p">(</span><span class="n">exprs</span><span class="p">,</span> <span class="n">query</span><span class="p">):</span>
@@ -333,29 +311,6 @@
             <span class="n">replacements</span><span class="p">[</span><span class="n">e</span><span class="p">]</span> <span class="o">=</span> <span class="n">e</span><span class="o">.</span><span class="n">indexify</span><span class="p">()</span>
 
     <span class="k">return</span> <span class="n">expr</span><span class="o">.</span><span class="n">xreplace</span><span class="p">(</span><span class="n">replacements</span><span class="p">)</span></div>
-
-
-<div class="viewcode-block" id="tolambda"><a class="viewcode-back" href="../../../devito.dse.html#devito.dse.inspection.tolambda">[docs]</a><span class="k">def</span> <span class="nf">tolambda</span><span class="p">(</span><span class="n">exprs</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    Tranform an expression into a lambda.</span>
-
-<span class="sd">    :param exprs: an expression or a list of expressions.</span>
-<span class="sd">    &quot;&quot;&quot;</span>
-    <span class="n">exprs</span> <span class="o">=</span> <span class="n">exprs</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">exprs</span><span class="p">,</span> <span class="nb">list</span><span class="p">)</span> <span class="k">else</span> <span class="p">[</span><span class="n">exprs</span><span class="p">]</span>
-
-    <span class="n">lambdas</span> <span class="o">=</span> <span class="p">[]</span>
-
-    <span class="k">for</span> <span class="n">expr</span> <span class="ow">in</span> <span class="n">exprs</span><span class="p">:</span>
-        <span class="n">terms</span> <span class="o">=</span> <span class="n">retrieve_indexed</span><span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="n">rhs</span><span class="p">)</span>
-        <span class="n">term_symbols</span> <span class="o">=</span> <span class="p">[</span><span class="n">Symbol</span><span class="p">(</span><span class="s2">&quot;i</span><span class="si">%d</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">terms</span><span class="p">))]</span>
-
-        <span class="c1"># Substitute IndexedBase references to simple variables</span>
-        <span class="c1"># lambdify doesn&#39;t support IndexedBase references in expressions</span>
-        <span class="n">tolambdify</span> <span class="o">=</span> <span class="n">expr</span><span class="o">.</span><span class="n">rhs</span><span class="o">.</span><span class="n">subs</span><span class="p">(</span><span class="nb">dict</span><span class="p">(</span><span class="nb">zip</span><span class="p">(</span><span class="n">terms</span><span class="p">,</span> <span class="n">term_symbols</span><span class="p">)))</span>
-        <span class="n">lambdified</span> <span class="o">=</span> <span class="n">lambdify</span><span class="p">(</span><span class="n">term_symbols</span><span class="p">,</span> <span class="n">tolambdify</span><span class="p">)</span>
-        <span class="n">lambdas</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">lambdified</span><span class="p">,</span> <span class="n">terms</span><span class="p">))</span>
-
-    <span class="k">return</span> <span class="n">lambdas</span></div>
 </pre></div>
 
            </div>

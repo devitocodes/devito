@@ -166,11 +166,11 @@
 <span class="kn">from</span> <span class="nn">collections</span> <span class="k">import</span> <span class="n">OrderedDict</span><span class="p">,</span> <span class="n">defaultdict</span>
 <span class="kn">from</span> <span class="nn">time</span> <span class="k">import</span> <span class="n">time</span>
 
-<span class="kn">from</span> <span class="nn">devito.dse</span> <span class="k">import</span> <span class="n">as_symbol</span><span class="p">,</span> <span class="n">terminals</span>
+<span class="kn">from</span> <span class="nn">devito.dse</span> <span class="k">import</span> <span class="n">as_symbol</span><span class="p">,</span> <span class="n">retrieve_terminals</span>
 <span class="kn">from</span> <span class="nn">devito.logger</span> <span class="k">import</span> <span class="n">dle</span>
 <span class="kn">from</span> <span class="nn">devito.nodes</span> <span class="k">import</span> <span class="n">Iteration</span><span class="p">,</span> <span class="n">SEQUENTIAL</span><span class="p">,</span> <span class="n">PARALLEL</span><span class="p">,</span> <span class="n">VECTOR</span>
 <span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">as_tuple</span>
-<span class="kn">from</span> <span class="nn">devito.visitors</span> <span class="k">import</span> <span class="n">FindSections</span><span class="p">,</span> <span class="n">NestedTransformer</span>
+<span class="kn">from</span> <span class="nn">devito.visitors</span> <span class="k">import</span> <span class="n">FindSections</span><span class="p">,</span> <span class="n">IsPerfectIteration</span><span class="p">,</span> <span class="n">NestedTransformer</span>
 
 
 <span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;AbstractRewriter&#39;</span><span class="p">,</span> <span class="s1">&#39;Arg&#39;</span><span class="p">,</span> <span class="s1">&#39;BlockingArg&#39;</span><span class="p">,</span> <span class="s1">&#39;State&#39;</span><span class="p">,</span> <span class="s1">&#39;dle_pass&#39;</span><span class="p">]</span>
@@ -305,7 +305,7 @@
             <span class="n">exprs</span> <span class="o">=</span> <span class="p">[</span><span class="n">e</span><span class="o">.</span><span class="n">expr</span> <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">nexprs</span><span class="p">]</span>
 
             <span class="c1"># &quot;Prefetch&quot; objects to speed up the analsys</span>
-            <span class="n">terms</span> <span class="o">=</span> <span class="p">{</span><span class="n">e</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">terminals</span><span class="p">(</span><span class="n">e</span><span class="o">.</span><span class="n">rhs</span><span class="p">))</span> <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">exprs</span><span class="p">}</span>
+            <span class="n">terms</span> <span class="o">=</span> <span class="p">{</span><span class="n">e</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">retrieve_terminals</span><span class="p">(</span><span class="n">e</span><span class="o">.</span><span class="n">rhs</span><span class="p">))</span> <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">exprs</span><span class="p">}</span>
 
             <span class="c1"># Determine whether the Iteration tree ...</span>
             <span class="n">is_FP</span> <span class="o">=</span> <span class="kc">True</span>  <span class="c1"># ... is fully parallel (FP)</span>
@@ -338,7 +338,7 @@
                 <span class="n">mapper</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">tree</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="p">[])</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">SEQUENTIAL</span><span class="p">)</span>
                 <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">tree</span><span class="p">[</span><span class="mi">1</span><span class="p">:]:</span>
                     <span class="n">mapper</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="p">[])</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">PARALLEL</span><span class="p">)</span>
-            <span class="k">if</span> <span class="n">is_FP</span> <span class="ow">or</span> <span class="n">is_OSIP</span> <span class="ow">or</span> <span class="n">is_US</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">IsPerfectIteration</span><span class="p">()</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">tree</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span> <span class="ow">and</span> <span class="p">(</span><span class="n">is_FP</span> <span class="ow">or</span> <span class="n">is_OSIP</span> <span class="ow">or</span> <span class="n">is_US</span><span class="p">):</span>
                 <span class="c1"># Vectorizable</span>
                 <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">tree</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1</span> <span class="ow">and</span> <span class="n">SEQUENTIAL</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">mapper</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">tree</span><span class="p">[</span><span class="o">-</span><span class="mi">2</span><span class="p">],</span> <span class="p">[]):</span>
                     <span class="c1"># Heuristic: there&#39;s at least an outer parallel Iteration</span>

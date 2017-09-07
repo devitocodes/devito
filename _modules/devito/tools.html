@@ -278,8 +278,8 @@
     <span class="k">while</span> <span class="n">queue</span><span class="p">:</span>
         <span class="n">item</span><span class="p">,</span> <span class="n">prev</span> <span class="o">=</span> <span class="n">queue</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
         <span class="k">if</span> <span class="n">item</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">ordering</span><span class="p">:</span>
-            <span class="n">ordering</span> <span class="o">+=</span> <span class="p">[</span><span class="n">item</span><span class="p">]</span>
-        <span class="n">queue</span> <span class="o">+=</span> <span class="p">[(</span><span class="n">i</span><span class="p">,</span> <span class="n">item</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">mapper</span><span class="p">[</span><span class="n">item</span><span class="p">]]</span>
+            <span class="n">ordering</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">item</span><span class="p">)</span>
+        <span class="n">queue</span> <span class="o">=</span> <span class="p">[(</span><span class="n">i</span><span class="p">,</span> <span class="n">item</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">mapper</span><span class="p">[</span><span class="n">item</span><span class="p">]]</span> <span class="o">+</span> <span class="n">queue</span>
 
     <span class="k">return</span> <span class="n">ordering</span></div>
 

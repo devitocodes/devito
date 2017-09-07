@@ -187,6 +187,10 @@
     <span class="k">return</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">Indexed</span><span class="p">)</span></div>
 
 
+<div class="viewcode-block" id="q_terminal"><a class="viewcode-back" href="../../../devito.dse.html#devito.dse.queries.q_terminal">[docs]</a><span class="k">def</span> <span class="nf">q_terminal</span><span class="p">(</span><span class="n">expr</span><span class="p">):</span>
+    <span class="k">return</span> <span class="n">expr</span><span class="o">.</span><span class="n">is_Symbol</span> <span class="ow">or</span> <span class="n">q_indexed</span><span class="p">(</span><span class="n">expr</span><span class="p">)</span></div>
+
+
 <div class="viewcode-block" id="q_trigonometry"><a class="viewcode-back" href="../../../devito.dse.html#devito.dse.queries.q_trigonometry">[docs]</a><span class="k">def</span> <span class="nf">q_trigonometry</span><span class="p">(</span><span class="n">expr</span><span class="p">):</span>
     <span class="k">return</span> <span class="n">expr</span><span class="o">.</span><span class="n">is_Function</span> <span class="ow">and</span> <span class="n">expr</span><span class="o">.</span><span class="n">func</span> <span class="ow">in</span> <span class="p">[</span><span class="n">sin</span><span class="p">,</span> <span class="n">cos</span><span class="p">]</span></div>
 

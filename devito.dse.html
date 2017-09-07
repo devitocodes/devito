@@ -503,26 +503,6 @@ functions (eg, sin, cos).</li>
 <dd><p>Extract the “main” symbol from a SymPy object.</p>
 </dd></dl>
 
-<dl class="function">
-<dt id="devito.dse.inspection.terminals">
-<code class="descclassname">devito.dse.inspection.</code><code class="descname">terminals</code><span class="sig-paren">(</span><em>expr</em>, <em>discard_indexed=False</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/dse/inspection.html#terminals"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.dse.inspection.terminals" title="Permalink to this definition">¶</a></dt>
-<dd><p>Return all Indexed and Symbols in a SymPy expression.</p>
-</dd></dl>
-
-<dl class="function">
-<dt id="devito.dse.inspection.tolambda">
-<code class="descclassname">devito.dse.inspection.</code><code class="descname">tolambda</code><span class="sig-paren">(</span><em>exprs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/dse/inspection.html#tolambda"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.dse.inspection.tolambda" title="Permalink to this definition">¶</a></dt>
-<dd><p>Tranform an expression into a lambda.</p>
-<table class="docutils field-list" frame="void" rules="none">
-<col class="field-name" />
-<col class="field-body" />
-<tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>exprs</strong> – an expression or a list of expressions.</td>
-</tr>
-</tbody>
-</table>
-</dd></dl>
-
 </div>
 <div class="section" id="module-devito.dse.manipulation">
 <span id="devito-dse-manipulation-module"></span><h2>devito.dse.manipulation module<a class="headerlink" href="#module-devito.dse.manipulation" title="Permalink to this headline">¶</a></h2>
@@ -686,6 +666,11 @@ a[b[i]] –&gt; True</p>
 <dd></dd></dl>
 
 <dl class="function">
+<dt id="devito.dse.queries.q_terminal">
+<code class="descclassname">devito.dse.queries.</code><code class="descname">q_terminal</code><span class="sig-paren">(</span><em>expr</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/dse/queries.html#q_terminal"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.dse.queries.q_terminal" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="function">
 <dt id="devito.dse.queries.q_terminalop">
 <code class="descclassname">devito.dse.queries.</code><code class="descname">q_terminalop</code><span class="sig-paren">(</span><em>expr</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/dse/queries.html#q_terminalop"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.dse.queries.q_terminalop" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
@@ -702,6 +687,12 @@ a[b[i]] –&gt; True</p>
 <dt id="devito.dse.search.retrieve_indexed">
 <code class="descclassname">devito.dse.search.</code><code class="descname">retrieve_indexed</code><span class="sig-paren">(</span><em>expr</em>, <em>mode='unique'</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/dse/search.html#retrieve_indexed"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.dse.search.retrieve_indexed" title="Permalink to this definition">¶</a></dt>
 <dd><p>Shorthand to retrieve <code class="xref py py-class docutils literal"><span class="pre">Indexed</span></code> objects in <code class="docutils literal"><span class="pre">expr</span></code>.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="devito.dse.search.retrieve_terminals">
+<code class="descclassname">devito.dse.search.</code><code class="descname">retrieve_terminals</code><span class="sig-paren">(</span><em>expr</em>, <em>mode='unique'</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/dse/search.html#retrieve_terminals"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.dse.search.retrieve_terminals" title="Permalink to this definition">¶</a></dt>
+<dd><p>Shorthand to retrieve <code class="xref py py-class docutils literal"><span class="pre">Indexed</span></code> and <code class="xref py py-class docutils literal"><span class="pre">Symbol</span></code> objects in <code class="docutils literal"><span class="pre">expr</span></code>.</p>
 </dd></dl>
 
 <dl class="function">

@@ -160,9 +160,10 @@
            <div itemprop="articleBody">
             
   <h1>Source code for devito.dse.search</h1><div class="highlight"><pre>
-<span></span><span class="kn">from</span> <span class="nn">devito.dse.queries</span> <span class="k">import</span> <span class="n">q_indexed</span><span class="p">,</span> <span class="n">q_leaf</span><span class="p">,</span> <span class="n">q_op</span><span class="p">,</span> <span class="n">q_trigonometry</span>
+<span></span><span class="kn">from</span> <span class="nn">devito.dse.queries</span> <span class="k">import</span> <span class="n">q_indexed</span><span class="p">,</span> <span class="n">q_terminal</span><span class="p">,</span> <span class="n">q_leaf</span><span class="p">,</span> <span class="n">q_op</span><span class="p">,</span> <span class="n">q_trigonometry</span>
 
-<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;retrieve_indexed&#39;</span><span class="p">,</span> <span class="s1">&#39;retrieve_ops&#39;</span><span class="p">,</span> <span class="s1">&#39;retrieve_trigonometry&#39;</span><span class="p">]</span>
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;retrieve_indexed&#39;</span><span class="p">,</span> <span class="s1">&#39;retrieve_terminals&#39;</span><span class="p">,</span> <span class="s1">&#39;retrieve_ops&#39;</span><span class="p">,</span>
+           <span class="s1">&#39;retrieve_trigonometry&#39;</span><span class="p">]</span>
 
 
 <span class="k">class</span> <span class="nc">Search</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
@@ -267,6 +268,13 @@
 <span class="sd">    Shorthand to retrieve :class:`Indexed` objects in ``expr``.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="k">return</span> <span class="n">search</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">q_indexed</span><span class="p">,</span> <span class="n">mode</span><span class="p">,</span> <span class="s1">&#39;dfs&#39;</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="retrieve_terminals"><a class="viewcode-back" href="../../../devito.dse.html#devito.dse.search.retrieve_terminals">[docs]</a><span class="k">def</span> <span class="nf">retrieve_terminals</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">mode</span><span class="o">=</span><span class="s1">&#39;unique&#39;</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Shorthand to retrieve :class:`Indexed` and :class:`Symbol` objects in ``expr``.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">search</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">q_terminal</span><span class="p">,</span> <span class="n">mode</span><span class="p">,</span> <span class="s1">&#39;dfs&#39;</span><span class="p">)</span></div>
 
 
 <div class="viewcode-block" id="retrieve_trigonometry"><a class="viewcode-back" href="../../../devito.dse.html#devito.dse.search.retrieve_trigonometry">[docs]</a><span class="k">def</span> <span class="nf">retrieve_trigonometry</span><span class="p">(</span><span class="n">expr</span><span class="p">):</span>
