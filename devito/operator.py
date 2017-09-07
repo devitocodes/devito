@@ -304,13 +304,8 @@ class Operator(Function):
                 needed = entries[index:]
 
                 # Build and insert the required Iterations
-                iters = []
-                for j in needed:
-                    if hasattr(j.dim, 'size'):
-                        size = j.dim.size
-                    else:
-                        size = j.dim.symbolic_size
-                    iters.append(Iteration([], j.dim, size, offsets=j.ofs))
+                iters = [Iteration([], j.dim, j.dim.symbolic_size, offsets=j.ofs)
+                         for j in needed]
                 body, tree = compose_nodes(iters + [expressions], retrieve=True)
                 scheduling = OrderedDict(zip(needed, tree))
                 if root is None:

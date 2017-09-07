@@ -220,8 +220,8 @@ class DimensionArgProvider(ArgumentProvider):
                 return True
 
             try:
-                value = self.parent.value
-                if value is None:
+                parent_value = self.parent.value
+                if parent_value is None:
                     return False
             except AttributeError:
                 return False

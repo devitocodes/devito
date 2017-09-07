@@ -38,7 +38,9 @@ class FixedDimension(FixedDimensionArgProvider, Dimension):
     is_Fixed = True
     """This class defines the behaviour of a dimension whose size is fixed
        at the time of problem definition and can thus be baked into generated
-       code """
+       code
+    """
+
     def __new__(cls, name, **kwargs):
         newobj = super(FixedDimension, cls).__new__(cls, name)
         newobj.size = kwargs.get('size', None)
