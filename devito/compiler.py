@@ -242,7 +242,8 @@ def jit_compile(ccode, compiler):
 
     tic = time()
     extension_file_from_string(toolchain=compiler, ext_file=lib_file,
-                               source_string=ccode, source_name=src_file)
+                               source_string=ccode, source_name=src_file,
+                               debug=configuration['debug_compiler'])
     toc = time()
     log("%s: compiled %s [%.2f s]" % (compiler, src_file, toc-tic))
 
@@ -294,3 +295,4 @@ compiler_registry = {
 configuration.add('compiler', 'custom', list(compiler_registry),
                   lambda i: compiler_registry[i]())
 configuration.add('openmp', 0, [0, 1], lambda i: bool(i))
+configuration.add('debug_compiler', 0, [0, 1], lambda i: bool(i))

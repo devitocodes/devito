@@ -1,38 +1,13 @@
 from collections import OrderedDict
 
-from sympy import (Function, Indexed, Number, Symbol, cos, lambdify,
-                   preorder_traversal, sin)
+from sympy import Function, Indexed, Number, Symbol, cos, preorder_traversal, sin
 
 from devito.dimension import Dimension, t
 from devito.dse.search import retrieve_indexed, retrieve_ops, search
 from devito.logger import warning
 from devito.tools import flatten
 
-__all__ = ['estimate_cost', 'estimate_memory', 'indexify', 'as_symbol',
-           'terminals', 'tolambda']
-
-
-def terminals(expr, discard_indexed=False):
-    """
-    Return all Indexed and Symbols in a SymPy expression.
-    """
-
-    indexed = retrieve_indexed(expr)
-
-    # Use '.name' for quickly checking uniqueness
-    junk = flatten([i.free_symbols for i in indexed])
-    junk = [i.name for i in junk] + \
-           [i.parent.name if
-            (i.is_Buffered if hasattr(i, "is_Buffered") else False)
-            else None for i in junk]
-
-    symbols = {i for i in expr.free_symbols if i.name not in junk}
-
-    if discard_indexed:
-        return symbols
-    else:
-        indexed.update(symbols)
-        return indexed
+__all__ = ['estimate_cost', 'estimate_memory', 'indexify', 'as_symbol']
 
 
 def count(exprs, query):
@@ -174,26 +149,3 @@ def indexify(expr):
             replacements[e] = e.indexify()
 
     return expr.xreplace(replacements)
-
-
-def tolambda(exprs):
-    """
-    Tranform an expression into a lambda.
-
-    :param exprs: an expression or a list of expressions.
-    """
-    exprs = exprs if isinstance(exprs, list) else [exprs]
-
-    lambdas = []
-
-    for expr in exprs:
-        terms = retrieve_indexed(expr.rhs)
-        term_symbols = [Symbol("i%d" % i) for i in range(len(terms))]
-
-        # Substitute IndexedBase references to simple variables
-        # lambdify doesn't support IndexedBase references in expressions
-        tolambdify = expr.rhs.subs(dict(zip(terms, term_symbols)))
-        lambdified = lambdify(term_symbols, tolambdify)
-        lambdas.append((lambdified, terms))
-
-    return lambdas

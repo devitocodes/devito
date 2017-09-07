@@ -4,13 +4,13 @@ from functools import reduce
 from operator import mul
 import numpy as np
 import pytest
-from sympy import Eq
+from sympy import Eq, solve
 
 from conftest import EVAL
 
 from devito.dle import retrieve_iteration_tree, transform
 from devito.dle.backends import DevitoRewriter as Rewriter
-from devito import DenseData, TimeData, Operator
+from devito import DenseData, TimeData, Operator, t, x, y
 from devito.nodes import ELEMENTAL, Expression, Function, Iteration, List, tagger
 from devito.visitors import (ResolveIterationVariable, SubstituteExpression,
                              Transformer, FindNodes)
@@ -130,6 +130,30 @@ def _new_operator2(shape, time_order, **kwargs):
     op(infield=infield, outfield=outfield, t=10)
 
     return outfield, op
+
+
+def _new_operator3(shape, time_order, **kwargs):
+    spacing = 0.1
+    a = 0.5
+    c = 0.5
+    dx2, dy2 = spacing**2, spacing**2
+    dt = dx2 * dy2 / (2 * a * (dx2 + dy2))
+
+    # Allocate the grid and set initial condition
+    # Note: This should be made simpler through the use of defaults
+    u = TimeData(name='u', shape=shape, time_order=1, space_order=2)
+    u.data[0, :] = np.arange(reduce(mul, shape), dtype=np.int32).reshape(shape)
+
+    # Derive the stencil according to devito conventions
+    eqn = Eq(u.dt, a * (u.dx2 + u.dy2) - c * (u.dxl + u.dyl))
+    stencil = solve(eqn, u.forward, rational=False)[0]
+    op = Operator(Eq(u.forward, stencil), subs={x.spacing: spacing,
+                                                y.spacing: spacing,
+                                                t.spacing: dt}, **kwargs)
+
+    # Execute the generated Devito stencil operator
+    op.apply(u=u, t=10)
+    return u.data[1, :], op
 
 
 def test_create_elemental_functions_simple(simple_function):
@@ -314,6 +338,30 @@ def test_cache_blocking_time_loop(shape, time_order, blockshape, blockinner):
 def test_cache_blocking_edge_cases(shape, blockshape):
     wo_blocking, _ = _new_operator2(shape, time_order=2, dle='noop')
     w_blocking, _ = _new_operator2(shape, time_order=2,
+                                   dle=('blocking', {'blockshape': blockshape,
+                                                     'blockinner': True}))
+
+    assert np.equal(wo_blocking.data, w_blocking.data).all()
+
+
+@pytest.mark.parametrize("shape,blockshape", [
+    ((3, 3), (3, 4)),
+    ((4, 4), (3, 4)),
+    ((5, 5), (3, 4)),
+    ((6, 6), (3, 4)),
+    ((7, 7), (3, 4)),
+    ((8, 8), (3, 4)),
+    ((9, 9), (3, 4)),
+    ((10, 10), (3, 4)),
+    ((11, 11), (3, 4)),
+    ((12, 12), (3, 4)),
+    ((13, 13), (3, 4)),
+    ((14, 14), (3, 4)),
+    ((15, 15), (3, 4))
+])
+def test_cache_blocking_edge_cases_highorder(shape, blockshape):
+    wo_blocking, _ = _new_operator3(shape, time_order=2, dle='noop')
+    w_blocking, _ = _new_operator3(shape, time_order=2,
                                    dle=('blocking', {'blockshape': blockshape,
                                                      'blockinner': True}))
 
