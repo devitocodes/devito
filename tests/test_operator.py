@@ -532,11 +532,14 @@ class TestLoopScheduler(object):
         assert trees[0][-1].nodes[0].expr.rhs == eqs[0].rhs
         assert trees[1][-1].nodes[0].expr.rhs == eqs[1].rhs
 
-    @pytest.mark.parametrize('shape', [(11, 11), (11, 11), (11, 11, 11), (11, 11, 11),
-                                       (11, 11, 11),  (11, 11, 11),
-                                       (11, 11, 11), (11, 11, 11)])
-    @pytest.mark.parametrize('dimensions', [(x, y), (y, x), (x, y, z), (x, z, y),
-                                            (y, x, z), (z, y, x), (z, x, y), (y, x, z)])
+    @pytest.mark.parametrize('shape, dimensions', [((11, 11), (x, y)),
+                                                   ((11, 11), (y, x)),
+                                                   ((11, 11, 11), (x, y, z)),
+                                                   ((11, 11, 11), (x, z, y)),
+                                                   ((11, 11, 11), (y, x, z)),
+                                                   ((11, 11, 11), (y, z, x)),
+                                                   ((11, 11, 11), (z, x, y)),
+                                                   ((11, 11, 11), (z, y, x))])
     def test_equations_mixed_densedata_timedata(self, shape, dimensions):
         """
         Test that equations using a mixture of DenseData and TimeData objects
