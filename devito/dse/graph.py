@@ -27,8 +27,8 @@ from sympy import Indexed
 
 from devito.dimension import Dimension, x, y, z, t, time
 from devito.dse.extended_sympy import Eq
-from devito.dse.search import retrieve_indexed
-from devito.dse.inspection import as_symbol, terminals
+from devito.dse.search import retrieve_indexed, retrieve_terminals
+from devito.dse.inspection import as_symbol
 from devito.dse.queries import q_indexed, q_indirect
 from devito.exceptions import DSEException
 from devito.tools import flatten
@@ -238,7 +238,7 @@ class TemporariesGraph(OrderedDict):
         while queue:
             item = queue.pop()
             temporaries = []
-            for i in terminals(item):
+            for i in retrieve_terminals(item):
                 if any(j in i.free_symbols for j in self.time_indices):
                     # Definitely not time-invariant
                     return False
@@ -326,7 +326,7 @@ class TemporariesGraph(OrderedDict):
         """
         known = {v.function for v in self.values()}
         reads = set([i.base.function for i in
-                     flatten(terminals(v.rhs) for v in self.values())])
+                     flatten(retrieve_terminals(v.rhs) for v in self.values())])
         return reads - known
 
     @cached_property
@@ -364,13 +364,13 @@ def temporaries_graph(temporaries):
 
     for k, v in graph.items():
         # Scalars
-        handle = terminals(v.rhs)
+        handle = retrieve_terminals(v.rhs)
 
         # Tensors (does not inspect indirections such as A[B[i]])
         for i in list(handle):
             if q_indexed(i):
                 for idx in i.indices:
-                    handle |= terminals(idx)
+                    handle |= retrieve_terminals(idx)
 
         # Derive actual reads
         reads = set(flatten([mapper.get(as_symbol(i), []) for i in handle]))
