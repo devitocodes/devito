@@ -86,8 +86,9 @@ script:
       python examples/seismic/acoustic/constant_example.py --full;
     fi
 
-  - if [[ $DEVITO_BACKEND != 'yask' ]]; then py.test -vs examples/seismic/tutorials; fi
-  - if [[ $DEVITO_BACKEND != 'yask' ]]; then py.test -vs examples/cfd; fi
+  # Test tutorial notebooks for the website using nbval
+  - if [[ $DEVITO_BACKEND != 'yask' ]]; then py.test -vs --nbval-lax examples/seismic/tutorials; fi
+  - if [[ $DEVITO_BACKEND != 'yask' ]]; then py.test -vs --nbval-lax examples/cfd; fi
 
   # Docs generation and deployment
   - sphinx-apidoc -f -o docs/ examples
