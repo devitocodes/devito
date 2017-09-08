@@ -569,7 +569,7 @@ class TestLoopScheduler(object):
         assert len(trees) == 2
         assert all(trees[0][i] is trees[1][i] for i in range(3))
 
-        # Verify both operators produce the same resultsx
+        # Verify both operators produce the same results
         op()
         op2()
 
