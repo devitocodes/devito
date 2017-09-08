@@ -231,7 +231,7 @@ class Operator(Function):
         """
         if self._lib is None:
             # No need to recompile if a shared object has already been loaded.
-            return jit_compile(self.ccode, configuration['compiler'])
+            return jit_compile(self.ccode, self._compiler)
         else:
             return self._lib.name
 
@@ -240,7 +240,7 @@ class Operator(Function):
         """Returns the JIT-compiled C function as a ctypes.FuncPtr object."""
         if self._lib is None:
             basename = self.compile
-            self._lib = load(basename, configuration['compiler'])
+            self._lib = load(basename, self._compiler)
             self._lib.name = basename
 
         if self._cfunction is None:
