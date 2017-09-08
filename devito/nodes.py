@@ -120,15 +120,13 @@ class List(Block):
 
 class Element(Node):
 
-    """A generic node that is worth identifying in an Iteration/Expression tree.
-
-    It corresponds to a single :class:`cgen.Statement`.
-    """
+    """A generic node in an Iteration/Expression tree. Can be a comment,
+    a statement, ..."""
 
     is_Element = True
 
     def __init__(self, element):
-        assert isinstance(element, (c.Comment, c.Statement, c.Value,
+        assert isinstance(element, (c.Comment, c.Statement, c.Value, c.Initializer,
                                     c.Pragma, c.Line, c.Assign, c.POD))
         self.element = element
 
