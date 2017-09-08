@@ -282,7 +282,10 @@ class CGen(Visitor):
                              ccode(o.expr.lhs)), ccode(o.expr.rhs))
 
     def visit_FunCall(self, o):
-        return c.Statement('%s(%s)' % (o.name, ','.join(o.params)))
+        meth = {'free': '', 'obj': '.', 'pobj': '->'}[o._mode]
+        if meth:
+            meth = "%s%s" % (o.obj, meth)
+        return c.Statement('%s%s(%s)' % (meth, o.name, ','.join(o.params)))
 
     def visit_Iteration(self, o):
         body = flatten(self.visit(i) for i in o.children)
