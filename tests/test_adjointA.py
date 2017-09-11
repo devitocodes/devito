@@ -2,8 +2,7 @@ import numpy as np
 import pytest
 from numpy import linalg
 
-import devito
-from devito.dimension import FixedDimension
+from devito import time
 from devito.logger import info
 from examples.seismic import demo_model, RickerSource, Receiver
 from examples.seismic.acoustic import AcousticWaveSolver
@@ -59,8 +58,7 @@ def test_acoustic(mkey, dimensions, time_order, space_order, nbpml, fix_dim):
                                 space_order=space_order)
 
     # Set fixed ("baked-in") time dimension if requested
-    if fix_dim:
-        devito.time = FixedDimension('time', size=solver.source.nt)
+    time.size = solver.source.nt if fix_dim else None
 
     # Create adjoint receiver symbol
     srca = Receiver(name='srca', ntime=solver.source.nt,
