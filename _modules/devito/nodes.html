@@ -439,6 +439,13 @@
         <span class="k">else</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">limits</span> <span class="o">=</span> <span class="nb">list</span><span class="p">((</span><span class="mi">0</span><span class="p">,</span> <span class="n">limits</span><span class="p">,</span> <span class="mi">1</span><span class="p">))</span>
 
+        <span class="c1"># Replace open limits with variables names</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">limits</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="c1"># FIXME: Add dimension size as variable bound.</span>
+            <span class="c1"># Needs further generalisation to support loop blocking.</span>
+            <span class="n">dim</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">dim</span><span class="o">.</span><span class="n">parent</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">dim</span><span class="o">.</span><span class="n">is_Buffered</span> <span class="k">else</span> <span class="bp">self</span><span class="o">.</span><span class="n">dim</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">limits</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="n">dim</span><span class="o">.</span><span class="n">size</span> <span class="ow">or</span> <span class="n">dim</span><span class="o">.</span><span class="n">symbolic_size</span>
+
         <span class="c1"># Record offsets to later adjust loop limits accordingly</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">offsets</span> <span class="o">=</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span>
         <span class="k">for</span> <span class="n">off</span> <span class="ow">in</span> <span class="p">(</span><span class="n">offsets</span> <span class="ow">or</span> <span class="p">{}):</span>
