@@ -88,7 +88,7 @@ def autotune(operator, arguments, tunable):
             continue
 
         # Use AT-specific profiler structs
-        at_arguments[operator.profiler.structname] = operator.profiler.setup()
+        at_arguments[operator.profiler.varname] = operator.profiler.setup()
 
         operator.cfunction(*list(at_arguments.values()))
         elapsed = sum(operator.profiler.timings.values())
@@ -108,7 +108,8 @@ def autotune(operator, arguments, tunable):
         tuned[k] = best[k] if k in mapper else v
 
     # Reset the profiling struct
-    tuned[operator.profiler.structname] = operator.profiler.setup()
+    assert operator.profiler.varname in tuned
+    tuned[operator.profiler.varname] = operator.profiler.setup()
 
     return tuned
 
