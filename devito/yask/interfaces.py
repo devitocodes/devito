@@ -7,11 +7,17 @@ from devito.yask.wrappers import yask_context
 __all__ = ['ConstantData', 'DenseData', 'TimeData']
 
 
+interfaces.Basic.from_YASK = False
+
+
 class ConstantData(interfaces.ConstantData):
-    pass
+
+    from_YASK = True
 
 
 class DenseData(interfaces.DenseData):
+
+    from_YASK = True
 
     def _allocate_memory(self):
         """Allocate memory in terms of YASK grids."""
@@ -68,4 +74,5 @@ class DenseData(interfaces.DenseData):
 
 
 class TimeData(interfaces.TimeData, DenseData):
-    pass
+
+    from_YASK = True
