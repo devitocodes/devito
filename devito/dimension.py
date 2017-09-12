@@ -1,26 +1,25 @@
 from sympy import Number, Symbol
-from devito.arguments import DimensionArgProvider
+from devito.arguments import DimensionArgProvider, FixedDimensionArgProvider
 
-__all__ = ['Dimension', 'x', 'y', 'z', 't', 'p', 'd', 'time']
+__all__ = ['Dimension', 'FixedDimension', 'x', 'y', 'z', 't', 'p', 'd', 'time']
 
 
 class Dimension(Symbol, DimensionArgProvider):
+
+    is_Buffered = False
+    is_Lowered = False
+    is_Fixed = False
 
     """Index object that represents a problem dimension and thus
     defines a potential iteration space.
 
     :param size: Optional, size of the array dimension.
     :param reverse: Traverse dimension in reverse order (default False)
-    :param buffered: Optional, boolean flag indicating whether to
-                     buffer variables when iterating this dimension.
+    :param spacing: Optional, symbol for the spacing along this dimension.
     """
-
-    is_Buffered = False
-    is_Lowered = False
 
     def __new__(cls, name, **kwargs):
         newobj = Symbol.__new__(cls, name)
-        newobj.size = kwargs.get('size', None)
         newobj.reverse = kwargs.get('reverse', False)
         newobj.spacing = kwargs.get('spacing', Symbol('h_%s' % name))
         return newobj
@@ -31,10 +30,38 @@ class Dimension(Symbol, DimensionArgProvider):
     @property
     def symbolic_size(self):
         """The symbolic size of this dimension."""
-        try:
-            return Number(self.size)
-        except TypeError:
-            return self.rtargs[0].as_symbol
+        return self.rtargs[0].as_symbol
+
+    @property
+    def size(self):
+        return None
+
+
+class FixedDimension(FixedDimensionArgProvider, Dimension):
+
+    is_Fixed = True
+    """This class defines the behaviour of a dimension whose size is fixed
+       at the time of problem definition and can thus be baked into generated
+       code
+    """
+
+    def __new__(cls, name, **kwargs):
+        newobj = super(FixedDimension, cls).__new__(cls, name)
+        newobj._size = kwargs.get('size', None)
+        return newobj
+
+    @property
+    def symbolic_size(self):
+        """The symbolic size of this dimension."""
+        return Number(self.size)
+
+    @property
+    def size(self):
+        return self._size
+    
+    @size.setter
+    def size(self, value):
+        self._size = value
 
 
 class BufferedDimension(Dimension):
@@ -53,10 +80,6 @@ class BufferedDimension(Dimension):
         newobj.parent = parent
         newobj.modulo = kwargs.get('modulo', 2)
         return newobj
-
-    @property
-    def size(self):
-        return self.parent.size
 
     @property
     def reverse(self):
