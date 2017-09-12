@@ -152,12 +152,19 @@ class Operator(OperatorRunnable):
 
     def arguments(self, **kwargs):
         # The user has the illusion to provide plain data objects to the
-        # generated kernels, but what we will actually also drop in are
-        # pointers to the wrapped YASK grids
+        # generated kernels, but what we actually need and thus going to
+        # provide are pointers to the wrapped YASK grids
+        shadow_kwargs = {}
+        for k, v in kwargs.items():
+            try:
+                if v.from_YASK is True:
+                    shadow_kwargs[namespace['code-grid-name'](k)] = v
+            except AttributeError:
+                pass
         for i in self.parameters:
-            obj = kwargs.get(i.name)
+            obj = shadow_kwargs.get(i.name)
             if i.is_PtrArgument and obj is not None:
-                assert(i.verify(obj.data))
+                assert(i.verify(obj.data.rawpointer))
         return super(Operator, self).arguments(**kwargs)
 
     def apply(self, **kwargs):
