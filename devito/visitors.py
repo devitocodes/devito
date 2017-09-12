@@ -285,7 +285,8 @@ class CGen(Visitor):
         meth = {'free': '', 'obj': '.', 'pobj': '->'}[o._mode]
         if meth:
             meth = "%s%s" % (o.obj, meth)
-        return c.Statement('%s%s(%s)' % (meth, o.name, ','.join(o.params)))
+        return c.Statement('%s%s(%s)' % (meth, o.name,
+                                         ','.join([str(i) for i in o.params])))
 
     def visit_Iteration(self, o):
         body = flatten(self.visit(i) for i in o.children)
@@ -359,7 +360,7 @@ class CGen(Visitor):
         header = [c.Line(i) for i in o._headers]
         includes = [c.Include(i, system=False) for i in o._includes]
         includes += [blankline]
-        cglobals = o._globals
+        cglobals = list(o._globals)
         if o._compiler.src_ext == 'cpp':
             cglobals += [c.Extern('C', signature)]
         cglobals = [i for j in cglobals for i in (j, blankline)]
@@ -406,8 +407,8 @@ class FindSections(Visitor):
     def visit_Expression(self, o, ret=None, queue=None):
         if ret is None:
             ret = self.default_retval()
-        key = tuple(queue) if queue is not None else ()
-        ret.setdefault(key, []).append(o)
+        if queue is not None:
+            ret.setdefault(tuple(queue), []).append(o)
         return ret
 
     visit_Element = visit_Expression
