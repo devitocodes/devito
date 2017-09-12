@@ -42,8 +42,8 @@ class YaskGrid(object):
         self.halo = halo
         self.dtype = dtype
 
-        # Always init the grid, at least with 0.0
-        self[:] = 0.0 if buffer is None else buffer
+        # Initialize the grid content to 0.
+        self._reset()
 
     def __getitem__(self, index):
         # TODO: ATM, no MPI support.
@@ -87,6 +87,10 @@ class YaskGrid(object):
             stop = None
         self.__setitem__(slice(start, stop), val)
 
+    def __getattr__(self, name):
+        """Proxy to yk::grid methods."""
+        return getattr(self.grid, name)
+
     def __repr__(self):
         return repr(self[:])
 
@@ -114,6 +118,12 @@ class YaskGrid(object):
     __rtruediv__ = __meta_binop('__truediv__')
     __mod__ = __meta_binop('__mod__')
     __rmod__ = __meta_binop('__mod__')
+
+    def _reset(self):
+        """
+        Reset grid value to 0.
+        """
+        self[:] = 0.0
 
     @property
     def name(self):
@@ -259,8 +269,9 @@ class YaskContext(object):
         self.dtype = dtype
         self.hook = hook
 
-        # All known solutions sharing this context
+        # All known solutions and grids in this context
         self.solutions = []
+        self.grids = {}
 
     @cached_property
     def space_dimensions(self):
@@ -296,10 +307,6 @@ class YaskContext(object):
         return tuple(self.dim_shape.values())
 
     @property
-    def grids(self):
-        return {i.get_name(): i for i in self.hook.grids}
-
-    @property
     def nsolutions(self):
         return len(self.solutions)
 
@@ -311,6 +318,7 @@ class YaskContext(object):
         """
         Create and return a new :class:`YaskGrid`, which wraps a YASK grid.
         """
+        # Set up the YASK grid
         grid = self.hook.new_grid(name, dimensions)
         for i in self.space_dimensions:
             grid.set_halo_size(i, self.dim_halo[i])
@@ -318,9 +326,15 @@ class YaskContext(object):
             grid.set_alloc_size(self.time_dimension, shape[0])
 
         # Allocate memory immediately as the user may simply want to use it
-        grid.alloc_storage()
+        if name in self.grids:
+            log("Reusing pre-existing grid %s (reinitialized to 0.)" % name)
+            self.grids[name]._reset()
+        else:
+            log("Allocating YaskGrid for %s (%s)" % (name, str(shape)))
+            grid.alloc_storage()
+            self.grids[name] = YaskGrid(grid, dimensions, shape, self.halo, dtype)
 
-        return YaskGrid(grid, dimensions, shape, self.halo, dtype)
+        return self.grids[name]
 
     def make_solution(self, ycsoln):
         """

@@ -22,14 +22,8 @@ class DenseData(interfaces.DenseData):
     def _allocate_memory(self):
         """Allocate memory in terms of YASK grids."""
 
-        log("Allocating YaskGrid for %s (%s)" % (self.name, str(self.shape)))
-
         # Fetch the appropriate context
         context = yask_context(self.indices, self.shape, self.dtype, self.space_order)
-
-        # Sanity check
-        if self.name in context.grids:
-            exit("A grid with name %s already exits" % self.name)
 
         # Only create a YaskGrid if the requested grid is dense
         dimensions = tuple(i.name for i in self.indices)
@@ -38,8 +32,7 @@ class DenseData(interfaces.DenseData):
             self._data_object = context.make_grid(self.name, dimensions, self.shape,
                                                   self.space_order, self.dtype)
         else:
-            log("Failed. Reverting to plain allocation...")
-            super(DenseData, self)._allocate_memory()
+            exit("Couldn't allocate YaskGrid.")
 
     @property
     def _data_buffer(self):
