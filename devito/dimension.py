@@ -58,7 +58,7 @@ class FixedDimension(FixedDimensionArgProvider, Dimension):
     @property
     def size(self):
         return self._size
-    
+
     @size.setter
     def size(self, value):
         self._size = value
