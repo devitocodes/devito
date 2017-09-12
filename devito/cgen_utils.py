@@ -144,6 +144,10 @@ class CodePrinter(CCodePrinter):
     def _print_FrozenExpr(self, expr):
         return self._print(expr.args[0])
 
+    def _print_FunctionFromPointer(self, expr):
+        indices = [self._print(i) for i in expr.params]
+        return "%s->%s(%s)" % (expr.pointer, expr.name, ', '.join(indices))
+
 
 def ccode(expr, **settings):
     """Generate C++ code from an expression calling CodePrinter class
