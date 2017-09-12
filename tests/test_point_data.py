@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
-from sympy import Function
 
+from devito.cgen_utils import FLOAT
 from devito import Operator, DenseData, PointData, x, y, z
 
 
@@ -65,7 +65,7 @@ def test_inject(shape, coords, result, npoints=19):
     a.data[:] = 0.
     p = points(ranges=coords, npoints=npoints)
 
-    expr = p.inject(a, Function('FLOAT')(1.))
+    expr = p.inject(a, FLOAT(1.))
 
     Operator(expr, subs={x.spacing: spacing, y.spacing: spacing,
                          z.spacing: spacing})(a=a)

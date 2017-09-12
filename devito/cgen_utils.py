@@ -2,7 +2,7 @@ from collections import OrderedDict
 
 import cgen as c
 from mpmath.libmp import prec_to_dps, to_str
-from sympy import Eq
+from sympy import Eq, Function
 from sympy.printing.ccode import CCodePrinter
 
 
@@ -58,17 +58,16 @@ class Allocator(object):
 # Utils to print C strings
 
 class CodePrinter(CCodePrinter):
+
+    custom_functions = {'INT': '(int)', 'FLOAT': '(float)'}
+
     """Decorator for sympy.printing.ccode.CCodePrinter.
 
     :param settings: A dictionary containing relevant settings
     """
     def __init__(self, settings={}):
         CCodePrinter.__init__(self, settings)
-        custom_functions = {
-            'INT': '(int)',
-            'FLOAT': '(float)'
-        }
-        self.known_functions.update(custom_functions)
+        self.known_functions.update(self.custom_functions)
 
     def _print_Indexed(self, expr):
         """Print field as C style multidimensional array
@@ -178,3 +177,5 @@ def ccode_eq(eq, **settings):
 blankline = c.Line("")
 printmark = lambda i: c.Line('printf("Here: %s\\n"); fflush(stdout);' % i)
 printvar = lambda i: c.Statement('printf("%s=%%s\\n", %s); fflush(stdout);' % (i, i))
+INT = Function('INT')
+FLOAT = Function('FLOAT')
