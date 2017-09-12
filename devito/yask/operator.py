@@ -138,7 +138,7 @@ class Operator(OperatorRunnable):
         # Update the parameters list adding all necessary YASK grids
         for i in list(parameters):
             try:
-                if i.is_SymbolicData and isinstance(i.data, YaskGrid):
+                if i.from_YASK:
                     parameters.append(Object(namespace['code-grid-name'](i.name),
                                              namespace['type-grid'],
                                              i.data.rawpointer))

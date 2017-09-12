@@ -32,7 +32,7 @@ class YaskGrid(object):
     # Force __rOP__ methods (OP={add,mul,...) to get arrays, not scalars, for efficiency
     __array_priority__ = 1000
 
-    def __init__(self, grid, dimensions, shape, halo, dtype, buffer=None):
+    def __init__(self, grid, dimensions, shape, halo, dtype):
         """
         Initialize a new :class:`YaskGrid`.
         """
@@ -247,21 +247,27 @@ class YaskSolution(object):
     def rawpointer(self):
         return ctypes.cast(int(self.soln), ctypes.c_void_p)
 
+    def __repr__(self):
+        return "YaskSolution [%s]" % self.name
+
 
 class YaskContext(object):
 
-    def __init__(self, dimensions, core, halo, dtype, hook):
+    def __init__(self, name, dimensions, core, halo, dtype, hook):
         """
         Proxy between Devito and YASK.
 
         A YaskContext is required for any single kernel executed through YASK.
 
-        :param dimensions: Context dimensions (may include time dimension)
-        :param core: Domain size along each dimension; includes time dimension
+        :param name: Unique name of the context.
+        :param dimensions: Context dimensions (may include time dimension).
+        :param core: Domain size along each dimension; includes time dimension.
         :param halo: Halo size along each dimension.
         :param dtype: The data type used in kernels, as a NumPy dtype.
         :param hook: "Fake" solution to track YASK grids.
         """
+        self.name = name
+
         self.dimensions = tuple(dimensions)
         self.core = tuple(core)
         self.halo = tuple(halo)
@@ -341,7 +347,7 @@ class YaskContext(object):
         Create and return a new :class:`YaskSolution` using ``self`` as context
         and ``ycsoln`` as YASK compiler ("stencil") solution.
         """
-        soln = YaskSolution('devito_ctx%d_%d' % (len(contexts), self.nsolutions), ycsoln)
+        soln = YaskSolution('%s_soln%d' % (self.name, self.nsolutions), ycsoln)
 
         # Setup soln's domains
         soln.set_rank_domain_size(self.domain_sizes)
@@ -364,6 +370,15 @@ class YaskContext(object):
         self.solutions.append(soln)
 
         return soln
+
+    def __repr__(self):
+        return ("YaskContext [%s]\n"
+                "- core: %s\n"
+                "- halo: %s\n"
+                "- grids: %s\n"
+                "- solns: %s\n") % (self.name, str(self.dim_core), str(self.dim_halo),
+                                    ', '.join([str(i) for i in list(self.grids)]),
+                                    ', '.join([i.name for i in list(self.solutions)]))
 
 
 class YaskNullSolution(object):
@@ -449,7 +464,8 @@ def yask_context(dimensions, shape, dtype, space_order):
             core.append(j)
     hook.set_rank_domain_size(dict(zip(dimensions, core)))
 
-    contexts[key] = YaskContext(dimensions, core, halo, dtype, hook)
+    contexts[key] = YaskContext('devito_ctx%d' % len(contexts),
+                                dimensions, core, halo, dtype, hook)
 
     log("Context successfully created!")
 
