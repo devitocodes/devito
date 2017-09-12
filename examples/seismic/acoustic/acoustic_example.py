@@ -52,7 +52,7 @@ def acoustic_setup(dimensions=(50, 50, 50), spacing=(15.0, 15.0, 15.0),
 
 def run(dimensions=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=1000.0,
         time_order=2, space_order=4, nbpml=40, full_run=False, **kwargs):
-
+    autotune = kwargs.pop('autotune', False)
     solver = acoustic_setup(dimensions=dimensions, spacing=spacing,
                             nbpml=nbpml, tn=tn, space_order=space_order,
                             time_order=time_order, **kwargs)
@@ -60,17 +60,17 @@ def run(dimensions=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=1000.0,
     initial_vp = smooth10(solver.model.m.data, solver.model.shape_domain)
     dm = np.float32(initial_vp**2 - solver.model.m.data)
     info("Applying Forward")
-    rec, u, summary = solver.forward(save=full_run)
+    rec, u, summary = solver.forward(save=full_run, autotune=autotune)
 
     if not full_run:
         return summary.gflopss, summary.oi, summary.timings, [rec, u.data]
 
     info("Applying Adjoint")
-    solver.adjoint(rec, **kwargs)
+    solver.adjoint(rec, autotune=autotune, **kwargs)
     info("Applying Born")
-    solver.born(dm, **kwargs)
+    solver.born(dm, autotune=autotune, **kwargs)
     info("Applying Gradient")
-    solver.gradient(rec, u, **kwargs)
+    solver.gradient(rec, u, autotune=autotune, **kwargs)
 
 
 if __name__ == "__main__":
