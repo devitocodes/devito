@@ -16,8 +16,7 @@ from devito.visitors import IsPerfectIteration, Transformer
 
 from devito.yask import cfac, nfac, ofac, namespace, exit, yask_configuration
 from devito.yask.utils import make_grid_accesses, make_sharedptr_funcall
-from devito.yask.wrappers import (YaskGrid, YaskNullContext, YaskNullSolution,
-                                  yask_context)
+from devito.yask.wrappers import YaskNullContext, YaskNullSolution, yask_context
 
 __all__ = ['Operator']
 

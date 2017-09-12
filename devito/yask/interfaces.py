@@ -1,5 +1,4 @@
 import devito.interfaces as interfaces
-from devito.logger import yask as log
 
 from devito.yask import exit
 from devito.yask.wrappers import yask_context
