@@ -90,6 +90,9 @@ class Node(object):
         """Arguments used to construct the Node that cannot be traversed."""
         return {k: v for k, v in self.args.items() if k not in self._traversable}
 
+    def __str__(self):
+        return str(self.ccode)
+
 
 class Block(Node):
 
