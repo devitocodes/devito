@@ -49,7 +49,7 @@ class YaskGrid(object):
         # TODO: ATM, no MPI support.
         start, stop, shape = convert_multislice(index, self.shape, self.halo)
         if not shape:
-            log("YaskGrid: Getting single entry")
+            log("YaskGrid: Getting single entry %s" % str(start))
             assert start == stop
             out = self.grid.get_element(*start)
         else:
@@ -62,7 +62,7 @@ class YaskGrid(object):
         # TODO: ATM, no MPI support.
         start, stop, shape = convert_multislice(index, self.shape, self.halo, 'set')
         if all(i == 1 for i in shape):
-            log("YaskGrid: Setting single entry")
+            log("YaskGrid: Setting single entry %s" % str(start))
             assert start == stop
             self.grid.set_element(val, *start)
         elif isinstance(val, np.ndarray):
@@ -350,6 +350,37 @@ class YaskContext(object):
         self.solutions.append(soln)
 
         return soln
+
+
+class YaskNullSolution(object):
+
+    """Used when an Operator doesn't actually have a YASK-offloadable tree."""
+
+    def __init__(self):
+        self.name = 'null solution'
+
+    def prepare(self):
+        pass
+
+    def run(self, ntimesteps):
+        exit("Cannot run a NullSolution through YASK's Python bindings")
+
+    @property
+    def grids(self):
+        return ()
+
+
+class YaskNullContext(object):
+
+    """Used when an Operator doesn't actually have a YASK-offloadable tree."""
+
+    @property
+    def space_dimensions(self):
+        return '?'
+
+    @property
+    def time_dimension(self):
+        return '?'
 
 
 contexts = OrderedDict()
