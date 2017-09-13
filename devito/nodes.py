@@ -139,30 +139,13 @@ class Element(Node):
 
 class FunCall(Node):
 
-    """A node representing a function/method call.
-
-    :param name: The function/method name.
-    :param params: An Iterator of strings, representing the function parameters.
-    :param mode: Three possible values: ['free', 'obj', 'pobj'] to characterize
-                 the function call: ::
-
-                    * 'free': a free function, e.g. ``name(params)``.
-                    * 'obj': a method invoked on an object, e.g. ``obj.name(params)``.
-                    * 'pobj': a method invoked on a pointer to an object,
-                        e.g. ``obj->name(params)``.
-    :param obj: A string, representing the name of the object on which the method
-                ``name`` is invoked. Ignored if ``mode == 'free'``.
-    """
+    """A node representing a function call."""
 
     is_FunCall = True
 
-    def __init__(self, name, params=None, mode='free', obj=None):
-        assert mode in ['free', 'obj', 'pobj']
-        assert mode == 'free' or obj is not None
+    def __init__(self, name, params=None):
         self.name = name
         self.params = as_tuple(params)
-        self.obj = obj
-        self._mode = mode
 
     def __repr__(self):
         return "FunCall::\n\t%s(...)" % self.name
