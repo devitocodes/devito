@@ -31,6 +31,27 @@ def demo_model(preset, **kwargs):
         return Model(vp=vp, origin=origin, shape=shape,
                      spacing=spacing, nbpml=nbpml, **kwargs)
 
+    elif preset.lower() in ['constanttti']:
+        # A constant single-layer model in a 2D or 3D domain
+        # with velocity 1.5km/s.
+        shape = kwargs.pop('shape', (101, 101))
+        spacing = kwargs.pop('spacing', tuple([10. for _ in shape]))
+        origin = kwargs.pop('origin', tuple([0. for _ in shape]))
+        nbpml = kwargs.pop('nbpml', 10)
+        v = np.empty(shape, dtype=np.float32)
+        v[:] = 1.5
+        epsilon = .3*np.ones(shape)
+        delta = .2*np.ones(shape)
+        theta = .2*np.ones(shape)
+        phi = None
+        if len(shape) > 2:
+            phi = .1*np.ones(shape)
+
+        return Model(vp=v, origin=origin, shape=shape,
+                     spacing=spacing, nbpml=nbpml,
+                     epsilon=epsilon, delta=delta, theta=theta, phi=phi,
+                     **kwargs)
+
     elif preset.lower() in ['layers', 'twolayer', '2layer']:
         # A two-layer model in a 2D or 3D domain with two different
         # velocities split across the height dimension:
@@ -70,8 +91,8 @@ def demo_model(preset, **kwargs):
         v[:] = vp_top  # Top velocity (background)
         v[..., int(shape[-1] / ratio):] = vp_bottom  # Bottom velocity
 
-        epsilon = .3*(v - 1.5)
-        delta = .2*(v - 1.5)
+        epsilon = .1*(v - 1.5)
+        delta = .05*(v - 1.5)
         theta = .5*(v - 1.5)
         phi = None
         if len(shape) > 2:
