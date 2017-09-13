@@ -52,6 +52,36 @@ def demo_model(preset, **kwargs):
         return Model(vp=v, origin=origin, shape=shape,
                      spacing=spacing, nbpml=nbpml, **kwargs)
 
+    elif preset.lower() in ['layerstti', 'twolayertti', '2layertti']:
+        # A two-layer model in a 2D or 3D domain with two different
+        # velocities split across the height dimension:
+        # By default, the top part of the domain has 1.5 km/s,
+        # and the bottom part of the domain has 2.5 km/s.\
+        shape = kwargs.pop('shape', (101, 101))
+        spacing = kwargs.pop('spacing', tuple([10. for _ in shape]))
+        origin = kwargs.pop('origin', tuple([0. for _ in shape]))
+        nbpml = kwargs.pop('nbpml', 10)
+        ratio = kwargs.pop('ratio', 2)
+        vp_top = kwargs.pop('vp_top', 1.5)
+        vp_bottom = kwargs.pop('vp_bottom', 2.5)
+
+        # Define a velocity profile in km/s
+        v = np.empty(shape, dtype=np.float32)
+        v[:] = vp_top  # Top velocity (background)
+        v[..., int(shape[-1] / ratio):] = vp_bottom  # Bottom velocity
+
+        epsilon = .3*(v - 1.5)
+        delta = .2*(v - 1.5)
+        theta = .5*(v - 1.5)
+        phi = None
+        if len(shape) > 2:
+            phi = .1*(v - 1.5)
+
+        return Model(vp=v, origin=origin, shape=shape,
+                     spacing=spacing, nbpml=nbpml,
+                     epsilon=epsilon, delta=delta, theta=theta, phi=phi,
+                     **kwargs)
+
     elif preset.lower() in ['circle']:
         # A simple circle in a 2D domain with a background velocity.
         # By default, the circle velocity is 2.5 km/s,
@@ -97,6 +127,89 @@ def demo_model(preset, **kwargs):
 
         return Model(vp=v, origin=origin, shape=v.shape,
                      spacing=spacing, nbpml=20)
+
+    elif preset.lower() in ['marmousitti', 'marmousi2dtti']:
+
+        dimensions = (201, 201, 70)
+        shape = (201, 70)
+        spacing = (10., 10.)
+        origin = (0., 0.)
+        nbpml = kwargs.pop('nbpml', 20)
+
+        # Read 2D Marmousi model from opesc/data repo
+        data_path = kwargs.pop('data_path', None)
+        if data_path is None:
+            error("Path to opesci/data not found! Please specify with "
+                  "'data_path=<path/to/opesci/data>'")
+            raise ValueError("Path to model data unspecified")
+        path = os.path.join(data_path, 'marmousi3D/vp_marmousi_bi')
+
+        # velocity
+        vp = 1e-3 * np.fromfile(os.path.join(data_path,'marmousi3D/MarmousiVP.raw'),
+                                dtype='float32', sep="")
+        vp = vp.reshape(dimensions)
+        vp = vp[101, :, :]
+        # Epsilon, in % in file, resale between 0 and 1
+        epsilon = np.fromfile(os.path.join(data_path, 'marmousi3D/MarmousiEps.raw'),
+                              dtype='float32', sep="") * 1e-2
+        epsilon = epsilon.reshape(dimensions)
+        epsilon = epsilon[101, :, :]
+        # Delta, in % in file, resale between 0 and 1
+        delta = np.fromfile(os.path.join(data_path, 'marmousi3D/MarmousiDelta.raw'),
+                            dtype='float32', sep="") * 1e-2
+        delta = delta.reshape(dimensions)
+        delta = delta[101, :, :]
+        # Theta, in degrees in file, resale in radian
+        theta = np.fromfile(os.path.join(data_path, 'marmousi3D/MarmousiTilt.raw'),
+                            dtype='float32', sep="")
+        theta = np.float32(np.pi / 180 * theta.reshape(dimensions))
+        theta = theta[101, :, :]
+
+        return Model(vp=vp, origin=origin, shape=shape,
+                     spacing=spacing, nbpml=nbpml,
+                     epsilon=epsilon, delta=delta, theta=theta,
+                     **kwargs)
+
+    elif preset.lower() in ['marmousitti3d', 'marmousi3dtti']:
+
+        dimensions = (201, 201, 70)
+        spacing = (10., 10., 10.)
+        origin = (0., 0., 0.)
+        nbpml = kwargs.pop('nbpml', 20)
+
+        # Read 2D Marmousi model from opesc/data repo
+        data_path = kwargs.pop('data_path', None)
+        if data_path is None:
+            error("Path to opesci/data not found! Please specify with "
+                  "'data_path=<path/to/opesci/data>'")
+            raise ValueError("Path to model data unspecified")
+        path = os.path.join(data_path, 'marmousi3D/vp_marmousi_bi')
+
+        # Velcoity
+        vp = 1e-3 * np.fromfile(os.path.join(data_path, 'marmousi3D/MarmousiVP.raw'),
+                                dtype='float32', sep="")
+        vp = vp.reshape(dimensions)
+        # Epsilon, in % in file, resale between 0 and 1
+        epsilon = np.fromfile(os.path.join(data_path, 'marmousi3D/MarmousiEps.raw'),
+                              dtype='float32', sep="") * 1e-2
+        epsilon = epsilon.reshape(dimensions)
+        # Delta, in % in file, resale between 0 and 1
+        delta = np.fromfile(os.path.join(data_path, 'marmousi3D/MarmousiDelta.raw'),
+                            dtype='float32', sep="") * 1e-2
+        delta = delta.reshape(dimensions)
+        # Theta, in degrees in file, resale in radian
+        theta = np.fromfile(os.path.join(data_path, 'marmousi3D/MarmousiTilt.raw'),
+                            dtype='float32', sep="")
+        theta = np.float32(np.pi / 180 * theta.reshape(dimensions))
+        # Phi, in degrees in file, resale in radian
+        phi = np.fromfile(os.path.join(data_path, 'marmousi3D/Azimuth.raw'),
+                          dtype='float32', sep="")
+        phi = np.float32(np.pi / 180 * phi.reshape(dimensions))
+
+        return Model(vp=vp, origin=origin, shape=dimensions,
+                     spacing=spacing, nbpml=nbpml,
+                     epsilon=epsilon, delta=delta, theta=theta, phi=phi,
+                     **kwargs)
 
     else:
         error('Unknown model preset name %s' % preset)

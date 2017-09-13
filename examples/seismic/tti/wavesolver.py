@@ -27,7 +27,7 @@ class AnisotropicWaveSolver(object):
         self.receiver = receiver
 
         self.time_order = time_order
-        self.space_order = space_order/2
+        self.space_order = space_order
 
         # Time step can be \sqrt{3}=1.73 bigger with 4th order
         self.dt = self.model.critical_dt
