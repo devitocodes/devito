@@ -50,6 +50,9 @@ def ForwardOperator(model, source, receiver, time_order=2, space_order=4,
     rec = Receiver(name='rec', ntime=receiver.nt, ndim=receiver.ndim,
                    npoint=receiver.npoint)
 
+    # Take half the space order for the first derivatives so that two applications
+    # of the first derivative has the same order than the laplacian
+    order1 = space_order / 2
     # Rotated laplacian
     ang0 = cos(theta)
     ang1 = sin(theta)
@@ -57,7 +60,11 @@ def ForwardOperator(model, source, receiver, time_order=2, space_order=4,
         ang2 = cos(phi)
         ang3 = sin(phi)
         # Hpu
-        Gz = -(ang1 * ang2 * u.dx + ang1 * ang3 * u.dy + ang0 * u.dz)
+        # Gz = -(ang1 * ang2 * u.dx + ang1 * ang3 * u.dy + ang0 * u.dz)
+        # Call first-derivative instead to get the wanted order
+        Gz = -(ang1 * ang2 * first_derivative(u, dim=x, side=centered, order=order1) +
+               ang1 * ang3 * first_derivative(u, dim=y, side=centered, order=order1) +
+               ang0 * first_derivative(u, dim=z, side=centered, order=order1))
         Gzz = (first_derivative(Gz * ang1 * ang2,
                                 dim=x, side=centered, order=space_order,
                                 matvec=transpose) +
@@ -69,40 +76,54 @@ def ForwardOperator(model, source, receiver, time_order=2, space_order=4,
                                 matvec=transpose))
         Hp = u.laplace - Gzz
         # Hzv
-        Gy = -(ang3 * v.dx - ang2 * v.dy)
+        # Gy = -(ang3 * v.dx - ang2 * v.dy)
+        Gy = -(ang3 * first_derivative(v, dim=x, side=centered, order=order1) -
+               ang2 * first_derivative(v, dim=y, side=centered, order=order1))
+        # Call first-derivative instead to get the wanted order
         Gyy = (first_derivative(Gy * ang3,
                                 dim=x, side=centered, order=space_order,
                                 matvec=transpose) -
                first_derivative(Gy * ang2,
                                 dim=y, side=centered, order=space_order,
                                 matvec=transpose))
-        Gxp = -(ang0 * ang2 * v.dx + ang0 * ang3 * v.dy - ang1 * v.dz)
-        Gxx = (first_derivative(Gxp * ang0 * ang2,
+        # Gxp = -(ang0 * ang2 * v.dx + ang0 * ang3 * v.dy - ang1 * v.dz)
+        # Call first-derivative instead to get the wanted order
+        Gx = -(ang0 * ang2 * first_derivative(v, dim=x, side=centered, order=order1) +
+               ang0 * ang3 * first_derivative(v, dim=y, side=centered, order=order1) -
+               ang1 * first_derivative(v, dim=z, side=centered, order=order1))
+        Gxx = (first_derivative(Gx * ang0 * ang2,
                                 dim=x, side=centered, order=space_order,
                                 matvec=transpose) +
-                first_derivative(Gxp * ang0 * ang3,
-                                 dim=y, side=centered, order=space_order,
-                                 matvec=transpose) -
-                first_derivative(Gxp * ang1,
-                                 dim=z, side=centered, order=space_order,
-                                 matvec=transpose))
+               first_derivative(Gx * ang0 * ang3,
+                                dim=y, side=centered, order=space_order,
+                                matvec=transpose) -
+               first_derivative(Gxp * ang1,
+                                dim=z, side=centered, order=space_order,
+                                matvec=transpose))
         Hzr = v.laplace - Gxx - Gyy
 
     else:
-        Gx1p = -(ang1 * u.dx + ang0 * u.dy)
-        Gz1r = -(ang0 * v.dx - ang1 * v.dy)
+        # Gx1p = -(ang1 * u.dx + ang0 * u.dy)
+        # Gz1r = -(ang0 * v.dx - ang1 * v.dy)
+
+        # Call first-derivative instead to get the wanted order
+        Gx1p = -(ang1 * first_derivative(u, dim=x, side=centered, order=order1) +
+                 ang0 * first_derivative(u, dim=y, side=centered, order=order1))
+
+        Gz1r = -(ang0 * first_derivative(v, dim=x, side=centered, order=order1) -
+                 ang1 * first_derivative(v, dim=y, side=centered, order=order1))
         Gxx1 = (first_derivative(Gx1p * ang1, dim=x,
-                                 side=centered, order=space_order,
+                                 side=centered, order=order1,
                                  matvec=transpose) +
                 first_derivative(Gx1p * ang0, dim=y,
-                                 side=centered, order=space_order,
+                                 side=centered, order=order1,
                                  matvec=transpose))
 
         Gzz1 = (first_derivative(Gz1r * ang0, dim=x,
-                                 side=centered, order=space_order,
+                                 side=centered, order=order1,
                                  matvec=transpose) -
                 first_derivative(Gz1r * ang1, dim=y,
-                                 side=centered, order=space_order,
+                                 side=centered, order=order1,
                                  matvec=transpose))
         Hp = u.laplace - Gxx1
         Hzr = v.laplace - Gzz1
