@@ -48,11 +48,11 @@ def run(dimensions=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=250.0,
     plt.figure()
     plt.imshow(rec.data[:,:], vmin=-10, vmax=10, cmap="seismic", aspect=.2)
     plt.figure()
-    plt.imshow(np.transpose(u.data[1, 141, :, :]), vmin=-1, vmax=1, cmap="seismic", aspect=1)
+    plt.imshow(np.transpose(u.data[1, 141, :, :]), vmin=-.1, vmax=.1, cmap="seismic", aspect=1)
     plt.figure()
-    plt.imshow(np.transpose(u.data[1, :, 141, :]), vmin=-1, vmax=1, cmap="seismic", aspect=1)
+    plt.imshow(np.transpose(u.data[1, :, 141, :]), vmin=-.1, vmax=.1, cmap="seismic", aspect=1)
     plt.figure()
-    plt.imshow(np.transpose(u.data[1, :, :, 141]), vmin=-1, vmax=1, cmap="seismic", aspect=1)
+    plt.imshow(np.transpose(u.data[1, :, :, 141]), vmin=-.1, vmax=.1, cmap="seismic", aspect=1)
     plt.show()
 
     return summary.gflopss, summary.oi, summary.timings, [rec, u, v]
@@ -67,7 +67,7 @@ if __name__ == "__main__":
                         help="Enable autotuning for block sizes")
     parser.add_argument("-to", "--time_order", default=2,
                         type=int, help="Time order of the simulation")
-    parser.add_argument("-so", "--space_order", default=20,
+    parser.add_argument("-so", "--space_order", default=10,
                         type=int, help="Space order of the simulation")
     parser.add_argument("--nbpml", default=40,
                         type=int, help="Number of PML layers around the domain")
@@ -85,4 +85,4 @@ if __name__ == "__main__":
 
     run(dimensions=dimensions, spacing=spacing, nbpml=args.nbpml, tn=tn,
         space_order=5, time_order=args.time_order,
-        autotune=args.autotune, dse='basic', dle='advanced')
+        autotune=args.autotune, dse='advanced', dle='advanced')
