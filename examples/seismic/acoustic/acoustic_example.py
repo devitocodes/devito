@@ -61,17 +61,17 @@ def run(dimensions=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=1000.0,
     initial_vp = smooth10(solver.model.m.data, solver.model.shape_domain)
     dm = np.float32(initial_vp**2 - solver.model.m.data)
     info("Applying Forward")
-    rec, u, summary = solver.forward(save=full_run, autotune=autotune, **kwargs)
+    rec, u, summary = solver.forward(save=full_run, autotune=autotune)
 
     if not full_run:
         return summary.gflopss, summary.oi, summary.timings, [rec, u.data]
 
     info("Applying Adjoint")
-    solver.adjoint(rec, autotune=autotune, **kwargs)
+    solver.adjoint(rec, autotune=autotune)
     info("Applying Born")
-    solver.born(dm, autotune=autotune, **kwargs)
+    solver.born(dm, autotune=autotune)
     info("Applying Gradient")
-    solver.gradient(rec, u, autotune=autotune, **kwargs)
+    solver.gradient(rec, u, autotune=autotune)
 
 
 if __name__ == "__main__":
