@@ -73,7 +73,8 @@ def test_tti(dimensions, space_order):
                                   time_order=2, space_order=space_order)
 
     solver_tti = AnisotropicWaveSolver(model, source=source, receiver=receiver,
-                                       time_order=2, space_order=space_order)
+                                       time_order=2, space_order=space_order,
+                                       dse='basic')
 
     # Create new wavefield object restart forward computation
     u = TimeData(name='u', shape=model.shape_domain, save=False,
@@ -93,8 +94,8 @@ def test_tti(dimensions, space_order):
                       .5 * u_tti.data.reshape(-1) - .5 * v_tti.data.reshape(-1))
     res /= linalg.norm(u.data.reshape(-1))
     log("Difference between acoustic and TTI with all coefficients to 0 %f" % res)
-    assert np.isclose(res, 0.0, atol=1e-1)
+    assert np.isclose(res, 0.0, atol=1e-4)
 
 
 if __name__ == "__main__":
-    test_tti((120, 140), 4)
+    test_tti((110, 120, 140), 4)

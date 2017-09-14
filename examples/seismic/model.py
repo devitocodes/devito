@@ -166,7 +166,7 @@ def demo_model(preset, **kwargs):
         path = os.path.join(data_path, 'marmousi3D/vp_marmousi_bi')
 
         # velocity
-        vp = 1e-3 * np.fromfile(os.path.join(data_path,'marmousi3D/MarmousiVP.raw'),
+        vp = 1e-3 * np.fromfile(os.path.join(data_path, 'marmousi3D/MarmousiVP.raw'),
                                 dtype='float32', sep="")
         vp = vp.reshape(dimensions)
         vp = vp[101, :, :]

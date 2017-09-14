@@ -11,7 +11,8 @@ def tti_setup(dimensions=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=250.0,
 
     nrec = 101
     # Two layer model for true velocity
-    model = demo_model('constanttti', shape=dimensions, nbpml=nbpml)
+    model = demo_model('constanttti', shape=dimensions, spacing=spacing,
+                       nbpml=nbpml)
     # Derive timestepping from model spacing
     dt = model.critical_dt
     t0 = 0.0
@@ -49,7 +50,7 @@ def run(dimensions=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=250.0,
 if __name__ == "__main__":
     description = ("Example script to execute a TTI forward operator.")
     parser = ArgumentParser(description=description)
-    parser.add_argument('--2d', dest='dim2', default=True, action='store_true',
+    parser.add_argument('--2d', dest='dim2', default=False, action='store_true',
                         help="Preset to determine the physical problem setup")
     parser.add_argument('-a', '--autotune', default=False, action='store_true',
                         help="Enable autotuning for block sizes")
@@ -66,11 +67,13 @@ if __name__ == "__main__":
         dimensions = (150, 150)
         spacing = (10.0, 10.0)
         tn = 500.0
+        dse = 'basic'
     else:
         dimensions = (100, 100, 100)
         spacing = (10.0, 10.0, 10.0)
         tn = 400.0
+        dse = 'aggressive'
 
     run(dimensions=dimensions, spacing=spacing, nbpml=args.nbpml, tn=tn,
         space_order=args.space_order, time_order=args.time_order,
-        autotune=args.autotune, dse='advanced', dle='advanced')
+        autotune=args.autotune, dse=dse, dle='advanced')

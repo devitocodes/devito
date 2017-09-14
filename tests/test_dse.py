@@ -134,6 +134,7 @@ def test_tti_rewrite_basic(tti_nodse):
     assert np.allclose(tti_nodse[1].data, rec.data, atol=10e-3)
 
 
+@pytest.mark.xfail(reason="DSE mode not supported for TTI")
 def test_tti_rewrite_advanced(tti_nodse):
     operator = tti_operator(dse='advanced')
     rec, u, v, _ = operator.forward()
