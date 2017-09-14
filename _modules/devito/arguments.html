@@ -289,6 +289,7 @@
         <span class="nb">super</span><span class="p">(</span><span class="n">PtrArgument</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">provider</span><span class="p">,</span> <span class="n">provider</span><span class="o">.</span><span class="n">value</span><span class="p">)</span>
 
 <div class="viewcode-block" id="PtrArgument.verify"><a class="viewcode-back" href="../../devito.html#devito.arguments.PtrArgument.verify">[docs]</a>    <span class="k">def</span> <span class="nf">verify</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_value</span> <span class="o">=</span> <span class="n">value</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">_value</span>
         <span class="k">return</span> <span class="kc">True</span></div></div>
 
 

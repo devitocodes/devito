@@ -325,10 +325,10 @@
 </li>
       <li><a href="devito.dse.html#devito.dse.manipulation.common_subexprs_elimination">common_subexprs_elimination() (in module devito.dse.manipulation)</a>
 </li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="devito.html#devito.exceptions.CompilationError">CompilationError</a>
 </li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="devito.html#devito.operator.Operator.compile">compile (devito.operator.Operator attribute)</a>
 </li>
       <li><a href="devito.dle.html#devito.dle.manipulation.compose_nodes">compose_nodes() (in module devito.dle.manipulation)</a>
@@ -365,6 +365,8 @@
 </li>
       <li><a href="devito.html#devito.tools.ctypes_to_C">ctypes_to_C() (in module devito.tools)</a>
 </li>
+      <li><a href="devito.html#devito.cgen_utils.CodePrinter.custom_functions">custom_functions (devito.cgen_utils.CodePrinter attribute)</a>
+</li>
       <li><a href="devito.dse.backends.html#devito.dse.backends.speculative.CustomRewriter">CustomRewriter (class in devito.dse.backends.speculative)</a>
 </li>
   </ul></td>
@@ -396,6 +398,10 @@
 </li>
         <li><a href="devito.html#devito.base.TimeData.default_assumptions">(devito.base.TimeData attribute)</a>
 </li>
+        <li><a href="devito.html#devito.cgen_utils.FLOAT.default_assumptions">(devito.cgen_utils.FLOAT attribute)</a>
+</li>
+        <li><a href="devito.html#devito.cgen_utils.INT.default_assumptions">(devito.cgen_utils.INT attribute)</a>
+</li>
         <li><a href="devito.html#devito.dimension.Dimension.default_assumptions">(devito.dimension.Dimension attribute)</a>
 </li>
         <li><a href="devito.dse.html#devito.dse.extended_sympy.Add.default_assumptions">(devito.dse.extended_sympy.Add attribute)</a>
@@ -403,6 +409,8 @@
         <li><a href="devito.dse.html#devito.dse.extended_sympy.Eq.default_assumptions">(devito.dse.extended_sympy.Eq attribute)</a>
 </li>
         <li><a href="devito.dse.html#devito.dse.extended_sympy.FrozenExpr.default_assumptions">(devito.dse.extended_sympy.FrozenExpr attribute)</a>
+</li>
+        <li><a href="devito.dse.html#devito.dse.extended_sympy.FunctionFromPointer.default_assumptions">(devito.dse.extended_sympy.FunctionFromPointer attribute)</a>
 </li>
         <li><a href="devito.dse.html#devito.dse.extended_sympy.Mul.default_assumptions">(devito.dse.extended_sympy.Mul attribute)</a>
 </li>
@@ -511,12 +519,12 @@
 </li>
       <li><a href="devito.dse.backends.html#module-devito.dse.backends.common">devito.dse.backends.common (module)</a>
 </li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="devito.dse.backends.html#module-devito.dse.backends.speculative">devito.dse.backends.speculative (module)</a>
 </li>
       <li><a href="devito.dse.html#module-devito.dse.clusterizer">devito.dse.clusterizer (module)</a>
 </li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="devito.dse.html#module-devito.dse.extended_sympy">devito.dse.extended_sympy (module)</a>
 </li>
       <li><a href="devito.dse.html#module-devito.dse.graph">devito.dse.graph (module)</a>
@@ -777,6 +785,8 @@
 </li>
       <li><a href="devito.html#devito.tools.flatten">flatten() (in module devito.tools)</a>
 </li>
+      <li><a href="devito.html#devito.cgen_utils.FLOAT">FLOAT (class in devito.cgen_utils)</a>
+</li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="devito.dle.html#devito.dle.blocking_utils.fold_blockable_tree">fold_blockable_tree() (in module devito.dle.blocking_utils)</a>
@@ -808,6 +818,8 @@
       <li><a href="devito.html#devito.nodes.FunCall">FunCall (class in devito.nodes)</a>
 </li>
       <li><a href="devito.html#devito.nodes.Function">Function (class in devito.nodes)</a>
+</li>
+      <li><a href="devito.dse.html#devito.dse.extended_sympy.FunctionFromPointer">FunctionFromPointer (class in devito.dse.extended_sympy)</a>
 </li>
       <li><a href="devito.html#devito.operator.FunMeta">FunMeta (class in devito.operator)</a>
 </li>
@@ -883,6 +895,8 @@
       </ul></li>
       <li><a href="devito.html#devito.pointdata.PointData.inject">inject() (devito.pointdata.PointData method)</a>
 </li>
+      <li><a href="devito.html#devito.cgen_utils.INT">INT (class in devito.cgen_utils)</a>
+</li>
       <li><a href="devito.html#devito.pointdata.PointData.interpolate">interpolate() (devito.pointdata.PointData method)</a>
 </li>
       <li><a href="devito.html#devito.exceptions.InvalidArgument">InvalidArgument</a>
@@ -953,10 +967,10 @@
       </ul></li>
       <li><a href="devito.html#devito.base.Operator.is_hermitian">is_hermitian (devito.base.Operator attribute)</a>
 </li>
-      <li><a href="devito.html#devito.base.Operator.is_imaginary">is_imaginary (devito.base.Operator attribute)</a>
-</li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="devito.html#devito.base.Operator.is_imaginary">is_imaginary (devito.base.Operator attribute)</a>
+</li>
       <li><a href="devito.html#devito.base.Operator.is_infinite">is_infinite (devito.base.Operator attribute)</a>
 </li>
       <li><a href="devito.html#devito.base.Operator.is_integer">is_integer (devito.base.Operator attribute)</a>

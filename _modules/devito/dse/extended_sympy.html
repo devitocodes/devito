@@ -169,8 +169,8 @@
 <span class="kn">from</span> <span class="nn">sympy.core.basic</span> <span class="k">import</span> <span class="n">_aresame</span>
 <span class="kn">from</span> <span class="nn">sympy.functions.elementary.trigonometric</span> <span class="k">import</span> <span class="n">TrigonometricFunction</span>
 
-<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;FrozenExpr&#39;</span><span class="p">,</span> <span class="s1">&#39;Eq&#39;</span><span class="p">,</span> <span class="s1">&#39;Mul&#39;</span><span class="p">,</span> <span class="s1">&#39;Add&#39;</span><span class="p">,</span> <span class="s1">&#39;taylor_sin&#39;</span><span class="p">,</span> <span class="s1">&#39;taylor_cos&#39;</span><span class="p">,</span>
-           <span class="s1">&#39;bhaskara_sin&#39;</span><span class="p">,</span> <span class="s1">&#39;bhaskara_cos&#39;</span><span class="p">]</span>
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;FrozenExpr&#39;</span><span class="p">,</span> <span class="s1">&#39;Eq&#39;</span><span class="p">,</span> <span class="s1">&#39;Mul&#39;</span><span class="p">,</span> <span class="s1">&#39;Add&#39;</span><span class="p">,</span> <span class="s1">&#39;FunctionFromPointer&#39;</span><span class="p">,</span>
+           <span class="s1">&#39;taylor_sin&#39;</span><span class="p">,</span> <span class="s1">&#39;taylor_cos&#39;</span><span class="p">,</span> <span class="s1">&#39;bhaskara_sin&#39;</span><span class="p">,</span> <span class="s1">&#39;bhaskara_cos&#39;</span><span class="p">]</span>
 
 
 <div class="viewcode-block" id="FrozenExpr"><a class="viewcode-back" href="../../../devito.dse.html#devito.dse.extended_sympy.FrozenExpr">[docs]</a><span class="k">class</span> <span class="nc">FrozenExpr</span><span class="p">(</span><span class="n">Expr</span><span class="p">):</span>
@@ -212,6 +212,21 @@
 
 <div class="viewcode-block" id="Add"><a class="viewcode-back" href="../../../devito.dse.html#devito.dse.extended_sympy.Add">[docs]</a><span class="k">class</span> <span class="nc">Add</span><span class="p">(</span><span class="n">sympy</span><span class="o">.</span><span class="n">Add</span><span class="p">,</span> <span class="n">FrozenExpr</span><span class="p">):</span>
     <span class="k">pass</span></div>
+
+
+<div class="viewcode-block" id="FunctionFromPointer"><a class="viewcode-back" href="../../../devito.dse.html#devito.dse.extended_sympy.FunctionFromPointer">[docs]</a><span class="k">class</span> <span class="nc">FunctionFromPointer</span><span class="p">(</span><span class="n">sympy</span><span class="o">.</span><span class="n">Symbol</span><span class="p">):</span>
+
+    <span class="k">def</span> <span class="nf">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">pointer</span><span class="p">,</span> <span class="n">params</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="n">obj</span> <span class="o">=</span> <span class="n">sympy</span><span class="o">.</span><span class="n">Symbol</span><span class="o">.</span><span class="fm">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">name</span><span class="p">)</span>
+        <span class="n">obj</span><span class="o">.</span><span class="n">pointer</span> <span class="o">=</span> <span class="n">pointer</span>
+        <span class="n">obj</span><span class="o">.</span><span class="n">params</span> <span class="o">=</span> <span class="n">params</span> <span class="ow">or</span> <span class="p">()</span>
+        <span class="k">return</span> <span class="n">obj</span>
+
+    <span class="k">def</span> <span class="nf">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="s2">&quot;</span><span class="si">%s</span><span class="s2">-&gt;</span><span class="si">%s</span><span class="s2">(</span><span class="si">%s</span><span class="s2">)&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">pointer</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span>
+                               <span class="s1">&#39;, &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">([</span><span class="nb">str</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">params</span><span class="p">]))</span>
+
+    <span class="fm">__repr__</span> <span class="o">=</span> <span class="fm">__str__</span></div>
 
 
 <div class="viewcode-block" id="taylor_sin"><a class="viewcode-back" href="../../../devito.dse.html#devito.dse.extended_sympy.taylor_sin">[docs]</a><span class="k">class</span> <span class="nc">taylor_sin</span><span class="p">(</span><span class="n">TrigonometricFunction</span><span class="p">):</span>

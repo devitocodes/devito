@@ -160,9 +160,11 @@
            <div itemprop="articleBody">
             
   <h1>Source code for devito.pointdata</h1><div class="highlight"><pre>
-<span></span><span class="kn">from</span> <span class="nn">sympy</span> <span class="k">import</span> <span class="n">Eq</span><span class="p">,</span> <span class="n">Function</span><span class="p">,</span> <span class="n">Matrix</span><span class="p">,</span> <span class="n">symbols</span>
+<span></span><span class="kn">from</span> <span class="nn">collections</span> <span class="k">import</span> <span class="n">OrderedDict</span>
 
-<span class="kn">from</span> <span class="nn">collections</span> <span class="k">import</span> <span class="n">OrderedDict</span>
+<span class="kn">from</span> <span class="nn">sympy</span> <span class="k">import</span> <span class="n">Eq</span><span class="p">,</span> <span class="n">Function</span><span class="p">,</span> <span class="n">Matrix</span><span class="p">,</span> <span class="n">symbols</span>
+
+<span class="kn">from</span> <span class="nn">devito.cgen_utils</span> <span class="k">import</span> <span class="n">INT</span><span class="p">,</span> <span class="n">FLOAT</span>
 <span class="kn">from</span> <span class="nn">devito.dimension</span> <span class="k">import</span> <span class="n">d</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">time</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">z</span>
 <span class="kn">from</span> <span class="nn">devito.dse.inspection</span> <span class="k">import</span> <span class="n">indexify</span><span class="p">,</span> <span class="n">retrieve_indexed</span>
 <span class="kn">from</span> <span class="nn">devito.interfaces</span> <span class="k">import</span> <span class="n">DenseData</span><span class="p">,</span> <span class="n">CompositeData</span>
@@ -301,14 +303,14 @@
     <span class="k">def</span> <span class="nf">coordinate_indices</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;Symbol for each grid index according to the coordinates&quot;&quot;&quot;</span>
         <span class="n">indices</span> <span class="o">=</span> <span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">z</span><span class="p">)</span>
-        <span class="k">return</span> <span class="nb">tuple</span><span class="p">([</span><span class="n">Function</span><span class="p">(</span><span class="s1">&#39;INT&#39;</span><span class="p">)(</span><span class="n">Function</span><span class="p">(</span><span class="s1">&#39;floor&#39;</span><span class="p">)(</span><span class="n">c</span> <span class="o">/</span> <span class="n">i</span><span class="o">.</span><span class="n">spacing</span><span class="p">))</span>
+        <span class="k">return</span> <span class="nb">tuple</span><span class="p">([</span><span class="n">INT</span><span class="p">(</span><span class="n">Function</span><span class="p">(</span><span class="s1">&#39;floor&#39;</span><span class="p">)(</span><span class="n">c</span> <span class="o">/</span> <span class="n">i</span><span class="o">.</span><span class="n">spacing</span><span class="p">))</span>
                       <span class="k">for</span> <span class="n">c</span><span class="p">,</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">coordinate_symbols</span><span class="p">,</span> <span class="n">indices</span><span class="p">[:</span><span class="bp">self</span><span class="o">.</span><span class="n">ndim</span><span class="p">])])</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">coordinate_bases</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;Symbol for the base coordinates of the reference grid point&quot;&quot;&quot;</span>
         <span class="n">indices</span> <span class="o">=</span> <span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">z</span><span class="p">)</span>
-        <span class="k">return</span> <span class="nb">tuple</span><span class="p">([</span><span class="n">Function</span><span class="p">(</span><span class="s1">&#39;FLOAT&#39;</span><span class="p">)(</span><span class="n">c</span> <span class="o">-</span> <span class="n">idx</span> <span class="o">*</span> <span class="n">i</span><span class="o">.</span><span class="n">spacing</span><span class="p">)</span>
+        <span class="k">return</span> <span class="nb">tuple</span><span class="p">([</span><span class="n">FLOAT</span><span class="p">(</span><span class="n">c</span> <span class="o">-</span> <span class="n">idx</span> <span class="o">*</span> <span class="n">i</span><span class="o">.</span><span class="n">spacing</span><span class="p">)</span>
                       <span class="k">for</span> <span class="n">c</span><span class="p">,</span> <span class="n">idx</span><span class="p">,</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">coordinate_symbols</span><span class="p">,</span>
                                            <span class="bp">self</span><span class="o">.</span><span class="n">coordinate_indices</span><span class="p">,</span>
                                            <span class="n">indices</span><span class="p">[:</span><span class="bp">self</span><span class="o">.</span><span class="n">ndim</span><span class="p">])])</span>

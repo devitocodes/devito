@@ -164,7 +164,7 @@
 
 <span class="kn">import</span> <span class="nn">cgen</span> <span class="k">as</span> <span class="nn">c</span>
 <span class="kn">from</span> <span class="nn">mpmath.libmp</span> <span class="k">import</span> <span class="n">prec_to_dps</span><span class="p">,</span> <span class="n">to_str</span>
-<span class="kn">from</span> <span class="nn">sympy</span> <span class="k">import</span> <span class="n">Eq</span>
+<span class="kn">from</span> <span class="nn">sympy</span> <span class="k">import</span> <span class="n">Eq</span><span class="p">,</span> <span class="n">Function</span>
 <span class="kn">from</span> <span class="nn">sympy.printing.ccode</span> <span class="k">import</span> <span class="n">CCodePrinter</span>
 
 
@@ -220,17 +220,16 @@
 <span class="c1"># Utils to print C strings</span>
 
 <div class="viewcode-block" id="CodePrinter"><a class="viewcode-back" href="../../devito.html#devito.cgen_utils.CodePrinter">[docs]</a><span class="k">class</span> <span class="nc">CodePrinter</span><span class="p">(</span><span class="n">CCodePrinter</span><span class="p">):</span>
+
+    <span class="n">custom_functions</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;INT&#39;</span><span class="p">:</span> <span class="s1">&#39;(int)&#39;</span><span class="p">,</span> <span class="s1">&#39;FLOAT&#39;</span><span class="p">:</span> <span class="s1">&#39;(float)&#39;</span><span class="p">}</span>
+
     <span class="sd">&quot;&quot;&quot;Decorator for sympy.printing.ccode.CCodePrinter.</span>
 
 <span class="sd">    :param settings: A dictionary containing relevant settings</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">settings</span><span class="o">=</span><span class="p">{}):</span>
         <span class="n">CCodePrinter</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">settings</span><span class="p">)</span>
-        <span class="n">custom_functions</span> <span class="o">=</span> <span class="p">{</span>
-            <span class="s1">&#39;INT&#39;</span><span class="p">:</span> <span class="s1">&#39;(int)&#39;</span><span class="p">,</span>
-            <span class="s1">&#39;FLOAT&#39;</span><span class="p">:</span> <span class="s1">&#39;(float)&#39;</span>
-        <span class="p">}</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">known_functions</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">custom_functions</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">known_functions</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">custom_functions</span><span class="p">)</span>
 
     <span class="k">def</span> <span class="nf">_print_Indexed</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">expr</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;Print field as C style multidimensional array</span>
@@ -304,7 +303,11 @@
         <span class="k">return</span> <span class="n">rv</span> <span class="o">+</span> <span class="s1">&#39;F&#39;</span>
 
     <span class="k">def</span> <span class="nf">_print_FrozenExpr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">expr</span><span class="p">):</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_print</span><span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span></div>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_print</span><span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+
+    <span class="k">def</span> <span class="nf">_print_FunctionFromPointer</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">expr</span><span class="p">):</span>
+        <span class="n">indices</span> <span class="o">=</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_print</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">expr</span><span class="o">.</span><span class="n">params</span><span class="p">]</span>
+        <span class="k">return</span> <span class="s2">&quot;</span><span class="si">%s</span><span class="s2">-&gt;</span><span class="si">%s</span><span class="s2">(</span><span class="si">%s</span><span class="s2">)&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="n">pointer</span><span class="p">,</span> <span class="n">expr</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="s1">&#39;, &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">indices</span><span class="p">))</span></div>
 
 
 <div class="viewcode-block" id="ccode"><a class="viewcode-back" href="../../devito.html#devito.cgen_utils.ccode">[docs]</a><span class="k">def</span> <span class="nf">ccode</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="o">**</span><span class="n">settings</span><span class="p">):</span>
@@ -336,6 +339,8 @@
 <span class="n">blankline</span> <span class="o">=</span> <span class="n">c</span><span class="o">.</span><span class="n">Line</span><span class="p">(</span><span class="s2">&quot;&quot;</span><span class="p">)</span>
 <span class="n">printmark</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">i</span><span class="p">:</span> <span class="n">c</span><span class="o">.</span><span class="n">Line</span><span class="p">(</span><span class="s1">&#39;printf(&quot;Here: </span><span class="si">%s</span><span class="se">\\</span><span class="s1">n&quot;); fflush(stdout);&#39;</span> <span class="o">%</span> <span class="n">i</span><span class="p">)</span>
 <span class="n">printvar</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">i</span><span class="p">:</span> <span class="n">c</span><span class="o">.</span><span class="n">Statement</span><span class="p">(</span><span class="s1">&#39;printf(&quot;</span><span class="si">%s</span><span class="s1">=</span><span class="si">%%</span><span class="s1">s</span><span class="se">\\</span><span class="s1">n&quot;, </span><span class="si">%s</span><span class="s1">); fflush(stdout);&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">i</span><span class="p">))</span>
+<span class="n">INT</span> <span class="o">=</span> <span class="n">Function</span><span class="p">(</span><span class="s1">&#39;INT&#39;</span><span class="p">)</span>
+<span class="n">FLOAT</span> <span class="o">=</span> <span class="n">Function</span><span class="p">(</span><span class="s1">&#39;FLOAT&#39;</span><span class="p">)</span>
 </pre></div>
 
            </div>

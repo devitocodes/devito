@@ -250,7 +250,10 @@
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">args_frozen</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;Arguments used to construct the Node that cannot be traversed.&quot;&quot;&quot;</span>
-        <span class="k">return</span> <span class="p">{</span><span class="n">k</span><span class="p">:</span> <span class="n">v</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">args</span><span class="o">.</span><span class="n">items</span><span class="p">()</span> <span class="k">if</span> <span class="n">k</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_traversable</span><span class="p">}</span></div>
+        <span class="k">return</span> <span class="p">{</span><span class="n">k</span><span class="p">:</span> <span class="n">v</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">args</span><span class="o">.</span><span class="n">items</span><span class="p">()</span> <span class="k">if</span> <span class="n">k</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_traversable</span><span class="p">}</span>
+
+    <span class="k">def</span> <span class="nf">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="nb">str</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">ccode</span><span class="p">)</span></div>
 
 
 <div class="viewcode-block" id="Block"><a class="viewcode-back" href="../../devito.html#devito.nodes.Block">[docs]</a><span class="k">class</span> <span class="nc">Block</span><span class="p">(</span><span class="n">Node</span><span class="p">):</span>
@@ -282,15 +285,13 @@
 
 <span class="k">class</span> <span class="nc">Element</span><span class="p">(</span><span class="n">Node</span><span class="p">):</span>
 
-    <span class="sd">&quot;&quot;&quot;A generic node that is worth identifying in an Iteration/Expression tree.</span>
-
-<span class="sd">    It corresponds to a single :class:`cgen.Statement`.</span>
-<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="sd">&quot;&quot;&quot;A generic node in an Iteration/Expression tree. Can be a comment,</span>
+<span class="sd">    a statement, ...&quot;&quot;&quot;</span>
 
     <span class="n">is_Element</span> <span class="o">=</span> <span class="kc">True</span>
 
     <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">element</span><span class="p">):</span>
-        <span class="k">assert</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">element</span><span class="p">,</span> <span class="p">(</span><span class="n">c</span><span class="o">.</span><span class="n">Comment</span><span class="p">,</span> <span class="n">c</span><span class="o">.</span><span class="n">Statement</span><span class="p">,</span> <span class="n">c</span><span class="o">.</span><span class="n">Value</span><span class="p">,</span>
+        <span class="k">assert</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">element</span><span class="p">,</span> <span class="p">(</span><span class="n">c</span><span class="o">.</span><span class="n">Comment</span><span class="p">,</span> <span class="n">c</span><span class="o">.</span><span class="n">Statement</span><span class="p">,</span> <span class="n">c</span><span class="o">.</span><span class="n">Value</span><span class="p">,</span> <span class="n">c</span><span class="o">.</span><span class="n">Initializer</span><span class="p">,</span>
                                     <span class="n">c</span><span class="o">.</span><span class="n">Pragma</span><span class="p">,</span> <span class="n">c</span><span class="o">.</span><span class="n">Line</span><span class="p">,</span> <span class="n">c</span><span class="o">.</span><span class="n">Assign</span><span class="p">,</span> <span class="n">c</span><span class="o">.</span><span class="n">POD</span><span class="p">))</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">element</span> <span class="o">=</span> <span class="n">element</span>
 

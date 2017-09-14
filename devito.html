@@ -914,7 +914,10 @@ derived time dimensions symbol. For example:</p>
 <dt id="devito.cgen_utils.CodePrinter">
 <em class="property">class </em><code class="descclassname">devito.cgen_utils.</code><code class="descname">CodePrinter</code><span class="sig-paren">(</span><em>settings={}</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/cgen_utils.html#CodePrinter"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.cgen_utils.CodePrinter" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">sympy.printing.ccode.CCodePrinter</span></code></p>
-<p>Decorator for sympy.printing.ccode.CCodePrinter.</p>
+<dl class="attribute">
+<dt id="devito.cgen_utils.CodePrinter.custom_functions">
+<code class="descname">custom_functions</code><em class="property"> = {'INT': '(int)', 'FLOAT': '(float)'}</em><a class="headerlink" href="#devito.cgen_utils.CodePrinter.custom_functions" title="Permalink to this definition">¶</a></dt>
+<dd><p>Decorator for sympy.printing.ccode.CCodePrinter.</p>
 <table class="docutils field-list" frame="void" rules="none">
 <col class="field-name" />
 <col class="field-body" />
@@ -923,6 +926,30 @@ derived time dimensions symbol. For example:</p>
 </tr>
 </tbody>
 </table>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="devito.cgen_utils.FLOAT">
+<em class="property">class </em><code class="descclassname">devito.cgen_utils.</code><code class="descname">FLOAT</code><a class="headerlink" href="#devito.cgen_utils.FLOAT" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">sympy.core.function.AppliedUndef</span></code></p>
+<dl class="attribute">
+<dt id="devito.cgen_utils.FLOAT.default_assumptions">
+<code class="descname">default_assumptions</code><em class="property"> = {}</em><a class="headerlink" href="#devito.cgen_utils.FLOAT.default_assumptions" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="devito.cgen_utils.INT">
+<em class="property">class </em><code class="descclassname">devito.cgen_utils.</code><code class="descname">INT</code><a class="headerlink" href="#devito.cgen_utils.INT" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">sympy.core.function.AppliedUndef</span></code></p>
+<dl class="attribute">
+<dt id="devito.cgen_utils.INT.default_assumptions">
+<code class="descname">default_assumptions</code><em class="property"> = {}</em><a class="headerlink" href="#devito.cgen_utils.INT.default_assumptions" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
 </dd></dl>
 
 <dl class="function">
