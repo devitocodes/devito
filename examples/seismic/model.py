@@ -42,10 +42,10 @@ def demo_model(preset, **kwargs):
         v[:] = 1.5
         epsilon = .3*np.ones(shape)
         delta = .2*np.ones(shape)
-        theta = .2*np.ones(shape)
+        theta = .7*np.ones(shape)
         phi = None
         if len(shape) > 2:
-            phi = .1*np.ones(shape)
+            phi = .35*np.ones(shape)
 
         return Model(vp=v, origin=origin, shape=shape,
                      spacing=spacing, nbpml=nbpml,

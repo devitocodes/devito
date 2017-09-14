@@ -28,11 +28,7 @@ class AnisotropicWaveSolver(object):
 
         self.time_order = time_order
         self.space_order = space_order
-
-        # Time step can be \sqrt{3}=1.73 bigger with 4th order
         self.dt = self.model.critical_dt
-        if self.time_order == 4:
-            self.dt *= 1.73
 
         # Cache compiler options
         self._kwargs = kwargs
@@ -84,7 +80,7 @@ class AnisotropicWaveSolver(object):
         # Create the forward wavefield if not provided
         if v is None:
             v = TimeData(name='v', shape=self.model.shape_domain,
-                         save=save, time_dim=self.source.nt,
+                         save=save, time_dim=self.source.nt if save else None,
                          time_order=self.time_order,
                          space_order=self.space_order,
                          dtype=self.model.dtype)
