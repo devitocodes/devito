@@ -6,7 +6,7 @@ from functools import reduce
 from operator import mul
 import resource
 
-from devito.logger import info, info_at, bar
+from devito.logger import info, info_at
 from devito.nodes import Iteration
 from devito.parameters import configuration
 from devito.visitors import FindNodes, FindSymbols
@@ -30,9 +30,9 @@ def autotune(operator, arguments, tunable):
 
     # Squeeze dimensions to minimize auto-tuning time
     iterations = FindNodes(Iteration).visit(operator.body)
-    sequential = [i for i in iterations if i.is_Sequential and i.dim.is_Buffered]
     dim_mapper = {i.dim.name: i.dim for i in iterations}
-    squeezable = [i.dim.parent.symbolic_size.name for i in sequential]
+    squeezable = [i.dim.parent.symbolic_size.name for i in iterations
+                  if i.is_Sequential and i.dim.is_Buffered]
 
     # Attempted block sizes
     mapper = OrderedDict([(i.argument.symbolic_size.name, i) for i in tunable])
@@ -40,6 +40,7 @@ def autotune(operator, arguments, tunable):
                   for v in options['at_blocksize']]
     if configuration['autotuning'] == 'aggressive':
         blocksizes = more_heuristic_attempts(blocksizes)
+
     # How many temporaries are allocated on the stack?
     # Will drop block sizes that might lead to a stack overflow
     functions = FindSymbols('symbolics').visit(operator.body +
@@ -88,12 +89,11 @@ def autotune(operator, arguments, tunable):
 
         # Use AT-specific profiler structs
         at_arguments[operator.profiler.varname] = operator.profiler.setup()
+
         operator.cfunction(*list(at_arguments.values()))
         elapsed = sum(operator.profiler.timings.values())
         timings[tuple(bs.items())] = elapsed
-        iter_time = [s.extent(finish=at_arguments['time_size']) for s in sequential][0]
-        info_at("<%s>: %f for %d time steps" % (','.join('%d' % i for i in bs.values()),
-                                                elapsed, iter_time))
+        info_at("<%s>: %f" % (','.join('%d' % i for i in bs.values()), elapsed))
 
     try:
         best = dict(min(timings, key=timings.get))
