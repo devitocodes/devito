@@ -5,8 +5,8 @@ import pytest  # noqa
 
 pexpect = pytest.importorskip('yask_compiler')  # Run only if YASK is available
 
-from devito import (Operator, DenseData, TimeData, t, x, y, z,
-                    configuration, clear_cache)  # noqa
+from devito import (Operator, DenseData, TimeData, PointData,
+                    t, x, y, z, configuration, clear_cache)  # noqa
 from devito.yask.wrappers import YaskGrid  # noqa
 
 pytestmark = pytest.mark.skipif(configuration['backend'] != 'yask',
@@ -171,3 +171,73 @@ class TestOperatorExecution(object):
         lbound, rbound = space_order, 16 - space_order
         written_region = v.data[1, lbound:rbound, lbound:rbound, lbound:rbound]
         assert np.all(written_region == 6.)
+
+    def test_multiple_loop_nests(self):
+        """
+        Compute a simple stencil S, preceded by an "initialization loop" I and
+        followed by a "random loop" R.
+
+            * S is the trivial equation ``u[t+1,x,y,z] = u[t,x,y,z] + 1``;
+            * I initializes ``u`` to 0;
+            * R adds 2 to another field ``v`` along the ``z`` dimension but only
+                over the planes ``[x=0, y=2]`` and ``[x=0, y=5]``.
+
+        Out of these three loop nests, only S should be "offloaded" to YASK; indeed,
+        I is outside the time loop, while R does not loop over space dimensions.
+        This test checks that S is the only loop nest "offloaded" to YASK, and
+        that the numerical output is correct.
+        """
+        space_order = 0
+        u = TimeData(name='yu4D', shape=(16, 16, 16), dimensions=(x, y, z),
+                     space_order=space_order)
+        v = TimeData(name='yv4D', shape=(16, 16, 16), dimensions=(x, y, z),
+                     space_order=space_order)
+        v.data[:] = 0.
+        eqs = [Eq(u.indexed[0, x, y, z], 0),
+               Eq(u.indexed[1, x, y, z], 0),
+               Eq(u.forward, u + 1.),
+               Eq(v.indexed[t + 1, 0, 2, z], v.indexed[t + 1, 0, 2, z] + 2.),
+               Eq(v.indexed[t + 1, 0, 5, z], v.indexed[t + 1, 0, 5, z] + 2.)]
+        op = Operator(eqs, subs={t.spacing: 1})
+        op(yu4D=u, yv4D=v, t=1)
+        assert np.all(u.data[0] == 0.)
+        assert np.all(u.data[1] == 1.)
+        assert np.all(v.data[0] == 0.)
+        assert np.all(v.data[1, 0, 2] == 2.)
+        assert np.all(v.data[1, 0, 5] == 2.)
+
+    def test_irregular_write(self):
+        """
+        Compute a simple stencil S w/o offloading it to YASK because of the presence
+        of indirect write accesses (e.g. A[B[i]] = ...); YASK grid functions are however
+        used in the generated code to access the data at the right location. This
+        test checks that the numerical output is correct after this transformation.
+
+        Initially, the input array (a YASK grid, under the hood), at t=0 is (2D view):
+
+            0 1 2 3
+            0 1 2 3
+            0 1 2 3
+            0 1 2 3
+
+        Then, the Operator "flips" its content, and at timestep t=1 we get (2D view):
+
+            3 2 1 0
+            3 2 1 0
+            3 2 1 0
+            3 2 1 0
+        """
+        p = PointData(name='points', nt=1, npoint=4)
+        u = TimeData(name='yu4D', shape=(4, 4, 4), dimensions=(x, y, z), space_order=0)
+        for i in range(4):
+            for j in range(4):
+                for k in range(4):
+                    u.data[0, i, j, k] = k
+        ind = lambda i: p.indexed[0, i]
+        eqs = [Eq(p.indexed[0, 0], 3.), Eq(p.indexed[0, 1], 2.),
+               Eq(p.indexed[0, 2], 1.), Eq(p.indexed[0, 3], 0.),
+               Eq(u.indexed[t + 1, ind(x), ind(y), ind(z)], u.indexed[t, x, y, z])]
+        op = Operator(eqs, subs={t.spacing: 1})
+        op(yu4D=u, t=1)
+        assert 'run_solution' not in str(op)
+        assert all(np.all(u.data[1, :, :, i] == 3 - i) for i in range(4))

@@ -90,6 +90,9 @@ class Node(object):
         """Arguments used to construct the Node that cannot be traversed."""
         return {k: v for k, v in self.args.items() if k not in self._traversable}
 
+    def __str__(self):
+        return str(self.ccode)
+
 
 class Block(Node):
 
@@ -120,15 +123,13 @@ class List(Block):
 
 class Element(Node):
 
-    """A generic node that is worth identifying in an Iteration/Expression tree.
-
-    It corresponds to a single :class:`cgen.Statement`.
-    """
+    """A generic node in an Iteration/Expression tree. Can be a comment,
+    a statement, ..."""
 
     is_Element = True
 
     def __init__(self, element):
-        assert isinstance(element, (c.Comment, c.Statement, c.Value,
+        assert isinstance(element, (c.Comment, c.Statement, c.Value, c.Initializer,
                                     c.Pragma, c.Line, c.Assign, c.POD))
         self.element = element
 
