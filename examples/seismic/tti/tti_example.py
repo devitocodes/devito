@@ -41,8 +41,8 @@ def tti_setup(dimensions=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=250.0,
 
 
 def run(dimensions=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=250.0,
-        time_order=2, space_order=4, nbpml=10, **kwargs):
-    autotune = kwargs.pop('autotune', False)
+        autotune=False, time_order=2, space_order=4, nbpml=10, **kwargs):
+
     solver = tti_setup(dimensions, spacing, tn, time_order, space_order, nbpml, **kwargs)
 
     if space_order % 4 != 0:

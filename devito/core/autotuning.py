@@ -30,9 +30,9 @@ def autotune(operator, arguments, tunable):
 
     # Squeeze dimensions to minimize auto-tuning time
     iterations = FindNodes(Iteration).visit(operator.body)
+    sequential = [i for i in iterations if i.is_Sequential and i.dim.is_Buffered]
     dim_mapper = {i.dim.name: i.dim for i in iterations}
-    squeezable = [i.dim.parent.symbolic_size.name for i in iterations
-                  if i.is_Sequential and i.dim.is_Buffered]
+    squeezable = [i.dim.parent.symbolic_size.name for i in sequential]
 
     # Attempted block sizes
     mapper = OrderedDict([(i.argument.symbolic_size.name, i) for i in tunable])
@@ -93,7 +93,9 @@ def autotune(operator, arguments, tunable):
         operator.cfunction(*list(at_arguments.values()))
         elapsed = sum(operator.profiler.timings.values())
         timings[tuple(bs.items())] = elapsed
-        info_at("<%s>: %f" % (','.join('%d' % i for i in bs.values()), elapsed))
+        iter_time = [s.extent(finish=at_arguments['time_size']) for s in sequential][0]
+        info_at("<%s>: %f sec for %d time steps" %
+                (','.join('%d' % i for i in bs.values()), elapsed, iter_time))
 
     try:
         best = dict(min(timings, key=timings.get))
