@@ -127,6 +127,7 @@ class PtrArgument(Argument):
         super(PtrArgument, self).__init__(name, provider, provider.value)
 
     def verify(self, value):
+        self._value = value or self._value
         return True
 
 

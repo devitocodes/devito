@@ -46,7 +46,15 @@ namespace['kernel-path-gen'] = os.path.join(namespace['kernel-path'], 'gen')
 namespace['kernel-output'] = os.path.join(namespace['kernel-path-gen'],
                                           namespace['kernel-filename'])
 namespace['time-dim'] = 't'
+namespace['code-soln-type'] = 'yask::yk_solution'
+namespace['code-soln-name'] = 'soln'
+namespace['code-soln-run'] = 'run_solution'
+namespace['code-grid-type'] = 'yask::yk_grid'
+namespace['code-grid-name'] = lambda i: "grid_%s" % str(i)
+namespace['code-grid-get'] = 'get_element'
+namespace['code-grid-put'] = 'set_element'
 namespace['type-solution'] = ctypes_pointer('yask::yk_solution_ptr')
+namespace['type-grid'] = ctypes_pointer('yask::yk_grid_ptr')
 
 
 # Need a custom compiler to compile YASK kernels
