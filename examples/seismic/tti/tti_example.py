@@ -11,7 +11,7 @@ def tti_setup(dimensions=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=250.0,
 
     nrec = 101
     # Two layer model for true velocity
-    model = demo_model('constanttti', shape=dimensions, spacing=spacing,
+    model = demo_model('layerstti', shape=dimensions, spacing=spacing,
                        nbpml=nbpml)
     # Derive timestepping from model spacing
     dt = model.critical_dt
@@ -22,7 +22,7 @@ def tti_setup(dimensions=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=250.0,
     # Define source geometry (center of domain, just below surface)
     src = RickerSource(name='src', ndim=model.dim, f0=0.015, time=time)
     src.coordinates.data[0, :] = np.array(model.domain_size) * .5
-    # src.coordinates.data[0, -1] = model.origin[-1] + 2 * spacing[-1]
+    src.coordinates.data[0, -1] = model.origin[-1] + 2 * spacing[-1]
 
     # Define receiver geometry (spread across x, lust below surface)
     rec = Receiver(name='nrec', ntime=nt, npoint=nrec, ndim=model.dim)
@@ -35,14 +35,14 @@ def tti_setup(dimensions=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=250.0,
 
 
 def run(dimensions=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=250.0,
-        time_order=2, space_order=4, nbpml=10, **kwargs):
+        time_order=2, space_order=4, nbpml=10, kernel='centered', **kwargs):
     autotune = kwargs.pop('autotune', False)
     solver = tti_setup(dimensions, spacing, tn, time_order, space_order, nbpml, **kwargs)
 
-    if space_order % 2 != 0:
+    if space_order % 4 != 0:
         warning('WARNING: TTI requires a space_order that is a multiple of 4!')
 
-    rec, u, v, summary = solver.forward(autotune=autotune)
+    rec, u, v, summary = solver.forward(autotune=autotune, kernel=kernel)
 
     return summary.gflopss, summary.oi, summary.timings, [rec, u, v]
 
@@ -56,24 +56,25 @@ if __name__ == "__main__":
                         help="Enable autotuning for block sizes")
     parser.add_argument("-to", "--time_order", default=2,
                         type=int, help="Time order of the simulation")
-    parser.add_argument("-so", "--space_order", default=8,
+    parser.add_argument("-so", "--space_order", default=4,
                         type=int, help="Space order of the simulation")
     parser.add_argument("--nbpml", default=40,
                         type=int, help="Number of PML layers around the domain")
+    parser.add_argument("-k", dest="kernel", default='centered',
+                        type=str, help="Choice of finite-difference kernel")
     args = parser.parse_args()
 
     # 3D preset parameters
     if args.dim2:
         dimensions = (150, 150)
         spacing = (10.0, 10.0)
-        tn = 500.0
-        dse = 'basic'
+        tn = 750.0
     else:
-        dimensions = (100, 100, 100)
+        dimensions = (50, 50, 50)
         spacing = (10.0, 10.0, 10.0)
-        tn = 400.0
-        dse = 'aggressive'
+        tn = 250.0
+        # dse = 'aggressive'
 
     run(dimensions=dimensions, spacing=spacing, nbpml=args.nbpml, tn=tn,
         space_order=args.space_order, time_order=args.time_order,
-        autotune=args.autotune, dse=dse, dle='advanced')
+        autotune=args.autotune, dse='basic', dle='advanced', kernel=args.kernel)

@@ -91,8 +91,8 @@ def demo_model(preset, **kwargs):
         v[:] = vp_top  # Top velocity (background)
         v[..., int(shape[-1] / ratio):] = vp_bottom  # Bottom velocity
 
-        epsilon = .1*(v - 1.5)
-        delta = .05*(v - 1.5)
+        epsilon = .3*(v - 1.5)
+        delta = .2*(v - 1.5)
         theta = .5*(v - 1.5)
         phi = None
         if len(shape) > 2:
