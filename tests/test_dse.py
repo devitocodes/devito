@@ -110,7 +110,7 @@ def test_tti_clusters_to_graph():
     nodes = FindNodes(Expression).visit(solver.op_fwd_centered.elemental_functions +
                                         (solver.op_fwd_centered,))
     expressions = [n.expr for n in nodes]
-    stencils = solver.op_fwd._retrieve_stencils(expressions)
+    stencils = solver.op_fwd_centered._retrieve_stencils(expressions)
     clusters = clusterize(expressions, stencils)
     assert len(clusters) == 3
 

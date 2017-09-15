@@ -73,7 +73,6 @@ if __name__ == "__main__":
         dimensions = (50, 50, 50)
         spacing = (10.0, 10.0, 10.0)
         tn = 250.0
-        # dse = 'aggressive'
 
     run(dimensions=dimensions, spacing=spacing, nbpml=args.nbpml, tn=tn,
         space_order=args.space_order, time_order=args.time_order,
