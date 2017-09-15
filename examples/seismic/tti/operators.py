@@ -7,6 +7,17 @@ from devito.dimension import x, y, z, t, time
 
 
 def Gxx_shifted(field, costheta, sintheta, cosphi, sinphi, space_order):
+    """
+    3D rotated second order derivative in the direction x as an average of
+    two non-centered rotated second order derivative in the direction x
+    :param field: symbolic data whose derivative we are computing
+    :param costheta: cosine of the tilt angle
+    :param sintheta:  sine of the tilt angle
+    :param cosphi: cosine of the azymuth angle
+    :param sinphi: sine of the azymuth angle
+    :param space_order: discretization order
+    :return: rotated second order derivative wrt x
+    """
     Gx1 = (costheta * cosphi * field.dx + costheta * sinphi * field.dyr -
            sintheta * field.dzr)
     Gxx1 = (first_derivative(Gx1 * costheta * cosphi,
@@ -33,6 +44,15 @@ def Gxx_shifted(field, costheta, sintheta, cosphi, sinphi, space_order):
 
 
 def Gxx_shifted_2d(field, costheta, sintheta, space_order):
+    """
+    2D rotated second order derivative in the direction x as an average of
+    two non-centered rotated second order derivative in the direction x
+    :param field: symbolic data whose derivative we are computing
+    :param costheta: cosine of the tilt angle
+    :param sintheta:  sine of the tilt angle
+    :param space_order: discretization order
+    :return: rotated second order derivative wrt x
+    """
     Gx1 = (costheta * field.dxr - sintheta * field.dy)
     Gxx1 = (first_derivative(Gx1 * costheta, dim=x,
                              side=right, order=space_order,
@@ -52,6 +72,15 @@ def Gxx_shifted_2d(field, costheta, sintheta, space_order):
 
 
 def Gyy_shifted(field, cosphi, sinphi, space_order):
+    """
+    3D rotated second order derivative in the direction y as an average of
+    two non-centered rotated second order derivative in the direction y
+    :param field: symbolic data whose derivative we are computing
+    :param cosphi: cosine of the azymuth angle
+    :param sinphi: sine of the azymuth angle
+    :param space_order: discretization order
+    :return: rotated second order derivative wrt y
+    """
     Gyp = (sinphi * field.dx - cosphi * field.dyr)
     Gyy = (first_derivative(Gyp * sinphi,
                             dim=x, side=centered, order=space_order,
@@ -70,6 +99,17 @@ def Gyy_shifted(field, cosphi, sinphi, space_order):
 
 
 def Gzz_shited(field, costheta, sintheta, cosphi, sinphi, space_order):
+    """
+    3D rotated second order derivative in the direction z as an average of
+    two non-centered rotated second order derivative in the direction z
+    :param field: symbolic data whose derivative we are computing
+    :param costheta: cosine of the tilt angle
+    :param sintheta:  sine of the tilt angle
+    :param cosphi: cosine of the azymuth angle
+    :param sinphi: sine of the azymuth angle
+    :param space_order: discretization order
+    :return: rotated second order derivative wrt z
+    """
     Gzr = (sintheta * cosphi * field.dx + sintheta * sinphi * field.dyr +
            costheta * field.dzr)
     Gzz = (first_derivative(Gzr * sintheta * cosphi,
@@ -96,6 +136,15 @@ def Gzz_shited(field, costheta, sintheta, cosphi, sinphi, space_order):
 
 
 def Gzz_shited_2d(field, costheta, sintheta, space_order):
+    """
+    2D rotated second order derivative in the direction z as an average of
+    two non-centered rotated second order derivative in the direction z
+    :param field: symbolic data whose derivative we are computing
+    :param costheta: cosine of the tilt
+    :param sintheta:  sine of the tilt
+    :param space_order: discretization order
+    :return: rotated second order derivative wrt z
+    """
     Gz1r = (sintheta * field.dxr + costheta * field.dy)
     Gzz1 = (first_derivative(Gz1r * sintheta, dim=x,
                              side=right, order=space_order,
@@ -115,6 +164,16 @@ def Gzz_shited_2d(field, costheta, sintheta, space_order):
 
 
 def Gzz_centered(field, costheta, sintheta, cosphi, sinphi, space_order):
+    """
+    3D rotated second order derivative in the direction z
+    :param field: symbolic data whose derivative we are computing
+    :param costheta: cosine of the tilt angle
+    :param sintheta:  sine of the tilt angle
+    :param cosphi: cosine of the azymuth angle
+    :param sinphi: sine of the azymuth angle
+    :param space_order: discretization order
+    :return: rotated second order derivative wrt z
+    """
     order1 = space_order / 2
     Gz = -(sintheta * cosphi * first_derivative(field, dim=x,
                                                 side=centered, order=order1) +
@@ -135,6 +194,14 @@ def Gzz_centered(field, costheta, sintheta, cosphi, sinphi, space_order):
 
 
 def Gzz_centered_2d(field, costheta, sintheta, space_order):
+    """
+    2D rotated second order derivative in the direction z
+    :param field: symbolic data whose derivative we are computing
+    :param costheta: cosine of the tilt angle
+    :param sintheta:  sine of the tilt angle
+    :param space_order: discretization order
+    :return: rotated second order derivative wrt z
+    """
     order1 = space_order / 2
     Gz = -(sintheta * first_derivative(field, dim=x, side=centered, order=order1) +
            costheta * first_derivative(field, dim=y, side=centered, order=order1))
@@ -149,21 +216,85 @@ def Gzz_centered_2d(field, costheta, sintheta, space_order):
 
 # Centered case produces directly Gxx + Gyy
 def Gxxyy_centered(field, costheta, sintheta, cosphi, sinphi, space_order):
+    """
+    Sum of the 3D rotated second order derivative in the direction x and y.
+    As the Laplacian is rotation invariant, it is computed as the conventional
+    Laplacian minus the second order rotated second order derivative in the direction z
+    Gxx + Gyy = field.laplace - Gzz
+    :param field: symbolic data whose derivative we are computing
+    :param costheta: cosine of the tilt angle
+    :param sintheta:  sine of the tilt angle
+    :param cosphi: cosine of the azymuth angle
+    :param sinphi: sine of the azymuth angle
+    :param space_order: discretization order
+    :return: Sum of the 3D rotated second order derivative in the direction x and y
+    """
     Gzz = Gzz_centered(field, costheta, sintheta, cosphi, sinphi, space_order)
     return field.laplace - Gzz
 
 
 def Gxx_centered_2d(field, costheta, sintheta, space_order):
+    """
+    2D rotated second order derivative in the direction x.
+    As the Laplacian is rotation invariant, it is computed as the conventional
+    Laplacian minus the second order rotated second order derivative in the direction z
+    Gxx = field.laplace - Gzz
+    :param field: symbolic data whose derivative we are computing
+    :param costheta: cosine of the tilt angle
+    :param sintheta:  sine of the tilt angle
+    :param cosphi: cosine of the azymuth angle
+    :param sinphi: sine of the azymuth angle
+    :param space_order: discretization order
+    :return: Sum of the 3D rotated second order derivative in the direction x
+    """
     return field.laplace - Gzz_centered_2d(field, costheta, sintheta, space_order)
 
 
 def kernel_shited_2d(u, v, costheta, sintheta, cosphi, sinphi, space_order):
+    """
+    TTI finite difference kernel. The equation we solve is:
+
+    u.dt2 = (1+2 *epsilon) (Gxx(u)) + sqrt(1+ 2*delta) Gzz(v)
+    v.dt2 = sqrt(1+ 2*delta) (Gxx(u)) +  Gzz(v)
+
+    where epsilon and delta are the thomsen parameters. This function computes
+    H0 = Gxx(u) + Gyy(u)
+    Hz = Gzz(v)
+
+    :param u: first TTI field
+    :param v: second TTI field
+    :param costheta: cosine of the tilt angle
+    :param sintheta:  sine of the tilt angle
+    :param cosphi: cosine of the azymuth angle, has to be 0 in 2D
+    :param sinphi: sine of the azymuth angle, has to be 0 in 2D
+    :param space_order: discretization order
+    :return: u and v component of the rotated Laplacian in 2D
+    """
     Gxx = Gxx_shifted_2d(u, costheta, sintheta, space_order)
     Gzz = Gzz_shited_2d(v, costheta, sintheta, space_order)
     return Gxx, Gzz
 
 
 def kernel_shited_3d(u, v, costheta, sintheta, cosphi, sinphi, space_order):
+    """
+    TTI finite difference kernel. The equation we solve is:
+
+    u.dt2 = (1+2 *epsilon) (Gxx(u)+Gyy(u)) + sqrt(1+ 2*delta) Gzz(v)
+    v.dt2 = sqrt(1+ 2*delta) (Gxx(u)+Gyy(u)) +  Gzz(v)
+
+    where epsilon and delta are the thomsen parameters. This function computes
+    H0 = Gxx(u) + Gyy(u)
+    Hz = Gzz(v)
+
+    :param u: first TTI field
+    :param v: second TTI field
+    :param costheta: cosine of the tilt angle
+    :param sintheta:  sine of the tilt angle
+    :param cosphi: cosine of the azymuth angle
+    :param sinphi: sine of the azymuth angle
+    :param space_order: discretization order
+    :return: u and v component of the rotated Laplacian in 3D
+    """
     Gxx = Gxx_shifted(u, costheta, sintheta, cosphi, sinphi, space_order)
     Gyy = Gyy_shifted(u, cosphi, sinphi, space_order)
     Gzz = Gzz_shited(v, costheta, sintheta, cosphi, sinphi, space_order)
@@ -171,12 +302,50 @@ def kernel_shited_3d(u, v, costheta, sintheta, cosphi, sinphi, space_order):
 
 
 def kernel_centered_2d(u, v, costheta, sintheta, cosphi, sinphi, space_order):
+    """
+    TTI finite difference kernel. The equation we solve is:
+
+    u.dt2 = (1+2 *epsilon) (Gxx(u)) + sqrt(1+ 2*delta) Gzz(v)
+    v.dt2 = sqrt(1+ 2*delta) (Gxx(u)) +  Gzz(v)
+
+    where epsilon and delta are the thomsen parameters. This function computes
+    H0 = Gxx(u) + Gyy(u)
+    Hz = Gzz(v)
+
+    :param u: first TTI field
+    :param v: second TTI field
+    :param costheta: cosine of the tilt angle
+    :param sintheta:  sine of the tilt angle
+    :param cosphi: cosine of the azymuth angle, has to be 0 in 2D
+    :param sinphi: sine of the azymuth angle, has to be 0 in 2D
+    :param space_order: discretization order
+    :return: u and v component of the rotated Laplacian in 2D
+    """
     Gxx = Gxx_centered_2d(u, costheta, sintheta, space_order)
     Gzz = Gzz_centered_2d(v, costheta, sintheta, space_order)
     return Gxx, Gzz
 
 
 def kernel_centered_3d(u, v, costheta, sintheta, cosphi, sinphi, space_order):
+    """
+    TTI finite difference kernel. The equation we solve is:
+
+    u.dt2 = (1+2 *epsilon) (Gxx(u)+Gyy(u)) + sqrt(1+ 2*delta) Gzz(v)
+    v.dt2 = sqrt(1+ 2*delta) (Gxx(u)+Gyy(u)) +  Gzz(v)
+
+    where epsilon and delta are the thomsen parameters. This function computes
+    H0 = Gxx(u) + Gyy(u)
+    Hz = Gzz(v)
+
+    :param u: first TTI field
+    :param v: second TTI field
+    :param costheta: cosine of the tilt angle
+    :param sintheta:  sine of the tilt angle
+    :param cosphi: cosine of the azymuth angle
+    :param sinphi: sine of the azymuth angle
+    :param space_order: discretization order
+    :return: u and v component of the rotated Laplacian in 2D
+    """
     Gxx = Gxxyy_centered(u, costheta, sintheta, cosphi, sinphi, space_order)
     Gzz = Gzz_centered(v, costheta, sintheta, cosphi, sinphi, space_order)
     return Gxx, Gzz
@@ -192,24 +361,6 @@ def ForwardOperator(model, source, receiver, time_order=2, space_order=4,
        :param data: IShot() object containing the acquisition geometry and field data
        :param: time_order: Time discretization order
        :param: spc_order: Space discretization order
-
-       Rotated centered laplacian based on the following assumptions:
-       1 - Laplacian is rotation invariant.
-       2 - We still need to implement the rotated version as
-       the regular laplacian only look at the cartesian axxis
-       3- We must have Hp + Hz = Laplacian
-
-       Stencil goes as follow
-       For Hp compute Hz and Hp = laplace - Hz
-       For Hz compute directly Hz
-
-       This guaranties that the diagonal of the operator will
-       not be empty due to odd-even coupling. The FD operator
-       is still self-adjoint for stability as both the laplacian and
-       the implementation of Hp and Hz are self-adjoints
-
-       The rotated dshifted laplacian is the average of two non-centered
-       rotated laplacian. All rotated operators are implemented in that case
        """
     dt = model.critical_dt
 

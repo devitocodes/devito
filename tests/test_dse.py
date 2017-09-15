@@ -107,8 +107,8 @@ def tti_nodse():
 def test_tti_clusters_to_graph():
     solver = tti_operator()
 
-    nodes = FindNodes(Expression).visit(solver.op_fwd.elemental_functions +
-                                        (solver.op_fwd,))
+    nodes = FindNodes(Expression).visit(solver.op_fwd_centered.elemental_functions +
+                                        (solver.op_fwd_centered,))
     expressions = [n.expr for n in nodes]
     stencils = solver.op_fwd._retrieve_stencils(expressions)
     clusters = clusterize(expressions, stencils)
