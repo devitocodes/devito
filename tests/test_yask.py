@@ -10,6 +10,10 @@ from devito import (Operator, DenseData, TimeData, PointData,
 from devito.dle import retrieve_iteration_tree  # noqa
 from devito.yask.wrappers import YaskGrid, contexts  # noqa
 
+# For the acoustic wave test
+from examples.seismic.acoustic import AcousticWaveSolver  # noqa
+from examples.seismic import demo_model, RickerSource, Receiver  # noqa
+
 pytestmark = pytest.mark.skipif(configuration['backend'] != 'yask',
                                 reason="'yask' wasn't selected as backend on startup")
 
@@ -274,3 +278,66 @@ class TestOperatorExecution(object):
         op(yu4D=u, t=1)
         assert 'run_solution' not in str(op)
         assert all(np.all(u.data[1, :, :, i] == 3 - i) for i in range(4))
+
+
+class TestOperatorRealAcoustic(object):
+
+    """
+    Test the acoustic wave model through YASK.
+
+    This test is very similar to the one in test_adjointA.
+    """
+
+    presets = {
+        'constant': {'preset': 'constant'},
+        'layers': {'preset': 'layers', 'ratio': 3},
+    }
+
+    @pytest.mark.parametrize('mkey, dimensions, time_order, space_order, nbpml', [
+        # 3D tests with varying space orders
+        pytest.mark.xfail(('layers', (60, 70, 80), 2, 4, 10)),
+        pytest.mark.xfail(('layers', (60, 70, 80), 2, 8, 10)),
+    ])
+    def test_acoustic(self, mkey, dimensions, time_order, space_order, nbpml):
+        t0 = 0.0  # Start time
+        tn = 500.  # Final time
+        nrec = 130  # Number of receivers
+
+        # Create model from preset
+        model = demo_model(spacing=[15. for _ in dimensions],
+                           shape=dimensions, nbpml=nbpml, **(self.presets[mkey]))
+
+        # Derive timestepping from model spacing
+        dt = model.critical_dt * (1.73 if time_order == 4 else 1.0)
+        nt = int(1 + (tn-t0) / dt)  # Number of timesteps
+        time_values = np.linspace(t0, tn, nt)  # Discretized time axis
+
+        # Define source geometry (center of domain, just below surface)
+        src = RickerSource(name='src', ndim=model.dim, f0=0.01, time=time_values)
+        src.coordinates.data[0, :] = np.array(model.domain_size) * .5
+        src.coordinates.data[0, -1] = 30.
+
+        # Define receiver geometry (same as source, but spread across x)
+        rec = Receiver(name='nrec', ntime=nt, npoint=nrec, ndim=model.dim)
+        rec.coordinates.data[:, 0] = np.linspace(0., model.domain_size[0], num=nrec)
+        rec.coordinates.data[:, 1:] = src.coordinates.data[0, 1:]
+
+        # Create solver object to provide relevant operators
+        solver = AcousticWaveSolver(model, source=src, receiver=rec,
+                                    time_order=time_order,
+                                    space_order=space_order)
+
+        # Create adjoint receiver symbol
+        srca = Receiver(name='srca', ntime=solver.source.nt,
+                        coordinates=solver.source.coordinates.data)
+
+        # Run forward and adjoint operators
+        rec, _, _ = solver.forward(save=False)
+        solver.adjoint(rec=rec, srca=srca)
+
+        # Adjoint test: Verify <Ax,y> matches  <x, A^Ty> closely
+        term1 = np.dot(srca.data.reshape(-1), solver.source.data)
+        term2 = np.linalg.norm(rec.data) ** 2
+        info('<Ax,y>: %f, <x, A^Ty>: %f, difference: %12.12f, ratio: %f'
+             % (term1, term2, term1 - term2, term1 / term2))
+        assert np.isclose(term1, term2, rtol=1.e-5)
