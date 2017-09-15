@@ -34,22 +34,32 @@ class YaskGrid(object):
     # Force __rOP__ methods (OP={add,mul,...) to get arrays, not scalars, for efficiency
     __array_priority__ = 1000
 
-    def __init__(self, grid, dimensions, shape, halo, dtype):
+    def __init__(self, grid, shape, radius, dtype):
         """
         Initialize a new :class:`YaskGrid`.
         """
         self.grid = grid
-        self.dimensions = dimensions
         self.shape = shape
-        self.halo = halo
         self.dtype = dtype
 
-        # Initialize the grid content to 0.
-        self._reset()
+        # Set up halo sizes
+        self.halo = [0 if i == namespace['time-dim'] else radius
+                     for i in self.dimensions]
+
+        # Allocate memory in YASK-land and initialize it to 0
+        # The following is_storage_allocated check is needed because of self.with_halo
+        if not self.is_storage_allocated():
+            for i, j in zip(self.dimensions, shape):
+                if i == namespace['time-dim']:
+                    assert self.grid.is_dim_used(i)
+                    self.grid.set_alloc_size(i, j)
+                else:
+                    self.grid.set_halo_size(i, radius)
+            self.grid.alloc_storage()
+            self._reset()
 
     def __getitem__(self, index):
-        # TODO: ATM, no MPI support.
-        start, stop, shape = convert_multislice(index, self.shape, self.halo)
+        start, stop, shape = convert_multislice(index, self.shape, self._offsets)
         if not shape:
             log("YaskGrid: Getting single entry %s" % str(start))
             assert start == stop
@@ -61,8 +71,7 @@ class YaskGrid(object):
         return out
 
     def __setitem__(self, index, val):
-        # TODO: ATM, no MPI support.
-        start, stop, shape = convert_multislice(index, self.shape, self.halo, 'set')
+        start, stop, shape = convert_multislice(index, self.shape, self._offsets, 'set')
         if all(i == 1 for i in shape):
             log("YaskGrid: Setting single entry %s" % str(start))
             assert start == stop
@@ -126,6 +135,25 @@ class YaskGrid(object):
         Reset grid value to 0.
         """
         self[:] = 0.0
+
+    @property
+    def _offsets(self):
+        offsets = []
+        for i, j in zip(self.dimensions, self.halo):
+            ofs = 0 if i == namespace['time-dim'] else self.get_first_rank_alloc_index(i)
+            ofs += j
+            offsets.append(ofs)
+        return offsets
+
+    @property
+    def with_halo(self):
+        """
+        Return a new wrapper to self's YASK grid in which the halo has been
+        unmasked. This allows the caller to write/read the halo region as well as
+        the domain.
+        """
+        shape = [i + 2*j for i, j in zip(self.shape, self.halo)]
+        return YaskGrid(self.grid, shape, 0, self.dtype)
 
     @property
     def name(self):

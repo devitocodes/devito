@@ -52,7 +52,7 @@ def make_grid_accesses(node):
     return Transformer(mapper).visit(node)
 
 
-def convert_multislice(multislice, shape, halo, mode='get'):
+def convert_multislice(multislice, shape, offsets, mode='get'):
     """
     Convert a multislice into a format suitable to YASK's get_elements_{...}
     and set_elements_{...} grid routines.
@@ -98,13 +98,33 @@ def convert_multislice(multislice, shape, halo, mode='get'):
         if isinstance(v, slice):
             if v.step is not None:
                 raise NotImplementedError("Unsupported stepping != 1.")
-            cstart.append(normalize_index(v.start if v.start is not None else 0, shape))
-            cstop.append(normalize_index(v.stop if v.stop is not None else shape[i],
-                                         shape) - 1)
+            if v.start is None:
+                start = 0
+            elif v.start < 0:
+                start = shape[i] + v.start
+            else:
+                start = v.start
+            cstart.append(start)
+            if v.stop is None:
+                stop = shape[i] - 1
+            elif v.stop < 0:
+                stop = shape[i] + v.stop
+            else:
+                stop = v.stop
+            cstop.append(stop)
             cshape.append(cstop[-1] - cstart[-1] + 1)
         else:
-            cstart.append(normalize_index(v if v is not None else 0, shape))
-            cstop.append(normalize_index(v if v is not None else (shape[i]-1), shape))
+            if v is None:
+                start = 0
+                stop = shape[i] - 1
+            elif v < 0:
+                start = shape[i] + v
+                stop = shape[i] + v
+            else:
+                start = v
+                stop = v
+            cstart.append(start)
+            cstop.append(stop)
             if mode == 'set':
                 cshape.append(1)
 
@@ -114,15 +134,10 @@ def convert_multislice(multislice, shape, halo, mode='get'):
     cstop.extend([shape[i + j] - 1 for j in range(1, nremainder + 1)])
     cshape.extend([shape[i + j] for j in range(1, nremainder + 1)])
 
-    assert len(shape) == len(cstart) == len(cstop)
+    assert len(shape) == len(cstart) == len(cstop) == len(offsets)
 
-    # Shift by the halo size
-    cstart = [j - i for i, j in zip(halo, cstart)]
-    cstop = [j - i for i, j in zip(halo, cstop)]
+    # Shift by the specified offsets
+    cstart = [j + i for i, j in zip(offsets, cstart)]
+    cstop = [j + i for i, j in zip(offsets, cstop)]
 
     return cstart, cstop, cshape
-
-
-def normalize_index(index, shape):
-    normalized = [i if i >= 0 else j + i for i, j in zip(as_tuple(index), shape)]
-    return normalized[0] if len(normalized) == 1 else normalized
