@@ -130,6 +130,10 @@ class YaskGrid(object):
         return self.grid.get_name()
 
     @property
+    def dimensions(self):
+        return self.grid.get_dim_names()
+
+    @property
     def ndpointer(self):
         """Return a :class:`numpy.ndarray` view of the grid content."""
         ctype = numpy_to_ctypes(self.dtype)
@@ -143,6 +147,17 @@ class YaskGrid(object):
     @property
     def rawpointer(self):
         return ctypes.cast(int(self.grid), ctypes.c_void_p)
+
+    def give_storage(self, target):
+        """
+        Share self's storage with ``target``.
+        """
+        for i in self.dimensions:
+            if i == namespace['time-dim']:
+                target.set_alloc_size(i, self.get_alloc_size(i))
+            else:
+                target.set_halo_size(i, self.get_halo_size(i))
+        target.share_storage(self.grid)
 
     def view(self):
         """

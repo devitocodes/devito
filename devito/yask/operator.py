@@ -172,9 +172,9 @@ class Operator(OperatorRunnable):
 
         # Share the grids from the hook solution
         for kgrid in self.ksoln.grids:
-            hgrid = self.context.grids[kgrid.get_name()].grid
-            kgrid.share_storage(hgrid)
-            log("Shared storage from hook grid <%s>" % hgrid.get_name())
+            hgrid = self.context.grids[kgrid.get_name()]
+            hgrid.give_storage(kgrid)
+            log("Shared storage from hook grid <%s>" % hgrid.name)
 
         # Print some info about the solution.
         log("Stencil-solution '%s':" % self.ksoln.name)
