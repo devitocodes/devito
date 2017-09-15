@@ -1,7 +1,7 @@
 import devito.interfaces as interfaces
 
 from devito.yask import exit
-from devito.yask.wrappers import yask_context
+from devito.yask.wrappers import contexts
 
 __all__ = ['ConstantData', 'DenseData', 'TimeData']
 
@@ -21,11 +21,14 @@ class DenseData(interfaces.DenseData):
     def _allocate_memory(self):
         """Allocate memory in terms of YASK grids."""
 
+        # TODO: YASK assumes that self.shape == "domain_size" (in YASK jargon)
+        # This is exactly how Devito will work too once the Grid abstraction lands
+
         # Fetch the appropriate context
-        context = yask_context(self.indices, self.shape, self.dtype, self.space_order)
+        dimensions = tuple(i.name for i in self.indices)
+        context = contexts.fetch(dimensions, self.shape, self.dtype)
 
         # Only create a YaskGrid if the requested grid is dense
-        dimensions = tuple(i.name for i in self.indices)
         # TODO : following check fails if not using BufferedDimension ('time' != 't')
         if dimensions in [context.dimensions, context.space_dimensions]:
             self._data_object = context.make_grid(self.name, dimensions, self.shape,
