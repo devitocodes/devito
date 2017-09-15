@@ -51,7 +51,7 @@ def acoustic_setup(dimensions=(50, 50, 50), spacing=(15.0, 15.0, 15.0),
 
 
 def run(dimensions=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=1000.0,
-        time_order=2, space_order=4, nbpml=40, full_run=False,
+        time_order=2, space_order=4, nbpml=40, full_run=True,
         autotune=False, **kwargs):
 
     solver = acoustic_setup(dimensions=dimensions, spacing=spacing,
