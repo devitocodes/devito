@@ -6,8 +6,9 @@ import pytest  # noqa
 pexpect = pytest.importorskip('yask_compiler')  # Run only if YASK is available
 
 from devito import (Operator, DenseData, TimeData, PointData,
-                    t, x, y, z, configuration, clear_cache)  # noqa
-from devito.yask.wrappers import YaskGrid  # noqa
+                    t, x, y, z, configuration, clear_cache, info)  # noqa
+from devito.dle import retrieve_iteration_tree  # noqa
+from devito.yask.wrappers import YaskGrid, contexts  # noqa
 
 pytestmark = pytest.mark.skipif(configuration['backend'] != 'yask',
                                 reason="'yask' wasn't selected as backend on startup")
@@ -111,7 +112,7 @@ class TestGrids(object):
 class TestOperatorExecution(object):
 
     """
-    Test execution of Operators through YASK.
+    Test execution of "toy" Operators through YASK.
     """
 
     @classmethod
@@ -121,8 +122,9 @@ class TestOperatorExecution(object):
     @pytest.mark.parametrize("space_order", [0, 1, 2])
     def test_increasing_halo_wo_ofs(self, space_order):
         """
-        Use the trivial equation ``u[t+1,x,y,z] = u[t,x,y,z] + 1`` to check
-        that increasing space orders lead to proportionately larger halo regions.
+        Apply the trivial equation ``u[t+1,x,y,z] = u[t,x,y,z] + 1`` and check
+        that increasing space orders lead to proportionately larger halo regions,
+        which are *not* written by the Operator.
         For example, with ``space_order = 0``, produce (in 2D view):
 
             1 1 1 ... 1 1
@@ -133,23 +135,31 @@ class TestOperatorExecution(object):
 
         With ``space_order = 1``, produce:
 
-            0 0 0 ... 0 0
-            0 1 1 ... 1 0
-            0 1 1 ... 1 0
-            0 1 1 ... 1 0
-            0 0 0 ... 0 0
+            0 0 0 0 0 0 0 0 0
+            0 1 1 1 ... 1 1 0
+            0 1 1 1 ... 1 1 0
+            0 1 1 1 ... 1 1 0
+            0 1 1 1 ... 1 1 0
+            0 1 1 1 ... 1 1 0
+            0 0 0 0 0 0 0 0 0
 
         And so on and so forth.
         """
         u = TimeData(name='yu4D', shape=(16, 16, 16), dimensions=(x, y, z),
                      space_order=space_order)
+        u.data.with_halo[:] = 0.
         op = Operator(Eq(u.forward, u + 1.), subs={t.spacing: 1})
         op(yu4D=u, t=1)
-        lbound, rbound = space_order, 16 - space_order
-        written_region = u.data[1, lbound:rbound, lbound:rbound, lbound:rbound]
-        assert np.all(written_region == 1.)
+        assert 'run_solution' in str(op)
+        # Chech that the domain size has actually been written to
+        assert np.all(u.data[1] == 1.)
+        # Check that the halo planes are still 0
+        assert all(np.all(u.data.with_halo[1, i, :, :] == 0) for i in range(space_order))
+        assert all(np.all(u.data.with_halo[1, :, i, :] == 0) for i in range(space_order))
+        assert all(np.all(u.data.with_halo[1, :, :, i] == 0) for i in range(space_order))
 
-    def test_fixed_halo_w_ofs(self):
+    @pytest.mark.parametrize("space_order", [2])
+    def test_fixed_halo_w_ofs(self, space_order):
         """
         Compute an N-point stencil sum, where N is the number of points sorrounding
         an inner (i.e., non-border) grid point.
@@ -161,16 +171,38 @@ class TestOperatorExecution(object):
             1 4 4 ... 4 1
             1 1 1 ... 1 1
         """
-        space_order = 2
         v = TimeData(name='yv4D', shape=(16, 16, 16), dimensions=(x, y, z),
                      space_order=space_order)
-        v.data[:] = 1.
+        v.data.with_halo[:] = 1.
         op = Operator(Eq(v.forward, v.laplace + 6*v),
                       subs={t.spacing: 1, x.spacing: 1, y.spacing: 1, z.spacing: 1})
         op(yv4D=v, t=1)
-        lbound, rbound = space_order, 16 - space_order
-        written_region = v.data[1, lbound:rbound, lbound:rbound, lbound:rbound]
-        assert np.all(written_region == 6.)
+        assert 'run_solution' in str(op)
+        # Chech that the domain size has actually been written to
+        assert np.all(v.data[1] == 6.)
+        # Check that the halo planes are untouched
+        assert all(np.all(v.data.with_halo[1, i, :, :] == 1) for i in range(space_order))
+        assert all(np.all(v.data.with_halo[1, :, i, :] == 1) for i in range(space_order))
+        assert all(np.all(v.data.with_halo[1, :, :, i] == 1) for i in range(space_order))
+
+    def test_mixed_space_order(self):
+        """
+        Make sure that no matter whether data objects have different space order,
+        as long as they have same domain, the Operator will be executed correctly.
+        """
+        u = TimeData(name='yu4D', shape=(8, 8, 8), dimensions=(x, y, z), space_order=0)
+        v = TimeData(name='yv4D', shape=(8, 8, 8), dimensions=(x, y, z), space_order=1)
+        u.data.with_halo[:] = 1.
+        v.data.with_halo[:] = 2.
+        op = Operator(Eq(v.forward, u + v), subs={t.spacing: 1})
+        op(yu4D=u, yv4D=v, t=1)
+        assert 'run_solution' in str(op)
+        # Chech that the domain size has actually been written to
+        assert np.all(v.data[1] == 3.)
+        # Check that the halo planes are untouched
+        assert np.all(v.data.with_halo[1, 0, :, :] == 2)
+        assert np.all(v.data.with_halo[1, :, 0, :] == 2)
+        assert np.all(v.data.with_halo[1, :, :, 0] == 2)
 
     def test_multiple_loop_nests(self):
         """
@@ -187,11 +219,10 @@ class TestOperatorExecution(object):
         This test checks that S is the only loop nest "offloaded" to YASK, and
         that the numerical output is correct.
         """
-        space_order = 0
-        u = TimeData(name='yu4D', shape=(16, 16, 16), dimensions=(x, y, z),
-                     space_order=space_order)
-        v = TimeData(name='yv4D', shape=(16, 16, 16), dimensions=(x, y, z),
-                     space_order=space_order)
+        u = TimeData(name='yu4D', shape=(12, 12, 12), dimensions=(x, y, z),
+                     space_order=0)
+        v = TimeData(name='yv4D', shape=(12, 12, 12), dimensions=(x, y, z),
+                     space_order=0)
         v.data[:] = 0.
         eqs = [Eq(u.indexed[0, x, y, z], 0),
                Eq(u.indexed[1, x, y, z], 0),
@@ -200,6 +231,8 @@ class TestOperatorExecution(object):
                Eq(v.indexed[t + 1, 0, 5, z], v.indexed[t + 1, 0, 5, z] + 2.)]
         op = Operator(eqs, subs={t.spacing: 1})
         op(yu4D=u, yv4D=v, t=1)
+        assert 'run_solution' in str(op)
+        assert len(retrieve_iteration_tree(op)) == 3
         assert np.all(u.data[0] == 0.)
         assert np.all(u.data[1] == 1.)
         assert np.all(v.data[0] == 0.)
