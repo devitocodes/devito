@@ -469,7 +469,7 @@ class DenseData(TensorData):
                 error("Creating symbolic data objects requries either"
                       "a 'shape' or 'dimensions' argument")
                 raise ValueError("Unknown symbol dimensions or shape")
-            _indices = [x, y, z]
+            _indices = (x, y, z)
             shape = kwargs.get('shape')
             if len(shape) <= 3:
                 dimensions = _indices[:len(shape)]
