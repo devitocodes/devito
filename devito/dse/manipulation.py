@@ -10,7 +10,7 @@ from sympy import collect, collect_const, flatten
 from devito.dse.extended_sympy import Add, Eq, Mul
 from devito.dse.inspection import count, estimate_cost, retrieve_indexed
 from devito.dse.graph import temporaries_graph
-from devito.dse.queries import q_indexed, q_op
+from devito.dse.queries import q_indexed, q_op, q_leaf
 from devito.interfaces import Indexed, TensorFunction
 from devito.tools import as_tuple
 
@@ -254,9 +254,6 @@ def common_subexprs_elimination(exprs, make, mode='default'):
     mapper = {i.lhs: j.lhs for i, j in zip(mapped, reversed(mapped))}
     processed = [e.xreplace(mapper) for e in processed]
 
-    # Some temporaries may be droppable at this point
-    processed = compact_temporaries(processed)
-
     return processed
 
 
@@ -266,13 +263,13 @@ def compact_temporaries(exprs):
     """
     g = temporaries_graph(exprs)
 
-    mapper = {list(v.reads)[0]: k for k, v in g.items() if v.is_dead}
+    mapper = {k: v.rhs for k, v in g.items()
+              if v.is_scalar and (q_leaf(v.rhs) or v.rhs.is_Function)}
 
     processed = []
     for k, v in g.items():
-        if k in mapper:
-            processed.append(Eq(mapper[k], v.rhs))
-        elif not v.is_dead:
+        if k not in mapper:
+            # The temporary /v/ is retained, and substitutions may be applied
             processed.append(v.xreplace(mapper))
 
     return processed
