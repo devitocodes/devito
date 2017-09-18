@@ -153,27 +153,35 @@ class Operator(OperatorRunnable):
             except AttributeError:
                 pass
         for i in self.parameters:
+            # Assign the yk::yk_grid pointers
             obj = shadow_kwargs.get(i.name)
             if i.is_PtrArgument and obj is not None:
                 assert(i.verify(obj.data.rawpointer))
+
+        # Also need to update this Operator's grids by sharing user-provided data
+        for i in self.parameters:
+            obj = kwargs.get(i.name)
+            if obj is not None and obj.from_YASK:
+                kgrid = self.yk_soln.grids.get(i.name)
+                if kgrid is not None:
+                    obj.data.give_storage(kgrid)
+                else:
+                    # A YaskGrid read/written by this Operator but not appearing
+                    # in the offloaded YASK kernel (if any)
+                    pass
+
         return super(Operator, self).arguments(**kwargs)
 
     def apply(self, **kwargs):
         # Build the arguments list to invoke the kernel function
         arguments, dim_sizes = self.arguments(**kwargs)
 
-        # Share the grids from the hook solution
-        for kgrid in self.yk_soln.grids:
-            hgrid = self.context.grids[kgrid.get_name()]
-            hgrid.give_storage(kgrid)
-            log("Shared storage from hook grid <%s>" % hgrid.name)
-
         # Print some info about the solution.
         log("Stencil-solution '%s':" % self.yk_soln.name)
         log("  Step dimension: %s" % self.context.time_dimension)
         log("  Domain dimensions: %s" % str(self.context.space_dimensions))
         log("  Grids:")
-        for grid in self.yk_soln.grids:
+        for grid in self.yk_soln.grids.values():
             pad = str([grid.get_pad_size(i) for i in self.context.space_dimensions])
             log("    %s%s, pad=%s" % (grid.get_name(), str(grid.get_dim_names()), pad))
 
@@ -235,10 +243,8 @@ class sympy2yask(object):
             elif isinstance(expr, Indexed):
                 function = expr.base.function
                 name = function.name
-                if name not in self.context.grids:
-                    function.data  # Create uninitialized grid (i.e., 0.0 everywhere)
                 if name not in self.mapper:
-                    dimensions = self.context.grids[name].get_dim_names()
+                    dimensions = [str(i) for i in function.indices]
                     self.mapper[name] = self.yc_soln.new_grid(name, dimensions)
                 indices = [int((i.origin if isinstance(i, LoweredDimension) else i) - j)
                            for i, j in zip(expr.indices, function.indices)]

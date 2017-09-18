@@ -267,8 +267,9 @@ class YaskKernel(object):
         for k, v in domain.items():
             self.soln.set_rank_domain_size(k, v)
 
-    def new_grid(self, name, dimensions):
-        return self.soln.new_grid(name, *dimensions)
+    def new_grid(self, obj_name, grid_name, dimensions):
+        """Create a new YASK grid."""
+        return self.soln.new_grid(grid_name, *dimensions)
 
     def prepare(self):
         self.soln.prepare_solution()
@@ -286,7 +287,7 @@ class YaskKernel(object):
 
     @property
     def grids(self):
-        return self.soln.get_grids()
+        return {i.get_name(): i for i in self.soln.get_grids()}
 
     @property
     def rawpointer(self):
@@ -343,17 +344,20 @@ class YaskContext(object):
     def ngrids(self):
         return len(self.grids)
 
-    def make_grid(self, name, dimensions, shape, radius, dtype):
+    def make_grid(self, obj):
         """
-        Create and return a new :class:`YaskGrid`, which wraps a YASK grid.
+        Create and return a new :class:`YaskGrid`, a YASK grid wrapper. Memory
+        is allocated.
 
-        Memory is allocated immediately.
+        :param obj: The symbolic data object for which a YASK grid is allocated.
         """
-        if name in self.grids:
-            exit("Grids must have unique name within a context")
-        log("Allocating YaskGrid for %s (%s)" % (name, str(shape)))
-        grid = self.yk_hook.new_grid(name, dimensions)
-        wrapper = YaskGrid(grid, shape, radius, dtype)
+        dimensions = [str(i) for i in obj.indices]
+        if set(dimensions) < set(self.space_dimensions):
+            exit("Need a DenseData[x,y,z] to create a YASK grid.")
+        name = 'devito_%s_%d' % (obj.name, contexts.ngrids)
+        log("Allocating YaskGrid for %s (%s)" % (obj.name, str(obj.shape)))
+        grid = self.yk_hook.new_grid(obj.name, name, dimensions)
+        wrapper = YaskGrid(grid, obj.shape, obj.space_order, obj.dtype)
         self.grids[name] = wrapper
         return wrapper
 
@@ -428,6 +432,10 @@ class ContextManager(OrderedDict):
             log("Context successfully created!")
         return self[key]
 
+    @property
+    def ngrids(self):
+        return sum(i.ngrids for i in self.values())
+
 
 contexts = ContextManager()
 """All known YASK contexts."""
@@ -450,7 +458,7 @@ class YaskNullSolution(object):
 
     @property
     def grids(self):
-        return ()
+        return {}
 
 
 class YaskNullContext(object):
