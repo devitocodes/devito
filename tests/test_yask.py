@@ -162,6 +162,20 @@ class TestOperatorExecution(object):
         assert all(np.all(u.data.with_halo[1, :, i, :] == 0) for i in range(space_order))
         assert all(np.all(u.data.with_halo[1, :, :, i] == 0) for i in range(space_order))
 
+    def test_increasing_multi_steps(self):
+        """
+        Apply the trivial equation ``u[t+1,x,y,z] = u[t,x,y,z] + 1`` for 11
+        timesteps and check that all grid domain values are equal to 11 within
+        ``u[1]`` and equal to 10 within ``u[0]``.
+        """
+        u = TimeData(name='yu4D', shape=(8, 8, 8), dimensions=(x, y, z), space_order=0)
+        u.data.with_halo[:] = 0.
+        op = Operator(Eq(u.forward, u + 1.), subs={t.spacing: 1})
+        op(yu4D=u, t=12)
+        assert 'run_solution' in str(op)
+        assert np.all(u.data[0] == 10.)
+        assert np.all(u.data[1] == 11.)
+
     @pytest.mark.parametrize("space_order", [2])
     def test_fixed_halo_w_ofs(self, space_order):
         """
