@@ -6,13 +6,13 @@ import pytest  # noqa
 pexpect = pytest.importorskip('yask_compiler')  # Run only if YASK is available
 
 from devito import (Operator, DenseData, TimeData, PointData,
-                    t, x, y, z, configuration, clear_cache, info)  # noqa
+                    time, t, x, y, z, configuration, clear_cache, info)  # noqa
 from devito.dle import retrieve_iteration_tree  # noqa
 from devito.yask.wrappers import YaskGrid, contexts  # noqa
 
 # For the acoustic wave test
 from examples.seismic.acoustic import AcousticWaveSolver  # noqa
-from examples.seismic import demo_model, RickerSource, Receiver  # noqa
+from examples.seismic import demo_model, PointSource, RickerSource, Receiver  # noqa
 
 pytestmark = pytest.mark.skipif(configuration['backend'] != 'yask',
                                 reason="'yask' wasn't selected as backend on startup")
@@ -113,7 +113,7 @@ class TestGrids(object):
         assert np.all(arr - u.data == -1.)
 
 
-class TestOperatorExecution(object):
+class TestOperatorSimple(object):
 
     """
     Test execution of "toy" Operators through YASK.
@@ -294,7 +294,7 @@ class TestOperatorExecution(object):
         assert all(np.all(u.data[1, :, :, i] == 3 - i) for i in range(4))
 
 
-class TestOperatorRealAcoustic(object):
+class TestOperatorAcoustic(object):
 
     """
     Test the acoustic wave model through YASK.
@@ -307,51 +307,104 @@ class TestOperatorRealAcoustic(object):
         'layers': {'preset': 'layers', 'ratio': 3},
     }
 
-    @pytest.mark.parametrize('mkey, dimensions, time_order, space_order, nbpml', [
-        # 3D tests with varying space orders
-        pytest.mark.xfail(('layers', (60, 70, 80), 2, 4, 10)),
-        pytest.mark.xfail(('layers', (60, 70, 80), 2, 8, 10)),
-    ])
-    def test_acoustic(self, mkey, dimensions, time_order, space_order, nbpml):
+    @pytest.fixture
+    def model(self):
+        shape = (60, 70, 80)
+        nbpml = 10
+        mkey = 'layers'
+        return demo_model(spacing=[15, 15, 15], shape=shape, nbpml=nbpml,
+                          preset='layers', ratio=3)
+
+    @pytest.fixture
+    def time_params(self, model):
+        # Derive timestepping from model spacing
         t0 = 0.0  # Start time
         tn = 500.  # Final time
-        nrec = 130  # Number of receivers
-
-        # Create model from preset
-        model = demo_model(spacing=[15. for _ in dimensions],
-                           shape=dimensions, nbpml=nbpml, **(self.presets[mkey]))
-
-        # Derive timestepping from model spacing
-        dt = model.critical_dt * (1.73 if time_order == 4 else 1.0)
+        dt = model.critical_dt
         nt = int(1 + (tn-t0) / dt)  # Number of timesteps
-        time_values = np.linspace(t0, tn, nt)  # Discretized time axis
+        return t0, tn, nt
 
+    @pytest.fixture
+    def m(self, model):
+        return model.m
+
+    @pytest.fixture
+    def damp(self, model):
+        return model.damp
+
+    @pytest.fixture
+    def u(self, model):
+        space_order = 4
+        time_order = 2
+        return TimeData(name='u', shape=model.shape_domain, dimensions=(x, y, z),
+                        space_order=space_order, time_order=time_order)
+
+    @pytest.fixture
+    def stencil(self, m, damp, u):
+        s = t.spacing
+        stencil = 1.0 / (2.0 * m + s * damp) * (
+            4.0 * m * u + (s * damp - 2.0 * m) * u.backward +
+            2.0 * s**2 * u.laplace)
+        return stencil
+
+    @pytest.fixture
+    def src(self, model, time_params):
+        dt = model.critical_dt
+        time_values = np.linspace(*time_params)  # Discretized time axis
         # Define source geometry (center of domain, just below surface)
         src = RickerSource(name='src', ndim=model.dim, f0=0.01, time=time_values)
         src.coordinates.data[0, :] = np.array(model.domain_size) * .5
         src.coordinates.data[0, -1] = 30.
+        return src
 
-        # Define receiver geometry (same as source, but spread across x)
-        rec = Receiver(name='nrec', ntime=nt, npoint=nrec, ndim=model.dim)
+    @pytest.fixture
+    def rec(self, model, time_params, src):
+        nrec = 130  # Number of receivers
+        t0, tn, nt = time_params
+        rec = Receiver(name='rec', ntime=nt, npoint=nrec, ndim=model.dim)
         rec.coordinates.data[:, 0] = np.linspace(0., model.domain_size[0], num=nrec)
         rec.coordinates.data[:, 1:] = src.coordinates.data[0, 1:]
+        return rec
 
-        # Create solver object to provide relevant operators
-        solver = AcousticWaveSolver(model, source=src, receiver=rec,
-                                    time_order=time_order,
-                                    space_order=space_order)
+    @pytest.fixture
+    def subs(self, model, u):
+        dt = model.critical_dt
+        return dict([(t.spacing, dt)] + [(time.spacing, dt)] +
+                    [(i.spacing, model.get_spacing()[j]) for i, j
+                     in zip(u.indices[1:], range(len(model.shape)))])
 
-        # Create adjoint receiver symbol
-        srca = Receiver(name='srca', ntime=solver.source.nt,
-                        coordinates=solver.source.coordinates.data)
+    def test_acoustic_wo_src_wo_rec(self, model, stencil, subs, m, damp, u):
+        """
+        Test that the acoustic wave equation runs without crashing in absence
+        of sources and receivers.
+        """
+        u.data[:] = 0.0
+        eqn = [Eq(u.forward, stencil)]
+        op = Operator(eqn, subs=subs)
+        op.apply(u=u, m=m, damp=damp, t=10)
 
-        # Run forward and adjoint operators
-        rec, _, _ = solver.forward(save=False)
-        solver.adjoint(rec=rec, srca=srca)
+    def test_acoustic_w_src_wo_rec(self, model, stencil, subs, m, damp, u, src):
+        """
+        Test that the acoustic wave equation runs without crashing in absence
+        of receivers.
+        """
+        dt = model.critical_dt
+        u.data[:] = 0.0
+        eqns = [Eq(u.forward, stencil)]
+        eqns += src.inject(field=u.forward, expr=src * dt**2 / m, offset=model.nbpml)
+        op = Operator(eqns, subs=subs)
+        op.apply(u=u, m=m, damp=damp, src=src, t=1)
 
-        # Adjoint test: Verify <Ax,y> matches  <x, A^Ty> closely
-        term1 = np.dot(srca.data.reshape(-1), solver.source.data)
-        term2 = np.linalg.norm(rec.data) ** 2
-        info('<Ax,y>: %f, <x, A^Ty>: %f, difference: %12.12f, ratio: %f'
-             % (term1, term2, term1 - term2, term1 / term2))
-        assert np.isclose(term1, term2, rtol=1.e-5)
+    def test_acoustic_w_src_w_rec(self, model, stencil, subs, m, damp, u, src, rec):
+        """
+        Test that the acoustic wave equation forward operator produces the correct
+        results when running the same model as in ``test_adjointA.py``.
+        """
+        dt = model.critical_dt
+        u.data[:] = 0.0
+        eqns = [Eq(u.forward, stencil)]
+        eqns += src.inject(field=u.forward, expr=src * dt**2 / m, offset=model.nbpml)
+        eqns += rec.interpolate(expr=u, offset=model.nbpml)
+        op = Operator(eqns, subs=subs)
+        op.apply(u=u, m=m, damp=damp, src=src, rec=rec, t=1)
+        from IPython import embed; embed()
