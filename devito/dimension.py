@@ -32,6 +32,10 @@ class Dimension(Symbol, DimensionArgProvider):
         """The symbolic size of this dimension."""
         return self.rtargs[0].as_symbol
 
+    @property
+    def size(self):
+        return None
+
 
 class FixedDimension(FixedDimensionArgProvider, Dimension):
 
@@ -43,13 +47,21 @@ class FixedDimension(FixedDimensionArgProvider, Dimension):
 
     def __new__(cls, name, **kwargs):
         newobj = super(FixedDimension, cls).__new__(cls, name)
-        newobj.size = kwargs.get('size', None)
+        newobj._size = kwargs.get('size', None)
         return newobj
 
     @property
     def symbolic_size(self):
         """The symbolic size of this dimension."""
         return Number(self.size)
+
+    @property
+    def size(self):
+        return self._size
+
+    @size.setter
+    def size(self, value):
+        self._size = value
 
 
 class BufferedDimension(Dimension):
