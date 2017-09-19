@@ -402,7 +402,7 @@ def ForwardOperator(model, source, receiver, time_order=2, space_order=4,
     second_stencil = Eq(v.forward, stencilr)
     stencils = [first_stencil, second_stencil]
 
-    # SOurce and receivers
+    # Source and receivers
     stencils += src.inject(field=u.forward, expr=src * dt * dt / m,
                            offset=model.nbpml)
     stencils += src.inject(field=v.forward, expr=src * dt * dt / m,

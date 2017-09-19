@@ -19,7 +19,7 @@ def demo_model(preset, **kwargs):
                     filepath. Requires the ``opesci/data`` repository
                     to be available on your machine.
     """
-    if preset.lower() in ['constant']:
+    if preset.lower() in ['constant-isotropic']:
         # A constant single-layer model in a 2D or 3D domain
         # with velocity 1.5km/s.
         shape = kwargs.pop('shape', (101, 101))
@@ -52,7 +52,8 @@ def demo_model(preset, **kwargs):
                      epsilon=epsilon, delta=delta, theta=theta, phi=phi,
                      **kwargs)
 
-    elif preset.lower() in ['layers', 'twolayer', '2layer']:
+    elif preset.lower() in ['layers-isotropic', 'twolayer-isotropic',
+                            '2layer-isotropic']:
         # A two-layer model in a 2D or 3D domain with two different
         # velocities split across the height dimension:
         # By default, the top part of the domain has 1.5 km/s,
@@ -103,7 +104,7 @@ def demo_model(preset, **kwargs):
                      epsilon=epsilon, delta=delta, theta=theta, phi=phi,
                      **kwargs)
 
-    elif preset.lower() in ['circle']:
+    elif preset.lower() in ['circle-isotropic']:
         # A simple circle in a 2D domain with a background velocity.
         # By default, the circle velocity is 2.5 km/s,
         # and the background veloity is 3.0 km/s.
@@ -128,7 +129,7 @@ def demo_model(preset, **kwargs):
         return Model(vp=v, origin=origin, shape=shape,
                      spacing=spacing, nbpml=nbpml)
 
-    elif preset.lower() in ['marmousi', 'marmousi2d']:
+    elif preset.lower() in ['marmousi-isotropic', 'marmousi2d-isotropic']:
         shape = (1601, 401)
         spacing = (7.5, 7.5)
         origin = (0., 0.)
