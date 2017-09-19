@@ -9,8 +9,8 @@ from examples.seismic.acoustic import AcousticWaveSolver
 
 
 presets = {
-    'constant': {'preset': 'constant'},
-    'layers': {'preset': 'layers', 'ratio': 3},
+    'constant': {'preset': 'constant-isotropic'},
+    'layers': {'preset': 'layers-isotropic', 'ratio': 3},
 }
 
 

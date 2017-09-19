@@ -17,7 +17,7 @@ def test_acousticJ(dimensions, space_order):
     spacing = [15. for _ in dimensions]
 
     # Create two-layer "true" model from preset with a fault 1/3 way down
-    model = demo_model('layers', ratio=3, vp_top=1.5, vp_bottom=2.5,
+    model = demo_model('layers-isotropic', ratio=3, vp_top=1.5, vp_bottom=2.5,
                        spacing=spacing, shape=dimensions, nbpml=nbpml)
 
     # Derive timestepping from model spacing
@@ -40,7 +40,7 @@ def test_acousticJ(dimensions, space_order):
                                 time_order=2, space_order=space_order)
 
     # Create initial model (m0) with a constant velocity throughout
-    model0 = demo_model('layers', ratio=3, vp_top=1.5, vp_bottom=1.5,
+    model0 = demo_model('layers-isotropic', ratio=3, vp_top=1.5, vp_bottom=1.5,
                         spacing=spacing, shape=dimensions, nbpml=nbpml)
 
     # Compute the full wavefield u0

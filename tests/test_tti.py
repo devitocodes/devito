@@ -30,7 +30,7 @@ def test_tti(dimensions, space_order):
     receiver_coords[:, 1:] = location[0, 1:]
 
     # Two layer model for true velocity
-    model = demo_model('layers', ratio=3, shape=dimensions,
+    model = demo_model('layers-isotropic', ratio=3, shape=dimensions,
                        spacing=spacing, nbpml=nbpml,
                        epsilon=np.zeros(dimensions),
                        delta=np.zeros(dimensions),
