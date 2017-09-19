@@ -28,7 +28,7 @@ def run_acoustic_forward(dse=None):
     tn = 250.0
 
     # Create two-layer model from preset
-    model = demo_model(preset='layers', vp_top=3., vp_bottom=4.5,
+    model = demo_model(preset='layers-isotropic', vp_top=3., vp_bottom=4.5,
                        spacing=spacing, shape=dimensions, nbpml=nbpml)
 
     # Derive timestepping from model spacing
@@ -71,12 +71,8 @@ def tti_operator(dse=False):
     spacing = (20., 20., 20.)
 
     # Two layer model for true velocity
-    model = demo_model('layers', ratio=3, nbpml=nbpml,
-                       shape=dimensions, spacing=spacing,
-                       epsilon=.4*np.ones(dimensions),
-                       delta=-.1*np.ones(dimensions),
-                       theta=-np.pi/7*np.ones(dimensions),
-                       phi=np.pi/5*np.ones(dimensions))
+    model = demo_model('layerstti', ratio=3, nbpml=nbpml,
+                       shape=dimensions, spacing=spacing)
 
     # Derive timestepping from model spacing
     dt = model.critical_dt
