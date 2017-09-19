@@ -230,7 +230,7 @@ class YaskKernel(object):
         # JIT-compile it
         try:
             make(os.environ['YASK_HOME'], ['-j', 'YK_CXXOPT=-O0',
-                                           "EXTRA_MACROS=TRACE",
+                                           # "EXTRA_MACROS=TRACE",
                                            'YK_BASE=%s' % str(name),
                                            'stencil=%s' % yc_soln.get_name(),
                                            '-C', namespace['kernel-path'], 'api'])
