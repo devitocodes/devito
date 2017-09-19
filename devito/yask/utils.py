@@ -21,14 +21,14 @@ def make_grid_accesses(node):
     """
 
     def make_grid_gets(expr):
+        mapper = {}
         indexeds = retrieve_indexed(expr)
         data_carriers = [i for i in indexeds if i.base.function.from_YASK]
         for i in data_carriers:
             name = namespace['code-grid-name'](i.base.function.name)
             args = [INT(make_grid_gets(j)) for j in i.indices]
-            handle = make_sharedptr_funcall(namespace['code-grid-get'], args, name)
-            expr = expr.xreplace({i: handle})
-        return expr
+            mapper[i] = make_sharedptr_funcall(namespace['code-grid-get'], args, name)
+        return expr.xreplace(mapper)
 
     mapper = {}
     for i, e in enumerate(FindNodes(Expression).visit(node)):
