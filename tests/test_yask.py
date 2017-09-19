@@ -6,7 +6,7 @@ import pytest  # noqa
 pexpect = pytest.importorskip('yask_compiler')  # Run only if YASK is available
 
 from devito import (Operator, DenseData, TimeData, PointData,
-                    time, t, x, y, z, configuration, clear_cache, info)  # noqa
+                    time, t, x, y, z, configuration, clear_cache)  # noqa
 from devito.dle import retrieve_iteration_tree  # noqa
 from devito.yask.wrappers import YaskGrid, contexts  # noqa
 
@@ -311,7 +311,6 @@ class TestOperatorAcoustic(object):
     def model(self):
         shape = (60, 70, 80)
         nbpml = 10
-        mkey = 'layers'
         return demo_model(spacing=[15, 15, 15], shape=shape, nbpml=nbpml,
                           preset='layers', ratio=3)
 
@@ -349,7 +348,6 @@ class TestOperatorAcoustic(object):
 
     @pytest.fixture
     def src(self, model, time_params):
-        dt = model.critical_dt
         time_values = np.linspace(*time_params)  # Discretized time axis
         # Define source geometry (center of domain, just below surface)
         src = RickerSource(name='src', ndim=model.dim, f0=0.01, time=time_values)
@@ -407,4 +405,4 @@ class TestOperatorAcoustic(object):
         eqns += rec.interpolate(expr=u, offset=model.nbpml)
         op = Operator(eqns, subs=subs)
         op.apply(u=u, m=m, damp=damp, src=src, rec=rec, t=1)
-        from IPython import embed; embed()
+        # TODO: come up with proper asserts, but u.data looks sane already
