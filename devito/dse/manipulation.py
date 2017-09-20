@@ -280,7 +280,9 @@ def compact_temporaries(exprs):
     for k, v in g.items():
         if k not in mapper:
             # The temporary /v/ is retained, and substitutions may be applied
-            processed.append(v.xreplace(mapper))
+            handle, _ = xreplace_constrained(v, mapper, repeat=True)
+            assert len(handle) == 1
+            processed.extend(handle)
 
     return processed
 
