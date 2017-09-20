@@ -61,7 +61,7 @@ def test_tti(dimensions, space_order):
                                   time_order=2, space_order=space_order)
     rec, u1, _ = acoustic.forward(save=False)
 
-    tn = 50.0
+    tn = 100.0
     nt = int(1 + (tn - t0) / dt)
     # Source geometry
     time_series = np.zeros((nt, 1))
@@ -73,8 +73,7 @@ def test_tti(dimensions, space_order):
                                   time_order=2, space_order=space_order)
 
     solver_tti = AnisotropicWaveSolver(model, source=source, receiver=receiver,
-                                       time_order=2, space_order=space_order,
-                                       dse='basic')
+                                       time_order=2, space_order=space_order)
 
     # Create new wavefield object restart forward computation
     u = TimeData(name='u', shape=model.shape_domain, save=False,
@@ -98,4 +97,4 @@ def test_tti(dimensions, space_order):
 
 
 if __name__ == "__main__":
-    test_tti((110, 120, 140), 4)
+    test_tti((120, 140), 4)
