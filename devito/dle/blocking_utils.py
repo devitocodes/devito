@@ -40,9 +40,13 @@ def fold_blockable_tree(node, exclude_innermost=False):
             pairwise_folds = list(zip(*reversed(trees)))
             if any(not is_foldable(j) for j in pairwise_folds):
                 continue
-            # Perform folding
+            # Maybe heuristically exclude innermost Iteration
             if exclude_innermost is True:
                 pairwise_folds = pairwise_folds[:-1]
+            # Perhaps there's nothing to fold
+            if len(pairwise_folds) == 1:
+                continue
+            # Perform folding
             for j in pairwise_folds:
                 root, remainder = j[0], j[1:]
                 folds = [(tuple(y-x for x, y in zip(i.offsets, root.offsets)), i.nodes)
