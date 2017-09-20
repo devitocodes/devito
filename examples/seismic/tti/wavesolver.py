@@ -85,6 +85,11 @@ class AnisotropicWaveSolver(object):
 
         :returns: Receiver, wavefield and performance summary
         """
+
+        # Space order needs to be halved in the shifted case to have an
+        # overall space_order discretization
+        self.space_order = self.space_order / 2 if kernel == 'shifted' \
+            else self.space_order
         # Source term is read-only, so re-use the default
         if src is None:
             src = self.source

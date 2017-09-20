@@ -11,7 +11,7 @@ def tti_setup(dimensions=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=250.0,
 
     nrec = 101
     # Two layer model for true velocity
-    model = demo_model('layerstti', shape=dimensions, spacing=spacing,
+    model = demo_model('layers-tti', shape=dimensions, spacing=spacing,
                        nbpml=nbpml)
     # Derive timestepping from model spacing
     dt = model.critical_dt
@@ -62,6 +62,8 @@ if __name__ == "__main__":
                         type=int, help="Number of PML layers around the domain")
     parser.add_argument("-k", dest="kernel", default='centered',
                         type=str, help="Choice of finite-difference kernel")
+    parser.add_argument("-dse", dest="dse", default='advanced',
+                        type=str, help="Choice of dse backend")
     args = parser.parse_args()
 
     # 3D preset parameters
@@ -76,4 +78,4 @@ if __name__ == "__main__":
 
     run(dimensions=dimensions, spacing=spacing, nbpml=args.nbpml, tn=tn,
         space_order=args.space_order, time_order=args.time_order,
-        autotune=args.autotune, dse='basic', dle='advanced', kernel=args.kernel)
+        autotune=args.autotune, dse=args.dse, dle='advanced', kernel=args.kernel)

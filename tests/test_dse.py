@@ -71,7 +71,7 @@ def tti_operator(dse=False):
     spacing = (20., 20., 20.)
 
     # Two layer model for true velocity
-    model = demo_model('layerstti', ratio=3, nbpml=nbpml,
+    model = demo_model('layers-tti', ratio=3, nbpml=nbpml,
                        shape=dimensions, spacing=spacing)
 
     # Derive timestepping from model spacing

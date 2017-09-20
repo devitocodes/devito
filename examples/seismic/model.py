@@ -31,7 +31,7 @@ def demo_model(preset, **kwargs):
         return Model(vp=vp, origin=origin, shape=shape,
                      spacing=spacing, nbpml=nbpml, **kwargs)
 
-    elif preset.lower() in ['constanttti']:
+    elif preset.lower() in ['constant-tti']:
         # A constant single-layer model in a 2D or 3D domain
         # with velocity 1.5km/s.
         shape = kwargs.pop('shape', (101, 101))
@@ -74,7 +74,7 @@ def demo_model(preset, **kwargs):
         return Model(vp=v, origin=origin, shape=shape,
                      spacing=spacing, nbpml=nbpml, **kwargs)
 
-    elif preset.lower() in ['layerstti', 'twolayertti', '2layertti']:
+    elif preset.lower() in ['layers-tti', 'twolayer-tti', '2layer-tti']:
         # A two-layer model in a 2D or 3D domain with two different
         # velocities split across the height dimension:
         # By default, the top part of the domain has 1.5 km/s,
@@ -192,7 +192,7 @@ def demo_model(preset, **kwargs):
                      epsilon=epsilon, delta=delta, theta=theta,
                      **kwargs)
 
-    elif preset.lower() in ['marmousitti3d', 'marmousi3dtti']:
+    elif preset.lower() in ['marmousi-tti3d', 'marmousi3d-tti']:
 
         dimensions = (201, 201, 70)
         spacing = (10., 10., 10.)
