@@ -105,7 +105,7 @@ def collect_nested(expr, aggressive=False):
     return run(expr)[0]
 
 
-def xreplace_constrained(exprs, make, rule, costmodel=lambda e: True, repeat=False):
+def xreplace_constrained(exprs, make, rule=None, costmodel=lambda e: True, repeat=False):
     """
     Unlike ``xreplace``, which replaces all objects specified in a mapper,
     this function replaces all objects satisfying two criteria: ::
@@ -122,28 +122,38 @@ def xreplace_constrained(exprs, make, rule, costmodel=lambda e: True, repeat=Fal
     ``a + b`` satisfies the cost model.
 
     :param exprs: The target SymPy expression, or a collection of SymPy expressions.
-    :param make: A function to construct symbols used for replacement.
-                 The function takes as input an integer ID; ID is computed internally
-                 and used as a unique identifier for the constructed symbols.
-    :param rule: The matching rule (a lambda function).
+    :param make: Either a mapper M: K -> V, indicating how to replace an expression
+                 in K with a symbol in V, or a function, used to construct new, unique
+                 symbols. Such a function should take as input a parameter, used to
+                 enumerate the new symbols.
+    :param rule: The matching rule (a lambda function). May be left unspecified if
+                 ``make`` is a mapper.
     :param costmodel: The cost model (a lambda function, optional).
     :param repeat: Repeatedly apply ``xreplace`` until no more replacements are
                    possible (optional, defaults to False).
     """
-
     found = OrderedDict()
     rebuilt = []
 
-    def replace(expr):
-        temporary = found.get(expr)
-        if temporary:
-            return temporary
-        else:
-            temporary = make(replace.c)
-            found[expr] = temporary
-            replace.c += 1
-            return temporary
-    replace.c = 0  # Unique identifier for new temporaries
+    # Define /replace()/ based on the user-provided /make/
+    if isinstance(make, dict):
+        rule = rule if rule is not None else (lambda i: i in make)
+        replace = lambda i: make[i]
+    else:
+        assert callable(make) and callable(rule)
+
+        def replace(expr):
+            if isinstance(make, dict):
+                return make[expr]
+            temporary = found.get(expr)
+            if temporary:
+                return temporary
+            else:
+                temporary = make(replace.c)
+                found[expr] = temporary
+                replace.c += 1
+                return temporary
+        replace.c = 0  # Unique identifier for new temporaries
 
     def run(expr):
         if expr.is_Atom or q_indexed(expr):
