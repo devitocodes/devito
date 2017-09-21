@@ -79,6 +79,7 @@ class YaskCompiler(configuration['compiler'].__class__):
 yask_configuration = Parameters('YASK-Configuration')
 yask_configuration.add('compiler', YaskCompiler())
 yask_configuration.add('python-exec', False, [False, True])
+yask_configuration.add('develop-mode', True, [False, True])
 # TODO: this should be somewhat sniffed
 yask_configuration.add('arch', 'snb', ['snb'])
 yask_configuration.add('isa', 'cpp', ['cpp'])

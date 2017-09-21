@@ -229,7 +229,8 @@ class YaskKernel(object):
 
         # JIT-compile it
         try:
-            make(os.environ['YASK_HOME'], ['-j', 'YK_CXXOPT=-O0',
+            opt_level = 1 if yask_configuration['develop-mode'] else 3
+            make(os.environ['YASK_HOME'], ['-j', 'YK_CXXOPT=-O%d' % opt_level,
                                            # "EXTRA_MACROS=TRACE",
                                            'YK_BASE=%s' % str(name),
                                            'stencil=%s' % yc_soln.get_name(),
