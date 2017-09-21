@@ -196,6 +196,9 @@ class Operator(OperatorRunnable):
             self.cfunction(*list(arguments.values()))
         log("YASK Operator successfully run!")
 
+        # Output summary of performance achieved
+        return self._profile_output(dim_sizes)
+
     @property
     def compile(self):
         """
