@@ -6,8 +6,8 @@ import numpy as np
 
 from devito import clear_cache
 from devito.logger import warning
-from seismic.acoustic.acoustic_example import run as acoustic_run
-from seismic.tti.tti_example import run as tti_run
+from acoustic.acoustic_example import run as acoustic_run
+from tti.tti_example import run as tti_run
 
 if __name__ == "__main__":
     description = ("Benchmarking script for seismic forward operators.\n\n" +
