@@ -105,7 +105,8 @@ def optimize(clusters):
         mapper = {}
         temporaries = []
         for k, v in c1.trace.items():
-            if v.is_tensor and not any(v.function in c2.unknown for c2 in clusters):
+            if v.function.is_TensorFunction and\
+                    not any(v.function in c2.unknown for c2 in clusters):
                 for i in c1.tensors[v.function]:
                     # LHS scalarization
                     scalarized = ScalarFunction(name='s%d' % len(mapper)).indexify()
