@@ -66,6 +66,10 @@ if __name__ == "__main__":
                         type=int, help="Space order of the simulation")
     parser.add_argument("--nbpml", default=10,
                         type=int, help="Number of PML layers around the domain")
+    parser.add_argument("-dse", default='advanced',
+                        type=str, help="DSE backend choice")
+    parser.add_argument("-dle", default='advanced',
+                        type=str, help="DLE backend choice")
     args = parser.parse_args()
 
     # 3D preset parameters
@@ -80,4 +84,4 @@ if __name__ == "__main__":
 
     run(dimensions=dimensions, spacing=spacing, nbpml=args.nbpml, tn=tn,
         space_order=args.space_order, time_order=args.time_order,
-        autotune=args.autotune, dse='advanced', dle='advanced')
+        autotune=args.autotune, dse=args.dse, dle=args.dle)

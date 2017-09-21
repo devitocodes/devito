@@ -77,6 +77,8 @@ def run(dimensions=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=1000.0,
 if __name__ == "__main__":
     description = ("Example script for a set of acoustic operators.")
     parser = ArgumentParser(description=description)
+    parser.add_argument('--2d', dest='dim2', default=False, action='store_true',
+                        help="Preset to determine the physical problem setup")
     parser.add_argument('-f', '--full', default=False, action='store_true',
                         help="Execute all operators and store forward wavefield")
     parser.add_argument('-a', '--autotune', default=False, action='store_true',
@@ -87,8 +89,22 @@ if __name__ == "__main__":
                         type=int, help="Space order of the simulation")
     parser.add_argument("--nbpml", default=40,
                         type=int, help="Number of PML layers around the domain")
+    parser.add_argument("-dse", default='advanced',
+                        type=str, help="DSE backend choice")
+    parser.add_argument("-dle", default='advanced',
+                        type=str, help="DLE backend choice")
     args = parser.parse_args()
 
-    run(full_run=args.full, autotune=args.autotune,
+    # 3D preset parameters
+    if args.dim2:
+        dimensions = (150, 150)
+        spacing = (15.0, 15.0)
+        tn = 750.0
+    else:
+        dimensions = (50, 50, 50)
+        spacing = (20.0, 20.0, 20.0)
+        tn = 250.0
+
+    run(dimensions=dimensions, spacing=spacing, nbpml=args.nbpml, tn=tn,
         space_order=args.space_order, time_order=args.time_order,
-        nbpml=args.nbpml)
+        autotune=args.autotune, dse=args.dse, dle=args.dle, full_run=args.full)
