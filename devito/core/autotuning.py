@@ -28,11 +28,16 @@ def autotune(operator, arguments, tunable):
         if k in output:
             at_arguments[k] = v.copy()
 
-    # Squeeze dimensions to minimize auto-tuning time
     iterations = FindNodes(Iteration).visit(operator.body)
-    sequential = [i for i in iterations if i.is_Sequential and i.dim.is_Buffered]
     dim_mapper = {i.dim.name: i.dim for i in iterations}
-    squeezable = [i.dim.parent.symbolic_size.name for i in sequential]
+
+    # Detect sequential dimension
+    sequentials = [i for i in iterations if i.is_Sequential]
+    if len(sequentials) != 1:
+        info_at("Couldn't detect loop structure, giving up auto-tuning")
+        return arguments
+    sequential = sequentials[0]
+    squeezable = sequential.dim.parent if sequential.dim.is_Buffered else sequential.dim
 
     # Attempted block sizes
     mapper = OrderedDict([(i.argument.symbolic_size.name, i) for i in tunable])
@@ -63,7 +68,7 @@ def autotune(operator, arguments, tunable):
                     # Block size cannot be larger than actual dimension
                     illegal = True
                     break
-            elif k in squeezable:
+            elif k == squeezable.symbolic_size.name:
                 at_arguments[k] = options['at_squeezer']
         if illegal:
             continue
@@ -93,9 +98,10 @@ def autotune(operator, arguments, tunable):
         operator.cfunction(*list(at_arguments.values()))
         elapsed = sum(operator.profiler.timings.values())
         timings[tuple(bs.items())] = elapsed
-        iter_time = [s.extent(finish=at_arguments['time_size']) for s in sequential][0]
-        info_at("<%s>: %f sec for %d time steps" %
-                (','.join('%d' % i for i in bs.values()), elapsed, iter_time))
+        niters = at_arguments[squeezable.symbolic_size.name]
+        info_at("Block shape <%s> took %f (s) in %d time steps" %
+                (','.join('%d' % i for i in bs.values()),
+                 elapsed, sequential.extent(finish=niters)))
 
     try:
         best = dict(min(timings, key=timings.get))
@@ -141,7 +147,7 @@ def more_heuristic_attempts(blocksizes):
 
 
 options = {
-    'at_squeezer': 3,
+    'at_squeezer': 5,
     'at_blocksize': [8, 16, 24, 32, 40, 64, 128],
     'at_stack_limit': resource.getrlimit(resource.RLIMIT_STACK)[0] / 4
 }
