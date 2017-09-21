@@ -2,6 +2,8 @@ import sys
 from argparse import ArgumentParser, RawDescriptionHelpFormatter
 from itertools import product
 
+import numpy as np
+
 from devito import clear_cache
 from devito.logger import warning
 from acoustic.acoustic_example import run as acoustic_run
@@ -9,15 +11,16 @@ from tti.tti_example import run as tti_run
 
 if __name__ == "__main__":
     description = ("Benchmarking script for seismic forward operators.\n\n" +
-                   "There are two execution modes:\n" +
+                   "There are three main 'execution modes':\n" +
                    "\trun:   a single run with given DSE/DLE levels\n" +
                    "\tbench: complete benchmark with multiple DSE/DLE levels\n" +
+                   "\ttest:  tests numerical correctness with different parameters\n" +
                    "Further, this script can generate a roofline plot from a benchmark\n"
                    )
     parser = ArgumentParser(description=description,
                             formatter_class=RawDescriptionHelpFormatter)
     parser.add_argument(dest="execmode", default="run",
-                        choices=["run", "bench", "plot"], help="Execution modes")
+                        choices=["run", "bench", 'test', "plot"], help="Execution modes")
     parser.add_argument("--bench-mode", "-bm", dest="benchmode", default="maxperf",
                         choices=["maxperf", "dse", "dle"],
                         help="Choose what to benchmark; ignored if execmode=run")
@@ -110,7 +113,23 @@ if __name__ == "__main__":
             parameters["dse"] = ["advanced"]
             parameters["dle"] = ["basic", "advanced"]
 
-    if args.execmode == "bench":
+    if args.execmode == "test":
+        values_sweep = [v if isinstance(v, list) else [v] for v in parameters.values()]
+        params_sweep = [dict(zip(parameters.keys(), values))
+                        for values in product(*values_sweep)]
+
+        last_res = None
+
+        for params in params_sweep:
+            _, _, _, res = run(**params)
+
+            if last_res is None:
+                last_res = res
+            else:
+                for i in range(len(res)):
+                    np.isclose(res[i], last_res[i])
+
+    elif args.execmode == "bench":
         try:
             from opescibench import Benchmark, Executor
         except:
