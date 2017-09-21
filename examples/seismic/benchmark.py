@@ -2,8 +2,6 @@ import sys
 from argparse import ArgumentParser, RawDescriptionHelpFormatter
 from itertools import product
 
-import numpy as np
-
 from devito import clear_cache
 from devito.logger import warning
 from acoustic.acoustic_example import run as acoustic_run
@@ -12,21 +10,20 @@ from tti.tti_example import run as tti_run
 if __name__ == "__main__":
     description = ("Benchmarking script for seismic forward operators.\n\n" +
                    "There are two execution modes:\n" +
-                   "\trun:   a single run with given DSE/DLE levels\n"+
+                   "\trun:   a single run with given DSE/DLE levels\n" +
                    "\tbench: complete benchmark with multiple DSE/DLE levels\n" +
                    "Further, this script can generate a roofline plot from a benchmark\n"
                    )
     parser = ArgumentParser(description=description,
                             formatter_class=RawDescriptionHelpFormatter)
-    parser.add_argument(dest="execmode", nargs="?", default="run",
-                        choices=["run", "bench", "plot"],
-                        help="Exec modes")
+    parser.add_argument(dest="execmode", default="run",
+                        choices=["run", "bench", "plot"], help="Execution modes")
     parser.add_argument("--bench-mode", "-bm", dest="benchmode", default="maxperf",
                         choices=["maxperf", "dse", "dle"],
-                        help="Choose what to benchmark (maxperf, dse, dle).")
+                        help="Choose what to benchmark; ignored if execmode=run")
     parser.add_argument("--arch", default="unknown",
-                        help="Architecture on which the simulation is/was run.")
-    parser.add_argument("-P", "--problem", nargs="?", default="tti",
+                        help="Architecture on which the simulation is/was run")
+    parser.add_argument("-P", "--problem", default="acoustic",
                         choices=["acoustic", "tti"], help="Problem")
 
     simulation = parser.add_argument_group("Simulation")
@@ -47,7 +44,6 @@ if __name__ == "__main__":
                             type=int, help="End time of the simulation in ms")
 
     devito = parser.add_argument_group("Devito")
-    devito.add_argument("-o", "--omp", action="store_true", help="Enable OpenMP")
     devito.add_argument("-dse", default="advanced",
                         choices=["noop", "basic", "advanced", "speculative",
                                  "aggressive"],
@@ -61,12 +57,14 @@ if __name__ == "__main__":
     benchmarking = parser.add_argument_group("Benchmarking")
     benchmarking.add_argument("-r", "--resultsdir", default="results",
                               help="Directory containing results")
+    benchmarking.add_argument("-x", "--repeats", default="3", type=int,
+                              help="Test case repetitions; ignored if execmode=run")
 
     plotting = parser.add_argument_group("Plotting")
     plotting.add_argument("-p", "--plotdir", default="plots",
                           help="Directory containing plots")
-    plotting.add_argument("--max_bw", type=float, help="Maximum bandwith of the system")
-    plotting.add_argument("--max_flops", type=float, help="Maximum FLOPS of the system")
+    plotting.add_argument("--max_bw", type=float, help="Max GB/s of the DRAM")
+    plotting.add_argument("--max_flops", type=float, help="Max GFLOPS/s of the CPU")
     plotting.add_argument("--point_runtime", action="store_true",
                           help="Annotate points with runtime values")
 
@@ -82,13 +80,13 @@ if __name__ == "__main__":
     del parameters["execmode"]
     del parameters["benchmode"]
     del parameters["problem"]
+    del parameters["arch"]
     del parameters["resultsdir"]
+    del parameters["repeats"]
     del parameters["plotdir"]
     del parameters["max_bw"]
     del parameters["max_flops"]
-    del parameters["omp"]
     del parameters["point_runtime"]
-    del parameters["arch"]
 
     parameters["dimensions"] = tuple(parameters["dimensions"])
     parameters["spacing"] = tuple(parameters["spacing"])
@@ -135,7 +133,7 @@ if __name__ == "__main__":
         bench = Benchmark(
             name=args.problem, resultsdir=args.resultsdir, parameters=parameters
         )
-        bench.execute(BenchExecutor(), warmups=0, repeats=3)
+        bench.execute(BenchExecutor(), warmups=0, repeats=args.repeats)
         bench.save()
 
     elif args.execmode == "plot":
