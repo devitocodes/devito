@@ -9,18 +9,6 @@ Subpackages
     examples.cfd
     examples.seismic
 
-Submodules
-----------
-
-examples\.benchmark module
---------------------------
-
-.. automodule:: examples.benchmark
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
-
 Module contents
 ---------------
 

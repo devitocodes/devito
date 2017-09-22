@@ -12,6 +12,14 @@ Subpackages
 Submodules
 ----------
 
+examples\.seismic\.benchmark module
+-----------------------------------
+
+.. automodule:: examples.seismic.benchmark
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
 examples\.seismic\.model module
 -------------------------------
 
