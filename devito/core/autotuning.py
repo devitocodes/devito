@@ -31,13 +31,22 @@ def autotune(operator, arguments, tunable):
     iterations = FindNodes(Iteration).visit(operator.body)
     dim_mapper = {i.dim.name: i.dim for i in iterations}
 
-    # Detect sequential dimension
+    # Shrink the iteration space of sequential dimensions so that auto-tuner
+    # runs take a negligible amount of time
     sequentials = [i for i in iterations if i.is_Sequential]
-    if len(sequentials) != 1:
-        info_at("Couldn't detect loop structure, giving up auto-tuning")
+    if len(sequentials) == 0:
+        timesteps = 1
+    elif len(sequentials) == 1:
+        sequential = sequentials[0]
+        squeeze = sequential.dim.parent if sequential.dim.is_Buffered else sequential.dim
+        timesteps = sequential.extent(finish=options['at_squeezer'])
+        if timesteps < 0:
+            timesteps = options['at_squeezer'] - timesteps + 1
+            info_at("Adjusted auto-tuning timestep to %d" % timesteps)
+        at_arguments[squeeze.symbolic_size.name] = timesteps
+    else:
+        info_at("Couldn't understand loop structure, giving up auto-tuning")
         return arguments
-    sequential = sequentials[0]
-    squeezable = sequential.dim.parent if sequential.dim.is_Buffered else sequential.dim
 
     # Attempted block sizes
     mapper = OrderedDict([(i.argument.symbolic_size.name, i) for i in tunable])
@@ -68,8 +77,6 @@ def autotune(operator, arguments, tunable):
                     # Block size cannot be larger than actual dimension
                     illegal = True
                     break
-            elif k == squeezable.symbolic_size.name:
-                at_arguments[k] = options['at_squeezer']
         if illegal:
             continue
 
@@ -98,10 +105,8 @@ def autotune(operator, arguments, tunable):
         operator.cfunction(*list(at_arguments.values()))
         elapsed = sum(operator.profiler.timings.values())
         timings[tuple(bs.items())] = elapsed
-        niters = at_arguments[squeezable.symbolic_size.name]
         info_at("Block shape <%s> took %f (s) in %d time steps" %
-                (','.join('%d' % i for i in bs.values()),
-                 elapsed, sequential.extent(finish=niters)))
+                (','.join('%d' % i for i in bs.values()), elapsed, timesteps))
 
     try:
         best = dict(min(timings, key=timings.get))
