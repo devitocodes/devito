@@ -41,8 +41,8 @@ def tti_setup(dimensions=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=250.0,
 
 
 def run(dimensions=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=250.0,
-        time_order=2, space_order=4, nbpml=10, **kwargs):
-    autotune = kwargs.pop('autotune', False)
+        autotune=False, time_order=2, space_order=4, nbpml=10, **kwargs):
+
     solver = tti_setup(dimensions, spacing, tn, time_order, space_order, nbpml, **kwargs)
 
     if space_order % 4 != 0:
@@ -66,6 +66,10 @@ if __name__ == "__main__":
                         type=int, help="Space order of the simulation")
     parser.add_argument("--nbpml", default=10,
                         type=int, help="Number of PML layers around the domain")
+    parser.add_argument("-dse", default='advanced',
+                        type=str, help="DSE backend choice")
+    parser.add_argument("-dle", default='advanced',
+                        type=str, help="DLE backend choice")
     args = parser.parse_args()
 
     # 3D preset parameters
@@ -80,4 +84,4 @@ if __name__ == "__main__":
 
     run(dimensions=dimensions, spacing=spacing, nbpml=args.nbpml, tn=tn,
         space_order=args.space_order, time_order=args.time_order,
-        autotune=args.autotune, dse='advanced', dle='advanced')
+        autotune=args.autotune, dse=args.dse, dle=args.dle)

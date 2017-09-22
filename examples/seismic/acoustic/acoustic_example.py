@@ -51,7 +51,8 @@ def acoustic_setup(dimensions=(50, 50, 50), spacing=(15.0, 15.0, 15.0),
 
 
 def run(dimensions=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=1000.0,
-        time_order=2, space_order=4, nbpml=40, full_run=False, **kwargs):
+        time_order=2, space_order=4, nbpml=40, full_run=False,
+        autotune=False, **kwargs):
 
     solver = acoustic_setup(dimensions=dimensions, spacing=spacing,
                             nbpml=nbpml, tn=tn, space_order=space_order,
@@ -60,22 +61,24 @@ def run(dimensions=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=1000.0,
     initial_vp = smooth10(solver.model.m.data, solver.model.shape_domain)
     dm = np.float32(initial_vp**2 - solver.model.m.data)
     info("Applying Forward")
-    rec, u, summary = solver.forward(save=full_run)
+    rec, u, summary = solver.forward(save=full_run, autotune=autotune)
 
     if not full_run:
         return summary.gflopss, summary.oi, summary.timings, [rec, u.data]
 
     info("Applying Adjoint")
-    solver.adjoint(rec, **kwargs)
+    solver.adjoint(rec, autotune=autotune)
     info("Applying Born")
-    solver.born(dm, **kwargs)
+    solver.born(dm, autotune=autotune)
     info("Applying Gradient")
-    solver.gradient(rec, u, **kwargs)
+    solver.gradient(rec, u, autotune=autotune)
 
 
 if __name__ == "__main__":
     description = ("Example script for a set of acoustic operators.")
     parser = ArgumentParser(description=description)
+    parser.add_argument('--2d', dest='dim2', default=False, action='store_true',
+                        help="Preset to determine the physical problem setup")
     parser.add_argument('-f', '--full', default=False, action='store_true',
                         help="Execute all operators and store forward wavefield")
     parser.add_argument('-a', '--autotune', default=False, action='store_true',
@@ -86,8 +89,22 @@ if __name__ == "__main__":
                         type=int, help="Space order of the simulation")
     parser.add_argument("--nbpml", default=40,
                         type=int, help="Number of PML layers around the domain")
+    parser.add_argument("-dse", default='advanced',
+                        type=str, help="DSE backend choice")
+    parser.add_argument("-dle", default='advanced',
+                        type=str, help="DLE backend choice")
     args = parser.parse_args()
 
-    run(full_run=args.full, autotune=args.autotune,
+    # 3D preset parameters
+    if args.dim2:
+        dimensions = (150, 150)
+        spacing = (15.0, 15.0)
+        tn = 750.0
+    else:
+        dimensions = (50, 50, 50)
+        spacing = (20.0, 20.0, 20.0)
+        tn = 250.0
+
+    run(dimensions=dimensions, spacing=spacing, nbpml=args.nbpml, tn=tn,
         space_order=args.space_order, time_order=args.time_order,
-        nbpml=args.nbpml)
+        autotune=args.autotune, dse=args.dse, dle=args.dle, full_run=args.full)
