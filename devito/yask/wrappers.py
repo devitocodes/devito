@@ -234,6 +234,7 @@ class YaskKernel(object):
                                            # "EXTRA_MACROS=TRACE",
                                            'YK_BASE=%s' % str(name),
                                            'stencil=%s' % yc_soln.get_name(),
+                                           'arch=%s' % yask_configuration['arch'],
                                            '-C', namespace['kernel-path'], 'api'])
         except CompilationError:
             exit("Kernel solution compilation")
