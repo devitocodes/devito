@@ -34,8 +34,8 @@ def tti_setup(shape=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=250.0,
 
 
 def run(shape=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=250.0,
-        time_order=2, space_order=4, nbpml=10, kernel='centered', **kwargs):
-    autotune = kwargs.pop('autotune', False)
+        autotune=False, time_order=2, space_order=4, nbpml=10, **kwargs):
+
     solver = tti_setup(shape, spacing, tn, time_order, space_order, nbpml, **kwargs)
 
     if space_order % 4 != 0:
@@ -77,4 +77,4 @@ if __name__ == "__main__":
 
     run(shape=shape, spacing=spacing, nbpml=args.nbpml, tn=tn,
         space_order=args.space_order, time_order=args.time_order,
-        autotune=args.autotune, dse=args.dse, dle='advanced', kernel=args.kernel)
+        autotune=args.autotune, dse=args.dse, dle=args.dle)
