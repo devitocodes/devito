@@ -396,7 +396,7 @@ class TestOperatorAcoustic(object):
     def test_acoustic_w_src_w_rec(self, model, stencil, subs, m, damp, u, src, rec):
         """
         Test that the acoustic wave equation forward operator produces the correct
-        results when running the same model as in ``test_adjointA.py``.
+        results when running a 3D model also used in ``test_adjointA.py``.
         """
         dt = model.critical_dt
         u.data[:] = 0.0
@@ -405,4 +405,12 @@ class TestOperatorAcoustic(object):
         eqns += rec.interpolate(expr=u, offset=model.nbpml)
         op = Operator(eqns, subs=subs)
         op.apply(u=u, m=m, damp=damp, src=src, rec=rec, t=1)
-        # TODO: come up with proper asserts, but u.data looks sane already
+
+        # TODO: the following "hacky" way of asserting correctness will be replaced
+        # once adjoint operators could be run through YASK. At the moment, the following
+        # expected norms have been "manually" derived from an analogous test (same
+        # equation, same model, ...) in test_adjointA.py
+        exp_u = 152.76
+        exp_rec = 212.00
+        assert np.isclose(np.linalg.norm(u.data[:]), exp_u, atol=exp_u*1.e-2)
+        assert np.isclose(np.linalg.norm(rec.data), exp_rec, atol=exp_rec*1.e-2)
