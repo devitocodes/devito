@@ -21,10 +21,10 @@ def smooth10(vel, shape):
     return out
 
 
-def acoustic_setup(dimensions=(50, 50, 50), spacing=(15.0, 15.0, 15.0),
+def acoustic_setup(shape=(50, 50, 50), spacing=(15.0, 15.0, 15.0),
                    tn=500., time_order=2, space_order=4, nbpml=10, **kwargs):
-    nrec = dimensions[0]
-    model = demo_model('layers-isotropic', ratio=3, shape=dimensions,
+    nrec = shape[0]
+    model = demo_model('layers-isotropic', ratio=3, shape=shape,
                        spacing=spacing, nbpml=nbpml)
 
     # Derive timestepping from model spacing
@@ -50,10 +50,10 @@ def acoustic_setup(dimensions=(50, 50, 50), spacing=(15.0, 15.0, 15.0),
     return solver
 
 
-def run(dimensions=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=1000.0,
+def run(shape=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=1000.0,
         time_order=2, space_order=4, nbpml=40, full_run=False, **kwargs):
 
-    solver = acoustic_setup(dimensions=dimensions, spacing=spacing,
+    solver = acoustic_setup(dimensions=shape, spacing=spacing,
                             nbpml=nbpml, tn=tn, space_order=space_order,
                             time_order=time_order, **kwargs)
 

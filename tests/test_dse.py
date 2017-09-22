@@ -20,7 +20,7 @@ from examples.seismic.tti import AnisotropicWaveSolver
 # Acoustic
 
 def run_acoustic_forward(dse=None):
-    dimensions = (50, 50, 50)
+    shape = (50, 50, 50)
     spacing = (10., 10., 10.)
     nbpml = 10
     nrec = 101
@@ -29,7 +29,7 @@ def run_acoustic_forward(dse=None):
 
     # Create two-layer model from preset
     model = demo_model(preset='layers-isotropic', vp_top=3., vp_bottom=4.5,
-                       spacing=spacing, shape=dimensions, nbpml=nbpml)
+                       spacing=spacing, shape=shape, nbpml=nbpml)
 
     # Derive timestepping from model spacing
     dt = model.critical_dt
@@ -67,13 +67,14 @@ def tti_operator(dse=False):
     t0 = 0.0
     tn = 250.
     nbpml = 10
-    dimensions = (50, 50, 50)
+    shape = (50, 50, 50)
     spacing = (20., 20., 20.)
 
     # Two layer model for true velocity
     model = demo_model('layers-tti', ratio=3, nbpml=nbpml,
-                       shape=dimensions, spacing=spacing)
+                       shape=shape, spacing=spacing)
 
+    # Derive timestepping from model spacing
     # Derive timestepping from model spacing
     dt = model.critical_dt
     nt = int(1 + (tn-t0) / dt)  # Number of timesteps

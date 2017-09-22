@@ -150,9 +150,9 @@ def demo_model(preset, **kwargs):
         return Model(vp=v, origin=origin, shape=v.shape,
                      spacing=spacing, nbpml=20)
 
-    elif preset.lower() in ['marmousitti', 'marmousi2dtti']:
+    elif preset.lower() in ['marmousi-tti2d', 'marmousi2d-tti']:
 
-        dimensions = (201, 201, 70)
+        shape_full = (201, 201, 70)
         shape = (201, 70)
         spacing = (10., 10.)
         origin = (0., 0.)
@@ -169,22 +169,22 @@ def demo_model(preset, **kwargs):
         # velocity
         vp = 1e-3 * np.fromfile(os.path.join(data_path, 'marmousi3D/MarmousiVP.raw'),
                                 dtype='float32', sep="")
-        vp = vp.reshape(dimensions)
+        vp = vp.reshape(shape_full)
         vp = vp[101, :, :]
         # Epsilon, in % in file, resale between 0 and 1
         epsilon = np.fromfile(os.path.join(data_path, 'marmousi3D/MarmousiEps.raw'),
                               dtype='float32', sep="") * 1e-2
-        epsilon = epsilon.reshape(dimensions)
+        epsilon = epsilon.reshape(shape_full)
         epsilon = epsilon[101, :, :]
         # Delta, in % in file, resale between 0 and 1
         delta = np.fromfile(os.path.join(data_path, 'marmousi3D/MarmousiDelta.raw'),
                             dtype='float32', sep="") * 1e-2
-        delta = delta.reshape(dimensions)
+        delta = delta.reshape(shape_full)
         delta = delta[101, :, :]
         # Theta, in degrees in file, resale in radian
         theta = np.fromfile(os.path.join(data_path, 'marmousi3D/MarmousiTilt.raw'),
                             dtype='float32', sep="")
-        theta = np.float32(np.pi / 180 * theta.reshape(dimensions))
+        theta = np.float32(np.pi / 180 * theta.reshape(shape_full))
         theta = theta[101, :, :]
 
         return Model(vp=vp, origin=origin, shape=shape,
@@ -194,7 +194,7 @@ def demo_model(preset, **kwargs):
 
     elif preset.lower() in ['marmousi-tti3d', 'marmousi3d-tti']:
 
-        dimensions = (201, 201, 70)
+        shape = (201, 201, 70)
         spacing = (10., 10., 10.)
         origin = (0., 0., 0.)
         nbpml = kwargs.pop('nbpml', 20)
@@ -210,25 +210,25 @@ def demo_model(preset, **kwargs):
         # Velcoity
         vp = 1e-3 * np.fromfile(os.path.join(data_path, 'marmousi3D/MarmousiVP.raw'),
                                 dtype='float32', sep="")
-        vp = vp.reshape(dimensions)
+        vp = vp.reshape(shape)
         # Epsilon, in % in file, resale between 0 and 1
         epsilon = np.fromfile(os.path.join(data_path, 'marmousi3D/MarmousiEps.raw'),
                               dtype='float32', sep="") * 1e-2
-        epsilon = epsilon.reshape(dimensions)
+        epsilon = epsilon.reshape(shape)
         # Delta, in % in file, resale between 0 and 1
         delta = np.fromfile(os.path.join(data_path, 'marmousi3D/MarmousiDelta.raw'),
                             dtype='float32', sep="") * 1e-2
-        delta = delta.reshape(dimensions)
+        delta = delta.reshape(shape)
         # Theta, in degrees in file, resale in radian
         theta = np.fromfile(os.path.join(data_path, 'marmousi3D/MarmousiTilt.raw'),
                             dtype='float32', sep="")
-        theta = np.float32(np.pi / 180 * theta.reshape(dimensions))
+        theta = np.float32(np.pi / 180 * theta.reshape(shape))
         # Phi, in degrees in file, resale in radian
         phi = np.fromfile(os.path.join(data_path, 'marmousi3D/Azimuth.raw'),
                           dtype='float32', sep="")
-        phi = np.float32(np.pi / 180 * phi.reshape(dimensions))
+        phi = np.float32(np.pi / 180 * phi.reshape(shape))
 
-        return Model(vp=vp, origin=origin, shape=dimensions,
+        return Model(vp=vp, origin=origin, shape=shape,
                      spacing=spacing, nbpml=nbpml,
                      epsilon=epsilon, delta=delta, theta=theta, phi=phi,
                      **kwargs)

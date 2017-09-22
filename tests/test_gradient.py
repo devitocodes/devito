@@ -9,8 +9,8 @@ from examples.seismic import Receiver
 
 @pytest.mark.parametrize('space_order', [4])
 @pytest.mark.parametrize('time_order', [2])
-@pytest.mark.parametrize('dimensions', [(70, 80)])
-def test_gradientFWI(dimensions, time_order, space_order):
+@pytest.mark.parametrize('shape', [(70, 80)])
+def test_gradientFWI(shape, time_order, space_order):
     """
     This test ensure that the FWI gradient computed with devito
     satisfies the Taylor expansion property:
@@ -31,8 +31,8 @@ def test_gradientFWI(dimensions, time_order, space_order):
     :param space_order: order of the spacial discretization scheme
     :return: assertion that the Taylor properties are satisfied
     """
-    spacing = tuple(15. for _ in dimensions)
-    wave = setup(dimensions=dimensions, spacing=spacing,
+    spacing = tuple(15. for _ in shape)
+    wave = setup(shape=shape, spacing=spacing,
                  time_order=time_order, space_order=space_order,
                  nbpml=10+space_order/2)
     m0 = smooth10(wave.model.m.data, wave.model.shape_domain)
@@ -76,8 +76,8 @@ def test_gradientFWI(dimensions, time_order, space_order):
 
 @pytest.mark.parametrize('space_order', [4])
 @pytest.mark.parametrize('time_order', [2])
-@pytest.mark.parametrize('dimensions', [(70, 80)])
-def test_gradientJ(dimensions, time_order, space_order):
+@pytest.mark.parametrize('shape', [(70, 80)])
+def test_gradientJ(shape, time_order, space_order):
     """
     This test ensure that the Jacobian computed with devito
     satisfies the Taylor expansion property:
@@ -92,8 +92,8 @@ def test_gradientJ(dimensions, time_order, space_order):
     :param space_order: order of the spacial discretization scheme
     :return: assertion that the Taylor properties are satisfied
     """
-    spacing = tuple(15. for _ in dimensions)
-    wave = setup(dimensions=dimensions, spacing=spacing,
+    spacing = tuple(15. for _ in shape)
+    wave = setup(shape=shape, spacing=spacing,
                  time_order=time_order, space_order=space_order,
                  tn=1000., nbpml=10+space_order/2)
     m0 = smooth10(wave.model.m.data, wave.model.shape_domain)
@@ -128,4 +128,4 @@ def test_gradientJ(dimensions, time_order, space_order):
 
 
 if __name__ == "__main__":
-    test_gradientJ(dimensions=(60, 70), time_order=2, space_order=4)
+    test_gradientJ(shape=(60, 70), time_order=2, space_order=4)

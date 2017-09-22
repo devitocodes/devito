@@ -9,33 +9,33 @@ from examples.seismic.acoustic import AcousticWaveSolver
 from examples.seismic.tti import AnisotropicWaveSolver
 
 
-@pytest.mark.parametrize('dimensions', [(120, 140), (120, 140, 150)])
+@pytest.mark.parametrize('shape', [(120, 140), (120, 140, 150)])
 @pytest.mark.parametrize('space_order', [4, 8])
-def test_tti(dimensions, space_order):
+def test_tti(shape, space_order):
     nbpml = 10
-    ndim = len(dimensions)
-    origin = [0. for _ in dimensions]
-    spacing = [10. for _ in dimensions]
+    ndim = len(shape)
+    origin = [0. for _ in shape]
+    spacing = [10. for _ in shape]
 
     # Source location
     location = np.zeros((1, ndim), dtype=np.float32)
-    location[0, :-1] = [origin[i] + dimensions[i] * spacing[i] * .5
+    location[0, :-1] = [origin[i] + shape[i] * spacing[i] * .5
                         for i in range(ndim-1)]
     location[0, -1] = origin[-1] + 2 * spacing[-1]
     # Receivers locations
-    receiver_coords = np.zeros((dimensions[0], ndim), dtype=np.float32)
+    receiver_coords = np.zeros((shape[0], ndim), dtype=np.float32)
     receiver_coords[:, 0] = np.linspace(0, origin[0] +
-                                        (dimensions[0]-1) * spacing[0],
-                                        num=dimensions[0])
+                                        (shape[0]-1) * spacing[0],
+                                        num=shape[0])
     receiver_coords[:, 1:] = location[0, 1:]
 
     # Two layer model for true velocity
-    model = demo_model('layers-isotropic', ratio=3, shape=dimensions,
+    model = demo_model('layers-isotropic', ratio=3, shape=shape,
                        spacing=spacing, nbpml=nbpml,
-                       epsilon=np.zeros(dimensions),
-                       delta=np.zeros(dimensions),
-                       theta=np.zeros(dimensions),
-                       phi=np.zeros(dimensions))
+                       epsilon=np.zeros(shape),
+                       delta=np.zeros(shape),
+                       theta=np.zeros(shape),
+                       phi=np.zeros(shape))
 
     # Define seismic data and parameters
     f0 = .010

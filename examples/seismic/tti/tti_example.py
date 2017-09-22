@@ -6,13 +6,12 @@ from examples.seismic import demo_model, Receiver, RickerSource
 from examples.seismic.tti import AnisotropicWaveSolver
 
 
-def tti_setup(dimensions=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=250.0,
+def tti_setup(shape=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=250.0,
               time_order=2, space_order=4, nbpml=10, **kwargs):
 
     nrec = 101
     # Two layer model for true velocity
-    model = demo_model('layers-tti', shape=dimensions, spacing=spacing,
-                       nbpml=nbpml)
+    model = demo_model('layers-tti', shape=shape, spacing=spacing, nbpml=nbpml)
     # Derive timestepping from model spacing
     dt = model.critical_dt
     t0 = 0.0
@@ -34,10 +33,10 @@ def tti_setup(dimensions=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=250.0,
                                  space_order=space_order, **kwargs)
 
 
-def run(dimensions=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=250.0,
+def run(shape=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=250.0,
         time_order=2, space_order=4, nbpml=10, kernel='centered', **kwargs):
     autotune = kwargs.pop('autotune', False)
-    solver = tti_setup(dimensions, spacing, tn, time_order, space_order, nbpml, **kwargs)
+    solver = tti_setup(shape, spacing, tn, time_order, space_order, nbpml, **kwargs)
 
     if space_order % 4 != 0:
         warning('WARNING: TTI requires a space_order that is a multiple of 4!')
@@ -68,14 +67,14 @@ if __name__ == "__main__":
 
     # 3D preset parameters
     if args.dim2:
-        dimensions = (150, 150)
+        shape = (150, 150)
         spacing = (10.0, 10.0)
         tn = 750.0
     else:
-        dimensions = (50, 50, 50)
+        shape = (50, 50, 50)
         spacing = (10.0, 10.0, 10.0)
         tn = 250.0
 
-    run(dimensions=dimensions, spacing=spacing, nbpml=args.nbpml, tn=tn,
+    run(shape=shape, spacing=spacing, nbpml=args.nbpml, tn=tn,
         space_order=args.space_order, time_order=args.time_order,
         autotune=args.autotune, dse=args.dse, dle='advanced', kernel=args.kernel)
