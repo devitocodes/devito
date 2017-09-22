@@ -103,10 +103,10 @@ def tti_nodse():
 def test_tti_clusters_to_graph():
     solver = tti_operator()
 
-    nodes = FindNodes(Expression).visit(solver.op_fwd_centered.elemental_functions +
-                                        (solver.op_fwd_centered,))
+    nodes = FindNodes(Expression).visit(solver.op_fwd('centered').elemental_functions +
+                                        (solver.op_fwd('centered'),))
     expressions = [n.expr for n in nodes]
-    stencils = solver.op_fwd_centered._retrieve_stencils(expressions)
+    stencils = solver.op_fwd('centered')._retrieve_stencils(expressions)
     clusters = clusterize(expressions, stencils)
     assert len(clusters) == 3
 

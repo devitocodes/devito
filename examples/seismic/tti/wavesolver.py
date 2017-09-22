@@ -1,7 +1,5 @@
 # coding: utf-8
-from cached_property import cached_property
-
-from devito import TimeData
+from devito import TimeData, memoized
 from examples.seismic.tti.operators import ForwardOperator
 from examples.seismic import Receiver
 
@@ -33,41 +31,13 @@ class AnisotropicWaveSolver(object):
         # Cache compiler options
         self._kwargs = kwargs
 
-    @cached_property
-    def op_fwd_shifted(self):
+    @memoized
+    def op_fwd(self, kernel='shifted', save=False):
         """Cached operator for forward runs with buffered wavefield"""
-        return ForwardOperator(self.model, save=False, source=self.source,
+        return ForwardOperator(self.model, save=save, source=self.source,
                                receiver=self.receiver, time_order=self.time_order,
                                space_order=self.space_order,
-                               kernel='shifted', **self._kwargs)
-
-    @cached_property
-    def op_fwd_shifted_save(self):
-        """Cached operator for forward runs with unrolled wavefield"""
-        return ForwardOperator(self.model, save=True, source=self.source,
-                               receiver=self.receiver, time_order=self.time_order,
-                               space_order=self.space_order,
-                               kernel='shifted', **self._kwargs)
-
-    @cached_property
-    def op_fwd_centered(self):
-        """Cached operator for forward runs with buffered wavefield"""
-        return ForwardOperator(self.model, save=False, source=self.source,
-                               receiver=self.receiver, time_order=self.time_order,
-                               space_order=self.space_order,
-                               kernel='centered', **self._kwargs)
-
-    @cached_property
-    def op_fwd_centered_save(self):
-        """Cached operator for forward runs with unrolled wavefield"""
-        return ForwardOperator(self.model, save=True, source=self.source,
-                               receiver=self.receiver, time_order=self.time_order,
-                               space_order=self.space_order,
-                               kernel='centered', **self._kwargs)
-
-    def operator(self, kernel, save):
-        func_name = 'op_fwd_' + '%s' % kernel + ('save' if save else '')
-        return getattr(self, func_name)
+                               kernel=kernel, **self._kwargs)
 
     def forward(self, src=None, rec=None, u=None, v=None, m=None,
                 epsilon=None, delta=None, theta=None, phi=None,
@@ -125,7 +95,7 @@ class AnisotropicWaveSolver(object):
             phi = phi or self.model.phi
 
         # Execute operator and return wavefield and receiver data
-        op = self.operator(kernel, save)
+        op = self.op_fwd(kernel, save)
 
         if len(m.shape) == 2:
             summary = op.apply(src=src, rec=rec, u=u, v=v, m=m, epsilon=epsilon,
