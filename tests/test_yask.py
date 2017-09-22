@@ -18,6 +18,13 @@ pytestmark = pytest.mark.skipif(configuration['backend'] != 'yask',
                                 reason="'yask' wasn't selected as backend on startup")
 
 
+def setup_module(module):
+    """Get rid of any YASK modules generated and JIT-compiled in previous runs.
+    This is not strictly necessary for the tests, but it helps in keeping the
+    lib directory clean, which may be helpful for offline analysis."""
+    contexts.dump()
+
+
 @pytest.fixture(scope="module")
 def u(dims):
     u = DenseData(name='yu3D', shape=(16, 16, 16), dimensions=(x, y, z), space_order=0)
