@@ -105,7 +105,7 @@ def reset_yask_isa(develop_mode):
             break
     yask_configuration['isa'] = isa
     yask_configuration['arch'] = arch_mapper[isa]
-yask_configuration.add('develop-mode', True, [False, True], reset_yask_isa)
+yask_configuration.add('develop-mode', True, [False, True], reset_yask_isa)  # noqa
 
 configuration.add('yask', yask_configuration)
 

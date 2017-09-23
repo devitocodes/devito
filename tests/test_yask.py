@@ -330,7 +330,7 @@ class TestOperatorAcoustic(object):
         shape = (60, 70, 80)
         nbpml = 10
         return demo_model(spacing=[15, 15, 15], shape=shape, nbpml=nbpml,
-                          preset='layers', ratio=3)
+                          preset='layers-isotropic', ratio=3)
 
     @pytest.fixture
     def time_params(self, model):
