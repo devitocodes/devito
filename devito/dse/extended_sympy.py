@@ -54,14 +54,15 @@ class Add(sympy.Add, FrozenExpr):
 
 class FunctionFromPointer(sympy.Symbol):
 
-    def __new__(cls, name, pointer, params=None):
-        obj = sympy.Symbol.__new__(cls, name)
+    def __new__(cls, function, pointer, params=None):
+        obj = sympy.Symbol.__new__(cls, '%s->%s' % (pointer, function))
+        obj.function = function
         obj.pointer = pointer
         obj.params = params or ()
         return obj
 
     def __str__(self):
-        return "%s->%s(%s)" % (self.pointer, self.name,
+        return "%s->%s(%s)" % (self.pointer, self.function,
                                ', '.join([str(i) for i in self.params]))
 
     __repr__ = __str__

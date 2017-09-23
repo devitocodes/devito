@@ -6,6 +6,8 @@ JIT-compile, and run kernels.
 from collections import OrderedDict
 import os
 
+import cpuinfo
+
 from devito import configuration
 from devito.exceptions import InvalidOperator
 from devito.logger import yask as log
@@ -79,9 +81,21 @@ class YaskCompiler(configuration['compiler'].__class__):
 yask_configuration = Parameters('YASK-Configuration')
 yask_configuration.add('compiler', YaskCompiler())
 yask_configuration.add('python-exec', False, [False, True])
-# TODO: this should be somewhat sniffed
-yask_configuration.add('arch', 'snb', ['snb'])
-yask_configuration.add('isa', 'cpp', ['cpp'])
+yask_configuration.add('develop-mode', True, [False, True])
+# Sniff the highest Instruction Set Architecture level that we can YASK to use
+isa, ISAs = 'cpp', ['cpp', 'avx', 'avx2', 'avx512', 'knc']
+if yask_configuration['develop-mode'] is False:
+    cpu_flags = cpuinfo.get_cpu_info()['flags']
+    for i in reversed(ISAs):
+        if i in cpu_flags:
+            isa = i
+            break
+yask_configuration.add('isa', isa, ISAs)
+# Currently YASK also require the CPU architecture (e.g., snb for sandy bridge,
+# hsw for haswell, etc.). At the moment, we simply infer it from the ISA
+arch_mapper = {'cpp': 'intel64', 'avx': 'snb', 'avx2': 'hsw', 'avx512': 'knl'}
+yask_configuration.add('arch', arch_mapper[isa], arch_mapper.values())
+
 configuration.add('yask', yask_configuration)
 
 log("Backend successfully initialized!")
