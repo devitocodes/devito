@@ -2,23 +2,16 @@ import numpy as np
 from argparse import ArgumentParser
 
 from devito.logger import warning
-from examples.seismic import demo_model, GaborSource, Receiver
+from examples.seismic import demo_model, Receiver, RickerSource
 from examples.seismic.tti import AnisotropicWaveSolver
 
 
-def tti_setup(dimensions=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=250.0,
+def tti_setup(shape=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=250.0,
               time_order=2, space_order=4, nbpml=10, **kwargs):
 
     nrec = 101
-
     # Two layer model for true velocity
-    model = demo_model('layers', ratio=3, nbpml=nbpml,
-                       shape=dimensions, spacing=spacing,
-                       epsilon=.4*np.ones(dimensions),
-                       delta=-.1*np.ones(dimensions),
-                       theta=-np.pi/7*np.ones(dimensions),
-                       phi=np.pi/5*np.ones(dimensions))
-
+    model = demo_model('layers-tti', shape=shape, spacing=spacing, nbpml=nbpml)
     # Derive timestepping from model spacing
     dt = model.critical_dt
     t0 = 0.0
@@ -26,7 +19,7 @@ def tti_setup(dimensions=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=250.0,
     time = np.linspace(t0, tn, nt)
 
     # Define source geometry (center of domain, just below surface)
-    src = GaborSource(name='src', ndim=model.dim, f0=0.01, time=time)
+    src = RickerSource(name='src', ndim=model.dim, f0=0.015, time=time)
     src.coordinates.data[0, :] = np.array(model.domain_size) * .5
     src.coordinates.data[0, -1] = model.origin[-1] + 2 * spacing[-1]
 
@@ -40,15 +33,16 @@ def tti_setup(dimensions=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=250.0,
                                  space_order=space_order, **kwargs)
 
 
-def run(dimensions=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=250.0,
-        autotune=False, time_order=2, space_order=4, nbpml=10, **kwargs):
+def run(shape=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=250.0,
+        autotune=False, time_order=2, space_order=4, nbpml=10,
+        kernel='centered', **kwargs):
 
-    solver = tti_setup(dimensions, spacing, tn, time_order, space_order, nbpml, **kwargs)
+    solver = tti_setup(shape, spacing, tn, time_order, space_order, nbpml, **kwargs)
 
     if space_order % 4 != 0:
         warning('WARNING: TTI requires a space_order that is a multiple of 4!')
 
-    rec, u, v, summary = solver.forward(autotune=autotune)
+    rec, u, v, summary = solver.forward(autotune=autotune, kernel=kernel)
 
     return summary.gflopss, summary.oi, summary.timings, [rec, u, v]
 
@@ -64,24 +58,30 @@ if __name__ == "__main__":
                         type=int, help="Time order of the simulation")
     parser.add_argument("-so", "--space_order", default=4,
                         type=int, help="Space order of the simulation")
-    parser.add_argument("--nbpml", default=10,
+    parser.add_argument("--nbpml", default=40,
                         type=int, help="Number of PML layers around the domain")
-    parser.add_argument("-dse", default='advanced',
-                        type=str, help="DSE backend choice")
-    parser.add_argument("-dle", default='advanced',
-                        type=str, help="DLE backend choice")
+    parser.add_argument("-k", dest="kernel", default='centered',
+                        choices=['centered', 'shifted'],
+                        help="Choice of finite-difference kernel")
+    parser.add_argument("-dse", "-dse", default="advanced",
+                        choices=["noop", "basic", "advanced",
+                                 "speculative", "aggressive"],
+                        help="Devito symbolic engine (DSE) mode")
+    parser.add_argument("-dle", default="advanced",
+                        choices=["noop", "advanced", "speculative"],
+                        help="Devito loop engine (DSE) mode")
     args = parser.parse_args()
 
     # 3D preset parameters
     if args.dim2:
-        dimensions = (150, 150)
-        spacing = (15.0, 15.0)
+        shape = (150, 150)
+        spacing = (10.0, 10.0)
         tn = 750.0
     else:
-        dimensions = (50, 50, 50)
-        spacing = (20.0, 20.0, 20.0)
+        shape = (50, 50, 50)
+        spacing = (10.0, 10.0, 10.0)
         tn = 250.0
 
-    run(dimensions=dimensions, spacing=spacing, nbpml=args.nbpml, tn=tn,
+    run(shape=shape, spacing=spacing, nbpml=args.nbpml, tn=tn,
         space_order=args.space_order, time_order=args.time_order,
-        autotune=args.autotune, dse=args.dse, dle=args.dle)
+        autotune=args.autotune, dse=args.dse, dle=args.dle, kernel=args.kernel)

@@ -10,7 +10,7 @@ from sympy import collect, collect_const, flatten
 from devito.dse.extended_sympy import Add, Eq, Mul
 from devito.dse.inspection import count, estimate_cost, retrieve_indexed
 from devito.dse.graph import temporaries_graph
-from devito.dse.queries import q_indexed, q_op
+from devito.dse.queries import q_indexed, q_op, q_leaf
 from devito.interfaces import Indexed, TensorFunction
 from devito.tools import as_tuple
 
@@ -105,7 +105,7 @@ def collect_nested(expr, aggressive=False):
     return run(expr)[0]
 
 
-def xreplace_constrained(exprs, make, rule, costmodel=lambda e: True, repeat=False):
+def xreplace_constrained(exprs, make, rule=None, costmodel=lambda e: True, repeat=False):
     """
     Unlike ``xreplace``, which replaces all objects specified in a mapper,
     this function replaces all objects satisfying two criteria: ::
@@ -122,28 +122,38 @@ def xreplace_constrained(exprs, make, rule, costmodel=lambda e: True, repeat=Fal
     ``a + b`` satisfies the cost model.
 
     :param exprs: The target SymPy expression, or a collection of SymPy expressions.
-    :param make: A function to construct symbols used for replacement.
-                 The function takes as input an integer ID; ID is computed internally
-                 and used as a unique identifier for the constructed symbols.
-    :param rule: The matching rule (a lambda function).
+    :param make: Either a mapper M: K -> V, indicating how to replace an expression
+                 in K with a symbol in V, or a function, used to construct new, unique
+                 symbols. Such a function should take as input a parameter, used to
+                 enumerate the new symbols.
+    :param rule: The matching rule (a lambda function). May be left unspecified if
+                 ``make`` is a mapper.
     :param costmodel: The cost model (a lambda function, optional).
     :param repeat: Repeatedly apply ``xreplace`` until no more replacements are
                    possible (optional, defaults to False).
     """
-
     found = OrderedDict()
     rebuilt = []
 
-    def replace(expr):
-        temporary = found.get(expr)
-        if temporary:
-            return temporary
-        else:
-            temporary = make(replace.c)
-            found[expr] = temporary
-            replace.c += 1
-            return temporary
-    replace.c = 0  # Unique identifier for new temporaries
+    # Define /replace()/ based on the user-provided /make/
+    if isinstance(make, dict):
+        rule = rule if rule is not None else (lambda i: i in make)
+        replace = lambda i: make[i]
+    else:
+        assert callable(make) and callable(rule)
+
+        def replace(expr):
+            if isinstance(make, dict):
+                return make[expr]
+            temporary = found.get(expr)
+            if temporary:
+                return temporary
+            else:
+                temporary = make(replace.c)
+                found[expr] = temporary
+                replace.c += 1
+                return temporary
+        replace.c = 0  # Unique identifier for new temporaries
 
     def run(expr):
         if expr.is_Atom or q_indexed(expr):
@@ -254,9 +264,6 @@ def common_subexprs_elimination(exprs, make, mode='default'):
     mapper = {i.lhs: j.lhs for i, j in zip(mapped, reversed(mapped))}
     processed = [e.xreplace(mapper) for e in processed]
 
-    # Some temporaries may be droppable at this point
-    processed = compact_temporaries(processed)
-
     return processed
 
 
@@ -266,14 +273,16 @@ def compact_temporaries(exprs):
     """
     g = temporaries_graph(exprs)
 
-    mapper = {list(v.reads)[0]: k for k, v in g.items() if v.is_dead}
+    mapper = {k: v.rhs for k, v in g.items()
+              if v.is_scalar and (q_leaf(v.rhs) or v.rhs.is_Function)}
 
     processed = []
     for k, v in g.items():
-        if k in mapper:
-            processed.append(Eq(mapper[k], v.rhs))
-        elif not v.is_dead:
-            processed.append(v.xreplace(mapper))
+        if k not in mapper:
+            # The temporary /v/ is retained, and substitutions may be applied
+            handle, _ = xreplace_constrained(v, mapper, repeat=True)
+            assert len(handle) == 1
+            processed.extend(handle)
 
     return processed
 

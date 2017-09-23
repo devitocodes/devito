@@ -11,6 +11,7 @@ from devito.interfaces import Forward, Backward, _SymbolCache  # noqa
 from devito.logger import error, warning, info  # noqa
 from devito.parameters import (configuration, init_configuration,  # noqa
                                env_vars_mapper)
+from devito.tools import *  # noqa
 
 
 def clear_cache():

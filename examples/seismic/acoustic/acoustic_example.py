@@ -21,10 +21,10 @@ def smooth10(vel, shape):
     return out
 
 
-def acoustic_setup(dimensions=(50, 50, 50), spacing=(15.0, 15.0, 15.0),
+def acoustic_setup(shape=(50, 50, 50), spacing=(15.0, 15.0, 15.0),
                    tn=500., time_order=2, space_order=4, nbpml=10, **kwargs):
-    nrec = dimensions[0]
-    model = demo_model('layers', ratio=3, shape=dimensions,
+    nrec = shape[0]
+    model = demo_model('layers-isotropic', ratio=3, shape=shape,
                        spacing=spacing, nbpml=nbpml)
 
     # Derive timestepping from model spacing
@@ -50,11 +50,11 @@ def acoustic_setup(dimensions=(50, 50, 50), spacing=(15.0, 15.0, 15.0),
     return solver
 
 
-def run(dimensions=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=1000.0,
+def run(shape=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=1000.0,
         time_order=2, space_order=4, nbpml=40, full_run=False,
         autotune=False, **kwargs):
 
-    solver = acoustic_setup(dimensions=dimensions, spacing=spacing,
+    solver = acoustic_setup(dimensions=shape, spacing=spacing,
                             nbpml=nbpml, tn=tn, space_order=space_order,
                             time_order=time_order, **kwargs)
 
@@ -89,22 +89,25 @@ if __name__ == "__main__":
                         type=int, help="Space order of the simulation")
     parser.add_argument("--nbpml", default=40,
                         type=int, help="Number of PML layers around the domain")
-    parser.add_argument("-dse", default='advanced',
-                        type=str, help="DSE backend choice")
-    parser.add_argument("-dle", default='advanced',
-                        type=str, help="DLE backend choice")
+    parser.add_argument("-dse", "-dse", default="advanced",
+                        choices=["noop", "basic", "advanced",
+                                 "speculative", "aggressive"],
+                        help="Devito symbolic engine (DSE) mode")
+    parser.add_argument("-dle", default="advanced",
+                        choices=["noop", "advanced", "speculative"],
+                        help="Devito loop engine (DSE) mode")
     args = parser.parse_args()
 
     # 3D preset parameters
     if args.dim2:
-        dimensions = (150, 150)
+        shape = (150, 150)
         spacing = (15.0, 15.0)
         tn = 750.0
     else:
-        dimensions = (50, 50, 50)
+        shape = (50, 50, 50)
         spacing = (20.0, 20.0, 20.0)
         tn = 250.0
 
-    run(dimensions=dimensions, spacing=spacing, nbpml=args.nbpml, tn=tn,
+    run(shape=shape, spacing=spacing, nbpml=args.nbpml, tn=tn,
         space_order=args.space_order, time_order=args.time_order,
         autotune=args.autotune, dse=args.dse, dle=args.dle, full_run=args.full)

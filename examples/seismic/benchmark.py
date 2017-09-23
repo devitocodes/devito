@@ -30,7 +30,7 @@ if __name__ == "__main__":
                         choices=["acoustic", "tti"], help="Problem")
 
     simulation = parser.add_argument_group("Simulation")
-    simulation.add_argument("-d", "--dimensions", nargs=3, default=[50, 50, 50],
+    simulation.add_argument("-d", "--shape", nargs=3, default=[50, 50, 50],
                             type=int, help="Number of grid points along each axis",
                             metavar=("dim1", "dim2", "dim3"))
     simulation.add_argument("-s", "--spacing", nargs=3, default=[20.0, 20.0, 20.0],
@@ -91,7 +91,7 @@ if __name__ == "__main__":
     del parameters["max_flops"]
     del parameters["point_runtime"]
 
-    parameters["dimensions"] = tuple(parameters["dimensions"])
+    parameters["shape"] = tuple(parameters["shape"])
     parameters["spacing"] = tuple(parameters["spacing"])
 
     if args.execmode == "run":
