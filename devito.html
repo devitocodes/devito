@@ -2437,7 +2437,7 @@ The following code sections are profiled:</p>
 <dl class="class">
 <dt id="devito.stencil.Stencil">
 <em class="property">class </em><code class="descclassname">devito.stencil.</code><code class="descname">Stencil</code><span class="sig-paren">(</span><em>*args</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/stencil.html#Stencil"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.stencil.Stencil" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <a class="reference internal" href="#devito.tools.DefaultOrderedDict" title="devito.tools.DefaultOrderedDict"><code class="xref py py-class docutils literal"><span class="pre">devito.tools.DefaultOrderedDict</span></code></a></p>
+<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">devito.tools.DefaultOrderedDict</span></code></p>
 <p>A Stencil is a mapping from <code class="xref py py-class docutils literal"><span class="pre">Dimension</span></code> symbols to the set of integer
 offsets used with it in expressions (the “neighboring points accessed”).</p>
 <p>This also include zero offsets.</p>
@@ -2567,108 +2567,16 @@ Dimension in <code class="docutils literal"><span class="pre">o</span></code>.</
 <div class="section" id="module-devito.tools">
 <span id="devito-tools-module"></span><h2>devito.tools module<a class="headerlink" href="#module-devito.tools" title="Permalink to this headline">¶</a></h2>
 <dl class="class">
-<dt id="devito.tools.DefaultOrderedDict">
-<em class="property">class </em><code class="descclassname">devito.tools.</code><code class="descname">DefaultOrderedDict</code><span class="sig-paren">(</span><em>default_factory=None</em>, <em>*a</em>, <em>**kw</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/tools.html#DefaultOrderedDict"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.tools.DefaultOrderedDict" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">collections.OrderedDict</span></code></p>
-<dl class="method">
-<dt id="devito.tools.DefaultOrderedDict.copy">
-<code class="descname">copy</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/tools.html#DefaultOrderedDict.copy"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.tools.DefaultOrderedDict.copy" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-</dd></dl>
-
-<dl class="function">
-<dt id="devito.tools.as_tuple">
-<code class="descclassname">devito.tools.</code><code class="descname">as_tuple</code><span class="sig-paren">(</span><em>item</em>, <em>type=None</em>, <em>length=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/tools.html#as_tuple"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.tools.as_tuple" title="Permalink to this definition">¶</a></dt>
-<dd><p>Force item to a tuple.</p>
-<p>Partly extracted from: <a class="reference external" href="https://github.com/OP2/PyOP2/">https://github.com/OP2/PyOP2/</a>.</p>
-</dd></dl>
-
-<dl class="class">
-<dt id="devito.tools.change_directory">
-<em class="property">class </em><code class="descclassname">devito.tools.</code><code class="descname">change_directory</code><span class="sig-paren">(</span><em>newPath</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/tools.html#change_directory"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.tools.change_directory" title="Permalink to this definition">¶</a></dt>
+<dt id="devito.tools.memoized">
+<em class="property">class </em><code class="descclassname">devito.tools.</code><code class="descname">memoized</code><span class="sig-paren">(</span><em>func</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/tools.html#memoized"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.tools.memoized" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">object</span></code></p>
-<p>Context manager for changing the current working directory.</p>
+<p>Decorator. Caches a function’s return value each time it is called.
+If called later with the same arguments, the cached value is returned
+(not reevaluated).</p>
 <p>Adapted from:</p>
-<div class="highlight-default"><div class="highlight"><pre><span></span><span class="n">https</span><span class="p">:</span><span class="o">//</span><span class="n">stackoverflow</span><span class="o">.</span><span class="n">com</span><span class="o">/</span><span class="n">questions</span><span class="o">/</span><span class="mi">431684</span><span class="o">/</span><span class="n">how</span><span class="o">-</span><span class="n">do</span><span class="o">-</span><span class="n">i</span><span class="o">-</span><span class="n">cd</span><span class="o">-</span><span class="ow">in</span><span class="o">-</span><span class="n">python</span><span class="o">/</span>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="n">https</span><span class="p">:</span><span class="o">//</span><span class="n">wiki</span><span class="o">.</span><span class="n">python</span><span class="o">.</span><span class="n">org</span><span class="o">/</span><span class="n">moin</span><span class="o">/</span><span class="n">PythonDecoratorLibrary</span><span class="c1">#Memoize</span>
 </pre></div>
 </div>
-</dd></dl>
-
-<dl class="function">
-<dt id="devito.tools.ctypes_pointer">
-<code class="descclassname">devito.tools.</code><code class="descname">ctypes_pointer</code><span class="sig-paren">(</span><em>name</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/tools.html#ctypes_pointer"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.tools.ctypes_pointer" title="Permalink to this definition">¶</a></dt>
-<dd><p>Create a ctypes type representing a C pointer to a custom data type <code class="docutils literal"><span class="pre">name</span></code>.</p>
-</dd></dl>
-
-<dl class="function">
-<dt id="devito.tools.ctypes_to_C">
-<code class="descclassname">devito.tools.</code><code class="descname">ctypes_to_C</code><span class="sig-paren">(</span><em>ctype</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/tools.html#ctypes_to_C"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.tools.ctypes_to_C" title="Permalink to this definition">¶</a></dt>
-<dd><p>Map ctypes types to C types.</p>
-</dd></dl>
-
-<dl class="function">
-<dt id="devito.tools.filter_ordered">
-<code class="descclassname">devito.tools.</code><code class="descname">filter_ordered</code><span class="sig-paren">(</span><em>elements</em>, <em>key=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/tools.html#filter_ordered"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.tools.filter_ordered" title="Permalink to this definition">¶</a></dt>
-<dd><p>Filter elements in a list while preserving order.</p>
-<table class="docutils field-list" frame="void" rules="none">
-<col class="field-name" />
-<col class="field-body" />
-<tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>key</strong> – Optional conversion key used during equality comparison.</td>
-</tr>
-</tbody>
-</table>
-</dd></dl>
-
-<dl class="function">
-<dt id="devito.tools.filter_sorted">
-<code class="descclassname">devito.tools.</code><code class="descname">filter_sorted</code><span class="sig-paren">(</span><em>elements</em>, <em>key=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/tools.html#filter_sorted"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.tools.filter_sorted" title="Permalink to this definition">¶</a></dt>
-<dd><p>Filter elements in a list and sort them by key</p>
-</dd></dl>
-
-<dl class="function">
-<dt id="devito.tools.flatten">
-<code class="descclassname">devito.tools.</code><code class="descname">flatten</code><span class="sig-paren">(</span><em>l</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/tools.html#flatten"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.tools.flatten" title="Permalink to this definition">¶</a></dt>
-<dd><p>Flatten a hierarchy of nested lists into a plain list.</p>
-</dd></dl>
-
-<dl class="function">
-<dt id="devito.tools.grouper">
-<code class="descclassname">devito.tools.</code><code class="descname">grouper</code><span class="sig-paren">(</span><em>iterable</em>, <em>n</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/tools.html#grouper"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.tools.grouper" title="Permalink to this definition">¶</a></dt>
-<dd><p>Split an interable into groups of size n, plus a reminder</p>
-</dd></dl>
-
-<dl class="function">
-<dt id="devito.tools.invert">
-<code class="descclassname">devito.tools.</code><code class="descname">invert</code><span class="sig-paren">(</span><em>mapper</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/tools.html#invert"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.tools.invert" title="Permalink to this definition">¶</a></dt>
-<dd><p>Invert a dict of lists preserving the order.</p>
-</dd></dl>
-
-<dl class="function">
-<dt id="devito.tools.numpy_to_ctypes">
-<code class="descclassname">devito.tools.</code><code class="descname">numpy_to_ctypes</code><span class="sig-paren">(</span><em>dtype</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/tools.html#numpy_to_ctypes"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.tools.numpy_to_ctypes" title="Permalink to this definition">¶</a></dt>
-<dd><p>Map numpy types to ctypes types.</p>
-</dd></dl>
-
-<dl class="function">
-<dt id="devito.tools.partial_order">
-<code class="descclassname">devito.tools.</code><code class="descname">partial_order</code><span class="sig-paren">(</span><em>elements</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/tools.html#partial_order"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.tools.partial_order" title="Permalink to this definition">¶</a></dt>
-<dd><p>Compute a partial order for the items in <code class="docutils literal"><span class="pre">elements</span></code>. If a partial order
-cannot be established, return the empty list. If multiple partial orderings are
-possible, determinism in ensured.</p>
-</dd></dl>
-
-<dl class="function">
-<dt id="devito.tools.pprint">
-<code class="descclassname">devito.tools.</code><code class="descname">pprint</code><span class="sig-paren">(</span><em>node</em>, <em>verbose=True</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/tools.html#pprint"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.tools.pprint" title="Permalink to this definition">¶</a></dt>
-<dd><p>Shortcut to pretty print Iteration/Expression trees.</p>
-</dd></dl>
-
-<dl class="function">
-<dt id="devito.tools.roundm">
-<code class="descclassname">devito.tools.</code><code class="descname">roundm</code><span class="sig-paren">(</span><em>x</em>, <em>y</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/tools.html#roundm"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.tools.roundm" title="Permalink to this definition">¶</a></dt>
-<dd><p>Return x rounded up to the closest multiple of y.</p>
 </dd></dl>
 
 </div>

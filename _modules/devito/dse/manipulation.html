@@ -172,7 +172,7 @@
 <span class="kn">from</span> <span class="nn">devito.dse.extended_sympy</span> <span class="k">import</span> <span class="n">Add</span><span class="p">,</span> <span class="n">Eq</span><span class="p">,</span> <span class="n">Mul</span>
 <span class="kn">from</span> <span class="nn">devito.dse.inspection</span> <span class="k">import</span> <span class="n">count</span><span class="p">,</span> <span class="n">estimate_cost</span><span class="p">,</span> <span class="n">retrieve_indexed</span>
 <span class="kn">from</span> <span class="nn">devito.dse.graph</span> <span class="k">import</span> <span class="n">temporaries_graph</span>
-<span class="kn">from</span> <span class="nn">devito.dse.queries</span> <span class="k">import</span> <span class="n">q_indexed</span><span class="p">,</span> <span class="n">q_op</span>
+<span class="kn">from</span> <span class="nn">devito.dse.queries</span> <span class="k">import</span> <span class="n">q_indexed</span><span class="p">,</span> <span class="n">q_op</span><span class="p">,</span> <span class="n">q_leaf</span>
 <span class="kn">from</span> <span class="nn">devito.interfaces</span> <span class="k">import</span> <span class="n">Indexed</span><span class="p">,</span> <span class="n">TensorFunction</span>
 <span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">as_tuple</span>
 
@@ -267,7 +267,7 @@
     <span class="k">return</span> <span class="n">run</span><span class="p">(</span><span class="n">expr</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span></div>
 
 
-<div class="viewcode-block" id="xreplace_constrained"><a class="viewcode-back" href="../../../devito.dse.html#devito.dse.manipulation.xreplace_constrained">[docs]</a><span class="k">def</span> <span class="nf">xreplace_constrained</span><span class="p">(</span><span class="n">exprs</span><span class="p">,</span> <span class="n">make</span><span class="p">,</span> <span class="n">rule</span><span class="p">,</span> <span class="n">costmodel</span><span class="o">=</span><span class="k">lambda</span> <span class="n">e</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span> <span class="n">repeat</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+<div class="viewcode-block" id="xreplace_constrained"><a class="viewcode-back" href="../../../devito.dse.html#devito.dse.manipulation.xreplace_constrained">[docs]</a><span class="k">def</span> <span class="nf">xreplace_constrained</span><span class="p">(</span><span class="n">exprs</span><span class="p">,</span> <span class="n">make</span><span class="p">,</span> <span class="n">rule</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">costmodel</span><span class="o">=</span><span class="k">lambda</span> <span class="n">e</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span> <span class="n">repeat</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Unlike ``xreplace``, which replaces all objects specified in a mapper,</span>
 <span class="sd">    this function replaces all objects satisfying two criteria: ::</span>
@@ -284,28 +284,38 @@
 <span class="sd">    ``a + b`` satisfies the cost model.</span>
 
 <span class="sd">    :param exprs: The target SymPy expression, or a collection of SymPy expressions.</span>
-<span class="sd">    :param make: A function to construct symbols used for replacement.</span>
-<span class="sd">                 The function takes as input an integer ID; ID is computed internally</span>
-<span class="sd">                 and used as a unique identifier for the constructed symbols.</span>
-<span class="sd">    :param rule: The matching rule (a lambda function).</span>
+<span class="sd">    :param make: Either a mapper M: K -&gt; V, indicating how to replace an expression</span>
+<span class="sd">                 in K with a symbol in V, or a function, used to construct new, unique</span>
+<span class="sd">                 symbols. Such a function should take as input a parameter, used to</span>
+<span class="sd">                 enumerate the new symbols.</span>
+<span class="sd">    :param rule: The matching rule (a lambda function). May be left unspecified if</span>
+<span class="sd">                 ``make`` is a mapper.</span>
 <span class="sd">    :param costmodel: The cost model (a lambda function, optional).</span>
 <span class="sd">    :param repeat: Repeatedly apply ``xreplace`` until no more replacements are</span>
 <span class="sd">                   possible (optional, defaults to False).</span>
 <span class="sd">    &quot;&quot;&quot;</span>
-
     <span class="n">found</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">()</span>
     <span class="n">rebuilt</span> <span class="o">=</span> <span class="p">[]</span>
 
-    <span class="k">def</span> <span class="nf">replace</span><span class="p">(</span><span class="n">expr</span><span class="p">):</span>
-        <span class="n">temporary</span> <span class="o">=</span> <span class="n">found</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">expr</span><span class="p">)</span>
-        <span class="k">if</span> <span class="n">temporary</span><span class="p">:</span>
-            <span class="k">return</span> <span class="n">temporary</span>
-        <span class="k">else</span><span class="p">:</span>
-            <span class="n">temporary</span> <span class="o">=</span> <span class="n">make</span><span class="p">(</span><span class="n">replace</span><span class="o">.</span><span class="n">c</span><span class="p">)</span>
-            <span class="n">found</span><span class="p">[</span><span class="n">expr</span><span class="p">]</span> <span class="o">=</span> <span class="n">temporary</span>
-            <span class="n">replace</span><span class="o">.</span><span class="n">c</span> <span class="o">+=</span> <span class="mi">1</span>
-            <span class="k">return</span> <span class="n">temporary</span>
-    <span class="n">replace</span><span class="o">.</span><span class="n">c</span> <span class="o">=</span> <span class="mi">0</span>  <span class="c1"># Unique identifier for new temporaries</span>
+    <span class="c1"># Define /replace()/ based on the user-provided /make/</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">make</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
+        <span class="n">rule</span> <span class="o">=</span> <span class="n">rule</span> <span class="k">if</span> <span class="n">rule</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="p">(</span><span class="k">lambda</span> <span class="n">i</span><span class="p">:</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">make</span><span class="p">)</span>
+        <span class="n">replace</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">i</span><span class="p">:</span> <span class="n">make</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">assert</span> <span class="n">callable</span><span class="p">(</span><span class="n">make</span><span class="p">)</span> <span class="ow">and</span> <span class="n">callable</span><span class="p">(</span><span class="n">rule</span><span class="p">)</span>
+
+        <span class="k">def</span> <span class="nf">replace</span><span class="p">(</span><span class="n">expr</span><span class="p">):</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">make</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
+                <span class="k">return</span> <span class="n">make</span><span class="p">[</span><span class="n">expr</span><span class="p">]</span>
+            <span class="n">temporary</span> <span class="o">=</span> <span class="n">found</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">expr</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">temporary</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">temporary</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">temporary</span> <span class="o">=</span> <span class="n">make</span><span class="p">(</span><span class="n">replace</span><span class="o">.</span><span class="n">c</span><span class="p">)</span>
+                <span class="n">found</span><span class="p">[</span><span class="n">expr</span><span class="p">]</span> <span class="o">=</span> <span class="n">temporary</span>
+                <span class="n">replace</span><span class="o">.</span><span class="n">c</span> <span class="o">+=</span> <span class="mi">1</span>
+                <span class="k">return</span> <span class="n">temporary</span>
+        <span class="n">replace</span><span class="o">.</span><span class="n">c</span> <span class="o">=</span> <span class="mi">0</span>  <span class="c1"># Unique identifier for new temporaries</span>
 
     <span class="k">def</span> <span class="nf">run</span><span class="p">(</span><span class="n">expr</span><span class="p">):</span>
         <span class="k">if</span> <span class="n">expr</span><span class="o">.</span><span class="n">is_Atom</span> <span class="ow">or</span> <span class="n">q_indexed</span><span class="p">(</span><span class="n">expr</span><span class="p">):</span>
@@ -416,9 +426,6 @@
     <span class="n">mapper</span> <span class="o">=</span> <span class="p">{</span><span class="n">i</span><span class="o">.</span><span class="n">lhs</span><span class="p">:</span> <span class="n">j</span><span class="o">.</span><span class="n">lhs</span> <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">mapped</span><span class="p">,</span> <span class="nb">reversed</span><span class="p">(</span><span class="n">mapped</span><span class="p">))}</span>
     <span class="n">processed</span> <span class="o">=</span> <span class="p">[</span><span class="n">e</span><span class="o">.</span><span class="n">xreplace</span><span class="p">(</span><span class="n">mapper</span><span class="p">)</span> <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">processed</span><span class="p">]</span>
 
-    <span class="c1"># Some temporaries may be droppable at this point</span>
-    <span class="n">processed</span> <span class="o">=</span> <span class="n">compact_temporaries</span><span class="p">(</span><span class="n">processed</span><span class="p">)</span>
-
     <span class="k">return</span> <span class="n">processed</span></div>
 
 
@@ -428,14 +435,16 @@
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="n">g</span> <span class="o">=</span> <span class="n">temporaries_graph</span><span class="p">(</span><span class="n">exprs</span><span class="p">)</span>
 
-    <span class="n">mapper</span> <span class="o">=</span> <span class="p">{</span><span class="nb">list</span><span class="p">(</span><span class="n">v</span><span class="o">.</span><span class="n">reads</span><span class="p">)[</span><span class="mi">0</span><span class="p">]:</span> <span class="n">k</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">g</span><span class="o">.</span><span class="n">items</span><span class="p">()</span> <span class="k">if</span> <span class="n">v</span><span class="o">.</span><span class="n">is_dead</span><span class="p">}</span>
+    <span class="n">mapper</span> <span class="o">=</span> <span class="p">{</span><span class="n">k</span><span class="p">:</span> <span class="n">v</span><span class="o">.</span><span class="n">rhs</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">g</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
+              <span class="k">if</span> <span class="n">v</span><span class="o">.</span><span class="n">is_scalar</span> <span class="ow">and</span> <span class="p">(</span><span class="n">q_leaf</span><span class="p">(</span><span class="n">v</span><span class="o">.</span><span class="n">rhs</span><span class="p">)</span> <span class="ow">or</span> <span class="n">v</span><span class="o">.</span><span class="n">rhs</span><span class="o">.</span><span class="n">is_Function</span><span class="p">)}</span>
 
     <span class="n">processed</span> <span class="o">=</span> <span class="p">[]</span>
     <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">g</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
-        <span class="k">if</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">mapper</span><span class="p">:</span>
-            <span class="n">processed</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">Eq</span><span class="p">(</span><span class="n">mapper</span><span class="p">[</span><span class="n">k</span><span class="p">],</span> <span class="n">v</span><span class="o">.</span><span class="n">rhs</span><span class="p">))</span>
-        <span class="k">elif</span> <span class="ow">not</span> <span class="n">v</span><span class="o">.</span><span class="n">is_dead</span><span class="p">:</span>
-            <span class="n">processed</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">v</span><span class="o">.</span><span class="n">xreplace</span><span class="p">(</span><span class="n">mapper</span><span class="p">))</span>
+        <span class="k">if</span> <span class="n">k</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">mapper</span><span class="p">:</span>
+            <span class="c1"># The temporary /v/ is retained, and substitutions may be applied</span>
+            <span class="n">handle</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">xreplace_constrained</span><span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="n">mapper</span><span class="p">,</span> <span class="n">repeat</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+            <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">handle</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span>
+            <span class="n">processed</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">handle</span><span class="p">)</span>
 
     <span class="k">return</span> <span class="n">processed</span>
 

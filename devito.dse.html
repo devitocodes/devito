@@ -562,7 +562,7 @@ into, respectively, <code class="xref py py-class docutils literal"><span class=
 
 <dl class="function">
 <dt id="devito.dse.manipulation.xreplace_constrained">
-<code class="descclassname">devito.dse.manipulation.</code><code class="descname">xreplace_constrained</code><span class="sig-paren">(</span><em>exprs</em>, <em>make</em>, <em>rule</em>, <em>costmodel=&lt;function &lt;lambda&gt;&gt;</em>, <em>repeat=False</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/dse/manipulation.html#xreplace_constrained"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.dse.manipulation.xreplace_constrained" title="Permalink to this definition">¶</a></dt>
+<code class="descclassname">devito.dse.manipulation.</code><code class="descname">xreplace_constrained</code><span class="sig-paren">(</span><em>exprs</em>, <em>make</em>, <em>rule=None</em>, <em>costmodel=&lt;function &lt;lambda&gt;&gt;</em>, <em>repeat=False</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/dse/manipulation.html#xreplace_constrained"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.dse.manipulation.xreplace_constrained" title="Permalink to this definition">¶</a></dt>
 <dd><p>Unlike <code class="docutils literal"><span class="pre">xreplace</span></code>, which replaces all objects specified in a mapper,
 this function replaces all objects satisfying two criteria:</p>
 <div class="highlight-default"><div class="highlight"><pre><span></span>* The &quot;matching rule&quot; -- a function returning True if a node within ``expr``
@@ -582,10 +582,12 @@ all of <code class="docutils literal"><span class="pre">a</span></code>, <code c
 <tbody valign="top">
 <tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
 <li><strong>exprs</strong> – The target SymPy expression, or a collection of SymPy expressions.</li>
-<li><strong>make</strong> – A function to construct symbols used for replacement.
-The function takes as input an integer ID; ID is computed internally
-and used as a unique identifier for the constructed symbols.</li>
-<li><strong>rule</strong> – The matching rule (a lambda function).</li>
+<li><strong>make</strong> – Either a mapper M: K -&gt; V, indicating how to replace an expression
+in K with a symbol in V, or a function, used to construct new, unique
+symbols. Such a function should take as input a parameter, used to
+enumerate the new symbols.</li>
+<li><strong>rule</strong> – The matching rule (a lambda function). May be left unspecified if
+<code class="docutils literal"><span class="pre">make</span></code> is a mapper.</li>
 <li><strong>costmodel</strong> – The cost model (a lambda function, optional).</li>
 <li><strong>repeat</strong> – Repeatedly apply <code class="docutils literal"><span class="pre">xreplace</span></code> until no more replacements are
 possible (optional, defaults to False).</li>

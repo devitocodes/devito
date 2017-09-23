@@ -171,7 +171,7 @@
 <span class="kn">from</span> <span class="nn">devito.dse.clusterizer</span> <span class="k">import</span> <span class="n">clusterize</span>
 <span class="kn">from</span> <span class="nn">devito.dse.inspection</span> <span class="k">import</span> <span class="n">estimate_cost</span>
 <span class="kn">from</span> <span class="nn">devito.dse.manipulation</span> <span class="k">import</span> <span class="p">(</span><span class="n">common_subexprs_elimination</span><span class="p">,</span> <span class="n">collect_nested</span><span class="p">,</span>
-                                     <span class="n">xreplace_constrained</span><span class="p">)</span>
+                                     <span class="n">xreplace_constrained</span><span class="p">,</span> <span class="n">compact_temporaries</span><span class="p">)</span>
 <span class="kn">from</span> <span class="nn">devito.dse.queries</span> <span class="k">import</span> <span class="n">iq_timeinvariant</span>
 <span class="kn">from</span> <span class="nn">devito.interfaces</span> <span class="k">import</span> <span class="n">Indexed</span><span class="p">,</span> <span class="n">ScalarFunction</span><span class="p">,</span> <span class="n">TensorFunction</span>
 
@@ -196,14 +196,18 @@
         <span class="n">rule</span> <span class="o">=</span> <span class="n">iq_timeinvariant</span><span class="p">(</span><span class="n">cluster</span><span class="o">.</span><span class="n">trace</span><span class="p">)</span>
         <span class="n">costmodel</span> <span class="o">=</span> <span class="n">costmodel</span> <span class="ow">or</span> <span class="p">(</span><span class="k">lambda</span> <span class="n">e</span><span class="p">:</span> <span class="n">estimate_cost</span><span class="p">(</span><span class="n">e</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">)</span>
         <span class="n">processed</span><span class="p">,</span> <span class="n">found</span> <span class="o">=</span> <span class="n">xreplace_constrained</span><span class="p">(</span><span class="n">cluster</span><span class="o">.</span><span class="n">exprs</span><span class="p">,</span> <span class="n">make</span><span class="p">,</span> <span class="n">rule</span><span class="p">,</span> <span class="n">costmodel</span><span class="p">)</span>
-        <span class="n">leaves</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">processed</span> <span class="k">if</span> <span class="n">i</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">found</span><span class="p">]</span>
 
-        <span class="c1"># Search for common sub-expressions amongst them (and only them)</span>
         <span class="k">if</span> <span class="n">with_cse</span><span class="p">:</span>
+            <span class="n">leaves</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">processed</span> <span class="k">if</span> <span class="n">i</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">found</span><span class="p">]</span>
+
+            <span class="c1"># Search for common sub-expressions amongst them (and only them)</span>
             <span class="n">make</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">i</span><span class="p">:</span> <span class="n">ScalarFunction</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="n">template</span><span class="p">(</span><span class="n">i</span> <span class="o">+</span> <span class="nb">len</span><span class="p">(</span><span class="n">found</span><span class="p">)))</span><span class="o">.</span><span class="n">indexify</span><span class="p">()</span>
             <span class="n">found</span> <span class="o">=</span> <span class="n">common_subexprs_elimination</span><span class="p">(</span><span class="n">found</span><span class="p">,</span> <span class="n">make</span><span class="p">)</span>
 
-        <span class="k">return</span> <span class="n">cluster</span><span class="o">.</span><span class="n">reschedule</span><span class="p">(</span><span class="n">found</span> <span class="o">+</span> <span class="n">leaves</span><span class="p">)</span>
+            <span class="c1"># Some temporaries may be droppable at this point</span>
+            <span class="n">processed</span> <span class="o">=</span> <span class="n">compact_temporaries</span><span class="p">(</span><span class="n">found</span> <span class="o">+</span> <span class="n">leaves</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">cluster</span><span class="o">.</span><span class="n">reschedule</span><span class="p">(</span><span class="n">processed</span><span class="p">)</span>
 
     <span class="nd">@dse_pass</span>
     <span class="k">def</span> <span class="nf">_factorize</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cluster</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>

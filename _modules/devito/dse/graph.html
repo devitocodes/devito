@@ -254,10 +254,6 @@
     <span class="k">def</span> <span class="nf">is_scalar</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">return</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_tensor</span>
 
-    <span class="nd">@property</span>
-    <span class="k">def</span> <span class="nf">is_dead</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_scalar</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_terminal</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">reads</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span>
-
     <span class="k">def</span> <span class="nf">construct</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">rule</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Create a new temporary starting from ``self`` replacing symbols in</span>

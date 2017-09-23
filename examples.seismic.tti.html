@@ -189,7 +189,7 @@
 <span id="examples-seismic-tti-operators-module"></span><h2>examples.seismic.tti.operators module<a class="headerlink" href="#module-examples.seismic.tti.operators" title="Permalink to this headline">¶</a></h2>
 <dl class="function">
 <dt id="examples.seismic.tti.operators.ForwardOperator">
-<code class="descclassname">examples.seismic.tti.operators.</code><code class="descname">ForwardOperator</code><span class="sig-paren">(</span><em>model</em>, <em>source</em>, <em>receiver</em>, <em>time_order=2</em>, <em>space_order=4</em>, <em>save=False</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/examples/seismic/tti/operators.html#ForwardOperator"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#examples.seismic.tti.operators.ForwardOperator" title="Permalink to this definition">¶</a></dt>
+<code class="descclassname">examples.seismic.tti.operators.</code><code class="descname">ForwardOperator</code><span class="sig-paren">(</span><em>model</em>, <em>source</em>, <em>receiver</em>, <em>time_order=2</em>, <em>space_order=4</em>, <em>save=False</em>, <em>kernel='centered'</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/examples/seismic/tti/operators.html#ForwardOperator"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#examples.seismic.tti.operators.ForwardOperator" title="Permalink to this definition">¶</a></dt>
 <dd><p>Constructor method for the forward modelling operator in an acoustic media</p>
 <table class="docutils field-list" frame="void" rules="none">
 <col class="field-name" />
@@ -205,10 +205,251 @@
 <tr class="field-even field"><th class="field-name">Param:</th><td class="field-body"><p class="first">time_order: Time discretization order</p>
 </td>
 </tr>
-<tr class="field-odd field"><th class="field-name">Param:</th><td class="field-body"><p class="first">spc_order: Space discretization order</p>
+<tr class="field-odd field"><th class="field-name">Param:</th><td class="field-body"><p class="first last">spc_order: Space discretization order</p>
 </td>
 </tr>
-<tr class="field-even field"><th class="field-name">Param:</th><td class="field-body"><p class="first last">u_ini : wavefield at the three first time step for non-zero initial condition</p>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="function">
+<dt id="examples.seismic.tti.operators.Gxx_centered_2d">
+<code class="descclassname">examples.seismic.tti.operators.</code><code class="descname">Gxx_centered_2d</code><span class="sig-paren">(</span><em>field</em>, <em>costheta</em>, <em>sintheta</em>, <em>space_order</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/examples/seismic/tti/operators.html#Gxx_centered_2d"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#examples.seismic.tti.operators.Gxx_centered_2d" title="Permalink to this definition">¶</a></dt>
+<dd><p>2D rotated second order derivative in the direction x.
+As the Laplacian is rotation invariant, it is computed as the conventional
+Laplacian minus the second order rotated second order derivative in the direction z
+Gxx = field.laplace - Gzz
+:param field: symbolic data whose derivative we are computing
+:param costheta: cosine of the tilt angle
+:param sintheta:  sine of the tilt angle
+:param cosphi: cosine of the azymuth angle
+:param sinphi: sine of the azymuth angle
+:param space_order: discretization order
+:return: Sum of the 3D rotated second order derivative in the direction x</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="examples.seismic.tti.operators.Gxx_shifted">
+<code class="descclassname">examples.seismic.tti.operators.</code><code class="descname">Gxx_shifted</code><span class="sig-paren">(</span><em>field</em>, <em>costheta</em>, <em>sintheta</em>, <em>cosphi</em>, <em>sinphi</em>, <em>space_order</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/examples/seismic/tti/operators.html#Gxx_shifted"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#examples.seismic.tti.operators.Gxx_shifted" title="Permalink to this definition">¶</a></dt>
+<dd><p>3D rotated second order derivative in the direction x as an average of
+two non-centered rotated second order derivative in the direction x
+:param field: symbolic data whose derivative we are computing
+:param costheta: cosine of the tilt angle
+:param sintheta:  sine of the tilt angle
+:param cosphi: cosine of the azymuth angle
+:param sinphi: sine of the azymuth angle
+:param space_order: discretization order
+:return: rotated second order derivative wrt x</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="examples.seismic.tti.operators.Gxx_shifted_2d">
+<code class="descclassname">examples.seismic.tti.operators.</code><code class="descname">Gxx_shifted_2d</code><span class="sig-paren">(</span><em>field</em>, <em>costheta</em>, <em>sintheta</em>, <em>space_order</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/examples/seismic/tti/operators.html#Gxx_shifted_2d"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#examples.seismic.tti.operators.Gxx_shifted_2d" title="Permalink to this definition">¶</a></dt>
+<dd><p>2D rotated second order derivative in the direction x as an average of
+two non-centered rotated second order derivative in the direction x
+:param field: symbolic data whose derivative we are computing
+:param costheta: cosine of the tilt angle
+:param sintheta:  sine of the tilt angle
+:param space_order: discretization order
+:return: rotated second order derivative wrt x</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="examples.seismic.tti.operators.Gxxyy_centered">
+<code class="descclassname">examples.seismic.tti.operators.</code><code class="descname">Gxxyy_centered</code><span class="sig-paren">(</span><em>field</em>, <em>costheta</em>, <em>sintheta</em>, <em>cosphi</em>, <em>sinphi</em>, <em>space_order</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/examples/seismic/tti/operators.html#Gxxyy_centered"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#examples.seismic.tti.operators.Gxxyy_centered" title="Permalink to this definition">¶</a></dt>
+<dd><p>Sum of the 3D rotated second order derivative in the direction x and y.
+As the Laplacian is rotation invariant, it is computed as the conventional
+Laplacian minus the second order rotated second order derivative in the direction z
+Gxx + Gyy = field.laplace - Gzz
+:param field: symbolic data whose derivative we are computing
+:param costheta: cosine of the tilt angle
+:param sintheta:  sine of the tilt angle
+:param cosphi: cosine of the azymuth angle
+:param sinphi: sine of the azymuth angle
+:param space_order: discretization order
+:return: Sum of the 3D rotated second order derivative in the direction x and y</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="examples.seismic.tti.operators.Gyy_shifted">
+<code class="descclassname">examples.seismic.tti.operators.</code><code class="descname">Gyy_shifted</code><span class="sig-paren">(</span><em>field</em>, <em>cosphi</em>, <em>sinphi</em>, <em>space_order</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/examples/seismic/tti/operators.html#Gyy_shifted"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#examples.seismic.tti.operators.Gyy_shifted" title="Permalink to this definition">¶</a></dt>
+<dd><p>3D rotated second order derivative in the direction y as an average of
+two non-centered rotated second order derivative in the direction y
+:param field: symbolic data whose derivative we are computing
+:param cosphi: cosine of the azymuth angle
+:param sinphi: sine of the azymuth angle
+:param space_order: discretization order
+:return: rotated second order derivative wrt y</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="examples.seismic.tti.operators.Gzz_centered">
+<code class="descclassname">examples.seismic.tti.operators.</code><code class="descname">Gzz_centered</code><span class="sig-paren">(</span><em>field</em>, <em>costheta</em>, <em>sintheta</em>, <em>cosphi</em>, <em>sinphi</em>, <em>space_order</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/examples/seismic/tti/operators.html#Gzz_centered"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#examples.seismic.tti.operators.Gzz_centered" title="Permalink to this definition">¶</a></dt>
+<dd><p>3D rotated second order derivative in the direction z
+:param field: symbolic data whose derivative we are computing
+:param costheta: cosine of the tilt angle
+:param sintheta:  sine of the tilt angle
+:param cosphi: cosine of the azymuth angle
+:param sinphi: sine of the azymuth angle
+:param space_order: discretization order
+:return: rotated second order derivative wrt z</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="examples.seismic.tti.operators.Gzz_centered_2d">
+<code class="descclassname">examples.seismic.tti.operators.</code><code class="descname">Gzz_centered_2d</code><span class="sig-paren">(</span><em>field</em>, <em>costheta</em>, <em>sintheta</em>, <em>space_order</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/examples/seismic/tti/operators.html#Gzz_centered_2d"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#examples.seismic.tti.operators.Gzz_centered_2d" title="Permalink to this definition">¶</a></dt>
+<dd><p>2D rotated second order derivative in the direction z
+:param field: symbolic data whose derivative we are computing
+:param costheta: cosine of the tilt angle
+:param sintheta:  sine of the tilt angle
+:param space_order: discretization order
+:return: rotated second order derivative wrt z</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="examples.seismic.tti.operators.Gzz_shited">
+<code class="descclassname">examples.seismic.tti.operators.</code><code class="descname">Gzz_shited</code><span class="sig-paren">(</span><em>field</em>, <em>costheta</em>, <em>sintheta</em>, <em>cosphi</em>, <em>sinphi</em>, <em>space_order</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/examples/seismic/tti/operators.html#Gzz_shited"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#examples.seismic.tti.operators.Gzz_shited" title="Permalink to this definition">¶</a></dt>
+<dd><p>3D rotated second order derivative in the direction z as an average of
+two non-centered rotated second order derivative in the direction z
+:param field: symbolic data whose derivative we are computing
+:param costheta: cosine of the tilt angle
+:param sintheta:  sine of the tilt angle
+:param cosphi: cosine of the azymuth angle
+:param sinphi: sine of the azymuth angle
+:param space_order: discretization order
+:return: rotated second order derivative wrt z</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="examples.seismic.tti.operators.Gzz_shited_2d">
+<code class="descclassname">examples.seismic.tti.operators.</code><code class="descname">Gzz_shited_2d</code><span class="sig-paren">(</span><em>field</em>, <em>costheta</em>, <em>sintheta</em>, <em>space_order</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/examples/seismic/tti/operators.html#Gzz_shited_2d"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#examples.seismic.tti.operators.Gzz_shited_2d" title="Permalink to this definition">¶</a></dt>
+<dd><p>2D rotated second order derivative in the direction z as an average of
+two non-centered rotated second order derivative in the direction z
+:param field: symbolic data whose derivative we are computing
+:param costheta: cosine of the tilt
+:param sintheta:  sine of the tilt
+:param space_order: discretization order
+:return: rotated second order derivative wrt z</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="examples.seismic.tti.operators.kernel_centered_2d">
+<code class="descclassname">examples.seismic.tti.operators.</code><code class="descname">kernel_centered_2d</code><span class="sig-paren">(</span><em>u</em>, <em>v</em>, <em>costheta</em>, <em>sintheta</em>, <em>cosphi</em>, <em>sinphi</em>, <em>space_order</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/examples/seismic/tti/operators.html#kernel_centered_2d"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#examples.seismic.tti.operators.kernel_centered_2d" title="Permalink to this definition">¶</a></dt>
+<dd><p>TTI finite difference kernel. The equation we solve is:</p>
+<p>u.dt2 = (1+2 <a href="#id1"><span class="problematic" id="id2">*</span></a>epsilon) (Gxx(u)) + sqrt(1+ 2*delta) Gzz(v)
+v.dt2 = sqrt(1+ 2*delta) (Gxx(u)) +  Gzz(v)</p>
+<p>where epsilon and delta are the thomsen parameters. This function computes
+H0 = Gxx(u) + Gyy(u)
+Hz = Gzz(v)</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>u</strong> – first TTI field</li>
+<li><strong>v</strong> – second TTI field</li>
+<li><strong>costheta</strong> – cosine of the tilt angle</li>
+<li><strong>sintheta</strong> – sine of the tilt angle</li>
+<li><strong>cosphi</strong> – cosine of the azymuth angle, has to be 0 in 2D</li>
+<li><strong>sinphi</strong> – sine of the azymuth angle, has to be 0 in 2D</li>
+<li><strong>space_order</strong> – discretization order</li>
+</ul>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first last">u and v component of the rotated Laplacian in 2D</p>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="function">
+<dt id="examples.seismic.tti.operators.kernel_centered_3d">
+<code class="descclassname">examples.seismic.tti.operators.</code><code class="descname">kernel_centered_3d</code><span class="sig-paren">(</span><em>u</em>, <em>v</em>, <em>costheta</em>, <em>sintheta</em>, <em>cosphi</em>, <em>sinphi</em>, <em>space_order</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/examples/seismic/tti/operators.html#kernel_centered_3d"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#examples.seismic.tti.operators.kernel_centered_3d" title="Permalink to this definition">¶</a></dt>
+<dd><p>TTI finite difference kernel. The equation we solve is:</p>
+<p>u.dt2 = (1+2 <a href="#id3"><span class="problematic" id="id4">*</span></a>epsilon) (Gxx(u)+Gyy(u)) + sqrt(1+ 2*delta) Gzz(v)
+v.dt2 = sqrt(1+ 2*delta) (Gxx(u)+Gyy(u)) +  Gzz(v)</p>
+<p>where epsilon and delta are the thomsen parameters. This function computes
+H0 = Gxx(u) + Gyy(u)
+Hz = Gzz(v)</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>u</strong> – first TTI field</li>
+<li><strong>v</strong> – second TTI field</li>
+<li><strong>costheta</strong> – cosine of the tilt angle</li>
+<li><strong>sintheta</strong> – sine of the tilt angle</li>
+<li><strong>cosphi</strong> – cosine of the azymuth angle</li>
+<li><strong>sinphi</strong> – sine of the azymuth angle</li>
+<li><strong>space_order</strong> – discretization order</li>
+</ul>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first last">u and v component of the rotated Laplacian in 2D</p>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="function">
+<dt id="examples.seismic.tti.operators.kernel_shited_2d">
+<code class="descclassname">examples.seismic.tti.operators.</code><code class="descname">kernel_shited_2d</code><span class="sig-paren">(</span><em>u</em>, <em>v</em>, <em>costheta</em>, <em>sintheta</em>, <em>cosphi</em>, <em>sinphi</em>, <em>space_order</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/examples/seismic/tti/operators.html#kernel_shited_2d"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#examples.seismic.tti.operators.kernel_shited_2d" title="Permalink to this definition">¶</a></dt>
+<dd><p>TTI finite difference kernel. The equation we solve is:</p>
+<p>u.dt2 = (1+2 <a href="#id5"><span class="problematic" id="id6">*</span></a>epsilon) (Gxx(u)) + sqrt(1+ 2*delta) Gzz(v)
+v.dt2 = sqrt(1+ 2*delta) (Gxx(u)) +  Gzz(v)</p>
+<p>where epsilon and delta are the thomsen parameters. This function computes
+H0 = Gxx(u) + Gyy(u)
+Hz = Gzz(v)</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>u</strong> – first TTI field</li>
+<li><strong>v</strong> – second TTI field</li>
+<li><strong>costheta</strong> – cosine of the tilt angle</li>
+<li><strong>sintheta</strong> – sine of the tilt angle</li>
+<li><strong>cosphi</strong> – cosine of the azymuth angle, has to be 0 in 2D</li>
+<li><strong>sinphi</strong> – sine of the azymuth angle, has to be 0 in 2D</li>
+<li><strong>space_order</strong> – discretization order</li>
+</ul>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first last">u and v component of the rotated Laplacian in 2D</p>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="function">
+<dt id="examples.seismic.tti.operators.kernel_shited_3d">
+<code class="descclassname">examples.seismic.tti.operators.</code><code class="descname">kernel_shited_3d</code><span class="sig-paren">(</span><em>u</em>, <em>v</em>, <em>costheta</em>, <em>sintheta</em>, <em>cosphi</em>, <em>sinphi</em>, <em>space_order</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/examples/seismic/tti/operators.html#kernel_shited_3d"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#examples.seismic.tti.operators.kernel_shited_3d" title="Permalink to this definition">¶</a></dt>
+<dd><p>TTI finite difference kernel. The equation we solve is:</p>
+<p>u.dt2 = (1+2 <a href="#id7"><span class="problematic" id="id8">*</span></a>epsilon) (Gxx(u)+Gyy(u)) + sqrt(1+ 2*delta) Gzz(v)
+v.dt2 = sqrt(1+ 2*delta) (Gxx(u)+Gyy(u)) +  Gzz(v)</p>
+<p>where epsilon and delta are the thomsen parameters. This function computes
+H0 = Gxx(u) + Gyy(u)
+Hz = Gzz(v)</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>u</strong> – first TTI field</li>
+<li><strong>v</strong> – second TTI field</li>
+<li><strong>costheta</strong> – cosine of the tilt angle</li>
+<li><strong>sintheta</strong> – sine of the tilt angle</li>
+<li><strong>cosphi</strong> – cosine of the azymuth angle</li>
+<li><strong>sinphi</strong> – sine of the azymuth angle</li>
+<li><strong>space_order</strong> – discretization order</li>
+</ul>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first last">u and v component of the rotated Laplacian in 3D</p>
 </td>
 </tr>
 </tbody>
@@ -220,12 +461,12 @@
 <span id="examples-seismic-tti-tti-example-module"></span><h2>examples.seismic.tti.tti_example module<a class="headerlink" href="#module-examples.seismic.tti.tti_example" title="Permalink to this headline">¶</a></h2>
 <dl class="function">
 <dt id="examples.seismic.tti.tti_example.run">
-<code class="descclassname">examples.seismic.tti.tti_example.</code><code class="descname">run</code><span class="sig-paren">(</span><em>dimensions=(50</em>, <em>50</em>, <em>50)</em>, <em>spacing=(20.0</em>, <em>20.0</em>, <em>20.0)</em>, <em>tn=250.0</em>, <em>autotune=False</em>, <em>time_order=2</em>, <em>space_order=4</em>, <em>nbpml=10</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/examples/seismic/tti/tti_example.html#run"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#examples.seismic.tti.tti_example.run" title="Permalink to this definition">¶</a></dt>
+<code class="descclassname">examples.seismic.tti.tti_example.</code><code class="descname">run</code><span class="sig-paren">(</span><em>shape=(50</em>, <em>50</em>, <em>50)</em>, <em>spacing=(20.0</em>, <em>20.0</em>, <em>20.0)</em>, <em>tn=250.0</em>, <em>autotune=False</em>, <em>time_order=2</em>, <em>space_order=4</em>, <em>nbpml=10</em>, <em>kernel='centered'</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/examples/seismic/tti/tti_example.html#run"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#examples.seismic.tti.tti_example.run" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 <dl class="function">
 <dt id="examples.seismic.tti.tti_example.tti_setup">
-<code class="descclassname">examples.seismic.tti.tti_example.</code><code class="descname">tti_setup</code><span class="sig-paren">(</span><em>dimensions=(50</em>, <em>50</em>, <em>50)</em>, <em>spacing=(20.0</em>, <em>20.0</em>, <em>20.0)</em>, <em>tn=250.0</em>, <em>time_order=2</em>, <em>space_order=4</em>, <em>nbpml=10</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/examples/seismic/tti/tti_example.html#tti_setup"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#examples.seismic.tti.tti_example.tti_setup" title="Permalink to this definition">¶</a></dt>
+<code class="descclassname">examples.seismic.tti.tti_example.</code><code class="descname">tti_setup</code><span class="sig-paren">(</span><em>shape=(50</em>, <em>50</em>, <em>50)</em>, <em>spacing=(20.0</em>, <em>20.0</em>, <em>20.0)</em>, <em>tn=250.0</em>, <em>time_order=2</em>, <em>space_order=4</em>, <em>nbpml=10</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/examples/seismic/tti/tti_example.html#tti_setup"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#examples.seismic.tti.tti_example.tti_setup" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 </div>
@@ -256,7 +497,7 @@ setup.</p>
 <p>Note: space_order must always be greater than time_order</p>
 <dl class="method">
 <dt id="examples.seismic.tti.wavesolver.AnisotropicWaveSolver.forward">
-<code class="descname">forward</code><span class="sig-paren">(</span><em>src=None</em>, <em>rec=None</em>, <em>u=None</em>, <em>v=None</em>, <em>m=None</em>, <em>epsilon=None</em>, <em>delta=None</em>, <em>theta=None</em>, <em>phi=None</em>, <em>save=False</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/examples/seismic/tti/wavesolver.html#AnisotropicWaveSolver.forward"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#examples.seismic.tti.wavesolver.AnisotropicWaveSolver.forward" title="Permalink to this definition">¶</a></dt>
+<code class="descname">forward</code><span class="sig-paren">(</span><em>src=None</em>, <em>rec=None</em>, <em>u=None</em>, <em>v=None</em>, <em>m=None</em>, <em>epsilon=None</em>, <em>delta=None</em>, <em>theta=None</em>, <em>phi=None</em>, <em>save=False</em>, <em>kernel='centered'</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/examples/seismic/tti/wavesolver.html#AnisotropicWaveSolver.forward"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#examples.seismic.tti.wavesolver.AnisotropicWaveSolver.forward" title="Permalink to this definition">¶</a></dt>
 <dd><p>Forward modelling function that creates the necessary
 data objects for running a forward modelling operator.</p>
 <table class="docutils field-list" frame="void" rules="none">
@@ -269,6 +510,7 @@ data objects for running a forward modelling operator.</p>
 <li><strong>u</strong> – (Optional) Symbol to store the computed wavefield</li>
 <li><strong>m</strong> – (Optional) Symbol for the time-constant square slowness</li>
 <li><strong>save</strong> – Option to store the entire (unrolled) wavefield</li>
+<li><strong>kernel</strong> – type of discretization, centered or shifted</li>
 </ul>
 </td>
 </tr>
@@ -281,15 +523,8 @@ data objects for running a forward modelling operator.</p>
 
 <dl class="attribute">
 <dt id="examples.seismic.tti.wavesolver.AnisotropicWaveSolver.op_fwd">
-<code class="descname">op_fwd</code><a class="headerlink" href="#examples.seismic.tti.wavesolver.AnisotropicWaveSolver.op_fwd" title="Permalink to this definition">¶</a></dt>
-<dd><p>Cached operator for forward runs with buffered wavefield</p>
-</dd></dl>
-
-<dl class="attribute">
-<dt id="examples.seismic.tti.wavesolver.AnisotropicWaveSolver.op_fwd_save">
-<code class="descname">op_fwd_save</code><a class="headerlink" href="#examples.seismic.tti.wavesolver.AnisotropicWaveSolver.op_fwd_save" title="Permalink to this definition">¶</a></dt>
-<dd><p>Cached operator for forward runs with unrolled wavefield</p>
-</dd></dl>
+<code class="descname">op_fwd</code><em class="property"> = &lt;functools.partial object&gt;</em><a class="headerlink" href="#examples.seismic.tti.wavesolver.AnisotropicWaveSolver.op_fwd" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
 
 </dd></dl>
 
