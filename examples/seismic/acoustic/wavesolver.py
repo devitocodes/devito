@@ -1,6 +1,6 @@
 from cached_property import cached_property
 
-from devito import DenseData, TimeData
+from devito import DenseData, TimeData, memoized
 from examples.seismic import PointSource, Receiver
 from examples.seismic.acoustic.operators import (
     ForwardOperator, AdjointOperator, GradientOperator, BornOperator
@@ -39,34 +39,27 @@ class AcousticWaveSolver(object):
         self._kwargs = kwargs
 
     @cached_property
-    def op_fwd(self):
+    def op_fwd(self, save):
         """Cached operator for forward runs with buffered wavefield"""
-        return ForwardOperator(self.model, save=False, source=self.source,
+        return ForwardOperator(self.model, save=save, source=self.source,
                                receiver=self.receiver, time_order=self.time_order,
                                space_order=self.space_order, **self._kwargs)
 
-    @cached_property
-    def op_fwd_save(self):
-        """Cached operator for forward runs with unrolled wavefield"""
-        return ForwardOperator(self.model, save=True, source=self.source,
-                               receiver=self.receiver, time_order=self.time_order,
-                               space_order=self.space_order, **self._kwargs)
-
-    @property
+    @memoized
     def op_adj(self):
         """Cached operator for adjoint runs"""
         return AdjointOperator(self.model, save=False, source=self.source,
                                receiver=self.receiver, time_order=self.time_order,
                                space_order=self.space_order, **self._kwargs)
 
-    @cached_property
+    @memoized
     def op_grad(self):
         """Cached operator for gradient runs"""
         return GradientOperator(self.model, save=False, source=self.source,
                                 receiver=self.receiver, time_order=self.time_order,
                                 space_order=self.space_order, **self._kwargs)
 
-    @property
+    @memoized
     def op_born(self):
         """Cached operator for born runs"""
         return BornOperator(self.model, save=False, source=self.source,
@@ -107,10 +100,7 @@ class AcousticWaveSolver(object):
             m = m or self.model.m
 
         # Execute operator and return wavefield and receiver data
-        if save:
-            summary = self.op_fwd_save.apply(src=src, rec=rec, u=u, m=m, **kwargs)
-        else:
-            summary = self.op_fwd.apply(src=src, rec=rec, u=u, m=m, **kwargs)
+        summary = self.op_fwd(save).apply(src=src, rec=rec, u=u, m=m, **kwargs)
         return rec, u, summary
 
     def adjoint(self, rec, srca=None, v=None, m=None, **kwargs):
