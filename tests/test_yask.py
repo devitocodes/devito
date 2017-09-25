@@ -8,6 +8,7 @@ pexpect = pytest.importorskip('yask_compiler')  # Run only if YASK is available
 from devito import (Operator, DenseData, TimeData, PointData,
                     time, t, x, y, z, configuration, clear_cache)  # noqa
 from devito.dle import retrieve_iteration_tree  # noqa
+from devito.yask import arch_mapper, yask_configuration  # noqa
 from devito.yask.wrappers import YaskGrid, contexts  # noqa
 
 # For the acoustic wave test
@@ -130,8 +131,15 @@ class TestOperatorSimple(object):
     def setup_class(cls):
         clear_cache()
 
+    @pytest.fixture(scope='class', autouse=True)
+    def reset_isa(self):
+        """Force back to NO-SIMD after each test, as some tests may optionally
+        switch on SIMD."""
+        yask_configuration['develop-mode'] = True
+
     @pytest.mark.parametrize("space_order", [0, 1, 2])
-    def test_increasing_halo_wo_ofs(self, space_order):
+    @pytest.mark.parametrize("nosimd", [True, False])
+    def test_increasing_halo_wo_ofs(self, space_order, nosimd):
         """
         Apply the trivial equation ``u[t+1,x,y,z] = u[t,x,y,z] + 1`` and check
         that increasing space orders lead to proportionately larger halo regions,
@@ -156,6 +164,9 @@ class TestOperatorSimple(object):
 
         And so on and so forth.
         """
+        # SIMD on/off
+        yask_configuration['develop-mode'] = nosimd
+
         u = TimeData(name='yu4D', shape=(16, 16, 16), dimensions=(x, y, z),
                      space_order=space_order)
         u.data.with_halo[:] = 0.
@@ -319,7 +330,7 @@ class TestOperatorAcoustic(object):
         shape = (60, 70, 80)
         nbpml = 10
         return demo_model(spacing=[15, 15, 15], shape=shape, nbpml=nbpml,
-                          preset='layers', ratio=3)
+                          preset='layers-isotropic', ratio=3)
 
     @pytest.fixture
     def time_params(self, model):

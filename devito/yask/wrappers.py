@@ -37,23 +37,40 @@ class YaskGrid(object):
     def __init__(self, grid, shape, radius, dtype):
         """
         Initialize a new :class:`YaskGrid`.
+
+        The storage layout adopted by YASK is as follows: ::
+
+            --------------------------------------------------------------
+            | extra_padding | halo |              | halo | extra_padding |
+            ------------------------    domain    ------------------------
+            |       padding        |              |       padding        |
+            --------------------------------------------------------------
+            |                         allocation                         |
+            --------------------------------------------------------------
+
+        :param grid: The YASK yk::grid that will be wrapped. Data storage will be
+                     allocated if not yet available.
+        :param shape: The "visibility region" of the YaskGrid. The shape should be
+                      at least as big as the domain (in each dimension). If larger,
+                      then users will be allowed to access more data entries,
+                      such as those lying on the halo region.
+        :param radius: The extent of the halo region.
+        :param dtype: The type of the raw data.
         """
         self.grid = grid
         self.shape = shape
         self.dtype = dtype
 
-        # Set up halo sizes
-        self.halo = [0 if i == namespace['time-dim'] else radius
-                     for i in self.dimensions]
-
-        # Allocate memory in YASK-land and initialize it to 0
-        # The following is_storage_allocated check is needed because of self.with_halo
         if not self.is_storage_allocated():
+            # Allocate memory in YASK-land and initialize it to 0
             for i, j in zip(self.dimensions, shape):
                 if i == namespace['time-dim']:
                     assert self.grid.is_dim_used(i)
                     self.grid.set_alloc_size(i, j)
                 else:
+                    # Note, from the YASK docs:
+                    # "If the halo is set to a value larger than the padding size,
+                    # the padding size will be automatically increase to accomodate it."
                     self.grid.set_halo_size(i, radius)
             self.grid.alloc_storage()
             self._reset()
@@ -137,12 +154,21 @@ class YaskGrid(object):
         self[:] = 0.0
 
     @property
+    def _halo(self):
+        return [0 if i == namespace['time-dim'] else self.get_halo_size(i)
+                for i in self.dimensions]
+
+    @property
+    def _padding(self):
+        return [0 if i == namespace['time-dim'] else self.get_pad_size(i)
+                for i in self.dimensions]
+
+    @property
     def _offsets(self):
         offsets = []
-        for i, j in zip(self.dimensions, self.halo):
+        for i, j in zip(self.dimensions, self._padding):
             ofs = 0 if i == namespace['time-dim'] else self.get_first_rank_alloc_index(i)
-            ofs += j
-            offsets.append(ofs)
+            offsets.append(ofs + j)
         return offsets
 
     @property
@@ -152,8 +178,7 @@ class YaskGrid(object):
         unmasked. This allows the caller to write/read the halo region as well as
         the domain.
         """
-        shape = [i + 2*j for i, j in zip(self.shape, self.halo)]
-        return YaskGrid(self.grid, shape, 0, self.dtype)
+        return YaskGridWithHalo(self.grid, self.shape, 0, self.dtype)
 
     @property
     def name(self):
@@ -194,6 +219,20 @@ class YaskGrid(object):
         View of the YASK grid in standard (i.e., Devito) row-major layout.
         """
         return self[:]
+
+
+class YaskGridWithHalo(YaskGrid):
+
+    """A helper class for YaskGrid wrappers providing access to the halo region."""
+
+    def __init__(self, grid, shape, radius, dtype):
+        super(YaskGridWithHalo, self).__init__(grid, shape, radius, dtype)
+        self.shape = [i + 2*j for i, j in zip(self.shape, self._halo)]
+
+    @property
+    def _offsets(self):
+        offsets = super(YaskGridWithHalo, self)._offsets
+        return [i - j for i, j in zip(offsets, self._halo)]
 
 
 class YaskKernel(object):
@@ -423,7 +462,7 @@ class ContextManager(OrderedDict):
                               if i != namespace['time-dim']])
 
         # A unique key for this context.
-        key = tuple([dtype] + domain.items())
+        key = tuple([yask_configuration['isa'], dtype] + domain.items())
 
         # Fetch or create a YaskContext
         if key in self:

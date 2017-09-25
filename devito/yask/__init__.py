@@ -81,20 +81,31 @@ class YaskCompiler(configuration['compiler'].__class__):
 yask_configuration = Parameters('YASK-Configuration')
 yask_configuration.add('compiler', YaskCompiler())
 yask_configuration.add('python-exec', False, [False, True])
-yask_configuration.add('develop-mode', True, [False, True])
-# Sniff the highest Instruction Set Architecture level that we can YASK to use
+# Set the Instruction Set Architecture used by the YASK code generator
 isa, ISAs = 'cpp', ['cpp', 'avx', 'avx2', 'avx512', 'knc']
-if yask_configuration['develop-mode'] is False:
-    cpu_flags = cpuinfo.get_cpu_info()['flags']
-    for i in reversed(ISAs):
-        if i in cpu_flags:
-            isa = i
-            break
 yask_configuration.add('isa', isa, ISAs)
 # Currently YASK also require the CPU architecture (e.g., snb for sandy bridge,
 # hsw for haswell, etc.). At the moment, we simply infer it from the ISA
 arch_mapper = {'cpp': 'intel64', 'avx': 'snb', 'avx2': 'hsw', 'avx512': 'knl'}
 yask_configuration.add('arch', arch_mapper[isa], arch_mapper.values())
+
+
+# In develop-mode, no optimizations are applied to the generated code (e.g., SIMD)
+# When switching to non-develop-mode, optimizations are automatically switched on,
+# sniffing the highest Instruction Set Architecture level available on the current
+# machine and providing it to YASK
+def reset_yask_isa(develop_mode):
+    if develop_mode is True:
+        return
+    cpu_flags = cpuinfo.get_cpu_info()['flags']
+    isa = 'cpp'
+    for i in reversed(ISAs):
+        if i in cpu_flags:
+            isa = i
+            break
+    yask_configuration['isa'] = isa
+    yask_configuration['arch'] = arch_mapper[isa]
+yask_configuration.add('develop-mode', True, [False, True], reset_yask_isa)  # noqa
 
 configuration.add('yask', yask_configuration)
 
