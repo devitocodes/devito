@@ -1,6 +1,7 @@
 import os
 import ctypes
-from collections import Callable, Iterable, OrderedDict
+from collections import Callable, Iterable, OrderedDict, Hashable
+from functools import partial
 try:
     from itertools import izip_longest as zip_longest
 except ImportError:
@@ -8,6 +9,8 @@ except ImportError:
     from itertools import zip_longest
 
 import numpy as np
+
+__all__ = ['memoized']
 
 
 def as_tuple(item, type=None, length=None):
@@ -210,3 +213,39 @@ class change_directory(object):
 
     def __exit__(self, etype, value, traceback):
         os.chdir(self.savedPath)
+
+
+class memoized(object):
+    """
+    Decorator. Caches a function's return value each time it is called.
+    If called later with the same arguments, the cached value is returned
+    (not reevaluated).
+
+    Adapted from: ::
+
+        https://wiki.python.org/moin/PythonDecoratorLibrary#Memoize
+    """
+
+    def __init__(self, func):
+        self.func = func
+        self.cache = {}
+
+    def __call__(self, *args):
+        if not isinstance(args, Hashable):
+            # Uncacheable, a list, for instance.
+            # Better to not cache than blow up.
+            return self.func(*args)
+        if args in self.cache:
+            return self.cache[args]
+        else:
+            value = self.func(*args)
+            self.cache[args] = value
+            return value
+
+    def __repr__(self):
+        """Return the function's docstring."""
+        return self.func.__doc__
+
+    def __get__(self, obj, objtype):
+        """Support instance methods."""
+        return partial(self.__call__, obj)

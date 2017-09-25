@@ -21,10 +21,10 @@ def smooth10(vel, shape):
     return out
 
 
-def acoustic_setup(dimensions=(50, 50, 50), spacing=(15.0, 15.0, 15.0),
+def acoustic_setup(shape=(50, 50, 50), spacing=(15.0, 15.0, 15.0),
                    tn=500., time_order=2, space_order=4, nbpml=10, **kwargs):
-    nrec = dimensions[0]
-    model = demo_model('layers', ratio=3, shape=dimensions,
+    nrec = shape[0]
+    model = demo_model('layers-isotropic', ratio=3, shape=shape,
                        spacing=spacing, nbpml=nbpml)
 
     # Derive timestepping from model spacing
@@ -50,32 +50,34 @@ def acoustic_setup(dimensions=(50, 50, 50), spacing=(15.0, 15.0, 15.0),
     return solver
 
 
-def run(dimensions=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=1000.0,
-        time_order=2, space_order=4, nbpml=40, full_run=False, **kwargs):
+def run(shape=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=1000.0,
+        time_order=2, space_order=4, nbpml=40, full_run=False,
+        autotune=False, **kwargs):
 
-    solver = acoustic_setup(dimensions=dimensions, spacing=spacing,
-                            nbpml=nbpml, tn=tn, space_order=space_order,
-                            time_order=time_order, **kwargs)
+    solver = acoustic_setup(shape=shape, spacing=spacing, nbpml=nbpml, tn=tn,
+                            space_order=space_order, time_order=time_order, **kwargs)
 
     initial_vp = smooth10(solver.model.m.data, solver.model.shape_domain)
     dm = np.float32(initial_vp**2 - solver.model.m.data)
     info("Applying Forward")
-    rec, u, summary = solver.forward(save=full_run)
+    rec, u, summary = solver.forward(save=full_run, autotune=autotune)
 
     if not full_run:
         return summary.gflopss, summary.oi, summary.timings, [rec, u.data]
 
     info("Applying Adjoint")
-    solver.adjoint(rec, **kwargs)
+    solver.adjoint(rec, autotune=autotune)
     info("Applying Born")
-    solver.born(dm, **kwargs)
+    solver.born(dm, autotune=autotune)
     info("Applying Gradient")
-    solver.gradient(rec, u, **kwargs)
+    solver.gradient(rec, u, autotune=autotune)
 
 
 if __name__ == "__main__":
     description = ("Example script for a set of acoustic operators.")
     parser = ArgumentParser(description=description)
+    parser.add_argument('--2d', dest='dim2', default=False, action='store_true',
+                        help="Preset to determine the physical problem setup")
     parser.add_argument('-f', '--full', default=False, action='store_true',
                         help="Execute all operators and store forward wavefield")
     parser.add_argument('-a', '--autotune', default=False, action='store_true',
@@ -86,8 +88,25 @@ if __name__ == "__main__":
                         type=int, help="Space order of the simulation")
     parser.add_argument("--nbpml", default=40,
                         type=int, help="Number of PML layers around the domain")
+    parser.add_argument("-dse", "-dse", default="advanced",
+                        choices=["noop", "basic", "advanced",
+                                 "speculative", "aggressive"],
+                        help="Devito symbolic engine (DSE) mode")
+    parser.add_argument("-dle", default="advanced",
+                        choices=["noop", "advanced", "speculative"],
+                        help="Devito loop engine (DSE) mode")
     args = parser.parse_args()
 
-    run(full_run=args.full, autotune=args.autotune,
+    # 3D preset parameters
+    if args.dim2:
+        shape = (150, 150)
+        spacing = (15.0, 15.0)
+        tn = 750.0
+    else:
+        shape = (50, 50, 50)
+        spacing = (20.0, 20.0, 20.0)
+        tn = 250.0
+
+    run(shape=shape, spacing=spacing, nbpml=args.nbpml, tn=tn,
         space_order=args.space_order, time_order=args.time_order,
-        nbpml=args.nbpml)
+        autotune=args.autotune, dse=args.dse, dle=args.dle, full_run=args.full)

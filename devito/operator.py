@@ -456,13 +456,16 @@ class OperatorRunnable(Operator):
         self.cfunction(*list(arguments.values()))
 
         # Output summary of performance achieved
+        return self._profile_output(dim_sizes)
+
+    def _profile_output(self, dim_sizes):
+        """Return a performance summary of the profiled sections."""
         summary = self.profiler.summary(dim_sizes, self.dtype)
         with bar():
             for k, v in summary.items():
                 name = '%s<%s>' % (k, ','.join('%d' % i for i in v.itershape))
                 info("Section %s with OI=%.2f computed in %.3f s [Perf: %.2f GFlops/s]" %
                      (name, v.oi, v.time, v.gflopss))
-
         return summary
 
     def _profile_sections(self, nodes, parameters):

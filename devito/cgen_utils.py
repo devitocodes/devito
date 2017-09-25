@@ -145,7 +145,7 @@ class CodePrinter(CCodePrinter):
 
     def _print_FunctionFromPointer(self, expr):
         indices = [self._print(i) for i in expr.params]
-        return "%s->%s(%s)" % (expr.pointer, expr.name, ', '.join(indices))
+        return "%s->%s(%s)" % (expr.pointer, expr.function, ', '.join(indices))
 
 
 def ccode(expr, **settings):

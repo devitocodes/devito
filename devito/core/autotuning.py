@@ -28,11 +28,25 @@ def autotune(operator, arguments, tunable):
         if k in output:
             at_arguments[k] = v.copy()
 
-    # Squeeze dimensions to minimize auto-tuning time
     iterations = FindNodes(Iteration).visit(operator.body)
     dim_mapper = {i.dim.name: i.dim for i in iterations}
-    squeezable = [i.dim.parent.symbolic_size.name for i in iterations
-                  if i.is_Sequential and i.dim.is_Buffered]
+
+    # Shrink the iteration space of sequential dimensions so that auto-tuner
+    # runs take a negligible amount of time
+    sequentials = [i for i in iterations if i.is_Sequential]
+    if len(sequentials) == 0:
+        timesteps = 1
+    elif len(sequentials) == 1:
+        sequential = sequentials[0]
+        squeeze = sequential.dim.parent if sequential.dim.is_Buffered else sequential.dim
+        timesteps = sequential.extent(finish=options['at_squeezer'])
+        if timesteps < 0:
+            timesteps = options['at_squeezer'] - timesteps + 1
+            info_at("Adjusted auto-tuning timestep to %d" % timesteps)
+        at_arguments[squeeze.symbolic_size.name] = timesteps
+    else:
+        info_at("Couldn't understand loop structure, giving up auto-tuning")
+        return arguments
 
     # Attempted block sizes
     mapper = OrderedDict([(i.argument.symbolic_size.name, i) for i in tunable])
@@ -63,8 +77,6 @@ def autotune(operator, arguments, tunable):
                     # Block size cannot be larger than actual dimension
                     illegal = True
                     break
-            elif k in squeezable:
-                at_arguments[k] = options['at_squeezer']
         if illegal:
             continue
 
@@ -93,7 +105,8 @@ def autotune(operator, arguments, tunable):
         operator.cfunction(*list(at_arguments.values()))
         elapsed = sum(operator.profiler.timings.values())
         timings[tuple(bs.items())] = elapsed
-        info_at("<%s>: %f" % (','.join('%d' % i for i in bs.values()), elapsed))
+        info_at("Block shape <%s> took %f (s) in %d time steps" %
+                (','.join('%d' % i for i in bs.values()), elapsed, timesteps))
 
     try:
         best = dict(min(timings, key=timings.get))
@@ -139,7 +152,7 @@ def more_heuristic_attempts(blocksizes):
 
 
 options = {
-    'at_squeezer': 3,
+    'at_squeezer': 5,
     'at_blocksize': [8, 16, 24, 32, 40, 64, 128],
     'at_stack_limit': resource.getrlimit(resource.RLIMIT_STACK)[0] / 4
 }

@@ -8,17 +8,17 @@ from examples.seismic.acoustic import AcousticWaveSolver
 
 
 @pytest.mark.parametrize('space_order', [4, 8, 12])
-@pytest.mark.parametrize('dimensions', [(60, 70), (40, 50, 30)])
-def test_acousticJ(dimensions, space_order):
+@pytest.mark.parametrize('shape', [(60, 70), (40, 50, 30)])
+def test_acousticJ(shape, space_order):
     t0 = 0.0  # Start time
     tn = 500.  # Final time
-    nrec = dimensions[0]  # Number of receivers
+    nrec = shape[0]  # Number of receivers
     nbpml = 10 + space_order / 2
-    spacing = [15. for _ in dimensions]
+    spacing = [15. for _ in shape]
 
     # Create two-layer "true" model from preset with a fault 1/3 way down
-    model = demo_model('layers', ratio=3, vp_top=1.5, vp_bottom=2.5,
-                       spacing=spacing, shape=dimensions, nbpml=nbpml)
+    model = demo_model('layers-isotropic', ratio=3, vp_top=1.5, vp_bottom=2.5,
+                       spacing=spacing, shape=shape, nbpml=nbpml)
 
     # Derive timestepping from model spacing
     dt = model.critical_dt
@@ -40,8 +40,8 @@ def test_acousticJ(dimensions, space_order):
                                 time_order=2, space_order=space_order)
 
     # Create initial model (m0) with a constant velocity throughout
-    model0 = demo_model('layers', ratio=3, vp_top=1.5, vp_bottom=1.5,
-                        spacing=spacing, shape=dimensions, nbpml=nbpml)
+    model0 = demo_model('layers-isotropic', ratio=3, vp_top=1.5, vp_bottom=1.5,
+                        spacing=spacing, shape=shape, nbpml=nbpml)
 
     # Compute the full wavefield u0
     _, u0, _ = solver.forward(save=True, m=model0.m)

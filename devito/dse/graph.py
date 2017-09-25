@@ -92,10 +92,6 @@ class Temporary(Eq):
     def is_scalar(self):
         return not self.is_tensor
 
-    @property
-    def is_dead(self):
-        return self.is_scalar and self.is_terminal and len(self.reads) == 1
-
     def construct(self, rule):
         """
         Create a new temporary starting from ``self`` replacing symbols in
