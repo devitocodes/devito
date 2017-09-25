@@ -45,21 +45,21 @@ class AcousticWaveSolver(object):
                                receiver=self.receiver, time_order=self.time_order,
                                space_order=self.space_order, **self._kwargs)
 
-    @memoized
+    @cached_property
     def op_adj(self):
         """Cached operator for adjoint runs"""
         return AdjointOperator(self.model, save=False, source=self.source,
                                receiver=self.receiver, time_order=self.time_order,
                                space_order=self.space_order, **self._kwargs)
 
-    @memoized
+    @cached_property
     def op_grad(self):
         """Cached operator for gradient runs"""
         return GradientOperator(self.model, save=False, source=self.source,
                                 receiver=self.receiver, time_order=self.time_order,
                                 space_order=self.space_order, **self._kwargs)
 
-    @memoized
+    @cached_property
     def op_born(self):
         """Cached operator for born runs"""
         return BornOperator(self.model, save=False, source=self.source,
