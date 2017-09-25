@@ -1,6 +1,7 @@
 from cached_property import cached_property
 
 from devito import DenseData, TimeData, memoized
+from devito.logger import debug
 from examples.seismic import PointSource, Receiver
 from examples.seismic.acoustic.operators import (
     ForwardOperator, AdjointOperator, GradientOperator, BornOperator
@@ -27,7 +28,10 @@ class AcousticWaveSolver(object):
         self.source = source
         self.receiver = receiver
 
-        self.time_order = time_order
+        self.time_order = 2
+        debug("Internal time_order set to 2, the kernel ran will be 4th"
+              "order for `time_order=4` but only requires a second order "
+              "finite-difference scheme in time")
         self.space_order = space_order
 
         # Time step can be \sqrt{3}=1.73 bigger with 4th order
