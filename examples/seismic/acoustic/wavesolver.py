@@ -38,8 +38,8 @@ class AcousticWaveSolver(object):
         # Cache compiler options
         self._kwargs = kwargs
 
-    @cached_property
-    def op_fwd(self, save):
+    @memoized
+    def op_fwd(self, save=False):
         """Cached operator for forward runs with buffered wavefield"""
         return ForwardOperator(self.model, save=save, source=self.source,
                                receiver=self.receiver, time_order=self.time_order,
