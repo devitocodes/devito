@@ -11,6 +11,7 @@ from sympy.core.function import FunctionClass
 
 from devito.exceptions import DevitoError
 from devito.logger import warning
+from devito.parameters import configuration
 
 backends = {}
 
@@ -144,3 +145,6 @@ def init_backend(backend):
             set_backend(backend)
         except (ImportError, RuntimeError):
             raise DevitoError("Couldn't initialize Devito.")
+
+
+configuration.add('backend', 'core', list(backends_registry))

@@ -92,7 +92,7 @@ class Profiler(object):
     """
 
     varname = "timings"
-    typename = "profiler"
+    structname = "profile"
 
     def __init__(self):
         # To be populated as new sections are tracked
@@ -115,9 +115,7 @@ class Profiler(object):
         Allocate and return a pointer to the timers C-level Struct, which includes
         all timers added to ``self`` through ``self.add(...)``.
         """
-        cls = type("Timings", (Structure,),
-                   {"_fields_": [(i.name, c_double) for i in self._sections.values()]})
-        self._C_timings = cls()
+        self._C_timings = self.dtype()
         return byref(self._C_timings)
 
     def summary(self, dim_sizes, dtype):
@@ -172,11 +170,20 @@ class Profiler(object):
                 for field, _ in self._C_timings._fields_}
 
     @property
-    def ctype(self):
+    def dtype(self):
         """
-        Returns a :class:`cgen.Struct` relative to the profiler.
+        Return the profiler C type in ctypes format.
         """
-        return Struct(Profiler.typename,
+        return type(Profiler.structname, (Structure,),
+                    {"_fields_": [(i.name, c_double) for i in self._sections.values()]})
+
+    @property
+    def cdef(self):
+        """
+        Returns a :class:`cgen.Struct` representing the profiler data structure in C
+        (a ``struct``).
+        """
+        return Struct(Profiler.structname,
                       [Value('double', i.name) for i in self._sections.values()])
 
 

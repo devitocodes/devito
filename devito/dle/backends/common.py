@@ -4,11 +4,11 @@ import abc
 from collections import OrderedDict, defaultdict
 from time import time
 
-from devito.dse import as_symbol, terminals
+from devito.dse import as_symbol, retrieve_terminals
 from devito.logger import dle
 from devito.nodes import Iteration, SEQUENTIAL, PARALLEL, VECTOR
 from devito.tools import as_tuple
-from devito.visitors import FindSections, NestedTransformer
+from devito.visitors import FindSections, IsPerfectIteration, NestedTransformer
 
 
 __all__ = ['AbstractRewriter', 'Arg', 'BlockingArg', 'State', 'dle_pass']
@@ -46,20 +46,6 @@ class State(object):
         self.arguments += as_tuple(arguments)
         self.includes += as_tuple(includes)
         self.flags.update({i: True for i in as_tuple(flags)})
-
-    @property
-    def trees(self):
-        return self.nodes, self.elemental_functions
-
-    @property
-    def has_applied_blocking(self):
-        """True if loop blocking was applied, False otherwise."""
-        return 'blocking' in self.flags
-
-    @property
-    def func_table(self):
-        """Return a mapper from elemental function names to :class:`Function`."""
-        return OrderedDict([(i.name, i) for i in self.elemental_functions])
 
 
 class Arg(object):
@@ -157,7 +143,7 @@ class AbstractRewriter(object):
             exprs = [e.expr for e in nexprs]
 
             # "Prefetch" objects to speed up the analsys
-            terms = {e: tuple(terminals(e.rhs)) for e in exprs}
+            terms = {e: tuple(retrieve_terminals(e.rhs)) for e in exprs}
 
             # Determine whether the Iteration tree ...
             is_FP = True  # ... is fully parallel (FP)
@@ -190,7 +176,7 @@ class AbstractRewriter(object):
                 mapper.setdefault(tree[0], []).append(SEQUENTIAL)
                 for i in tree[1:]:
                     mapper.setdefault(i, []).append(PARALLEL)
-            if is_FP or is_OSIP or is_US:
+            if IsPerfectIteration().visit(tree[-1]) and (is_FP or is_OSIP or is_US):
                 # Vectorizable
                 if len(tree) > 1 and SEQUENTIAL not in mapper.get(tree[-2], []):
                     # Heuristic: there's at least an outer parallel Iteration

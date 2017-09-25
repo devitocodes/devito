@@ -43,11 +43,13 @@ class TestAPI(object):
         """
         eqn = Eq(a_dense, a_dense + 2.*const)
         op = Operator(eqn)
-        assert len(op.parameters) == 2
+        assert len(op.parameters) == 3
         assert op.parameters[0].name == 'a_dense'
         assert op.parameters[0].is_TensorArgument
         assert op.parameters[1].name == 'constant'
         assert op.parameters[1].is_ScalarArgument
+        assert op.parameters[2].name == 'timings'
+        assert op.parameters[2].is_PtrArgument
         assert 'a_dense[i] = 2.0F*constant + a_dense[i]' in str(op.ccode)
 
 
@@ -529,6 +531,50 @@ class TestLoopScheduler(object):
         assert len(trees) == 2
         assert trees[0][-1].nodes[0].expr.rhs == eqs[0].rhs
         assert trees[1][-1].nodes[0].expr.rhs == eqs[1].rhs
+
+    @pytest.mark.parametrize('shape, dimensions', [((11, 11), (x, y)),
+                                                   ((11, 11), (y, x)),
+                                                   ((11, 11, 11), (x, y, z)),
+                                                   ((11, 11, 11), (x, z, y)),
+                                                   ((11, 11, 11), (y, x, z)),
+                                                   ((11, 11, 11), (y, z, x)),
+                                                   ((11, 11, 11), (z, x, y)),
+                                                   ((11, 11, 11), (z, y, x))])
+    def test_equations_mixed_densedata_timedata(self, shape, dimensions):
+        """
+        Test that equations using a mixture of DenseData and TimeData objects
+        are embedded within the same time loop.
+        """
+        a = TimeData(name='a', shape=shape, time_order=2, dimensions=dimensions,
+                     space_order=2, time_dim=6, save=False)
+        p_aux = Dimension(name='p_aux', size=10)
+        b = DenseData(name='b', shape=shape + (10,), dimensions=dimensions + (p_aux,),
+                      space_order=2)
+        b.data[:] = 1.0
+        b2 = DenseData(name='b2', shape=(10,) + shape, dimensions=(p_aux,) + dimensions,
+                       space_order=2)
+        b2.data[:] = 1.0
+        eqns = [Eq(a.forward, a.laplace + 1.),
+                Eq(b, time*b*a + b)]
+        eqns2 = [Eq(a.forward, a.laplace + 1.),
+                 Eq(b2, time*b2*a + b2)]
+        subs = {x.spacing: 2.5, y.spacing: 1.5, z.spacing: 2.0}
+        op = Operator(eqns, subs=subs, dle='noop')
+        trees = retrieve_iteration_tree(op)
+        assert len(trees) == 2
+        assert all(trees[0][i] is trees[1][i] for i in range(3))
+
+        op2 = Operator(eqns2, subs=subs, dle='noop')
+        trees = retrieve_iteration_tree(op2)
+        assert len(trees) == 2
+        assert all(trees[0][i] is trees[1][i] for i in range(3))
+
+        # Verify both operators produce the same result
+        op()
+        op2()
+
+        assert(np.allclose(b2.data[2, ...].reshape(-1) -
+                           b.data[..., 2].reshape(-1), 0.))
 
 
 @pytest.mark.skipif(configuration['backend'] != 'foreign',

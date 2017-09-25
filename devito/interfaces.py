@@ -1,4 +1,5 @@
 import weakref
+import abc
 
 import numpy as np
 import sympy
@@ -12,28 +13,20 @@ from devito.finite_difference import (centered, cross_derivative,
 from devito.logger import debug, error, warning
 from devito.memory import CMemory, first_touch
 from devito.arguments import (ConstantDataArgProvider, TensorDataArgProvider,
-                              ScalarFunctionArgProvider, TensorFunctionArgProvider)
+                              ScalarFunctionArgProvider, TensorFunctionArgProvider,
+                              ObjectArgProvider)
+from devito.parameters import configuration
 
 __all__ = ['Symbol', 'Indexed',
            'ConstantData', 'DenseData', 'TimeData',
            'Forward', 'Backward']
 
+configuration.add('first_touch', 0, [0, 1], lambda i: bool(i))
 
 # This cache stores a reference to each created data object
 # so that we may re-create equivalent symbols during symbolic
 # manipulation with the correct shapes, pointers, etc.
 _SymbolCache = {}
-
-# This global stores whether newly allocated memory should be initialised
-# using Devito's own JIT engine. It will otherwise be initialised using
-# numpy.
-Global_First_Touch = None
-
-
-def set_global_first_touch(flag):
-    assert(flag is True or flag is False)
-    global Global_First_Touch
-    Global_First_Touch = flag
 
 
 class TimeAxis(object):
@@ -58,7 +51,56 @@ Forward = TimeAxis('Forward')
 Backward = TimeAxis('Backward')
 
 
-class CachedSymbol(object):
+class Basic(object):
+    """
+    Base class for API objects, used to build and run :class:`Operator`s.
+
+    There are two main types of objects: symbolic and generic. Symbolic objects
+    may carry data, and are used to build equations. Generic objects may be
+    used to represent or pass arbitrary data structures. The following diagram
+    outlines the top of this hierarchy.
+
+                                 Basic
+                                   |
+                    ----------------------------------
+                    |                                |
+              CachedSymbol                         Object
+                    |                       <see Object.__doc__>
+             AbstractSymbol
+    <see diagram in AbstractSymbol.__doc__>
+
+    All derived :class:`Basic` objects may be emitted through code generation
+    to create a just-in-time compilable kernel.
+    """
+
+    # Top hierarchy
+    is_AbstractSymbol = False
+    is_Object = False
+
+    # Symbolic objects created internally by Devito
+    is_SymbolicFunction = False
+    is_ScalarFunction = False
+    is_TensorFunction = False
+
+    # Symbolic objects created by user
+    is_SymbolicData = False
+    is_ConstantData = False
+    is_TensorData = False
+    is_DenseData = False
+    is_TimeData = False
+    is_CompositeData = False
+    is_PointData = False
+
+    # Basic symbolic object properties
+    is_Scalar = False
+    is_Tensor = False
+
+    @abc.abstractmethod
+    def __init__(self, *args, **kwargs):
+        return
+
+
+class CachedSymbol(Basic):
     """Base class for symbolic objects that caches on the class type."""
 
     @classmethod
@@ -134,24 +176,6 @@ class AbstractSymbol(Function, CachedSymbol):
     """
 
     is_AbstractSymbol = True
-
-    # Created internally by Devito
-    is_SymbolicFunction = False
-    is_ScalarFunction = False
-    is_TensorFunction = False
-
-    # User-provided
-    is_SymbolicData = False
-    is_ConstantData = False
-    is_TensorData = False
-    is_DenseData = False
-    is_TimeData = False
-    is_CompositeData = False
-    is_PointData = False
-
-    # Misc
-    is_Scalar = False
-    is_Tensor = False
 
     def __new__(cls, *args, **kwargs):
         if cls in _SymbolCache:
@@ -338,6 +362,17 @@ class SymbolicData(AbstractSymbol):
 
     is_SymbolicData = True
 
+    @property
+    def _data_buffer(self):
+        """Reference to the actual data. This is *not* a view of the data.
+        This method is for internal use only."""
+        return self.data
+
+    @abc.abstractproperty
+    def data(self):
+        """The value of the data object."""
+        return
+
 
 class ConstantData(SymbolicData, ConstantDataArgProvider):
 
@@ -362,6 +397,7 @@ class ConstantData(SymbolicData, ConstantDataArgProvider):
 
     @property
     def data(self):
+        """The value of the data object, as a scalar (int, float, ...)."""
         return self._value
 
     @data.setter
@@ -413,7 +449,7 @@ class DenseData(TensorData):
             self.initializer = kwargs.get('initializer', None)
             if self.initializer is not None:
                 assert(callable(self.initializer))
-            self.first_touch = kwargs.get('first_touch', Global_First_Touch)
+            self._first_touch = kwargs.get('first_touch', configuration['first_touch'])
             self._data_object = None
 
     @classmethod
@@ -433,7 +469,7 @@ class DenseData(TensorData):
                 error("Creating symbolic data objects requries either"
                       "a 'shape' or 'dimensions' argument")
                 raise ValueError("Unknown symbol dimensions or shape")
-            _indices = [x, y, z]
+            _indices = (x, y, z)
             shape = kwargs.get('shape')
             if len(shape) <= 3:
                 dimensions = _indices[:len(shape)]
@@ -445,20 +481,17 @@ class DenseData(TensorData):
         """Allocate memory in terms of numpy ndarrays."""
         debug("Allocating memory for %s (%s)" % (self.name, str(self.shape)))
         self._data_object = CMemory(self.shape, dtype=self.dtype)
-        if self.first_touch:
+        if self._first_touch:
             first_touch(self)
         else:
             self.data.fill(0)
 
     @property
     def data(self):
-        """Reference to the :class:`numpy.ndarray` containing the data
-
-        :returns: The ndarray containing the data
-        """
+        """The value of the data object, as a :class:`numpy.ndarray` storing
+        elements in the classical row-major storage layout."""
         if self._data_object is None:
             self._allocate_memory()
-
         return self._data_object.ndpointer
 
     def initialize(self):
@@ -746,6 +779,27 @@ class CompositeData(DenseData):
     @property
     def children(self):
         return self._children
+
+
+# Objects belonging to the Devito API not involving data, such as data structures
+# that need to be passed to external libraries
+
+
+class Object(ObjectArgProvider):
+
+    """
+    Represent a generic pointer object.
+    """
+
+    is_Object = True
+
+    def __init__(self, name, dtype, value=None):
+        self.name = name
+        self.dtype = dtype
+        self.value = value
+
+    def __repr__(self):
+        return self.name
 
 
 # Extended SymPy hierarchy follows, for essentially two reasons:

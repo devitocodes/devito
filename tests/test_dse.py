@@ -20,7 +20,7 @@ from examples.seismic.tti import AnisotropicWaveSolver
 # Acoustic
 
 def run_acoustic_forward(dse=None):
-    dimensions = (50, 50, 50)
+    shape = (50, 50, 50)
     spacing = (10., 10., 10.)
     nbpml = 10
     nrec = 101
@@ -28,8 +28,8 @@ def run_acoustic_forward(dse=None):
     tn = 250.0
 
     # Create two-layer model from preset
-    model = demo_model(preset='layers', vp_top=3., vp_bottom=4.5,
-                       spacing=spacing, shape=dimensions, nbpml=nbpml)
+    model = demo_model(preset='layers-isotropic', vp_top=3., vp_bottom=4.5,
+                       spacing=spacing, shape=shape, nbpml=nbpml)
 
     # Derive timestepping from model spacing
     dt = model.critical_dt
@@ -67,17 +67,14 @@ def tti_operator(dse=False):
     t0 = 0.0
     tn = 250.
     nbpml = 10
-    dimensions = (50, 50, 50)
+    shape = (50, 50, 50)
     spacing = (20., 20., 20.)
 
     # Two layer model for true velocity
-    model = demo_model('layers', ratio=3, nbpml=nbpml,
-                       shape=dimensions, spacing=spacing,
-                       epsilon=.4*np.ones(dimensions),
-                       delta=-.1*np.ones(dimensions),
-                       theta=-np.pi/7*np.ones(dimensions),
-                       phi=np.pi/5*np.ones(dimensions))
+    model = demo_model('layers-tti', ratio=3, nbpml=nbpml,
+                       shape=shape, spacing=spacing)
 
+    # Derive timestepping from model spacing
     # Derive timestepping from model spacing
     dt = model.critical_dt
     nt = int(1 + (tn-t0) / dt)  # Number of timesteps
@@ -107,10 +104,10 @@ def tti_nodse():
 def test_tti_clusters_to_graph():
     solver = tti_operator()
 
-    nodes = FindNodes(Expression).visit(solver.op_fwd.elemental_functions +
-                                        (solver.op_fwd,))
+    nodes = FindNodes(Expression).visit(solver.op_fwd('centered').elemental_functions +
+                                        (solver.op_fwd('centered'),))
     expressions = [n.expr for n in nodes]
-    stencils = solver.op_fwd._retrieve_stencils(expressions)
+    stencils = solver.op_fwd('centered')._retrieve_stencils(expressions)
     clusters = clusterize(expressions, stencils)
     assert len(clusters) == 3
 

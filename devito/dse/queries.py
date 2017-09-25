@@ -25,6 +25,10 @@ def q_indexed(expr):
     return isinstance(expr, Indexed)
 
 
+def q_terminal(expr):
+    return expr.is_Symbol or q_indexed(expr)
+
+
 def q_trigonometry(expr):
     return expr.is_Function and expr.func in [sin, cos]
 

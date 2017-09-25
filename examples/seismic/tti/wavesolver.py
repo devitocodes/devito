@@ -1,7 +1,5 @@
 # coding: utf-8
-from cached_property import cached_property
-
-from devito import TimeData
+from devito import TimeData, memoized
 from examples.seismic.tti.operators import ForwardOperator
 from examples.seismic import Receiver
 
@@ -27,33 +25,23 @@ class AnisotropicWaveSolver(object):
         self.receiver = receiver
 
         self.time_order = time_order
-        self.space_order = space_order/2
-
-        # Time step can be \sqrt{3}=1.73 bigger with 4th order
+        self.space_order = space_order
         self.dt = self.model.critical_dt
-        if self.time_order == 4:
-            self.dt *= 1.73
 
         # Cache compiler options
         self._kwargs = kwargs
 
-    @cached_property
-    def op_fwd(self):
+    @memoized
+    def op_fwd(self, kernel='shifted', save=False):
         """Cached operator for forward runs with buffered wavefield"""
-        return ForwardOperator(self.model, save=False, source=self.source,
+        return ForwardOperator(self.model, save=save, source=self.source,
                                receiver=self.receiver, time_order=self.time_order,
-                               space_order=self.space_order, **self._kwargs)
-
-    @cached_property
-    def op_fwd_save(self):
-        """Cached operator for forward runs with unrolled wavefield"""
-        return ForwardOperator(self.model, save=True, source=self.source,
-                               receiver=self.receiver, time_order=self.time_order,
-                               space_order=self.space_order, **self._kwargs)
+                               space_order=self.space_order,
+                               kernel=kernel, **self._kwargs)
 
     def forward(self, src=None, rec=None, u=None, v=None, m=None,
                 epsilon=None, delta=None, theta=None, phi=None,
-                save=False, **kwargs):
+                save=False, kernel='centered', **kwargs):
         """
         Forward modelling function that creates the necessary
         data objects for running a forward modelling operator.
@@ -63,9 +51,15 @@ class AnisotropicWaveSolver(object):
         :param u: (Optional) Symbol to store the computed wavefield
         :param m: (Optional) Symbol for the time-constant square slowness
         :param save: Option to store the entire (unrolled) wavefield
+        :param kernel: type of discretization, centered or shifted
 
         :returns: Receiver, wavefield and performance summary
         """
+
+        # Space order needs to be halved in the shifted case to have an
+        # overall space_order discretization
+        self.space_order = self.space_order / 2 if kernel == 'shifted' \
+            else self.space_order
         # Source term is read-only, so re-use the default
         if src is None:
             src = self.source
@@ -84,7 +78,7 @@ class AnisotropicWaveSolver(object):
         # Create the forward wavefield if not provided
         if v is None:
             v = TimeData(name='v', shape=self.model.shape_domain,
-                         save=save, time_dim=self.source.nt,
+                         save=save, time_dim=self.source.nt if save else None,
                          time_order=self.time_order,
                          space_order=self.space_order,
                          dtype=self.model.dtype)
@@ -101,10 +95,7 @@ class AnisotropicWaveSolver(object):
             phi = phi or self.model.phi
 
         # Execute operator and return wavefield and receiver data
-        if save:
-            op = self.op_fwd_save
-        else:
-            op = self.op_fwd
+        op = self.op_fwd(kernel, save)
 
         if len(m.shape) == 2:
             summary = op.apply(src=src, rec=rec, u=u, v=v, m=m, epsilon=epsilon,

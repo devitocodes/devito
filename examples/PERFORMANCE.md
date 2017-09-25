@@ -111,6 +111,17 @@ Significant reductions in operation count due to using `aggressive` mode have
 been observed in several TTI examples. The `aggressive` mode may or may not
 increase the Devito processing time.
 
+### Loop tiling with 3D blocks
+
+Loop tiling is applied if the DLE is set to the `advanced` level. By default,
+Devito tiles loop nests using 2D blocks. In some circumstances, however,
+employing 3D blocks may lead to better performance. This is clearly a
+problem-dependent aspect. To switch to using 3D blocks, one should set the
+following environment variable:
+```
+DEVITO_DLE_OPTIONS="blockinner:True"
+```
+
 ### Auto-tuning
 
 Operator auto-tuning can greatly improve the run-time performance. It can be

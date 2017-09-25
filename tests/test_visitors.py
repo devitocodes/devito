@@ -86,6 +86,61 @@ def test_printAST(block1, block2, block3):
 """
 
 
+def test_create_cgen_tree(block1, block2, block3):
+    assert str(Function('foo', block1, 'void', ()).ccode) == """\
+void foo()
+{
+  for (int i = 0; i < 3; i += 1)
+  {
+    for (int j = 0; j < 5; j += 1)
+    {
+      for (int k = 0; k < 7; k += 1)
+      {
+        a[i] = a[i] + b[i] + 5.0F;
+      }
+    }
+  }
+}"""
+    assert str(Function('foo', block2, 'void', ()).ccode) == """\
+void foo()
+{
+  for (int i = 0; i < 3; i += 1)
+  {
+    a[i] = a[i] + b[i] + 5.0F;
+    for (int j = 0; j < 5; j += 1)
+    {
+      for (int k = 0; k < 7; k += 1)
+      {
+        a[i] = -a[i] + b[i];
+      }
+    }
+  }
+}"""
+    assert str(Function('foo', block3, 'void', ()).ccode) == """\
+void foo()
+{
+  for (int i = 0; i < 3; i += 1)
+  {
+    for (int s = 0; s < 4; s += 1)
+    {
+      a[i] = a[i] + b[i] + 5.0F;
+    }
+    for (int j = 0; j < 5; j += 1)
+    {
+      for (int k = 0; k < 7; k += 1)
+      {
+        a[i] = -a[i] + b[i];
+        a[i] = 4*a[i]*b[i];
+      }
+    }
+    for (int q = 0; q < 4; q += 1)
+    {
+      a[i] = 8.0F*a[i] + 6.0F/b[i];
+    }
+  }
+}"""
+
+
 def test_find_sections(exprs, block1, block2, block3):
     finder = FindSections()
 

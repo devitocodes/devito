@@ -3,14 +3,7 @@
 from collections import OrderedDict
 from os import environ
 
-from devito.backends import backends_registry
-from devito.compiler import compiler_registry, set_compiler
-from devito.dse import modes as dse_registry
-from devito.dle import modes as dle_registry, default_options as dle_default_options
-from devito.logger import info, logger_registry, set_log_level
-from devito.interfaces import set_global_first_touch as set_first_touch
-
-__all__ = ['configuration', 'init_configuration', 'print_defaults', 'print_state']
+__all__ = ['configuration', 'init_configuration']
 
 # Be EXTREMELY careful when writing to a Parameters dictionary
 # Read here for reference: http://wiki.c2.com/?GlobalVariablesAreBad
@@ -29,6 +22,8 @@ class Parameters(OrderedDict):
     def __init__(self, name=None, **kwargs):
         super(Parameters, self).__init__(**kwargs)
         self._name = name
+        self._accepted = {}
+        self._defaults = {}
         self._update_functions = {}
         if kwargs is not None:
             for key, value in kwargs.items():
@@ -44,14 +39,32 @@ class Parameters(OrderedDict):
         been updated.
         """
         if key in self._update_functions:
-            self._update_functions[key](value)
+            retval = self._update_functions[key](value)
+            if retval is not None:
+                super(Parameters, self).__setitem__(key, retval)
 
-    def set_update_function(self, key, callable):
+    def add(self, key, value, accepted=None, callback=None):
         """
-        Make ``callable`` be executed when the value of ``key`` changes.
+        Add a new parameter ``key`` with default value ``value``.
+
+        Associate ``key`` with a list of ``accepted`` values.
+
+        If provided, make sure ``callback`` is executed when the value of ``key``
+        changes.
+        """
+        super(Parameters, self).__setitem__(key, value)
+        self._accepted[key] = accepted
+        self._defaults[key] = value
+        if callable(callback):
+            self._update_functions[key] = callback
+
+    def update(self, key, value):
+        """
+        Update the parameter ``key`` to ``value``. This is different from
+        ``self[key] = value`` as the callback, if any, is bypassed.
         """
         assert key in self
-        self._update_functions[key] = callable
+        super(Parameters, self).__setitem__(key, value)
 
     def initialize(self):
         """
@@ -65,34 +78,6 @@ class Parameters(OrderedDict):
 configuration = Parameters("Devito-Configuration")
 """The Devito configuration parameters."""
 
-defaults = {
-    'backend': 'core',
-    'log_level': 'INFO',
-    'autotuning': 'basic',
-    'compiler': 'custom',
-    'openmp': '0',
-    'dse': 'advanced',
-    'dle': 'advanced',
-    'dle_options': ';'.join('%s:%s' % (k, v) for k, v in dle_default_options.items()),
-    'first_touch': '0',
-    'travis_test': '0',
-}
-"""The default Devito configuration parameters"""
-
-accepted = {
-    'backend': list(backends_registry),
-    'log_level': list(logger_registry),
-    'autotuning': ('none', 'basic', 'aggressive'),
-    'compiler': list(compiler_registry),
-    'openmp': [1, 0],
-    'dse': list(dse_registry),
-    'dle': list(dle_registry),
-    'dle_options': list(dle_default_options),
-    'first_touch': [1, 0],
-    'travis_test': [1, 0],
-}
-"""Accepted values for the Devito environment variables."""
-
 env_vars_mapper = {
     'DEVITO_ARCH': 'compiler',
     'DEVITO_AUTOTUNING': 'autotuning',
@@ -104,29 +89,34 @@ env_vars_mapper = {
     'DEVITO_LOGGING': 'log_level',
     'DEVITO_FIRST_TOUCH': 'first_touch',
     'DEVITO_TRAVIS_TEST': 'travis_test',
+    'DEVITO_DEBUG_COMPILER': 'debug_compiler',
 }
 
 
 def init_configuration():
-    # Populate /parameters/
+    # Populate /configuration/ with user-provided options
     if environ.get('DEVITO_CONFIG') is None:
-        # Try env variables, otherwise pick defaults
+        # Try env variables, otherwise stick to defaults
         for k, v in sorted(env_vars_mapper.items()):
-            configuration[v] = environ.get(k, defaults[v])
+            configuration.update(v, environ.get(k, configuration._defaults[v]))
     else:
         # Attempt reading from the specified configuration file
-        raise NotImplementedError("Devito doesn't support configuration via file.")
+        raise NotImplementedError("Devito doesn't support configuration via file yet.")
 
     # Parameters validation
     for k, v in list(configuration.items()):
-        items = v.split(';')
         try:
-            # Env variable format: 'k1:v1;k2:v2:k3:v3:...'
+            items = v.split(';')
+            # Env variable format: 'var=k1:v1;k2:v2:k3:v3:...'
             keys, values = zip(*[i.split(':') for i in items])
             # Casting
             values = [eval(i) for i in values]
+        except AttributeError:
+            # Env variable format: 'var=v', 'v' is not a string
+            keys = [v]
+            values = []
         except ValueError:
-            # Env variable format: 'k1;k2:...' or even just 'k1'
+            # Env variable format: 'var=k1;k2:v2...' or even just 'var=v'
             keys = [i.split(':')[0] for i in items]
             values = []
             # Cast to integer
@@ -135,36 +125,15 @@ def init_configuration():
                     keys[i] = int(j)
                 except (TypeError, ValueError):
                     keys[i] = j
-        if any(i not in accepted[k] for i in keys):
+        accepted = configuration._accepted[k]
+        if any(i not in accepted for i in keys):
             raise ValueError("Illegal configuration parameter (%s, %s). "
-                             "Accepted: %s" % (k, v, str(accepted[k])))
+                             "Accepted: %s" % (k, v, str(accepted)))
         if len(keys) == len(values):
-            configuration[k] = dict(zip(keys, values))
+            configuration.update(k, dict(zip(keys, values)))
         elif len(keys) == 1:
-            configuration[k] = keys[0]
+            configuration.update(k, keys[0])
         else:
-            configuration[k] = keys
+            configuration.update(k, keys)
 
-    # Global setup
-    # - Logger
-    configuration.set_update_function('log_level', lambda i: set_log_level(i))
-    # - Compilation toolchain
-    configuration['compiler'] = set_compiler(configuration['compiler'],
-                                             configuration['openmp'])
-    configuration['openmp'] = bool(configuration['openmp'])
-    configuration['first_touch'] = bool(configuration['first_touch'])
-    configuration.set_update_function('first_touch', lambda i: set_first_touch(i))
     configuration.initialize()
-
-
-def print_defaults():
-    """Print the environment variables accepted by Devito, their default value,
-    as well as all of the accepted values."""
-    for k, v in env_vars_mapper.items():
-        info('%s: %s. Default: %s' % (k, accepted[v], defaults[v]))
-
-
-def print_state():
-    """Print the current configuration state."""
-    for k, v in configuration.items():
-        info('%s: %s' % (k, v))

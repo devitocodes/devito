@@ -1,6 +1,7 @@
 import os
 import ctypes
-from collections import Callable, Iterable, OrderedDict
+from collections import Callable, Iterable, OrderedDict, Hashable
+from functools import partial
 try:
     from itertools import izip_longest as zip_longest
 except ImportError:
@@ -8,6 +9,8 @@ except ImportError:
     from itertools import zip_longest
 
 import numpy as np
+
+__all__ = ['memoized']
 
 
 def as_tuple(item, type=None, length=None):
@@ -116,22 +119,38 @@ def partial_order(elements):
     while queue:
         item, prev = queue.pop(0)
         if item not in ordering:
-            ordering += [item]
-        queue += [(i, item) for i in mapper[item]]
+            ordering.append(item)
+        queue = [(i, item) for i in mapper[item]] + queue
 
     return ordering
 
 
-def convert_dtype_to_ctype(dtype):
-    """Maps numpy types to C types.
+def numpy_to_ctypes(dtype):
+    """Map numpy types to ctypes types."""
+    return {np.int32: ctypes.c_int,
+            np.float32: ctypes.c_float,
+            np.int64: ctypes.c_int64,
+            np.float64: ctypes.c_double}[dtype]
 
-    :param dtype: A Python numpy type of int32, float32, int64 or float64
-    :returns: Corresponding C type
-    """
-    conversion_dict = {np.int32: ctypes.c_int, np.float32: ctypes.c_float,
-                       np.int64: ctypes.c_int64, np.float64: ctypes.c_double}
 
-    return conversion_dict[dtype]
+def ctypes_to_C(ctype):
+    """Map ctypes types to C types."""
+    if issubclass(ctype, ctypes.Structure):
+        return 'struct %s' % ctype.__name__
+    elif issubclass(ctype, ctypes.Union):
+        return 'union %s' % ctype.__name__
+    elif ctype.__name__.startswith('c_'):
+        # FIXME: Is there a better way of extracting the C typename ?
+        # Here, we're following the ctypes convention that each basic type has
+        # the format c_X_p, where X is the C typename, for instance `int` or `float`.
+        return ctype.__name__[2:-2]
+    else:
+        raise TypeError('Unrecognised %s during converstion to C type' % str(ctype))
+
+
+def ctypes_pointer(name):
+    """Create a ctypes type representing a C pointer to a custom data type ``name``."""
+    return type("c_%s_p" % name, (ctypes.c_void_p,), {})
 
 
 def pprint(node, verbose=True):
@@ -194,3 +213,39 @@ class change_directory(object):
 
     def __exit__(self, etype, value, traceback):
         os.chdir(self.savedPath)
+
+
+class memoized(object):
+    """
+    Decorator. Caches a function's return value each time it is called.
+    If called later with the same arguments, the cached value is returned
+    (not reevaluated).
+
+    Adapted from: ::
+
+        https://wiki.python.org/moin/PythonDecoratorLibrary#Memoize
+    """
+
+    def __init__(self, func):
+        self.func = func
+        self.cache = {}
+
+    def __call__(self, *args):
+        if not isinstance(args, Hashable):
+            # Uncacheable, a list, for instance.
+            # Better to not cache than blow up.
+            return self.func(*args)
+        if args in self.cache:
+            return self.cache[args]
+        else:
+            value = self.func(*args)
+            self.cache[args] = value
+            return value
+
+    def __repr__(self):
+        """Return the function's docstring."""
+        return self.func.__doc__
+
+    def __get__(self, obj, objtype):
+        """Support instance methods."""
+        return partial(self.__call__, obj)

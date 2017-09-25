@@ -1,6 +1,7 @@
-from devito.dse.queries import q_indexed, q_leaf, q_op, q_trigonometry
+from devito.dse.queries import q_indexed, q_terminal, q_leaf, q_op, q_trigonometry
 
-__all__ = ['retrieve_indexed', 'retrieve_ops', 'retrieve_trigonometry']
+__all__ = ['retrieve_indexed', 'retrieve_terminals', 'retrieve_ops',
+           'retrieve_trigonometry']
 
 
 class Search(object):
@@ -105,6 +106,13 @@ def retrieve_indexed(expr, mode='unique'):
     Shorthand to retrieve :class:`Indexed` objects in ``expr``.
     """
     return search(expr, q_indexed, mode, 'dfs')
+
+
+def retrieve_terminals(expr, mode='unique'):
+    """
+    Shorthand to retrieve :class:`Indexed` and :class:`Symbol` objects in ``expr``.
+    """
+    return search(expr, q_terminal, mode, 'dfs')
 
 
 def retrieve_trigonometry(expr):

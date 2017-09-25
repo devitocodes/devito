@@ -7,8 +7,8 @@ from sympy import Expr, Float
 from sympy.core.basic import _aresame
 from sympy.functions.elementary.trigonometric import TrigonometricFunction
 
-__all__ = ['FrozenExpr', 'Eq', 'Mul', 'Add', 'taylor_sin', 'taylor_cos',
-           'bhaskara_sin', 'bhaskara_cos']
+__all__ = ['FrozenExpr', 'Eq', 'Mul', 'Add', 'FunctionFromPointer',
+           'taylor_sin', 'taylor_cos', 'bhaskara_sin', 'bhaskara_cos']
 
 
 class FrozenExpr(Expr):
@@ -50,6 +50,22 @@ class Mul(sympy.Mul, FrozenExpr):
 
 class Add(sympy.Add, FrozenExpr):
     pass
+
+
+class FunctionFromPointer(sympy.Symbol):
+
+    def __new__(cls, function, pointer, params=None):
+        obj = sympy.Symbol.__new__(cls, '%s->%s' % (pointer, function))
+        obj.function = function
+        obj.pointer = pointer
+        obj.params = params or ()
+        return obj
+
+    def __str__(self):
+        return "%s->%s(%s)" % (self.pointer, self.function,
+                               ', '.join([str(i) for i in self.params]))
+
+    __repr__ = __str__
 
 
 class taylor_sin(TrigonometricFunction):
