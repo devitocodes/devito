@@ -70,16 +70,14 @@ class AnisotropicWaveSolver(object):
 
         # Create the forward wavefield if not provided
         if u is None:
-            u = TimeData(name='u', shape=self.model.shape_domain, save=save,
+            u = TimeData(name='u', grid=self.model.grid, save=save,
                          time_dim=self.source.nt if save else None,
-                         time_order=self.time_order, space_order=self.space_order,
-                         dtype=self.model.dtype)
+                         time_order=self.time_order, space_order=self.space_order)
         # Create the forward wavefield if not provided
         if v is None:
-            v = TimeData(name='v', shape=self.model.shape_domain,
-                         save=save, time_dim=self.source.nt if save else None,
-                         time_order=self.time_order, space_order=self.space_order,
-                         dtype=self.model.dtype)
+            v = TimeData(name='v', grid=self.model.grid, save=save,
+                         time_dim=self.source.nt if save else None,
+                         time_order=self.time_order, space_order=self.space_order)
         # Pick m from model unless explicitly provided
         if m is None:
             m = m or self.model.m

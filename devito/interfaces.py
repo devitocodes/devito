@@ -422,13 +422,14 @@ class DenseData(TensorData):
     """Data object for spatially varying data acting as a :class:`SymbolicData`.
 
     :param name: Name of the symbol
-    :param dtype: Data type of the scalar
     :param shape: Domain shape of the associated data for this :class:`Function`.
                   Note that this does not include the boundary padding added due
                   the stencil radius for space dimensions.
     :param dimensions: The symbolic dimensions of the tensor.
     :param space_order: Discretisation order for space derivatives
     :param initializer: Function to initialize the data, optional
+    :param dtype: Data type of the assocaited data. If not provided, the
+                  default data type of the :param grid: will be used.
 
     .. note::
 
@@ -446,15 +447,16 @@ class DenseData(TensorData):
 
             if self.grid is None:
                 self.shape_domain = kwargs.get('shape', None)
+                self.dtype = kwargs.get('dtype', np.float32)
                 if self.shape_domain is None:
                     error("Creating a Function requires either 'shape'"
                           "or a 'grid' argument")
                     raise ValueError("Unknown symbol dimensions or shape")
             else:
                 self.shape_domain = self.grid.shape_domain
+                self.dtype = kwargs.get('dtype', self.grid.dtype)
             self.indices = self._indices(**kwargs)
 
-            self.dtype = kwargs.get('dtype', np.float32)
             self.space_order = kwargs.get('space_order', 1)
             self.initializer = kwargs.get('initializer', None)
             if self.initializer is not None:

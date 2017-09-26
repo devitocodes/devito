@@ -305,23 +305,23 @@ class Model(object):
                  epsilon=None, delta=None, theta=None, phi=None):
         self.shape = shape
         self.nbpml = int(nbpml)
-        self.dtype = dtype
 
         shape_pml = np.array(shape) + 2 * self.nbpml
         extent = tuple(np.array(spacing) * (shape_pml))
-        self.grid = Grid(extent=extent, shape=shape_pml, origin=origin)
+        self.grid = Grid(extent=extent, shape=shape_pml,
+                         origin=origin, dtype=dtype)
 
         # Create square slowness of the wave as symbol `m`
         if isinstance(vp, np.ndarray):
-            self.m = DenseData(name="m", grid=self.grid, dtype=self.dtype)
+            self.m = DenseData(name="m", grid=self.grid)
         else:
-            self.m = ConstantData(name="m", value=1/vp**2, dtype=self.dtype)
+            self.m = ConstantData(name="m", value=1/vp**2)
 
         # Set model velocity, which will also set `m`
         self.vp = vp
 
         # Create dampening field as symbol `damp`
-        self.damp = DenseData(name="damp", grid=self.grid, dtype=self.dtype)
+        self.damp = DenseData(name="damp", grid=self.grid)
         damp_boundary(self.damp.data, self.nbpml, spacing=self.spacing)
 
         # Additional parameter fields for TTI operators
@@ -329,8 +329,7 @@ class Model(object):
 
         if epsilon is not None:
             if isinstance(epsilon, np.ndarray):
-                self.epsilon = DenseData(name="epsilon", grid=self.grid,
-                                         dtype=self.dtype)
+                self.epsilon = DenseData(name="epsilon", grid=self.grid)
                 self.epsilon.data[:] = self.pad(1 + 2 * epsilon)
                 # Maximum velocity is scale*max(vp) if epsilon > 0
                 if np.max(self.epsilon.data) > 0:
@@ -343,8 +342,7 @@ class Model(object):
 
         if delta is not None:
             if isinstance(delta, np.ndarray):
-                self.delta = DenseData(name="delta", grid=self.grid,
-                                       dtype=self.dtype)
+                self.delta = DenseData(name="delta", grid=self.grid)
                 self.delta.data[:] = self.pad(np.sqrt(1 + 2 * delta))
             else:
                 self.delta = delta
@@ -353,8 +351,7 @@ class Model(object):
 
         if theta is not None:
             if isinstance(theta, np.ndarray):
-                self.theta = DenseData(name="theta", grid=self.grid,
-                                       dtype=self.dtype)
+                self.theta = DenseData(name="theta", grid=self.grid)
                 self.theta.data[:] = self.pad(theta)
             else:
                 self.theta = theta
@@ -363,8 +360,7 @@ class Model(object):
 
         if phi is not None:
             if isinstance(phi, np.ndarray):
-                self.phi = DenseData(name="phi", grid=self.grid,
-                                     dtype=self.dtype)
+                self.phi = DenseData(name="phi", grid=self.grid)
                 self.phi.data[:] = self.pad(phi)
             else:
                 self.phi = phi
@@ -391,6 +387,13 @@ class Model(object):
         Coordinates of the origin of the physical model.
         """
         return self.grid.origin
+
+    @property
+    def dtype(self):
+        """
+        Data type for all assocaited data objects.
+        """
+        return self.grid.dtype
 
     @property
     def shape_domain(self):

@@ -95,8 +95,7 @@ class AcousticWaveSolver(object):
         if u is None:
             u = TimeData(name='u', grid=self.model.grid, save=save,
                          time_dim=self.source.nt if save else None,
-                         time_order=2, space_order=self.space_order,
-                         dtype=self.model.dtype)
+                         time_order=2, space_order=self.space_order)
 
         # Pick m from model unless explicitly provided
         if m is None:
@@ -128,8 +127,7 @@ class AcousticWaveSolver(object):
         # Create the adjoint wavefield if not provided
         if v is None:
             v = TimeData(name='v', grid=self.model.grid, save=False,
-                         time_order=2, space_order=self.space_order,
-                         dtype=self.model.dtype)
+                         time_order=2, space_order=self.space_order)
 
         # Pick m from model unless explicitly provided
         if m is None:
@@ -155,14 +153,12 @@ class AcousticWaveSolver(object):
 
         # Gradient symbol
         if grad is None:
-            grad = DenseData(name='grad', grid=self.model.grid,
-                             dtype=self.model.dtype)
+            grad = DenseData(name='grad', grid=self.model.grid)
 
         # Create the forward wavefield
         if v is None:
             v = TimeData(name='v', grid=self.model.grid, save=False,
-                         time_order=2, space_order=self.space_order,
-                         dtype=self.model.dtype)
+                         time_order=2, space_order=self.space_order)
 
         # Pick m from model unless explicitly provided
         if m is None:
@@ -193,12 +189,10 @@ class AcousticWaveSolver(object):
         # Create the forward wavefields u and U if not provided
         if u is None:
             u = TimeData(name='u', grid=self.model.grid, save=False,
-                         time_order=2, space_order=self.space_order,
-                         dtype=self.model.dtype)
+                         time_order=2, space_order=self.space_order)
         if U is None:
             U = TimeData(name='U', grid=self.model.grid, save=False,
-                         time_order=2, space_order=self.space_order,
-                         dtype=self.model.dtype)
+                         time_order=2, space_order=self.space_order)
 
         # Pick m from model unless explicitly provided
         if m is None:

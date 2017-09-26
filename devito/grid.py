@@ -17,6 +17,8 @@ class Grid(object):
                    unit box of extent 1m in all dimensions.
     :param origin: Physical coordinate of the origin of the domain;
                    defaults to 0. in all dimensions.
+    :param dtype: Default data type to be inherited by all Functions
+                  created from this :class:`Grid`.
 
     The :class:`Grid` encapsulates the topology and geometry
     information of the computational domain that :class:`Function`
@@ -46,10 +48,12 @@ class Grid(object):
                        y
     """
 
-    def __init__(self, shape, extent=None, origin=None, dimensions=None):
+    def __init__(self, shape, extent=None, origin=None, dimensions=None,
+                 dtype=np.float32):
         self.shape = as_tuple(shape)
         self.extent = as_tuple(extent or tuple(1. for _ in shape))
         self.origin = as_tuple(origin or tuple(0. for _ in shape))
+        self.dtype = dtype
 
         # TODO: Raise proper exceptions and logging
         assert(self.dim == len(self.origin) == len(self.extent) == len(self.spacing))
