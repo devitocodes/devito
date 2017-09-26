@@ -15,7 +15,7 @@ from devito.exceptions import CompilationError
 from devito.logger import yask as log
 from devito.tools import numpy_to_ctypes
 
-from devito.yask import cfac, ofac, namespace, exit, yask_configuration
+from devito.yask import cfac, nfac, ofac, namespace, exit, yask_configuration
 from devito.yask.utils import convert_multislice
 
 
@@ -363,6 +363,10 @@ class YaskContext(object):
 
         # Build the hook kernel solution (wrapper) to create grids
         yc_hook = self.make_yc_solution(namespace['jit-yc-hook'])
+        # Also add a dummy grid to make YASK happy
+        dimensions = [nfac.new_step_index(namespace['time-dim'])]
+        dimensions += [nfac.new_domain_index(i) for i in domain]
+        yc_hook.new_grid('dummy', dimensions)
         self.yk_hook = YaskKernel(namespace['jit-yk-hook'](name, 0), yc_hook, domain)
 
     @cached_property
@@ -408,8 +412,6 @@ class YaskContext(object):
         """
         yc_soln = cfac.new_solution(namer(self.name, self.nsolutions))
         yc_soln.set_debug_output(ofac.new_null_output())
-        yc_soln.set_step_dim_name(namespace['time-dim'])
-        yc_soln.set_domain_dim_names(*list(self.domain))
         yc_soln.set_element_bytes(self.dtype().itemsize)
         return yc_soln
 
