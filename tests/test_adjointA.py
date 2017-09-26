@@ -2,8 +2,6 @@ import numpy as np
 import pytest
 from numpy import linalg
 
-import devito
-from devito.dimension import FixedDimension
 from devito.logger import info
 from examples.seismic import demo_model, RickerSource, Receiver
 from examples.seismic.acoustic import AcousticWaveSolver
@@ -15,21 +13,21 @@ presets = {
 }
 
 
-@pytest.mark.parametrize('mkey, shape, time_order, space_order, nbpml, fix_dim', [
+@pytest.mark.parametrize('mkey, shape, time_order, space_order, nbpml', [
     # 2D tests with varying time and space orders
-    ('layers', (60, 70), 2, 4, 10, False), ('layers', (60, 70), 2, 8, 10, False),
-    ('layers', (60, 70), 2, 12, 10, False), ('layers', (60, 70), 4, 4, 10, False),
-    ('layers', (60, 70), 4, 8, 10, False), ('layers', (60, 70), 4, 12, 10, False),
+    ('layers', (60, 70), 2, 4, 10), ('layers', (60, 70), 2, 8, 10),
+    ('layers', (60, 70), 2, 12, 10), ('layers', (60, 70), 4, 4, 10),
+    ('layers', (60, 70), 4, 8, 10), ('layers', (60, 70), 4, 12, 10),
     # 3D tests with varying time and space orders
-    ('layers', (60, 70, 80), 2, 4, 10, False), ('layers', (60, 70, 80), 2, 8, 10, False),
-    ('layers', (60, 70, 80), 2, 12, 10, False), ('layers', (60, 70, 80), 4, 4, 10, False),
-    ('layers', (60, 70, 80), 4, 8, 10, False), ('layers', (60, 70, 80), 4, 12, 10, False),
+    ('layers', (60, 70, 80), 2, 4, 10), ('layers', (60, 70, 80), 2, 8, 10),
+    ('layers', (60, 70, 80), 2, 12, 10), ('layers', (60, 70, 80), 4, 4, 10),
+    ('layers', (60, 70, 80), 4, 8, 10), ('layers', (60, 70, 80), 4, 12, 10),
     # Fixed dimension test in 2D and 3D
-    ('layers', (60, 70), 2, 4, 10, True), ('layers', (60, 70, 80), 2, 4, 10, True),
+    ('layers', (60, 70), 2, 4, 10), ('layers', (60, 70, 80), 2, 4, 10),
     # Constant model in 2D and 3D
-    ('constant', (60, 70), 2, 8, 14, False), ('constant', (60, 70, 80), 2, 8, 14, False),
+    ('constant', (60, 70), 2, 8, 14), ('constant', (60, 70, 80), 2, 8, 14),
 ])
-def test_acoustic(mkey, shape, time_order, space_order, nbpml, fix_dim):
+def test_acoustic(mkey, shape, time_order, space_order, nbpml):
     t0 = 0.0  # Start time
     tn = 500.  # Final time
     nrec = 130  # Number of receivers
@@ -57,10 +55,6 @@ def test_acoustic(mkey, shape, time_order, space_order, nbpml, fix_dim):
     solver = AcousticWaveSolver(model, source=src, receiver=rec,
                                 time_order=time_order,
                                 space_order=space_order)
-
-    # Set fixed ("baked-in") time dimension if requested
-    if fix_dim:
-        devito.time = FixedDimension('time', size=solver.source.nt)
 
     # Create adjoint receiver symbol
     srca = Receiver(name='srca', ntime=solver.source.nt,
