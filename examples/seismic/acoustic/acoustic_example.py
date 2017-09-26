@@ -24,7 +24,7 @@ def smooth10(vel, shape):
 def acoustic_setup(shape=(50, 50, 50), spacing=(15.0, 15.0, 15.0),
                    tn=500., time_order=2, space_order=4, nbpml=10, **kwargs):
     nrec = shape[0]
-    model = demo_model('layers-isotropic', ratio=3, shape=shape,
+    model = demo_model('layers-isotropic', ratio=2, shape=shape,
                        spacing=spacing, nbpml=nbpml)
 
     # Derive timestepping from model spacing
@@ -36,7 +36,7 @@ def acoustic_setup(shape=(50, 50, 50), spacing=(15.0, 15.0, 15.0),
     # Define source geometry (center of domain, just below surface)
     src = RickerSource(name='src', ndim=model.dim, f0=0.01, time=time)
     src.coordinates.data[0, :] = np.array(model.domain_size) * .5
-    src.coordinates.data[0, -1] = model.origin[-1] + 2 * spacing[-1]
+    src.coordinates.data[0, -1] = model.origin[-1] + 5 * spacing[-1]
 
     # Define receiver geometry (spread across x, just below surface)
     rec = Receiver(name='nrec', ntime=nt, npoint=nrec, ndim=model.dim)
@@ -61,6 +61,13 @@ def run(shape=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=1000.0,
     dm = np.float32(initial_vp**2 - solver.model.m.data)
     info("Applying Forward")
     rec, u, summary = solver.forward(save=full_run, autotune=autotune)
+    import matplotlib.pyplot as plt
+
+    plt.figure()
+    plt.imshow(rec.data[:, :], vmin=-10, vmax=10, cmap="seismic", aspect=.2)
+    plt.figure()
+    plt.imshow(np.transpose(u.data[1, :, :]), vmin=-.1, vmax=.1, cmap="seismic", aspect=1)
+    plt.show()
 
     if not full_run:
         return summary.gflopss, summary.oi, summary.timings, [rec, u.data]
@@ -84,7 +91,7 @@ if __name__ == "__main__":
                         help="Enable autotuning for block sizes")
     parser.add_argument("-to", "--time_order", default=2,
                         type=int, help="Time order of the simulation")
-    parser.add_argument("-so", "--space_order", default=6,
+    parser.add_argument("-so", "--space_order", default=4,
                         type=int, help="Space order of the simulation")
     parser.add_argument("--nbpml", default=40,
                         type=int, help="Number of PML layers around the domain")
@@ -103,9 +110,9 @@ if __name__ == "__main__":
         spacing = (15.0, 15.0)
         tn = 750.0
     else:
-        shape = (50, 50, 50)
-        spacing = (20.0, 20.0, 20.0)
-        tn = 250.0
+        shape = (100, 100, 100)
+        spacing = (15.0, 15.0, 15.0)
+        tn = 500.0
 
     run(shape=shape, spacing=spacing, nbpml=args.nbpml, tn=tn,
         space_order=args.space_order, time_order=args.time_order,

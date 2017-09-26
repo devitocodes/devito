@@ -98,7 +98,7 @@ class AcousticWaveSolver(object):
         if u is None:
             u = TimeData(name='u', shape=self.model.shape_domain, save=save,
                          time_dim=self.source.nt if save else None,
-                         time_order=self.time_order,
+                         time_order=2,
                          space_order=self.space_order,
                          dtype=self.model.dtype)
 
@@ -135,7 +135,7 @@ class AcousticWaveSolver(object):
         # Create the adjoint wavefield if not provided
         if v is None:
             v = TimeData(name='v', shape=self.model.shape_domain,
-                         save=False, time_order=self.time_order,
+                         save=False, time_order=2,
                          space_order=self.space_order,
                          dtype=self.model.dtype)
 
@@ -169,7 +169,7 @@ class AcousticWaveSolver(object):
         # Create the forward wavefield
         if v is None:
             v = TimeData(name='v', shape=self.model.shape_domain, save=False,
-                         time_order=self.time_order,
+                         time_order=2,
                          space_order=self.space_order,
                          dtype=self.model.dtype)
 
@@ -202,12 +202,12 @@ class AcousticWaveSolver(object):
         # Create the forward wavefields u and U if not provided
         if u is None:
             u = TimeData(name='u', shape=self.model.shape_domain,
-                         save=False, time_order=self.time_order,
+                         save=False, time_order=2,
                          space_order=self.space_order,
                          dtype=self.model.dtype)
         if U is None:
             U = TimeData(name='U', shape=self.model.shape_domain,
-                         save=False, time_order=self.time_order,
+                         save=False, time_order=2,
                          space_order=self.space_order, dtype=self.model.dtype)
 
         # Pick m from model unless explicitly provided

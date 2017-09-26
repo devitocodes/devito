@@ -179,7 +179,9 @@ class AbstractSymbol(Function, CachedSymbol):
 
     def __new__(cls, *args, **kwargs):
         if cls in _SymbolCache:
-            newobj = Function.__new__(cls, *args)
+            # Need options for ConstantData, calls evaluate if not
+            options = kwargs.get('options', {})
+            newobj = Function.__new__(cls, *args, **options)
             newobj._cached_init()
         else:
             name = kwargs.get('name')
@@ -631,7 +633,8 @@ class DenseData(TensorData):
 
     def laplace2(self, weight=1):
         """Symbol for the double laplacian wrt all spatial dimensions"""
-        order = self.space_order/2 + self.space_order/2 % 2
+        order = self.space_order / 2
+        order += order % 2
         first = sum([second_derivative(self, dim=d,
                                        order=order)
                      for d in self.indices[1:]])
