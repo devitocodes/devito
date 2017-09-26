@@ -7,8 +7,8 @@ from conftest import EVAL, dims, dims_open
 import numpy as np
 import pytest
 
-from devito import (clear_cache, Operator, ConstantData, DenseData, TimeData,
-                    PointData, Dimension, Eq, time, x, y, z, configuration)
+from devito import (clear_cache, Grid, Eq, Operator, ConstantData, DenseData,
+                    TimeData, PointData, Dimension, time, x, y, z, configuration)
 from devito.foreign import Operator as OperatorForeign
 from devito.dle import retrieve_iteration_tree
 from devito.visitors import IsPerfectIteration
@@ -589,7 +589,8 @@ class TestForeign(object):
 
     def test_explicit_run(self):
         time_dim = 6
-        a = TimeData(name='a', shape=(11, 11), time_order=1,
+        grid = Grid(shape=(11, 11))
+        a = TimeData(name='a', grid=grid, time_order=1,
                      time_dim=time_dim, save=True)
         eqn = Eq(a.forward, a + 1.)
         op = Operator(eqn)

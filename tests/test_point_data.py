@@ -2,21 +2,23 @@ import numpy as np
 import pytest
 
 from devito.cgen_utils import FLOAT
-from devito import Operator, DenseData, PointData, x, y, z
+from devito import Grid, Operator, DenseData, PointData, x, y, z
 
 
 @pytest.fixture
 def a(shape=(11, 11)):
-    x = np.linspace(0., 1., shape[0])
-    y = np.linspace(0., 1., shape[1])
-    a = DenseData(name='a', shape=shape)
-    a.data[:] = np.meshgrid(x, y)[1]
+    grid = Grid(shape=shape)
+    a = DenseData(name='a', grid=grid)
+    xarr = np.linspace(0., 1., shape[0])
+    yarr = np.linspace(0., 1., shape[1])
+    a.data[:] = np.meshgrid(xarr, yarr)[1]
     return a
 
 
 def unit_box(name='a', shape=(11, 11)):
     """Create a field with value 0. to 1. in each dimension"""
-    a = DenseData(name=name, shape=shape)
+    grid = Grid(shape=shape)
+    a = DenseData(name=name, grid=grid)
     dims = tuple([np.linspace(0., 1., d) for d in shape])
     a.data[:] = np.meshgrid(*dims)[1]
     return a
@@ -86,7 +88,7 @@ def test_inject_from_field(shape, coords, result, npoints=19):
     a = unit_box(shape=shape)
     spacing = a.data[tuple([1 for _ in shape])]
     a.data[:] = 0.
-    b = DenseData(name='b', shape=a.data.shape)
+    b = DenseData(name='b', grid=a.grid)
     b.data[:] = 1.
     p = points(ranges=coords, npoints=npoints)
 
