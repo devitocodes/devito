@@ -147,6 +147,9 @@ class CodePrinter(C99CodePrinter):
         indices = [self._print(i) for i in expr.params]
         return "%s->%s(%s)" % (expr.pointer, expr.function, ', '.join(indices))
 
+    def _print_ListInitializer(self, expr):
+        return "{%s}" % ', '.join([self._print(i) for i in expr.params])
+
 
 def ccode(expr, **settings):
     """Generate C++ code from an expression calling CodePrinter class
