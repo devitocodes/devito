@@ -1,28 +1,60 @@
-from sympy import Eq, diff
+from sympy import Eq, diff, solve, Symbol
 
 from devito import Operator, Forward, Backward, DenseData, TimeData, time, t
+from devito.logger import error
 from examples.seismic import PointSource, Receiver, ABC
 
 
-def pde(field, m, time_order, model, q=0, taxis=Forward):
-    s = t.spacing
+def laplacian(field, time_order, m, s):
+    """
+    Spacial discretization for the isotropic acoustic wave equation. For a 4th
+    order in time formulation, the 4th order time derivative is replaced by a
+    double laplacian:
+    H = (laplacian + s**2/12 laplacian(1/m*laplacian))
+    :param field:  Symbolic TimeData object, solution to be computed
+    :param time_order: time order
+    :param m: square slowness
+    :param s: symbol of for the time-step
+    :return: H
+    """
     if time_order == 2:
-        biharmonic = 0
-        dt = model.critical_dt
+          biharmonic = 0
+    elif time_order == 4:
+      biharmonic = field.laplace2(1 / m)
     else:
-        biharmonic = field.laplace2(1/m)
-        dt = 1.73 * model.critical_dt
-    eq = m * field.dt2 - field.laplace - s**2/12 * biharmonic + q
+      error("Unsupported time order %d, order has to be 2 or 4" %
+                           time_order)
+    return field.laplace + s ** 2 / 12 * biharmonic
 
-    if taxis == Forward:
-        stencil = [Eq(field.forward,
-                      s**2 / m * (field.laplace + s**2/12 * biharmonic + q) +
-                      2 * field - field.backward)]
-    else:
-        stencil = [Eq(field.backward,
-                      s**2 / m * (field.laplace + s**2/12 * biharmonic + q) +
-                      2 * field - field.forward)]
-    return eq, stencil, dt
+
+def iso_stencil(field, time_order, m, s, damp, **kwargs):
+    """
+    Stencil for the acoustic isotropic wave-equation:
+    u.dt2 - H + damp*u.dt = 0
+    :param field: Symbolic TimeData object, solution to be computed
+    :param time_order: time order
+    :param m: square slowness
+    :param s: symbol of for the time-step
+    :param damp: ABC dampening field (DenseData)
+    :param kwargs: forwad/backward wave equation (sign of u.dt will change accordingly
+    as well as the updated time-step (u.forwad or u.backward)
+    :return: Stencil for the wave-equation
+    """
+    # Creat a temporary symbol for H to avoid expensive sympy solve
+    H = Symbol('H')
+    # Define time sep to be updated
+    next = field.forward if kwargs.get('forward', True) else field.backward
+    # Define PDE
+    eq = m * field.dt2 - H + kwargs.get('q', 0)
+    # Add dampening field according to the propagation direction
+    eq += damp * field.dt if kwargs.get('forward', True) else -damp * field.dt
+    # Solve the symbolic equation for the field to be updated
+    eq_time = solve(eq, next, rational=False, simplify=False)[0]
+    # Get the spacial FD
+    lap = laplacian(field, time_order, m, s)
+    # return the Stencil with H replaced by its symbolic expression
+
+    return [Eq(next, eq_time.subs({H: lap}))]
 
 
 def ForwardOperator(model, source, receiver, time_order=2, space_order=4,
@@ -48,8 +80,11 @@ def ForwardOperator(model, source, receiver, time_order=2, space_order=4,
     rec = Receiver(name='rec', ntime=receiver.nt, ndim=receiver.ndim,
                    npoint=receiver.npoint)
 
-    # Derive stencil from symbolic equation:
-    _, stencil, dt = pde(u, m, time_order, model)
+    s = t.spacing
+
+    # Get computational time-step value
+    dt = model.critical_dt * (1.73 if time_order == 4 else 1.0)
+    eqn = iso_stencil(u, time_order, m, s, model.damp)
     # Construct expression to inject source values
     # Note that src and field terms have differing time indices:
     #   src[time, ...] - always accesses the "unrolled" time index
@@ -61,14 +96,13 @@ def ForwardOperator(model, source, receiver, time_order=2, space_order=4,
     # Create interpolation expression for receivers
     rec_term = rec.interpolate(expr=u, u_t=ti, offset=model.nbpml)
 
-    abc = ABC(model, u, m)
-    eq_abc = abc.damp_2d() if len(model.shape) == 2 else abc.damp_3d()
-
+    BC = ABC(model, u, m)
+    eq_abc = BC.abc
     subs = dict([(t.spacing, dt)] + [(time.spacing, dt)] +
                 [(i.spacing, model.get_spacing()[j]) for i, j
                  in zip(u.indices[1:], range(len(model.shape)))])
 
-    return Operator(stencil + eq_abc + src_term + rec_term,
+    return Operator(eqn + src_term + rec_term + eq_abc,
                     subs=subs,
                     time_axis=Forward, name='Forward', **kwargs)
 
@@ -93,7 +127,11 @@ def AdjointOperator(model, source, receiver, time_order=2, space_order=4, **kwar
     rec = Receiver(name='rec', ntime=receiver.nt, ndim=receiver.ndim,
                    npoint=receiver.npoint)
 
-    _, stencil, dt = pde(v, m, time_order, model, taxis=Backward)
+    s = t.spacing
+
+    # Get computational time-step value
+    dt = model.critical_dt * (1.73 if time_order == 4 else 1.0)
+    eqn = iso_stencil(v, time_order, m, s, model.damp, forward=False)
 
     # Construct expression to inject receiver values
     ti = v.indices[0]
@@ -103,13 +141,14 @@ def AdjointOperator(model, source, receiver, time_order=2, space_order=4, **kwar
     # Create interpolation expression for the adjoint-source
     source_a = srca.interpolate(expr=v, u_t=ti, offset=model.nbpml)
 
-    abc = ABC(model, v, m, taxis=Backward)
-    eq_abc = abc.damp_2d() if len(model.shape) == 2 else abc.damp_3d()
+    BC = ABC(model, v, m, taxis=Backward)
+    eq_abc = BC.abc
+
     subs = dict([(t.spacing, dt)] + [(time.spacing, dt)] +
                 [(i.spacing, model.get_spacing()[j]) for i, j
                  in zip(v.indices[1:], range(len(model.shape)))])
 
-    return Operator(stencil + eq_abc + receivers + source_a,
+    return Operator(eqn + eq_abc + receivers + source_a,
                     subs=subs,
                     time_axis=Backward, name='Adjoint', **kwargs)
 
@@ -138,24 +177,27 @@ def GradientOperator(model, source, receiver, time_order=2, space_order=4, **kwa
     rec = Receiver(name='rec', ntime=receiver.nt, ndim=receiver.ndim,
                    npoint=receiver.npoint)
 
-    eqn, stencil, dt = pde(v, m, time_order, model, taxis=Backward)
-    eqnu, _, _ = pde(u, m, time_order, model)
-    gradient_update = Eq(grad, grad - diff(eqnu, m) * v)
+    s = t.spacing
+
+    # Get computational time-step value
+    dt = model.critical_dt * (1.73 if time_order == 4 else 1.0)
+    eqn = iso_stencil(v, time_order, m, s, model.damp, forward=False)
+    gradient_update = Eq(grad, grad - u.dt2 * v)
 
     # Add expression for receiver injection
     ti = v.indices[0]
     receivers = rec.inject(field=v, u_t=ti - 1, offset=model.nbpml,
                            expr=rec * dt * dt / m, p_t=time)
 
-    abc = ABC(model, v, m, taxis=Backward)
-    eq_abc = abc.damp_2d() if len(model.shape) == 2 else abc.damp_3d()
+    BC = ABC(model, v, m, taxis=Backward)
+    eq_abc = BC.abc
 
     subs = dict([(t.spacing, dt)] + [(time.spacing, dt)] +
                 [(i.spacing, model.get_spacing()[j]) for i, j
                  in zip(v.indices[1:], range(len(model.shape)))])
 
-    return Operator(stencil + receivers + eq_abc + [gradient_update],
-                    subs=subs,
+    return Operator(eqn + receivers + eq_abc + [gradient_update],
+                    subs=subs, dse='aggressive',
                     time_axis=Backward, name='Gradient', **kwargs)
 
 
@@ -187,9 +229,12 @@ def BornOperator(model, source, receiver, time_order=2, space_order=4, **kwargs)
     dm = DenseData(name="dm", shape=model.shape_domain,
                    dtype=model.dtype)
 
-    # Derive stencil from symbolic equation:
-    eqnu, stencilu, dt = pde(u, m, time_order, model)
-    eqnU, stencilU, _ = pde(U, m, time_order, model, q=- dm * diff(eqnu, m))
+    s = t.spacing
+
+    # Get computational time-step value
+    dt = model.critical_dt * (1.73 if time_order == 4 else 1.0)
+    eqnu = iso_stencil(u, time_order, m, s, model.damp)
+    eqnU = iso_stencil(u, time_order, m, s, model.damp, q=-dm*u.dt2)
 
     # Add source term expression for u
     ti = u.indices[0]
@@ -199,13 +244,15 @@ def BornOperator(model, source, receiver, time_order=2, space_order=4, **kwargs)
     # Create receiver interpolation expression from U
     receivers = rec.interpolate(expr=U, u_t=ti, offset=model.nbpml)
 
-    abcu = ABC(model, u, m)
-    eq_abcu = abcu.damp_2d() if len(model.shape) == 2 else abcu.damp_3d()
-    abcU = ABC(model, U, m)
-    eq_abcU = abcU.damp_2d() if len(model.shape) == 2 else abcU.damp_3d()
+    BC = ABC(model, u, m)
+    eq_abcu = BC.abc
+
+    BC = ABC(model, U, m)
+    eq_abcU = BC.abc
+
     subs = dict([(t.spacing, dt)] + [(time.spacing, dt)] +
                 [(i.spacing, model.get_spacing()[j]) for i, j
                  in zip(u.indices[1:], range(len(model.shape)))])
-    return Operator(stencilu + eq_abcu + source + stencilU + eq_abcU + receivers,
+    return Operator(eqnu + eq_abcu + source + eqnU + eq_abcU + receivers,
                     subs=subs,
                     time_axis=Forward, name='Born', **kwargs)

@@ -8,6 +8,8 @@ from sympy.abc import h
 __all__ = ['ABC']
 
 
+# assuming (t/time, x, y, z), for now, generalization gonna be tricky
+
 class ABC(object):
     """
     Absrobing boundary layer for second-order scalar acoustic wave equations
@@ -17,7 +19,7 @@ class ABC(object):
     :param taxis : Forward or Backward, defines the propagation axis
     """
 
-    def __init__(self, model, field, m, taxis=Forward):
+    def __init__(self, model, field, m, taxis=Forward, **kwargs):
         self.nbpml = model.nbpml
         self.full_shape = model.shape_domain
         self.p_abc = Dimension(name="abc", size=self.nbpml)
@@ -29,20 +31,32 @@ class ABC(object):
         self.val = (sqrt(1 / m) * self.dampcoeff *
                     (pos - sin(2 * np.pi * pos) / (2 * np.pi)))
         self.taxis = taxis
+        self.fs = Dimension(name="fs", size=model.nbpml)
+        self.freesurface = kwargs.get("freesurface", False)
 
     @property
     def abc_eq(self):
         s = t.spacing
-        if self.taxis == Forward:
-            return Eq(self.field.forward,
-                      self.m / (self.m + s * self.val) * self.field.forward +
-                      s * self.val / (self.m + s * self.val) * self.field.backward)
-        elif self.taxis == Backward:
-            return Eq(self.field.backward,
-                      self.m / (self.m + s * self.val) * self.field.backward +
-                      s * self.val / (self.m + s * self.val) * self.field.forward)
+        next = self.field.forward if self.taxis is Forward else self.field.backward
+        prev = self.field.backward if self.taxis is Forward else self.field.forward
+        return Eq(next, self.m / (self.m + s * self.val) * next +
+                  s * self.val / (self.m + s * self.val) * prev)
+
+    @property
+    def free_surface(self):
+        ind_fs = self.field.indices[-1]
+        next = self.field.forward if self.taxis is Forward else self.field.backward
+        return [Eq(next.subs({ind_fs: self.fs}),
+                   - next.subs({ind_fs: self.nbpml - self.fs}))]
+
+    @property
+    def abc(self):
+        if len(self.full_shape) == 2:
+            return self.damp_2d()
+        elif len(self.full_shape) == 3:
+            return self.damp_3d()
         else:
-            raise InvalidArgument("Unknown arguments passed: " + ", " + self.taxis)
+            raise InvalidArgument("Unsupported model shape")
 
     def damp_x(self):
         return [self.abc_eq.subs({x: self.p_abc, h: x.spacing}),
@@ -60,7 +74,8 @@ class ABC(object):
                                   h: z.spacing})]
 
     def damp_2d(self):
-        return self.damp_x() + self.damp_y()
+        return self.damp_x() + (self.free_surface if self.freesurface else self.damp_y())
 
     def damp_3d(self):
-        return self.damp_x() + self.damp_y() + self.damp_z()
+        return self.damp_x() + self.damp_y() +\
+               (self.free_surface if self.freesurface else self.damp_z())
