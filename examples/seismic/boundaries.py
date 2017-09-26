@@ -1,4 +1,4 @@
-from devito import Dimension, x, y, z, t, Forward, Backward
+from devito import Dimension, x, y, z, t, Forward
 from devito.exceptions import InvalidArgument
 
 import numpy as np
@@ -30,6 +30,7 @@ class ABC(object):
         pos = abs((self.nbpml - self.p_abc + 1) / float(self.nbpml))
         self.val = (sqrt(1 / m) * self.dampcoeff *
                     (pos - sin(2 * np.pi * pos) / (2 * np.pi)))
+
         self.taxis = taxis
         self.fs = Dimension(name="fs", size=model.nbpml)
         self.freesurface = kwargs.get("freesurface", False)

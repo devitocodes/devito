@@ -90,11 +90,11 @@ def ForwardOperator(model, source, receiver, time_order=2, space_order=4,
     #   src[time, ...] - always accesses the "unrolled" time index
     #   u[ti + 1, ...] - accesses the forward stencil value
     ti = u.indices[0]
-    src_term = src.inject(field=u, u_t=ti + 1, offset=model.nbpml,
-                          expr=src * dt**2 / m, p_t=time)
+    src_term = src.inject(field=u.forward, offset=model.nbpml,
+                          expr=src * dt**2 / m)
 
     # Create interpolation expression for receivers
-    rec_term = rec.interpolate(expr=u, u_t=ti, offset=model.nbpml)
+    rec_term = rec.interpolate(expr=u, offset=model.nbpml)
 
     BC = ABC(model, u, m)
     eq_abc = BC.abc
@@ -135,11 +135,11 @@ def AdjointOperator(model, source, receiver, time_order=2, space_order=4, **kwar
 
     # Construct expression to inject receiver values
     ti = v.indices[0]
-    receivers = rec.inject(field=v, u_t=ti - 1, offset=model.nbpml,
-                           expr=rec * dt**2 / m, p_t=time)
+    receivers = rec.inject(field=v.backward, offset=model.nbpml,
+                           expr=rec * dt**2 / m)
 
     # Create interpolation expression for the adjoint-source
-    source_a = srca.interpolate(expr=v, u_t=ti, offset=model.nbpml)
+    source_a = srca.interpolate(expr=v, offset=model.nbpml)
 
     BC = ABC(model, v, m, taxis=Backward)
     eq_abc = BC.abc
@@ -186,8 +186,8 @@ def GradientOperator(model, source, receiver, time_order=2, space_order=4, **kwa
 
     # Add expression for receiver injection
     ti = v.indices[0]
-    receivers = rec.inject(field=v, u_t=ti - 1, offset=model.nbpml,
-                           expr=rec * dt * dt / m, p_t=time)
+    receivers = rec.inject(field=v.backward, offset=model.nbpml,
+                           expr=rec * dt * dt / m)
 
     BC = ABC(model, v, m, taxis=Backward)
     eq_abc = BC.abc
@@ -238,11 +238,11 @@ def BornOperator(model, source, receiver, time_order=2, space_order=4, **kwargs)
 
     # Add source term expression for u
     ti = u.indices[0]
-    source = src.inject(field=u, u_t=ti + 1, offset=model.nbpml,
-                        expr=src * dt * dt / m, p_t=time)
+    source = src.inject(field=u.forward, offset=model.nbpml,
+                        expr=src * dt * dt / m)
 
     # Create receiver interpolation expression from U
-    receivers = rec.interpolate(expr=U, u_t=ti, offset=model.nbpml)
+    receivers = rec.interpolate(expr=U, offset=model.nbpml)
 
     BC = ABC(model, u, m)
     eq_abcu = BC.abc
