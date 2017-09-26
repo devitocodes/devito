@@ -1,7 +1,7 @@
 import numpy as np
 import os
 
-from devito import DenseData, ConstantData
+from devito import Grid, DenseData, ConstantData
 from devito.logger import error
 
 
@@ -303,19 +303,17 @@ class Model(object):
     """
     def __init__(self, origin, spacing, shape, vp, nbpml=20, dtype=np.float32,
                  epsilon=None, delta=None, theta=None, phi=None):
-        self.origin = origin
-        self.spacing = spacing
         self.shape = shape
         self.nbpml = int(nbpml)
         self.dtype = dtype
 
-        # Ensure same dimensions on all inpute parameters
-        assert(len(origin) == len(spacing))
-        assert(len(origin) == len(shape))
+        shape_pml = np.array(shape) + 2 * self.nbpml
+        extent = tuple(np.array(spacing) * (shape_pml))
+        self.grid = Grid(extent=extent, shape=shape_pml, origin=origin)
 
         # Create square slowness of the wave as symbol `m`
         if isinstance(vp, np.ndarray):
-            self.m = DenseData(name="m", shape=self.shape_domain, dtype=self.dtype)
+            self.m = DenseData(name="m", grid=self.grid, dtype=self.dtype)
         else:
             self.m = ConstantData(name="m", value=1/vp**2, dtype=self.dtype)
 
@@ -323,8 +321,7 @@ class Model(object):
         self.vp = vp
 
         # Create dampening field as symbol `damp`
-        self.damp = DenseData(name="damp", shape=self.shape_domain,
-                              dtype=self.dtype)
+        self.damp = DenseData(name="damp", grid=self.grid, dtype=self.dtype)
         damp_boundary(self.damp.data, self.nbpml, spacing=self.spacing)
 
         # Additional parameter fields for TTI operators
@@ -332,7 +329,7 @@ class Model(object):
 
         if epsilon is not None:
             if isinstance(epsilon, np.ndarray):
-                self.epsilon = DenseData(name="epsilon", shape=self.shape_domain,
+                self.epsilon = DenseData(name="epsilon", grid=self.grid,
                                          dtype=self.dtype)
                 self.epsilon.data[:] = self.pad(1 + 2 * epsilon)
                 # Maximum velocity is scale*max(vp) if epsilon > 0
@@ -346,7 +343,7 @@ class Model(object):
 
         if delta is not None:
             if isinstance(delta, np.ndarray):
-                self.delta = DenseData(name="delta", shape=self.shape_domain,
+                self.delta = DenseData(name="delta", grid=self.grid,
                                        dtype=self.dtype)
                 self.delta.data[:] = self.pad(np.sqrt(1 + 2 * delta))
             else:
@@ -356,7 +353,7 @@ class Model(object):
 
         if theta is not None:
             if isinstance(theta, np.ndarray):
-                self.theta = DenseData(name="theta", shape=self.shape_domain,
+                self.theta = DenseData(name="theta", grid=self.grid,
                                        dtype=self.dtype)
                 self.theta.data[:] = self.pad(theta)
             else:
@@ -366,7 +363,7 @@ class Model(object):
 
         if phi is not None:
             if isinstance(phi, np.ndarray):
-                self.phi = DenseData(name="phi", shape=self.shape_domain,
+                self.phi = DenseData(name="phi", grid=self.grid,
                                      dtype=self.dtype)
                 self.phi.data[:] = self.pad(phi)
             else:
@@ -377,9 +374,23 @@ class Model(object):
     @property
     def dim(self):
         """
-        Spatial dimension of the model domain
+        Spatial dimension of the problem and model domain.
         """
-        return len(self.shape)
+        return self.grid.dim
+
+    @property
+    def spacing(self):
+        """
+        Grid spacing for all fields in the physical model.
+        """
+        return self.grid.spacing
+
+    @property
+    def origin(self):
+        """
+        Coordinates of the origin of the physical model.
+        """
+        return self.grid.origin
 
     @property
     def shape_domain(self):

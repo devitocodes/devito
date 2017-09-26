@@ -76,14 +76,14 @@ def test_tti(shape, space_order):
                                        time_order=2, space_order=space_order)
 
     # Create new wavefield object restart forward computation
-    u = TimeData(name='u', shape=model.shape_domain, save=False,
+    u = TimeData(name='u', grid=model.grid, save=False,
                  time_order=2, space_order=space_order, dtype=model.dtype)
     u.data[0:3, :] = u1.data[indlast, :]
     rec, _, _ = acoustic.forward(save=False, u=u)
 
-    utti = TimeData(name='u', shape=model.shape_domain, save=False,
+    utti = TimeData(name='u', grid=model.grid, save=False,
                     time_order=2, space_order=space_order, dtype=model.dtype)
-    vtti = TimeData(name='v', shape=model.shape_domain, save=False,
+    vtti = TimeData(name='v', grid=model.grid, save=False,
                     time_order=2, space_order=space_order, dtype=model.dtype)
     utti.data[0:3, :] = u1.data[indlast, :]
     vtti.data[0:3, :] = u1.data[indlast, :]

@@ -72,7 +72,7 @@ def ForwardOperator(model, source, receiver, time_order=2, space_order=4,
     m, damp = model.m, model.damp
 
     # Create symbols for forward wavefield, source and receivers
-    u = TimeData(name='u', shape=model.shape_domain, dtype=model.dtype,
+    u = TimeData(name='u', grid=model.grid, dtype=model.dtype,
                  save=save, time_dim=source.nt if save else None,
                  time_order=2, space_order=space_order)
     src = PointSource(name='src', ntime=source.nt, ndim=source.ndim,
@@ -113,7 +113,7 @@ def AdjointOperator(model, source, receiver, time_order=2, space_order=4, **kwar
     """
     m, damp = model.m, model.damp
 
-    v = TimeData(name='v', shape=model.shape_domain, save=False,
+    v = TimeData(name='v', grid=model.grid, save=False,
                  time_order=2, space_order=space_order, dtype=model.dtype)
     srca = PointSource(name='srca', ntime=source.nt, ndim=source.ndim,
                        npoint=source.npoint)
@@ -153,12 +153,11 @@ def GradientOperator(model, source, receiver, time_order=2, space_order=4, **kwa
     m, damp = model.m, model.damp
 
     # Gradient symbol and wavefield symbols
-    grad = DenseData(name='grad', shape=model.shape_domain,
-                     dtype=model.dtype)
-    u = TimeData(name='u', shape=model.shape_domain, save=True,
+    grad = DenseData(name='grad', grid=model.grid, dtype=model.dtype)
+    u = TimeData(name='u', grid=model.grid, save=True,
                  time_dim=source.nt, time_order=2,
                  space_order=space_order, dtype=model.dtype)
-    v = TimeData(name='v', shape=model.shape_domain, save=False,
+    v = TimeData(name='v', grid=model.grid, save=False,
                  time_order=2, space_order=space_order,
                  dtype=model.dtype)
     rec = Receiver(name='rec', ntime=receiver.nt, ndim=receiver.ndim,
@@ -207,11 +206,11 @@ def BornOperator(model, source, receiver, time_order=2, space_order=4, **kwargs)
                    npoint=receiver.npoint)
 
     # Create wavefields and a dm field
-    u = TimeData(name="u", shape=model.shape_domain, save=False,
+    u = TimeData(name="u", grid=model.grid, save=False,
                  time_order=2, space_order=space_order, dtype=model.dtype)
-    U = TimeData(name="U", shape=model.shape_domain, save=False,
+    U = TimeData(name="U", grid=model.grid, save=False,
                  time_order=2, space_order=space_order, dtype=model.dtype)
-    dm = DenseData(name="dm", shape=model.shape_domain, dtype=model.dtype)
+    dm = DenseData(name="dm", grid=model.grid, dtype=model.dtype)
 
     s = t.spacing
     # Get computational time-step value
