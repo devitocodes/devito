@@ -1,5 +1,3 @@
-from cached_property import cached_property
-
 from devito import DenseData, TimeData, memoized
 from examples.seismic import PointSource, Receiver
 from examples.seismic.acoustic.operators import (
@@ -49,21 +47,21 @@ class AcousticWaveSolver(object):
                                receiver=self.receiver, time_order=self.time_order,
                                space_order=self.space_order, **self._kwargs)
 
-    @cached_property
+    @memoized
     def op_adj(self):
         """Cached operator for adjoint runs"""
         return AdjointOperator(self.model, save=False, source=self.source,
                                receiver=self.receiver, time_order=self.time_order,
                                space_order=self.space_order, **self._kwargs)
 
-    @cached_property
+    @memoized
     def op_grad(self):
         """Cached operator for gradient runs"""
         return GradientOperator(self.model, save=False, source=self.source,
                                 receiver=self.receiver, time_order=self.time_order,
                                 space_order=self.space_order, **self._kwargs)
 
-    @cached_property
+    @memoized
     def op_born(self):
         """Cached operator for born runs"""
         return BornOperator(self.model, save=False, source=self.source,
@@ -138,7 +136,7 @@ class AcousticWaveSolver(object):
             m = self.model.m
 
         # Execute operator and return wavefield and receiver data
-        summary = self.op_adj.apply(srca=srca, rec=rec, v=v, m=m, **kwargs)
+        summary = self.op_adj().apply(srca=srca, rec=rec, v=v, m=m, **kwargs)
         return srca, v, summary
 
     def gradient(self, rec, u, v=None, grad=None, m=None, **kwargs):
@@ -171,7 +169,7 @@ class AcousticWaveSolver(object):
         if m is None:
             m = m or self.model.m
 
-        summary = self.op_grad.apply(rec=rec, grad=grad, v=v, u=u, m=m, **kwargs)
+        summary = self.op_grad().apply(rec=rec, grad=grad, v=v, u=u, m=m, **kwargs)
         return grad, summary
 
     def born(self, dmin, src=None, rec=None, u=None, U=None, m=None, **kwargs):
@@ -209,5 +207,5 @@ class AcousticWaveSolver(object):
             m = self.model.m
 
         # Execute operator and return wavefield and receiver data
-        summary = self.op_born.apply(dm=dmin, u=u, U=U, src=src, rec=rec, m=m, **kwargs)
+        summary = self.op_born().apply(dm=dmin, u=u, U=U, src=src, rec=rec, m=m, **kwargs)
         return rec, u, U, summary
