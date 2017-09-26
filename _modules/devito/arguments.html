@@ -310,6 +310,40 @@
         <span class="k">raise</span> <span class="bp">NotImplemented</span><span class="p">()</span></div>
 
 
+<div class="viewcode-block" id="FixedDimensionArgProvider"><a class="viewcode-back" href="../../devito.html#devito.arguments.FixedDimensionArgProvider">[docs]</a><span class="k">class</span> <span class="nc">FixedDimensionArgProvider</span><span class="p">(</span><span class="n">ArgumentProvider</span><span class="p">):</span>
+
+    <span class="sd">&quot;&quot;&quot; This class is used to decorate the FixedDimension class with behaviour required</span>
+<span class="sd">        to handle runtime arguments. All properties/methods defined here are available</span>
+<span class="sd">        in any Dimension object.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">value</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">size</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">dtype</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;The data type of the iteration variable&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">int32</span>
+
+    <span class="nd">@cached_property</span>
+    <span class="k">def</span> <span class="nf">rtargs</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="p">[]</span>
+
+<div class="viewcode-block" id="FixedDimensionArgProvider.verify"><a class="viewcode-back" href="../../devito.html#devito.arguments.FixedDimensionArgProvider.verify">[docs]</a>    <span class="k">def</span> <span class="nf">verify</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">value</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">True</span>
+
+        <span class="c1"># Assuming the only people calling my verify are symbolic data, they need to</span>
+        <span class="c1"># be bigger than my size if I have a hard-coded size</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_Buffered</span><span class="p">:</span>
+            <span class="n">verify</span> <span class="o">=</span> <span class="p">(</span><span class="n">value</span> <span class="o">&gt;=</span> <span class="bp">self</span><span class="o">.</span><span class="n">size</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="c1"># If I am a buffered dimension, I just need to make sure the calling</span>
+            <span class="c1"># object has enough buffers as my modulo</span>
+            <span class="n">verify</span> <span class="o">=</span> <span class="p">(</span><span class="n">value</span> <span class="o">&gt;=</span> <span class="bp">self</span><span class="o">.</span><span class="n">modulo</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">verify</span></div></div>
+
+
 <div class="viewcode-block" id="DimensionArgProvider"><a class="viewcode-back" href="../../devito.html#devito.arguments.DimensionArgProvider">[docs]</a><span class="k">class</span> <span class="nc">DimensionArgProvider</span><span class="p">(</span><span class="n">ArgumentProvider</span><span class="p">):</span>
 
     <span class="sd">&quot;&quot;&quot; This class is used to decorate the Dimension class with behaviour required</span>
@@ -338,51 +372,41 @@
 
     <span class="nd">@cached_property</span>
     <span class="k">def</span> <span class="nf">rtargs</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">size</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="k">return</span> <span class="p">[]</span>
-        <span class="k">else</span><span class="p">:</span>
-            <span class="n">size</span> <span class="o">=</span> <span class="n">ScalarArgument</span><span class="p">(</span><span class="s2">&quot;</span><span class="si">%s</span><span class="s2">_size&quot;</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="bp">self</span><span class="p">,</span> <span class="nb">max</span><span class="p">)</span>
-            <span class="k">return</span> <span class="p">[</span><span class="n">size</span><span class="p">]</span>
-
-    <span class="nd">@property</span>
-    <span class="k">def</span> <span class="nf">decl</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">rtargs</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">decl</span>
+        <span class="n">size</span> <span class="o">=</span> <span class="n">ScalarArgument</span><span class="p">(</span><span class="s2">&quot;</span><span class="si">%s</span><span class="s2">_size&quot;</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="bp">self</span><span class="p">,</span> <span class="nb">max</span><span class="p">)</span>
+        <span class="k">return</span> <span class="p">[</span><span class="n">size</span><span class="p">]</span>
 
     <span class="c1"># TODO: Can we do without a verify on a dimension?</span>
 <div class="viewcode-block" id="DimensionArgProvider.verify"><a class="viewcode-back" href="../../devito.html#devito.arguments.DimensionArgProvider.verify">[docs]</a>    <span class="k">def</span> <span class="nf">verify</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
         <span class="n">verify</span> <span class="o">=</span> <span class="kc">True</span>
+        <span class="k">if</span> <span class="n">value</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">value</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="k">return</span> <span class="kc">True</span>
 
-        <span class="k">if</span> <span class="n">value</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">_value</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="k">return</span> <span class="n">verify</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">parent_value</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">value</span>
+                <span class="k">if</span> <span class="n">parent_value</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="k">return</span> <span class="kc">False</span>
+            <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>
+                <span class="k">return</span> <span class="kc">False</span>
 
-        <span class="k">if</span> <span class="n">value</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">value</span> <span class="o">==</span> <span class="bp">self</span><span class="o">.</span><span class="n">_value</span><span class="p">:</span>
-            <span class="k">return</span> <span class="n">verify</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">parent_value</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">value</span>
+            <span class="k">if</span> <span class="n">parent_value</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">value</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">reducer</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">parent_value</span><span class="p">)</span>
+            <span class="n">verify</span> <span class="o">=</span> <span class="n">verify</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">verify</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+        <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>
+            <span class="k">pass</span>
 
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">size</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="c1"># Assuming the only people calling my verify are symbolic data, they need to</span>
-            <span class="c1"># be bigger than my size if I have a hard-coded size</span>
-            <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_Buffered</span><span class="p">:</span>
-                <span class="n">verify</span> <span class="o">=</span> <span class="p">(</span><span class="n">value</span> <span class="o">&gt;=</span> <span class="bp">self</span><span class="o">.</span><span class="n">size</span><span class="p">)</span>
-            <span class="k">else</span><span class="p">:</span>
-                <span class="c1"># If I am a buffered dimension, I just need to make sure the calling</span>
-                <span class="c1"># object has enough buffers as my modulo</span>
-                <span class="n">verify</span> <span class="o">=</span> <span class="p">(</span><span class="n">value</span> <span class="o">&gt;=</span> <span class="bp">self</span><span class="o">.</span><span class="n">modulo</span><span class="p">)</span>
-        <span class="k">else</span><span class="p">:</span>
-            <span class="k">if</span> <span class="n">value</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">_value</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-                <span class="n">value</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">reducer</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_value</span><span class="p">,</span> <span class="n">value</span><span class="p">)</span>
-            <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s1">&#39;parent&#39;</span><span class="p">):</span>
-                <span class="n">verify</span> <span class="o">=</span> <span class="n">verify</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">verify</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
-                <span class="c1"># If I don&#39;t know my value, ask my parent</span>
-                <span class="k">if</span> <span class="n">value</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-                    <span class="n">value</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">value</span>
+        <span class="k">if</span> <span class="n">value</span> <span class="o">==</span> <span class="bp">self</span><span class="o">.</span><span class="n">value</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">True</span>
 
-            <span class="c1"># Derived dimensions could be linked through constraints</span>
-            <span class="c1"># At this point, a constraint needs to be added that enforces</span>
-            <span class="c1"># dim_e - dim_s &lt; SOME_MAX</span>
-            <span class="c1"># Also need a default constraint that dim_e &gt; dim_s (or vice-versa)</span>
-            <span class="n">verify</span> <span class="o">=</span> <span class="n">verify</span> <span class="ow">and</span> <span class="nb">all</span><span class="p">([</span><span class="n">a</span><span class="o">.</span><span class="n">verify</span><span class="p">(</span><span class="n">v</span><span class="p">)</span> <span class="k">for</span> <span class="n">a</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">rtargs</span><span class="p">,</span> <span class="p">(</span><span class="n">value</span><span class="p">,))])</span>
-            <span class="k">if</span> <span class="n">verify</span><span class="p">:</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">_value</span> <span class="o">=</span> <span class="n">value</span>
+        <span class="c1"># Derived dimensions could be linked through constraints</span>
+        <span class="c1"># At this point, a constraint needs to be added that enforces</span>
+        <span class="c1"># dim_e - dim_s &lt; SOME_MAX</span>
+        <span class="c1"># Also need a default constraint that dim_e &gt; dim_s (or vice-versa)</span>
+        <span class="n">verify</span> <span class="o">=</span> <span class="n">verify</span> <span class="ow">and</span> <span class="nb">all</span><span class="p">([</span><span class="n">a</span><span class="o">.</span><span class="n">verify</span><span class="p">(</span><span class="n">v</span><span class="p">)</span> <span class="k">for</span> <span class="n">a</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">rtargs</span><span class="p">,</span> <span class="p">(</span><span class="n">value</span><span class="p">,))])</span>
+        <span class="k">if</span> <span class="n">verify</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_value</span> <span class="o">=</span> <span class="n">value</span>
         <span class="k">return</span> <span class="n">verify</span></div></div>
 
 
