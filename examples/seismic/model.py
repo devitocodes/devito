@@ -325,7 +325,7 @@ class Model(object):
         # Create dampening field as symbol `damp`
         self.damp = DenseData(name="damp", shape=self.shape_domain,
                               dtype=self.dtype)
-        damp_boundary(self.damp.data, self.nbpml, spacing=self.get_spacing())
+        damp_boundary(self.damp.data, self.nbpml, spacing=self.spacing)
 
         # Additional parameter fields for TTI operators
         self.scale = 1.
@@ -428,10 +428,6 @@ class Model(object):
             self.m.data[:] = self.pad(1 / (self.vp * self.vp))
         else:
             self.m.data = 1 / vp**2
-
-    def get_spacing(self):
-        """Return the grid size"""
-        return self.spacing
 
     def pad(self, data):
         """Padding function PNL layers in every direction for for the
