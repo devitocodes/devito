@@ -83,7 +83,7 @@ class Operator(Function):
         stencils = self._retrieve_stencils(expressions)
 
         # Parameters of the Operator (Dimensions necessary for data casts)
-        parameters = self.input + [i for i in self.dimensions if i.size is None]
+        parameters = self.input + [i for i in self.dimensions if not i.is_Fixed]
 
         # Group expressions based on their Stencil
         clusters = clusterize(expressions, stencils)
@@ -198,7 +198,9 @@ class Operator(Function):
         dle_arguments = OrderedDict()
         autotune = True
         for i in self.dle_arguments:
-            dim_size = dim_sizes.get(i.original_dim.name, i.original_dim.size)
+            dim_size = dim_sizes.get(i.original_dim.name,
+                                     i.original_dim.size if i.original_dim.is_Fixed
+                                     else None)
             if dim_size is None:
                 error('Unable to derive size of dimension %s from defaults. '
                       'Please provide an explicit value.' % i.original_dim.name)
@@ -302,7 +304,8 @@ class Operator(Function):
                 needed = entries[index:]
 
                 # Build and insert the required Iterations
-                iters = [Iteration([], j.dim, j.dim.size, offsets=j.ofs) for j in needed]
+                iters = [Iteration([], j.dim, j.dim.symbolic_size, offsets=j.ofs)
+                         for j in needed]
                 body, tree = compose_nodes(iters + [expressions], retrieve=True)
                 scheduling = OrderedDict(zip(needed, tree))
                 if root is None:
