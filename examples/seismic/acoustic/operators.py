@@ -75,7 +75,7 @@ def ForwardOperator(model, source, receiver, time_order=2, space_order=4,
     # Create symbols for forward wavefield, source and receivers
     u = TimeData(name='u', shape=model.shape_domain, dtype=model.dtype,
                  save=save, time_dim=source.nt if save else None,
-                 time_order=time_order, space_order=space_order)
+                 time_order=2, space_order=space_order)
     src = PointSource(name='src', ntime=source.nt, ndim=source.ndim,
                       npoint=source.npoint)
     rec = Receiver(name='rec', ntime=receiver.nt, ndim=receiver.ndim,
@@ -115,7 +115,7 @@ def AdjointOperator(model, source, receiver, time_order=2, space_order=4, **kwar
     m, damp = model.m, model.damp
 
     v = TimeData(name='v', shape=model.shape_domain, save=False,
-                 time_order=time_order, space_order=space_order,
+                 time_order=2, space_order=space_order,
                  dtype=model.dtype)
     srca = PointSource(name='srca', ntime=source.nt, ndim=source.ndim,
                        npoint=source.npoint)
@@ -158,10 +158,10 @@ def GradientOperator(model, source, receiver, time_order=2, space_order=4, **kwa
     grad = DenseData(name='grad', shape=model.shape_domain,
                      dtype=model.dtype)
     u = TimeData(name='u', shape=model.shape_domain, save=True,
-                 time_dim=source.nt, time_order=time_order,
+                 time_dim=source.nt, time_order=2,
                  space_order=space_order, dtype=model.dtype)
     v = TimeData(name='v', shape=model.shape_domain, save=False,
-                 time_order=time_order, space_order=space_order,
+                 time_order=2, space_order=space_order,
                  dtype=model.dtype)
     rec = Receiver(name='rec', ntime=receiver.nt, ndim=receiver.ndim,
                    npoint=receiver.npoint)
@@ -210,10 +210,10 @@ def BornOperator(model, source, receiver, time_order=2, space_order=4, **kwargs)
 
     # Create wavefields and a dm field
     u = TimeData(name="u", shape=model.shape_domain, save=False,
-                 time_order=time_order, space_order=space_order,
+                 time_order=2, space_order=space_order,
                  dtype=model.dtype)
     U = TimeData(name="U", shape=model.shape_domain, save=False,
-                 time_order=time_order, space_order=space_order,
+                 time_order=2, space_order=space_order,
                  dtype=model.dtype)
     dm = DenseData(name="dm", shape=model.shape_domain,
                    dtype=model.dtype)

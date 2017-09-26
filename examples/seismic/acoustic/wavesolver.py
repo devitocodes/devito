@@ -17,7 +17,11 @@ class AcousticWaveSolver(object):
     :param model: Physical model with domain parameters
     :param source: Sparse point symbol providing the injected wave
     :param receiver: Sparse point symbol describing an array of receivers
-    :param time_order: Order of the time-stepping scheme (default: 2)
+    :param time_order: Order of the time-stepping scheme (default: 2, choices: 2,4)
+                       time_order=4 will not implement a 4th order FD discretization 
+                       of the time-derivative as it is unstable. It implement instead
+                       a 4th order accurate wave-equation with only second order
+                       time derivative.
     :param space_order: Order of the spatial stencil discretisation (default: 4)
 
     Note: space_order must always be greater than time_order
@@ -28,10 +32,7 @@ class AcousticWaveSolver(object):
         self.source = source
         self.receiver = receiver
 
-        self.time_order = 2
-        debug("Internal time_order set to 2, the kernel ran will be 4th"
-              "order for `time_order=4` but only requires a second order "
-              "finite-difference scheme in time")
+        self.time_order = time_order
         self.space_order = space_order
 
         # Time step can be \sqrt{3}=1.73 bigger with 4th order
