@@ -121,8 +121,9 @@ def test_gradientJ(shape, time_order, space_order):
     # Test slope of the  tests
     p1 = np.polyfit(np.log10(H), np.log10(error1), 1)
     p2 = np.polyfit(np.log10(H), np.log10(error2), 1)
-    info('1st order error, Phi(m0+dm)-Phi(m0): %s' % (p1))
-    info('2nd order error, Phi(m0+dm)-Phi(m0) - <J(m0)^T \delta d, dm>: %s' % (p2))
+    info('1st order error, Phi(m0+dm)-Phi(m0) with slope: %s compared to 1' % (p1[0]))
+    info('2nd order error, Phi(m0+dm)-Phi(m0) - <J(m0)^T \delta d, dm>with slope:'
+         ' %s comapred to 2' % (p2[0]))
     assert np.isclose(p1[0], 1.0, rtol=0.1)
     assert np.isclose(p2[0], 2.0, rtol=0.1)
 

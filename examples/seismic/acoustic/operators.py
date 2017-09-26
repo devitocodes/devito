@@ -47,7 +47,7 @@ def iso_stencil(field, time_order, m, s, damp, **kwargs):
     # Define time sep to be updated
     next = field.forward if kwargs.get('forward', True) else field.backward
     # Define PDE
-    eq = m * field.dt2 - H + kwargs.get('q', 0)
+    eq = m * field.dt2 - H - kwargs.get('q', 0)
     # Add dampening field according to the propagation direction
     eq += damp * field.dt if kwargs.get('forward', True) else -damp * field.dt
     # Solve the symbolic equation for the field to be updated
