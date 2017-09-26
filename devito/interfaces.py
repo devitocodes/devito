@@ -6,7 +6,7 @@ import sympy
 from sympy import Function, IndexedBase
 from sympy.abc import s
 
-from devito.dimension import t, x, y, z, time, Dimension
+from devito.dimension import t, x, y, z, time
 from devito.finite_difference import (centered, cross_derivative,
                                       first_derivative, left, right,
                                       second_derivative)
@@ -423,7 +423,9 @@ class DenseData(TensorData):
 
     :param name: Name of the symbol
     :param dtype: Data type of the scalar
-    :param shape: The shape of the tensor
+    :param shape: Domain shape of the associated data for this :class:`Function`.
+                  Note that this does not include the boundary padding added due
+                  the stencil radius for space dimensions.
     :param dimensions: The symbolic dimensions of the tensor.
     :param space_order: Discretisation order for space derivatives
     :param initializer: Function to initialize the data, optional
@@ -440,11 +442,18 @@ class DenseData(TensorData):
     def __init__(self, *args, **kwargs):
         if not self._cached():
             self.name = kwargs.get('name')
-            self.shape = kwargs.get('shape', None)
-            if self.shape is None:
-                dimensions = kwargs.get('dimensions')
-                self.shape = tuple([d.size for d in dimensions])
+            self.grid = kwargs.get('grid', None)
+
+            if self.grid is None:
+                self.shape_domain = kwargs.get('shape', None)
+                if self.shape_domain is None:
+                    error("Creating a Function requires either 'shape'"
+                          "or a 'grid' argument")
+                    raise ValueError("Unknown symbol dimensions or shape")
+            else:
+                self.shape_domain = self.grid.shape_domain
             self.indices = self._indices(**kwargs)
+
             self.dtype = kwargs.get('dtype', np.float32)
             self.space_order = kwargs.get('space_order', 1)
             self.initializer = kwargs.get('initializer', None)
@@ -457,26 +466,40 @@ class DenseData(TensorData):
     def _indices(cls, **kwargs):
         """Return the default dimension indices for a given data shape
 
+        :param grid: :class:`Grid` that defines the spatial domain.
         :param dimensions: Optional, list of :class:`Dimension`
                            objects that defines data layout.
-        :param shape: Optional, shape of the spatial data to
-                      automatically infer dimension symbols.
         :return: Dimension indices used for each axis.
+
+        ..note::
+
+        Only one of :param grid: or :param dimensions: is required.
         """
+
+        grid = kwargs.get('grid', None)
         dimensions = kwargs.get('dimensions', None)
-        if dimensions is None:
-            # Infer dimensions from default and data shape
-            if 'shape' not in kwargs:
-                error("Creating symbolic data objects requries either"
-                      "a 'shape' or 'dimensions' argument")
+        if grid is None:
+            if dimensions is None:
+                error("Creating a Function object requries either "
+                      "a 'grid' or the 'dimensions' argument.")
                 raise ValueError("Unknown symbol dimensions or shape")
-            _indices = (x, y, z)
-            shape = kwargs.get('shape')
-            if len(shape) <= 3:
-                dimensions = _indices[:len(shape)]
-            else:
-                dimensions = [Dimension("x%d" % i) for i in range(1, len(shape) + 1)]
+        else:
+            if dimensions is not None:
+                warning("Creating Function with 'grid' and 'dimensions' "
+                        "argument; ignoring the 'dimensions' and using 'grid'.")
+            dimensions = grid.dimensions
         return dimensions
+
+    @property
+    def shape_data(self):
+        """
+        Full allocated shape of the data associated with this :class:`Function`.
+        """
+        return self.shape_domain
+
+    @property
+    def shape(self):
+        return self.shape_data
 
     def _allocate_memory(self):
         """Allocate memory in terms of numpy ndarrays."""
@@ -650,6 +673,7 @@ class TimeData(DenseData):
     :param shape: Shape of the spatial data grid
     :param dimensions: The symbolic dimensions of the function in addition
                        to time.
+    :param shape: Domain shape of the associated data for this :class:`Function`.
     :param dtype: Data type of the buffered data
     :param save: Save the intermediate results to the data buffer. Defaults
                  to `False`, indicating the use of alternating buffers.
@@ -684,24 +708,31 @@ class TimeData(DenseData):
     def __init__(self, *args, **kwargs):
         if not self._cached():
             super(TimeData, self).__init__(*args, **kwargs)
-            time_dim = kwargs.get('time_dim', None)
+            self.time_dim = kwargs.get('time_dim', None)
             self.time_order = kwargs.get('time_order', 1)
             self.save = kwargs.get('save', False)
 
             if not self.save:
-                if time_dim is not None:
+                if self.time_dim is not None:
                     warning('Explicit time dimension size (time_dim) found for '
                             'TimeData symbol %s, despite \nusing a buffered time '
                             'dimension (save=False). This value will be ignored!'
                             % self.name)
-                time_dim = self.time_order + 1
-                self.indices[0].modulo = time_dim
+                self.time_dim = self.time_order + 1
+                self.indices[0].modulo = self.time_dim
             else:
-                if time_dim is None:
+                if self.time_dim is None:
                     error('Time dimension (time_dim) is required'
                           'to save intermediate data with save=True')
                     raise ValueError("Unknown time dimensions")
-            self.shape = (time_dim,) + self.shape
+
+    @property
+    def shape_data(self):
+        """
+        Full allocated shape of the data associated with this :class:`TimeFunction`.
+        """
+        tsize = self.time_dim if self.save else self.time_order + 1
+        return (tsize, ) + self.shape_domain
 
     def initialize(self):
         if self.initializer is not None:

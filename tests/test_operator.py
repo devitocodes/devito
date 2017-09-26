@@ -250,7 +250,8 @@ class TestArguments(object):
         i, j, k = dimify('i j k')
         shape = (3, 5, 7)
         a = DenseData(name='a', shape=shape, dimensions=(i, j, k)).indexed
-        b = TimeData(name='b', shape=shape, save=True, time_dim=nt).indexed
+        b = TimeData(name='b', shape=shape, dimensions=(i, j, k),
+                     save=True, time_dim=nt).indexed
         eqn = Eq(b[time, x, y, z], a[x, y, z])
         op = Operator(eqn)
 
@@ -260,8 +261,9 @@ class TestArguments(object):
     def test_dimension_size_override(self, nt=100):
         """Test explicit overrides for the leading time dimension"""
         i, j, k = dimify('i j k')
-        a = TimeData(name='a', dimensions=(i, j, k))
-        one = symbol(name='one', dimensions=(i, j, k), value=1.)
+        shape = (3, 5, 7)
+        a = TimeData(name='a', dimensions=(i, j, k), shape=shape)
+        one = symbol(name='one', dimensions=(i, j, k), shape=shape, value=1.)
         op = Operator(Eq(a.forward, a + one))
 
         # Test dimension override via the buffered dimenions
@@ -275,11 +277,13 @@ class TestArguments(object):
         assert(np.allclose(a.data[0], 4.))
 
     def test_override_composite_data(self):
+        i, j = dimify('i j')
         original_coords = (1., 1.)
         new_coords = (2., 2.)
         p_dim = Dimension('p_src')
         ndim = len(original_coords)
-        u = TimeData(name='u', time_order=2, space_order=2, shape=(10, 10))
+        u = TimeData(name='u', time_order=2, space_order=2,
+                     shape=(10, 10), dimensions=(i, j))
         src1 = PointData(name='src1', dimensions=[time, p_dim], npoint=1, nt=10,
                          ndim=ndim, coordinates=original_coords)
         src2 = PointData(name='src1', dimensions=[time, p_dim], npoint=1, nt=10,
@@ -495,8 +499,9 @@ class TestLoopScheduler(object):
         as the "main" equations.
         """
         shape = (3, 3, 3)
-        a = DenseData(name='a', shape=shape).indexed
-        b = TimeData(name='b', shape=shape, save=True, time_dim=6).indexed
+        a = DenseData(name='a', shape=shape, dimensions=(x, y)).indexed
+        b = TimeData(name='b', shape=shape, dimensions=(x, y),
+                     save=True, time_dim=6).indexed
         main = Eq(b[time + 1, x, y, z], b[time - 1, x, y, z] + a[x, y, z] + 3.*t0)
         bcs = [Eq(b[time, 0, y, z], 0.),
                Eq(b[time, x, 0, z], 0.),
