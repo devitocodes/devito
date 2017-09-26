@@ -80,7 +80,7 @@ class YaskGrid(object):
         if not shape:
             log("YaskGrid: Getting single entry %s" % str(start))
             assert start == stop
-            out = self.grid.get_element(*start)
+            out = self.grid.get_element(start)
         else:
             log("YaskGrid: Getting full-array/block via index [%s]" % str(index))
             out = np.empty(shape, self.dtype, 'C')
@@ -92,7 +92,7 @@ class YaskGrid(object):
         if all(i == 1 for i in shape):
             log("YaskGrid: Setting single entry %s" % str(start))
             assert start == stop
-            self.grid.set_element(val, *start)
+            self.grid.set_element(val, start)
         elif isinstance(val, np.ndarray):
             log("YaskGrid: Setting full-array/block via index [%s]" % str(index))
             self.grid.set_elements_in_slice(val, start, stop)
@@ -310,7 +310,7 @@ class YaskKernel(object):
 
     def new_grid(self, obj_name, grid_name, dimensions):
         """Create a new YASK grid."""
-        return self.soln.new_grid(grid_name, *dimensions)
+        return self.soln.new_grid(grid_name, dimensions)
 
     def prepare(self):
         self.soln.prepare_solution()

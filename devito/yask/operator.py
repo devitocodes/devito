@@ -257,7 +257,7 @@ class sympy2yask(object):
                     self.mapper[name] = self.yc_soln.new_grid(name, dimensions)
                 indices = [int((i.origin if isinstance(i, LoweredDimension) else i) - j)
                            for i, j in zip(expr.indices, function.indices)]
-                return self.mapper[name].new_relative_grid_point(*indices)
+                return self.mapper[name].new_relative_grid_point(indices)
             elif expr.is_Add:
                 return nary2binary(expr.args, nfac.new_add_node)
             elif expr.is_Mul:
