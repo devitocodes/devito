@@ -24,7 +24,6 @@ def laplacian(field, time_order, m, s):
     else:
         error("Unsupported time order %d, order has to be 2 or 4" %
               time_order)
-
     return field.laplace + s**2/12 * biharmonic
 
 

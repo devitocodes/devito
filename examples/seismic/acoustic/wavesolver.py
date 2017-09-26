@@ -1,7 +1,6 @@
 from cached_property import cached_property
 
 from devito import DenseData, TimeData, memoized
-from devito.logger import debug
 from examples.seismic import PointSource, Receiver
 from examples.seismic.acoustic.operators import (
     ForwardOperator, AdjointOperator, GradientOperator, BornOperator
@@ -18,7 +17,7 @@ class AcousticWaveSolver(object):
     :param source: Sparse point symbol providing the injected wave
     :param receiver: Sparse point symbol describing an array of receivers
     :param time_order: Order of the time-stepping scheme (default: 2, choices: 2,4)
-                       time_order=4 will not implement a 4th order FD discretization 
+                       time_order=4 will not implement a 4th order FD discretization
                        of the time-derivative as it is unstable. It implement instead
                        a 4th order accurate wave-equation with only second order
                        time derivative.
@@ -96,7 +95,7 @@ class AcousticWaveSolver(object):
         if u is None:
             u = TimeData(name='u', shape=self.model.shape_domain, save=save,
                          time_dim=self.source.nt if save else None,
-                         time_order=self.time_order,
+                         time_order=2,
                          space_order=self.space_order,
                          dtype=self.model.dtype)
 
@@ -130,7 +129,7 @@ class AcousticWaveSolver(object):
         # Create the adjoint wavefield if not provided
         if v is None:
             v = TimeData(name='v', shape=self.model.shape_domain,
-                         save=False, time_order=self.time_order,
+                         save=False, time_order=2,
                          space_order=self.space_order,
                          dtype=self.model.dtype)
 
@@ -164,7 +163,7 @@ class AcousticWaveSolver(object):
         # Create the forward wavefield
         if v is None:
             v = TimeData(name='v', shape=self.model.shape_domain, save=False,
-                         time_order=self.time_order,
+                         time_order=2,
                          space_order=self.space_order,
                          dtype=self.model.dtype)
 
@@ -197,12 +196,12 @@ class AcousticWaveSolver(object):
         # Create the forward wavefields u and U if not provided
         if u is None:
             u = TimeData(name='u', shape=self.model.shape_domain,
-                         save=False, time_order=self.time_order,
+                         save=False, time_order=2,
                          space_order=self.space_order,
                          dtype=self.model.dtype)
         if U is None:
             U = TimeData(name='U', shape=self.model.shape_domain,
-                         save=False, time_order=self.time_order,
+                         save=False, time_order=2,
                          space_order=self.space_order, dtype=self.model.dtype)
 
         # Pick m from model unless explicitly provided
