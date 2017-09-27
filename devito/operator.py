@@ -81,7 +81,6 @@ class Operator(Function):
         self.dtype = self._retrieve_dtype(expressions)
         self.input, self.output, self.dimensions = self._retrieve_symbols(expressions)
         stencils = self._retrieve_stencils(expressions)
-        
         # Parameters of the Operator (Dimensions necessary for data casts)
         parameters = self.input + [i for i in self.dimensions if not i.is_Fixed]
 
@@ -157,8 +156,16 @@ class Operator(Function):
         for i in self.parameters:
             if i.is_ScalarArgument:
                 i.verify(kwargs.pop(i.name, None))
-        
-        dim_sizes = OrderedDict([(d.name, d.value) for d in runtime_dimensions])
+        dim_sizes = {}
+        for d in runtime_dimensions:
+            if d.value is not None:
+                _, d_start, d_end = d.value
+                # The variable is called size but what it expects is extent
+                # Since this is used for loop blocking
+                d_size = d_end - d_start
+            else:
+                d_size = None
+            dim_sizes[d.name] = d_size
         dle_arguments, autotune = self._dle_arguments(dim_sizes)
         dim_sizes.update(dle_arguments)
 
@@ -198,9 +205,7 @@ class Operator(Function):
         dle_arguments = OrderedDict()
         autotune = True
         for i in self.dle_arguments:
-            dim_size = dim_sizes.get(i.original_dim.name,
-                                     i.original_dim.size if i.original_dim.is_Fixed
-                                     else None)
+            dim_size = dim_sizes.get(i.original_dim.name, i.original_dim.size)
             if dim_size is None:
                 error('Unable to derive size of dimension %s from defaults. '
                       'Please provide an explicit value.' % i.original_dim.name)

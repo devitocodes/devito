@@ -35,6 +35,7 @@ class Dimension(Symbol, DimensionArgProvider):
     @property
     def size(self):
         return None
+
     @property
     def symbolic_extent(self):
         """Return the extent of the loop over this dimension.
@@ -81,6 +82,7 @@ class FixedDimension(FixedDimensionArgProvider, Dimension):
     @property
     def size(self):
         return self._size
+
     @property
     def limits(self):
         return (0, self.size, 1)
