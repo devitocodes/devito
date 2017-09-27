@@ -11,7 +11,7 @@ def laplacian(field, time_order, m, s):
     order in time formulation, the 4th order time derivative is replaced by a
     double laplacian:
     H = (laplacian + s**2/12 laplacian(1/m*laplacian))
-    :param field:  Symbolic TimeData object, solution to be computed
+    :param field: Symbolic TimeData object, solution to be computed
     :param time_order: time order
     :param m: square slowness
     :param s: symbol for the time-step
