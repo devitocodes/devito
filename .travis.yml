@@ -25,6 +25,9 @@ matrix:
     - os: linux
       python: "2.7"
       env: DEVITO_ARCH=gcc-4.9 DEVITO_OPENMP=1 OMP_NUM_THREADS=2
+    - os: linux
+      python: "3.5"
+      env: DEVITO_ARCH=gcc-4.9 DEVITO_OPENMP=0 DEVITO_BACKEND=yask
   allow_failures:
     - os: osx
       python: "2.7"
@@ -62,6 +65,10 @@ install:
 
 before_script:
   - echo -e "Host github.com\n\tStrictHostKeyChecking no\n" >> ~/.ssh/config
+  - if [[ $DEVITO_BACKEND == 'yask' ]]; then
+      conda install swig;
+      pip install git+https://github.com/opesci/yask.git@v2_alpha-setup-py;
+    fi
 
 script:
   - flake8 --builtins=ArgumentError .
