@@ -62,6 +62,9 @@ class Argument(object):
     def verify(self, kwargs):
         return
 
+    def __repr__(self):
+        return self.name
+
 
 class ScalarArgument(Argument):
 

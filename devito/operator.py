@@ -81,7 +81,7 @@ class Operator(Function):
         self.dtype = self._retrieve_dtype(expressions)
         self.input, self.output, self.dimensions = self._retrieve_symbols(expressions)
         stencils = self._retrieve_stencils(expressions)
-
+        
         # Parameters of the Operator (Dimensions necessary for data casts)
         parameters = self.input + [i for i in self.dimensions if not i.is_Fixed]
 
@@ -157,7 +157,7 @@ class Operator(Function):
         for i in self.parameters:
             if i.is_ScalarArgument:
                 i.verify(kwargs.pop(i.name, None))
-
+        
         dim_sizes = OrderedDict([(d.name, d.value) for d in runtime_dimensions])
         dle_arguments, autotune = self._dle_arguments(dim_sizes)
         dim_sizes.update(dle_arguments)
@@ -456,11 +456,11 @@ class OperatorRunnable(Operator):
         self.cfunction(*list(arguments.values()))
 
         # Output summary of performance achieved
-        return self._profile_output(dim_sizes)
+        return self._profile_output(arguments)
 
-    def _profile_output(self, dim_sizes):
+    def _profile_output(self, arguments):
         """Return a performance summary of the profiled sections."""
-        summary = self.profiler.summary(dim_sizes, self.dtype)
+        summary = self.profiler.summary(arguments, self.dtype)
         with bar():
             for k, v in summary.items():
                 name = '%s<%s>' % (k, ','.join('%d' % i for i in v.itershape))

@@ -22,8 +22,6 @@ presets = {
     ('layers', (60, 70, 80), 2, 4, 10), ('layers', (60, 70, 80), 2, 8, 10),
     ('layers', (60, 70, 80), 2, 12, 10), ('layers', (60, 70, 80), 4, 4, 10),
     ('layers', (60, 70, 80), 4, 8, 10), ('layers', (60, 70, 80), 4, 12, 10),
-    # Fixed dimension test in 2D and 3D
-    ('layers', (60, 70), 2, 4, 10), ('layers', (60, 70, 80), 2, 4, 10),
     # Constant model in 2D and 3D
     ('constant', (60, 70), 2, 8, 14), ('constant', (60, 70, 80), 2, 8, 14),
 ])
@@ -70,3 +68,6 @@ def test_acoustic(mkey, shape, time_order, space_order, nbpml):
     info('<Ax,y>: %f, <x, A^Ty>: %f, difference: %12.12f, ratio: %f'
          % (term1, term2, term1 - term2, term1 / term2))
     assert np.isclose(term1, term2, rtol=1.e-5)
+
+if __name__ == "__main__":
+    test_acoustic('layers', (60, 70), 2, 4, 10)
