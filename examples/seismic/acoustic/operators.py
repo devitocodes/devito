@@ -114,8 +114,7 @@ def AdjointOperator(model, source, receiver, time_order=2, space_order=4, **kwar
     m, damp = model.m, model.damp
 
     v = TimeData(name='v', shape=model.shape_domain, save=False,
-                 time_order=2, space_order=space_order,
-                 dtype=model.dtype)
+                 time_order=2, space_order=space_order, dtype=model.dtype)
     srca = PointSource(name='srca', ntime=source.nt, ndim=source.ndim,
                        npoint=source.npoint)
     rec = Receiver(name='rec', ntime=receiver.nt, ndim=receiver.ndim,
@@ -209,13 +208,10 @@ def BornOperator(model, source, receiver, time_order=2, space_order=4, **kwargs)
 
     # Create wavefields and a dm field
     u = TimeData(name="u", shape=model.shape_domain, save=False,
-                 time_order=2, space_order=space_order,
-                 dtype=model.dtype)
+                 time_order=2, space_order=space_order, dtype=model.dtype)
     U = TimeData(name="U", shape=model.shape_domain, save=False,
-                 time_order=2, space_order=space_order,
-                 dtype=model.dtype)
-    dm = DenseData(name="dm", shape=model.shape_domain,
-                   dtype=model.dtype)
+                 time_order=2, space_order=space_order, dtype=model.dtype)
+    dm = DenseData(name="dm", shape=model.shape_domain, dtype=model.dtype)
 
     s = t.spacing
     # Get computational time-step value
