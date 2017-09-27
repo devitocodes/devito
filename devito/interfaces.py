@@ -179,7 +179,8 @@ class AbstractSymbol(Function, CachedSymbol):
 
     def __new__(cls, *args, **kwargs):
         if cls in _SymbolCache:
-            newobj = Function.__new__(cls, *args)
+            options = kwargs.get('options', {})
+            newobj = Function.__new__(cls, *args, **options)
             newobj._cached_init()
         else:
             name = kwargs.get('name')
