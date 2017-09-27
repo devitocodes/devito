@@ -14,7 +14,7 @@ def laplacian(field, time_order, m, s):
     :param field:  Symbolic TimeData object, solution to be computed
     :param time_order: time order
     :param m: square slowness
-    :param s: symbol of for the time-step
+    :param s: symbol for the time-step
     :return: H
     """
     if time_order == 2:
@@ -34,7 +34,7 @@ def iso_stencil(field, time_order, m, s, damp, **kwargs):
     :param field: Symbolic TimeData object, solution to be computed
     :param time_order: time order
     :param m: square slowness
-    :param s: symbol of for the time-step
+    :param s: symbol for the time-step
     :param damp: ABC dampening field (DenseData)
     :param kwargs: forwad/backward wave equation (sign of u.dt will change accordingly
     as well as the updated time-step (u.forwad or u.backward)

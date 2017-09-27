@@ -16,9 +16,10 @@ class AcousticWaveSolver(object):
     :param receiver: Sparse point symbol describing an array of receivers
     :param time_order: Order of the time-stepping scheme (default: 2, choices: 2,4)
                        time_order=4 will not implement a 4th order FD discretization
-                       of the time-derivative as it is unstable. It implement instead
+                       of the time-derivative as it is unstable. It implements instead
                        a 4th order accurate wave-equation with only second order
                        time derivative.
+                       http://www.hl107.math.msstate.edu/pdfs/rein/HighANM_final.pdf
     :param space_order: Order of the spatial stencil discretisation (default: 4)
 
     Note: space_order must always be greater than time_order
