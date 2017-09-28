@@ -363,10 +363,12 @@ class YaskContext(object):
 
         # Build the hook kernel solution (wrapper) to create grids
         yc_hook = self.make_yc_solution(namespace['jit-yc-hook'])
-        # Also add a dummy grid to make YASK happy
-        dimensions = [nfac.new_step_index(namespace['time-dim'])]
-        dimensions += [nfac.new_domain_index(i) for i in domain]
-        yc_hook.new_grid('dummy', dimensions)
+        # Need to add dummy grids to make YASK happy
+        # TODO: improve me
+        dimensions = [nfac.new_domain_index(i) for i in domain]
+        yc_hook.new_grid('dummy_wo_time', dimensions)
+        dimensions = [nfac.new_step_index(namespace['time-dim'])] + dimensions
+        yc_hook.new_grid('dummy_w_time', dimensions)
         self.yk_hook = YaskKernel(namespace['jit-yk-hook'](name, 0), yc_hook, domain)
 
     @cached_property
