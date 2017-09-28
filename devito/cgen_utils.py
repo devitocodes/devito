@@ -3,7 +3,7 @@ from collections import OrderedDict
 import cgen as c
 from mpmath.libmp import prec_to_dps, to_str
 from sympy import Eq, Function
-from sympy.printing.ccode import CCodePrinter
+from sympy.printing.ccode import C99CodePrinter
 
 
 class Allocator(object):
@@ -57,7 +57,7 @@ class Allocator(object):
 
 # Utils to print C strings
 
-class CodePrinter(CCodePrinter):
+class CodePrinter(C99CodePrinter):
 
     custom_functions = {'INT': '(int)', 'FLOAT': '(float)'}
 
@@ -66,7 +66,7 @@ class CodePrinter(CCodePrinter):
     :param settings: A dictionary containing relevant settings
     """
     def __init__(self, settings={}):
-        CCodePrinter.__init__(self, settings)
+        C99CodePrinter.__init__(self, settings)
         self.known_functions.update(self.custom_functions)
 
     def _print_Indexed(self, expr):
