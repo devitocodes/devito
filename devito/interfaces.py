@@ -846,5 +846,13 @@ class Symbol(sympy.Symbol):
 
 class Indexed(sympy.Indexed):
 
+    # The two type flags have changed in upstream sympy as of version 1.1,
+    # but the below interpretation is used throughout the DSE and DLE to
+    # identify Indexed objects. With the sympy-1.1 changes a new flag
+    # obj.is_Indexed was introduced which should be preferred, but the
+    # required changes are cumbersome and many...
+    is_Symbol = False
+    is_Atom = False
+
     def _hashable_content(self):
         return super(Indexed, self)._hashable_content() + (self.base.function,)
