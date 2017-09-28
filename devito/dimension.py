@@ -9,11 +9,12 @@ class Dimension(Symbol, DimensionArgProvider):
     is_Buffered = False
     is_Lowered = False
     is_Fixed = False
+    is_Space = False
 
     """Index object that represents a problem dimension and thus
     defines a potential iteration space.
 
-    :param size: Optional, size of the array dimension.
+    :param name: Name of the dimension symbol.
     :param reverse: Traverse dimension in reverse order (default False)
     :param spacing: Optional, symbol for the spacing along this dimension.
     """
@@ -62,6 +63,22 @@ class FixedDimension(FixedDimensionArgProvider, Dimension):
     @size.setter
     def size(self, value):
         self._size = value
+
+
+class SpaceDimension(Dimension):
+
+    is_Space = True
+
+    """
+    Dimension symbol to represent a space dimension that defines the
+    extent of physical grid. :class:`SpaceDimensions` create dedicated
+    shortcut notations for spatial derivatives on :class:`Function`
+    symbols.
+
+    :param name: Name of the dimension symbol.
+    :param reverse: Traverse dimension in reverse order (default False)
+    :param spacing: Optional, symbol for the spacing along this dimension.
+    """
 
 
 class BufferedDimension(Dimension):
@@ -127,9 +144,9 @@ time = Dimension('time', spacing=Symbol('s'))
 t = BufferedDimension('t', parent=time)
 
 # Default dimensions for space
-x = Dimension('x', spacing=Symbol('h_x'))
-y = Dimension('y', spacing=Symbol('h_y'))
-z = Dimension('z', spacing=Symbol('h_z'))
+x = SpaceDimension('x', spacing=Symbol('h_x'))
+y = SpaceDimension('y', spacing=Symbol('h_y'))
+z = SpaceDimension('z', spacing=Symbol('h_z'))
 
 d = Dimension('d')
 p = Dimension('p')

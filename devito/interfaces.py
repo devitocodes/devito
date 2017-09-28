@@ -503,6 +503,11 @@ class DenseData(TensorData):
     def shape(self):
         return self.shape_data
 
+    @property
+    def space_dimensions(self):
+        """Tuple of index dimensions that define physical space."""
+        return tuple(d for d in self.indices if d.is_Space)
+
     def _allocate_memory(self):
         """Allocate memory in terms of numpy ndarrays."""
         debug("Allocating memory for %s (%s)" % (self.name, str(self.shape)))
@@ -651,7 +656,7 @@ class DenseData(TensorData):
     @property
     def laplace(self):
         """Symbol for the second derivative wrt all spatial dimensions"""
-        derivs = ['dx2', 'dy2', 'dz2']
+        derivs = tuple('d%s2' % d.name for d in self.space_dimensions)
 
         return sum([getattr(self, d) for d in derivs[:self.dim]])
 
