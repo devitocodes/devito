@@ -253,6 +253,19 @@ class TestArguments(object):
         assert(op_arguments[time.start_name] == 0)
         assert(op_arguments[time.end_name] == nt)
 
+    def test_dimension_offsets_infer(self, nt=100):
+        """Test that the dimension sizes are being inferred correctly"""
+        i, j, k = dimify('i j k')
+        shape = tuple([d.size for d in [i, j, k]])
+        a = DenseData(name='a', shape=shape).indexed
+        b = TimeData(name='b', shape=shape, save=True, time_dim=nt).indexed
+        eqn = Eq(b[time+1, x, y, z], b[time-1, x, y, z] + b[time, x, y, z] + a[x, y, z])
+        op = Operator(eqn)
+
+        op_arguments, _ = op.arguments()
+        assert(op_arguments[time.start_name] == 1)
+        assert(op_arguments[time.end_name] == nt-1)
+
     def test_dimension_size_override(self, nt=100):
         """Test explicit overrides for the leading time dimension"""
         i, j, k = dimify('i j k')
@@ -289,6 +302,62 @@ class TestArguments(object):
         args = op.arguments(src1=src2)[0]
         arg_name = src1.name + "_coords"
         assert(np.array_equal(args[arg_name], np.asarray((new_coords,))))
+
+    def test_start_end_2d(self):
+        shape = (10, 10)
+        start = 3
+        end = 6
+        a = DenseData(name='a', shape=shape)
+        eqn = Eq(a, a + 1)
+        op = Operator(eqn)
+        op(x_s=start, x_e=end, y_s=start, y_e=end)
+        mask = np.ones(shape, np.bool)
+        mask[start:end, start:end] = 0
+        assert(np.allclose(a.data[start:end, start:end], 1))
+        assert(np.allclose(a.data[mask], 0))
+
+    def test_start_end_3d(self):
+        shape = (10, 10, 10)
+        start = 3
+        end = 6
+        a = DenseData(name='a', shape=shape)
+        eqn = Eq(a, a + 1)
+        op = Operator(eqn)
+        op(x_s=start, x_e=end, y_s=start, y_e=end, z_s=start, z_e=end)
+        mask = np.ones(shape, np.bool)
+        mask[start:end, start:end, start:end] = 0
+        assert(np.allclose(a.data[start:end, start:end, start:end], 1))
+        assert(np.allclose(a.data[mask], 0))
+
+    def test_argument_derivation_order(self, nt=100):
+        i, j, k = dimify('i j k')
+        shape = tuple([d.size for d in [i, j, k]])
+        a = DenseData(name='a', shape=shape).indexed
+        b = TimeData(name='b', shape=shape, save=True, time_dim=nt).indexed
+        b1 = TimeData(name='b1', shape=shape, save=True, time_dim=nt+1).indexed
+        eqn = Eq(b[time, x, y, z], a[x, y, z])
+        op = Operator(eqn)
+
+        # Simple case, same as that tested above.
+        # Repeated here for clarity of further tests.
+        op_arguments, _ = op.arguments()
+        assert(op_arguments[time.start_name] == 0)
+        assert(op_arguments[time.end_name] == nt)
+
+        # Providing a tensor argument should infer the dimension size from its shape
+        op_arguments, _ = op.arguments(b=b1)
+        assert(op_arguments[time.start_name] == 0)
+        assert(op_arguments[time.end_name] == nt + 1)
+
+        # Providing a dimension size explicitly should override the automatically inferred
+        op_arguments, _ = op.arguments(b=b1, time=nt - 1)
+        assert(op_arguments[time.start_name] == 0)
+        assert(op_arguments[time.end_name] == nt - 1)
+
+        # Providing a scalar argument explicitly should override the automatically inferred
+        op_arguments, _ = op.arguments(b=b1, time=nt - 1, time_e=nt - 2)
+        assert(op_arguments[time.start_name] == 0)
+        assert(op_arguments[time.end_name] == nt - 2)
 
 
 class TestDeclarator(object):

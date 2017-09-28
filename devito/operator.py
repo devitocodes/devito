@@ -1,6 +1,6 @@
 from __future__ import absolute_import
 
-from collections import OrderedDict, namedtuple, defaultdict
+from collections import OrderedDict, namedtuple
 from operator import attrgetter
 
 import ctypes
@@ -23,6 +23,7 @@ from devito.visitors import (FindScopes, ResolveIterationVariable,
                              SubstituteExpression, Transformer, NestedTransformer)
 from devito.exceptions import InvalidArgument, InvalidOperator
 from devito.arguments import ArgumentEngine, log_args
+
 
 class Operator(Function):
 
@@ -81,6 +82,7 @@ class Operator(Function):
         self.dtype = self._retrieve_dtype(expressions)
         self.input, self.output, self.dimensions = self._retrieve_symbols(expressions)
         stencils = self._retrieve_stencils(expressions)
+
         # Parameters of the Operator (Dimensions necessary for data casts)
         parameters = self.input + [i for i in self.dimensions if not i.is_Fixed]
 
@@ -95,7 +97,7 @@ class Operator(Function):
 
         # Initialise Argument Engine
         self.argument_engine = ArgumentEngine()
-        
+
         # Extract dimension offsets
         self.argument_engine.extract_dimension_offsets([i.stencil for i in clusters])
 
@@ -151,26 +153,26 @@ class Operator(Function):
                 for orig_child, new_child in zip(orig_param.children, v.children):
                     new_params[orig_child.name] = new_child
         kwargs.update(new_params)
+
         # Derivation. It must happen in the order [tensors -> dimensions -> scalars]
         for i in self.parameters:
             if i.is_TensorArgument:
                 assert(i.verify(kwargs.pop(i.name, None), self.argument_engine))
         runtime_dimensions = [d for d in self.dimensions if not d.is_Fixed]
         for d in runtime_dimensions:
-            d.verify(kwargs.pop(d.name, None), self.argument_engine)
+            d.verify(kwargs.pop(d.name, None), self.argument_engine, enforce=True)
         for i in self.parameters:
             if i.is_ScalarArgument:
-                i.verify(kwargs.pop(i.name, None), self.argument_engine)
+                i.verify(kwargs.pop(i.name, None), self.argument_engine, enforce=True)
         dim_sizes = {}
         for d in runtime_dimensions:
             if d.value is not None:
                 _, d_start, d_end = d.value
-                # The variable is called size but what it expects is extent
-                # Since this is used for loop blocking
-                d_size = d_end - d_start
+                # Calculte loop extent
+                d_extent = d_end - d_start
             else:
-                d_size = None
-            dim_sizes[d.name] = d_size
+                d_extent = None
+            dim_sizes[d.name] = d_extent
         dle_arguments, autotune = self._dle_arguments(dim_sizes)
         dim_sizes.update(dle_arguments)
 
@@ -314,7 +316,9 @@ class Operator(Function):
                 needed = entries[index:]
 
                 # Build and insert the required Iterations
-                iters = [Iteration([], j.dim, j.dim.limits) for j in needed]
+                iters = [Iteration([], j.dim, j.dim.limits,
+                                   offsets=j.ofs if j.dim.is_Fixed else (0, 0))
+                         for j in needed]
                 body, tree = compose_nodes(iters + [expressions], retrieve=True)
                 scheduling = OrderedDict(zip(needed, tree))
                 if root is None:

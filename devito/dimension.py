@@ -96,6 +96,10 @@ class FixedDimension(FixedDimensionArgProvider, Dimension):
     def size(self, value):
         self._size = value
 
+    @property
+    def symbolic_end(self):
+        return self.symbolic_size
+
 
 class BufferedDimension(Dimension):
 
