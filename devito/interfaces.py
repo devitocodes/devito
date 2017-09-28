@@ -3,7 +3,7 @@ import abc
 
 import numpy as np
 import sympy
-from sympy import Function, IndexedBase, as_finite_diff
+from sympy import Function, IndexedBase
 from sympy.abc import s
 
 from devito.dimension import t, x, y, z, time, Dimension
@@ -566,7 +566,7 @@ class DenseData(TensorData):
         width_h = int(self.space_order/2)
         indx = [(x + i * x.spacing) for i in range(-width_h, width_h + 1)]
 
-        return as_finite_diff(self.diff(x, x), indx)
+        return self.diff(x, x).as_finite_difference(indx)
 
     @property
     def dy2(self):
@@ -574,7 +574,7 @@ class DenseData(TensorData):
         width_h = int(self.space_order/2)
         indy = [(y + i * y.spacing) for i in range(-width_h, width_h + 1)]
 
-        return as_finite_diff(self.diff(y, y), indy)
+        return self.diff(y, y).as_finite_difference(indy)
 
     @property
     def dz2(self):
@@ -582,7 +582,7 @@ class DenseData(TensorData):
         width_h = int(self.space_order/2)
         indz = [(z + i * z.spacing) for i in range(-width_h, width_h + 1)]
 
-        return as_finite_diff(self.diff(z, z), indz)
+        return self.diff(z, z).as_finite_difference(indz)
 
     @property
     def dx2y2(self):
@@ -605,7 +605,7 @@ class DenseData(TensorData):
         width_h = max(int(self.space_order / 2), 2)
         indx = [(x + i * x.spacing) for i in range(-width_h, width_h + 1)]
 
-        return as_finite_diff(self.diff(x, x, x, x), indx)
+        return self.diff(x, x, x, x).as_finite_difference(indx)
 
     @property
     def dy4(self):
@@ -613,7 +613,7 @@ class DenseData(TensorData):
         width_h = max(int(self.space_order / 2), 2)
         indy = [(y + i * y.spacing) for i in range(-width_h, width_h + 1)]
 
-        return as_finite_diff(self.diff(y, y, y, y), indy)
+        return self.diff(y, y, y, y).as_finite_difference(indy)
 
     @property
     def dz4(self):
@@ -621,7 +621,7 @@ class DenseData(TensorData):
         width_h = max(int(self.space_order / 2), 2)
         indz = [(z + i * z.spacing) for i in range(-width_h, width_h + 1)]
 
-        return as_finite_diff(self.diff(z, z, z, z), indz)
+        return self.diff(z, z, z, z).as_finite_difference(indz)
 
     @property
     def laplace(self):
@@ -754,7 +754,7 @@ class TimeData(DenseData):
             width = int(self.time_order / 2)
             indices = [(_t + i * s) for i in range(-width, width + 1)]
 
-        return as_finite_diff(self.diff(_t), indices)
+        return self.diff(_t).as_finite_difference(indices)
 
     @property
     def dt2(self):
@@ -763,7 +763,7 @@ class TimeData(DenseData):
         width_t = int(self.time_order / 2)
         indt = [(_t + i * s) for i in range(-width_t, width_t + 1)]
 
-        return as_finite_diff(self.diff(_t, _t), indt)
+        return self.diff(_t, _t).as_finite_difference(indt)
 
 
 class CompositeData(DenseData):
