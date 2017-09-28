@@ -62,4 +62,4 @@ def test_acousticJ(shape, space_order):
 
 
 if __name__ == "__main__":
-    test_acousticJ(dimensions=(60, 70), space_order=4)
+    test_acousticJ(shape=(60, 70), space_order=4)

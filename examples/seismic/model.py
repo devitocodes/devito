@@ -13,9 +13,27 @@ def demo_model(preset, **kwargs):
     Utility function to create preset :class:`Model` objects for
     demonstration and testing purposes. The particular presets are ::
 
-    * 'layer2D': Simple two-layer model with velocities 1.5 km/s
+    * `constant-isotropic` : Constant velocity (1.5km/sec) isotropic model
+    * `constant-tti` : Constant anisotropic model. Velocity is 1.5 km/sec and
+                      Thomsen parameters are epsilon=.3, delta=.2, theta = .7rad
+                      and phi=.35rad for 3D. 2d/3d is defined from the input shape
+    * 'layers-isotropic': Simple two-layer model with velocities 1.5 km/s
                  and 2.5 km/s in the top and bottom layer respectively.
-    * 'marmousi2D': Loads the 2D Marmousi data set from the given
+                 2d/3d is defined from the input shape
+    * 'layers-tti': Simple two-layer TTI model with velocities 1.5 km/s
+                    and 2.5 km/s in the top and bottom layer respectively.
+                    Thomsen parameters in the top layer are 0 and in the lower layer
+                    are epsilon=.3, delta=.2, theta = .5rad and phi=.1 rad for 3D.
+                    2d/3d is defined from the input shape
+    * 'circle-isotropic': Simple camembert model with velocities 1.5 km/s
+                 and 2.5 km/s in a circle at the center. 2D only.
+    * 'marmousi2d-isotropic': Loads the 2D Marmousi data set from the given
+                    filepath. Requires the ``opesci/data`` repository
+                    to be available on your machine.
+    * 'marmousi2d-tti': Loads the 2D Marmousi data set from the given
+                    filepath. Requires the ``opesci/data`` repository
+                    to be available on your machine.
+    * 'marmousi3d-tti': Loads the 2D Marmousi data set from the given
                     filepath. Requires the ``opesci/data`` repository
                     to be available on your machine.
     """
