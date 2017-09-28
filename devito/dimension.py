@@ -54,11 +54,16 @@ class Dimension(Symbol, DimensionArgProvider):
 
     @property
     def start_name(self):
-        return "%s_start" % self.name
+        return "%s_s" % self.name
 
     @property
     def end_name(self):
-        return "%s_end" % self.name
+        return "%s_e" % self.name
+
+    @property
+    def symbolic_end(self):
+        _, _, end = self.rtargs
+        return end.as_symbol
 
 
 class FixedDimension(FixedDimensionArgProvider, Dimension):

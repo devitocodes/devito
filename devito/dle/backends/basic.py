@@ -68,7 +68,7 @@ class BasicRewriter(AbstractRewriter):
                 for i in target:
                     name, bounds = i.dim.name, i.bounds_symbolic
                     # Iteration bounds
-                    start = ScalarFunction(name='%s_start' % name, dtype=np.int32)
+                    start = ScalarFunction(name='%s_begin' % name, dtype=np.int32)
                     finish = ScalarFunction(name='%s_finish' % name, dtype=np.int32)
                     args.extend(zip([ccode(j) for j in bounds], (start, finish)))
                     # Iteration unbounded indices
