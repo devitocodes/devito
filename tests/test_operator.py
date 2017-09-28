@@ -6,10 +6,9 @@ from conftest import EVAL, dims, dims_open
 
 import numpy as np
 import pytest
-from sympy import Eq  # noqa
 
 from devito import (clear_cache, Operator, ConstantData, DenseData, TimeData,
-                    PointData, Dimension, time, x, y, z, configuration)
+                    PointData, Dimension, Eq, time, x, y, z, configuration)
 from devito.foreign import Operator as OperatorForeign
 from devito.dle import retrieve_iteration_tree
 from devito.visitors import IsPerfectIteration

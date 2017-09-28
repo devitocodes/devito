@@ -41,7 +41,16 @@ class FrozenExpr(Expr):
 
 
 class Eq(sympy.Eq, FrozenExpr):
-    pass
+
+    """
+    A customized version of :class:`sympy.Eq` which suppresses
+    evaluation.
+    """
+
+    def __new__(cls, *args, **kwargs):
+        kwargs['evaluate'] = False
+        obj = sympy.Eq.__new__(cls, *args, **kwargs)
+        return obj
 
 
 class Mul(sympy.Mul, FrozenExpr):
