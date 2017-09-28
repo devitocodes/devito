@@ -173,9 +173,27 @@
 <span class="sd">    Utility function to create preset :class:`Model` objects for</span>
 <span class="sd">    demonstration and testing purposes. The particular presets are ::</span>
 
-<span class="sd">    * &#39;layer2D&#39;: Simple two-layer model with velocities 1.5 km/s</span>
+<span class="sd">    * `constant-isotropic` : Constant velocity (1.5km/sec) isotropic model</span>
+<span class="sd">    * `constant-tti` : Constant anisotropic model. Velocity is 1.5 km/sec and</span>
+<span class="sd">                      Thomsen parameters are epsilon=.3, delta=.2, theta = .7rad</span>
+<span class="sd">                      and phi=.35rad for 3D. 2d/3d is defined from the input shape</span>
+<span class="sd">    * &#39;layers-isotropic&#39;: Simple two-layer model with velocities 1.5 km/s</span>
 <span class="sd">                 and 2.5 km/s in the top and bottom layer respectively.</span>
-<span class="sd">    * &#39;marmousi2D&#39;: Loads the 2D Marmousi data set from the given</span>
+<span class="sd">                 2d/3d is defined from the input shape</span>
+<span class="sd">    * &#39;layers-tti&#39;: Simple two-layer TTI model with velocities 1.5 km/s</span>
+<span class="sd">                    and 2.5 km/s in the top and bottom layer respectively.</span>
+<span class="sd">                    Thomsen parameters in the top layer are 0 and in the lower layer</span>
+<span class="sd">                    are epsilon=.3, delta=.2, theta = .5rad and phi=.1 rad for 3D.</span>
+<span class="sd">                    2d/3d is defined from the input shape</span>
+<span class="sd">    * &#39;circle-isotropic&#39;: Simple camembert model with velocities 1.5 km/s</span>
+<span class="sd">                 and 2.5 km/s in a circle at the center. 2D only.</span>
+<span class="sd">    * &#39;marmousi2d-isotropic&#39;: Loads the 2D Marmousi data set from the given</span>
+<span class="sd">                    filepath. Requires the ``opesci/data`` repository</span>
+<span class="sd">                    to be available on your machine.</span>
+<span class="sd">    * &#39;marmousi2d-tti&#39;: Loads the 2D Marmousi data set from the given</span>
+<span class="sd">                    filepath. Requires the ``opesci/data`` repository</span>
+<span class="sd">                    to be available on your machine.</span>
+<span class="sd">    * &#39;marmousi3d-tti&#39;: Loads the 2D Marmousi data set from the given</span>
 <span class="sd">                    filepath. Requires the ``opesci/data`` repository</span>
 <span class="sd">                    to be available on your machine.</span>
 <span class="sd">    &quot;&quot;&quot;</span>

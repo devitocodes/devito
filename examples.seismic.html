@@ -306,14 +306,47 @@ operators, since it is of type <code class="xref py py-class docutils literal"><
 <code class="descclassname">examples.seismic.model.</code><code class="descname">demo_model</code><span class="sig-paren">(</span><em>preset</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/examples/seismic/model.html#demo_model"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#examples.seismic.model.demo_model" title="Permalink to this definition">¶</a></dt>
 <dd><p>Utility function to create preset <a class="reference internal" href="#examples.seismic.model.Model" title="examples.seismic.model.Model"><code class="xref py py-class docutils literal"><span class="pre">Model</span></code></a> objects for
 demonstration and testing purposes. The particular presets are</p>
-<div class="highlight-default"><div class="highlight"><pre><span></span><span class="o">*</span> <span class="s1">&#39;layer2D&#39;</span><span class="p">:</span> <span class="n">Simple</span> <span class="n">two</span><span class="o">-</span><span class="n">layer</span> <span class="n">model</span> <span class="k">with</span> <span class="n">velocities</span> <span class="mf">1.5</span> <span class="n">km</span><span class="o">/</span><span class="n">s</span>
+<div class="highlight-default"><div class="highlight"><pre><span></span>* `constant-isotropic` : Constant velocity (1.5km/sec) isotropic model
+* `constant-tti` : Constant anisotropic model. Velocity is 1.5 km/sec and
 </pre></div>
 </div>
 <blockquote>
-<div>and 2.5 km/s in the top and bottom layer respectively.</div></blockquote>
+<div>Thomsen parameters are epsilon=.3, delta=.2, theta = .7rad
+and phi=.35rad for 3D. 2d/3d is defined from the input shape</div></blockquote>
 <ul class="simple">
 <li><dl class="first docutils">
-<dt>‘marmousi2D’: Loads the 2D Marmousi data set from the given</dt>
+<dt>‘layers-isotropic’: Simple two-layer model with velocities 1.5 km/s</dt>
+<dd>and 2.5 km/s in the top and bottom layer respectively.
+2d/3d is defined from the input shape</dd>
+</dl>
+</li>
+<li><dl class="first docutils">
+<dt>‘layers-tti’: Simple two-layer TTI model with velocities 1.5 km/s</dt>
+<dd>and 2.5 km/s in the top and bottom layer respectively.
+Thomsen parameters in the top layer are 0 and in the lower layer
+are epsilon=.3, delta=.2, theta = .5rad and phi=.1 rad for 3D.
+2d/3d is defined from the input shape</dd>
+</dl>
+</li>
+<li><dl class="first docutils">
+<dt>‘circle-isotropic’: Simple camembert model with velocities 1.5 km/s</dt>
+<dd>and 2.5 km/s in a circle at the center. 2D only.</dd>
+</dl>
+</li>
+<li><dl class="first docutils">
+<dt>‘marmousi2d-isotropic’: Loads the 2D Marmousi data set from the given</dt>
+<dd>filepath. Requires the <code class="docutils literal"><span class="pre">opesci/data</span></code> repository
+to be available on your machine.</dd>
+</dl>
+</li>
+<li><dl class="first docutils">
+<dt>‘marmousi2d-tti’: Loads the 2D Marmousi data set from the given</dt>
+<dd>filepath. Requires the <code class="docutils literal"><span class="pre">opesci/data</span></code> repository
+to be available on your machine.</dd>
+</dl>
+</li>
+<li><dl class="first docutils">
+<dt>‘marmousi3d-tti’: Loads the 2D Marmousi data set from the given</dt>
 <dd>filepath. Requires the <code class="docutils literal"><span class="pre">opesci/data</span></code> repository
 to be available on your machine.</dd>
 </dl>
