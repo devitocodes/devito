@@ -3,6 +3,7 @@ import abc
 import numpy as np
 from sympy import Symbol
 from cached_property import cached_property
+from collections import defaultdict
 
 from devito.exceptions import InvalidArgument
 from devito.logger import debug
@@ -78,7 +79,7 @@ class ScalarArgument(Argument):
         super(ScalarArgument, self).__init__(name, provider, default_value)
         self.reducer = reducer
 
-    def verify(self, value):
+    def verify(self, value, engine):
         # Assuming self._value was initialised as appropriate for the reducer
         if value is not None:
             if self._value is not None:
@@ -99,13 +100,13 @@ class TensorArgument(Argument):
     def __init__(self, name, provider):
         super(TensorArgument, self).__init__(name, provider, provider)
 
-    def verify(self, value):
+    def verify(self, value, engine):
         if value is None:
             value = self._value
 
         verify = self.provider.shape == value.shape
 
-        verify = verify and all(d.verify(v) for d, v in zip(self.provider.indices,
+        verify = verify and all(d.verify(v, engine) for d, v in zip(self.provider.indices,
                                                             value.shape))
         if verify:
             self._value = value
@@ -164,9 +165,9 @@ class FixedDimensionArgProvider(ArgumentProvider):
 
     @cached_property
     def rtargs(self):
-        return []
+        return ()
 
-    def verify(self, value):
+    def verify(self, value, engine):
         if value is None:
             return True
 
@@ -213,23 +214,42 @@ class DimensionArgProvider(ArgumentProvider):
         size = ScalarArgument(self.size_name, self, max)
         start = ScalarArgument(self.start_name, self, max, 0)
         end = ScalarArgument(self.end_name, self, max)
-        return [size, start, end]
+        return (size, start, end)
 
-    def promote(self, value):
+    def _promote(self, value, engine):
+        """ Strictly, a dimension's value is a (currently) 3-tuple consisting of the
+            values of each of its rtargs - currently size, start and end. However, for
+            convenience, we may accept partial representations of the value, e.g. scalars
+            and 2-tuples and interpret them in a certain way while assuming defaults for 
+            missing information. If value is:
+            3-tuple: it contains explicit values for all 3 rtargs and hence will be used
+            directly
+            2-tuple: We assume we are being provided the (start, end) values. This will be 
+            promoted to a 3-tuple assuming size to be the same as end. 
+            scalar: We assume we are being provided the value of size. Promote to 3-tuple
+            by assuming this scalar is the size and the end of the dimension. start will 
+            default to 0. 
+        """
+        
         if not isinstance(value, tuple):
+            #scalar
             size, start, end = self.rtargs
-            value = (value, start.default_value, value)
+            offsets = (0, 0)
+            if engine is not None:
+                offsets = engine.dimension_offsets[self]
+            value = (value, start.default_value + offsets[0], value - offsets[1])
         else:
             if len(value) == 2:
+                # 2-tuple
                 # Assume we've been passed a (start, end) tuple
                 start, end = value
                 value = (end, start, end)
             elif len(value) != 3:
-                raise InvalidArgument("Expected either a single value or a tuple(2/3)")
+                raise InvalidArgument("Expected either a scalar value or a tuple(2/3)")
         return value
 
     # TODO: Can we do without a verify on a dimension?
-    def verify(self, value):
+    def verify(self, value, engine):
         verify = True
         if value is None:
             if self.value is not None:
@@ -241,17 +261,15 @@ class DimensionArgProvider(ArgumentProvider):
                     return False
             except AttributeError:
                 return False
-
-        value = self.promote(value)
-        try:
+        # Make sure we're dealing with a 3-tuple. See docstring of _promote for more
+        value = self._promote(value, engine)
+        if hasattr(self, 'parent'):
             parent_value = self.parent.value
             if parent_value is not None:
-                parent_value = self.promote(parent_value)
+                parent_value = self._promote(parent_value, engine)
                 value = tuple([self.reducer(i1, i2) for i1, i2 in zip(value,
                                                                       parent_value)])
-            verify = verify and self.parent.verify(value)
-        except AttributeError:
-            pass
+            verify = verify and self.parent.verify(value, engine)
 
         if value == self.value:
             return True
@@ -260,7 +278,7 @@ class DimensionArgProvider(ArgumentProvider):
         # At this point, a constraint needs to be added that enforces
         # dim_e - dim_s < SOME_MAX
         # Also need a default constraint that dim_e > dim_s (or vice-versa)
-        verify = verify and all([a.verify(v) for a, v in zip(self.rtargs, value)])
+        verify = verify and all([a.verify(v, engine) for a, v in zip(self.rtargs, value)])
         if verify:
             self._value = value
         return verify
@@ -274,7 +292,7 @@ class ConstantDataArgProvider(ArgumentProvider):
 
     @cached_property
     def rtargs(self):
-        return [ScalarArgument(self.name, self, lambda old, new: new, self.data)]
+        return (ScalarArgument(self.name, self, default_value=self.data),)
 
 
 class TensorDataArgProvider(ArgumentProvider):
@@ -285,7 +303,7 @@ class TensorDataArgProvider(ArgumentProvider):
 
     @cached_property
     def rtargs(self):
-        return [TensorArgument(self.name, self)]
+        return (TensorArgument(self.name, self),)
 
 
 class ScalarFunctionArgProvider(ArgumentProvider):
@@ -296,7 +314,7 @@ class ScalarFunctionArgProvider(ArgumentProvider):
 
     @cached_property
     def rtargs(self):
-        return [ScalarArgument(self.name, self, self.dtype)]
+        return (ScalarArgument(self.name, self, self.dtype),)
 
 
 class TensorFunctionArgProvider(ArgumentProvider):
@@ -307,7 +325,7 @@ class TensorFunctionArgProvider(ArgumentProvider):
 
     @cached_property
     def rtargs(self):
-        return [TensorArgument(self.name, self)]
+        return (TensorArgument(self.name, self),)
 
 
 class ObjectArgProvider(ArgumentProvider):
@@ -317,7 +335,27 @@ class ObjectArgProvider(ArgumentProvider):
 
     @cached_property
     def rtargs(self):
-        return [PtrArgument(self.name, self)]
+        return (PtrArgument(self.name, self),)
+
+
+class ArgumentEngine(object):
+    def extract_dimension_offsets(self, stencils):
+        all_dimension_offsets = defaultdict(list)
+        dimension_offsets = defaultdict(lambda: (0, 0))
+        
+        for s in stencils:
+            for d in s:
+                all_dimension_offsets[d] += s[d]
+
+        for d in all_dimension_offsets:
+            dimension_offsets[d] = (-min(all_dimension_offsets[d]), max(all_dimension_offsets[d]))
+            try:
+                # TODO: Maybe there should be some sort of reduction here
+                dimension_offsets[d.parent] = dimension_offsets[d]
+            except:
+                pass
+        self.dimension_offsets = dimension_offsets
+            
 
 
 def log_args(arguments):

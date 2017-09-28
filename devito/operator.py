@@ -1,6 +1,6 @@
 from __future__ import absolute_import
 
-from collections import OrderedDict, namedtuple
+from collections import OrderedDict, namedtuple, defaultdict
 from operator import attrgetter
 
 import ctypes
@@ -22,7 +22,7 @@ from devito.tools import as_tuple, filter_sorted, flatten, numpy_to_ctypes, part
 from devito.visitors import (FindScopes, ResolveIterationVariable,
                              SubstituteExpression, Transformer, NestedTransformer)
 from devito.exceptions import InvalidArgument, InvalidOperator
-
+from devito.arguments import ArgumentEngine, log_args
 
 class Operator(Function):
 
@@ -93,6 +93,12 @@ class Operator(Function):
         # Wrap expressions with Iterations according to dimensions
         nodes = self._schedule_expressions(clusters)
 
+        # Initialise Argument Engine
+        self.argument_engine = ArgumentEngine()
+        
+        # Extract dimension offsets
+        self.argument_engine.extract_dimension_offsets([i.stencil for i in clusters])
+
         # Introduce C-level profiling infrastructure
         nodes, self.profiler = self._profile_sections(nodes, parameters)
 
@@ -145,17 +151,16 @@ class Operator(Function):
                 for orig_child, new_child in zip(orig_param.children, v.children):
                     new_params[orig_child.name] = new_child
         kwargs.update(new_params)
-
         # Derivation. It must happen in the order [tensors -> dimensions -> scalars]
         for i in self.parameters:
             if i.is_TensorArgument:
-                assert(i.verify(kwargs.pop(i.name, None)))
+                assert(i.verify(kwargs.pop(i.name, None), self.argument_engine))
         runtime_dimensions = [d for d in self.dimensions if not d.is_Fixed]
         for d in runtime_dimensions:
-            d.verify(kwargs.pop(d.name, None))
+            d.verify(kwargs.pop(d.name, None), self.argument_engine)
         for i in self.parameters:
             if i.is_ScalarArgument:
-                i.verify(kwargs.pop(i.name, None))
+                i.verify(kwargs.pop(i.name, None), self.argument_engine)
         dim_sizes = {}
         for d in runtime_dimensions:
             if d.value is not None:
@@ -177,7 +182,7 @@ class Operator(Function):
 
         mapper = OrderedDict([(d.name, d) for d in self.dimensions])
         for d, v in dim_sizes.items():
-            assert(mapper[d].verify(v))
+            assert(mapper[d].verify(v, self.argument_engine))
 
         arguments = self._default_args()
 
@@ -309,8 +314,7 @@ class Operator(Function):
                 needed = entries[index:]
 
                 # Build and insert the required Iterations
-                iters = [Iteration([], j.dim, j.dim.symbolic_size, offsets=j.ofs)
-                         for j in needed]
+                iters = [Iteration([], j.dim, j.dim.limits) for j in needed]
                 body, tree = compose_nodes(iters + [expressions], retrieve=True)
                 scheduling = OrderedDict(zip(needed, tree))
                 if root is None:
