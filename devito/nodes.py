@@ -396,13 +396,14 @@ class Iteration(Node):
         ``finish``). ``None`` is used as a placeholder in the returned 2-tuple
         if a limit is unknown."""
         lower = None
+        upper = None
         try:
-            lower = int(self.limits[0]) - self.offsets[0]
+            lower = start or (int(self.limits[0]) - self.offsets[0])
         except (TypeError, ValueError):
             if isinstance(start, int):
                 lower = start - self.offsets[0]
         try:
-            upper = int(self.limits[1]) - self.offsets[1]
+            upper = finish or (int(self.limits[1]) - self.offsets[1])
         except (TypeError, ValueError):
             if isinstance(finish, int):
                 upper = finish - self.offsets[1]
