@@ -363,9 +363,6 @@ def test_cache_blocking_edge_cases_highorder(shape, blockshape):
     w_blocking, _ = _new_operator3(shape, time_order=2,
                                    dle=('blocking', {'blockshape': blockshape,
                                                      'blockinner': True}))
-    print(type(wo_blocking.data))
-    print("****")
-    print(w_blocking.data)
     assert np.equal(wo_blocking.data, w_blocking.data).all()
 
 
