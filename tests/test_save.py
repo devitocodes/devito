@@ -1,5 +1,6 @@
 import numpy as np
 from sympy import solve, symbols
+from conftest import skipif_yask
 
 from devito import Grid, Eq, Operator, TimeData, Forward, x, y, time
 
@@ -45,5 +46,6 @@ def run_simulation(save=False, dx=0.01, dy=0.01, a=0.5, timesteps=100):
         return u.data[(timesteps+1) % 2, :]
 
 
+@skipif_yask
 def test_save():
     assert(np.array_equal(run_simulation(True), run_simulation()))

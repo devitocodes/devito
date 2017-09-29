@@ -1,12 +1,14 @@
 import numpy as np
 import pytest
 from numpy import linalg
+from conftest import skipif_yask
 
 from devito.logger import info
 from examples.seismic import demo_model, RickerSource, Receiver
 from examples.seismic.acoustic import AcousticWaveSolver
 
 
+@skipif_yask
 @pytest.mark.parametrize('space_order', [4, 8, 12])
 @pytest.mark.parametrize('shape', [(60, 70), (40, 50, 30)])
 def test_acousticJ(shape, space_order):

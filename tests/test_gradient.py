@@ -1,12 +1,14 @@
 import numpy as np
 import pytest
 from numpy import linalg
+from conftest import skipif_yask
 
 from devito.logger import info
 from examples.seismic.acoustic.acoustic_example import smooth10, acoustic_setup as setup
 from examples.seismic import Receiver
 
 
+@skipif_yask
 @pytest.mark.parametrize('space_order', [4])
 @pytest.mark.parametrize('time_order', [2])
 @pytest.mark.parametrize('shape', [(70, 80)])
@@ -74,6 +76,7 @@ def test_gradientFWI(shape, time_order, space_order):
     assert np.isclose(p2[0], 2.0, rtol=0.1)
 
 
+@skipif_yask
 @pytest.mark.parametrize('space_order', [4])
 @pytest.mark.parametrize('time_order', [2])
 @pytest.mark.parametrize('shape', [(70, 80)])

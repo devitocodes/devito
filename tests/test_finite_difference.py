@@ -1,10 +1,12 @@
 import numpy as np
 import pytest
+from conftest import skipif_yask
 from sympy import diff
 
 from devito import Grid, Eq, Operator, clear_cache, DenseData, x
 
 
+@skipif_yask
 @pytest.mark.parametrize('space_order', [2, 4, 6, 8, 10, 12, 14, 16, 18, 20])
 # Only test x and t as y and z are the same as x
 @pytest.mark.parametrize('derivative', ['dx', 'dxl', 'dxr', 'dx2'])

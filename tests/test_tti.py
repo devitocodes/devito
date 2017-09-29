@@ -1,5 +1,6 @@
 import numpy as np
 import pytest
+from conftest import skipif_yask
 from numpy import linalg
 
 from devito import TimeData
@@ -9,6 +10,7 @@ from examples.seismic.acoustic import AcousticWaveSolver
 from examples.seismic.tti import AnisotropicWaveSolver
 
 
+@skipif_yask
 @pytest.mark.parametrize('shape', [(120, 140), (120, 140, 150)])
 @pytest.mark.parametrize('space_order', [4, 8])
 def test_tti(shape, space_order):

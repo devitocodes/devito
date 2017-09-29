@@ -5,10 +5,15 @@ import pytest
 from sympy import cos  # noqa
 
 from devito import Eq  # noqa
-from devito import Dimension, t, x, y, z, ConstantData, DenseData, FixedDimension
+from devito import (Dimension, t, x, y, z, ConstantData, DenseData,
+                    FixedDimension, configuration)
 from devito.interfaces import ScalarFunction, TensorFunction
 from devito.nodes import Iteration
 from devito.tools import as_tuple
+
+
+skipif_yask = pytest.mark.skipif(configuration['backend'] == 'yask',
+                                 reason="YASK testing is currently restricted")
 
 
 def scalarfunction(name):
