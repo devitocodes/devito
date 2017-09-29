@@ -22,7 +22,7 @@ from devito.tools import as_tuple, filter_sorted, flatten, numpy_to_ctypes, part
 from devito.visitors import (FindScopes, ResolveIterationVariable,
                              SubstituteExpression, Transformer, NestedTransformer)
 from devito.exceptions import InvalidArgument, InvalidOperator
-from devito.arguments import ArgumentEngine, log_args
+from devito.arguments import ArgumentEngine
 
 
 class Operator(Function):
@@ -194,6 +194,8 @@ class Operator(Function):
         # Clear the temp values we stored in the arg objects since we've pulled them out
         # into the OrderedDict object above
         self._reset_args()
+
+        print(arguments)
 
         return arguments, dim_sizes
 

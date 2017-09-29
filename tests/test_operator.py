@@ -354,7 +354,8 @@ class TestArguments(object):
         assert(op_arguments[time.start_name] == 0)
         assert(op_arguments[time.end_name] == nt - 1)
 
-        # Providing a scalar argument explicitly should override the automatically inferred
+        # Providing a scalar argument explicitly should override the automatically\
+        # inferred
         op_arguments, _ = op.arguments(b=b1, time=nt - 1, time_e=nt - 2)
         assert(op_arguments[time.start_name] == 0)
         assert(op_arguments[time.end_name] == nt - 2)

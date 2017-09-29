@@ -71,8 +71,8 @@ class ScalarArgument(Argument):
 
     """ Class representing scalar arguments that a kernel might expect.
         Most commonly used to pass dimension sizes
-        enforce determines whether any reduction will be performed or not. 
-        i.e. if it is a user-provided value, use it directly. 
+        enforce determines whether any reduction will be performed or not.
+        i.e. if it is a user-provided value, use it directly.
     """
 
     is_ScalarArgument = True
@@ -283,7 +283,8 @@ class DimensionArgProvider(ArgumentProvider):
         # At this point, a constraint needs to be added that enforces
         # dim_e - dim_s < SOME_MAX
         # Also need a default constraint that dim_e > dim_s (or vice-versa)
-        verify = verify and all([a.verify(v, engine, enforce=enforce) for a, v in zip(self.rtargs, value)])
+        verify = verify and all([a.verify(v, engine, enforce=enforce) for a, v in
+                                 zip(self.rtargs, value)])
         return verify
 
 

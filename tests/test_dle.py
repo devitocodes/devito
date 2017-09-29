@@ -184,7 +184,7 @@ def test_create_elemental_functions_simple(simple_function):
     }
   }
 }
-void f_0(const int k_start, const int k_finish,"""
+void f_0(const int k_begin, const int k_finish,"""
          """ float *restrict a_vec, float *restrict b_vec,"""
          """ float *restrict c_vec, float *restrict d_vec, const int i, const int j)
 {
@@ -192,7 +192,7 @@ void f_0(const int k_start, const int k_finish,"""
   float (*restrict b) __attribute__((aligned(64))) = (float (*)) b_vec;
   float (*restrict c)[5] __attribute__((aligned(64))) = (float (*)[5]) c_vec;
   float (*restrict d)[5][7] __attribute__((aligned(64))) = (float (*)[5][7]) d_vec;
-  for (int k = k_start; k < k_finish; k += 1)
+  for (int k = k_begin; k < k_finish; k += 1)
   {
     a[i] = a[i] + b[i] + 5.0F;
     a[i] = -a[i]*c[i][j] + b[i]*d[i][j][k];
@@ -230,17 +230,17 @@ def test_create_elemental_functions_complex(complex_function):
     f_2(0,4,(float*)a,(float*)b,i);
   }
 }
-void f_0(const int s_start, const int s_finish,"""
+void f_0(const int s_begin, const int s_finish,"""
          """ float *restrict a_vec, float *restrict b_vec, const int i)
 {
   float (*restrict a) __attribute__((aligned(64))) = (float (*)) a_vec;
   float (*restrict b) __attribute__((aligned(64))) = (float (*)) b_vec;
-  for (int s = s_start; s < s_finish; s += 1)
+  for (int s = s_begin; s < s_finish; s += 1)
   {
     b[i] = a[i] + pow(b[i], 2) + 3;
   }
 }
-void f_1(const int k_start, const int k_finish,"""
+void f_1(const int k_begin, const int k_finish,"""
          """ float *restrict a_vec, float *restrict b_vec,"""
          """ float *restrict c_vec, float *restrict d_vec, const int i, const int j)
 {
@@ -248,18 +248,18 @@ void f_1(const int k_start, const int k_finish,"""
   float (*restrict b) __attribute__((aligned(64))) = (float (*)) b_vec;
   float (*restrict c)[5] __attribute__((aligned(64))) = (float (*)[5]) c_vec;
   float (*restrict d)[5][7] __attribute__((aligned(64))) = (float (*)[5][7]) d_vec;
-  for (int k = k_start; k < k_finish; k += 1)
+  for (int k = k_begin; k < k_finish; k += 1)
   {
     a[i] = a[i]*b[i]*c[i][j]*d[i][j][k];
     a[i] = 4*(a[i] + c[i][j])*(b[i] + d[i][j][k]);
   }
 }
-void f_2(const int q_start, const int q_finish,"""
+void f_2(const int q_begin, const int q_finish,"""
          """ float *restrict a_vec, float *restrict b_vec, const int i)
 {
   float (*restrict a) __attribute__((aligned(64))) = (float (*)) a_vec;
   float (*restrict b) __attribute__((aligned(64))) = (float (*)) b_vec;
-  for (int q = q_start; q < q_finish; q += 1)
+  for (int q = q_begin; q < q_finish; q += 1)
   {
     a[i] = 8.0F*a[i] + 6.0F/b[i];
   }
@@ -340,7 +340,6 @@ def test_cache_blocking_edge_cases(shape, blockshape):
     w_blocking, _ = _new_operator2(shape, time_order=2,
                                    dle=('blocking', {'blockshape': blockshape,
                                                      'blockinner': True}))
-
     assert np.equal(wo_blocking.data, w_blocking.data).all()
 
 
@@ -364,7 +363,9 @@ def test_cache_blocking_edge_cases_highorder(shape, blockshape):
     w_blocking, _ = _new_operator3(shape, time_order=2,
                                    dle=('blocking', {'blockshape': blockshape,
                                                      'blockinner': True}))
-
+    print(type(wo_blocking.data))
+    print("****")
+    print(w_blocking.data)
     assert np.equal(wo_blocking.data, w_blocking.data).all()
 
 
