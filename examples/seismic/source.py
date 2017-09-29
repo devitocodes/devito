@@ -3,7 +3,10 @@ from devito.pointdata import PointData
 from devito.logger import error
 
 import numpy as np
-import matplotlib.pyplot as plt
+try:
+    import matplotlib.pyplot as plt
+except:
+    plt = None
 
 __all__ = ['PointSource', 'Receiver', 'Shot', 'RickerSource', 'GaborSource']
 
