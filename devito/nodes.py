@@ -398,12 +398,14 @@ class Iteration(Node):
         lower = None
         upper = None
         try:
-            lower = start or (int(self.limits[0]) - self.offsets[0])
+            lower = start if start is not None else (int(self.limits[0]) -
+                                                     self.offsets[0])
         except (TypeError, ValueError):
             if isinstance(start, int):
                 lower = start - self.offsets[0]
         try:
-            upper = finish or (int(self.limits[1]) - self.offsets[1])
+            upper = finish if finish is not None else (int(self.limits[1]) -
+                                                       self.offsets[1])
         except (TypeError, ValueError):
             if isinstance(finish, int):
                 upper = finish - self.offsets[1]
