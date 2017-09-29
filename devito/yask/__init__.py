@@ -35,7 +35,7 @@ try:
     # Set directories for generated code
     path = os.environ['YASK_HOME']
 except KeyError:
-    exit("Missing YASK_HOME")
+    path = os.path.dirname(os.path.dirname(yc.__file__))
 
 # YASK conventions
 namespace = OrderedDict()
