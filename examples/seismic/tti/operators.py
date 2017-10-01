@@ -1,6 +1,6 @@
-from sympy import Eq, cos, sin
+from sympy import cos, sin
 
-from devito import Operator, TimeData
+from devito import Eq, Operator, TimeData
 from examples.seismic import PointSource, Receiver
 from devito.finite_difference import centered, first_derivative, right, transpose
 from devito.dimension import x, y, z, t, time

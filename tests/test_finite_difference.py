@@ -1,8 +1,8 @@
 import numpy as np
 import pytest
-from sympy import Eq, diff
+from sympy import diff
 
-from devito import Operator, clear_cache, DenseData, x
+from devito import Eq, Operator, clear_cache, DenseData, x
 
 
 @pytest.mark.parametrize('space_order', [2, 4, 6, 8, 10, 12, 14, 16, 18, 20])

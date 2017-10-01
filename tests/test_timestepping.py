@@ -1,9 +1,8 @@
 import numpy as np
-from sympy import Eq
 
 import pytest
 
-from devito import Operator, Forward, Backward, TimeData, t
+from devito import Eq, Operator, Forward, Backward, TimeData, t
 
 
 @pytest.fixture

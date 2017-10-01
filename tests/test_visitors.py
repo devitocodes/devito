@@ -1,7 +1,7 @@
 import cgen as c
 import pytest
-from sympy import Eq
 
+from devito import Eq
 from devito.nodes import Block, Expression, Function
 from devito.visitors import (FindSections, FindSymbols, IsPerfectIteration,
                              MergeOuterIterations, Transformer, printAST,

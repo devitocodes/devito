@@ -4,13 +4,13 @@ from functools import reduce
 from operator import mul
 import numpy as np
 import pytest
-from sympy import Eq, solve
+from sympy import solve
 
 from conftest import EVAL
 
 from devito.dle import retrieve_iteration_tree, transform
 from devito.dle.backends import DevitoRewriter as Rewriter
-from devito import DenseData, TimeData, Operator, t, x, y
+from devito import Eq, DenseData, TimeData, Operator, t, x, y
 from devito.nodes import ELEMENTAL, Expression, Function, Iteration, List, tagger
 from devito.visitors import (ResolveIterationVariable, SubstituteExpression,
                              Transformer, FindNodes)

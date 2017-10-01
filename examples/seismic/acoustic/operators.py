@@ -1,6 +1,6 @@
-from sympy import Eq, solve, Symbol
+from sympy import solve, Symbol
 
-from devito import Operator, Forward, Backward, DenseData, TimeData, time, t
+from devito import Eq, Operator, Forward, Backward, DenseData, TimeData, time, t
 from devito.logger import error
 from examples.seismic import PointSource, Receiver
 

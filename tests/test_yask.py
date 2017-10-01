@@ -1,11 +1,10 @@
 import numpy as np
-from sympy import Eq  # noqa
 
 import pytest  # noqa
 
 pexpect = pytest.importorskip('yask_compiler')  # Run only if YASK is available
 
-from devito import (Operator, DenseData, TimeData, PointData,
+from devito import (Eq, Operator, DenseData, TimeData, PointData,
                     time, t, x, y, z, configuration, clear_cache)  # noqa
 from devito.dle import retrieve_iteration_tree  # noqa
 from devito.yask import arch_mapper, yask_configuration  # noqa

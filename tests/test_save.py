@@ -1,7 +1,7 @@
 import numpy as np
-from sympy import Eq, solve, symbols
+from sympy import solve, symbols
 
-from devito import Operator, TimeData, Forward, x, y, time
+from devito import Eq, Operator, TimeData, Forward, x, y, time
 
 
 def initial(dx=0.01, dy=0.01):

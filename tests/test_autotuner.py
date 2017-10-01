@@ -11,9 +11,8 @@ except ImportError:
 import pytest
 
 import numpy as np
-from sympy import Eq
 
-from devito import DenseData, TimeData, Operator, t, x, y, z, configuration
+from devito import Eq, DenseData, TimeData, Operator, t, x, y, z, configuration
 from devito.logger import logger, logging, set_log_level
 from devito.core.autotuning import options
 
