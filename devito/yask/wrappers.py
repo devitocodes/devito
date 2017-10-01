@@ -283,7 +283,7 @@ class YaskKernel(object):
 
         # Import the corresponding Python (SWIG-generated) module
         try:
-            yk = importlib.import_module(name)
+            yk = getattr(__import__('yask', fromlist=[name]), name)
         except ImportError:
             exit("Python YASK kernel bindings")
         try:
