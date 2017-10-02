@@ -76,13 +76,18 @@ before_script:
 script:
   - flake8 --builtins=ArgumentError .
   - py.test -vs tests/
-  - DEVITO_BACKEND=foreign py.test -vs tests/test_operator.py -k TestForeign
-  - python examples/seismic/benchmark.py test -P tti -so 4 -a -d 20 20 20 -n 5
-  - python examples/seismic/benchmark.py test -P acoustic -a
-  - python examples/seismic/acoustic/acoustic_example.py --full
-  - python examples/seismic/acoustic/constant_example.py --full
-  - py.test -vs examples/seismic/tutorials
-  - py.test -vs examples/cfd
+
+  # Additional seismic operator tests
+  - if [[ $DEVITO_BACKEND != 'yask' ]]; then
+      DEVITO_BACKEND=foreign py.test -vs tests/test_operator.py -k TestForeign;
+      python examples/seismic/benchmark.py test -P tti -so 4 -a -d 20 20 20 -n 5;
+      python examples/seismic/benchmark.py test -P acoustic -a;
+      python examples/seismic/acoustic/acoustic_example.py --full;
+      python examples/seismic/acoustic/constant_example.py --full;
+    fi
+
+  - if [[ $DEVITO_BACKEND != 'yask' ]]; then py.test -vs examples/seismic/tutorials; fi
+  - if [[ $DEVITO_BACKEND != 'yask' ]]; then py.test -vs examples/cfd; fi
 
   # Docs generation and deployment
   - sphinx-apidoc -f -o docs/ examples
