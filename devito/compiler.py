@@ -43,7 +43,8 @@ class Compiler(GCCToolchain):
         * :data:`self.undefines`
     """
 
-    cpp_mapper = {'gcc': 'g++', 'clang': 'clang++', 'icc': 'icpc'}
+    cpp_mapper = {'gcc': 'g++', 'clang': 'clang++', 'icc': 'icpc',
+                  'gcc-4.9': 'g++-4.9', 'gcc-5': 'g++-5', 'gcc-6': 'g++-6'}
 
     fields = ['cc', 'ld']
 
