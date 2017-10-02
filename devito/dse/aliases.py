@@ -44,7 +44,7 @@ def collect(exprs):
     # - that are non-scalar
     candidates = OrderedDict()
     for expr in exprs:
-        if q_indexed(expr):
+        if q_indexed(expr.lhs):
             continue
         indexeds = retrieve_indexed(expr.rhs, mode='all')
         if indexeds and not any(q_indirect(i) for i in indexeds):
