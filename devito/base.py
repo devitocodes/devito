@@ -26,7 +26,7 @@ class Function(with_metaclass(_BackendSelector, interfaces.Function)):
     pass
 
 
-class TimeData(with_metaclass(_BackendSelector, interfaces.TimeData)):
+class TimeFunction(with_metaclass(_BackendSelector, interfaces.TimeFunction)):
     pass
 
 

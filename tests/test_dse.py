@@ -7,7 +7,7 @@ from conftest import skipif_yask
 from devito.dse import (clusterize, rewrite, xreplace_constrained, iq_timeinvariant,
                         iq_timevarying, estimate_cost, temporaries_graph,
                         common_subexprs_elimination, collect)
-from devito import Eq, Dimension, x, y, z, time, TimeData, clear_cache  # noqa
+from devito import Eq, Dimension, x, y, z, time, clear_cache  # noqa
 from devito.interfaces import ScalarFunction
 from devito.nodes import Expression
 from devito.stencil import Stencil

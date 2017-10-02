@@ -8,7 +8,7 @@ import numpy as np
 import pytest
 
 from devito import (clear_cache, Grid, Eq, Operator, ConstantData, Function,
-                    TimeData, PointData, Dimension, time, x, y, z, configuration)
+                    TimeFunction, PointData, Dimension, time, x, y, z, configuration)
 from devito.foreign import Operator as OperatorForeign
 from devito.dle import retrieve_iteration_tree
 from devito.visitors import IsPerfectIteration
@@ -273,8 +273,8 @@ class TestArguments(object):
         i, j, k = dimify('i j k')
         shape = (3, 5, 7)
         a = Function(name='a', shape=shape, dimensions=(i, j, k)).indexed
-        b = TimeData(name='b', shape=shape, dimensions=(i, j, k),
-                     save=True, time_dim=nt).indexed
+        b = TimeFunction(name='b', shape=shape, dimensions=(i, j, k),
+                         save=True, time_dim=nt).indexed
         eqn = Eq(b[time, x, y, z], a[x, y, z])
         op = Operator(eqn)
 
@@ -285,7 +285,7 @@ class TestArguments(object):
         """Test explicit overrides for the leading time dimension"""
         i, j, k = dimify('i j k')
         shape = (3, 5, 7)
-        a = TimeData(name='a', dimensions=(i, j, k), shape=shape)
+        a = TimeFunction(name='a', dimensions=(i, j, k), shape=shape)
         one = symbol(name='one', dimensions=(i, j, k), shape=shape, value=1.)
         op = Operator(Eq(a.forward, a + one))
 
@@ -305,8 +305,8 @@ class TestArguments(object):
         new_coords = (2., 2.)
         p_dim = Dimension('p_src')
         ndim = len(original_coords)
-        u = TimeData(name='u', time_order=2, space_order=2,
-                     shape=(10, 10), dimensions=(i, j))
+        u = TimeFunction(name='u', time_order=2, space_order=2,
+                         shape=(10, 10), dimensions=(i, j))
         src1 = PointData(name='src1', dimensions=[time, p_dim], npoint=1, nt=10,
                          ndim=ndim, coordinates=original_coords)
         src2 = PointData(name='src1', dimensions=[time, p_dim], npoint=1, nt=10,
@@ -525,8 +525,8 @@ class TestLoopScheduler(object):
         """
         shape = (3, 3, 3)
         a = Function(name='a', shape=shape, dimensions=(x, y)).indexed
-        b = TimeData(name='b', shape=shape, dimensions=(x, y),
-                     save=True, time_dim=6).indexed
+        b = TimeFunction(name='b', shape=shape, dimensions=(x, y),
+                         save=True, time_dim=6).indexed
         main = Eq(b[time + 1, x, y, z], b[time - 1, x, y, z] + a[x, y, z] + 3.*t0)
         bcs = [Eq(b[time, 0, y, z], 0.),
                Eq(b[time, x, 0, z], 0.),
@@ -573,11 +573,11 @@ class TestLoopScheduler(object):
                                                    ((11, 11, 11), (z, y, x))])
     def test_equations_mixed_densedata_timedata(self, shape, dimensions):
         """
-        Test that equations using a mixture of Function and TimeData objects
+        Test that equations using a mixture of Function and TimeFunction objects
         are embedded within the same time loop.
         """
-        a = TimeData(name='a', shape=shape, time_order=2, dimensions=dimensions,
-                     space_order=2, time_dim=6, save=False)
+        a = TimeFunction(name='a', shape=shape, time_order=2, dimensions=dimensions,
+                         space_order=2, time_dim=6, save=False)
         p_aux = Dimension(name='p_aux', size=10)
         b = Function(name='b', shape=shape + (10,), dimensions=dimensions + (p_aux,),
                      space_order=2)
@@ -616,8 +616,8 @@ class TestForeign(object):
     def test_explicit_run(self):
         time_dim = 6
         grid = Grid(shape=(11, 11))
-        a = TimeData(name='a', grid=grid, time_order=1,
-                     time_dim=time_dim, save=True)
+        a = TimeFunction(name='a', grid=grid, time_order=1,
+                         time_dim=time_dim, save=True)
         eqn = Eq(a.forward, a + 1.)
         op = Operator(eqn)
         assert isinstance(op, OperatorForeign)

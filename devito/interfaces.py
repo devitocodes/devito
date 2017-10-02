@@ -19,7 +19,7 @@ from devito.arguments import (ConstantDataArgProvider, TensorDataArgProvider,
 from devito.parameters import configuration
 
 __all__ = ['Symbol', 'Indexed',
-           'ConstantData', 'Function', 'TimeData',
+           'ConstantData', 'Function', 'TimeFunction',
            'Forward', 'Backward']
 
 configuration.add('first_touch', 0, [0, 1], lambda i: bool(i))
@@ -32,7 +32,7 @@ _SymbolCache = {}
 
 class TimeAxis(object):
     """Direction in which to advance the time index on
-    :class:`TimeData` objects.
+    :class:`TimeFunction` objects.
 
     :param axis: Either 'Forward' or 'Backward'
     """
@@ -88,7 +88,7 @@ class Basic(object):
     is_ConstantData = False
     is_TensorData = False
     is_Function = False
-    is_TimeData = False
+    is_TimeFunction = False
     is_CompositeData = False
     is_PointData = False
 
@@ -167,7 +167,7 @@ class AbstractSymbol(sympy.Function, CachedSymbol):
                                                               |
                                                 ----------------------------
                                                 |             |            |
-                                            Function      TimeData  CompositeData
+                                            Function      TimeFunction  CompositeData
                                                                            |
                                                                        PointData
 
@@ -439,7 +439,7 @@ class Function(TensorData):
 
        :class:`Function` objects are assumed to be constant in time
        and therefore do not support time derivatives. Use
-       :class:`TimeData` for time-varying grid data.
+       :class:`TimeFunction` for time-varying grid data.
     """
 
     is_Function = True
@@ -617,7 +617,7 @@ class Function(TensorData):
                     for d in self.space_dimensions])
 
 
-class TimeData(Function):
+class TimeFunction(Function):
     """
     Data object for time-varying data that acts as a Function symbol
 
@@ -651,19 +651,19 @@ class TimeData(Function):
 
        .. code-block:: python
 
-          In []: TimeData(name="a", dimensions=(x, y, z))
+          In []: TimeFunction(name="a", dimensions=(x, y, z))
           Out[]: a(t, x, y, z)
 
-          In []: TimeData(name="a", shape=(20, 30))
+          In []: TimeFunction(name="a", shape=(20, 30))
           Out[]: a(t, x, y)
 
     """
 
-    is_TimeData = True
+    is_TimeFunction = True
 
     def __init__(self, *args, **kwargs):
         if not self._cached():
-            super(TimeData, self).__init__(*args, **kwargs)
+            super(TimeFunction, self).__init__(*args, **kwargs)
             self.time_dim = kwargs.get('time_dim', None)
             self.time_order = kwargs.get('time_order', 1)
             self.save = kwargs.get('save', False)
@@ -671,7 +671,7 @@ class TimeData(Function):
             if not self.save:
                 if self.time_dim is not None:
                     warning('Explicit time dimension size (time_dim) found for '
-                            'TimeData symbol %s, despite \nusing a buffered time '
+                            'TimeFunction symbol %s, despite \nusing a buffered time '
                             'dimension (save=False). This value will be ignored!'
                             % self.name)
                 self.time_dim = self.time_order + 1

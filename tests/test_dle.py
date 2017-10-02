@@ -11,7 +11,7 @@ from conftest import EVAL
 
 from devito.dle import retrieve_iteration_tree, transform
 from devito.dle.backends import DevitoRewriter as Rewriter
-from devito import Grid, Function, TimeData, Eq, Operator, t, x, y
+from devito import Grid, Function, TimeFunction, Eq, Operator, t, x, y
 from devito.nodes import ELEMENTAL, Expression, Callable, Iteration, List, tagger
 from devito.visitors import (ResolveIterationVariable, SubstituteExpression,
                              Transformer, FindNodes)
@@ -119,10 +119,10 @@ def _new_operator1(shape, **kwargs):
 
 def _new_operator2(shape, time_order, **kwargs):
     grid = Grid(shape=shape, dtype=np.int32)
-    infield = TimeData(name='infield', grid=grid, time_order=time_order)
+    infield = TimeFunction(name='infield', grid=grid, time_order=time_order)
     infield.data[:] = np.arange(reduce(mul, shape), dtype=np.int32).reshape(shape)
 
-    outfield = TimeData(name='outfield', grid=grid, time_order=time_order)
+    outfield = TimeFunction(name='outfield', grid=grid, time_order=time_order)
 
     stencil = Eq(outfield.forward.indexify(),
                  outfield.indexify() + infield.indexify()*3.0)
@@ -144,7 +144,7 @@ def _new_operator3(shape, time_order, **kwargs):
 
     # Allocate the grid and set initial condition
     # Note: This should be made simpler through the use of defaults
-    u = TimeData(name='u', grid=grid, time_order=1, space_order=2)
+    u = TimeFunction(name='u', grid=grid, time_order=1, space_order=2)
     u.data[0, :] = np.arange(reduce(mul, shape), dtype=np.int32).reshape(shape)
 
     # Derive the stencil according to devito conventions

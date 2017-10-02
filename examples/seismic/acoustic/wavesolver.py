@@ -1,4 +1,4 @@
-from devito import Function, TimeData, memoized
+from devito import Function, TimeFunction, memoized
 from examples.seismic import PointSource, Receiver
 from examples.seismic.acoustic.operators import (
     ForwardOperator, AdjointOperator, GradientOperator, BornOperator
@@ -93,9 +93,9 @@ class AcousticWaveSolver(object):
 
         # Create the forward wavefield if not provided
         if u is None:
-            u = TimeData(name='u', grid=self.model.grid, save=save,
-                         time_dim=self.source.nt if save else None,
-                         time_order=2, space_order=self.space_order)
+            u = TimeFunction(name='u', grid=self.model.grid, save=save,
+                             time_dim=self.source.nt if save else None,
+                             time_order=2, space_order=self.space_order)
 
         # Pick m from model unless explicitly provided
         if m is None:
@@ -126,8 +126,8 @@ class AcousticWaveSolver(object):
 
         # Create the adjoint wavefield if not provided
         if v is None:
-            v = TimeData(name='v', grid=self.model.grid, save=False,
-                         time_order=2, space_order=self.space_order)
+            v = TimeFunction(name='v', grid=self.model.grid, save=False,
+                             time_order=2, space_order=self.space_order)
 
         # Pick m from model unless explicitly provided
         if m is None:
@@ -157,8 +157,8 @@ class AcousticWaveSolver(object):
 
         # Create the forward wavefield
         if v is None:
-            v = TimeData(name='v', grid=self.model.grid, save=False,
-                         time_order=2, space_order=self.space_order)
+            v = TimeFunction(name='v', grid=self.model.grid, save=False,
+                             time_order=2, space_order=self.space_order)
 
         # Pick m from model unless explicitly provided
         if m is None:
@@ -188,11 +188,11 @@ class AcousticWaveSolver(object):
 
         # Create the forward wavefields u and U if not provided
         if u is None:
-            u = TimeData(name='u', grid=self.model.grid, save=False,
-                         time_order=2, space_order=self.space_order)
+            u = TimeFunction(name='u', grid=self.model.grid, save=False,
+                             time_order=2, space_order=self.space_order)
         if U is None:
-            U = TimeData(name='U', grid=self.model.grid, save=False,
-                         time_order=2, space_order=self.space_order)
+            U = TimeFunction(name='U', grid=self.model.grid, save=False,
+                             time_order=2, space_order=self.space_order)
 
         # Pick m from model unless explicitly provided
         if m is None:

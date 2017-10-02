@@ -4,13 +4,13 @@ import numpy as np
 import pytest
 from conftest import skipif_yask
 
-from devito import Grid, Function, TimeData, clear_cache
+from devito import Grid, Function, TimeFunction, clear_cache
 from devito.interfaces import _SymbolCache
 
 
 @skipif_yask
 @pytest.mark.xfail(reason="New function instances currently don't cache")
-@pytest.mark.parametrize('FunctionType', [Function, TimeData])
+@pytest.mark.parametrize('FunctionType', [Function, TimeFunction])
 def test_cache_function_new(FunctionType):
     """Test caching of a new u[x, y] instance"""
     grid = Grid(shape=(3, 4))
@@ -21,7 +21,7 @@ def test_cache_function_new(FunctionType):
 
 
 @skipif_yask
-@pytest.mark.parametrize('FunctionType', [Function, TimeData])
+@pytest.mark.parametrize('FunctionType', [Function, TimeFunction])
 def test_cache_function_same_indices(FunctionType):
     """Test caching of derived u[x, y] instance from derivative"""
     grid = Grid(shape=(3, 4))
@@ -33,7 +33,7 @@ def test_cache_function_same_indices(FunctionType):
 
 
 @skipif_yask
-@pytest.mark.parametrize('FunctionType', [Function, TimeData])
+@pytest.mark.parametrize('FunctionType', [Function, TimeFunction])
 def test_cache_function_different_indices(FunctionType):
     """Test caching of u[x + h, y] instance from derivative"""
     grid = Grid(shape=(3, 4))

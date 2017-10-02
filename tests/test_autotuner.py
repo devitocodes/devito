@@ -13,7 +13,7 @@ from conftest import skipif_yask
 
 import numpy as np
 
-from devito import Grid, Function, TimeData, Eq, Operator, t, x, y, z, configuration
+from devito import Grid, Function, TimeFunction, Eq, Operator, t, x, y, z, configuration
 from devito.logger import logger, logging, set_log_level
 from devito.core.autotuning import options
 
@@ -91,12 +91,12 @@ def test_timesteps_per_at_run():
     assert all('in 1 time steps' in i for i in out)
     buffer.truncate(0)
 
-    # TimeData with increasing time order
+    # TimeFunction with increasing time order
     for to in [1, 2, 4]:
-        infield = TimeData(name='infield', grid=grid, time_order=to)
+        infield = TimeFunction(name='infield', grid=grid, time_order=to)
         infield.data[:] = np.arange(reduce(mul, infield.shape),
                                     dtype=np.int32).reshape(infield.shape)
-        outfield = TimeData(name='outfield', grid=grid, time_order=to)
+        outfield = TimeFunction(name='outfield', grid=grid, time_order=to)
         stencil = Eq(outfield.indexed[t + to, x, y, z],
                      outfield.indexify() + infield.indexify()*3.0)
         op = Operator(stencil, dle=('blocking', {'blockalways': True}))
