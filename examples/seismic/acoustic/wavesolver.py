@@ -1,4 +1,4 @@
-from devito import DenseData, TimeData, memoized
+from devito import Function, TimeData, memoized
 from examples.seismic import PointSource, Receiver
 from examples.seismic.acoustic.operators import (
     ForwardOperator, AdjointOperator, GradientOperator, BornOperator
@@ -153,7 +153,7 @@ class AcousticWaveSolver(object):
 
         # Gradient symbol
         if grad is None:
-            grad = DenseData(name='grad', grid=self.model.grid)
+            grad = Function(name='grad', grid=self.model.grid)
 
         # Create the forward wavefield
         if v is None:

@@ -3,7 +3,7 @@ import pytest
 from conftest import skipif_yask
 from sympy import Derivative, simplify
 
-from devito import Grid, DenseData, TimeData, t, x, y, z
+from devito import Grid, Function, TimeData, t, x, y, z
 
 
 @pytest.fixture
@@ -18,7 +18,7 @@ def grid(shape):
 
 @skipif_yask
 @pytest.mark.parametrize('SymbolType, dimension', [
-    (DenseData, x), (DenseData, y),
+    (Function, x), (Function, y),
     (TimeData, x), (TimeData, y), (TimeData, t),
 ])
 def test_stencil_derivative(grid, shape, SymbolType, dimension):
@@ -43,7 +43,7 @@ def test_stencil_derivative(grid, shape, SymbolType, dimension):
 
 @skipif_yask
 @pytest.mark.parametrize('SymbolType, derivative, dim', [
-    (DenseData, 'dx2', 3), (DenseData, 'dy2', 3),
+    (Function, 'dx2', 3), (Function, 'dy2', 3),
     (TimeData, 'dx2', 3), (TimeData, 'dy2', 3), (TimeData, 'dt', 2)
 ])
 def test_preformed_derivatives(grid, SymbolType, derivative, dim):

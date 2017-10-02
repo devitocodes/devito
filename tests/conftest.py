@@ -5,7 +5,7 @@ import pytest
 from sympy import cos  # noqa
 
 from devito import Eq  # noqa
-from devito import (Dimension, t, x, y, z, ConstantData, DenseData,
+from devito import (Dimension, t, x, y, z, ConstantData, Function,
                     FixedDimension, configuration)
 from devito.interfaces import ScalarFunction, TensorFunction
 from devito.nodes import Iteration
@@ -28,8 +28,8 @@ def constantdata(name):
     return ConstantData(name=name)
 
 
-def densedata(name, shape, dimensions):
-    return DenseData(name=name, shape=shape, dimensions=dimensions)
+def function(name, shape, dimensions):
+    return Function(name=name, shape=shape, dimensions=dimensions)
 
 
 @pytest.fixture(scope="session")
@@ -91,7 +91,7 @@ def a(dims):
 
 @pytest.fixture(scope="session", autouse=True)
 def a_dense(dims):
-    return densedata('a_dense', (3,), (dims['i'],)).indexify()
+    return function('a_dense', (3,), (dims['i'],)).indexify()
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -106,7 +106,7 @@ def b(dims):
 
 @pytest.fixture(scope="session", autouse=True)
 def b_dense(dims):
-    return densedata('b_dense', (3,), (dims['i'],)).indexify()
+    return function('b_dense', (3,), (dims['i'],)).indexify()
 
 
 @pytest.fixture(scope="session", autouse=True)

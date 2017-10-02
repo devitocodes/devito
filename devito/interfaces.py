@@ -3,7 +3,6 @@ import abc
 
 import numpy as np
 import sympy
-from sympy import Function, IndexedBase
 from sympy.abc import s
 from functools import partial
 
@@ -20,7 +19,7 @@ from devito.arguments import (ConstantDataArgProvider, TensorDataArgProvider,
 from devito.parameters import configuration
 
 __all__ = ['Symbol', 'Indexed',
-           'ConstantData', 'DenseData', 'TimeData',
+           'ConstantData', 'Function', 'TimeData',
            'Forward', 'Backward']
 
 configuration.add('first_touch', 0, [0, 1], lambda i: bool(i))
@@ -88,7 +87,7 @@ class Basic(object):
     is_SymbolicData = False
     is_ConstantData = False
     is_TensorData = False
-    is_DenseData = False
+    is_Function = False
     is_TimeData = False
     is_CompositeData = False
     is_PointData = False
@@ -129,7 +128,7 @@ class CachedSymbol(Basic):
         self.__dict__ = original().__dict__
 
 
-class AbstractSymbol(Function, CachedSymbol):
+class AbstractSymbol(sympy.Function, CachedSymbol):
     """Base class for data classes that provides symbolic behaviour.
 
     :param name: Symbolic name to give to the resulting function. Must
@@ -168,7 +167,7 @@ class AbstractSymbol(Function, CachedSymbol):
                                                               |
                                                 ----------------------------
                                                 |             |            |
-                                            DenseData      TimeData  CompositeData
+                                            Function      TimeData  CompositeData
                                                                            |
                                                                        PointData
 
@@ -182,7 +181,7 @@ class AbstractSymbol(Function, CachedSymbol):
     def __new__(cls, *args, **kwargs):
         if cls in _SymbolCache:
             options = kwargs.get('options', {})
-            newobj = Function.__new__(cls, *args, **options)
+            newobj = sympy.Function.__new__(cls, *args, **options)
             newobj._cached_init()
         else:
             name = kwargs.get('name')
@@ -192,7 +191,7 @@ class AbstractSymbol(Function, CachedSymbol):
             # Create the new Function object and invoke __init__
             newcls = cls._symbol_type(name)
             options = kwargs.get('options', {})
-            newobj = Function.__new__(newcls, *args, **options)
+            newobj = sympy.Function.__new__(newcls, *args, **options)
             newobj.__init__(*args, **kwargs)
 
             # All objects cached on the AbstractSymbol /newobj/ keep a reference
@@ -420,7 +419,7 @@ class TensorData(SymbolicData, TensorDataArgProvider):
         return True
 
 
-class DenseData(TensorData):
+class Function(TensorData):
     """Data object for spatially varying data acting as a :class:`SymbolicData`.
 
     :param name: Name of the symbol
@@ -438,12 +437,12 @@ class DenseData(TensorData):
        If the parameter ``grid`` is provided, the values for ``shape``,
        ``dimensions`` and ``dtype`` will be derived from it.
 
-       :class:`DenseData` objects are assumed to be constant in time
+       :class:`Function` objects are assumed to be constant in time
        and therefore do not support time derivatives. Use
        :class:`TimeData` for time-varying grid data.
     """
 
-    is_DenseData = True
+    is_Function = True
 
     def __init__(self, *args, **kwargs):
         if not self._cached():
@@ -618,7 +617,7 @@ class DenseData(TensorData):
                     for d in self.space_dimensions])
 
 
-class TimeData(DenseData):
+class TimeData(Function):
     """
     Data object for time-varying data that acts as a Function symbol
 
@@ -707,7 +706,7 @@ class TimeData(DenseData):
         """
         save = kwargs.get('save', None)
         tidx = time if save else t
-        _indices = DenseData._indices(**kwargs)
+        _indices = Function._indices(**kwargs)
         return tuple([tidx] + list(_indices))
 
     @property
@@ -754,9 +753,9 @@ class TimeData(DenseData):
         return self.diff(_t, _t).as_finite_difference(indt)
 
 
-class CompositeData(DenseData):
+class CompositeData(Function):
     """
-    Base class for DenseData classes that have DenseData children
+    Base class for Function classes that have Function children
     """
 
     is_CompositeData = True
@@ -796,11 +795,11 @@ class Object(ObjectArgProvider):
 # - To override SymPy caching behaviour
 
 
-class IndexedData(IndexedBase):
+class IndexedData(sympy.IndexedBase):
     """Wrapper class that inserts a pointer to the symbolic data object"""
 
     def __new__(cls, label, shape=None, function=None):
-        obj = IndexedBase.__new__(cls, label, shape)
+        obj = sympy.IndexedBase.__new__(cls, label, shape)
         obj.function = function
         return obj
 

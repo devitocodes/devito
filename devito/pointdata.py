@@ -1,12 +1,11 @@
 from collections import OrderedDict
-
-from sympy import Function, Matrix, symbols
+import sympy
 
 from devito.cgen_utils import INT, FLOAT
 from devito.dimension import d, p, t, time, x, y, z
 from devito.dse.inspection import indexify, retrieve_indexed
 from devito.dse.extended_sympy import Eq
-from devito.interfaces import DenseData, CompositeData
+from devito.interfaces import Function, CompositeData
 from devito.logger import error
 
 __all__ = ['PointData']
@@ -35,9 +34,9 @@ class PointData(CompositeData):
             super(PointData, self).__init__(self, *args, **kwargs)
 
             # Allocate and copy coordinate data
-            self.coordinates = DenseData(name='%s_coords' % self.name,
-                                         dimensions=[self.indices[1], d],
-                                         shape=(self.npoint, self.ndim))
+            self.coordinates = Function(name='%s_coords' % self.name,
+                                        dimensions=[self.indices[1], d],
+                                        shape=(self.npoint, self.ndim))
             self._children.append(self.coordinates)
             coordinates = kwargs.get('coordinates', None)
             if coordinates is not None:
@@ -48,7 +47,7 @@ class PointData(CompositeData):
         npoint = kwargs.get('npoint')
         kwargs['shape'] = (nt, npoint)
 
-        return DenseData.__new__(cls, *args, **kwargs)
+        return Function.__new__(cls, *args, **kwargs)
 
     @classmethod
     def _indices(cls, **kwargs):
@@ -69,38 +68,38 @@ class PointData(CompositeData):
         :returns: List of coefficients, eg. [b_11, b_12, b_21, b_22]
         """
         # Grid indices corresponding to the corners of the cell
-        x1, y1, z1, x2, y2, z2 = symbols('x1, y1, z1, x2, y2, z2')
+        x1, y1, z1, x2, y2, z2 = sympy.symbols('x1, y1, z1, x2, y2, z2')
         # Coordinate values of the sparse point
         px, py, pz = self.point_symbols
         if self.ndim == 2:
-            A = Matrix([[1, x1, y1, x1*y1],
-                        [1, x1, y2, x1*y2],
-                        [1, x2, y1, x2*y1],
-                        [1, x2, y2, x2*y2]])
+            A = sympy.Matrix([[1, x1, y1, x1*y1],
+                              [1, x1, y2, x1*y2],
+                              [1, x2, y1, x2*y1],
+                              [1, x2, y2, x2*y2]])
 
-            p = Matrix([[1],
-                        [px],
-                        [py],
-                        [px*py]])
+            p = sympy.Matrix([[1],
+                              [px],
+                              [py],
+                              [px*py]])
 
         elif self.ndim == 3:
-            A = Matrix([[1, x1, y1, z1, x1*y1, x1*z1, y1*z1, x1*y1*z1],
-                        [1, x1, y2, z1, x1*y2, x1*z1, y2*z1, x1*y2*z1],
-                        [1, x2, y1, z1, x2*y1, x2*z1, y2*z1, x2*y1*z1],
-                        [1, x1, y1, z2, x1*y1, x1*z2, y1*z2, x1*y1*z2],
-                        [1, x2, y2, z1, x2*y2, x2*z1, y2*z1, x2*y2*z1],
-                        [1, x1, y2, z2, x1*y2, x1*z2, y2*z2, x1*y2*z2],
-                        [1, x2, y1, z2, x2*y1, x2*z2, y1*z2, x2*y1*z2],
-                        [1, x2, y2, z2, x2*y2, x2*z2, y2*z2, x2*y2*z2]])
+            A = sympy.Matrix([[1, x1, y1, z1, x1*y1, x1*z1, y1*z1, x1*y1*z1],
+                              [1, x1, y2, z1, x1*y2, x1*z1, y2*z1, x1*y2*z1],
+                              [1, x2, y1, z1, x2*y1, x2*z1, y2*z1, x2*y1*z1],
+                              [1, x1, y1, z2, x1*y1, x1*z2, y1*z2, x1*y1*z2],
+                              [1, x2, y2, z1, x2*y2, x2*z1, y2*z1, x2*y2*z1],
+                              [1, x1, y2, z2, x1*y2, x1*z2, y2*z2, x1*y2*z2],
+                              [1, x2, y1, z2, x2*y1, x2*z2, y1*z2, x2*y1*z2],
+                              [1, x2, y2, z2, x2*y2, x2*z2, y2*z2, x2*y2*z2]])
 
-            p = Matrix([[1],
-                        [px],
-                        [py],
-                        [pz],
-                        [px*py],
-                        [px*pz],
-                        [py*pz],
-                        [px*py*pz]])
+            p = sympy.Matrix([[1],
+                              [px],
+                              [py],
+                              [pz],
+                              [px*py],
+                              [px*pz],
+                              [py*pz],
+                              [px*py*pz]])
         else:
             error('Point interpolation only supported for 2D and 3D')
             raise NotImplementedError('Interpolation coefficients not '
@@ -116,7 +115,7 @@ class PointData(CompositeData):
     @property
     def point_symbols(self):
         """Symbol for coordinate value in each dimension of the point"""
-        return symbols('px, py, pz')
+        return sympy.symbols('px, py, pz')
 
     @property
     def point_increments(self):
@@ -142,7 +141,7 @@ class PointData(CompositeData):
     def coordinate_indices(self):
         """Symbol for each grid index according to the coordinates"""
         indices = (x, y, z)
-        return tuple([INT(Function('floor')(c / i.spacing))
+        return tuple([INT(sympy.Function('floor')(c / i.spacing))
                       for c, i in zip(self.coordinate_symbols, indices[:self.ndim])])
 
     @property

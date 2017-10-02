@@ -22,7 +22,7 @@ class ConstantData(with_metaclass(_BackendSelector, interfaces.ConstantData)):
     pass
 
 
-class DenseData(with_metaclass(_BackendSelector, interfaces.DenseData)):
+class Function(with_metaclass(_BackendSelector, interfaces.Function)):
     pass
 
 

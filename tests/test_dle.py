@@ -11,7 +11,7 @@ from conftest import EVAL
 
 from devito.dle import retrieve_iteration_tree, transform
 from devito.dle.backends import DevitoRewriter as Rewriter
-from devito import Grid, DenseData, TimeData, Eq, Operator, t, x, y
+from devito import Grid, Function, TimeData, Eq, Operator, t, x, y
 from devito.nodes import ELEMENTAL, Expression, Callable, Iteration, List, tagger
 from devito.visitors import (ResolveIterationVariable, SubstituteExpression,
                              Transformer, FindNodes)
@@ -103,10 +103,10 @@ def complex_function(a, b, c, d, exprs, iters):
 
 def _new_operator1(shape, **kwargs):
     grid = Grid(shape=shape, dtype=np.int32)
-    infield = DenseData(name='infield', grid=grid)
+    infield = Function(name='infield', grid=grid)
     infield.data[:] = np.arange(reduce(mul, shape), dtype=np.int32).reshape(shape)
 
-    outfield = DenseData(name='outfield', grid=grid)
+    outfield = Function(name='outfield', grid=grid)
 
     stencil = Eq(outfield.indexify(), outfield.indexify() + infield.indexify()*3.0)
 
