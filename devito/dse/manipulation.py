@@ -10,7 +10,7 @@ from sympy import collect, collect_const, flatten
 from devito.dse.extended_sympy import Add, Eq, Mul
 from devito.dse.inspection import count, estimate_cost, retrieve_indexed
 from devito.dse.graph import temporaries_graph
-from devito.dse.queries import q_indexed, q_op, q_leaf
+from devito.dse.queries import q_op, q_leaf
 from devito.interfaces import Indexed, TensorFunction
 from devito.tools import as_tuple
 
@@ -24,7 +24,7 @@ def freeze_expression(expr):
     Reconstruct ``expr`` turning all :class:`sympy.Mul` and :class:`sympy.Add`
     into, respectively, :class:`devito.Mul` and :class:`devito.Add`.
     """
-    if expr.is_Atom or q_indexed(expr):
+    if expr.is_Atom or expr.is_Indexed:
         return expr
     elif expr.is_Add:
         rebuilt_args = [freeze_expression(e) for e in expr.args]
@@ -77,7 +77,7 @@ def collect_nested(expr, aggressive=False):
 
         if expr.is_Number or expr.is_Symbol:
             return expr, [expr]
-        elif q_indexed(expr) or expr.is_Atom:
+        elif expr.is_Indexed or expr.is_Atom:
             return expr, []
         elif expr.is_Add:
             rebuilt, candidates = zip(*[run(arg) for arg in expr.args])
@@ -156,7 +156,7 @@ def xreplace_constrained(exprs, make, rule=None, costmodel=lambda e: True, repea
         replace.c = 0  # Unique identifier for new temporaries
 
     def run(expr):
-        if expr.is_Atom or q_indexed(expr):
+        if expr.is_Atom or expr.is_Indexed:
             return expr, rule(expr)
         elif expr.is_Pow:
             base, flag = run(expr.base)

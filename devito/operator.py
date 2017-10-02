@@ -11,7 +11,7 @@ from devito.cgen_utils import Allocator
 from devito.compiler import jit_compile, load
 from devito.dimension import time, Dimension
 from devito.dle import compose_nodes, filter_iterations, transform
-from devito.dse import clusterize, indexify, rewrite, q_indexed, retrieve_terminals
+from devito.dse import clusterize, indexify, rewrite, retrieve_terminals
 from devito.interfaces import Forward, Backward, CompositeData, Object
 from devito.logger import bar, error, info
 from devito.nodes import Element, Expression, Function, Iteration, List, LocalExpression
@@ -423,9 +423,9 @@ class Operator(Function):
                 pass
         input = filter_sorted(input, key=attrgetter('name'))
 
-        output = [i.lhs.base.function for i in expressions if q_indexed(i.lhs)]
+        output = [i.lhs.base.function for i in expressions if i.lhs.is_Indexed]
 
-        indexeds = [i for i in terms if q_indexed(i)]
+        indexeds = [i for i in terms if i.is_Indexed]
         dimensions = []
         for indexed in indexeds:
             for i in indexed.indices:
