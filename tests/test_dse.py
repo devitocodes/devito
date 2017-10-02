@@ -62,7 +62,7 @@ def test_acoustic_rewrite_basic():
 
 # TTI
 
-def tti_operator(dse=False):
+def tti_operator(dse=False, space_order=4):
     nrec = 101
     t0 = 0.0
     tn = 250.
@@ -91,7 +91,7 @@ def tti_operator(dse=False):
     rec.coordinates.data[:, 1:] = src.coordinates.data[0, 1:]
 
     return AnisotropicWaveSolver(model, source=src, receiver=rec,
-                                 time_order=2, space_order=4, dse=dse)
+                                 time_order=2, space_order=space_order, dse=dse)
 
 
 @pytest.fixture(scope="session")
@@ -153,6 +153,16 @@ def test_tti_rewrite_aggressive(tti_nodse):
 
     assert np.allclose(tti_nodse[0].data, v.data, atol=10e-1)
     assert np.allclose(tti_nodse[1].data, rec.data, atol=10e-1)
+
+
+@pytest.mark.parametrize('kernel,space_order,expected', [
+    ('shifted', 8, 364), ('shifted', 16, 830),
+    ('centered', 8, 170), ('centered', 16, 306)
+])
+def test_tti_rewrite_aggressive_opcounts(kernel, space_order, expected):
+    operator = tti_operator(dse='aggressive', space_order=space_order)
+    _, _, _, summary = operator.forward(kernel=kernel, save=False)
+    assert summary['main'].ops == expected
 
 
 # DSE manipulation
