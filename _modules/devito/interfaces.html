@@ -165,7 +165,7 @@
 
 <span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
 <span class="kn">import</span> <span class="nn">sympy</span>
-<span class="kn">from</span> <span class="nn">sympy</span> <span class="k">import</span> <span class="n">Function</span><span class="p">,</span> <span class="n">IndexedBase</span><span class="p">,</span> <span class="n">as_finite_diff</span>
+<span class="kn">from</span> <span class="nn">sympy</span> <span class="k">import</span> <span class="n">Function</span><span class="p">,</span> <span class="n">IndexedBase</span>
 <span class="kn">from</span> <span class="nn">sympy.abc</span> <span class="k">import</span> <span class="n">s</span>
 
 <span class="kn">from</span> <span class="nn">devito.dimension</span> <span class="k">import</span> <span class="n">t</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">z</span><span class="p">,</span> <span class="n">time</span><span class="p">,</span> <span class="n">Dimension</span>
@@ -728,7 +728,7 @@
         <span class="n">width_h</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">space_order</span><span class="o">/</span><span class="mi">2</span><span class="p">)</span>
         <span class="n">indx</span> <span class="o">=</span> <span class="p">[(</span><span class="n">x</span> <span class="o">+</span> <span class="n">i</span> <span class="o">*</span> <span class="n">x</span><span class="o">.</span><span class="n">spacing</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="o">-</span><span class="n">width_h</span><span class="p">,</span> <span class="n">width_h</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)]</span>
 
-        <span class="k">return</span> <span class="n">as_finite_diff</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">diff</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">x</span><span class="p">),</span> <span class="n">indx</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">diff</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">x</span><span class="p">)</span><span class="o">.</span><span class="n">as_finite_difference</span><span class="p">(</span><span class="n">indx</span><span class="p">)</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">dy2</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
@@ -736,7 +736,7 @@
         <span class="n">width_h</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">space_order</span><span class="o">/</span><span class="mi">2</span><span class="p">)</span>
         <span class="n">indy</span> <span class="o">=</span> <span class="p">[(</span><span class="n">y</span> <span class="o">+</span> <span class="n">i</span> <span class="o">*</span> <span class="n">y</span><span class="o">.</span><span class="n">spacing</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="o">-</span><span class="n">width_h</span><span class="p">,</span> <span class="n">width_h</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)]</span>
 
-        <span class="k">return</span> <span class="n">as_finite_diff</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">diff</span><span class="p">(</span><span class="n">y</span><span class="p">,</span> <span class="n">y</span><span class="p">),</span> <span class="n">indy</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">diff</span><span class="p">(</span><span class="n">y</span><span class="p">,</span> <span class="n">y</span><span class="p">)</span><span class="o">.</span><span class="n">as_finite_difference</span><span class="p">(</span><span class="n">indy</span><span class="p">)</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">dz2</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
@@ -744,7 +744,7 @@
         <span class="n">width_h</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">space_order</span><span class="o">/</span><span class="mi">2</span><span class="p">)</span>
         <span class="n">indz</span> <span class="o">=</span> <span class="p">[(</span><span class="n">z</span> <span class="o">+</span> <span class="n">i</span> <span class="o">*</span> <span class="n">z</span><span class="o">.</span><span class="n">spacing</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="o">-</span><span class="n">width_h</span><span class="p">,</span> <span class="n">width_h</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)]</span>
 
-        <span class="k">return</span> <span class="n">as_finite_diff</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">diff</span><span class="p">(</span><span class="n">z</span><span class="p">,</span> <span class="n">z</span><span class="p">),</span> <span class="n">indz</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">diff</span><span class="p">(</span><span class="n">z</span><span class="p">,</span> <span class="n">z</span><span class="p">)</span><span class="o">.</span><span class="n">as_finite_difference</span><span class="p">(</span><span class="n">indz</span><span class="p">)</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">dx2y2</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
@@ -767,7 +767,7 @@
         <span class="n">width_h</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">space_order</span> <span class="o">/</span> <span class="mi">2</span><span class="p">),</span> <span class="mi">2</span><span class="p">)</span>
         <span class="n">indx</span> <span class="o">=</span> <span class="p">[(</span><span class="n">x</span> <span class="o">+</span> <span class="n">i</span> <span class="o">*</span> <span class="n">x</span><span class="o">.</span><span class="n">spacing</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="o">-</span><span class="n">width_h</span><span class="p">,</span> <span class="n">width_h</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)]</span>
 
-        <span class="k">return</span> <span class="n">as_finite_diff</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">diff</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">x</span><span class="p">),</span> <span class="n">indx</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">diff</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">x</span><span class="p">)</span><span class="o">.</span><span class="n">as_finite_difference</span><span class="p">(</span><span class="n">indx</span><span class="p">)</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">dy4</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
@@ -775,7 +775,7 @@
         <span class="n">width_h</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">space_order</span> <span class="o">/</span> <span class="mi">2</span><span class="p">),</span> <span class="mi">2</span><span class="p">)</span>
         <span class="n">indy</span> <span class="o">=</span> <span class="p">[(</span><span class="n">y</span> <span class="o">+</span> <span class="n">i</span> <span class="o">*</span> <span class="n">y</span><span class="o">.</span><span class="n">spacing</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="o">-</span><span class="n">width_h</span><span class="p">,</span> <span class="n">width_h</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)]</span>
 
-        <span class="k">return</span> <span class="n">as_finite_diff</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">diff</span><span class="p">(</span><span class="n">y</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">y</span><span class="p">),</span> <span class="n">indy</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">diff</span><span class="p">(</span><span class="n">y</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">y</span><span class="p">)</span><span class="o">.</span><span class="n">as_finite_difference</span><span class="p">(</span><span class="n">indy</span><span class="p">)</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">dz4</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
@@ -783,7 +783,7 @@
         <span class="n">width_h</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">space_order</span> <span class="o">/</span> <span class="mi">2</span><span class="p">),</span> <span class="mi">2</span><span class="p">)</span>
         <span class="n">indz</span> <span class="o">=</span> <span class="p">[(</span><span class="n">z</span> <span class="o">+</span> <span class="n">i</span> <span class="o">*</span> <span class="n">z</span><span class="o">.</span><span class="n">spacing</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="o">-</span><span class="n">width_h</span><span class="p">,</span> <span class="n">width_h</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)]</span>
 
-        <span class="k">return</span> <span class="n">as_finite_diff</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">diff</span><span class="p">(</span><span class="n">z</span><span class="p">,</span> <span class="n">z</span><span class="p">,</span> <span class="n">z</span><span class="p">,</span> <span class="n">z</span><span class="p">),</span> <span class="n">indz</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">diff</span><span class="p">(</span><span class="n">z</span><span class="p">,</span> <span class="n">z</span><span class="p">,</span> <span class="n">z</span><span class="p">,</span> <span class="n">z</span><span class="p">)</span><span class="o">.</span><span class="n">as_finite_difference</span><span class="p">(</span><span class="n">indz</span><span class="p">)</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">laplace</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
@@ -916,7 +916,7 @@
             <span class="n">width</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">time_order</span> <span class="o">/</span> <span class="mi">2</span><span class="p">)</span>
             <span class="n">indices</span> <span class="o">=</span> <span class="p">[(</span><span class="n">_t</span> <span class="o">+</span> <span class="n">i</span> <span class="o">*</span> <span class="n">s</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="o">-</span><span class="n">width</span><span class="p">,</span> <span class="n">width</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)]</span>
 
-        <span class="k">return</span> <span class="n">as_finite_diff</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">diff</span><span class="p">(</span><span class="n">_t</span><span class="p">),</span> <span class="n">indices</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">diff</span><span class="p">(</span><span class="n">_t</span><span class="p">)</span><span class="o">.</span><span class="n">as_finite_difference</span><span class="p">(</span><span class="n">indices</span><span class="p">)</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">dt2</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
@@ -925,7 +925,7 @@
         <span class="n">width_t</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">time_order</span> <span class="o">/</span> <span class="mi">2</span><span class="p">)</span>
         <span class="n">indt</span> <span class="o">=</span> <span class="p">[(</span><span class="n">_t</span> <span class="o">+</span> <span class="n">i</span> <span class="o">*</span> <span class="n">s</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="o">-</span><span class="n">width_t</span><span class="p">,</span> <span class="n">width_t</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)]</span>
 
-        <span class="k">return</span> <span class="n">as_finite_diff</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">diff</span><span class="p">(</span><span class="n">_t</span><span class="p">,</span> <span class="n">_t</span><span class="p">),</span> <span class="n">indt</span><span class="p">)</span></div>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">diff</span><span class="p">(</span><span class="n">_t</span><span class="p">,</span> <span class="n">_t</span><span class="p">)</span><span class="o">.</span><span class="n">as_finite_difference</span><span class="p">(</span><span class="n">indt</span><span class="p">)</span></div>
 
 
 <span class="k">class</span> <span class="nc">CompositeData</span><span class="p">(</span><span class="n">DenseData</span><span class="p">):</span>
@@ -1007,6 +1007,14 @@
 
 
 <div class="viewcode-block" id="Indexed"><a class="viewcode-back" href="../../devito.html#devito.interfaces.Indexed">[docs]</a><span class="k">class</span> <span class="nc">Indexed</span><span class="p">(</span><span class="n">sympy</span><span class="o">.</span><span class="n">Indexed</span><span class="p">):</span>
+
+    <span class="c1"># The two type flags have changed in upstream sympy as of version 1.1,</span>
+    <span class="c1"># but the below interpretation is used throughout the DSE and DLE to</span>
+    <span class="c1"># identify Indexed objects. With the sympy-1.1 changes a new flag</span>
+    <span class="c1"># obj.is_Indexed was introduced which should be preferred, but the</span>
+    <span class="c1"># required changes are cumbersome and many...</span>
+    <span class="n">is_Symbol</span> <span class="o">=</span> <span class="kc">False</span>
+    <span class="n">is_Atom</span> <span class="o">=</span> <span class="kc">False</span>
 
     <span class="k">def</span> <span class="nf">_hashable_content</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">return</span> <span class="nb">super</span><span class="p">(</span><span class="n">Indexed</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">_hashable_content</span><span class="p">()</span> <span class="o">+</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">base</span><span class="o">.</span><span class="n">function</span><span class="p">,)</span></div>

@@ -168,7 +168,7 @@
 
 <span class="kn">from</span> <span class="nn">devito.exceptions</span> <span class="k">import</span> <span class="n">DSEException</span>
 <span class="kn">from</span> <span class="nn">devito.dse.search</span> <span class="k">import</span> <span class="n">retrieve_indexed</span>
-<span class="kn">from</span> <span class="nn">devito.dse.queries</span> <span class="k">import</span> <span class="n">q_indexed</span><span class="p">,</span> <span class="n">q_indirect</span>
+<span class="kn">from</span> <span class="nn">devito.dse.queries</span> <span class="k">import</span> <span class="n">q_indirect</span>
 <span class="kn">from</span> <span class="nn">devito.stencil</span> <span class="k">import</span> <span class="n">Stencil</span>
 
 <span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;collect&#39;</span><span class="p">]</span>
@@ -206,7 +206,7 @@
     <span class="c1"># - that are non-scalar</span>
     <span class="n">candidates</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">()</span>
     <span class="k">for</span> <span class="n">expr</span> <span class="ow">in</span> <span class="n">exprs</span><span class="p">:</span>
-        <span class="k">if</span> <span class="n">q_indexed</span><span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="n">lhs</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">expr</span><span class="o">.</span><span class="n">lhs</span><span class="o">.</span><span class="n">is_Indexed</span><span class="p">:</span>
             <span class="k">continue</span>
         <span class="n">indexeds</span> <span class="o">=</span> <span class="n">retrieve_indexed</span><span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="n">rhs</span><span class="p">,</span> <span class="n">mode</span><span class="o">=</span><span class="s1">&#39;all&#39;</span><span class="p">)</span>
         <span class="k">if</span> <span class="n">indexeds</span> <span class="ow">and</span> <span class="ow">not</span> <span class="nb">any</span><span class="p">(</span><span class="n">q_indirect</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">indexeds</span><span class="p">):</span>

@@ -165,7 +165,7 @@
 <span class="kn">import</span> <span class="nn">cgen</span> <span class="k">as</span> <span class="nn">c</span>
 <span class="kn">from</span> <span class="nn">mpmath.libmp</span> <span class="k">import</span> <span class="n">prec_to_dps</span><span class="p">,</span> <span class="n">to_str</span>
 <span class="kn">from</span> <span class="nn">sympy</span> <span class="k">import</span> <span class="n">Eq</span><span class="p">,</span> <span class="n">Function</span>
-<span class="kn">from</span> <span class="nn">sympy.printing.ccode</span> <span class="k">import</span> <span class="n">CCodePrinter</span>
+<span class="kn">from</span> <span class="nn">sympy.printing.ccode</span> <span class="k">import</span> <span class="n">C99CodePrinter</span>
 
 
 <div class="viewcode-block" id="Allocator"><a class="viewcode-back" href="../../devito.html#devito.cgen_utils.Allocator">[docs]</a><span class="k">class</span> <span class="nc">Allocator</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
@@ -219,7 +219,7 @@
 
 <span class="c1"># Utils to print C strings</span>
 
-<div class="viewcode-block" id="CodePrinter"><a class="viewcode-back" href="../../devito.html#devito.cgen_utils.CodePrinter">[docs]</a><span class="k">class</span> <span class="nc">CodePrinter</span><span class="p">(</span><span class="n">CCodePrinter</span><span class="p">):</span>
+<div class="viewcode-block" id="CodePrinter"><a class="viewcode-back" href="../../devito.html#devito.cgen_utils.CodePrinter">[docs]</a><span class="k">class</span> <span class="nc">CodePrinter</span><span class="p">(</span><span class="n">C99CodePrinter</span><span class="p">):</span>
 
     <span class="n">custom_functions</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;INT&#39;</span><span class="p">:</span> <span class="s1">&#39;(int)&#39;</span><span class="p">,</span> <span class="s1">&#39;FLOAT&#39;</span><span class="p">:</span> <span class="s1">&#39;(float)&#39;</span><span class="p">}</span>
 
@@ -228,7 +228,7 @@
 <span class="sd">    :param settings: A dictionary containing relevant settings</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">settings</span><span class="o">=</span><span class="p">{}):</span>
-        <span class="n">CCodePrinter</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">settings</span><span class="p">)</span>
+        <span class="n">C99CodePrinter</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">settings</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">known_functions</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">custom_functions</span><span class="p">)</span>
 
     <span class="k">def</span> <span class="nf">_print_Indexed</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">expr</span><span class="p">):</span>

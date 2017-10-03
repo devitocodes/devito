@@ -938,7 +938,7 @@ derived time dimensions symbol. For example:</p>
 <dl class="class">
 <dt id="devito.cgen_utils.CodePrinter">
 <em class="property">class </em><code class="descclassname">devito.cgen_utils.</code><code class="descname">CodePrinter</code><span class="sig-paren">(</span><em>settings={}</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/cgen_utils.html#CodePrinter"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.cgen_utils.CodePrinter" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">sympy.printing.ccode.CCodePrinter</span></code></p>
+<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">sympy.printing.ccode.C99CodePrinter</span></code></p>
 <dl class="attribute">
 <dt id="devito.cgen_utils.CodePrinter.custom_functions">
 <code class="descname">custom_functions</code><em class="property"> = {'INT': '(int)', 'FLOAT': '(float)'}</em><a class="headerlink" href="#devito.cgen_utils.CodePrinter.custom_functions" title="Permalink to this definition">¶</a></dt>
@@ -1350,6 +1350,16 @@ results in:
 <dl class="attribute">
 <dt id="devito.interfaces.Indexed.default_assumptions">
 <code class="descname">default_assumptions</code><em class="property"> = {'commutative': True}</em><a class="headerlink" href="#devito.interfaces.Indexed.default_assumptions" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="devito.interfaces.Indexed.is_Atom">
+<code class="descname">is_Atom</code><em class="property"> = False</em><a class="headerlink" href="#devito.interfaces.Indexed.is_Atom" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="devito.interfaces.Indexed.is_Symbol">
+<code class="descname">is_Symbol</code><em class="property"> = False</em><a class="headerlink" href="#devito.interfaces.Indexed.is_Symbol" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 <dl class="attribute">

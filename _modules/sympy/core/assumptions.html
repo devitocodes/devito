@@ -226,8 +226,10 @@
 <span class="sd">        divisor other than ``1`` or the number itself.  See [4]_.</span>
 
 <span class="sd">    zero</span>
+<span class="sd">        object has the value of ``0``.</span>
+
 <span class="sd">    nonzero</span>
-<span class="sd">        object is zero (not zero).</span>
+<span class="sd">        object is a real number that is not zero.</span>
 
 <span class="sd">    rational</span>
 <span class="sd">        object can have only values from the set</span>
@@ -246,13 +248,13 @@
 
 <span class="sd">    finite</span>
 <span class="sd">    infinite</span>
-<span class="sd">        object absolute value is bounded (is value is</span>
-<span class="sd">        arbitrarily large).  See [7]_, [8]_, [9]_.</span>
+<span class="sd">        object absolute value is bounded (arbitrarily large).</span>
+<span class="sd">        See [7]_, [8]_, [9]_.</span>
 
 <span class="sd">    negative</span>
 <span class="sd">    nonnegative</span>
-<span class="sd">        object can have only negative (only</span>
-<span class="sd">        nonnegative) values [1]_.</span>
+<span class="sd">        object can have only negative (nonnegative)</span>
+<span class="sd">        values [1]_.</span>
 
 <span class="sd">    positive</span>
 <span class="sd">    nonpositive</span>
@@ -372,7 +374,7 @@
     <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">facts</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
         <span class="c1"># save a copy of the facts dict</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="n">facts</span><span class="p">:</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">_generator</span> <span class="o">=</span> <span class="p">{};</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_generator</span> <span class="o">=</span> <span class="p">{}</span>
         <span class="k">elif</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">facts</span><span class="p">,</span> <span class="n">FactKB</span><span class="p">):</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_generator</span> <span class="o">=</span> <span class="n">facts</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
         <span class="k">else</span><span class="p">:</span>

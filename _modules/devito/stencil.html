@@ -164,7 +164,6 @@
 
 <span class="kn">from</span> <span class="nn">sympy</span> <span class="k">import</span> <span class="n">Eq</span>
 
-<span class="kn">from</span> <span class="nn">devito.dse.queries</span> <span class="k">import</span> <span class="n">q_indexed</span>
 <span class="kn">from</span> <span class="nn">devito.dse.search</span> <span class="k">import</span> <span class="n">retrieve_indexed</span><span class="p">,</span> <span class="n">retrieve_terminals</span>
 <span class="kn">from</span> <span class="nn">devito.exceptions</span> <span class="k">import</span> <span class="n">StencilOperationError</span>
 <span class="kn">from</span> <span class="nn">devito.dimension</span> <span class="k">import</span> <span class="n">Dimension</span>
@@ -221,7 +220,7 @@
 
         <span class="c1"># Collect all indexed objects appearing in /expr/</span>
         <span class="n">terminals</span> <span class="o">=</span> <span class="n">retrieve_terminals</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">mode</span><span class="o">=</span><span class="s1">&#39;all&#39;</span><span class="p">)</span>
-        <span class="n">indexeds</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">terminals</span> <span class="k">if</span> <span class="n">q_indexed</span><span class="p">(</span><span class="n">i</span><span class="p">)]</span>
+        <span class="n">indexeds</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">terminals</span> <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">is_Indexed</span><span class="p">]</span>
         <span class="n">indexeds</span> <span class="o">+=</span> <span class="n">flatten</span><span class="p">([</span><span class="n">retrieve_indexed</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">e</span><span class="o">.</span><span class="n">indices</span><span class="p">]</span> <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">indexeds</span><span class="p">)</span>
 
         <span class="c1"># Enforce deterministic dimension ordering...</span>
@@ -229,7 +228,7 @@
         <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">terminals</span><span class="p">:</span>
             <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">e</span><span class="p">,</span> <span class="n">Dimension</span><span class="p">):</span>
                 <span class="n">dims</span><span class="p">[(</span><span class="n">e</span><span class="p">,)]</span> <span class="o">=</span> <span class="n">e</span>
-            <span class="k">elif</span> <span class="n">q_indexed</span><span class="p">(</span><span class="n">e</span><span class="p">):</span>
+            <span class="k">elif</span> <span class="n">e</span><span class="o">.</span><span class="n">is_Indexed</span><span class="p">:</span>
                 <span class="n">d</span> <span class="o">=</span> <span class="p">[]</span>
                 <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="n">e</span><span class="o">.</span><span class="n">indices</span><span class="p">:</span>
                     <span class="n">found</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">a</span><span class="o">.</span><span class="n">free_symbols</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">Dimension</span><span class="p">)]</span>
