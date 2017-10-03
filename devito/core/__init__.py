@@ -6,5 +6,5 @@ backend as well) are used to run Devito on standard CPU architectures.
 
 # The following used by backends.backendSelector
 from devito.interfaces import Constant, Function, TimeFunction  # noqa
-from devito.pointdata import PointData  # noqa
+from devito.sparsefunction import SparseFunction  # noqa
 from devito.core.operator import Operator  # noqa

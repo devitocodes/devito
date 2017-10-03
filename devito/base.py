@@ -6,7 +6,7 @@ from sympy.core.compatibility import with_metaclass
 
 from devito.backends import _BackendSelector
 import devito.interfaces as interfaces
-import devito.pointdata as pointdata
+import devito.sparsefunction as sparsefunction
 import devito.operator as operator
 
 
@@ -30,7 +30,7 @@ class TimeFunction(with_metaclass(_BackendSelector, interfaces.TimeFunction)):
     pass
 
 
-class PointData(with_metaclass(_BackendSelector, pointdata.PointData)):
+class SparseFunction(with_metaclass(_BackendSelector, sparsefunction.SparseFunction)):
     pass
 
 

@@ -12,7 +12,7 @@ from devito.compiler import jit_compile, load
 from devito.dimension import time, Dimension
 from devito.dle import compose_nodes, filter_iterations, transform
 from devito.dse import clusterize, indexify, rewrite, retrieve_terminals
-from devito.interfaces import Forward, Backward, CompositeData, Object
+from devito.interfaces import Forward, Backward, CompositeFunction, Object
 from devito.logger import bar, error, info
 from devito.nodes import Element, Expression, Callable, Iteration, List, LocalExpression
 from devito.parameters import configuration
@@ -129,10 +129,10 @@ class Operator(Callable):
             any remaining arguments
         """
         new_params = {}
-        # If we've been passed CompositeData objects as kwargs, they might have children
-        # that need to be substituted as well.
+        # If we've been passed CompositeFunction objects as kwargs,
+        # they might have children that need to be substituted as well.
         for k, v in kwargs.items():
-            if isinstance(v, CompositeData):
+            if isinstance(v, CompositeFunction):
                 orig_param_l = [i for i in self.input if i.name == k]
                 # If I have been passed a parameter, I must have seen it before
                 if len(orig_param_l) == 0:

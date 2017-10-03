@@ -3,7 +3,7 @@ import pytest
 from conftest import skipif_yask
 
 from devito.cgen_utils import FLOAT
-from devito import Grid, Operator, Function, PointData, x, y, z
+from devito import Grid, Operator, Function, SparseFunction, x, y, z
 
 
 @pytest.fixture
@@ -29,7 +29,7 @@ def points(ranges, npoints, name='points'):
     """Create a set of sparse points from a set of coordinate
     ranges for each spatial dimension.
     """
-    points = PointData(name=name, nt=1, npoint=npoints, ndim=len(ranges))
+    points = SparseFunction(name=name, nt=1, npoint=npoints, ndim=len(ranges))
     for i, r in enumerate(ranges):
         points.coordinates.data[:, i] = np.linspace(r[0], r[1], npoints)
     return points

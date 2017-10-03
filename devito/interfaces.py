@@ -89,8 +89,8 @@ class Basic(object):
     is_TensorFunction = False
     is_Function = False
     is_TimeFunction = False
-    is_CompositeData = False
-    is_PointData = False
+    is_CompositeFunction = False
+    is_SparseFunction = False
 
     # Basic symbolic object properties
     is_Scalar = False
@@ -168,9 +168,9 @@ class AbstractSymbol(sympy.Function, CachedSymbol):
                                                               |
                                                 ------------------------------
                                                 |             |              |
-                                            Function      TimeFunction  CompositeData
+                                            Function      TimeFunction  CompositeFunction
                                                                              |
-                                                                         PointData
+                                                                         SparseFunction
 
     The key difference between a :class:`SymbolicFunction` and a :class:`SymbolicData`
     is that the former is created directly by the user and employed in some
@@ -758,15 +758,15 @@ class TimeFunction(Function):
         return self.diff(_t, _t).as_finite_difference(indt)
 
 
-class CompositeData(Function):
+class CompositeFunction(Function):
     """
     Base class for Function classes that have Function children
     """
 
-    is_CompositeData = True
+    is_CompositeFunction = True
 
     def __init__(self, *args, **kwargs):
-        super(CompositeData, self).__init__(self, *args, **kwargs)
+        super(CompositeFunction, self).__init__(self, *args, **kwargs)
         self._children = []
 
     @property

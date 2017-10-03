@@ -8,7 +8,7 @@ import numpy as np
 import pytest
 
 from devito import (clear_cache, Grid, Eq, Operator, Constant, Function,
-                    TimeFunction, PointData, Dimension, time, x, y, z, configuration)
+                    TimeFunction, SparseFunction, Dimension, time, x, y, z, configuration)
 from devito.foreign import Operator as OperatorForeign
 from devito.dle import retrieve_iteration_tree
 from devito.visitors import IsPerfectIteration
@@ -307,10 +307,10 @@ class TestArguments(object):
         ndim = len(original_coords)
         u = TimeFunction(name='u', time_order=2, space_order=2,
                          shape=(10, 10), dimensions=(i, j))
-        src1 = PointData(name='src1', dimensions=[time, p_dim], npoint=1, nt=10,
-                         ndim=ndim, coordinates=original_coords)
-        src2 = PointData(name='src1', dimensions=[time, p_dim], npoint=1, nt=10,
-                         ndim=ndim, coordinates=new_coords)
+        src1 = SparseFunction(name='src1', dimensions=[time, p_dim], npoint=1,
+                              nt=10, ndim=ndim, coordinates=original_coords)
+        src2 = SparseFunction(name='src1', dimensions=[time, p_dim], npoint=1,
+                              nt=10, ndim=ndim, coordinates=new_coords)
         op = Operator(src1.inject(u, src1))
 
         # Move the source from the location where the setup put it so we can test

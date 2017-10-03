@@ -5,13 +5,13 @@ from devito.cgen_utils import INT, FLOAT
 from devito.dimension import d, p, t, time, x, y, z
 from devito.dse.inspection import indexify, retrieve_indexed
 from devito.dse.extended_sympy import Eq
-from devito.interfaces import Function, CompositeData
+from devito.interfaces import Function, CompositeFunction
 from devito.logger import error
 
-__all__ = ['PointData']
+__all__ = ['SparseFunction']
 
 
-class PointData(CompositeData):
+class SparseFunction(CompositeFunction):
     """
     Data object for sparse point data that acts as a Function symbol
 
@@ -23,7 +23,7 @@ class PointData(CompositeData):
     :param dtype: Data type of the buffered data
     """
 
-    is_PointData = True
+    is_SparseFunction = True
 
     def __init__(self, *args, **kwargs):
         if not self._cached():
@@ -31,7 +31,7 @@ class PointData(CompositeData):
             self.npoint = kwargs.get('npoint')
             self.ndim = kwargs.get('ndim')
             kwargs['shape'] = (self.nt, self.npoint)
-            super(PointData, self).__init__(self, *args, **kwargs)
+            super(SparseFunction, self).__init__(self, *args, **kwargs)
 
             # Allocate and copy coordinate data
             self.coordinates = Function(name='%s_coords' % self.name,
@@ -222,11 +222,11 @@ class PointData(CompositeData):
                         for inc in self.point_increments]
 
         # Generate index substituions for all grid variables except
-        # the sparse `PointData` types
+        # the sparse `SparseFunction` types
         idx_subs = []
         for i, idx in enumerate(index_matrix):
             v_subs = [(v, v.base[v.indices[:-self.ndim] + idx])
-                      for v in variables if not v.base.function.is_PointData]
+                      for v in variables if not v.base.function.is_SparseFunction]
             idx_subs += [OrderedDict(v_subs)]
 
         # Substitute coordinate base symbols into the coefficients
