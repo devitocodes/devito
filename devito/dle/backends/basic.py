@@ -93,7 +93,7 @@ class BasicRewriter(AbstractRewriter):
                         args.append(("(%s*)%s" % (c.dtype_to_ctype(i.dtype), i.name), i))
                     elif i.is_TensorFunction:
                         args.append(("%s_vec" % i.name, i))
-                    elif i.is_ConstantData:
+                    elif i.is_Constant:
                         args.append((i.name, i))
 
                 # Retrieve scalar arguments

@@ -7,7 +7,7 @@ from conftest import EVAL, dims, dims_open, skipif_yask
 import numpy as np
 import pytest
 
-from devito import (clear_cache, Grid, Eq, Operator, ConstantData, Function,
+from devito import (clear_cache, Grid, Eq, Operator, Constant, Function,
                     TimeFunction, PointData, Dimension, time, x, y, z, configuration)
 from devito.foreign import Operator as OperatorForeign
 from devito.dle import retrieve_iteration_tree
@@ -173,10 +173,10 @@ class TestArithmetic(object):
         assert np.allclose(fa.data[1, 1:-1, 1:-1], result[1:-1, 1:-1], rtol=1e-12)
 
     def test_constant_time_dense(self):
-        """Test arithmetic between different data objects, namely ConstantData
+        """Test arithmetic between different data objects, namely Constant
         and Function."""
         i, j = dimify('i j')
-        const = ConstantData(name='truc', value=2.)
+        const = Constant(name='truc', value=2.)
         a = Function(name='a', shape=(20, 20), dimensions=(i, j))
         a.data[:] = 2.
         eqn = Eq(a, a + 2.*const)
@@ -185,7 +185,7 @@ class TestArithmetic(object):
         assert(np.allclose(a.data, 6.))
 
         # Applying a different constant still works
-        op.apply(a=a, truc=ConstantData(name='truc2', value=3.))
+        op.apply(a=a, truc=Constant(name='truc2', value=3.))
         assert(np.allclose(a.data, 12.))
 
 

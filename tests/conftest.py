@@ -5,7 +5,7 @@ import pytest
 from sympy import cos  # noqa
 
 from devito import Eq  # noqa
-from devito import (Dimension, t, x, y, z, ConstantData, Function,
+from devito import (Dimension, t, x, y, z, Constant, Function,
                     FixedDimension, configuration)
 from devito.interfaces import Scalar, Array
 from devito.nodes import Iteration
@@ -24,8 +24,8 @@ def array(name, shape, dimensions, onstack=False):
     return Array(name=name, shape=shape, dimensions=dimensions, onstack=onstack)
 
 
-def constantdata(name):
-    return ConstantData(name=name)
+def constant(name):
+    return Constant(name=name)
 
 
 def function(name, shape, dimensions):
@@ -96,7 +96,7 @@ def a_dense(dims):
 
 @pytest.fixture(scope="session", autouse=True)
 def const():
-    return constantdata('constant').indexify()
+    return constant('constant').indexify()
 
 
 @pytest.fixture(scope="session", autouse=True)

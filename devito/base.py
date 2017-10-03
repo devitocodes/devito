@@ -18,7 +18,7 @@ class Array(with_metaclass(_BackendSelector, interfaces.Array)):
     pass
 
 
-class ConstantData(with_metaclass(_BackendSelector, interfaces.ConstantData)):
+class Constant(with_metaclass(_BackendSelector, interfaces.Constant)):
     pass
 
 

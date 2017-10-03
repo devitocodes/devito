@@ -13,13 +13,13 @@ from devito.finite_difference import (centered, cross_derivative,
                                       second_cross_derivative)
 from devito.logger import debug, error, warning
 from devito.memory import CMemory, first_touch
-from devito.arguments import (ConstantDataArgProvider, TensorFunctionArgProvider,
+from devito.arguments import (ConstantArgProvider, TensorFunctionArgProvider,
                               ScalarArgProvider, ArrayArgProvider,
                               ObjectArgProvider)
 from devito.parameters import configuration
 
 __all__ = ['Symbol', 'Indexed',
-           'ConstantData', 'Function', 'TimeFunction',
+           'Constant', 'Function', 'TimeFunction',
            'Forward', 'Backward']
 
 configuration.add('first_touch', 0, [0, 1], lambda i: bool(i))
@@ -85,7 +85,7 @@ class Basic(object):
 
     # Symbolic objects created by user
     is_SymbolicFunction = False
-    is_ConstantData = False
+    is_Constant = False
     is_TensorFunction = False
     is_Function = False
     is_TimeFunction = False
@@ -160,17 +160,17 @@ class AbstractSymbol(sympy.Function, CachedSymbol):
                                    |
                  -------------------------------------
                  |                                   |
-          SymbolicData                      SymbolicFunction
+            SymbolicData                      SymbolicFunction
                  |                                   |
           ------------------                 ------------------
           |                |                 |                |
-       Scalar            Array         ConstantData           |
+       Scalar            Array            Constant      TensorFunction
                                                               |
-                                                ----------------------------
-                                                |             |            |
+                                                ------------------------------
+                                                |             |              |
                                             Function      TimeFunction  CompositeData
-                                                                           |
-                                                                       PointData
+                                                                             |
+                                                                         PointData
 
     The key difference between a :class:`SymbolicFunction` and a :class:`SymbolicData`
     is that the former is created directly by the user and employed in some
@@ -376,13 +376,13 @@ class SymbolicFunction(AbstractSymbol):
         return
 
 
-class ConstantData(SymbolicFunction, ConstantDataArgProvider):
+class Constant(SymbolicFunction, ConstantArgProvider):
 
     """
     Data object for constant values.
     """
 
-    is_ConstantData = True
+    is_Constant = True
     is_Scalar = True
 
     def __new__(cls, *args, **kwargs):

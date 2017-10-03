@@ -6,6 +6,6 @@ Further, with the ``foreign`` backed, Devito doesn't allocate any data.
 """
 
 # The following used by backends.backendSelector
-from devito.interfaces import ConstantData, Function, TimeFunction  # noqa
+from devito.interfaces import Constant, Function, TimeFunction  # noqa
 from devito.pointdata import PointData  # noqa
 from devito.foreign.operator import Operator  # noqa

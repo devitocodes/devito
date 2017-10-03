@@ -1,7 +1,7 @@
 import numpy as np
 import os
 
-from devito import Grid, Function, ConstantData
+from devito import Grid, Function, Constant
 from devito.logger import error
 
 
@@ -316,7 +316,7 @@ class Model(object):
         if isinstance(vp, np.ndarray):
             self.m = Function(name="m", grid=self.grid)
         else:
-            self.m = ConstantData(name="m", value=1/vp**2)
+            self.m = Constant(name="m", value=1/vp**2)
 
         # Set model velocity, which will also set `m`
         self.vp = vp

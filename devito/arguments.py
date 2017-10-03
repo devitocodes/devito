@@ -248,7 +248,7 @@ class DimensionArgProvider(ArgumentProvider):
         return verify
 
 
-class ConstantDataArgProvider(ArgumentProvider):
+class ConstantArgProvider(ArgumentProvider):
 
     """ Class used to decorate Constat Data objects with behaviour required for runtime
         arguments.
