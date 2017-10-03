@@ -15,7 +15,7 @@ from devito.stencil import Stencil
 from devito.tools import as_tuple, filter_ordered, flatten, is_integer
 from devito.arguments import ArgumentProvider, Argument
 
-__all__ = ['Node', 'Block', 'Denormals', 'Expression', 'Function', 'FunCall',
+__all__ = ['Node', 'Block', 'Denormals', 'Expression', 'Callable', 'Call',
            'Iteration', 'List', 'LocalExpression', 'TimedList']
 
 
@@ -26,8 +26,8 @@ class Node(object):
     is_Iteration = False
     is_IterationFold = False
     is_Expression = False
-    is_Function = False
-    is_FunCall = False
+    is_Callable = False
+    is_Call = False
     is_List = False
     is_Element = False
 
@@ -137,18 +137,18 @@ class Element(Node):
         return "Element::\n\t%s" % (self.element)
 
 
-class FunCall(Node):
+class Call(Node):
 
     """A node representing a function call."""
 
-    is_FunCall = True
+    is_Call = True
 
     def __init__(self, name, params=None):
         self.name = name
         self.params = as_tuple(params)
 
     def __repr__(self):
-        return "FunCall::\n\t%s(...)" % self.name
+        return "Call::\n\t%s(...)" % self.name
 
 
 class Expression(Node):
@@ -432,9 +432,9 @@ class Iteration(Node):
         return (self.nodes,)
 
 
-class Function(Node):
+class Callable(Node):
 
-    """Represent a C function.
+    """A node representing a C function.
 
     :param name: The name of the function.
     :param body: A :class:`Node` or an iterable of :class:`Node` objects representing
@@ -446,7 +446,7 @@ class Function(Node):
                    The default value is ('static', 'inline').
     """
 
-    is_Function = True
+    is_Callable = True
 
     _traversable = ['body']
 

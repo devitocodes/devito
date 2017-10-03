@@ -3,7 +3,7 @@ import pytest
 from conftest import skipif_yask
 
 from devito import Eq
-from devito.nodes import Block, Expression, Function
+from devito.nodes import Block, Expression, Callable
 from devito.visitors import (FindSections, FindSymbols, IsPerfectIteration,
                              MergeOuterIterations, Transformer, printAST,
                              NestedTransformer)
@@ -90,7 +90,7 @@ def test_printAST(block1, block2, block3):
 
 @skipif_yask
 def test_create_cgen_tree(block1, block2, block3):
-    assert str(Function('foo', block1, 'void', ()).ccode) == """\
+    assert str(Callable('foo', block1, 'void', ()).ccode) == """\
 void foo()
 {
   for (int i = 0; i < 3; i += 1)
@@ -104,7 +104,7 @@ void foo()
     }
   }
 }"""
-    assert str(Function('foo', block2, 'void', ()).ccode) == """\
+    assert str(Callable('foo', block2, 'void', ()).ccode) == """\
 void foo()
 {
   for (int i = 0; i < 3; i += 1)
@@ -119,7 +119,7 @@ void foo()
     }
   }
 }"""
-    assert str(Function('foo', block3, 'void', ()).ccode) == """\
+    assert str(Callable('foo', block3, 'void', ()).ccode) == """\
 void foo()
 {
   for (int i = 0; i < 3; i += 1)
@@ -229,7 +229,7 @@ def test_transformer_replace(exprs, block1, block2, block3):
 def test_transformer_replace_function_body(block1, block2):
     """Create a Function and replace its body with another."""
     args = FindSymbols().visit(block1)
-    f = Function('foo', block1, 'void', args)
+    f = Callable('foo', block1, 'void', args)
     assert str(f.ccode) == """void foo()
 {
   for (int i = 0; i < 3; i += 1)

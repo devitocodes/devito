@@ -181,11 +181,11 @@ class PrintAST(Visitor):
         body = ' %s' % str(o.element) if self.verbose else ''
         return self.indent + '<Element%s>' % body
 
-    def visit_Function(self, o):
+    def visit_Callable(self, o):
         self._depth += 1
         body = self.visit(o.children)
         self._depth -= 1
-        return self.indent + '<Function %s>\n%s' % (o.name, body)
+        return self.indent + '<Callable %s>\n%s' % (o.name, body)
 
     def visit_list(self, o):
         return ('\n').join([self.visit(i) for i in o])
@@ -281,7 +281,7 @@ class CGen(Visitor):
         return c.Initializer(c.Value(c.dtype_to_ctype(o.dtype),
                              ccode(o.expr.lhs)), ccode(o.expr.rhs))
 
-    def visit_FunCall(self, o):
+    def visit_Call(self, o):
         return c.Statement('%s(%s)' % (o.name, ','.join(o.params)))
 
     def visit_Iteration(self, o):
@@ -333,7 +333,7 @@ class CGen(Visitor):
 
         return handle
 
-    def visit_Function(self, o):
+    def visit_Callable(self, o):
         body = flatten(self.visit(i) for i in o.children)
         decls = self._args_decl(o.parameters)
         casts = self._args_cast(o.parameters)
@@ -408,7 +408,7 @@ class FindSections(Visitor):
         return ret
 
     visit_Element = visit_Expression
-    visit_FunCall = visit_Expression
+    visit_Call = visit_Expression
 
 
 class FindScopes(FindSections):
@@ -418,17 +418,17 @@ class FindScopes(FindSections):
         return OrderedDict()
 
     """
-    Map each written variable or :class:`FunCall` object in the Iteration/Expression
+    Map each written variable or :class:`Call` object in the Iteration/Expression
     tree to its section.
     """
 
-    def visit_FunCall(self, o, ret=None, queue=None, in_omp_region=False):
+    def visit_Call(self, o, ret=None, queue=None, in_omp_region=False):
         if ret is None:
             ret = self.default_retval()
         ret[o] = as_tuple(queue)
         return ret
 
-    visit_Expression = visit_FunCall
+    visit_Expression = visit_Call
     visit_Element = FindSections.visit_Node
 
 

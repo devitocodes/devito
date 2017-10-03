@@ -12,7 +12,7 @@ from devito.dse import as_symbol
 from devito.dle import retrieve_iteration_tree, filter_iterations
 from devito.dle.backends import AbstractRewriter, dle_pass, complang_ALL
 from devito.interfaces import ScalarFunction
-from devito.nodes import (Denormals, Expression, FunCall, Function, List,
+from devito.nodes import (Denormals, Expression, Call, Callable, List,
                           UnboundedIndex)
 from devito.tools import filter_sorted, flatten
 from devito.visitors import FindNodes, FindSymbols, NestedTransformer, Transformer
@@ -38,7 +38,7 @@ class BasicRewriter(AbstractRewriter):
     @dle_pass
     def _create_elemental_functions(self, state, **kwargs):
         """
-        Extract :class:`Iteration` sub-trees and move them into :class:`Function`s.
+        Extract :class:`Iteration` sub-trees and move them into :class:`Callable`s.
 
         Currently, only tagged, elementizable Iteration objects are targeted.
         """
@@ -112,12 +112,12 @@ class BasicRewriter(AbstractRewriter):
                 handle = flatten([p.rtargs for p in params])
                 name = "f_%d" % root.tag
 
-                # Produce the new FunCall
-                mapper[root] = List(header=noinline, body=FunCall(name, call))
+                # Produce the new Call
+                mapper[root] = List(header=noinline, body=Call(name, call))
 
-                # Produce the new Function
+                # Produce the new Callable
                 functions.setdefault(name,
-                                     Function(name, free, 'void', handle, ('static',)))
+                                     Callable(name, free, 'void', handle, ('static',)))
 
             # Transform the main tree
             processed.append(Transformer(mapper).visit(node))

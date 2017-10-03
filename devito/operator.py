@@ -14,7 +14,7 @@ from devito.dle import compose_nodes, filter_iterations, transform
 from devito.dse import clusterize, indexify, rewrite, retrieve_terminals
 from devito.interfaces import Forward, Backward, CompositeData, Object
 from devito.logger import bar, error, info
-from devito.nodes import Element, Expression, Function, Iteration, List, LocalExpression
+from devito.nodes import Element, Expression, Callable, Iteration, List, LocalExpression
 from devito.parameters import configuration
 from devito.profiling import create_profile
 from devito.stencil import Stencil
@@ -24,13 +24,13 @@ from devito.visitors import (FindScopes, ResolveIterationVariable,
 from devito.exceptions import InvalidArgument, InvalidOperator
 
 
-class Operator(Function):
+class Operator(Callable):
 
     _default_headers = ['#define _POSIX_C_SOURCE 200809L']
     _default_includes = ['stdlib.h', 'math.h', 'sys/time.h']
     _default_globals = []
 
-    """A special :class:`Function` to generate and compile C code evaluating
+    """A special :class:`Callable` to generate and compile C code evaluating
     an ordered sequence of stencil expressions.
 
     :param expressions: SymPy equation or list of equations that define the
@@ -342,7 +342,7 @@ class Operator(Function):
         # Resolve function calls first
         scopes = []
         for k, v in FindScopes().visit(nodes).items():
-            if k.is_FunCall:
+            if k.is_Call:
                 func = self.func_table[k.name]
                 if func.local:
                     scopes.extend(FindScopes().visit(func.root, queue=list(v)).items())
