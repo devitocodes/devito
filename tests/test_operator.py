@@ -541,7 +541,7 @@ class TestLoopScheduler(object):
         are embedded within the same time loop.
         """
         a = TimeData(name='a', shape=shape, time_order=2, dimensions=dimensions,
-                     space_order=2, time_dim=6, save=False)
+                     space_order=2, time_dim=6, save=True)
         p_aux = Dimension(name='p_aux', size=10)
         b = DenseData(name='b', shape=shape + (10,), dimensions=dimensions + (p_aux,),
                       space_order=2)
@@ -550,9 +550,9 @@ class TestLoopScheduler(object):
                        space_order=2)
         b2.data[:] = 1.0
         eqns = [Eq(a.forward, a.laplace + 1.),
-                Eq(b, time*b*a + b)]
+                Eq(b, time*b*a + b.laplace)]
         eqns2 = [Eq(a.forward, a.laplace + 1.),
-                 Eq(b2, time*b2*a + b2)]
+                 Eq(b2, time*b2*a + b2.laplace)]
         subs = {x.spacing: 2.5, y.spacing: 1.5, z.spacing: 2.0}
         op = Operator(eqns, subs=subs, dle='noop')
         trees = retrieve_iteration_tree(op)
@@ -564,7 +564,7 @@ class TestLoopScheduler(object):
         assert len(trees) == 2
         assert all(trees[0][i] is trees[1][i] for i in range(3))
 
-        # Verify both operators produce the same result
+        # Verify both operators produce the same results
         op()
         op2()
 

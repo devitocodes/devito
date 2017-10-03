@@ -626,19 +626,18 @@ class DenseData(TensorData):
     @property
     def laplace(self):
         """Symbol for the second derivative wrt all spatial dimensions"""
-        derivs = ['dx2', 'dy2', 'dz2']
 
-        return sum([getattr(self, d) for d in derivs[:self.dim]])
+        return sum([getattr(self, 'd%s2' % d) for d in self.indices if d in (x, y, z)])
 
     def laplace2(self, weight=1):
         """Symbol for the double laplacian wrt all spatial dimensions"""
         order = self.space_order/2
         first = sum([second_derivative(self, dim=d,
                                        order=order)
-                     for d in self.indices[1:]])
+                     for d in self.indices if d in (x, y, z)])
         second = sum([second_derivative(first * weight, dim=d,
                                         order=order)
-                      for d in self.indices[1:]])
+                      for d in self.indices if d in (x, y, z)])
         return second
 
 
@@ -695,13 +694,24 @@ class TimeData(DenseData):
                             'dimension (save=False). This value will be ignored!'
                             % self.name)
                 time_dim = self.time_order + 1
-                self.indices[0].modulo = time_dim
+                # Get time index
+                _t = [var for var in self.indices if var in (t, time)][0]
+                # Set pmodulo
+                _t.modulo = time_dim
             else:
                 if time_dim is None:
                     error('Time dimension (time_dim) is required'
                           'to save intermediate data with save=True')
                     raise ValueError("Unknown time dimensions")
-            self.shape = (time_dim,) + self.shape
+            # Get dimensions
+            dimensions = kwargs.get('dimensions', None)
+            # Add time dimension if not specified
+            if dimensions is None or (t not in dimensions and time not in dimensions):
+                self.shape = (time_dim,) + self.shape
+
+            if self.indices[0] not in (t, time):
+                warning(" First dimension is not time, the generated code may "
+                        "produce incorect results")
 
     def initialize(self):
         if self.initializer is not None:
@@ -717,10 +727,16 @@ class TimeData(DenseData):
                       automatically infer dimension symbols.
         :return: Dimension indices used for each axis.
         """
-        save = kwargs.get('save', None)
-        tidx = time if save else t
-        _indices = DenseData._indices(**kwargs)
-        return tuple([tidx] + list(_indices))
+        # Get dimensions
+        dimensions = kwargs.get('dimensions', None)
+        # Add time index if not specified
+        if dimensions is None or (t not in dimensions and time not in dimensions):
+            save = kwargs.get('save', None)
+            tidx = time if save else t
+            _indices = DenseData._indices(**kwargs)
+            return tuple([tidx] + list(_indices))
+        else:
+            return dimensions
 
     @property
     def dim(self):
@@ -731,7 +747,7 @@ class TimeData(DenseData):
     def forward(self):
         """Symbol for the time-forward state of the function"""
         i = int(self.time_order / 2) if self.time_order >= 2 else 1
-        _t = self.indices[0]
+        _t = [var for var in self.indices if var in (t, time)][0]
 
         return self.subs(_t, _t + i * s)
 
@@ -739,14 +755,14 @@ class TimeData(DenseData):
     def backward(self):
         """Symbol for the time-backward state of the function"""
         i = int(self.time_order / 2) if self.time_order >= 2 else 1
-        _t = self.indices[0]
+        _t = [var for var in self.indices if var in (t, time)][0]
 
         return self.subs(_t, _t - i * s)
 
     @property
     def dt(self):
         """Symbol for the first derivative wrt the time dimension"""
-        _t = self.indices[0]
+        _t = [var for var in self.indices if var in (t, time)][0]
         if self.time_order == 1:
             # This hack is needed for the first-order diffusion test
             indices = [_t, _t + s]
@@ -759,7 +775,7 @@ class TimeData(DenseData):
     @property
     def dt2(self):
         """Symbol for the second derivative wrt the t dimension"""
-        _t = self.indices[0]
+        _t = [var for var in self.indices if var in (t, time)][0]
         width_t = int(self.time_order / 2)
         indt = [(_t + i * s) for i in range(-width_t, width_t + 1)]
 
