@@ -442,7 +442,7 @@ class FindSymbols(Visitor):
 
     :param mode: Drive the search. Accepted values are: ::
 
-        * 'kernel-data' (default): Collect :class:`SymbolicData` objects.
+        * 'kernel-data' (default): Collect :class:`SymbolicFunction` objects.
         * 'symbolics': Collect :class:`AbstractSymbol` objects.
         * 'symbolics-writes': Collect written :class:`AbstractSymbol` objects.
         * 'free-symbols': Collect all free symbols.
@@ -450,7 +450,7 @@ class FindSymbols(Visitor):
     """
 
     rules = {
-        'kernel-data': lambda e: [i for i in e.functions if i.is_SymbolicData],
+        'kernel-data': lambda e: [i for i in e.functions if i.is_SymbolicFunction],
         'symbolics': lambda e: e.functions,
         'symbolics-writes': lambda e: as_tuple(e.output_function),
         'free-symbols': lambda e: e.expr.free_symbols,

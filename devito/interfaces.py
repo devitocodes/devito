@@ -79,12 +79,12 @@ class Basic(object):
     is_Object = False
 
     # Symbolic objects created internally by Devito
-    is_SymbolicFunction = False
+    is_SymbolicData = False
     is_ScalarFunction = False
     is_TensorFunction = False
 
     # Symbolic objects created by user
-    is_SymbolicData = False
+    is_SymbolicFunction = False
     is_ConstantData = False
     is_TensorData = False
     is_Function = False
@@ -160,7 +160,7 @@ class AbstractSymbol(sympy.Function, CachedSymbol):
                                    |
                  -------------------------------------
                  |                                   |
-          SymbolicFunction                      SymbolicData
+          SymbolicData                      SymbolicFunction
                  |                                   |
           ------------------                 ------------------
           |                |                 |                |
@@ -172,7 +172,7 @@ class AbstractSymbol(sympy.Function, CachedSymbol):
                                                                            |
                                                                        PointData
 
-    The key difference between a :class:`SymbolicData` and a :class:`SymbolicFunction`
+    The key difference between a :class:`SymbolicFunction` and a :class:`SymbolicData`
     is that the former is created directly by the user and employed in some
     computation, while the latter is created and managed internally by Devito.
     """
@@ -269,16 +269,16 @@ class AbstractSymbol(sympy.Function, CachedSymbol):
             return Symbol(self.indexed)
 
 
-class SymbolicFunction(AbstractSymbol):
+class SymbolicData(AbstractSymbol):
 
     """
     A symbolic function object, created and managed directly by Devito.
 
-    Unlike :class:`SymbolicData` objects, the state of a SymbolicFunction
+    Unlike :class:`SymbolicFunction` objects, the state of a SymbolicData
     is mutable.
     """
 
-    is_SymbolicFunction = True
+    is_SymbolicData = True
 
     def __new__(cls, *args, **kwargs):
         kwargs.update({'options': {'evaluate': False}})
@@ -288,7 +288,7 @@ class SymbolicFunction(AbstractSymbol):
         return
 
 
-class ScalarFunction(SymbolicFunction, ScalarFunctionArgProvider):
+class ScalarFunction(SymbolicData, ScalarFunctionArgProvider):
     """Symbolic object representing a scalar.
 
     :param name: Name of the symbol
@@ -315,7 +315,7 @@ class ScalarFunction(SymbolicFunction, ScalarFunctionArgProvider):
         self.dtype = dtype or self.dtype
 
 
-class TensorFunction(SymbolicFunction, TensorFunctionArgProvider):
+class TensorFunction(SymbolicData, TensorFunctionArgProvider):
     """Symbolic object representing a tensor.
 
     :param name: Name of the symbol
@@ -355,15 +355,15 @@ class TensorFunction(SymbolicFunction, TensorFunctionArgProvider):
         self._onstack = onstack or self._mem_stack
 
 
-class SymbolicData(AbstractSymbol):
+class SymbolicFunction(AbstractSymbol):
     """A symbolic object associated with data.
 
-    Unlike :class:`SymbolicFunction` objects, the structure of a SymbolicData
+    Unlike :class:`SymbolicData` objects, the structure of a SymbolicFunction
     is immutable (e.g., shape, dtype, ...). Obviously, the object value (``data``)
     may be altered, either directly by the user or by an :class:`Operator`.
     """
 
-    is_SymbolicData = True
+    is_SymbolicFunction = True
 
     @property
     def _data_buffer(self):
@@ -377,7 +377,7 @@ class SymbolicData(AbstractSymbol):
         return
 
 
-class ConstantData(SymbolicData, ConstantDataArgProvider):
+class ConstantData(SymbolicFunction, ConstantDataArgProvider):
 
     """
     Data object for constant values.
@@ -408,7 +408,7 @@ class ConstantData(SymbolicData, ConstantDataArgProvider):
         self._value = val
 
 
-class TensorData(SymbolicData, TensorDataArgProvider):
+class TensorData(SymbolicFunction, TensorDataArgProvider):
 
     is_TensorData = True
     is_Tensor = True
@@ -421,7 +421,7 @@ class TensorData(SymbolicData, TensorDataArgProvider):
 
 
 class Function(TensorData):
-    """Data object for spatially varying data acting as a :class:`SymbolicData`.
+    """Data object for spatially varying data acting as a :class:`SymbolicFunction`.
 
     :param name: Name of the symbol
     :param grid: :class:`Grid` object from which to infer the data shape

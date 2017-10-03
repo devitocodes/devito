@@ -496,7 +496,7 @@ class DevitoSpeculativeRewriter(DevitoRewriter):
 
         # Build Iteration trees for initialization and copy-back of padded arrays
         mapper = OrderedDict([(k, v) for k, v in mapper.items()
-                              if k.function.is_SymbolicData])
+                              if k.function.is_SymbolicFunction])
         init = copy_arrays(mapper, reverse=True)
         copyback = copy_arrays(mapper)
 

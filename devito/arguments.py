@@ -40,7 +40,7 @@ class Argument(object):
     @property
     def value(self):
         try:
-            if self._value.is_SymbolicData:
+            if self._value.is_SymbolicFunction:
                 return self._value._data_buffer
             else:
                 raise InvalidArgument("Unexpected data object %s" % type(self._value))
