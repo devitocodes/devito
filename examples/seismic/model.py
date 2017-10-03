@@ -307,7 +307,8 @@ class Model(object):
         self.nbpml = int(nbpml)
 
         shape_pml = np.array(shape) + 2 * self.nbpml
-        extent = tuple(np.array(spacing) * (shape_pml))
+        # Physical extent is calculated per cell, so shape - 1
+        extent = tuple(np.array(spacing) * (shape_pml - 1))
         self.grid = Grid(extent=extent, shape=shape_pml,
                          origin=origin, dtype=dtype)
 

@@ -69,7 +69,7 @@ class Grid(object):
     @property
     def spacing(self):
         """Spacing between grid points in m."""
-        return as_tuple(np.array(self.extent) / np.array(self.shape))
+        return as_tuple(np.array(self.extent) / (np.array(self.shape) - 1))
 
     @property
     def shape_domain(self):
