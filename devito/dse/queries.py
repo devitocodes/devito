@@ -1,4 +1,4 @@
-from sympy import Indexed, cos, sin
+from sympy import cos, sin
 
 
 """
@@ -18,15 +18,15 @@ def q_leaf(expr):
         * Symbol
         * Indexed
     """
-    return expr.is_Number or expr.is_Symbol or q_indexed(expr)
+    return expr.is_Number or expr.is_Symbol or expr.is_Indexed
 
 
 def q_indexed(expr):
-    return isinstance(expr, Indexed)
+    return expr.is_Indexed
 
 
 def q_terminal(expr):
-    return expr.is_Symbol or q_indexed(expr)
+    return expr.is_Symbol or expr.is_Indexed
 
 
 def q_trigonometry(expr):
@@ -65,7 +65,7 @@ def q_indirect(expr):
     """
     from devito.dse.search import retrieve_indexed
 
-    if not q_indexed(expr):
+    if not expr.is_Indexed:
         return False
     return any(retrieve_indexed(i) for i in expr.indices)
 

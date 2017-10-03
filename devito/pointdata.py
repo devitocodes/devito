@@ -1,10 +1,11 @@
 from collections import OrderedDict
 
-from sympy import Eq, Function, Matrix, symbols
+from sympy import Function, Matrix, symbols
 
 from devito.cgen_utils import INT, FLOAT
 from devito.dimension import d, p, t, time, x, y, z
 from devito.dse.inspection import indexify, retrieve_indexed
+from devito.dse.extended_sympy import Eq
 from devito.interfaces import DenseData, CompositeData
 from devito.logger import error
 

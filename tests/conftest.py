@@ -2,8 +2,9 @@ from __future__ import absolute_import
 
 import pytest
 
-from sympy import Eq, cos  # noqa
+from sympy import cos  # noqa
 
+from devito import Eq  # noqa
 from devito import Dimension, t, x, y, z, ConstantData, DenseData, FixedDimension
 from devito.interfaces import ScalarFunction, TensorFunction
 from devito.nodes import Iteration
