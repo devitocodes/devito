@@ -7,7 +7,7 @@ from sympy import cos  # noqa
 from devito import Eq  # noqa
 from devito import (Dimension, t, x, y, z, ConstantData, Function,
                     FixedDimension, configuration)
-from devito.interfaces import Scalar, TensorFunction
+from devito.interfaces import Scalar, Array
 from devito.nodes import Iteration
 from devito.tools import as_tuple
 
@@ -20,8 +20,8 @@ def scalar(name):
     return Scalar(name=name)
 
 
-def tensorfunction(name, shape, dimensions, onstack=False):
-    return TensorFunction(name=name, shape=shape, dimensions=dimensions, onstack=onstack)
+def array(name, shape, dimensions, onstack=False):
+    return Array(name=name, shape=shape, dimensions=dimensions, onstack=onstack)
 
 
 def constantdata(name):
@@ -86,7 +86,7 @@ def t3(dims):
 
 @pytest.fixture(scope="session", autouse=True)
 def a(dims):
-    return tensorfunction('a', (3,), (dims['i'],)).indexify()
+    return array('a', (3,), (dims['i'],)).indexify()
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -101,7 +101,7 @@ def const():
 
 @pytest.fixture(scope="session", autouse=True)
 def b(dims):
-    return tensorfunction('b', (3,), (dims['i'],)).indexify()
+    return array('b', (3,), (dims['i'],)).indexify()
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -111,78 +111,78 @@ def b_dense(dims):
 
 @pytest.fixture(scope="session", autouse=True)
 def c(dims):
-    return tensorfunction('c', (3, 5), (dims['i'], dims['j'])).indexify()
+    return array('c', (3, 5), (dims['i'], dims['j'])).indexify()
 
 
 @pytest.fixture(scope="session", autouse=True)
 def c_stack(dims):
-    return tensorfunction('c_stack', (3, 5), (dims['i'], dims['j']), True).indexify()
+    return array('c_stack', (3, 5), (dims['i'], dims['j']), True).indexify()
 
 
 @pytest.fixture(scope="session", autouse=True)
 def d(dims):
-    return tensorfunction('d', (3, 5, 7), (dims['i'], dims['j'], dims['k'])).indexify()
+    return array('d', (3, 5, 7), (dims['i'], dims['j'], dims['k'])).indexify()
 
 
 @pytest.fixture(scope="session", autouse=True)
 def e(dims):
     dimensions = [dims['k'], dims['s'], dims['q'], dims['i'], dims['j']]
-    return tensorfunction('e', (7, 4, 4, 3, 5), dimensions).indexify()
+    return array('e', (7, 4, 4, 3, 5), dimensions).indexify()
 
 
 @pytest.fixture(scope="session", autouse=True)
 def ti0(dims):
-    return tensorfunction('ti0', (3, 5, 7), (x, y, z)).indexify()
+    return array('ti0', (3, 5, 7), (x, y, z)).indexify()
 
 
 @pytest.fixture(scope="session", autouse=True)
 def ti1(dims):
-    return tensorfunction('ti1', (3, 5, 7), (x, y, z)).indexify()
+    return array('ti1', (3, 5, 7), (x, y, z)).indexify()
 
 
 @pytest.fixture(scope="session", autouse=True)
 def ti2(dims):
-    return tensorfunction('ti2', (3, 5), (x, y)).indexify()
+    return array('ti2', (3, 5), (x, y)).indexify()
 
 
 @pytest.fixture(scope="session", autouse=True)
 def ti3(dims):
-    return tensorfunction('ti3', (3, 5, 7), (x, y, z)).indexify()
+    return array('ti3', (3, 5, 7), (x, y, z)).indexify()
 
 
 @pytest.fixture(scope="session", autouse=True)
 def tu(dims):
-    return tensorfunction('tu', (10, 3, 5, 7), (t, x, y, z)).indexify()
+    return array('tu', (10, 3, 5, 7), (t, x, y, z)).indexify()
 
 
 @pytest.fixture(scope="session", autouse=True)
 def tv(dims):
-    return tensorfunction('tv', (10, 3, 5, 7), (t, x, y, z)).indexify()
+    return array('tv', (10, 3, 5, 7), (t, x, y, z)).indexify()
 
 
 @pytest.fixture(scope="session", autouse=True)
 def tw(dims):
-    return tensorfunction('tw', (10, 3, 5, 7), (t, x, y, z)).indexify()
+    return array('tw', (10, 3, 5, 7), (t, x, y, z)).indexify()
 
 
 @pytest.fixture(scope="session", autouse=True)
 def fa(dims):
-    return tensorfunction('fa', (3,), (x,)).indexed
+    return array('fa', (3,), (x,)).indexed
 
 
 @pytest.fixture(scope="session", autouse=True)
 def fb(dims):
-    return tensorfunction('fb', (3,), (x,)).indexed
+    return array('fb', (3,), (x,)).indexed
 
 
 @pytest.fixture(scope="session", autouse=True)
 def fc(dims):
-    return tensorfunction('fc', (3, 5), (x, y)).indexed
+    return array('fc', (3, 5), (x, y)).indexed
 
 
 @pytest.fixture(scope="session", autouse=True)
 def fd(dims):
-    return tensorfunction('fd', (3, 5), (x, y)).indexed
+    return array('fd', (3, 5), (x, y)).indexed
 
 
 def EVAL(exprs, *args):

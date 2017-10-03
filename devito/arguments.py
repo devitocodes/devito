@@ -259,7 +259,7 @@ class ConstantDataArgProvider(ArgumentProvider):
         return [ScalarArgument(self.name, self, lambda old, new: new, self.data)]
 
 
-class TensorDataArgProvider(ArgumentProvider):
+class TensorFunctionArgProvider(ArgumentProvider):
 
     """ Class used to decorate Symbolic Data objects with behaviour required for runtime
         arguments.
@@ -281,7 +281,7 @@ class ScalarArgProvider(ArgumentProvider):
         return [ScalarArgument(self.name, self, self.dtype)]
 
 
-class TensorFunctionArgProvider(ArgumentProvider):
+class ArrayArgProvider(ArgumentProvider):
 
     """ Class used to decorate Tensor Function objects with behaviour required for runtime
         arguments.

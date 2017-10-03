@@ -14,7 +14,7 @@ class Scalar(with_metaclass(_BackendSelector, interfaces.Scalar)):
     pass
 
 
-class TensorFunction(with_metaclass(_BackendSelector, interfaces.TensorFunction)):
+class Array(with_metaclass(_BackendSelector, interfaces.Array)):
     pass
 
 

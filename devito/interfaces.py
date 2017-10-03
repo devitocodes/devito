@@ -13,8 +13,8 @@ from devito.finite_difference import (centered, cross_derivative,
                                       second_cross_derivative)
 from devito.logger import debug, error, warning
 from devito.memory import CMemory, first_touch
-from devito.arguments import (ConstantDataArgProvider, TensorDataArgProvider,
-                              ScalarArgProvider, TensorFunctionArgProvider,
+from devito.arguments import (ConstantDataArgProvider, TensorFunctionArgProvider,
+                              ScalarArgProvider, ArrayArgProvider,
                               ObjectArgProvider)
 from devito.parameters import configuration
 
@@ -81,12 +81,12 @@ class Basic(object):
     # Symbolic objects created internally by Devito
     is_SymbolicData = False
     is_Scalar = False
-    is_TensorFunction = False
+    is_Array = False
 
     # Symbolic objects created by user
     is_SymbolicFunction = False
     is_ConstantData = False
-    is_TensorData = False
+    is_TensorFunction = False
     is_Function = False
     is_TimeFunction = False
     is_CompositeData = False
@@ -164,7 +164,7 @@ class AbstractSymbol(sympy.Function, CachedSymbol):
                  |                                   |
           ------------------                 ------------------
           |                |                 |                |
-    Scalar  TensorFunction     ConstantData           |
+       Scalar            Array         ConstantData           |
                                                               |
                                                 ----------------------------
                                                 |             |            |
@@ -314,7 +314,7 @@ class Scalar(SymbolicData, ScalarArgProvider):
         self.dtype = dtype or self.dtype
 
 
-class TensorFunction(SymbolicData, TensorFunctionArgProvider):
+class Array(SymbolicData, ArrayArgProvider):
     """Symbolic object representing a tensor.
 
     :param name: Name of the symbol
@@ -324,7 +324,7 @@ class TensorFunction(SymbolicData, TensorFunctionArgProvider):
     :param onstack: Pass True to enforce allocation on stack
     """
 
-    is_TensorFunction = True
+    is_Array = True
     is_Tensor = True
 
     def __init__(self, *args, **kwargs):
@@ -407,9 +407,14 @@ class ConstantData(SymbolicFunction, ConstantDataArgProvider):
         self._value = val
 
 
-class TensorData(SymbolicFunction, TensorDataArgProvider):
+class TensorFunction(SymbolicFunction, TensorFunctionArgProvider):
 
-    is_TensorData = True
+    """
+    Utility class to encapsulate all symbolic :class:`Function` types
+    that represent tensor (array) data.
+    """
+
+    is_TensorFunction = True
     is_Tensor = True
 
     @property
@@ -419,7 +424,7 @@ class TensorData(SymbolicFunction, TensorDataArgProvider):
         return True
 
 
-class Function(TensorData):
+class Function(TensorFunction):
     """Data object for spatially varying data acting as a :class:`SymbolicFunction`.
 
     :param name: Name of the symbol

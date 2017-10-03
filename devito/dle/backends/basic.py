@@ -89,9 +89,9 @@ class BasicRewriter(AbstractRewriter):
 
                 # Retrieve symbolic arguments
                 for i in fsymbols:
-                    if i.is_TensorFunction:
+                    if i.is_Array:
                         args.append(("(%s*)%s" % (c.dtype_to_ctype(i.dtype), i.name), i))
-                    elif i.is_TensorData:
+                    elif i.is_TensorFunction:
                         args.append(("%s_vec" % i.name, i))
                     elif i.is_ConstantData:
                         args.append((i.name, i))

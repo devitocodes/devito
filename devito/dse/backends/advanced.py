@@ -10,7 +10,7 @@ from devito.dse.inspection import estimate_cost
 from devito.dse.manipulation import (common_subexprs_elimination, collect_nested,
                                      xreplace_constrained, compact_temporaries)
 from devito.dse.queries import iq_timeinvariant
-from devito.interfaces import Indexed, Scalar, TensorFunction
+from devito.interfaces import Indexed, Scalar, Array
 
 
 class AdvancedRewriter(BasicRewriter):
@@ -116,8 +116,8 @@ class AdvancedRewriter(BasicRewriter):
 
         # Template for captured redundancies
         shape = tuple(i.symbolic_size for i in indices)
-        make = lambda i: TensorFunction(name=template(i), shape=shape,
-                                        dimensions=indices).indexed
+        make = lambda i: Array(name=template(i), shape=shape,
+                               dimensions=indices).indexed
 
         # Find the candidate expressions
         processed = []
