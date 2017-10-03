@@ -137,12 +137,13 @@ class AbstractSymbol(sympy.Function, CachedSymbol):
                   keyword argument.
 
     This class implements the behaviour of Devito's symbolic
-    objects by inheriting from and mimicking the behaviour of :class
-    sympy.Function:. In order to maintain meta information across the
-    numerous re-instantiation SymPy performs during symbolic
-    manipulation, we inject the symbol name as the class name and
-    cache all created objects on that name. This entails that a symbolic
-    object should implement `__init__` in the following format:
+    objects by inheriting from and mimicking the behaviour of
+    :class:`sympy.Function`. In order to maintain meta information
+    across the numerous re-instantiation SymPy performs during
+    symbolic manipulation, we inject the symbol name as the class name
+    and cache all created objects on that name. This entails that a
+    symbolic object should implement `__init__` in the following
+    format:
 
     def __init__(self, \*args, \*\*kwargs):
         if not self._cached():
