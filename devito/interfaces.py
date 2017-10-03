@@ -424,16 +424,19 @@ class DenseData(TensorData):
     """Data object for spatially varying data acting as a :class:`SymbolicData`.
 
     :param name: Name of the symbol
-    :param shape: Domain shape of the associated data for this :class:`Function`.
-                  Note that this does not include the boundary padding added due
-                  the stencil radius for space dimensions.
-    :param dimensions: The symbolic dimensions of the tensor.
+    :param grid: :class:`Grid` object from which to infer the data shape
+                 and :class:`Dimension` indices.
+    :param shape: (Optional) shape of the associated data for this symbol.
+    :param dimensions: (Optional) symbolic dimensions that define the
+                       data layout and function indices of this symbol.
+    :param dtype: (Optional) data type of the buffered data.
     :param space_order: Discretisation order for space derivatives
     :param initializer: Function to initialize the data, optional
-    :param dtype: Data type of the assocaited data. If not provided, the
-                  default data type of the :param grid: will be used.
 
     .. note::
+
+       If the parameter ``grid`` is provided, the values for ``shape``,
+       ``dimensions`` and ``dtype`` will be derived from it.
 
        :class:`DenseData` objects are assumed to be constant in time
        and therefore do not support time derivatives. Use
@@ -620,11 +623,12 @@ class TimeData(DenseData):
     Data object for time-varying data that acts as a Function symbol
 
     :param name: Name of the resulting :class:`sympy.Function` symbol
-    :param shape: Shape of the spatial data grid
-    :param dimensions: The symbolic dimensions of the function in addition
-                       to time.
-    :param shape: Domain shape of the associated data for this :class:`Function`.
-    :param dtype: Data type of the buffered data
+    :param grid: :class:`Grid` object from which to infer the data shape
+                 and :class:`Dimension` indices.
+    :param shape: (Optional) shape of the associated data for this symbol.
+    :param dimensions: (Optional) symbolic dimensions that define the
+                       data layout in addition to the time dimension.
+    :param dtype: (Optional) data type of the buffered data
     :param save: Save the intermediate results to the data buffer. Defaults
                  to `False`, indicating the use of alternating buffers.
     :param time_dim: Size of the time dimension that dictates the leading
@@ -634,6 +638,9 @@ class TimeData(DenseData):
                        data buffer.
 
     .. note::
+
+       If the parameter ``grid`` is provided, the values for ``shape``,
+       ``dimensions`` and ``dtype`` will be derived from it.
 
        The parameter ``shape`` should only define the spatial shape of
        the grid. The temporal dimension will be inserted automatically
