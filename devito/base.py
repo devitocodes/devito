@@ -6,7 +6,7 @@ from sympy.core.compatibility import with_metaclass
 
 from devito.backends import _BackendSelector
 import devito.interfaces as interfaces
-import devito.sparsefunction as sparsefunction
+import devito.function as function
 import devito.operator as operator
 
 
@@ -18,19 +18,19 @@ class Array(with_metaclass(_BackendSelector, interfaces.Array)):
     pass
 
 
-class Constant(with_metaclass(_BackendSelector, interfaces.Constant)):
+class Constant(with_metaclass(_BackendSelector, function.Constant)):
     pass
 
 
-class Function(with_metaclass(_BackendSelector, interfaces.Function)):
+class Function(with_metaclass(_BackendSelector, function.Function)):
     pass
 
 
-class TimeFunction(with_metaclass(_BackendSelector, interfaces.TimeFunction)):
+class TimeFunction(with_metaclass(_BackendSelector, function.TimeFunction)):
     pass
 
 
-class SparseFunction(with_metaclass(_BackendSelector, sparsefunction.SparseFunction)):
+class SparseFunction(with_metaclass(_BackendSelector, function.SparseFunction)):
     pass
 
 

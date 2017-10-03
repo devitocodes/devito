@@ -12,7 +12,8 @@ from devito.compiler import jit_compile, load
 from devito.dimension import time, Dimension
 from devito.dle import compose_nodes, filter_iterations, transform
 from devito.dse import clusterize, indexify, rewrite, retrieve_terminals
-from devito.interfaces import Forward, Backward, CompositeFunction, Object
+from devito.function import Forward, Backward, CompositeFunction
+from devito.interfaces import Object
 from devito.logger import bar, error, info
 from devito.nodes import Element, Expression, Callable, Iteration, List, LocalExpression
 from devito.parameters import configuration
