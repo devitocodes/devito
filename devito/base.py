@@ -10,7 +10,7 @@ import devito.pointdata as pointdata
 import devito.operator as operator
 
 
-class ScalarFunction(with_metaclass(_BackendSelector, interfaces.ScalarFunction)):
+class Scalar(with_metaclass(_BackendSelector, interfaces.Scalar)):
     pass
 
 

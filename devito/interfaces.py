@@ -14,7 +14,7 @@ from devito.finite_difference import (centered, cross_derivative,
 from devito.logger import debug, error, warning
 from devito.memory import CMemory, first_touch
 from devito.arguments import (ConstantDataArgProvider, TensorDataArgProvider,
-                              ScalarFunctionArgProvider, TensorFunctionArgProvider,
+                              ScalarArgProvider, TensorFunctionArgProvider,
                               ObjectArgProvider)
 from devito.parameters import configuration
 
@@ -80,7 +80,7 @@ class Basic(object):
 
     # Symbolic objects created internally by Devito
     is_SymbolicData = False
-    is_ScalarFunction = False
+    is_Scalar = False
     is_TensorFunction = False
 
     # Symbolic objects created by user
@@ -164,7 +164,7 @@ class AbstractSymbol(sympy.Function, CachedSymbol):
                  |                                   |
           ------------------                 ------------------
           |                |                 |                |
-    ScalarFunction  TensorFunction     ConstantData           |
+    Scalar  TensorFunction     ConstantData           |
                                                               |
                                                 ----------------------------
                                                 |             |            |
@@ -288,14 +288,13 @@ class SymbolicData(AbstractSymbol):
         return
 
 
-class ScalarFunction(SymbolicData, ScalarFunctionArgProvider):
+class Scalar(SymbolicData, ScalarArgProvider):
     """Symbolic object representing a scalar.
 
     :param name: Name of the symbol
     :param dtype: Data type of the scalar
     """
 
-    is_ScalarFunction = True
     is_Scalar = True
 
     def __init__(self, *args, **kwargs):

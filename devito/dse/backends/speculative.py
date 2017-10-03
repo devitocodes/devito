@@ -4,7 +4,7 @@ from devito.dse.inspection import estimate_cost
 from devito.dse.manipulation import xreplace_constrained
 from devito.dse.queries import iq_timevarying, q_leaf, q_sum_of_product, q_terminalop
 
-from devito.interfaces import ScalarFunction
+from devito.interfaces import Scalar
 
 
 class SpeculativeRewriter(AdvancedRewriter):
@@ -24,7 +24,7 @@ class SpeculativeRewriter(AdvancedRewriter):
         derivatives through finite differences.
         """
 
-        make = lambda i: ScalarFunction(name=template(i)).indexify()
+        make = lambda i: Scalar(name=template(i)).indexify()
         rule = iq_timevarying(cluster.trace)
         costmodel = lambda i: estimate_cost(i) > 0
         processed, _ = xreplace_constrained(cluster.exprs, make, rule, costmodel)
@@ -59,7 +59,7 @@ class AggressiveRewriter(SpeculativeRewriter):
         """
         Extract sub-expressions in sum-of-product form, and assign them to temporaries.
         """
-        make = lambda i: ScalarFunction(name=template(i)).indexify()
+        make = lambda i: Scalar(name=template(i)).indexify()
         rule = q_sum_of_product
         costmodel = lambda e: not (q_leaf(e) or q_terminalop(e))
         processed, _ = xreplace_constrained(cluster.exprs, make, rule, costmodel)

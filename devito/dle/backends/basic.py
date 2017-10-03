@@ -11,7 +11,7 @@ from devito.cgen_utils import ccode
 from devito.dse import as_symbol
 from devito.dle import retrieve_iteration_tree, filter_iterations
 from devito.dle.backends import AbstractRewriter, dle_pass, complang_ALL
-from devito.interfaces import ScalarFunction
+from devito.interfaces import Scalar
 from devito.nodes import (Denormals, Expression, Call, Callable, List,
                           UnboundedIndex)
 from devito.tools import filter_sorted, flatten
@@ -68,11 +68,11 @@ class BasicRewriter(AbstractRewriter):
                 for i in target:
                     name, bounds = i.dim.name, i.bounds_symbolic
                     # Iteration bounds
-                    start = ScalarFunction(name='%s_start' % name, dtype=np.int32)
-                    finish = ScalarFunction(name='%s_finish' % name, dtype=np.int32)
+                    start = Scalar(name='%s_start' % name, dtype=np.int32)
+                    finish = Scalar(name='%s_finish' % name, dtype=np.int32)
                     args.extend(zip([ccode(j) for j in bounds], (start, finish)))
                     # Iteration unbounded indices
-                    ufunc = [ScalarFunction(name='%s_ub%d' % (name, j), dtype=np.int32)
+                    ufunc = [Scalar(name='%s_ub%d' % (name, j), dtype=np.int32)
                              for j in range(len(i.uindices))]
                     args.extend(zip([ccode(j.start) for j in i.uindices], ufunc))
                     limits = [Symbol(start.name), Symbol(finish.name), 1]
@@ -105,7 +105,7 @@ class BasicRewriter(AbstractRewriter):
                         maybe_required.update(j.free_symbols)
                 required = filter_sorted(maybe_required - not_required,
                                          key=attrgetter('name'))
-                args.extend([(i.name, ScalarFunction(name=i.name, dtype=np.int32))
+                args.extend([(i.name, Scalar(name=i.name, dtype=np.int32))
                              for i in required])
 
                 call, params = zip(*args)

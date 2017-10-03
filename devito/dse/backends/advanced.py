@@ -10,7 +10,7 @@ from devito.dse.inspection import estimate_cost
 from devito.dse.manipulation import (common_subexprs_elimination, collect_nested,
                                      xreplace_constrained, compact_temporaries)
 from devito.dse.queries import iq_timeinvariant
-from devito.interfaces import Indexed, ScalarFunction, TensorFunction
+from devito.interfaces import Indexed, Scalar, TensorFunction
 
 
 class AdvancedRewriter(BasicRewriter):
@@ -29,7 +29,7 @@ class AdvancedRewriter(BasicRewriter):
         """
 
         # Extract time invariants
-        make = lambda i: ScalarFunction(name=template(i)).indexify()
+        make = lambda i: Scalar(name=template(i)).indexify()
         rule = iq_timeinvariant(cluster.trace)
         costmodel = costmodel or (lambda e: estimate_cost(e) > 0)
         processed, found = xreplace_constrained(cluster.exprs, make, rule, costmodel)
@@ -38,7 +38,7 @@ class AdvancedRewriter(BasicRewriter):
             leaves = [i for i in processed if i not in found]
 
             # Search for common sub-expressions amongst them (and only them)
-            make = lambda i: ScalarFunction(name=template(i + len(found))).indexify()
+            make = lambda i: Scalar(name=template(i + len(found))).indexify()
             found = common_subexprs_elimination(found, make)
 
             # Some temporaries may be droppable at this point

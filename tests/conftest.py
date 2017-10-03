@@ -7,7 +7,7 @@ from sympy import cos  # noqa
 from devito import Eq  # noqa
 from devito import (Dimension, t, x, y, z, ConstantData, Function,
                     FixedDimension, configuration)
-from devito.interfaces import ScalarFunction, TensorFunction
+from devito.interfaces import Scalar, TensorFunction
 from devito.nodes import Iteration
 from devito.tools import as_tuple
 
@@ -16,8 +16,8 @@ skipif_yask = pytest.mark.skipif(configuration['backend'] == 'yask',
                                  reason="YASK testing is currently restricted")
 
 
-def scalarfunction(name):
-    return ScalarFunction(name=name)
+def scalar(name):
+    return Scalar(name=name)
 
 
 def tensorfunction(name, shape, dimensions, onstack=False):
@@ -66,22 +66,22 @@ def iters(dims):
 
 @pytest.fixture(scope="session", autouse=True)
 def t0(dims):
-    return scalarfunction('t0').indexify()
+    return scalar('t0').indexify()
 
 
 @pytest.fixture(scope="session", autouse=True)
 def t1(dims):
-    return scalarfunction('t1').indexify()
+    return scalar('t1').indexify()
 
 
 @pytest.fixture(scope="session", autouse=True)
 def t2(dims):
-    return scalarfunction('t2').indexify()
+    return scalar('t2').indexify()
 
 
 @pytest.fixture(scope="session", autouse=True)
 def t3(dims):
-    return scalarfunction('t3').indexify()
+    return scalar('t3').indexify()
 
 
 @pytest.fixture(scope="session", autouse=True)

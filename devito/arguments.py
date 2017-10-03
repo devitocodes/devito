@@ -270,7 +270,7 @@ class TensorDataArgProvider(ArgumentProvider):
         return [TensorArgument(self.name, self)]
 
 
-class ScalarFunctionArgProvider(ArgumentProvider):
+class ScalarArgProvider(ArgumentProvider):
 
     """ Class used to decorate Scalar Function objects with behaviour required for runtime
         arguments.
