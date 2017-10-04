@@ -11,7 +11,7 @@ from devito.dse.extended_sympy import Add, Eq, Mul
 from devito.dse.inspection import count, estimate_cost, retrieve_indexed
 from devito.dse.graph import temporaries_graph
 from devito.dse.queries import q_op, q_leaf
-from devito.interfaces import Indexed, Array
+from devito.types import Indexed, Array
 from devito.tools import as_tuple
 
 __all__ = ['collect_nested', 'common_subexprs_elimination', 'freeze_expression',

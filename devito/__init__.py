@@ -9,7 +9,7 @@ from devito.finite_difference import *  # noqa
 from devito.dimension import *  # noqa
 from devito.grid import *  # noqa
 from devito.function import Forward, Backward  # noqa
-from devito.interfaces import _SymbolCache  # noqa
+from devito.types import _SymbolCache  # noqa
 from devito.logger import error, warning, info  # noqa
 from devito.parameters import (configuration, init_configuration,  # noqa
                                env_vars_mapper)

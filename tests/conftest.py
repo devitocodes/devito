@@ -7,7 +7,7 @@ from sympy import cos  # noqa
 from devito import Eq  # noqa
 from devito import (Dimension, t, x, y, z, Constant, Function,
                     FixedDimension, configuration)
-from devito.interfaces import Scalar, Array
+from devito.types import Scalar, Array
 from devito.nodes import Iteration
 from devito.tools import as_tuple
 

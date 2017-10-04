@@ -5,7 +5,7 @@ import pytest
 from conftest import skipif_yask
 
 from devito import Grid, Function, TimeFunction, clear_cache
-from devito.interfaces import _SymbolCache
+from devito.types import _SymbolCache
 
 
 @skipif_yask

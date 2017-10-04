@@ -7,7 +7,7 @@ from devito.cgen_utils import ccode
 from devito.compiler import jit_compile
 from devito.dimension import LoweredDimension
 from devito.dle import filter_iterations, retrieve_iteration_tree
-from devito.interfaces import Object
+from devito.types import Object
 from devito.logger import yask as log, yask_warning as warning
 from devito.nodes import Element
 from devito.operator import OperatorRunnable, FunMeta

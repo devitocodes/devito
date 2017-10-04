@@ -18,7 +18,7 @@ from devito.dle.backends import (BasicRewriter, BlockingArg, dle_pass, omplang,
                                  simdinfo, get_simd_flag, get_simd_items)
 from devito.dse import promote_scalar_expressions
 from devito.exceptions import DLEException
-from devito.interfaces import Array
+from devito.types import Array
 from devito.logger import dle_warning
 from devito.nodes import (Block, Denormals, Expression, Iteration, List,
                           PARALLEL, ELEMENTAL, REMAINDER, tagger)

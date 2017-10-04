@@ -1,4 +1,4 @@
-import devito.interfaces as interfaces
+import devito.types as types
 import devito.function as function
 
 from devito.yask.wrappers import contexts
@@ -6,7 +6,7 @@ from devito.yask.wrappers import contexts
 __all__ = ['Constant', 'Function', 'TimeFunction']
 
 
-interfaces.Basic.from_YASK = False
+types.Basic.from_YASK = False
 
 
 class Constant(function.Constant):

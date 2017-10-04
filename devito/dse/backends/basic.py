@@ -4,7 +4,7 @@ from devito.dse.backends import AbstractRewriter, dse_pass
 from devito.dse.extended_sympy import bhaskara_cos, bhaskara_sin
 from devito.dse.manipulation import common_subexprs_elimination
 
-from devito.interfaces import Scalar
+from devito.types import Scalar
 
 
 class BasicRewriter(AbstractRewriter):

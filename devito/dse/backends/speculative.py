@@ -4,7 +4,7 @@ from devito.dse.inspection import estimate_cost
 from devito.dse.manipulation import xreplace_constrained
 from devito.dse.queries import iq_timevarying, q_leaf, q_sum_of_product, q_terminalop
 
-from devito.interfaces import Scalar
+from devito.types import Scalar
 
 
 class SpeculativeRewriter(AdvancedRewriter):

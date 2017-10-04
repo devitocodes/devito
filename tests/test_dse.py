@@ -8,7 +8,7 @@ from devito.dse import (clusterize, rewrite, xreplace_constrained, iq_timeinvari
                         iq_timevarying, estimate_cost, temporaries_graph,
                         common_subexprs_elimination, collect)
 from devito import Eq, Dimension, x, y, z, time, clear_cache  # noqa
-from devito.interfaces import Scalar
+from devito.types import Scalar
 from devito.nodes import Expression
 from devito.stencil import Stencil
 from devito.visitors import FindNodes

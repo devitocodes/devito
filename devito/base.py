@@ -5,16 +5,16 @@ from __future__ import absolute_import
 from sympy.core.compatibility import with_metaclass
 
 from devito.backends import _BackendSelector
-import devito.interfaces as interfaces
+import devito.types as types
 import devito.function as function
 import devito.operator as operator
 
 
-class Scalar(with_metaclass(_BackendSelector, interfaces.Scalar)):
+class Scalar(with_metaclass(_BackendSelector, types.Scalar)):
     pass
 
 
-class Array(with_metaclass(_BackendSelector, interfaces.Array)):
+class Array(with_metaclass(_BackendSelector, types.Array)):
     pass
 
 

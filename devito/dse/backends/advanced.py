@@ -10,7 +10,7 @@ from devito.dse.inspection import estimate_cost
 from devito.dse.manipulation import (common_subexprs_elimination, collect_nested,
                                      xreplace_constrained, compact_temporaries)
 from devito.dse.queries import iq_timeinvariant
-from devito.interfaces import Indexed, Scalar, Array
+from devito.types import Indexed, Scalar, Array
 
 
 class AdvancedRewriter(BasicRewriter):
