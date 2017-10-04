@@ -1,5 +1,5 @@
 from devito.tools import as_tuple
-from devito.dimension import SpaceDimension
+from devito.dimension import SpaceDimension, TimeDimension, SteppingDimension
 
 import numpy as np
 from sympy import Symbol
@@ -22,6 +22,10 @@ class Grid(object):
                        symbols that defines the spatial directions of
                        the physical domain encapsulated by this
                        :class:`Grid`.
+    :param time_dimension: (Optional) :class:`TimeDimension` symbols
+                           to to define the time dimension for all
+                           :class:`TimeFunction` symbols created
+                           from this :class:`Grid`.
     :param dtype: Default data type to be inherited by all Functions
                   created from this :class:`Grid`.
 
@@ -56,7 +60,7 @@ class Grid(object):
     _default_dimensions = ('x', 'y', 'z')
 
     def __init__(self, shape, extent=None, origin=None, dimensions=None,
-                 dtype=np.float32):
+                 time_dimension=None, dtype=np.float32):
         self.shape = as_tuple(shape)
         self.extent = as_tuple(extent or tuple(1. for _ in shape))
         self.origin = as_tuple(origin or tuple(0. for _ in shape))
@@ -75,6 +79,15 @@ class Grid(object):
                                     for name, spc in zip(dim_names, dim_spacing))
         else:
             self.dimensions = dimensions
+
+        # Store or create default symbols for time and stepping dimensions
+        if time_dimension is None:
+            self.time_dim = TimeDimension('time', spacing=Symbol('s'))
+            self.stepping_dim = SteppingDimension('t', parent=self.time_dim)
+        else:
+            self.time_dim = time_dimension
+            self.stepping_dim = SteppingDimension('%s_s' % time_dimension.name,
+                                                  parent=self.time)
 
     @property
     def dim(self):
