@@ -4,7 +4,8 @@ from cached_property import cached_property
 from devito.arguments import DimensionArgProvider
 from devito.types import Symbol
 
-__all__ = ['Dimension', 'x', 'y', 'z', 't', 'p', 'd', 'time']
+__all__ = ['Dimension', 'x', 'y', 'z', 't', 'p', 'd', 'time',
+           'SpaceDimension', 'TimeDimension', 'SteppingDimension']
 
 
 class Dimension(sympy.Symbol, DimensionArgProvider):
