@@ -1,7 +1,8 @@
 from devito.tools import as_tuple
-from devito.dimension import x, y, z
+from devito.dimension import SpaceDimension
 
 import numpy as np
+from sympy import Symbol
 
 __all__ = ['Grid']
 
@@ -17,6 +18,10 @@ class Grid(object):
                    unit box of extent 1m in all dimensions.
     :param origin: Physical coordinate of the origin of the domain;
                    defaults to 0. in all dimensions.
+    :param dimensions: (Optional) list of :class:`SpaceDimension`
+                       symbols that defines the spatial directions of
+                       the physical domain encapsulated by this
+                       :class:`Grid`.
     :param dtype: Default data type to be inherited by all Functions
                   created from this :class:`Grid`.
 
@@ -48,6 +53,8 @@ class Grid(object):
                        y
     """
 
+    _default_dimensions = ('x', 'y', 'z')
+
     def __init__(self, shape, extent=None, origin=None, dimensions=None,
                  dtype=np.float32):
         self.shape = as_tuple(shape)
@@ -58,8 +65,16 @@ class Grid(object):
         # TODO: Raise proper exceptions and logging
         assert(self.dim == len(self.origin) == len(self.extent) == len(self.spacing))
 
-        # TODO: Create Dimensions locally instead of using global ones
-        self.dimensions = (dimensions or (x, y, z))[:self.dim]
+        if dimensions is None:
+            # Create the spatial dimensions and constant spacing symbols
+            assert(self.dim <= 3)
+            dim_names = self._default_dimensions[:self.dim]
+            dim_spacing = tuple(Symbol('h_%s' % name)
+                                for name, val in zip(dim_names, self.spacing))
+            self.dimensions = tuple(SpaceDimension(name=name, spacing=spc)
+                                    for name, spc in zip(dim_names, dim_spacing))
+        else:
+            self.dimensions = dimensions
 
     @property
     def dim(self):
@@ -70,6 +85,11 @@ class Grid(object):
     def spacing(self):
         """Spacing between grid points in m."""
         return as_tuple(np.array(self.extent) / (np.array(self.shape) - 1))
+
+    @property
+    def spacing_symbols(self):
+        """Symbols representing the grid spacing in each :class:`SpaceDimension`"""
+        return as_tuple(d.spacing for d in self.dimensions)
 
     @property
     def shape_domain(self):
