@@ -33,6 +33,7 @@ You can find the API Documentation :doc:`here </devito>`.
 
    Download <download>
    Tutorials <tutorials>
+   Developer Documentation <developer>
    Example Documentation <examples>
    API Documentation <devito>
 

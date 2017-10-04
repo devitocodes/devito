@@ -1,0 +1,71 @@
+\documentclass{standalone}
+
+\usepackage{tikz}
+\usepackage{pgfplots}
+\usetikzlibrary{arrows,chains,positioning,fit,backgrounds,calc,shapes,
+  shadows,scopes,decorations.markings,plotmarks}
+
+\begin{document}
+
+
+\tikzset{
+    line/.style={
+        draw, very thick, dashed
+    },
+    box/.style={
+        draw, thick, rectangle, rounded corners,
+        font=\sffamily\large,
+        minimum height=2em, minimum width=8em,
+    },
+    internal/.style={
+        box, fill=black!5,
+    },
+    external/.style={
+        box, fill=black!25,
+    }
+}
+
+\begin{tikzpicture}[font=\sf\small, node distance=4em]
+
+  \node (abstract) [internal] {AbstractSymbol};
+  \node (sym_data) [internal, below left=of abstract] {SymbolicData};
+  \node (sym_func) [internal, below right=of abstract] {SymbolicFunction};
+
+  \node (scalar) [internal, below left=of sym_data.south] {Scalar};
+  \node (array) [internal, below right=of sym_data.south] {Array};
+
+  \node (constant) [external, below left=of sym_func.south] {Constant};
+  \node (tensor_f) [internal, below right=of sym_func.south] {TensorFunction};
+
+  \node (function) [external, below left=of tensor_f] {Function};
+  \node (time_func) [external, below=2.8em of tensor_f] {TimeFunction};
+  \node (composite) [internal, below right=of tensor_f] {CompositeFunction};
+  \node (sparse_f) [external, below=2.8em of composite] {SparseFunction};
+
+  %% Connector lines
+  \draw[line] (abstract.south) -- ([shift={(0.,-.5)}] abstract.south) --
+  ([shift={(0.,.5)}] sym_data.north) -- (sym_data.north);
+  \draw[line] ([shift={(0.,-.5)}] abstract.south) --
+  ([shift={(0.,.5)}] sym_func.north) -- (sym_func.north);
+
+  \draw[line] (sym_data.south) -- ([shift={(0.,-.5)}] sym_data.south) --
+  ([shift={(0.,.5)}] scalar.north) -- (scalar.north);
+  \draw[line] ([shift={(0.,-.5)}] sym_data.south) --
+  ([shift={(0.,.5)}] array.north) -- (array.north);
+
+  \draw[line] (sym_func.south) -- ([shift={(0.,-.5)}] sym_func.south) --
+  ([shift={(0.,.5)}] constant.north) -- (constant.north);
+  \draw[line] ([shift={(0.,-.5)}] sym_func.south) --
+  ([shift={(0.,.5)}] tensor_f.north) -- (tensor_f.north);
+
+  \draw[line] (tensor_f.south) -- ([shift={(0.,-.5)}] tensor_f.south) --
+  ([shift={(0.,.5)}] function.north) -- (function.north);
+  \draw[line] ([shift={(0.,-.5)}] tensor_f.south) -- (time_func.north);
+  \draw[line] ([shift={(0.,-.5)}] tensor_f.south) --
+  ([shift={(0.,.5)}] composite.north) -- (composite.north);
+  \draw[line] (composite.south) -- (sparse_f.north);
+
+\end{tikzpicture}
+
+\end{document}
+
