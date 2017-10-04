@@ -347,7 +347,7 @@ class TimeFunction(Function):
             if not self.save:
                 if self.time_dim is not None:
                     warning('Explicit time dimension size (time_dim) found for '
-                            'TimeFunction symbol %s, despite \nusing a buffered time '
+                            'TimeFunction symbol %s, despite \nusing a stepping time '
                             'dimension (save=False). This value will be ignored!'
                             % self.name)
                 self.time_dim = self.time_order + 1

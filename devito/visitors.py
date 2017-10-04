@@ -683,7 +683,7 @@ class ResolveIterationVariable(Transformer):
     """
     :class:`Transformer` class that creates a substitution dictionary
     for replacing :class:`Dimension` instances with explicit loop
-    variables in :class:`Iteration` nodes. For buffered dimensions it
+    variables in :class:`Iteration` nodes. For stepping dimensions it
     also inserts the relevant definitions for buffer index variables,
     for exaple.:
 
@@ -697,9 +697,9 @@ class ResolveIterationVariable(Transformer):
 
     def visit_Iteration(self, o, subs={}, offsets=defaultdict(set)):
         nodes = self.visit(o.children, subs=subs, offsets=offsets)
-        if o.dim.is_Buffered:
-            # For buffered dimensions insert the explicit
-            # definition of buffered variables, eg. t+1 => t1
+        if o.dim.is_Stepping:
+            # For stepping dimensions insert the explicit
+            # definition of stepping variables, eg. t+1 => t1
             init = []
             for i, off in enumerate(filter_ordered(offsets[o.dim])):
                 vname = Symbol(name="%s%d" % (o.dim.name, i))
@@ -732,11 +732,11 @@ class MergeOuterIterations(Transformer):
         between the loops. A deeper analysis is required for this that
         will be added soon.
         """
-        if iter1.dim.is_Buffered:
+        if iter1.dim.is_Stepping:
             # Aliasing only works one-way because we left-merge
             if iter1.dim.parent == iter2.dim:
                 return True
-            if iter2.dim.is_Buffered and iter1.dim.parent == iter2.dim.parent:
+            if iter2.dim.is_Stepping and iter1.dim.parent == iter2.dim.parent:
                 return True
         return iter1.dim == iter2.dim and iter1.bounds_symbolic == iter2.bounds_symbolic
 

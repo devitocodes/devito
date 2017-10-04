@@ -9,10 +9,12 @@ __all__ = ['Dimension', 'x', 'y', 'z', 't', 'p', 'd', 'time']
 
 class Dimension(sympy.Symbol, DimensionArgProvider):
 
-    is_Buffered = False
+    is_Space = False
+    is_Time = False
+
+    is_Stepping = False
     is_Lowered = False
     is_Fixed = False
-    is_Space = False
 
     """Index object that represents a problem dimension and thus
     defines a potential iteration space.
@@ -57,12 +59,29 @@ class SpaceDimension(Dimension):
     """
 
 
-class BufferedDimension(Dimension):
+class TimeDimension(Dimension):
 
-    is_Buffered = True
+    is_Time = True
 
     """
-    Dimension symbol that implies modulo buffered iteration.
+    Dimension symbol to represent a dimension that defines the extent
+    of time. As time might be used in different contexts, all derived
+    time dimensions should inherit from :class:`TimeDimension`.
+
+    :param name: Name of the dimension symbol.
+    :param reverse: Traverse dimension in reverse order (default False)
+    :param spacing: Optional, symbol for the spacing along this dimension.
+    """
+
+
+class SteppingDimension(Dimension):
+
+    is_Stepping = True
+
+    """
+    Dimension symbol that defines the stepping direction of an
+    :class:`Operator` and implies modulo buffered iteration. This is most
+    commonly use to represent a timestepping dimension.
 
     :param parent: Parent dimension over which to loop in modulo fashion.
     """
@@ -72,6 +91,11 @@ class BufferedDimension(Dimension):
         assert isinstance(parent, Dimension)
         newobj.parent = parent
         newobj.modulo = kwargs.get('modulo', 2)
+
+        # Inherit time/space identifiers
+        cls.is_Time = parent.is_Time
+        cls.is_Space = parent.is_Space
+
         return newobj
 
     @property
@@ -88,36 +112,37 @@ class LoweredDimension(Dimension):
     is_Lowered = True
 
     """
-    Dimension symbol representing modulo iteration created when resolving a
-    :class:`BufferedDimension`.
+    Dimension symbol representing a modulo iteration created when
+    resolving a :class:`SteppingDimension`.
 
-    :param buffered: BufferedDimension from which this Dimension originated.
+    :param stepping: :class:`SteppingDimension` from which this
+                     :class:`Dimension` originated.
     :param offset: Offset value used in the modulo iteration.
     """
 
-    def __new__(cls, name, buffered, offset, **kwargs):
+    def __new__(cls, name, stepping, offset, **kwargs):
         newobj = sympy.Symbol.__new__(cls, name)
-        assert isinstance(buffered, BufferedDimension)
-        newobj.buffered = buffered
+        assert isinstance(stepping, SteppingDimension)
+        newobj.stepping = stepping
         newobj.offset = offset
         return newobj
 
     @property
     def origin(self):
-        return self.buffered + self.offset
+        return self.stepping + self.offset
 
     @property
     def size(self):
-        return self.buffered.size
+        return self.stepping.size
 
     @property
     def reverse(self):
-        return self.buffered.reverse
+        return self.stepping.reverse
 
 
 # Default dimensions for time
-time = Dimension('time', spacing=sympy.Symbol('s'))
-t = BufferedDimension('t', parent=time)
+time = TimeDimension('time', spacing=sympy.Symbol('s'))
+t = SteppingDimension('t', parent=time)
 
 # Default dimensions for space
 x = SpaceDimension('x', spacing=sympy.Symbol('h_x'))

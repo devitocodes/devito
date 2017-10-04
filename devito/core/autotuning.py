@@ -38,7 +38,7 @@ def autotune(operator, arguments, tunable):
         timesteps = 1
     elif len(sequentials) == 1:
         sequential = sequentials[0]
-        squeeze = sequential.dim.parent if sequential.dim.is_Buffered else sequential.dim
+        squeeze = sequential.dim.parent if sequential.dim.is_Stepping else sequential.dim
         timesteps = sequential.extent(finish=options['at_squeezer'])
         if timesteps < 0:
             timesteps = options['at_squeezer'] - timesteps + 1
