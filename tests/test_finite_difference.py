@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 from sympy import diff
 
-from devito import Eq, Operator, clear_cache, DenseData, x
+from devito import Grid, Eq, Operator, clear_cache, DenseData, x
 
 
 @pytest.mark.parametrize('space_order', [2, 4, 6, 8, 10, 12, 14, 16, 18, 20])
@@ -22,8 +22,9 @@ def test_fd_space(derivative, space_order):
     xx = np.linspace(-1, 1, nx)
     dx = xx[1] - xx[0]
     # Symbolic data
-    u = DenseData(name="u", shape=(nx,), space_order=space_order, dtype=np.float32)
-    du = DenseData(name="du", shape=(nx,), space_order=space_order, dtype=np.float32)
+    grid = Grid(shape=(nx,), dtype=np.float32)
+    u = DenseData(name="u", grid=grid, space_order=space_order)
+    du = DenseData(name="du", grid=grid, space_order=space_order)
     # Define polynomial with exact fd
     coeffs = np.ones((space_order,), dtype=np.float32)
     polynome = sum([coeffs[i]*x**i for i in range(0, space_order)])

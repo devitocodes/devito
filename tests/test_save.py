@@ -1,7 +1,7 @@
 import numpy as np
 from sympy import solve, symbols
 
-from devito import Eq, Operator, TimeData, Forward, x, y, time
+from devito import Grid, Eq, Operator, TimeData, Forward, x, y, time
 
 
 def initial(dx=0.01, dy=0.01):
@@ -24,8 +24,9 @@ def run_simulation(save=False, dx=0.01, dy=0.01, a=0.5, timesteps=100):
     dx2, dy2 = dx**2, dy**2
     dt = dx2 * dy2 / (2 * a * (dx2 + dy2))
 
+    grid = Grid(shape=(nx, ny))
     u = TimeData(
-        name='u', shape=(nx, ny), time_dim=timesteps, initializer=initializer,
+        name='u', grid=grid, time_dim=timesteps, initializer=initializer,
         time_order=1, space_order=2, save=save
     )
 

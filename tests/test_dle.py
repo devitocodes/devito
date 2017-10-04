@@ -10,7 +10,7 @@ from conftest import EVAL
 
 from devito.dle import retrieve_iteration_tree, transform
 from devito.dle.backends import DevitoRewriter as Rewriter
-from devito import Eq, DenseData, TimeData, Operator, t, x, y
+from devito import Grid, DenseData, TimeData, Eq, Operator, t, x, y
 from devito.nodes import ELEMENTAL, Expression, Function, Iteration, List, tagger
 from devito.visitors import (ResolveIterationVariable, SubstituteExpression,
                              Transformer, FindNodes)
@@ -101,10 +101,11 @@ def complex_function(a, b, c, d, exprs, iters):
 
 
 def _new_operator1(shape, **kwargs):
-    infield = DenseData(name='infield', shape=shape, dtype=np.int32)
+    grid = Grid(shape=shape, dtype=np.int32)
+    infield = DenseData(name='infield', grid=grid)
     infield.data[:] = np.arange(reduce(mul, shape), dtype=np.int32).reshape(shape)
 
-    outfield = DenseData(name='outfield', shape=shape, dtype=np.int32)
+    outfield = DenseData(name='outfield', grid=grid)
 
     stencil = Eq(outfield.indexify(), outfield.indexify() + infield.indexify()*3.0)
 
@@ -116,11 +117,11 @@ def _new_operator1(shape, **kwargs):
 
 
 def _new_operator2(shape, time_order, **kwargs):
-    infield = TimeData(name='infield', shape=shape, time_order=time_order, dtype=np.int32)
+    grid = Grid(shape=shape, dtype=np.int32)
+    infield = TimeData(name='infield', grid=grid, time_order=time_order)
     infield.data[:] = np.arange(reduce(mul, shape), dtype=np.int32).reshape(shape)
 
-    outfield = TimeData(name='outfield', shape=shape, time_order=time_order,
-                        dtype=np.int32)
+    outfield = TimeData(name='outfield', grid=grid, time_order=time_order)
 
     stencil = Eq(outfield.forward.indexify(),
                  outfield.indexify() + infield.indexify()*3.0)
@@ -133,6 +134,7 @@ def _new_operator2(shape, time_order, **kwargs):
 
 
 def _new_operator3(shape, time_order, **kwargs):
+    grid = Grid(shape=shape)
     spacing = 0.1
     a = 0.5
     c = 0.5
@@ -141,7 +143,7 @@ def _new_operator3(shape, time_order, **kwargs):
 
     # Allocate the grid and set initial condition
     # Note: This should be made simpler through the use of defaults
-    u = TimeData(name='u', shape=shape, time_order=1, space_order=2)
+    u = TimeData(name='u', grid=grid, time_order=1, space_order=2)
     u.data[0, :] = np.arange(reduce(mul, shape), dtype=np.int32).reshape(shape)
 
     # Derive the stencil according to devito conventions

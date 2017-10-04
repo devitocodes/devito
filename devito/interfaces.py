@@ -5,11 +5,13 @@ import numpy as np
 import sympy
 from sympy import Function, IndexedBase
 from sympy.abc import s
+from functools import partial
 
-from devito.dimension import t, x, y, z, time, Dimension
+from devito.dimension import t, time
 from devito.finite_difference import (centered, cross_derivative,
                                       first_derivative, left, right,
-                                      second_derivative)
+                                      second_derivative, generic_derivative,
+                                      second_cross_derivative)
 from devito.logger import debug, error, warning
 from devito.memory import CMemory, first_touch
 from devito.arguments import (ConstantDataArgProvider, TensorDataArgProvider,
@@ -422,13 +424,19 @@ class DenseData(TensorData):
     """Data object for spatially varying data acting as a :class:`SymbolicData`.
 
     :param name: Name of the symbol
-    :param dtype: Data type of the scalar
-    :param shape: The shape of the tensor
-    :param dimensions: The symbolic dimensions of the tensor.
+    :param grid: :class:`Grid` object from which to infer the data shape
+                 and :class:`Dimension` indices.
+    :param shape: (Optional) shape of the associated data for this symbol.
+    :param dimensions: (Optional) symbolic dimensions that define the
+                       data layout and function indices of this symbol.
+    :param dtype: (Optional) data type of the buffered data.
     :param space_order: Discretisation order for space derivatives
     :param initializer: Function to initialize the data, optional
 
     .. note::
+
+       If the parameter ``grid`` is provided, the values for ``shape``,
+       ``dimensions`` and ``dtype`` will be derived from it.
 
        :class:`DenseData` objects are assumed to be constant in time
        and therefore do not support time derivatives. Use
@@ -440,12 +448,20 @@ class DenseData(TensorData):
     def __init__(self, *args, **kwargs):
         if not self._cached():
             self.name = kwargs.get('name')
-            self.shape = kwargs.get('shape', None)
-            if self.shape is None:
-                dimensions = kwargs.get('dimensions')
-                self.shape = tuple([d.size for d in dimensions])
+            self.grid = kwargs.get('grid', None)
+
+            if self.grid is None:
+                self.shape_domain = kwargs.get('shape', None)
+                self.dtype = kwargs.get('dtype', np.float32)
+                if self.shape_domain is None:
+                    error("Creating a Function requires either 'shape'"
+                          "or a 'grid' argument")
+                    raise ValueError("Unknown symbol dimensions or shape")
+            else:
+                self.shape_domain = self.grid.shape_domain
+                self.dtype = kwargs.get('dtype', self.grid.dtype)
             self.indices = self._indices(**kwargs)
-            self.dtype = kwargs.get('dtype', np.float32)
+
             self.space_order = kwargs.get('space_order', 1)
             self.initializer = kwargs.get('initializer', None)
             if self.initializer is not None:
@@ -453,30 +469,110 @@ class DenseData(TensorData):
             self._first_touch = kwargs.get('first_touch', configuration['first_touch'])
             self._data_object = None
 
+            # Dynamically create notational shortcuts for space derivatives
+            for dim in self.space_dimensions:
+                # First derivative, centred
+                dx = partial(first_derivative, order=self.space_order,
+                             dim=dim, side=centered)
+                setattr(self.__class__, 'd%s' % dim.name,
+                        property(dx, 'Return the symbolic expression for '
+                                 'the centered first derivative wrt. '
+                                 'the %s dimension' % dim.name))
+
+                # First derivative, left
+                dxl = partial(first_derivative, order=self.space_order,
+                              dim=dim, side=left)
+                setattr(self.__class__, 'd%sl' % dim.name,
+                        property(dxl, 'Return the symbolic expression for '
+                                 'the left-sided first derivative wrt. '
+                                 'the %s dimension' % dim.name))
+
+                # First derivative, right
+                dxr = partial(first_derivative, order=self.space_order,
+                              dim=dim, side=right)
+                setattr(self.__class__, 'd%sr' % dim.name,
+                        property(dxr, 'Return the symbolic expression for '
+                                 'the right-sided first derivative wrt. '
+                                 'the %s dimension' % dim.name))
+
+                # Second derivative
+                dx2 = partial(generic_derivative, deriv_order=2, dim=dim,
+                              fd_order=self.space_order / 2)
+                setattr(self.__class__, 'd%s2' % dim.name,
+                        property(dx2, 'Return the symbolic expression for '
+                                 'the second derivative wrt. the '
+                                 '%s dimension' % dim.name))
+
+                # Fourth derivative
+                dx4 = partial(generic_derivative, deriv_order=4, dim=dim,
+                              fd_order=max(int(self.space_order / 2), 2))
+                setattr(self.__class__, 'd%s4' % dim.name,
+                        property(dx4, 'Return the symbolic expression for '
+                                 'the fourth derivative wrt. the '
+                                 '%s dimension' % dim.name))
+
+                for dim2 in self.space_dimensions:
+                    # First cross derivative
+                    dxy = partial(cross_derivative, order=self.space_order,
+                                  dims=(dim, dim2))
+                    setattr(self.__class__, 'd%s%s' % (dim.name, dim2.name),
+                            property(dxy, 'Return the symbolic expression for '
+                                     'the first cross derivative wrt. the '
+                                     '%s and %s dimensions' %
+                                     (dim.name, dim2.name)))
+
+                    # Second cross derivative
+                    dx2y2 = partial(second_cross_derivative, dims=(dim, dim2),
+                                    order=self.space_order)
+                    setattr(self.__class__, 'd%s2%s2' % (dim.name, dim2.name),
+                            property(dx2y2, 'Return the symbolic expression for '
+                                     'the second cross derivative wrt. the '
+                                     '%s and %s dimensions' %
+                                     (dim.name, dim2.name)))
+
     @classmethod
     def _indices(cls, **kwargs):
         """Return the default dimension indices for a given data shape
 
+        :param grid: :class:`Grid` that defines the spatial domain.
         :param dimensions: Optional, list of :class:`Dimension`
                            objects that defines data layout.
-        :param shape: Optional, shape of the spatial data to
-                      automatically infer dimension symbols.
         :return: Dimension indices used for each axis.
+
+        ..note::
+
+        Only one of :param grid: or :param dimensions: is required.
         """
+
+        grid = kwargs.get('grid', None)
         dimensions = kwargs.get('dimensions', None)
-        if dimensions is None:
-            # Infer dimensions from default and data shape
-            if 'shape' not in kwargs:
-                error("Creating symbolic data objects requries either"
-                      "a 'shape' or 'dimensions' argument")
+        if grid is None:
+            if dimensions is None:
+                error("Creating a Function object requries either "
+                      "a 'grid' or the 'dimensions' argument.")
                 raise ValueError("Unknown symbol dimensions or shape")
-            _indices = (x, y, z)
-            shape = kwargs.get('shape')
-            if len(shape) <= 3:
-                dimensions = _indices[:len(shape)]
-            else:
-                dimensions = [Dimension("x%d" % i) for i in range(1, len(shape) + 1)]
+        else:
+            if dimensions is not None:
+                warning("Creating Function with 'grid' and 'dimensions' "
+                        "argument; ignoring the 'dimensions' and using 'grid'.")
+            dimensions = grid.dimensions
         return dimensions
+
+    @property
+    def shape_data(self):
+        """
+        Full allocated shape of the data associated with this :class:`Function`.
+        """
+        return self.shape_domain
+
+    @property
+    def shape(self):
+        return self.shape_data
+
+    @property
+    def space_dimensions(self):
+        """Tuple of index dimensions that define physical space."""
+        return tuple(d for d in self.indices if d.is_Space)
 
     def _allocate_memory(self):
         """Allocate memory in terms of numpy ndarrays."""
@@ -501,145 +597,25 @@ class DenseData(TensorData):
             self.initializer(self.data)
 
     @property
-    def dx(self):
-        """Symbol for the first derivative wrt the x dimension"""
-        return first_derivative(self, order=self.space_order, dim=x, side=centered)
-
-    @property
-    def dy(self):
-        """Symbol for the first derivative wrt the y dimension"""
-        return first_derivative(self, order=self.space_order, dim=y, side=centered)
-
-    @property
-    def dz(self):
-        """Symbol for the first derivative wrt the z dimension"""
-        return first_derivative(self, order=self.space_order, dim=z, side=centered)
-
-    @property
-    def dxy(self):
-        """Symbol for the cross derivative wrt the x and y dimension"""
-        return cross_derivative(self, order=self.space_order, dims=(x, y))
-
-    @property
-    def dxz(self):
-        """Symbol for the cross derivative wrt the x and z dimension"""
-        return cross_derivative(self, order=self.space_order, dims=(x, z))
-
-    @property
-    def dyz(self):
-        """Symbol for the cross derivative wrt the y and z dimension"""
-        return cross_derivative(self, order=self.space_order, dims=(y, z))
-
-    @property
-    def dxl(self):
-        """Symbol for the derivative wrt to x with a left stencil"""
-        return first_derivative(self, order=self.space_order, dim=x, side=left)
-
-    @property
-    def dxr(self):
-        """Symbol for the derivative wrt to x with a right stencil"""
-        return first_derivative(self, order=self.space_order, dim=x, side=right)
-
-    @property
-    def dyl(self):
-        """Symbol for the derivative wrt to y with a left stencil"""
-        return first_derivative(self, order=self.space_order, dim=y, side=left)
-
-    @property
-    def dyr(self):
-        """Symbol for the derivative wrt to y with a right stencil"""
-        return first_derivative(self, order=self.space_order, dim=y, side=right)
-
-    @property
-    def dzl(self):
-        """Symbol for the derivative wrt to z with a left stencil"""
-        return first_derivative(self, order=self.space_order, dim=z, side=left)
-
-    @property
-    def dzr(self):
-        """Symbol for the derivative wrt to z with a right stencil"""
-        return first_derivative(self, order=self.space_order, dim=z, side=right)
-
-    @property
-    def dx2(self):
-        """Symbol for the second derivative wrt the x dimension"""
-        width_h = int(self.space_order/2)
-        indx = [(x + i * x.spacing) for i in range(-width_h, width_h + 1)]
-
-        return self.diff(x, x).as_finite_difference(indx)
-
-    @property
-    def dy2(self):
-        """Symbol for the second derivative wrt the y dimension"""
-        width_h = int(self.space_order/2)
-        indy = [(y + i * y.spacing) for i in range(-width_h, width_h + 1)]
-
-        return self.diff(y, y).as_finite_difference(indy)
-
-    @property
-    def dz2(self):
-        """Symbol for the second derivative wrt the z dimension"""
-        width_h = int(self.space_order/2)
-        indz = [(z + i * z.spacing) for i in range(-width_h, width_h + 1)]
-
-        return self.diff(z, z).as_finite_difference(indz)
-
-    @property
-    def dx2y2(self):
-        """Symbol for the second cross derivative wrt the x,y dimension"""
-        return second_derivative(self.dx2, dim=y, order=self.space_order)
-
-    @property
-    def dx2z2(self):
-        """Symbol for the second cross derivative wrt the x,z dimension"""
-        return second_derivative(self.dx2, dim=z, order=self.space_order)
-
-    @property
-    def dy2z2(self):
-        """Symbol for the second cross derivative wrt the y,z dimension"""
-        return second_derivative(self.dy2, dim=z, order=self.space_order)
-
-    @property
-    def dx4(self):
-        """Symbol for the fourth derivative wrt the x dimension"""
-        width_h = max(int(self.space_order / 2), 2)
-        indx = [(x + i * x.spacing) for i in range(-width_h, width_h + 1)]
-
-        return self.diff(x, x, x, x).as_finite_difference(indx)
-
-    @property
-    def dy4(self):
-        """Symbol for the fourth derivative wrt the y dimension"""
-        width_h = max(int(self.space_order / 2), 2)
-        indy = [(y + i * y.spacing) for i in range(-width_h, width_h + 1)]
-
-        return self.diff(y, y, y, y).as_finite_difference(indy)
-
-    @property
-    def dz4(self):
-        """Symbol for the fourth derivative wrt the z dimension"""
-        width_h = max(int(self.space_order / 2), 2)
-        indz = [(z + i * z.spacing) for i in range(-width_h, width_h + 1)]
-
-        return self.diff(z, z, z, z).as_finite_difference(indz)
-
-    @property
     def laplace(self):
-        """Symbol for the second derivative wrt all spatial dimensions"""
-        derivs = ['dx2', 'dy2', 'dz2']
+        """
+        Generates a symbolic expression for the Laplacian, the second
+        derivative wrt. all spatial dimensions.
+        """
+        derivs = tuple('d%s2' % d.name for d in self.space_dimensions)
 
         return sum([getattr(self, d) for d in derivs[:self.dim]])
 
     def laplace2(self, weight=1):
-        """Symbol for the double laplacian wrt all spatial dimensions"""
+        """
+        Generates a symbolic expression for the double Laplacian
+        wrt. all spatial dimensions.
+        """
         order = self.space_order/2
-        first = sum([second_derivative(self, dim=d,
-                                       order=order)
-                     for d in self.indices[1:]])
-        second = sum([second_derivative(first * weight, dim=d,
-                                        order=order)
-                      for d in self.indices[1:]])
-        return second
+        first = sum([second_derivative(self, dim=d, order=order)
+                     for d in self.space_dimensions])
+        return sum([second_derivative(first * weight, dim=d, order=order)
+                    for d in self.space_dimensions])
 
 
 class TimeData(DenseData):
@@ -647,10 +623,12 @@ class TimeData(DenseData):
     Data object for time-varying data that acts as a Function symbol
 
     :param name: Name of the resulting :class:`sympy.Function` symbol
-    :param shape: Shape of the spatial data grid
-    :param dimensions: The symbolic dimensions of the function in addition
-                       to time.
-    :param dtype: Data type of the buffered data
+    :param grid: :class:`Grid` object from which to infer the data shape
+                 and :class:`Dimension` indices.
+    :param shape: (Optional) shape of the associated data for this symbol.
+    :param dimensions: (Optional) symbolic dimensions that define the
+                       data layout in addition to the time dimension.
+    :param dtype: (Optional) data type of the buffered data
     :param save: Save the intermediate results to the data buffer. Defaults
                  to `False`, indicating the use of alternating buffers.
     :param time_dim: Size of the time dimension that dictates the leading
@@ -660,6 +638,9 @@ class TimeData(DenseData):
                        data buffer.
 
     .. note::
+
+       If the parameter ``grid`` is provided, the values for ``shape``,
+       ``dimensions`` and ``dtype`` will be derived from it.
 
        The parameter ``shape`` should only define the spatial shape of
        the grid. The temporal dimension will be inserted automatically
@@ -684,24 +665,31 @@ class TimeData(DenseData):
     def __init__(self, *args, **kwargs):
         if not self._cached():
             super(TimeData, self).__init__(*args, **kwargs)
-            time_dim = kwargs.get('time_dim', None)
+            self.time_dim = kwargs.get('time_dim', None)
             self.time_order = kwargs.get('time_order', 1)
             self.save = kwargs.get('save', False)
 
             if not self.save:
-                if time_dim is not None:
+                if self.time_dim is not None:
                     warning('Explicit time dimension size (time_dim) found for '
                             'TimeData symbol %s, despite \nusing a buffered time '
                             'dimension (save=False). This value will be ignored!'
                             % self.name)
-                time_dim = self.time_order + 1
-                self.indices[0].modulo = time_dim
+                self.time_dim = self.time_order + 1
+                self.indices[0].modulo = self.time_dim
             else:
-                if time_dim is None:
+                if self.time_dim is None:
                     error('Time dimension (time_dim) is required'
                           'to save intermediate data with save=True')
                     raise ValueError("Unknown time dimensions")
-            self.shape = (time_dim,) + self.shape
+
+    @property
+    def shape_data(self):
+        """
+        Full allocated shape of the data associated with this :class:`TimeFunction`.
+        """
+        tsize = self.time_dim if self.save else self.time_order + 1
+        return (tsize, ) + self.shape_domain
 
     def initialize(self):
         if self.initializer is not None:

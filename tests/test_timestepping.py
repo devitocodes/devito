@@ -2,34 +2,39 @@ import numpy as np
 
 import pytest
 
-from devito import Eq, Operator, Forward, Backward, TimeData, t
+from devito import Grid, Eq, Operator, Forward, Backward, TimeData, t
 
 
 @pytest.fixture
-def a(shape=(11, 11)):
+def grid(shape=(11, 11)):
+    return Grid(shape=shape)
+
+
+@pytest.fixture
+def a(grid):
     """Forward time data object, unrolled (save=True)"""
-    return TimeData(name='a', shape=shape, time_order=1,
+    return TimeData(name='a', grid=grid, time_order=1,
                     time_dim=6, save=True)
 
 
 @pytest.fixture
-def b(shape=(11, 11)):
+def b(grid):
     """Backward time data object, unrolled (save=True)"""
-    return TimeData(name='b', shape=shape, time_order=1,
+    return TimeData(name='b', grid=grid, time_order=1,
                     time_dim=6, save=True)
 
 
 @pytest.fixture
-def c(shape=(11, 11)):
+def c(grid):
     """Forward time data object, buffered (save=False)"""
-    return TimeData(name='c', shape=shape, time_order=1,
+    return TimeData(name='c', grid=grid, time_order=1,
                     save=False, time_axis=Forward)
 
 
 @pytest.fixture
-def d(shape=(11, 11)):
+def d(grid):
     """Forward time data object, unrolled (save=True), end order"""
-    return TimeData(name='d', shape=shape, time_order=2,
+    return TimeData(name='d', grid=grid, time_order=2,
                     time_dim=6, save=True)
 
 

@@ -3,7 +3,7 @@ import weakref
 import numpy as np
 import pytest
 
-from devito import DenseData, TimeData, clear_cache
+from devito import Grid, DenseData, TimeData, clear_cache
 from devito.interfaces import _SymbolCache
 
 
@@ -11,16 +11,18 @@ from devito.interfaces import _SymbolCache
 @pytest.mark.parametrize('FunctionType', [DenseData, TimeData])
 def test_cache_function_new(FunctionType):
     """Test caching of a new u[x, y] instance"""
-    u0 = FunctionType(name='u', shape=(3, 4))
+    grid = Grid(shape=(3, 4))
+    u0 = FunctionType(name='u', grid=grid)
     u0.data[:] = 6.
-    u = FunctionType(name='u', shape=(3, 4))
+    u = FunctionType(name='u', grid=grid)
     assert np.allclose(u.data, u0.data)
 
 
 @pytest.mark.parametrize('FunctionType', [DenseData, TimeData])
 def test_cache_function_same_indices(FunctionType):
     """Test caching of derived u[x, y] instance from derivative"""
-    u0 = FunctionType(name='u', shape=(3, 4))
+    grid = Grid(shape=(3, 4))
+    u0 = FunctionType(name='u', grid=grid)
     u0.data[:] = 6.
     # Pick u[x, y] from derivative
     u = u0.dx.args[1].args[2]
@@ -30,7 +32,8 @@ def test_cache_function_same_indices(FunctionType):
 @pytest.mark.parametrize('FunctionType', [DenseData, TimeData])
 def test_cache_function_different_indices(FunctionType):
     """Test caching of u[x + h, y] instance from derivative"""
-    u0 = FunctionType(name='u', shape=(3, 4))
+    grid = Grid(shape=(3, 4))
+    u0 = FunctionType(name='u', grid=grid)
     u0.data[:] = 6.
     # Pick u[x + h, y] (different indices) from derivative
     u = u0.dx.args[0].args[1]
@@ -58,7 +61,8 @@ def test_symbol_cache_aliasing():
     # assert(len(_SymbolCache) == 0)
 
     # Create first instance of u and fill its data
-    u = DenseData(name='u', shape=(3, 4))
+    grid = Grid(shape=(3, 4))
+    u = DenseData(name='u', grid=grid)
     u.data[:] = 6.
     u_ref = weakref.ref(u.data)
 
@@ -88,7 +92,8 @@ def test_symbol_cache_aliasing_reverse():
     # assert(len(_SymbolCache) == 0)
 
     # Create first instance of u and fill its data
-    u = DenseData(name='u', shape=(3, 4))
+    grid = Grid(shape=(3, 4))
+    u = DenseData(name='u', grid=grid)
     u.data[:] = 6.
     u_ref = weakref.ref(u.data)
 
@@ -112,11 +117,12 @@ def test_symbol_cache_aliasing_reverse():
 def test_clear_cache(nx=1000, ny=1000):
     clear_cache()
     cache_size = len(_SymbolCache)
+    grid = Grid(shape=(nx, ny), dtype=np.float64)
 
     for i in range(10):
         assert(len(_SymbolCache) == cache_size)
 
-        DenseData(name='u', shape=(nx, ny), dtype=np.float64, space_order=2)
+        DenseData(name='u', grid=grid, space_order=2)
 
         assert(len(_SymbolCache) == cache_size + 1)
 
@@ -127,9 +133,10 @@ def test_cache_after_indexification():
     """Test to assert that the SymPy cache retrieves the right Devito data object
     after indexification.
     """
-    u0 = DenseData(name='u', shape=(4, 4, 4), space_order=0)
-    u1 = DenseData(name='u', shape=(4, 4, 4), space_order=1)
-    u2 = DenseData(name='u', shape=(4, 4, 4), space_order=2)
+    grid = Grid(shape=(4, 4, 4))
+    u0 = DenseData(name='u', grid=grid, space_order=0)
+    u1 = DenseData(name='u', grid=grid, space_order=1)
+    u2 = DenseData(name='u', grid=grid, space_order=2)
 
     for i in [u0, u1, u2]:
         assert i.indexify().base.function.space_order ==\

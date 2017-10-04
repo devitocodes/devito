@@ -72,7 +72,7 @@ def ForwardOperator(model, source, receiver, time_order=2, space_order=4,
     m, damp = model.m, model.damp
 
     # Create symbols for forward wavefield, source and receivers
-    u = TimeData(name='u', shape=model.shape_domain, dtype=model.dtype,
+    u = TimeData(name='u', grid=model.grid,
                  save=save, time_dim=source.nt if save else None,
                  time_order=2, space_order=space_order)
     src = PointSource(name='src', ntime=source.nt, ndim=source.ndim,
@@ -94,7 +94,7 @@ def ForwardOperator(model, source, receiver, time_order=2, space_order=4,
     rec_term = rec.interpolate(expr=u, offset=model.nbpml)
 
     subs = dict([(t.spacing, dt)] + [(time.spacing, dt)] +
-                [(i.spacing, model.get_spacing()[j]) for i, j
+                [(i.spacing, model.spacing[j]) for i, j
                  in zip(u.indices[1:], range(len(model.shape)))])
     return Operator(eqn + src_term + rec_term,
                     subs=subs,
@@ -113,8 +113,8 @@ def AdjointOperator(model, source, receiver, time_order=2, space_order=4, **kwar
     """
     m, damp = model.m, model.damp
 
-    v = TimeData(name='v', shape=model.shape_domain, save=False,
-                 time_order=2, space_order=space_order, dtype=model.dtype)
+    v = TimeData(name='v', grid=model.grid, save=False,
+                 time_order=2, space_order=space_order)
     srca = PointSource(name='srca', ntime=source.nt, ndim=source.ndim,
                        npoint=source.npoint)
     rec = Receiver(name='rec', ntime=receiver.nt, ndim=receiver.ndim,
@@ -133,7 +133,7 @@ def AdjointOperator(model, source, receiver, time_order=2, space_order=4, **kwar
     # Create interpolation expression for the adjoint-source
     source_a = srca.interpolate(expr=v, offset=model.nbpml)
     subs = dict([(t.spacing, dt)] + [(time.spacing, dt)] +
-                [(i.spacing, model.get_spacing()[j]) for i, j
+                [(i.spacing, model.spacing[j]) for i, j
                  in zip(v.indices[1:], range(len(model.shape)))])
     return Operator(eqn + receivers + source_a,
                     subs=subs,
@@ -153,14 +153,11 @@ def GradientOperator(model, source, receiver, time_order=2, space_order=4, **kwa
     m, damp = model.m, model.damp
 
     # Gradient symbol and wavefield symbols
-    grad = DenseData(name='grad', shape=model.shape_domain,
-                     dtype=model.dtype)
-    u = TimeData(name='u', shape=model.shape_domain, save=True,
-                 time_dim=source.nt, time_order=2,
-                 space_order=space_order, dtype=model.dtype)
-    v = TimeData(name='v', shape=model.shape_domain, save=False,
-                 time_order=2, space_order=space_order,
-                 dtype=model.dtype)
+    grad = DenseData(name='grad', grid=model.grid)
+    u = TimeData(name='u', grid=model.grid, save=True, time_dim=source.nt,
+                 time_order=2, space_order=space_order)
+    v = TimeData(name='v', grid=model.grid, save=False,
+                 time_order=2, space_order=space_order)
     rec = Receiver(name='rec', ntime=receiver.nt, ndim=receiver.ndim,
                    npoint=receiver.npoint)
 
@@ -181,7 +178,7 @@ def GradientOperator(model, source, receiver, time_order=2, space_order=4, **kwa
                            offset=model.nbpml)
 
     subs = dict([(t.spacing, dt)] + [(time.spacing, dt)] +
-                [(i.spacing, model.get_spacing()[j]) for i, j
+                [(i.spacing, model.spacing[j]) for i, j
                  in zip(v.indices[1:], range(len(model.shape)))])
     return Operator(eqn + receivers + [gradient_update],
                     subs=subs,
@@ -207,11 +204,11 @@ def BornOperator(model, source, receiver, time_order=2, space_order=4, **kwargs)
                    npoint=receiver.npoint)
 
     # Create wavefields and a dm field
-    u = TimeData(name="u", shape=model.shape_domain, save=False,
-                 time_order=2, space_order=space_order, dtype=model.dtype)
-    U = TimeData(name="U", shape=model.shape_domain, save=False,
-                 time_order=2, space_order=space_order, dtype=model.dtype)
-    dm = DenseData(name="dm", shape=model.shape_domain, dtype=model.dtype)
+    u = TimeData(name="u", grid=model.grid, save=False,
+                 time_order=2, space_order=space_order)
+    U = TimeData(name="U", grid=model.grid, save=False,
+                 time_order=2, space_order=space_order)
+    dm = DenseData(name="dm", grid=model.grid)
 
     s = t.spacing
     # Get computational time-step value
@@ -227,7 +224,7 @@ def BornOperator(model, source, receiver, time_order=2, space_order=4, **kwargs)
     # Create receiver interpolation expression from U
     receivers = rec.interpolate(expr=U, offset=model.nbpml)
     subs = dict([(t.spacing, dt)] + [(time.spacing, dt)] +
-                [(i.spacing, model.get_spacing()[j]) for i, j
+                [(i.spacing, model.spacing[j]) for i, j
                  in zip(u.indices[1:], range(len(model.shape)))])
     return Operator(eqn1 + source + eqn2 + receivers,
                     subs=subs,

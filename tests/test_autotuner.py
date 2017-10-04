@@ -12,7 +12,7 @@ import pytest
 
 import numpy as np
 
-from devito import Eq, DenseData, TimeData, Operator, t, x, y, z, configuration
+from devito import Grid, DenseData, TimeData, Eq, Operator, t, x, y, z, configuration
 from devito.logger import logger, logging, set_log_level
 from devito.core.autotuning import options
 
@@ -26,15 +26,16 @@ def test_at_is_actually_working(shape, expected):
     Check that autotuning is actually running when switched on,
     in both 2D and 3D operators.
     """
+    grid = Grid(shape=shape)
 
     buffer = StringIO()
     temporary_handler = logging.StreamHandler(buffer)
     logger.addHandler(temporary_handler)
     set_log_level('DEBUG')
 
-    infield = DenseData(name='infield', shape=shape, dtype=np.int32)
+    infield = DenseData(name='infield', grid=grid)
     infield.data[:] = np.arange(reduce(mul, shape), dtype=np.int32).reshape(shape)
-    outfield = DenseData(name='outfield', shape=shape, dtype=np.int32)
+    outfield = DenseData(name='outfield', grid=grid)
     stencil = Eq(outfield.indexify(), outfield.indexify() + infield.indexify()*3.0)
     op = Operator(stencil, dle=('blocking', {'blockinner': True, 'blockalways': True}))
 
@@ -73,11 +74,12 @@ def test_timesteps_per_at_run():
     set_log_level('DEBUG')
 
     shape = (30, 30, 30)
+    grid = Grid(shape=shape)
 
     # DenseData
-    infield = DenseData(name='infield', shape=shape, dtype=np.int32)
+    infield = DenseData(name='infield', grid=grid)
     infield.data[:] = np.arange(reduce(mul, shape), dtype=np.int32).reshape(shape)
-    outfield = DenseData(name='outfield', shape=shape, dtype=np.int32)
+    outfield = DenseData(name='outfield', grid=grid)
     stencil = Eq(outfield.indexify(), outfield.indexify() + infield.indexify()*3.0)
     op = Operator(stencil, dle=('blocking', {'blockalways': True}))
     op(infield=infield, outfield=outfield, autotune=True)
@@ -88,10 +90,10 @@ def test_timesteps_per_at_run():
 
     # TimeData with increasing time order
     for to in [1, 2, 4]:
-        infield = TimeData(name='infield', shape=shape, dtype=np.int32, time_order=to)
+        infield = TimeData(name='infield', grid=grid, time_order=to)
         infield.data[:] = np.arange(reduce(mul, infield.shape),
                                     dtype=np.int32).reshape(infield.shape)
-        outfield = TimeData(name='outfield', shape=shape, dtype=np.int32, time_order=to)
+        outfield = TimeData(name='outfield', grid=grid, time_order=to)
         stencil = Eq(outfield.indexed[t + to, x, y, z],
                      outfield.indexify() + infield.indexify()*3.0)
         op = Operator(stencil, dle=('blocking', {'blockalways': True}))

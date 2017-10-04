@@ -7,24 +7,24 @@ from conftest import EVAL, dims, dims_open
 import numpy as np
 import pytest
 
-from devito import (clear_cache, Operator, ConstantData, DenseData, TimeData,
-                    PointData, Dimension, Eq, time, x, y, z, configuration)
+from devito import (clear_cache, Grid, Eq, Operator, ConstantData, DenseData,
+                    TimeData, PointData, Dimension, time, x, y, z, configuration)
 from devito.foreign import Operator as OperatorForeign
 from devito.dle import retrieve_iteration_tree
 from devito.visitors import IsPerfectIteration
 
 
-def dimify(dimensions, open=False):
+def dimify(dimensions, open=True):
     assert isinstance(dimensions, str)
     mapper = dims() if not open else dims_open()
     return tuple(mapper[i] for i in dimensions.split())
 
 
-def symbol(name, dimensions, value=0., mode='function'):
+def symbol(name, dimensions, value=0., shape=(3, 5), mode='function'):
     """Short-cut for symbol creation to test "function"
     and "indexed" API."""
     assert(mode in ['function', 'indexed'])
-    s = DenseData(name=name, dimensions=dimensions)
+    s = DenseData(name=name, dimensions=dimensions, shape=shape)
     s.data[:] = value
     return s.indexify() if mode == 'indexed' else s
 
@@ -87,8 +87,10 @@ class TestArithmetic(object):
     def test_deep(self, expr, result, mode):
         """Tests basic point-wise arithmetic on multi-dimensional data"""
         i, j, k, l = dimify('i j k l')
-        a = symbol(name='a', dimensions=(i, j, k, l), value=2., mode=mode)
-        b = symbol(name='b', dimensions=(j, k), value=3., mode=mode)
+        a = symbol(name='a', dimensions=(i, j, k, l), shape=(3, 5, 7, 6),
+                   value=2., mode=mode)
+        b = symbol(name='b', dimensions=(j, k), shape=(5, 7),
+                   value=3., mode=mode)
         fa = a.base.function if mode == 'indexed' else a
         fb = b.base.function if mode == 'indexed' else b
 
@@ -105,7 +107,8 @@ class TestArithmetic(object):
     def test_indexed_increment(self, expr, result):
         """Tests point-wise increments with stencil offsets in one dimension"""
         j, l = dimify('j l')
-        a = symbol(name='a', dimensions=(j, l), value=2., mode='indexed').base
+        a = symbol(name='a', dimensions=(j, l), value=2., shape=(5, 6),
+                   mode='indexed').base
         fa = a.function
         fa.data[1:, 1:] = 0
 
@@ -123,9 +126,11 @@ class TestArithmetic(object):
         """Test point-wise arithmetic with stencil offsets across two
         functions in indexed expression format"""
         j, l = dimify('j l')
-        a = symbol(name='a', dimensions=(j, l), value=0., mode='indexed').base
+        a = symbol(name='a', dimensions=(j, l), value=0., shape=(5, 6),
+                   mode='indexed').base
         fa = a.function
-        b = symbol(name='b', dimensions=(j, l), value=2., mode='indexed').base
+        b = symbol(name='b', dimensions=(j, l), value=2., shape=(5, 6),
+                   mode='indexed').base
         fb = b.function
 
         eqn = eval(expr)
@@ -141,8 +146,9 @@ class TestArithmetic(object):
     def test_indexed_buffered(self, expr, result):
         """Test point-wise arithmetic with stencil offsets across a single
         functions with buffering dimension in indexed expression format"""
-        i, j, l = dimify('i j l')
-        a = symbol(name='a', dimensions=(i, j, l), value=2., mode='indexed').base
+        i, j, l = dimify('i j l', open=False)
+        a = symbol(name='a', dimensions=(i, j, l), value=2., shape=(3, 5, 6),
+                   mode='indexed').base
         fa = a.function
 
         eqn = eval(expr)
@@ -167,8 +173,9 @@ class TestArithmetic(object):
     def test_constant_time_dense(self):
         """Test arithmetic between different data objects, namely ConstantData
         and DenseData."""
+        i, j = dimify('i j')
         const = ConstantData(name='truc', value=2.)
-        a = DenseData(name='a', shape=(20, 20))
+        a = DenseData(name='a', shape=(20, 20), dimensions=(i, j))
         a.data[:] = 2.
         eqn = Eq(a, a + 2.*const)
         op = Operator(eqn)
@@ -180,6 +187,25 @@ class TestArithmetic(object):
         assert(np.allclose(a.data, 12.))
 
 
+class TestAllocation(object):
+
+    @classmethod
+    def setup_class(cls):
+        clear_cache()
+
+    @pytest.mark.parametrize('shape', [(20, 20),
+                                       (20, 20, 20),
+                                       (20, 20, 20, 20)])
+    def test_first_touch(self, shape):
+        dimensions = dimify('i j k l')[:len(shape)]
+        grid = Grid(shape=shape, dimensions=dimensions)
+        m = DenseData(name='m', grid=grid, first_touch=True)
+        assert(np.allclose(m.data, 0))
+        m2 = DenseData(name='m2', grid=grid, first_touch=False)
+        assert(np.allclose(m2.data, 0))
+        assert(np.array_equal(m.data, m2.data))
+
+
 class TestArguments(object):
 
     @classmethod
@@ -189,18 +215,18 @@ class TestArguments(object):
     def test_override_cache_aliasing(self):
         """Test that the call-time overriding of Operator arguments works"""
         i, j, k, l = dimify('i j k l')
+        shape = (3, 5, 7, 6)
         a = symbol(name='a', dimensions=(i, j, k, l), value=2.,
-                   mode='indexed').base.function
+                   shape=shape, mode='indexed').base.function
         a1 = symbol(name='a', dimensions=(i, j, k, l), value=3.,
-                    mode='indexed').base.function
+                    shape=shape, mode='indexed').base.function
         a2 = symbol(name='a', dimensions=(i, j, k, l), value=4.,
-                    mode='indexed').base.function
+                    shape=shape, mode='indexed').base.function
         eqn = Eq(a, a+3)
         op = Operator(eqn)
         op()
         op(a=a1)
         op(a=a2)
-        shape = [d.size for d in [i, j, k, l]]
 
         assert(np.allclose(a.data, np.zeros(shape) + 5))
         assert(np.allclose(a1.data, np.zeros(shape) + 6))
@@ -209,14 +235,14 @@ class TestArguments(object):
     def test_override_symbol(self):
         """Test call-time symbols overrides with other symbols"""
         i, j, k, l = dimify('i j k l')
-        a = symbol(name='a', dimensions=(i, j, k, l), value=2.)
-        a1 = symbol(name='a1', dimensions=(i, j, k, l), value=3.)
-        a2 = symbol(name='a2', dimensions=(i, j, k, l), value=4.)
+        shape = (3, 5, 7, 6)
+        a = symbol(name='a', dimensions=(i, j, k, l), shape=shape, value=2.)
+        a1 = symbol(name='a1', dimensions=(i, j, k, l), shape=shape, value=3.)
+        a2 = symbol(name='a2', dimensions=(i, j, k, l), shape=shape, value=4.)
         op = Operator(Eq(a, a + 3))
         op()
         op(a=a1)
         op(a=a2)
-        shape = [d.size for d in [i, j, k, l]]
 
         assert(np.allclose(a.data, np.zeros(shape) + 5))
         assert(np.allclose(a1.data, np.zeros(shape) + 6))
@@ -225,15 +251,14 @@ class TestArguments(object):
     def test_override_array(self):
         """Test call-time symbols overrides with numpy arrays"""
         i, j, k, l = dimify('i j k l')
-        shape = tuple(d.size for d in (i, j, k, l))
-        a = symbol(name='a', dimensions=(i, j, k, l), value=2.)
+        shape = (3, 5, 7, 6)
+        a = symbol(name='a', shape=shape, dimensions=(i, j, k, l), value=2.)
         a1 = np.zeros(shape=shape, dtype=np.float32) + 3.
         a2 = np.zeros(shape=shape, dtype=np.float32) + 4.
         op = Operator(Eq(a, a + 3))
         op()
         op(a=a1)
         op(a=a2)
-        shape = [d.size for d in [i, j, k, l]]
 
         assert(np.allclose(a.data, np.zeros(shape) + 5))
         assert(np.allclose(a1, np.zeros(shape) + 6))
@@ -242,9 +267,10 @@ class TestArguments(object):
     def test_dimension_size_infer(self, nt=100):
         """Test that the dimension sizes are being inferred correctly"""
         i, j, k = dimify('i j k')
-        shape = tuple([d.size for d in [i, j, k]])
-        a = DenseData(name='a', shape=shape).indexed
-        b = TimeData(name='b', shape=shape, save=True, time_dim=nt).indexed
+        shape = (3, 5, 7)
+        a = DenseData(name='a', shape=shape, dimensions=(i, j, k)).indexed
+        b = TimeData(name='b', shape=shape, dimensions=(i, j, k),
+                     save=True, time_dim=nt).indexed
         eqn = Eq(b[time, x, y, z], a[x, y, z])
         op = Operator(eqn)
 
@@ -254,8 +280,9 @@ class TestArguments(object):
     def test_dimension_size_override(self, nt=100):
         """Test explicit overrides for the leading time dimension"""
         i, j, k = dimify('i j k')
-        a = TimeData(name='a', dimensions=(i, j, k))
-        one = symbol(name='one', dimensions=(i, j, k), value=1.)
+        shape = (3, 5, 7)
+        a = TimeData(name='a', dimensions=(i, j, k), shape=shape)
+        one = symbol(name='one', dimensions=(i, j, k), shape=shape, value=1.)
         op = Operator(Eq(a.forward, a + one))
 
         # Test dimension override via the buffered dimenions
@@ -269,11 +296,13 @@ class TestArguments(object):
         assert(np.allclose(a.data[0], 4.))
 
     def test_override_composite_data(self):
+        i, j = dimify('i j')
         original_coords = (1., 1.)
         new_coords = (2., 2.)
         p_dim = Dimension('p_src')
         ndim = len(original_coords)
-        u = TimeData(name='u', time_order=2, space_order=2, shape=(10, 10))
+        u = TimeData(name='u', time_order=2, space_order=2,
+                     shape=(10, 10), dimensions=(i, j))
         src1 = PointData(name='src1', dimensions=[time, p_dim], npoint=1, nt=10,
                          ndim=ndim, coordinates=original_coords)
         src2 = PointData(name='src1', dimensions=[time, p_dim], npoint=1, nt=10,
@@ -489,8 +518,9 @@ class TestLoopScheduler(object):
         as the "main" equations.
         """
         shape = (3, 3, 3)
-        a = DenseData(name='a', shape=shape).indexed
-        b = TimeData(name='b', shape=shape, save=True, time_dim=6).indexed
+        a = DenseData(name='a', shape=shape, dimensions=(x, y)).indexed
+        b = TimeData(name='b', shape=shape, dimensions=(x, y),
+                     save=True, time_dim=6).indexed
         main = Eq(b[time + 1, x, y, z], b[time - 1, x, y, z] + a[x, y, z] + 3.*t0)
         bcs = [Eq(b[time, 0, y, z], 0.),
                Eq(b[time, x, 0, z], 0.),
@@ -578,7 +608,8 @@ class TestForeign(object):
 
     def test_explicit_run(self):
         time_dim = 6
-        a = TimeData(name='a', shape=(11, 11), time_order=1,
+        grid = Grid(shape=(11, 11))
+        a = TimeData(name='a', grid=grid, time_order=1,
                      time_dim=time_dim, save=True)
         eqn = Eq(a.forward, a + 1.)
         op = Operator(eqn)
