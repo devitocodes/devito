@@ -1,6 +1,5 @@
 import numpy as np
 import sympy
-from sympy.abc import s
 from collections import OrderedDict
 from functools import partial
 
@@ -399,7 +398,7 @@ class TimeFunction(Function):
         i = int(self.time_order / 2) if self.time_order >= 2 else 1
         _t = self.indices[0]
 
-        return self.subs(_t, _t + i * s)
+        return self.subs(_t, _t + i * _t.spacing)
 
     @property
     def backward(self):
@@ -407,7 +406,7 @@ class TimeFunction(Function):
         i = int(self.time_order / 2) if self.time_order >= 2 else 1
         _t = self.indices[0]
 
-        return self.subs(_t, _t - i * s)
+        return self.subs(_t, _t - i * _t.spacing)
 
     @property
     def dt(self):
@@ -415,10 +414,10 @@ class TimeFunction(Function):
         _t = self.indices[0]
         if self.time_order == 1:
             # This hack is needed for the first-order diffusion test
-            indices = [_t, _t + s]
+            indices = [_t, _t + _t.spacing]
         else:
             width = int(self.time_order / 2)
-            indices = [(_t + i * s) for i in range(-width, width + 1)]
+            indices = [(_t + i * _t.spacing) for i in range(-width, width + 1)]
 
         return self.diff(_t).as_finite_difference(indices)
 
@@ -427,7 +426,7 @@ class TimeFunction(Function):
         """Symbol for the second derivative wrt the t dimension"""
         _t = self.indices[0]
         width_t = int(self.time_order / 2)
-        indt = [(_t + i * s) for i in range(-width_t, width_t + 1)]
+        indt = [(_t + i * _t.spacing) for i in range(-width_t, width_t + 1)]
 
         return self.diff(_t, _t).as_finite_difference(indt)
 
