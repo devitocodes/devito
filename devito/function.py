@@ -381,7 +381,11 @@ class TimeFunction(Function):
         :return: Dimension indices used for each axis.
         """
         save = kwargs.get('save', None)
-        tidx = time if save else t
+        grid = kwargs.get('grid', None)
+        if grid is None:
+            tidx = time if save else t
+        else:
+            tidx = grid.time_dim if save else grid.stepping_dim
         _indices = Function._indices(**kwargs)
         return tuple([tidx] + list(_indices))
 
