@@ -2,13 +2,13 @@ from __future__ import absolute_import
 
 from collections import OrderedDict
 
-from conftest import EVAL, dims, skipif_yask
+from conftest import EVAL, dims, time, x, y, z, skipif_yask
 
 import numpy as np
 import pytest
 
 from devito import (clear_cache, Grid, Eq, Operator, Constant, Function,
-                    TimeFunction, SparseFunction, Dimension, time, x, y, z, configuration)
+                    TimeFunction, SparseFunction, Dimension, configuration)
 from devito.foreign import Operator as OperatorForeign
 from devito.dle import retrieve_iteration_tree
 from devito.visitors import IsPerfectIteration
