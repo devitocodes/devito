@@ -45,7 +45,7 @@ def autotune(operator, arguments, tunable):
             timesteps = options['at_squeezer'] - timesteps + 1
             info_at("Adjusted auto-tuning timestep to %d" % timesteps)
         at_arguments[sequential.dim.symbolic_size.name] = timesteps
-        if sequential.dim.is_Buffered:
+        if sequential.dim.is_Stepping:
             at_arguments[sequential.dim.parent.symbolic_size.name] = timesteps
     else:
         info_at("Couldn't understand loop structure, giving up auto-tuning")

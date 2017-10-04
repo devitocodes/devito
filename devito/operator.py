@@ -276,7 +276,7 @@ class Operator(Callable):
         # Topologically sort Iterations
         ordering = partial_order([i.stencil.dimensions for i in clusters])
         for i, d in enumerate(list(ordering)):
-            if d.is_Buffered:
+            if d.is_Stepping:
                 ordering.insert(i, d.parent)
 
         # Build the Iteration/Expression tree
@@ -400,8 +400,8 @@ class Operator(Callable):
         stencils = [Stencil(i) for i in expressions]
         dimensions = set.union(*[set(i.dimensions) for i in stencils])
 
-        # Filter out aliasing buffered dimensions
-        mapper = {d.parent: d for d in dimensions if d.is_Buffered}
+        # Filter out aliasing stepping dimensions
+        mapper = {d.parent: d for d in dimensions if d.is_Stepping}
         for i in list(stencils):
             for d in i.dimensions:
                 if d in mapper:
@@ -433,7 +433,7 @@ class Operator(Callable):
                 dimensions.extend([k for k in i.free_symbols
                                    if isinstance(k, Dimension)])
             dimensions.extend(list(indexed.base.function.indices))
-        dimensions.extend([d.parent for d in dimensions if d.is_Buffered])
+        dimensions.extend([d.parent for d in dimensions if d.is_Stepping])
         dimensions = filter_sorted(dimensions, key=attrgetter('name'))
 
         return input, output, dimensions

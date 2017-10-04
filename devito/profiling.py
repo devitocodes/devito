@@ -131,7 +131,7 @@ class Profiler(object):
 
         summary = PerformanceSummary()
         for itspace, profile in self._sections.items():
-            dims = {i: i.dim.parent if i.dim.is_Buffered else i.dim for i in itspace}
+            dims = {i: i.dim.parent if i.dim.is_Stepping else i.dim for i in itspace}
 
             # Time
             time = self.timings[profile.name]
