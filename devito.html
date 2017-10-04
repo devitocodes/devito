@@ -111,6 +111,7 @@
 <li class="toctree-l2"><a class="reference internal" href="#module-devito.dimension">devito.dimension module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#module-devito.exceptions">devito.exceptions module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#module-devito.finite_difference">devito.finite_difference module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#module-devito.grid">devito.grid module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#module-devito.interfaces">devito.interfaces module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#module-devito.logger">devito.logger module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#module-devito.memory">devito.memory module</a></li>
@@ -594,9 +595,12 @@ arguments.</p>
 <tbody valign="top">
 <tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
 <li><strong>name</strong> – Name of the symbol</li>
-<li><strong>dtype</strong> – Data type of the scalar</li>
-<li><strong>shape</strong> – The shape of the tensor</li>
-<li><strong>dimensions</strong> – The symbolic dimensions of the tensor.</li>
+<li><strong>grid</strong> – <code class="xref py py-class docutils literal"><span class="pre">Grid</span></code> object from which to infer the data shape
+and <code class="xref py py-class docutils literal"><span class="pre">Dimension</span></code> indices.</li>
+<li><strong>shape</strong> – (Optional) shape of the associated data for this symbol.</li>
+<li><strong>dimensions</strong> – (Optional) symbolic dimensions that define the
+data layout and function indices of this symbol.</li>
+<li><strong>dtype</strong> – (Optional) data type of the buffered data.</li>
 <li><strong>space_order</strong> – Discretisation order for space derivatives</li>
 <li><strong>initializer</strong> – Function to initialize the data, optional</li>
 </ul>
@@ -606,6 +610,8 @@ arguments.</p>
 </table>
 <div class="admonition note">
 <p class="first admonition-title">Note</p>
+<p>If the parameter <code class="docutils literal"><span class="pre">grid</span></code> is provided, the values for <code class="docutils literal"><span class="pre">shape</span></code>,
+<code class="docutils literal"><span class="pre">dimensions</span></code> and <code class="docutils literal"><span class="pre">dtype</span></code> will be derived from it.</p>
 <p class="last"><a class="reference internal" href="#devito.base.DenseData" title="devito.base.DenseData"><code class="xref py py-class docutils literal"><span class="pre">DenseData</span></code></a> objects are assumed to be constant in time
 and therefore do not support time derivatives. Use
 <a class="reference internal" href="#devito.base.TimeData" title="devito.base.TimeData"><code class="xref py py-class docutils literal"><span class="pre">TimeData</span></code></a> for time-varying grid data.</p>
@@ -862,10 +868,12 @@ The default value is (‘static’, ‘inline’).</li>
 <tbody valign="top">
 <tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
 <li><strong>name</strong> – Name of the resulting <code class="xref py py-class docutils literal"><span class="pre">sympy.Function</span></code> symbol</li>
-<li><strong>shape</strong> – Shape of the spatial data grid</li>
-<li><strong>dimensions</strong> – The symbolic dimensions of the function in addition
-to time.</li>
-<li><strong>dtype</strong> – Data type of the buffered data</li>
+<li><strong>grid</strong> – <code class="xref py py-class docutils literal"><span class="pre">Grid</span></code> object from which to infer the data shape
+and <code class="xref py py-class docutils literal"><span class="pre">Dimension</span></code> indices.</li>
+<li><strong>shape</strong> – (Optional) shape of the associated data for this symbol.</li>
+<li><strong>dimensions</strong> – (Optional) symbolic dimensions that define the
+data layout in addition to the time dimension.</li>
+<li><strong>dtype</strong> – (Optional) data type of the buffered data</li>
 <li><strong>save</strong> – Save the intermediate results to the data buffer. Defaults
 to <cite>False</cite>, indicating the use of alternating buffers.</li>
 <li><strong>time_dim</strong> – Size of the time dimension that dictates the leading
@@ -880,6 +888,8 @@ data buffer.</li>
 </table>
 <div class="admonition note">
 <p class="first admonition-title">Note</p>
+<p>If the parameter <code class="docutils literal"><span class="pre">grid</span></code> is provided, the values for <code class="docutils literal"><span class="pre">shape</span></code>,
+<code class="docutils literal"><span class="pre">dimensions</span></code> and <code class="docutils literal"><span class="pre">dtype</span></code> will be derived from it.</p>
 <p>The parameter <code class="docutils literal"><span class="pre">shape</span></code> should only define the spatial shape of
 the grid. The temporal dimension will be inserted automatically
 as the leading dimension, according to the <code class="docutils literal"><span class="pre">time_dim</span></code>,
@@ -1109,6 +1119,16 @@ we utilise the <cite>pymic</cite> package to manage device streams.</p>
 <dl class="attribute">
 <dt id="devito.dimension.Dimension.is_Fixed">
 <code class="descname">is_Fixed</code><em class="property"> = False</em><a class="headerlink" href="#devito.dimension.Dimension.is_Fixed" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="devito.dimension.Dimension.is_Lowered">
+<code class="descname">is_Lowered</code><em class="property"> = False</em><a class="headerlink" href="#devito.dimension.Dimension.is_Lowered" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="devito.dimension.Dimension.is_Space">
+<code class="descname">is_Space</code><em class="property"> = False</em><a class="headerlink" href="#devito.dimension.Dimension.is_Space" title="Permalink to this definition">¶</a></dt>
 <dd><p>Index object that represents a problem dimension and thus
 defines a potential iteration space.</p>
 <table class="docutils field-list" frame="void" rules="none">
@@ -1116,7 +1136,7 @@ defines a potential iteration space.</p>
 <col class="field-body" />
 <tbody valign="top">
 <tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
-<li><strong>size</strong> – Optional, size of the array dimension.</li>
+<li><strong>name</strong> – Name of the dimension symbol.</li>
 <li><strong>reverse</strong> – Traverse dimension in reverse order (default False)</li>
 <li><strong>spacing</strong> – Optional, symbol for the spacing along this dimension.</li>
 </ul>
@@ -1125,11 +1145,6 @@ defines a potential iteration space.</p>
 </tbody>
 </table>
 </dd></dl>
-
-<dl class="attribute">
-<dt id="devito.dimension.Dimension.is_Lowered">
-<code class="descname">is_Lowered</code><em class="property"> = False</em><a class="headerlink" href="#devito.dimension.Dimension.is_Lowered" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
 
 <dl class="attribute">
 <dt id="devito.dimension.Dimension.size">
@@ -1323,6 +1338,121 @@ results in:
 </dl>
 </dd></dl>
 
+<dl class="function">
+<dt id="devito.finite_difference.generic_derivative">
+<code class="descclassname">devito.finite_difference.</code><code class="descname">generic_derivative</code><span class="sig-paren">(</span><em>function</em>, <em>deriv_order</em>, <em>dim</em>, <em>fd_order</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/finite_difference.html#generic_derivative"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.finite_difference.generic_derivative" title="Permalink to this definition">¶</a></dt>
+<dd><p>Create generic arbitrary order derivative expression from a
+single <code class="xref py py-class docutils literal"><span class="pre">Function</span></code> object. This methods is essentially a
+dedicated wrapper around SymPy’s <cite>as_finite_diff</cite> utility for
+<code class="xref py py-class docutils literal"><span class="pre">devito.Function</span></code> objects.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>function</strong> – The symbol representing a function.</li>
+<li><strong>deriv_order</strong> – Derivative order, eg. 2 for a second derivative.</li>
+<li><strong>dim</strong> – The dimension for which to take the derivative.</li>
+<li><strong>fd_order</strong> – Order of the coefficient discretization and thus
+the width of the resulting stencil expression.</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="function">
+<dt id="devito.finite_difference.second_cross_derivative">
+<code class="descclassname">devito.finite_difference.</code><code class="descname">second_cross_derivative</code><span class="sig-paren">(</span><em>function</em>, <em>dims</em>, <em>order</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/finite_difference.html#second_cross_derivative"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.finite_difference.second_cross_derivative" title="Permalink to this definition">¶</a></dt>
+<dd><p>Create a second order order cross derivative for a given function.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>function</strong> – The symbol representing a function.</li>
+<li><strong>dims</strong> – Dimensions for which to take the derivative.</li>
+<li><strong>order</strong> – Discretisation order of the stencil to create.</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+</div>
+<div class="section" id="module-devito.grid">
+<span id="devito-grid-module"></span><h2>devito.grid module<a class="headerlink" href="#module-devito.grid" title="Permalink to this headline">¶</a></h2>
+<dl class="class">
+<dt id="devito.grid.Grid">
+<em class="property">class </em><code class="descclassname">devito.grid.</code><code class="descname">Grid</code><span class="sig-paren">(</span><em>shape</em>, <em>extent=None</em>, <em>origin=None</em>, <em>dimensions=None</em>, <em>dtype=&lt;type 'numpy.float32'&gt;</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/grid.html#Grid"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.grid.Grid" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">object</span></code></p>
+<p>A cartesian grid that encapsulates a physical domain over which
+to discretize :class:<a href="#id1"><span class="problematic" id="id2">`</span></a>Function`s.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>shape</strong> – Shape of the domain region in grid points.</li>
+<li><strong>extent</strong> – Physical extent of the domain in m; defaults to a
+unit box of extent 1m in all dimensions.</li>
+<li><strong>origin</strong> – Physical coordinate of the origin of the domain;
+defaults to 0. in all dimensions.</li>
+<li><strong>dtype</strong> – Default data type to be inherited by all Functions
+created from this <a class="reference internal" href="#devito.grid.Grid" title="devito.grid.Grid"><code class="xref py py-class docutils literal"><span class="pre">Grid</span></code></a>.</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+<p>The <a class="reference internal" href="#devito.grid.Grid" title="devito.grid.Grid"><code class="xref py py-class docutils literal"><span class="pre">Grid</span></code></a> encapsulates the topology and geometry
+information of the computational domain that <code class="xref py py-class docutils literal"><span class="pre">Function</span></code>
+objects can be discretized on. As such it defines and provides the
+physical coordinate information of the logically cartesian grid
+underlying the discretized <code class="xref py py-class docutils literal"><span class="pre">Function</span></code> objects. For example,
+the conventions for defining the coordinate space in 2D are:</p>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<div class="last highlight-python"><div class="highlight"><pre><span></span><span class="n">x</span> <span class="o">^</span>
+  <span class="o">|</span>
+  <span class="o">|</span>           <span class="n">origin</span> <span class="o">+</span> <span class="n">extent</span>
+  <span class="o">|</span>     <span class="n">x</span><span class="o">------------</span><span class="n">x</span>
+  <span class="o">|</span>     <span class="o">|</span>            <span class="o">|</span>
+  <span class="o">|</span>     <span class="o">|</span>            <span class="o">|</span>
+  <span class="o">|</span>     <span class="o">|</span>   <span class="n">DOMAIN</span>   <span class="o">|</span> <span class="n">extent</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+  <span class="o">|</span>     <span class="o">|</span>            <span class="o">|</span>
+  <span class="o">|</span>     <span class="o">|</span>            <span class="o">|</span>
+  <span class="o">|</span>     <span class="o">|</span>  <span class="n">extent</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">|</span>
+  <span class="o">|</span>     <span class="n">x</span><span class="o">------------</span><span class="n">x</span>
+  <span class="o">|</span>  <span class="n">origin</span>
+  <span class="o">|</span>
+  <span class="o">|-----------------------&gt;</span>
+             <span class="n">y</span>
+</pre></div>
+</div>
+</div>
+<dl class="attribute">
+<dt id="devito.grid.Grid.dim">
+<code class="descname">dim</code><a class="headerlink" href="#devito.grid.Grid.dim" title="Permalink to this definition">¶</a></dt>
+<dd><p>Problem dimension, or number of spatial dimensions.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="devito.grid.Grid.shape_domain">
+<code class="descname">shape_domain</code><a class="headerlink" href="#devito.grid.Grid.shape_domain" title="Permalink to this definition">¶</a></dt>
+<dd><p>Shape of the physical domain (without external boundary layer)</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="devito.grid.Grid.spacing">
+<code class="descname">spacing</code><a class="headerlink" href="#devito.grid.Grid.spacing" title="Permalink to this definition">¶</a></dt>
+<dd><p>Spacing between grid points in m.</p>
+</dd></dl>
+
+</dd></dl>
+
 </div>
 <div class="section" id="module-devito.interfaces">
 <span id="devito-interfaces-module"></span><h2>devito.interfaces module<a class="headerlink" href="#module-devito.interfaces" title="Permalink to this headline">¶</a></h2>
@@ -1408,9 +1538,12 @@ results in:
 <tbody valign="top">
 <tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
 <li><strong>name</strong> – Name of the symbol</li>
-<li><strong>dtype</strong> – Data type of the scalar</li>
-<li><strong>shape</strong> – The shape of the tensor</li>
-<li><strong>dimensions</strong> – The symbolic dimensions of the tensor.</li>
+<li><strong>grid</strong> – <code class="xref py py-class docutils literal"><span class="pre">Grid</span></code> object from which to infer the data shape
+and <code class="xref py py-class docutils literal"><span class="pre">Dimension</span></code> indices.</li>
+<li><strong>shape</strong> – (Optional) shape of the associated data for this symbol.</li>
+<li><strong>dimensions</strong> – (Optional) symbolic dimensions that define the
+data layout and function indices of this symbol.</li>
+<li><strong>dtype</strong> – (Optional) data type of the buffered data.</li>
 <li><strong>space_order</strong> – Discretisation order for space derivatives</li>
 <li><strong>initializer</strong> – Function to initialize the data, optional</li>
 </ul>
@@ -1420,6 +1553,8 @@ results in:
 </table>
 <div class="admonition note">
 <p class="first admonition-title">Note</p>
+<p>If the parameter <code class="docutils literal"><span class="pre">grid</span></code> is provided, the values for <code class="docutils literal"><span class="pre">shape</span></code>,
+<code class="docutils literal"><span class="pre">dimensions</span></code> and <code class="docutils literal"><span class="pre">dtype</span></code> will be derived from it.</p>
 <p class="last"><a class="reference internal" href="#devito.interfaces.DenseData" title="devito.interfaces.DenseData"><code class="xref py py-class docutils literal"><span class="pre">DenseData</span></code></a> objects are assumed to be constant in time
 and therefore do not support time derivatives. Use
 <a class="reference internal" href="#devito.interfaces.TimeData" title="devito.interfaces.TimeData"><code class="xref py py-class docutils literal"><span class="pre">TimeData</span></code></a> for time-varying grid data.</p>
@@ -1436,132 +1571,6 @@ elements in the classical row-major storage layout.</p>
 <code class="descname">default_assumptions</code><em class="property"> = {}</em><a class="headerlink" href="#devito.interfaces.DenseData.default_assumptions" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
-<dl class="attribute">
-<dt id="devito.interfaces.DenseData.dx">
-<code class="descname">dx</code><a class="headerlink" href="#devito.interfaces.DenseData.dx" title="Permalink to this definition">¶</a></dt>
-<dd><p>Symbol for the first derivative wrt the x dimension</p>
-</dd></dl>
-
-<dl class="attribute">
-<dt id="devito.interfaces.DenseData.dx2">
-<code class="descname">dx2</code><a class="headerlink" href="#devito.interfaces.DenseData.dx2" title="Permalink to this definition">¶</a></dt>
-<dd><p>Symbol for the second derivative wrt the x dimension</p>
-</dd></dl>
-
-<dl class="attribute">
-<dt id="devito.interfaces.DenseData.dx2y2">
-<code class="descname">dx2y2</code><a class="headerlink" href="#devito.interfaces.DenseData.dx2y2" title="Permalink to this definition">¶</a></dt>
-<dd><p>Symbol for the second cross derivative wrt the x,y dimension</p>
-</dd></dl>
-
-<dl class="attribute">
-<dt id="devito.interfaces.DenseData.dx2z2">
-<code class="descname">dx2z2</code><a class="headerlink" href="#devito.interfaces.DenseData.dx2z2" title="Permalink to this definition">¶</a></dt>
-<dd><p>Symbol for the second cross derivative wrt the x,z dimension</p>
-</dd></dl>
-
-<dl class="attribute">
-<dt id="devito.interfaces.DenseData.dx4">
-<code class="descname">dx4</code><a class="headerlink" href="#devito.interfaces.DenseData.dx4" title="Permalink to this definition">¶</a></dt>
-<dd><p>Symbol for the fourth derivative wrt the x dimension</p>
-</dd></dl>
-
-<dl class="attribute">
-<dt id="devito.interfaces.DenseData.dxl">
-<code class="descname">dxl</code><a class="headerlink" href="#devito.interfaces.DenseData.dxl" title="Permalink to this definition">¶</a></dt>
-<dd><p>Symbol for the derivative wrt to x with a left stencil</p>
-</dd></dl>
-
-<dl class="attribute">
-<dt id="devito.interfaces.DenseData.dxr">
-<code class="descname">dxr</code><a class="headerlink" href="#devito.interfaces.DenseData.dxr" title="Permalink to this definition">¶</a></dt>
-<dd><p>Symbol for the derivative wrt to x with a right stencil</p>
-</dd></dl>
-
-<dl class="attribute">
-<dt id="devito.interfaces.DenseData.dxy">
-<code class="descname">dxy</code><a class="headerlink" href="#devito.interfaces.DenseData.dxy" title="Permalink to this definition">¶</a></dt>
-<dd><p>Symbol for the cross derivative wrt the x and y dimension</p>
-</dd></dl>
-
-<dl class="attribute">
-<dt id="devito.interfaces.DenseData.dxz">
-<code class="descname">dxz</code><a class="headerlink" href="#devito.interfaces.DenseData.dxz" title="Permalink to this definition">¶</a></dt>
-<dd><p>Symbol for the cross derivative wrt the x and z dimension</p>
-</dd></dl>
-
-<dl class="attribute">
-<dt id="devito.interfaces.DenseData.dy">
-<code class="descname">dy</code><a class="headerlink" href="#devito.interfaces.DenseData.dy" title="Permalink to this definition">¶</a></dt>
-<dd><p>Symbol for the first derivative wrt the y dimension</p>
-</dd></dl>
-
-<dl class="attribute">
-<dt id="devito.interfaces.DenseData.dy2">
-<code class="descname">dy2</code><a class="headerlink" href="#devito.interfaces.DenseData.dy2" title="Permalink to this definition">¶</a></dt>
-<dd><p>Symbol for the second derivative wrt the y dimension</p>
-</dd></dl>
-
-<dl class="attribute">
-<dt id="devito.interfaces.DenseData.dy2z2">
-<code class="descname">dy2z2</code><a class="headerlink" href="#devito.interfaces.DenseData.dy2z2" title="Permalink to this definition">¶</a></dt>
-<dd><p>Symbol for the second cross derivative wrt the y,z dimension</p>
-</dd></dl>
-
-<dl class="attribute">
-<dt id="devito.interfaces.DenseData.dy4">
-<code class="descname">dy4</code><a class="headerlink" href="#devito.interfaces.DenseData.dy4" title="Permalink to this definition">¶</a></dt>
-<dd><p>Symbol for the fourth derivative wrt the y dimension</p>
-</dd></dl>
-
-<dl class="attribute">
-<dt id="devito.interfaces.DenseData.dyl">
-<code class="descname">dyl</code><a class="headerlink" href="#devito.interfaces.DenseData.dyl" title="Permalink to this definition">¶</a></dt>
-<dd><p>Symbol for the derivative wrt to y with a left stencil</p>
-</dd></dl>
-
-<dl class="attribute">
-<dt id="devito.interfaces.DenseData.dyr">
-<code class="descname">dyr</code><a class="headerlink" href="#devito.interfaces.DenseData.dyr" title="Permalink to this definition">¶</a></dt>
-<dd><p>Symbol for the derivative wrt to y with a right stencil</p>
-</dd></dl>
-
-<dl class="attribute">
-<dt id="devito.interfaces.DenseData.dyz">
-<code class="descname">dyz</code><a class="headerlink" href="#devito.interfaces.DenseData.dyz" title="Permalink to this definition">¶</a></dt>
-<dd><p>Symbol for the cross derivative wrt the y and z dimension</p>
-</dd></dl>
-
-<dl class="attribute">
-<dt id="devito.interfaces.DenseData.dz">
-<code class="descname">dz</code><a class="headerlink" href="#devito.interfaces.DenseData.dz" title="Permalink to this definition">¶</a></dt>
-<dd><p>Symbol for the first derivative wrt the z dimension</p>
-</dd></dl>
-
-<dl class="attribute">
-<dt id="devito.interfaces.DenseData.dz2">
-<code class="descname">dz2</code><a class="headerlink" href="#devito.interfaces.DenseData.dz2" title="Permalink to this definition">¶</a></dt>
-<dd><p>Symbol for the second derivative wrt the z dimension</p>
-</dd></dl>
-
-<dl class="attribute">
-<dt id="devito.interfaces.DenseData.dz4">
-<code class="descname">dz4</code><a class="headerlink" href="#devito.interfaces.DenseData.dz4" title="Permalink to this definition">¶</a></dt>
-<dd><p>Symbol for the fourth derivative wrt the z dimension</p>
-</dd></dl>
-
-<dl class="attribute">
-<dt id="devito.interfaces.DenseData.dzl">
-<code class="descname">dzl</code><a class="headerlink" href="#devito.interfaces.DenseData.dzl" title="Permalink to this definition">¶</a></dt>
-<dd><p>Symbol for the derivative wrt to z with a left stencil</p>
-</dd></dl>
-
-<dl class="attribute">
-<dt id="devito.interfaces.DenseData.dzr">
-<code class="descname">dzr</code><a class="headerlink" href="#devito.interfaces.DenseData.dzr" title="Permalink to this definition">¶</a></dt>
-<dd><p>Symbol for the derivative wrt to z with a right stencil</p>
-</dd></dl>
-
 <dl class="method">
 <dt id="devito.interfaces.DenseData.initialize">
 <code class="descname">initialize</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/interfaces.html#DenseData.initialize"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.interfaces.DenseData.initialize" title="Permalink to this definition">¶</a></dt>
@@ -1576,13 +1585,32 @@ elements in the classical row-major storage layout.</p>
 <dl class="attribute">
 <dt id="devito.interfaces.DenseData.laplace">
 <code class="descname">laplace</code><a class="headerlink" href="#devito.interfaces.DenseData.laplace" title="Permalink to this definition">¶</a></dt>
-<dd><p>Symbol for the second derivative wrt all spatial dimensions</p>
+<dd><p>Generates a symbolic expression for the Laplacian, the second
+derivative wrt. all spatial dimensions.</p>
 </dd></dl>
 
 <dl class="method">
 <dt id="devito.interfaces.DenseData.laplace2">
 <code class="descname">laplace2</code><span class="sig-paren">(</span><em>weight=1</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/interfaces.html#DenseData.laplace2"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.interfaces.DenseData.laplace2" title="Permalink to this definition">¶</a></dt>
-<dd><p>Symbol for the double laplacian wrt all spatial dimensions</p>
+<dd><p>Generates a symbolic expression for the double Laplacian
+wrt. all spatial dimensions.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="devito.interfaces.DenseData.shape">
+<code class="descname">shape</code><a class="headerlink" href="#devito.interfaces.DenseData.shape" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="devito.interfaces.DenseData.shape_data">
+<code class="descname">shape_data</code><a class="headerlink" href="#devito.interfaces.DenseData.shape_data" title="Permalink to this definition">¶</a></dt>
+<dd><p>Full allocated shape of the data associated with this <code class="xref py py-class docutils literal"><span class="pre">Function</span></code>.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="devito.interfaces.DenseData.space_dimensions">
+<code class="descname">space_dimensions</code><a class="headerlink" href="#devito.interfaces.DenseData.space_dimensions" title="Permalink to this definition">¶</a></dt>
+<dd><p>Tuple of index dimensions that define physical space.</p>
 </dd></dl>
 
 </dd></dl>
@@ -1598,10 +1626,12 @@ elements in the classical row-major storage layout.</p>
 <tbody valign="top">
 <tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
 <li><strong>name</strong> – Name of the resulting <code class="xref py py-class docutils literal"><span class="pre">sympy.Function</span></code> symbol</li>
-<li><strong>shape</strong> – Shape of the spatial data grid</li>
-<li><strong>dimensions</strong> – The symbolic dimensions of the function in addition
-to time.</li>
-<li><strong>dtype</strong> – Data type of the buffered data</li>
+<li><strong>grid</strong> – <code class="xref py py-class docutils literal"><span class="pre">Grid</span></code> object from which to infer the data shape
+and <code class="xref py py-class docutils literal"><span class="pre">Dimension</span></code> indices.</li>
+<li><strong>shape</strong> – (Optional) shape of the associated data for this symbol.</li>
+<li><strong>dimensions</strong> – (Optional) symbolic dimensions that define the
+data layout in addition to the time dimension.</li>
+<li><strong>dtype</strong> – (Optional) data type of the buffered data</li>
 <li><strong>save</strong> – Save the intermediate results to the data buffer. Defaults
 to <cite>False</cite>, indicating the use of alternating buffers.</li>
 <li><strong>time_dim</strong> – Size of the time dimension that dictates the leading
@@ -1616,6 +1646,8 @@ data buffer.</li>
 </table>
 <div class="admonition note">
 <p class="first admonition-title">Note</p>
+<p>If the parameter <code class="docutils literal"><span class="pre">grid</span></code> is provided, the values for <code class="docutils literal"><span class="pre">shape</span></code>,
+<code class="docutils literal"><span class="pre">dimensions</span></code> and <code class="docutils literal"><span class="pre">dtype</span></code> will be derived from it.</p>
 <p>The parameter <code class="docutils literal"><span class="pre">shape</span></code> should only define the spatial shape of
 the grid. The temporal dimension will be inserted automatically
 as the leading dimension, according to the <code class="docutils literal"><span class="pre">time_dim</span></code>,
@@ -1675,6 +1707,12 @@ derived time dimensions symbol. For example:</p>
 <dt id="devito.interfaces.TimeData.is_TimeData">
 <code class="descname">is_TimeData</code><em class="property"> = True</em><a class="headerlink" href="#devito.interfaces.TimeData.is_TimeData" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
+
+<dl class="attribute">
+<dt id="devito.interfaces.TimeData.shape_data">
+<code class="descname">shape_data</code><a class="headerlink" href="#devito.interfaces.TimeData.shape_data" title="Permalink to this definition">¶</a></dt>
+<dd><p>Full allocated shape of the data associated with this <code class="xref py py-class docutils literal"><span class="pre">TimeFunction</span></code>.</p>
+</dd></dl>
 
 </dd></dl>
 
@@ -2844,7 +2882,7 @@ If called later with the same arguments, the cached value is returned
 <dt id="devito.visitors.CGen">
 <em class="property">class </em><code class="descclassname">devito.visitors.</code><code class="descname">CGen</code><a class="reference internal" href="_modules/devito/visitors.html#CGen"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.visitors.CGen" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">devito.visitors.Visitor</span></code></p>
-<p>Return a representation of the Iteration/Expression tree as a <a href="#id1"><span class="problematic" id="id2">:module:`cgen`</span></a> tree.</p>
+<p>Return a representation of the Iteration/Expression tree as a <a href="#id3"><span class="problematic" id="id4">:module:`cgen`</span></a> tree.</p>
 <dl class="method">
 <dt id="devito.visitors.CGen.visit_Block">
 <code class="descname">visit_Block</code><span class="sig-paren">(</span><em>o</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/visitors.html#CGen.visit_Block"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.visitors.CGen.visit_Block" title="Permalink to this definition">¶</a></dt>

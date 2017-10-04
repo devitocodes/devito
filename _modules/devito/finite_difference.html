@@ -171,6 +171,7 @@
 <span class="kn">from</span> <span class="nn">devito.logger</span> <span class="k">import</span> <span class="n">error</span>
 
 <span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;first_derivative&#39;</span><span class="p">,</span> <span class="s1">&#39;second_derivative&#39;</span><span class="p">,</span> <span class="s1">&#39;cross_derivative&#39;</span><span class="p">,</span>
+           <span class="s1">&#39;generic_derivative&#39;</span><span class="p">,</span> <span class="s1">&#39;second_cross_derivative&#39;</span><span class="p">,</span>
            <span class="s1">&#39;left&#39;</span><span class="p">,</span> <span class="s1">&#39;right&#39;</span><span class="p">,</span> <span class="s1">&#39;centered&#39;</span><span class="p">]</span>
 
 
@@ -352,6 +353,37 @@
             <span class="n">var</span> <span class="o">=</span> <span class="p">[</span><span class="n">a</span><span class="o">.</span><span class="n">subs</span><span class="p">({</span><span class="n">dim</span><span class="p">:</span> <span class="n">ind</span><span class="p">[</span><span class="n">i</span><span class="p">]})</span> <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="n">args</span><span class="p">]</span>
             <span class="n">deriv</span> <span class="o">+=</span> <span class="n">c</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">*</span> <span class="n">reduce</span><span class="p">(</span><span class="n">mul</span><span class="p">,</span> <span class="n">var</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
     <span class="k">return</span> <span class="n">matvec</span><span class="o">.</span><span class="n">_transpose</span><span class="o">*</span><span class="n">deriv</span></div>
+
+
+<div class="viewcode-block" id="generic_derivative"><a class="viewcode-back" href="../../devito.html#devito.finite_difference.generic_derivative">[docs]</a><span class="k">def</span> <span class="nf">generic_derivative</span><span class="p">(</span><span class="n">function</span><span class="p">,</span> <span class="n">deriv_order</span><span class="p">,</span> <span class="n">dim</span><span class="p">,</span> <span class="n">fd_order</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Create generic arbitrary order derivative expression from a</span>
+<span class="sd">    single :class:`Function` object. This methods is essentially a</span>
+<span class="sd">    dedicated wrapper around SymPy&#39;s `as_finite_diff` utility for</span>
+<span class="sd">    :class:`devito.Function` objects.</span>
+
+<span class="sd">    :param function: The symbol representing a function.</span>
+<span class="sd">    :param deriv_order: Derivative order, eg. 2 for a second derivative.</span>
+<span class="sd">    :param dim: The dimension for which to take the derivative.</span>
+<span class="sd">    :param fd_order: Order of the coefficient discretization and thus</span>
+<span class="sd">                     the width of the resulting stencil expression.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">deriv</span> <span class="o">=</span> <span class="n">function</span><span class="o">.</span><span class="n">diff</span><span class="p">(</span><span class="o">*</span><span class="p">(</span><span class="nb">tuple</span><span class="p">(</span><span class="n">dim</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">deriv_order</span><span class="p">))))</span>
+    <span class="n">indices</span> <span class="o">=</span> <span class="p">[(</span><span class="n">dim</span> <span class="o">+</span> <span class="n">i</span> <span class="o">*</span> <span class="n">dim</span><span class="o">.</span><span class="n">spacing</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="o">-</span><span class="n">fd_order</span><span class="p">,</span> <span class="n">fd_order</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)]</span>
+    <span class="k">return</span> <span class="n">deriv</span><span class="o">.</span><span class="n">as_finite_difference</span><span class="p">(</span><span class="n">indices</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="second_cross_derivative"><a class="viewcode-back" href="../../devito.html#devito.finite_difference.second_cross_derivative">[docs]</a><span class="k">def</span> <span class="nf">second_cross_derivative</span><span class="p">(</span><span class="n">function</span><span class="p">,</span> <span class="n">dims</span><span class="p">,</span> <span class="n">order</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Create a second order order cross derivative for a given function.</span>
+
+<span class="sd">    :param function: The symbol representing a function.</span>
+<span class="sd">    :param dims: Dimensions for which to take the derivative.</span>
+<span class="sd">    :param order: Discretisation order of the stencil to create.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">first</span> <span class="o">=</span> <span class="n">second_derivative</span><span class="p">(</span><span class="n">function</span><span class="p">,</span> <span class="n">dim</span><span class="o">=</span><span class="n">dims</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">width</span><span class="o">=</span><span class="n">order</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">second_derivative</span><span class="p">(</span><span class="n">first</span><span class="p">,</span> <span class="n">dim</span><span class="o">=</span><span class="n">dims</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">order</span><span class="o">=</span><span class="n">order</span><span class="p">)</span></div>
 </pre></div>
 
            </div>

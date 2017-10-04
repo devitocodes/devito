@@ -171,11 +171,12 @@
     <span class="n">is_Buffered</span> <span class="o">=</span> <span class="kc">False</span>
     <span class="n">is_Lowered</span> <span class="o">=</span> <span class="kc">False</span>
     <span class="n">is_Fixed</span> <span class="o">=</span> <span class="kc">False</span>
+    <span class="n">is_Space</span> <span class="o">=</span> <span class="kc">False</span>
 
     <span class="sd">&quot;&quot;&quot;Index object that represents a problem dimension and thus</span>
 <span class="sd">    defines a potential iteration space.</span>
 
-<span class="sd">    :param size: Optional, size of the array dimension.</span>
+<span class="sd">    :param name: Name of the dimension symbol.</span>
 <span class="sd">    :param reverse: Traverse dimension in reverse order (default False)</span>
 <span class="sd">    :param spacing: Optional, symbol for the spacing along this dimension.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
@@ -224,6 +225,22 @@
     <span class="nd">@size</span><span class="o">.</span><span class="n">setter</span>
     <span class="k">def</span> <span class="nf">size</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_size</span> <span class="o">=</span> <span class="n">value</span></div>
+
+
+<span class="k">class</span> <span class="nc">SpaceDimension</span><span class="p">(</span><span class="n">Dimension</span><span class="p">):</span>
+
+    <span class="n">is_Space</span> <span class="o">=</span> <span class="kc">True</span>
+
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Dimension symbol to represent a space dimension that defines the</span>
+<span class="sd">    extent of physical grid. :class:`SpaceDimensions` create dedicated</span>
+<span class="sd">    shortcut notations for spatial derivatives on :class:`Function`</span>
+<span class="sd">    symbols.</span>
+
+<span class="sd">    :param name: Name of the dimension symbol.</span>
+<span class="sd">    :param reverse: Traverse dimension in reverse order (default False)</span>
+<span class="sd">    :param spacing: Optional, symbol for the spacing along this dimension.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
 
 
 <span class="k">class</span> <span class="nc">BufferedDimension</span><span class="p">(</span><span class="n">Dimension</span><span class="p">):</span>
@@ -289,9 +306,9 @@
 <span class="n">t</span> <span class="o">=</span> <span class="n">BufferedDimension</span><span class="p">(</span><span class="s1">&#39;t&#39;</span><span class="p">,</span> <span class="n">parent</span><span class="o">=</span><span class="n">time</span><span class="p">)</span>
 
 <span class="c1"># Default dimensions for space</span>
-<span class="n">x</span> <span class="o">=</span> <span class="n">Dimension</span><span class="p">(</span><span class="s1">&#39;x&#39;</span><span class="p">,</span> <span class="n">spacing</span><span class="o">=</span><span class="n">Symbol</span><span class="p">(</span><span class="s1">&#39;h_x&#39;</span><span class="p">))</span>
-<span class="n">y</span> <span class="o">=</span> <span class="n">Dimension</span><span class="p">(</span><span class="s1">&#39;y&#39;</span><span class="p">,</span> <span class="n">spacing</span><span class="o">=</span><span class="n">Symbol</span><span class="p">(</span><span class="s1">&#39;h_y&#39;</span><span class="p">))</span>
-<span class="n">z</span> <span class="o">=</span> <span class="n">Dimension</span><span class="p">(</span><span class="s1">&#39;z&#39;</span><span class="p">,</span> <span class="n">spacing</span><span class="o">=</span><span class="n">Symbol</span><span class="p">(</span><span class="s1">&#39;h_z&#39;</span><span class="p">))</span>
+<span class="n">x</span> <span class="o">=</span> <span class="n">SpaceDimension</span><span class="p">(</span><span class="s1">&#39;x&#39;</span><span class="p">,</span> <span class="n">spacing</span><span class="o">=</span><span class="n">Symbol</span><span class="p">(</span><span class="s1">&#39;h_x&#39;</span><span class="p">))</span>
+<span class="n">y</span> <span class="o">=</span> <span class="n">SpaceDimension</span><span class="p">(</span><span class="s1">&#39;y&#39;</span><span class="p">,</span> <span class="n">spacing</span><span class="o">=</span><span class="n">Symbol</span><span class="p">(</span><span class="s1">&#39;h_y&#39;</span><span class="p">))</span>
+<span class="n">z</span> <span class="o">=</span> <span class="n">SpaceDimension</span><span class="p">(</span><span class="s1">&#39;z&#39;</span><span class="p">,</span> <span class="n">spacing</span><span class="o">=</span><span class="n">Symbol</span><span class="p">(</span><span class="s1">&#39;h_z&#39;</span><span class="p">))</span>
 
 <span class="n">d</span> <span class="o">=</span> <span class="n">Dimension</span><span class="p">(</span><span class="s1">&#39;d&#39;</span><span class="p">)</span>
 <span class="n">p</span> <span class="o">=</span> <span class="n">Dimension</span><span class="p">(</span><span class="s1">&#39;p&#39;</span><span class="p">)</span>

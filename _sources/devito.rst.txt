@@ -79,6 +79,14 @@ devito\.finite\_difference module
     :undoc-members:
     :show-inheritance:
 
+devito\.grid module
+-------------------
+
+.. automodule:: devito.grid
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
 devito\.interfaces module
 -------------------------
 

@@ -261,7 +261,7 @@ creation of seismic wave propagation operators:</p>
 <dl class="attribute">
 <dt id="examples.seismic.model.Model.dim">
 <code class="descname">dim</code><a class="headerlink" href="#examples.seismic.model.Model.dim" title="Permalink to this definition">¶</a></dt>
-<dd><p>Spatial dimension of the model domain</p>
+<dd><p>Spatial dimension of the problem and model domain.</p>
 </dd></dl>
 
 <dl class="attribute">
@@ -270,10 +270,16 @@ creation of seismic wave propagation operators:</p>
 <dd><p>Physical size of the domain as determined by shape and spacing</p>
 </dd></dl>
 
-<dl class="method">
-<dt id="examples.seismic.model.Model.get_spacing">
-<code class="descname">get_spacing</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/examples/seismic/model.html#Model.get_spacing"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#examples.seismic.model.Model.get_spacing" title="Permalink to this definition">¶</a></dt>
-<dd><p>Return the grid size</p>
+<dl class="attribute">
+<dt id="examples.seismic.model.Model.dtype">
+<code class="descname">dtype</code><a class="headerlink" href="#examples.seismic.model.Model.dtype" title="Permalink to this definition">¶</a></dt>
+<dd><p>Data type for all assocaited data objects.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="examples.seismic.model.Model.origin">
+<code class="descname">origin</code><a class="headerlink" href="#examples.seismic.model.Model.origin" title="Permalink to this definition">¶</a></dt>
+<dd><p>Coordinates of the origin of the physical model.</p>
 </dd></dl>
 
 <dl class="method">
@@ -288,6 +294,12 @@ absorbing boundary conditions.</p>
 <dt id="examples.seismic.model.Model.shape_domain">
 <code class="descname">shape_domain</code><a class="headerlink" href="#examples.seismic.model.Model.shape_domain" title="Permalink to this definition">¶</a></dt>
 <dd><p>Computational shape of the model domain, with PML layers</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="examples.seismic.model.Model.spacing">
+<code class="descname">spacing</code><a class="headerlink" href="#examples.seismic.model.Model.spacing" title="Permalink to this definition">¶</a></dt>
+<dd><p>Grid spacing for all fields in the physical model.</p>
 </dd></dl>
 
 <dl class="attribute">
