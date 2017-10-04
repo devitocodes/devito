@@ -25,13 +25,13 @@ from itertools import islice
 from cached_property import cached_property
 from sympy import Indexed
 
-from devito.dimension import Dimension, x, y, z, t, time
+from devito.dimension import Dimension
 from devito.dse.extended_sympy import Eq
 from devito.dse.search import retrieve_indexed, retrieve_terminals
 from devito.dse.inspection import as_symbol
 from devito.dse.queries import q_indirect
 from devito.exceptions import DSEException
-from devito.tools import flatten
+from devito.tools import flatten, filter_ordered
 
 __all__ = ['temporaries_graph']
 
@@ -121,28 +121,12 @@ class TemporariesGraph(OrderedDict):
     def __init__(self, *args, **kwargs):
         super(TemporariesGraph, self).__init__(*args, **kwargs)
 
-        # TODO: The following need to be generalized to arbitrary dimensions,
-        # not just x, y, z, t, time
-
         terms = [v for k, v in self.items() if v.is_tensor and not q_indirect(k)]
+        indices = filter_ordered(flatten([i.function.indices for i in terms]))
 
-        # Determine the indices along the space dimensions
-        candidates = [x, y, z]
-        seen = set()
-        for i in terms:
-            seen |= {j for j in i.function.indices if j in candidates}
-        self.space_indices = tuple(sorted(seen, key=lambda i: candidates.index(i)))
-
-        # Determine the shape of the tensors in the spatial dimensions
-        self.space_shape = ()
-        for i in terms:
-            if set(self.space_indices).issubset(set(i.function.indices)):
-                self.space_shape = tuple(k for k, v in zip(i.shape, i.function.indices)
-                                         if v in self.space_indices)
-                break
-
-        # Determine the indices along the time dimension
-        self.time_indices = [t, time]
+        # Determine indices along the space and time dimensions
+        self.space_indices = tuple(i for i in indices if i.is_Space)
+        self.time_indices = tuple(i for i in indices if i.is_Time)
 
     def trace(self, key, readby=False, strict=False):
         """
