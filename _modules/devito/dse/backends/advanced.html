@@ -164,11 +164,10 @@
 
 <span class="kn">from</span> <span class="nn">collections</span> <span class="k">import</span> <span class="n">OrderedDict</span>
 
-<span class="kn">from</span> <span class="nn">sympy</span> <span class="k">import</span> <span class="n">Eq</span>
-
 <span class="kn">from</span> <span class="nn">devito.dse.aliases</span> <span class="k">import</span> <span class="n">collect</span>
 <span class="kn">from</span> <span class="nn">devito.dse.backends</span> <span class="k">import</span> <span class="n">BasicRewriter</span><span class="p">,</span> <span class="n">dse_pass</span>
 <span class="kn">from</span> <span class="nn">devito.dse.clusterizer</span> <span class="k">import</span> <span class="n">clusterize</span>
+<span class="kn">from</span> <span class="nn">devito.dse.extended_sympy</span> <span class="k">import</span> <span class="n">Eq</span>
 <span class="kn">from</span> <span class="nn">devito.dse.inspection</span> <span class="k">import</span> <span class="n">estimate_cost</span>
 <span class="kn">from</span> <span class="nn">devito.dse.manipulation</span> <span class="k">import</span> <span class="p">(</span><span class="n">common_subexprs_elimination</span><span class="p">,</span> <span class="n">collect_nested</span><span class="p">,</span>
                                      <span class="n">xreplace_constrained</span><span class="p">,</span> <span class="n">compact_temporaries</span><span class="p">)</span>
