@@ -7,6 +7,8 @@ from sympy import Expr, Float
 from sympy.core.basic import _aresame
 from sympy.functions.elementary.trigonometric import TrigonometricFunction
 
+from devito.tools import as_tuple
+
 __all__ = ['FrozenExpr', 'Eq', 'Mul', 'Add', 'FunctionFromPointer', 'ListInitializer',
            'taylor_sin', 'taylor_cos', 'bhaskara_sin', 'bhaskara_cos']
 
@@ -68,17 +70,13 @@ class FunctionFromPointer(sympy.Symbol):
     """
 
     def __new__(cls, function, pointer, params=None):
-        obj = sympy.Symbol.__new__(cls, '%s->%s' % (pointer, function))
+        flatten_name = '%s->%s(%s)' % (pointer, function,
+                                       ", ".join(str(i) for i in as_tuple(params)))
+        obj = sympy.Symbol.__new__(cls, flatten_name)
         obj.function = function
         obj.pointer = pointer
-        obj.params = params or ()
+        obj.params = as_tuple(params)
         return obj
-
-    def __str__(self):
-        return "%s->%s(%s)" % (self.pointer, self.function,
-                               ', '.join([str(i) for i in self.params]))
-
-    __repr__ = __str__
 
 
 class ListInitializer(sympy.Symbol):
