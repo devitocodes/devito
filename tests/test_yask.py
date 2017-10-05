@@ -11,7 +11,7 @@ from devito.yask import arch_mapper, yask_configuration  # noqa
 from devito.yask.wrappers import YaskGrid, contexts  # noqa
 
 # For the acoustic wave test
-from examples.seismic.acoustic import AcousticWaveSolver  # noqa
+from examples.seismic.acoustic import AcousticWaveSolver, iso_stencil  # noqa
 from examples.seismic import demo_model, PointSource, RickerSource, Receiver  # noqa
 
 pytestmark = pytest.mark.skipif(configuration['backend'] != 'yask',
@@ -30,6 +30,13 @@ def u(dims):
     u = DenseData(name='yu3D', shape=(16, 16, 16), dimensions=(x, y, z), space_order=0)
     u.data  # Trigger initialization
     return u
+
+
+@pytest.fixture(autouse=True)
+def reset_isa():
+    """Force back to NO-SIMD after each test, as some tests may optionally
+    switch on SIMD."""
+    yask_configuration['develop-mode'] = True
 
 
 class TestGrids(object):
@@ -129,12 +136,6 @@ class TestOperatorSimple(object):
     @classmethod
     def setup_class(cls):
         clear_cache()
-
-    @pytest.fixture(scope='class', autouse=True)
-    def reset_isa(self):
-        """Force back to NO-SIMD after each test, as some tests may optionally
-        switch on SIMD."""
-        yask_configuration['develop-mode'] = True
 
     @pytest.mark.parametrize("space_order", [0, 1, 2])
     @pytest.mark.parametrize("nosimd", [True, False])
@@ -328,7 +329,7 @@ class TestOperatorAcoustic(object):
     def model(self):
         shape = (60, 70, 80)
         nbpml = 10
-        return demo_model(spacing=[15, 15, 15], shape=shape, nbpml=nbpml,
+        return demo_model(spacing=[15., 15., 15.], shape=shape, nbpml=nbpml,
                           preset='layers-isotropic', ratio=3)
 
     @pytest.fixture
@@ -349,19 +350,21 @@ class TestOperatorAcoustic(object):
         return model.damp
 
     @pytest.fixture
-    def u(self, model):
-        space_order = 4
-        time_order = 2
+    def space_order(self):
+        return 4
+
+    @pytest.fixture
+    def time_order(self):
+        return 2
+
+    @pytest.fixture
+    def u(self, model, space_order, time_order):
         return TimeData(name='u', shape=model.shape_domain, dimensions=(x, y, z),
                         space_order=space_order, time_order=time_order)
 
     @pytest.fixture
-    def stencil(self, m, damp, u):
-        s = t.spacing
-        stencil = 1.0 / (2.0 * m + s * damp) * (
-            4.0 * m * u + (s * damp - 2.0 * m) * u.backward +
-            2.0 * s**2 * u.laplace)
-        return stencil
+    def eqn(self, m, damp, u, time_order):
+        return iso_stencil(u, time_order, m, t.spacing, damp)
 
     @pytest.fixture
     def src(self, model, time_params):
@@ -385,46 +388,48 @@ class TestOperatorAcoustic(object):
     def subs(self, model, u):
         dt = model.critical_dt
         return dict([(t.spacing, dt)] + [(time.spacing, dt)] +
-                    [(i.spacing, model.get_spacing()[j]) for i, j
+                    [(i.spacing, model.spacing[j]) for i, j
                      in zip(u.indices[1:], range(len(model.shape)))])
 
-    def test_acoustic_wo_src_wo_rec(self, model, stencil, subs, m, damp, u):
+    def test_acoustic_wo_src_wo_rec(self, model, eqn, subs, m, damp, u):
         """
         Test that the acoustic wave equation runs without crashing in absence
         of sources and receivers.
         """
         u.data[:] = 0.0
-        eqn = [Eq(u.forward, stencil)]
         op = Operator(eqn, subs=subs)
         op.apply(u=u, m=m, damp=damp, t=10)
 
-    def test_acoustic_w_src_wo_rec(self, model, stencil, subs, m, damp, u, src):
+    def test_acoustic_w_src_wo_rec(self, model, eqn, subs, m, damp, u, src):
         """
         Test that the acoustic wave equation runs without crashing in absence
         of receivers.
         """
         dt = model.critical_dt
         u.data[:] = 0.0
-        eqns = [Eq(u.forward, stencil)]
+        eqns = eqn
         eqns += src.inject(field=u.forward, expr=src * dt**2 / m, offset=model.nbpml)
         op = Operator(eqns, subs=subs)
         op.apply(u=u, m=m, damp=damp, src=src, t=1)
 
-    def test_acoustic_w_src_w_rec(self, model, stencil, subs, m, damp, u, src, rec):
+        exp_u = 152.76
+        assert np.isclose(np.linalg.norm(u.data[:]), exp_u, atol=exp_u*1.e-2)
+
+    def test_acoustic_w_src_w_rec(self, model, eqn, subs, m, damp, u, src, rec):
         """
         Test that the acoustic wave equation forward operator produces the correct
         results when running a 3D model also used in ``test_adjointA.py``.
         """
         dt = model.critical_dt
         u.data[:] = 0.0
-        eqns = [Eq(u.forward, stencil)]
+        eqns = eqn
         eqns += src.inject(field=u.forward, expr=src * dt**2 / m, offset=model.nbpml)
         eqns += rec.interpolate(expr=u, offset=model.nbpml)
         op = Operator(eqns, subs=subs)
         op.apply(u=u, m=m, damp=damp, src=src, rec=rec, t=1)
 
         # TODO: the following "hacky" way of asserting correctness will be replaced
-        # once adjoint operators could be run through YASK. At the moment, the following
+        # once adjoint operators might be run through YASK. At the moment, the following
         # expected norms have been "manually" derived from an analogous test (same
         # equation, same model, ...) in test_adjointA.py
         exp_u = 152.76
