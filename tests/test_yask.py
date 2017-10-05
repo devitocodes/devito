@@ -4,7 +4,7 @@ import pytest  # noqa
 
 pexpect = pytest.importorskip('yask')  # Run only if YASK is available
 
-from devito import (Eq, Operator, Function, TimeFunction, SparseFunction,
+from devito import (Eq, Operator, Function, TimeFunction, SparseFunction, Backward,
                     time, t, x, y, z, configuration, clear_cache)  # noqa
 from devito.dle import retrieve_iteration_tree  # noqa
 from devito.yask import arch_mapper, yask_configuration  # noqa
@@ -314,6 +314,22 @@ class TestOperatorSimple(object):
         op(yu4D=u, t=1)
         assert 'run_solution' not in str(op)
         assert all(np.all(u.data[1, :, :, i] == 3 - i) for i in range(4))
+
+    def test_reverse_time_loop(self):
+        """
+        Check that YASK evaluates stencil equations correctly when iterating in the
+        reverse time direction.
+        """
+        u = TimeData(name='yu4D', shape=(4, 4, 4), dimensions=(x, y, z),
+                     space_order=0, time_order=2)
+        u.data[:] = 2.
+        eq = Eq(u.backward, u - 1.)
+        op = Operator(eq, subs={t.spacing: 1}, time_axis=Backward)
+        op(yu4D=u, t=2)
+        assert 'run_solution' in str(op)
+        assert np.all(u.data[2] == 2.)
+        assert np.all(u.data[1] == 1.)
+        assert np.all(u.data[0] == 0.)
 
 
 class TestOperatorAcoustic(object):
