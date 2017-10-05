@@ -443,9 +443,10 @@ class ContextManager(OrderedDict):
 
     def dump(self):
         """
-        Drop all known contexts and clean up lib directory.
+        Drop all known contexts and clean up the relevant YASK directories.
         """
         self.clear()
+        call(['rm', '-f'] + glob(os.path.join(namespace['path'], 'yask', '*devito*')))
         call(['rm', '-f'] + glob(os.path.join(namespace['path'], 'lib', '*devito*')))
         call(['rm', '-f'] + glob(os.path.join(namespace['path'], 'lib', '*hook*')))
 
