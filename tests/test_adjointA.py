@@ -1,6 +1,7 @@
 import numpy as np
 import pytest
 from numpy import linalg
+from conftest import skipif_yask
 
 from devito.logger import info
 from examples.seismic import demo_model, RickerSource, Receiver
@@ -13,6 +14,7 @@ presets = {
 }
 
 
+@skipif_yask
 @pytest.mark.parametrize('mkey, shape, time_order, space_order, nbpml', [
     # 2D tests with varying time and space orders
     ('layers', (60, 70), 2, 4, 10), ('layers', (60, 70), 2, 8, 10),

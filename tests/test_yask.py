@@ -2,7 +2,7 @@ import numpy as np
 
 import pytest  # noqa
 
-pexpect = pytest.importorskip('yask_compiler')  # Run only if YASK is available
+pexpect = pytest.importorskip('yask')  # Run only if YASK is available
 
 from devito import (Eq, Operator, DenseData, TimeData, PointData,
                     time, t, x, y, z, configuration, clear_cache)  # noqa

@@ -9,6 +9,7 @@ except ImportError:
     from io import StringIO
 
 import pytest
+from conftest import skipif_yask
 
 import numpy as np
 
@@ -17,6 +18,7 @@ from devito.logger import logger, logging, set_log_level
 from devito.core.autotuning import options
 
 
+@skipif_yask
 @pytest.mark.parametrize("shape,expected", [
     ((30, 30), 12),
     ((30, 30, 30), 16)
@@ -60,6 +62,7 @@ def test_at_is_actually_working(shape, expected):
     set_log_level('INFO')
 
 
+@skipif_yask
 def test_timesteps_per_at_run():
     """
     Check that each autotuning run (ie with a given block shape) takes

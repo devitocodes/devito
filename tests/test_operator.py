@@ -2,7 +2,7 @@ from __future__ import absolute_import
 
 from collections import OrderedDict
 
-from conftest import EVAL, dims, dims_open
+from conftest import EVAL, dims, dims_open, skipif_yask
 
 import numpy as np
 import pytest
@@ -29,6 +29,7 @@ def symbol(name, dimensions, value=0., shape=(3, 5), mode='function'):
     return s.indexify() if mode == 'indexed' else s
 
 
+@skipif_yask
 class TestAPI(object):
 
     @classmethod
@@ -52,6 +53,7 @@ class TestAPI(object):
         assert 'a_dense[i] = 2.0F*constant + a_dense[i]' in str(op.ccode)
 
 
+@skipif_yask
 class TestArithmetic(object):
 
     @classmethod
@@ -187,6 +189,7 @@ class TestArithmetic(object):
         assert(np.allclose(a.data, 12.))
 
 
+@skipif_yask
 class TestAllocation(object):
 
     @classmethod
@@ -206,6 +209,7 @@ class TestAllocation(object):
         assert(np.array_equal(m.data, m2.data))
 
 
+@skipif_yask
 class TestArguments(object):
 
     @classmethod
@@ -318,6 +322,7 @@ class TestArguments(object):
         assert(np.array_equal(args[arg_name], np.asarray((new_coords,))))
 
 
+@skipif_yask
 class TestDeclarator(object):
 
     @classmethod
@@ -437,6 +442,7 @@ class TestDeclarator(object):
   return 0;""" in str(operator.ccode)
 
 
+@skipif_yask
 class TestLoopScheduler(object):
 
     def test_consistency_coupled_wo_ofs(self, tu, tv, ti0, t0, t1):
@@ -602,6 +608,7 @@ class TestLoopScheduler(object):
                            b.data[..., 2].reshape(-1), 0.))
 
 
+@skipif_yask
 @pytest.mark.skipif(configuration['backend'] != 'foreign',
                     reason="'foreign' wasn't selected as backend on startup")
 class TestForeign(object):

@@ -268,19 +268,22 @@ class YaskKernel(object):
 
         # JIT-compile it
         try:
+            compiler = yask_configuration['compiler']
             opt_level = 1 if yask_configuration['develop-mode'] else 3
-            make(os.environ['YASK_HOME'], ['-j', 'YK_CXXOPT=-O%d' % opt_level,
-                                           # "EXTRA_MACROS=TRACE",
-                                           'YK_BASE=%s' % str(name),
-                                           'stencil=%s' % yc_soln.get_name(),
-                                           'arch=%s' % yask_configuration['arch'],
-                                           '-C', namespace['kernel-path'], 'api'])
+            make(namespace['path'], ['-j3', 'YK_CXX=%s' % compiler.cc,
+                                     'YK_CXXOPT=-O%d' % opt_level,
+                                     'mpi=0',  # Disable MPI for now
+                                     # "EXTRA_MACROS=TRACE",
+                                     'YK_BASE=%s' % str(name),
+                                     'stencil=%s' % yc_soln.get_name(),
+                                     'arch=%s' % yask_configuration['arch'],
+                                     '-C', namespace['kernel-path'], 'api'])
         except CompilationError:
             exit("Kernel solution compilation")
 
         # Import the corresponding Python (SWIG-generated) module
         try:
-            yk = importlib.import_module(name)
+            yk = getattr(__import__('yask', fromlist=[name]), name)
         except ImportError:
             exit("Python YASK kernel bindings")
         try:

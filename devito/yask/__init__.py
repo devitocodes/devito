@@ -24,7 +24,7 @@ def exit(emsg):
 
 log("Backend initialization...")
 try:
-    import yask_compiler as yc
+    from yask import compiler as yc
     # YASK compiler factories
     cfac = yc.yc_factory()
     nfac = yc.yc_node_factory()
@@ -35,7 +35,7 @@ try:
     # Set directories for generated code
     path = os.environ['YASK_HOME']
 except KeyError:
-    exit("Missing YASK_HOME")
+    path = os.path.dirname(os.path.dirname(yc.__file__))
 
 # YASK conventions
 namespace = OrderedDict()

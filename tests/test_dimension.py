@@ -1,8 +1,10 @@
 import devito
 import pytest
+from conftest import skipif_yask
 from devito import Grid, FixedDimension, DenseData, y
 
 
+@skipif_yask
 @pytest.mark.xfail
 def test_incorrect_usage():
     grid = Grid(shape=(10, 10))
@@ -11,6 +13,7 @@ def test_incorrect_usage():
     assert(devito.x in m.indices)
 
 
+@skipif_yask
 def test_correct_usage():
     myx = FixedDimension(name='x', size=10, spacing=devito.x.spacing)
     grid = Grid(shape=(10, 10), dimensions=(myx, y))
