@@ -7,7 +7,9 @@ from sympy import Expr, Float
 from sympy.core.basic import _aresame
 from sympy.functions.elementary.trigonometric import TrigonometricFunction
 
-__all__ = ['FrozenExpr', 'Eq', 'Mul', 'Add', 'FunctionFromPointer',
+from devito.tools import as_tuple
+
+__all__ = ['FrozenExpr', 'Eq', 'Mul', 'Add', 'FunctionFromPointer', 'ListInitializer',
            'taylor_sin', 'taylor_cos', 'bhaskara_sin', 'bhaskara_cos']
 
 
@@ -63,16 +65,33 @@ class Add(sympy.Add, FrozenExpr):
 
 class FunctionFromPointer(sympy.Symbol):
 
+    """
+    Symbolic representation of the C notation ``pointer->function(params)``.
+    """
+
     def __new__(cls, function, pointer, params=None):
-        obj = sympy.Symbol.__new__(cls, '%s->%s' % (pointer, function))
+        flatten_name = '%s->%s(%s)' % (pointer, function,
+                                       ", ".join(str(i) for i in as_tuple(params)))
+        obj = sympy.Symbol.__new__(cls, flatten_name)
         obj.function = function
         obj.pointer = pointer
+        obj.params = as_tuple(params)
+        return obj
+
+
+class ListInitializer(sympy.Symbol):
+
+    """
+    Symbolic representation of the C++ list initializer notation ``{a, b, ...}``.
+    """
+
+    def __new__(cls, params):
+        obj = sympy.Symbol.__new__(cls, ','.join('%s' % i for i in params))
         obj.params = params or ()
         return obj
 
     def __str__(self):
-        return "%s->%s(%s)" % (self.pointer, self.function,
-                               ', '.join([str(i) for i in self.params]))
+        return "{%s}" % ", ".join(str(i) for i in self.params)
 
     __repr__ = __str__
 

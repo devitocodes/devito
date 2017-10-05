@@ -1,7 +1,7 @@
 import cgen as c
 
 from devito.cgen_utils import INT, ccode
-from devito.dse import FunctionFromPointer, retrieve_indexed
+from devito.dse import FunctionFromPointer, ListInitializer, retrieve_indexed
 from devito.nodes import Element, Expression
 from devito.tools import as_tuple
 from devito.visitors import FindNodes, Transformer
@@ -26,7 +26,7 @@ def make_grid_accesses(node):
         data_carriers = [i for i in indexeds if i.base.function.from_YASK]
         for i in data_carriers:
             name = namespace['code-grid-name'](i.base.function.name)
-            args = [INT(make_grid_gets(j)) for j in i.indices]
+            args = [ListInitializer([INT(make_grid_gets(j)) for j in i.indices])]
             mapper[i] = make_sharedptr_funcall(namespace['code-grid-get'], args, name)
         return expr.xreplace(mapper)
 
@@ -40,7 +40,8 @@ def make_grid_accesses(node):
         # LHS translation
         if e.output_function.from_YASK:
             name = namespace['code-grid-name'](e.output_function.name)
-            args = [rhs] + [INT(make_grid_gets(i)) for i in lhs.indices]
+            args = [rhs]
+            args += [ListInitializer([INT(make_grid_gets(i)) for i in lhs.indices])]
             handle = make_sharedptr_funcall(namespace['code-grid-put'], args, name)
             processed = Element(c.Statement(ccode(handle)))
         else:

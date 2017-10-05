@@ -247,11 +247,17 @@ class sympy2yask(object):
                 function = expr.base.function
                 name = function.name
                 if name not in self.mapper:
-                    dimensions = [str(i) for i in function.indices]
+                    if function.is_TimeData:
+                        dimensions = [nfac.new_step_index(function.indices[0].name)]
+                        dimensions += [nfac.new_domain_index(i.name)
+                                       for i in function.indices[1:]]
+                    else:
+                        dimensions = [nfac.new_domain_index(i.name)
+                                      for i in function.indices]
                     self.mapper[name] = self.yc_soln.new_grid(name, dimensions)
                 indices = [int((i.origin if isinstance(i, LoweredDimension) else i) - j)
                            for i, j in zip(expr.indices, function.indices)]
-                return self.mapper[name].new_relative_grid_point(*indices)
+                return self.mapper[name].new_relative_grid_point(indices)
             elif expr.is_Add:
                 return nary2binary(expr.args, nfac.new_add_node)
             elif expr.is_Mul:
