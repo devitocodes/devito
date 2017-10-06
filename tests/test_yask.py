@@ -1,3 +1,4 @@
+from sympy import cos
 import numpy as np
 
 import pytest  # noqa
@@ -330,6 +331,33 @@ class TestOperatorSimple(object):
         assert np.all(u.data[2] == 2.)
         assert np.all(u.data[1] == 1.)
         assert np.all(u.data[0] == 0.)
+
+    def test_capture_vector_temporaries(self):
+        """
+        Check that all vector temporaries appearing in a offloaded stencil
+        equation are: ::
+
+            * mapped to a YASK grid, directly in Python-land,
+            * so no memory needs to be allocated in C-land, and
+            * passed down to the generated code, and
+            * re-initializaed to 0. at each operator application
+        """
+        u = TimeData(name='yu4D', shape=(4, 4, 4), dimensions=(x, y, z),
+                     space_order=0)
+        v = DenseData(name='yv3D', shape=(4, 4, 4), dimensions=(x, y, z),
+                      space_order=0)
+        eqs = [Eq(u.forward, u + cos(v)*2. + cos(v)*cos(v)*3.)]
+        op = Operator(eqs, subs={t.spacing: 1})
+        # Sanity check of the generated code
+        assert 'posix_memalign' not in str(op)
+        assert 'run_solution' in str(op)
+        # No data has been allocated for the temporaries yet
+        assert op.yk_soln.grids['r0'].is_storage_allocated() is False
+        op.apply(yu4D=u, yv3D=v, t=1)
+        # Temporary data has already been released after execution
+        assert op.yk_soln.grids['r0'].is_storage_allocated() is False
+        assert np.all(v.data == 0.)
+        assert np.all(u.data[1] == 5.)
 
 
 class TestOperatorAcoustic(object):
