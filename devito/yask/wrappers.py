@@ -309,7 +309,7 @@ class YaskKernel(object):
 
         # Set up the solution domain size
         for k, v in domain.items():
-            self.soln.set_rank_domain_size(k, v)
+            self.soln.set_rank_domain_size(k, int(v))
 
     def new_grid(self, obj_name, grid_name, dimensions):
         """Create a new YASK grid."""

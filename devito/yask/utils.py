@@ -138,7 +138,7 @@ def convert_multislice(multislice, shape, offsets, mode='get'):
     assert len(shape) == len(cstart) == len(cstop) == len(offsets)
 
     # Shift by the specified offsets
-    cstart = [j + i for i, j in zip(offsets, cstart)]
-    cstop = [j + i for i, j in zip(offsets, cstop)]
+    cstart = [int(j + i) for i, j in zip(offsets, cstart)]
+    cstop = [int(j + i) for i, j in zip(offsets, cstop)]
 
     return cstart, cstop, cshape
