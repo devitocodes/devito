@@ -74,11 +74,11 @@ class Operator(OperatorRunnable):
                 offloadable.append((tree, dimensions, shape, dtype))
 
         # Construct YASK ASTs given Devito expressions. New grids may be allocated.
+        self.context = YaskNullContext()
+        self.yk_soln = YaskNullSolution()
+        self._local_grids = {}
+        processed = nodes
         if len(offloadable) == 0:
-            # No offloadable trees found
-            self.context = YaskNullContext()
-            self.yk_soln = YaskNullSolution()
-            processed = nodes
             log("No offloadable trees found")
         elif len(offloadable) == 1:
             # Found *the* offloadable tree for this Operator
@@ -106,6 +106,19 @@ class Operator(OperatorRunnable):
                 self.yk_soln = self.context.make_yk_solution(namespace['jit-yk-soln'],
                                                              yc_soln)
 
+                # Convert temporary tensors into YASK grids, and drop them into
+                # the generated code
+                # TODO: ATM, *all* TensorFunction are hoisted to Python-land; but some,
+                # the vector temporaries *not* spanning the whole grids, will be managed
+                # directly by YASK. These need be traced from the DSE, and treated
+                # appropriately here
+                for i in transform.mapper:
+                    if i.is_TensorFunction:
+                        assert i.shape == self.context.shape_domain
+                        self._local_grids[i] = self.context.make_grid(i)
+                        # No need to allocate memory in C-land through e.g. malloc
+                        i.update(external=True)
+
                 # Now we must drop a pointer to the YASK solution down to C-land
                 parameters.append(Object(namespace['code-soln-name'],
                                          namespace['type-solution'],
@@ -116,8 +129,6 @@ class Operator(OperatorRunnable):
                     (yc_soln.get_name(), yc_soln.get_num_grids(),
                      yc_soln.get_num_equations()))
             except:
-                self.yk_soln = YaskNullSolution()
-                processed = nodes
                 log("Unable to offload a candidate tree.")
         else:
             exit("Found more than one offloadable trees in a single Operator")
@@ -128,12 +139,11 @@ class Operator(OperatorRunnable):
         processed = make_grid_accesses(processed)
 
         # Update the parameters list adding all necessary YASK grids
-        for i in list(parameters):
+        for i in list(parameters) + list(self._local_grids):
             try:
                 if i.from_YASK:
                     parameters.append(Object(namespace['code-grid-name'](i.name),
-                                             namespace['type-grid'],
-                                             i.data.rawpointer))
+                                             namespace['type-grid'], None))
             except AttributeError:
                 # Ignore e.g. Dimensions
                 pass
@@ -159,7 +169,7 @@ class Operator(OperatorRunnable):
             if i.is_PtrArgument and obj is not None:
                 assert(i.verify(obj.data.rawpointer))
 
-        # Also need to update this Operator's grids by sharing user-provided data
+        # Update this Operator's grids by sharing user-provided data
         for i in self.parameters:
             obj = kwargs.get(i.name)
             if obj is not None and obj.from_YASK:
@@ -176,6 +186,10 @@ class Operator(OperatorRunnable):
     def apply(self, **kwargs):
         # Build the arguments list to invoke the kernel function
         arguments, dim_sizes = self.arguments(**kwargs)
+
+        # Allocate temporary grids
+        for i in self._local_grids.values():
+            i.alloc_storage()
 
         # Print some info about the solution.
         log("Stencil-solution '%s':" % self.yk_soln.name)
@@ -195,6 +209,11 @@ class Operator(OperatorRunnable):
         else:
             log("Running YASK Operator through Devito...")
             self.cfunction(*list(arguments.values()))
+
+        # Deallocate temporary grids
+        for i in self._local_grids.values():
+            i.release_storage()
+
         log("YASK Operator successfully run!")
 
         # Output summary of performance achieved
