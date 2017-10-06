@@ -11,7 +11,7 @@ from devito.dse.extended_sympy import Add, Eq, Mul
 from devito.dse.inspection import count, estimate_cost, retrieve_indexed
 from devito.dse.graph import temporaries_graph
 from devito.dse.queries import q_op, q_leaf
-from devito.interfaces import Indexed, TensorFunction
+from devito.types import Indexed, Array
 from devito.tools import as_tuple
 
 __all__ = ['collect_nested', 'common_subexprs_elimination', 'freeze_expression',
@@ -51,8 +51,8 @@ def promote_scalar_expressions(exprs, shape, indices, onstack):
     for k, v in graph.items():
         if v.is_scalar:
             # Create a new function symbol
-            data = TensorFunction(name=k.name, shape=shape,
-                                  dimensions=indices, onstack=onstack)
+            data = Array(name=k.name, shape=shape,
+                         dimensions=indices, onstack=onstack)
             indexed = Indexed(data.indexed, *indices)
             mapper[k] = indexed
             processed.append(Eq(indexed, v.rhs))

@@ -4,13 +4,13 @@ import numpy as np
 import pytest
 from conftest import skipif_yask
 
-from devito import Grid, DenseData, TimeData, clear_cache
-from devito.interfaces import _SymbolCache
+from devito import Grid, Function, TimeFunction, clear_cache
+from devito.types import _SymbolCache
 
 
 @skipif_yask
 @pytest.mark.xfail(reason="New function instances currently don't cache")
-@pytest.mark.parametrize('FunctionType', [DenseData, TimeData])
+@pytest.mark.parametrize('FunctionType', [Function, TimeFunction])
 def test_cache_function_new(FunctionType):
     """Test caching of a new u[x, y] instance"""
     grid = Grid(shape=(3, 4))
@@ -21,7 +21,7 @@ def test_cache_function_new(FunctionType):
 
 
 @skipif_yask
-@pytest.mark.parametrize('FunctionType', [DenseData, TimeData])
+@pytest.mark.parametrize('FunctionType', [Function, TimeFunction])
 def test_cache_function_same_indices(FunctionType):
     """Test caching of derived u[x, y] instance from derivative"""
     grid = Grid(shape=(3, 4))
@@ -33,7 +33,7 @@ def test_cache_function_same_indices(FunctionType):
 
 
 @skipif_yask
-@pytest.mark.parametrize('FunctionType', [DenseData, TimeData])
+@pytest.mark.parametrize('FunctionType', [Function, TimeFunction])
 def test_cache_function_different_indices(FunctionType):
     """Test caching of u[x + h, y] instance from derivative"""
     grid = Grid(shape=(3, 4))
@@ -67,7 +67,7 @@ def test_symbol_cache_aliasing():
 
     # Create first instance of u and fill its data
     grid = Grid(shape=(3, 4))
-    u = DenseData(name='u', grid=grid)
+    u = Function(name='u', grid=grid)
     u.data[:] = 6.
     u_ref = weakref.ref(u.data)
 
@@ -99,7 +99,7 @@ def test_symbol_cache_aliasing_reverse():
 
     # Create first instance of u and fill its data
     grid = Grid(shape=(3, 4))
-    u = DenseData(name='u', grid=grid)
+    u = Function(name='u', grid=grid)
     u.data[:] = 6.
     u_ref = weakref.ref(u.data)
 
@@ -129,7 +129,7 @@ def test_clear_cache(nx=1000, ny=1000):
     for i in range(10):
         assert(len(_SymbolCache) == cache_size)
 
-        DenseData(name='u', grid=grid, space_order=2)
+        Function(name='u', grid=grid, space_order=2)
 
         assert(len(_SymbolCache) == cache_size + 1)
 
@@ -142,9 +142,9 @@ def test_cache_after_indexification():
     after indexification.
     """
     grid = Grid(shape=(4, 4, 4))
-    u0 = DenseData(name='u', grid=grid, space_order=0)
-    u1 = DenseData(name='u', grid=grid, space_order=1)
-    u2 = DenseData(name='u', grid=grid, space_order=2)
+    u0 = Function(name='u', grid=grid, space_order=0)
+    u1 = Function(name='u', grid=grid, space_order=1)
+    u2 = Function(name='u', grid=grid, space_order=2)
 
     for i in [u0, u1, u2]:
         assert i.indexify().base.function.space_order ==\

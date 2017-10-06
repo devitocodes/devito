@@ -16,7 +16,7 @@ def make_sharedptr_funcall(call, params, sharedptr):
 def make_grid_accesses(node):
     """
     Construct a new Iteration/Expression based on ``node``, in which all
-    :class:`interfaces.Indexed` accesses have been converted into YASK grid
+    :class:`types.Indexed` accesses have been converted into YASK grid
     accesses.
     """
 

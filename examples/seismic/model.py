@@ -1,7 +1,7 @@
 import numpy as np
 import os
 
-from devito import Grid, DenseData, ConstantData
+from devito import Grid, Function, Constant
 from devito.logger import error
 
 
@@ -314,15 +314,15 @@ class Model(object):
 
         # Create square slowness of the wave as symbol `m`
         if isinstance(vp, np.ndarray):
-            self.m = DenseData(name="m", grid=self.grid)
+            self.m = Function(name="m", grid=self.grid)
         else:
-            self.m = ConstantData(name="m", value=1/vp**2)
+            self.m = Constant(name="m", value=1/vp**2)
 
         # Set model velocity, which will also set `m`
         self.vp = vp
 
         # Create dampening field as symbol `damp`
-        self.damp = DenseData(name="damp", grid=self.grid)
+        self.damp = Function(name="damp", grid=self.grid)
         damp_boundary(self.damp.data, self.nbpml, spacing=self.spacing)
 
         # Additional parameter fields for TTI operators
@@ -330,7 +330,7 @@ class Model(object):
 
         if epsilon is not None:
             if isinstance(epsilon, np.ndarray):
-                self.epsilon = DenseData(name="epsilon", grid=self.grid)
+                self.epsilon = Function(name="epsilon", grid=self.grid)
                 self.epsilon.data[:] = self.pad(1 + 2 * epsilon)
                 # Maximum velocity is scale*max(vp) if epsilon > 0
                 if np.max(self.epsilon.data) > 0:
@@ -343,7 +343,7 @@ class Model(object):
 
         if delta is not None:
             if isinstance(delta, np.ndarray):
-                self.delta = DenseData(name="delta", grid=self.grid)
+                self.delta = Function(name="delta", grid=self.grid)
                 self.delta.data[:] = self.pad(np.sqrt(1 + 2 * delta))
             else:
                 self.delta = delta
@@ -352,7 +352,7 @@ class Model(object):
 
         if theta is not None:
             if isinstance(theta, np.ndarray):
-                self.theta = DenseData(name="theta", grid=self.grid)
+                self.theta = Function(name="theta", grid=self.grid)
                 self.theta.data[:] = self.pad(theta)
             else:
                 self.theta = theta
@@ -361,7 +361,7 @@ class Model(object):
 
         if phi is not None:
             if isinstance(phi, np.ndarray):
-                self.phi = DenseData(name="phi", grid=self.grid)
+                self.phi = Function(name="phi", grid=self.grid)
                 self.phi.data[:] = self.pad(phi)
             else:
                 self.phi = phi
@@ -426,7 +426,7 @@ class Model(object):
 
         Updating the velocity field also updates the square slowness
         ``self.m``. However, only ``self.m`` should be used in seismic
-        operators, since it is of type :class:`DenseData`.
+        operators, since it is of type :class:`Function`.
         """
         return self._vp
 

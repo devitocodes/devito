@@ -403,7 +403,7 @@ class YaskContext(object):
         """
         dimensions = [str(i) for i in obj.indices]
         if set(dimensions) < set(self.space_dimensions):
-            exit("Need a DenseData[x,y,z] to create a YASK grid.")
+            exit("Need a Function[x,y,z] to create a YASK grid.")
         name = 'devito_%s_%d' % (obj.name, contexts.ngrids)
         log("Allocating YaskGrid for %s (%s)" % (obj.name, str(obj.shape)))
         grid = self.yk_hook.new_grid(obj.name, name, dimensions)
@@ -463,7 +463,7 @@ class ContextManager(OrderedDict):
         assert len(dimensions) == len(shape)
         dimensions = [str(i) for i in dimensions]
         if set(dimensions) < {'x', 'y', 'z'}:
-            exit("Need a DenseData[x,y,z] for initialization")
+            exit("Need a Function[x,y,z] for initialization")
 
         # The time dimension is dropped as implicit to the context
         domain = OrderedDict([(i, j) for i, j in zip(dimensions, shape)

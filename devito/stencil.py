@@ -72,9 +72,10 @@ class Stencil(DefaultOrderedDict):
                     found = [i for i in a.free_symbols if isinstance(i, Dimension)]
                     d.extend([i for i in found if i not in d])
                 dims[tuple(d)] = e
-        # ... giving higher priority to TimeData objects; time always go first
-        dims = sorted(list(dims), key=lambda i: not (isinstance(dims[i], Dimension) or
-                                                     dims[i].base.function.is_TimeData))
+        # ... giving higher priority to TimeFunction objects; time always go first
+        dims = sorted(list(dims),
+                      key=lambda i: not (isinstance(dims[i], Dimension) or
+                                         dims[i].base.function.is_TimeFunction))
         stencil = Stencil([(i, set()) for i in partial_order(dims)])
 
         # Determine the points accessed along each dimension

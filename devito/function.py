@@ -1,39 +1,30 @@
-import weakref
-import abc
-
 import numpy as np
 import sympy
-from sympy import Function, IndexedBase
 from sympy.abc import s
+from collections import OrderedDict
 from functools import partial
 
-from devito.dimension import t, time
+from devito.parameters import configuration
+from devito.logger import debug, error, warning
+from devito.memory import CMemory, first_touch
+from devito.cgen_utils import INT, FLOAT
+from devito.dimension import d, p, t, time, x, y, z
+from devito.arguments import ConstantArgProvider, TensorFunctionArgProvider
+from devito.types import SymbolicFunction, AbstractSymbol
 from devito.finite_difference import (centered, cross_derivative,
                                       first_derivative, left, right,
                                       second_derivative, generic_derivative,
                                       second_cross_derivative)
-from devito.logger import debug, error, warning
-from devito.memory import CMemory, first_touch
-from devito.arguments import (ConstantDataArgProvider, TensorDataArgProvider,
-                              ScalarFunctionArgProvider, TensorFunctionArgProvider,
-                              ObjectArgProvider)
-from devito.parameters import configuration
+from devito.dse.inspection import indexify, retrieve_indexed
+from devito.dse.extended_sympy import Eq
 
-__all__ = ['Symbol', 'Indexed',
-           'ConstantData', 'DenseData', 'TimeData',
+__all__ = ['Constant', 'Function', 'TimeFunction', 'SparseFunction',
            'Forward', 'Backward']
-
-configuration.add('first_touch', 0, [0, 1], lambda i: bool(i))
-
-# This cache stores a reference to each created data object
-# so that we may re-create equivalent symbols during symbolic
-# manipulation with the correct shapes, pointers, etc.
-_SymbolCache = {}
 
 
 class TimeAxis(object):
     """Direction in which to advance the time index on
-    :class:`TimeData` objects.
+    :class:`TimeFunction` objects.
 
     :param axis: Either 'Forward' or 'Backward'
     """
@@ -53,337 +44,13 @@ Forward = TimeAxis('Forward')
 Backward = TimeAxis('Backward')
 
 
-class Basic(object):
-    """
-    Base class for API objects, used to build and run :class:`Operator`s.
-
-    There are two main types of objects: symbolic and generic. Symbolic objects
-    may carry data, and are used to build equations. Generic objects may be
-    used to represent or pass arbitrary data structures. The following diagram
-    outlines the top of this hierarchy.
-
-                                 Basic
-                                   |
-                    ----------------------------------
-                    |                                |
-              CachedSymbol                         Object
-                    |                       <see Object.__doc__>
-             AbstractSymbol
-    <see diagram in AbstractSymbol.__doc__>
-
-    All derived :class:`Basic` objects may be emitted through code generation
-    to create a just-in-time compilable kernel.
-    """
-
-    # Top hierarchy
-    is_AbstractSymbol = False
-    is_Object = False
-
-    # Symbolic objects created internally by Devito
-    is_SymbolicFunction = False
-    is_ScalarFunction = False
-    is_TensorFunction = False
-
-    # Symbolic objects created by user
-    is_SymbolicData = False
-    is_ConstantData = False
-    is_TensorData = False
-    is_DenseData = False
-    is_TimeData = False
-    is_CompositeData = False
-    is_PointData = False
-
-    # Basic symbolic object properties
-    is_Scalar = False
-    is_Tensor = False
-
-    @abc.abstractmethod
-    def __init__(self, *args, **kwargs):
-        return
-
-
-class CachedSymbol(Basic):
-    """Base class for symbolic objects that caches on the class type."""
-
-    @classmethod
-    def _cached(cls):
-        """Test if current class is already in the symbol cache."""
-        return cls in _SymbolCache
-
-    @classmethod
-    def _cache_put(cls, obj):
-        """Store given object instance in symbol cache.
-
-        :param obj: Object to be cached.
-        """
-        _SymbolCache[cls] = weakref.ref(obj)
-
-    @classmethod
-    def _symbol_type(cls, name):
-        """Create new type instance from cls and inject symbol name"""
-        return type(name, (cls, ), dict(cls.__dict__))
-
-    def _cached_init(self):
-        """Initialise symbolic object with a cached object state"""
-        original = _SymbolCache[self.__class__]
-        self.__dict__ = original().__dict__
-
-
-class AbstractSymbol(Function, CachedSymbol):
-    """Base class for data classes that provides symbolic behaviour.
-
-    :param name: Symbolic name to give to the resulting function. Must
-                 be given as keyword argument.
-    :param shape: Shape of the underlying object. Must be given as
-                  keyword argument.
-
-    This class implements the behaviour of Devito's symbolic
-    objects by inheriting from and mimicking the behaviour of :class
-    sympy.Function:. In order to maintain meta information across the
-    numerous re-instantiation SymPy performs during symbolic
-    manipulation, we inject the symbol name as the class name and
-    cache all created objects on that name. This entails that a symbolic
-    object should implement `__init__` in the following format:
-
-    def __init__(self, \*args, \*\*kwargs):
-        if not self._cached():
-            ... # Initialise object properties from kwargs
-
-    Note: The parameters :param name: and :param shape: must always be
-    present and given as keyword arguments, since SymPy uses `*args`
-    to (re-)create the dimension arguments of the symbolic function.
-
-    This class is the root of the Devito data objects hierarchy, which
-    is structured as follows.
-
-                             AbstractSymbol
-                                   |
-                 -------------------------------------
-                 |                                   |
-          SymbolicFunction                      SymbolicData
-                 |                                   |
-          ------------------                 ------------------
-          |                |                 |                |
-    ScalarFunction  TensorFunction     ConstantData           |
-                                                              |
-                                                ----------------------------
-                                                |             |            |
-                                            DenseData      TimeData  CompositeData
-                                                                           |
-                                                                       PointData
-
-    The key difference between a :class:`SymbolicData` and a :class:`SymbolicFunction`
-    is that the former is created directly by the user and employed in some
-    computation, while the latter is created and managed internally by Devito.
-    """
-
-    is_AbstractSymbol = True
-
-    def __new__(cls, *args, **kwargs):
-        if cls in _SymbolCache:
-            options = kwargs.get('options', {})
-            newobj = Function.__new__(cls, *args, **options)
-            newobj._cached_init()
-        else:
-            name = kwargs.get('name')
-            if len(args) < 1:
-                args = cls._indices(**kwargs)
-
-            # Create the new Function object and invoke __init__
-            newcls = cls._symbol_type(name)
-            options = kwargs.get('options', {})
-            newobj = Function.__new__(newcls, *args, **options)
-            newobj.__init__(*args, **kwargs)
-
-            # All objects cached on the AbstractSymbol /newobj/ keep a reference
-            # to /newobj/ through the /function/ field. Thus, all indexified
-            # object will point to /newobj/, the "actual Function".
-            newobj.function = newobj
-
-            # Store new instance in symbol cache
-            newcls._cache_put(newobj)
-        return newobj
-
-    @classmethod
-    def _indices(cls, **kwargs):
-        """Return the default dimension indices."""
-        return []
-
-    @property
-    def dim(self):
-        """Return the rank of the object."""
-        return len(self.shape)
-
-    @property
-    def indexed(self):
-        """Extract a :class:`IndexedData` object from the current object."""
-        return IndexedData(self.name, shape=self.shape, function=self.function)
-
-    @property
-    def symbolic_shape(self):
-        """
-        Return the symbolic shape of the object. For an entry ``E`` in ``self.shape``,
-        there are two possibilities: ::
-
-            * ``E`` is already in symbolic form, then simply use ``E``.
-            * ``E`` is an integer representing the size along a dimension ``D``,
-              then, use a symbolic representation of ``D``.
-        """
-        sshape = []
-        for i, j in zip(self.shape, self.indices):
-            try:
-                i.is_algebraic_expr()
-                sshape.append(i)
-            except AttributeError:
-                sshape.append(j.symbolic_size)
-        return tuple(sshape)
-
-    @property
-    def _mem_external(self):
-        """Return True if the associated data was/is/will be allocated directly
-        from Python (e.g., via NumPy arrays), False otherwise."""
-        return False
-
-    @property
-    def _mem_stack(self):
-        """Return True if the associated data was/is/will be allocated on the stack
-        in a C module, False otherwise."""
-        return False
-
-    @property
-    def _mem_heap(self):
-        """Return True if the associated data was/is/will be allocated on the heap
-        in a C module, False otherwise."""
-        return False
-
-    def indexify(self, indices=None):
-        """Create a :class:`sympy.Indexed` object from the current object."""
-        if indices is not None:
-            return Indexed(self.indexed, *indices)
-
-        subs = dict([(i.spacing, 1) for i in self.indices])
-        indices = [a.subs(subs) for a in self.args]
-        if indices:
-            return Indexed(self.indexed, *indices)
-        else:
-            return Symbol(self.indexed)
-
-
-class SymbolicFunction(AbstractSymbol):
-
-    """
-    A symbolic function object, created and managed directly by Devito.
-
-    Unlike :class:`SymbolicData` objects, the state of a SymbolicFunction
-    is mutable.
-    """
-
-    is_SymbolicFunction = True
-
-    def __new__(cls, *args, **kwargs):
-        kwargs.update({'options': {'evaluate': False}})
-        return AbstractSymbol.__new__(cls, *args, **kwargs)
-
-    def update(self):
-        return
-
-
-class ScalarFunction(SymbolicFunction, ScalarFunctionArgProvider):
-    """Symbolic object representing a scalar.
-
-    :param name: Name of the symbol
-    :param dtype: Data type of the scalar
-    """
-
-    is_ScalarFunction = True
-    is_Scalar = True
-
-    def __init__(self, *args, **kwargs):
-        if not self._cached():
-            self.name = kwargs.get('name')
-            self.shape = ()
-            self.indices = ()
-            self.dtype = kwargs.get('dtype', np.float32)
-
-    @property
-    def _mem_stack(self):
-        """Return True if the associated data should be allocated on the stack
-        in a C module, False otherwise."""
-        return True
-
-    def update(self, dtype=None, **kwargs):
-        self.dtype = dtype or self.dtype
-
-
-class TensorFunction(SymbolicFunction, TensorFunctionArgProvider):
-    """Symbolic object representing a tensor.
-
-    :param name: Name of the symbol
-    :param dtype: Data type of the scalar
-    :param shape: The shape of the tensor
-    :param dimensions: The symbolic dimensions of the tensor.
-    :param onstack: Pass True to enforce allocation on stack
-    """
-
-    is_TensorFunction = True
-    is_Tensor = True
-
-    def __init__(self, *args, **kwargs):
-        if not self._cached():
-            self.name = kwargs.get('name')
-            self.shape = kwargs.get('shape')
-            self.indices = kwargs.get('dimensions')
-            self.dtype = kwargs.get('dtype', np.float32)
-            self._onstack = kwargs.get('onstack', False)
-
-    @classmethod
-    def _indices(cls, **kwargs):
-        return kwargs.get('dimensions')
-
-    @property
-    def _mem_stack(self):
-        return self._onstack
-
-    @property
-    def _mem_heap(self):
-        return not self._onstack
-
-    def update(self, dtype=None, shape=None, dimensions=None, onstack=None):
-        self.dtype = dtype or self.dtype
-        self.shape = shape or self.shape
-        self.indices = dimensions or self.indices
-        self._onstack = onstack or self._mem_stack
-
-
-class SymbolicData(AbstractSymbol):
-    """A symbolic object associated with data.
-
-    Unlike :class:`SymbolicFunction` objects, the structure of a SymbolicData
-    is immutable (e.g., shape, dtype, ...). Obviously, the object value (``data``)
-    may be altered, either directly by the user or by an :class:`Operator`.
-    """
-
-    is_SymbolicData = True
-
-    @property
-    def _data_buffer(self):
-        """Reference to the actual data. This is *not* a view of the data.
-        This method is for internal use only."""
-        return self.data
-
-    @abc.abstractproperty
-    def data(self):
-        """The value of the data object."""
-        return
-
-
-class ConstantData(SymbolicData, ConstantDataArgProvider):
+class Constant(SymbolicFunction, ConstantArgProvider):
 
     """
     Data object for constant values.
     """
 
-    is_ConstantData = True
+    is_Constant = True
     is_Scalar = True
 
     def __new__(cls, *args, **kwargs):
@@ -408,9 +75,14 @@ class ConstantData(SymbolicData, ConstantDataArgProvider):
         self._value = val
 
 
-class TensorData(SymbolicData, TensorDataArgProvider):
+class TensorFunction(SymbolicFunction, TensorFunctionArgProvider):
 
-    is_TensorData = True
+    """
+    Utility class to encapsulate all symbolic :class:`Function` types
+    that represent tensor (array) data.
+    """
+
+    is_TensorFunction = True
     is_Tensor = True
 
     @property
@@ -420,8 +92,8 @@ class TensorData(SymbolicData, TensorDataArgProvider):
         return True
 
 
-class DenseData(TensorData):
-    """Data object for spatially varying data acting as a :class:`SymbolicData`.
+class Function(TensorFunction):
+    """Data object for spatially varying data acting as a :class:`SymbolicFunction`.
 
     :param name: Name of the symbol
     :param grid: :class:`Grid` object from which to infer the data shape
@@ -438,12 +110,12 @@ class DenseData(TensorData):
        If the parameter ``grid`` is provided, the values for ``shape``,
        ``dimensions`` and ``dtype`` will be derived from it.
 
-       :class:`DenseData` objects are assumed to be constant in time
+       :class:`Function` objects are assumed to be constant in time
        and therefore do not support time derivatives. Use
-       :class:`TimeData` for time-varying grid data.
+       :class:`TimeFunction` for time-varying grid data.
     """
 
-    is_DenseData = True
+    is_Function = True
 
     def __init__(self, *args, **kwargs):
         if not self._cached():
@@ -618,7 +290,7 @@ class DenseData(TensorData):
                     for d in self.space_dimensions])
 
 
-class TimeData(DenseData):
+class TimeFunction(Function):
     """
     Data object for time-varying data that acts as a Function symbol
 
@@ -652,19 +324,19 @@ class TimeData(DenseData):
 
        .. code-block:: python
 
-          In []: TimeData(name="a", dimensions=(x, y, z))
+          In []: TimeFunction(name="a", dimensions=(x, y, z))
           Out[]: a(t, x, y, z)
 
-          In []: TimeData(name="a", shape=(20, 30))
+          In []: TimeFunction(name="a", shape=(20, 30))
           Out[]: a(t, x, y)
 
     """
 
-    is_TimeData = True
+    is_TimeFunction = True
 
     def __init__(self, *args, **kwargs):
         if not self._cached():
-            super(TimeData, self).__init__(*args, **kwargs)
+            super(TimeFunction, self).__init__(*args, **kwargs)
             self.time_dim = kwargs.get('time_dim', None)
             self.time_order = kwargs.get('time_order', 1)
             self.save = kwargs.get('save', False)
@@ -672,7 +344,7 @@ class TimeData(DenseData):
             if not self.save:
                 if self.time_dim is not None:
                     warning('Explicit time dimension size (time_dim) found for '
-                            'TimeData symbol %s, despite \nusing a buffered time '
+                            'TimeFunction symbol %s, despite \nusing a buffered time '
                             'dimension (save=False). This value will be ignored!'
                             % self.name)
                 self.time_dim = self.time_order + 1
@@ -707,7 +379,7 @@ class TimeData(DenseData):
         """
         save = kwargs.get('save', None)
         tidx = time if save else t
-        _indices = DenseData._indices(**kwargs)
+        _indices = Function._indices(**kwargs)
         return tuple([tidx] + list(_indices))
 
     @property
@@ -754,15 +426,15 @@ class TimeData(DenseData):
         return self.diff(_t, _t).as_finite_difference(indt)
 
 
-class CompositeData(DenseData):
+class CompositeFunction(Function):
     """
-    Base class for DenseData classes that have DenseData children
+    Base class for Function classes that have Function children
     """
 
-    is_CompositeData = True
+    is_CompositeFunction = True
 
     def __init__(self, *args, **kwargs):
-        super(CompositeData, self).__init__(self, *args, **kwargs)
+        super(CompositeFunction, self).__init__(self, *args, **kwargs)
         self._children = []
 
     @property
@@ -770,77 +442,226 @@ class CompositeData(DenseData):
         return self._children
 
 
-# Objects belonging to the Devito API not involving data, such as data structures
-# that need to be passed to external libraries
-
-
-class Object(ObjectArgProvider):
-
+class SparseFunction(CompositeFunction):
     """
-    Represent a generic pointer object.
+    Data object for sparse point data that acts as a Function symbol
+
+    :param name: Name of the resulting :class:`sympy.Function` symbol
+    :param npoint: Number of points to sample
+    :param nt: Size of the time dimension for point data
+    :param ndim: Dimension of the coordinate data, eg. 2D or 3D
+    :param coordinates: Optional coordinate data for the sparse points
+    :param dtype: Data type of the buffered data
     """
 
-    is_Object = True
+    is_SparseFunction = True
 
-    def __init__(self, name, dtype, value=None):
-        self.name = name
-        self.dtype = dtype
-        self.value = value
+    def __init__(self, *args, **kwargs):
+        if not self._cached():
+            self.nt = kwargs.get('nt')
+            self.npoint = kwargs.get('npoint')
+            self.ndim = kwargs.get('ndim')
+            kwargs['shape'] = (self.nt, self.npoint)
+            super(SparseFunction, self).__init__(self, *args, **kwargs)
 
-    def __repr__(self):
-        return self.name
+            # Allocate and copy coordinate data
+            self.coordinates = Function(name='%s_coords' % self.name,
+                                        dimensions=[self.indices[1], d],
+                                        shape=(self.npoint, self.ndim))
+            self._children.append(self.coordinates)
+            coordinates = kwargs.get('coordinates', None)
+            if coordinates is not None:
+                self.coordinates.data[:] = coordinates[:]
 
+    def __new__(cls, *args, **kwargs):
+        nt = kwargs.get('nt')
+        npoint = kwargs.get('npoint')
+        kwargs['shape'] = (nt, npoint)
 
-# Extended SymPy hierarchy follows, for essentially two reasons:
-# - To keep track of `function`
-# - To override SymPy caching behaviour
+        return Function.__new__(cls, *args, **kwargs)
 
+    @classmethod
+    def _indices(cls, **kwargs):
+        """Return the default dimension indices for a given data shape
 
-class IndexedData(IndexedBase):
-    """Wrapper class that inserts a pointer to the symbolic data object"""
-
-    def __new__(cls, label, shape=None, function=None):
-        obj = IndexedBase.__new__(cls, label, shape)
-        obj.function = function
-        return obj
-
-    def func(self, *args):
-        obj = super(IndexedData, self).func(*args)
-        obj.function = self.function
-        return obj
-
-    def __getitem__(self, indices, **kwargs):
+        :param shape: Shape of the spatial data
+        :return: indices used for axis.
         """
-        Return :class:`Indexed`, rather than :class:`sympy.Indexed`.
+        dimensions = kwargs.get('dimensions', None)
+        return dimensions or [time, p]
+
+    @property
+    def coefficients(self):
+        """Symbolic expression for the coefficients for sparse point
+        interpolation according to:
+        https://en.wikipedia.org/wiki/Bilinear_interpolation.
+
+        :returns: List of coefficients, eg. [b_11, b_12, b_21, b_22]
         """
-        indexed = super(IndexedData, self).__getitem__(indices, **kwargs)
-        return Indexed(*indexed.args)
+        # Grid indices corresponding to the corners of the cell
+        x1, y1, z1, x2, y2, z2 = sympy.symbols('x1, y1, z1, x2, y2, z2')
+        # Coordinate values of the sparse point
+        px, py, pz = self.point_symbols
+        if self.ndim == 2:
+            A = sympy.Matrix([[1, x1, y1, x1*y1],
+                              [1, x1, y2, x1*y2],
+                              [1, x2, y1, x2*y1],
+                              [1, x2, y2, x2*y2]])
 
+            p = sympy.Matrix([[1],
+                              [px],
+                              [py],
+                              [px*py]])
 
-class Symbol(sympy.Symbol):
+        elif self.ndim == 3:
+            A = sympy.Matrix([[1, x1, y1, z1, x1*y1, x1*z1, y1*z1, x1*y1*z1],
+                              [1, x1, y2, z1, x1*y2, x1*z1, y2*z1, x1*y2*z1],
+                              [1, x2, y1, z1, x2*y1, x2*z1, y2*z1, x2*y1*z1],
+                              [1, x1, y1, z2, x1*y1, x1*z2, y1*z2, x1*y1*z2],
+                              [1, x2, y2, z1, x2*y2, x2*z1, y2*z1, x2*y2*z1],
+                              [1, x1, y2, z2, x1*y2, x1*z2, y2*z2, x1*y2*z2],
+                              [1, x2, y1, z2, x2*y1, x2*z2, y1*z2, x2*y1*z2],
+                              [1, x2, y2, z2, x2*y2, x2*z2, y2*z2, x2*y2*z2]])
 
-    """A :class:`sympy.Symbol` capable of mimicking an :class:`sympy.Indexed`"""
+            p = sympy.Matrix([[1],
+                              [px],
+                              [py],
+                              [pz],
+                              [px*py],
+                              [px*pz],
+                              [py*pz],
+                              [px*py*pz]])
+        else:
+            error('Point interpolation only supported for 2D and 3D')
+            raise NotImplementedError('Interpolation coefficients not '
+                                      'implemented for %d dimensions.'
+                                      % self.ndim)
 
-    def __new__(cls, base):
-        obj = sympy.Symbol.__new__(cls, base.label.name)
-        obj.base = base
-        obj.indices = ()
-        obj.function = base.function
-        return obj
+        # Map to reference cell
+        reference_cell = {x1: 0, y1: 0, z1: 0, x2: x.spacing, y2: y.spacing,
+                          z2: z.spacing}
+        A = A.subs(reference_cell)
+        return A.inv().T.dot(p)
 
-    def func(self, *args):
-        return super(Symbol, self).func(self.base.func(*self.base.args))
+    @property
+    def point_symbols(self):
+        """Symbol for coordinate value in each dimension of the point"""
+        return sympy.symbols('px, py, pz')
 
+    @property
+    def point_increments(self):
+        """Index increments in each dimension for each point symbol"""
+        if self.ndim == 2:
+            return ((0, 0), (0, 1), (1, 0), (1, 1))
+        elif self.ndim == 3:
+            return ((0, 0, 0), (0, 1, 0), (1, 0, 0), (0, 0, 1),
+                    (1, 1, 0), (0, 1, 1), (1, 0, 1), (1, 1, 1))
+        else:
+            error('Point interpolation only supported for 2D and 3D')
+            raise NotImplementedError('Point increments not defined '
+                                      'for %d dimensions.' % self.ndim)
 
-class Indexed(sympy.Indexed):
+    @property
+    def coordinate_symbols(self):
+        """Symbol representing the coordinate values in each dimension"""
+        p_dim = self.indices[1]
+        return tuple([self.coordinates.indexify((p_dim, i))
+                      for i in range(self.ndim)])
 
-    # The two type flags have changed in upstream sympy as of version 1.1,
-    # but the below interpretation is used throughout the DSE and DLE to
-    # identify Indexed objects. With the sympy-1.1 changes a new flag
-    # obj.is_Indexed was introduced which should be preferred, but the
-    # required changes are cumbersome and many...
-    is_Symbol = False
-    is_Atom = False
+    @property
+    def coordinate_indices(self):
+        """Symbol for each grid index according to the coordinates"""
+        indices = (x, y, z)
+        return tuple([INT(sympy.Function('floor')(c / i.spacing))
+                      for c, i in zip(self.coordinate_symbols, indices[:self.ndim])])
 
-    def _hashable_content(self):
-        return super(Indexed, self)._hashable_content() + (self.base.function,)
+    @property
+    def coordinate_bases(self):
+        """Symbol for the base coordinates of the reference grid point"""
+        indices = (x, y, z)
+        return tuple([FLOAT(c - idx * i.spacing)
+                      for c, idx, i in zip(self.coordinate_symbols,
+                                           self.coordinate_indices,
+                                           indices[:self.ndim])])
+
+    def interpolate(self, expr, offset=0, **kwargs):
+        """Creates a :class:`sympy.Eq` equation for the interpolation
+        of an expression onto this sparse point collection.
+
+        :param expr: The expression to interpolate.
+        :param offset: Additional offset from the boundary for
+                       absorbing boundary conditions.
+        :param u_t: (Optional) time index to use for indexing into
+                    field data in `expr`.
+        :param p_t: (Optional) time index to use for indexing into
+                    the sparse point data.
+        """
+        u_t = kwargs.get('u_t', None)
+        p_t = kwargs.get('p_t', None)
+        expr = indexify(expr)
+
+        # Apply optional time symbol substitutions to expr
+        if u_t is not None:
+            expr = expr.subs(t, u_t).subs(time, u_t)
+
+        variables = list(retrieve_indexed(expr))
+        # List of indirection indices for all adjacent grid points
+        index_matrix = [tuple(idx + ii + offset for ii, idx
+                              in zip(inc, self.coordinate_indices))
+                        for inc in self.point_increments]
+        # Generate index substituions for all grid variables
+        idx_subs = []
+        for i, idx in enumerate(index_matrix):
+            v_subs = [(v, v.base[v.indices[:-self.ndim] + idx])
+                      for v in variables]
+            idx_subs += [OrderedDict(v_subs)]
+        # Substitute coordinate base symbols into the coefficients
+        subs = OrderedDict(zip(self.point_symbols, self.coordinate_bases))
+        rhs = sum([expr.subs(vsub) * b.subs(subs)
+                   for b, vsub in zip(self.coefficients, idx_subs)])
+
+        # Apply optional time symbol substitutions to lhs of assignment
+        lhs = self if p_t is None else self.subs(self.indices[0], p_t)
+        return [Eq(lhs, rhs)]
+
+    def inject(self, field, expr, offset=0, **kwargs):
+        """Symbol for injection of an expression onto a grid
+
+        :param field: The grid field into which we inject.
+        :param expr: The expression to inject.
+        :param offset: Additional offset from the boundary for
+                       absorbing boundary conditions.
+        :param u_t: (Optional) time index to use for indexing into `field`.
+        :param p_t: (Optional) time index to use for indexing into `expr`.
+        """
+        u_t = kwargs.get('u_t', None)
+        p_t = kwargs.get('p_t', None)
+
+        expr = indexify(expr)
+        field = indexify(field)
+        variables = list(retrieve_indexed(expr)) + [field]
+
+        # Apply optional time symbol substitutions to field and expr
+        if u_t is not None:
+            field = field.subs(field.indices[0], u_t)
+        if p_t is not None:
+            expr = expr.subs(self.indices[0], p_t)
+
+        # List of indirection indices for all adjacent grid points
+        index_matrix = [tuple(idx + ii + offset for ii, idx
+                              in zip(inc, self.coordinate_indices))
+                        for inc in self.point_increments]
+
+        # Generate index substituions for all grid variables except
+        # the sparse `SparseFunction` types
+        idx_subs = []
+        for i, idx in enumerate(index_matrix):
+            v_subs = [(v, v.base[v.indices[:-self.ndim] + idx])
+                      for v in variables if not v.base.function.is_SparseFunction]
+            idx_subs += [OrderedDict(v_subs)]
+
+        # Substitute coordinate base symbols into the coefficients
+        subs = OrderedDict(zip(self.point_symbols, self.coordinate_bases))
+        return [Eq(field.subs(vsub),
+                   field.subs(vsub) + expr.subs(subs).subs(vsub) * b.subs(subs))
+                for b, vsub in zip(self.coefficients, idx_subs)]

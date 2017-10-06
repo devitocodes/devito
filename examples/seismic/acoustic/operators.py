@@ -1,6 +1,6 @@
 from sympy import solve, Symbol
 
-from devito import Eq, Operator, Forward, Backward, DenseData, TimeData, time, t
+from devito import Eq, Operator, Forward, Backward, Function, TimeFunction, time, t
 from devito.logger import error
 from examples.seismic import PointSource, Receiver
 
@@ -11,7 +11,7 @@ def laplacian(field, time_order, m, s):
     order in time formulation, the 4th order time derivative is replaced by a
     double laplacian:
     H = (laplacian + s**2/12 laplacian(1/m*laplacian))
-    :param field: Symbolic TimeData object, solution to be computed
+    :param field: Symbolic TimeFunction object, solution to be computed
     :param time_order: time order
     :param m: square slowness
     :param s: symbol for the time-step
@@ -31,11 +31,11 @@ def iso_stencil(field, time_order, m, s, damp, **kwargs):
     """
     Stencil for the acoustic isotropic wave-equation:
     u.dt2 - H + damp*u.dt = 0
-    :param field: Symbolic TimeData object, solution to be computed
+    :param field: Symbolic TimeFunction object, solution to be computed
     :param time_order: time order
     :param m: square slowness
     :param s: symbol for the time-step
-    :param damp: ABC dampening field (DenseData)
+    :param damp: ABC dampening field (Function)
     :param kwargs: forwad/backward wave equation (sign of u.dt will change accordingly
     as well as the updated time-step (u.forwad or u.backward)
     :return: Stencil for the wave-equation
@@ -72,9 +72,9 @@ def ForwardOperator(model, source, receiver, time_order=2, space_order=4,
     m, damp = model.m, model.damp
 
     # Create symbols for forward wavefield, source and receivers
-    u = TimeData(name='u', grid=model.grid,
-                 save=save, time_dim=source.nt if save else None,
-                 time_order=2, space_order=space_order)
+    u = TimeFunction(name='u', grid=model.grid,
+                     save=save, time_dim=source.nt if save else None,
+                     time_order=2, space_order=space_order)
     src = PointSource(name='src', ntime=source.nt, ndim=source.ndim,
                       npoint=source.npoint)
     rec = Receiver(name='rec', ntime=receiver.nt, ndim=receiver.ndim,
@@ -113,8 +113,8 @@ def AdjointOperator(model, source, receiver, time_order=2, space_order=4, **kwar
     """
     m, damp = model.m, model.damp
 
-    v = TimeData(name='v', grid=model.grid, save=False,
-                 time_order=2, space_order=space_order)
+    v = TimeFunction(name='v', grid=model.grid, save=False,
+                     time_order=2, space_order=space_order)
     srca = PointSource(name='srca', ntime=source.nt, ndim=source.ndim,
                        npoint=source.npoint)
     rec = Receiver(name='rec', ntime=receiver.nt, ndim=receiver.ndim,
@@ -153,11 +153,11 @@ def GradientOperator(model, source, receiver, time_order=2, space_order=4, **kwa
     m, damp = model.m, model.damp
 
     # Gradient symbol and wavefield symbols
-    grad = DenseData(name='grad', grid=model.grid)
-    u = TimeData(name='u', grid=model.grid, save=True, time_dim=source.nt,
-                 time_order=2, space_order=space_order)
-    v = TimeData(name='v', grid=model.grid, save=False,
-                 time_order=2, space_order=space_order)
+    grad = Function(name='grad', grid=model.grid)
+    u = TimeFunction(name='u', grid=model.grid, save=True, time_dim=source.nt,
+                     time_order=2, space_order=space_order)
+    v = TimeFunction(name='v', grid=model.grid, save=False,
+                     time_order=2, space_order=space_order)
     rec = Receiver(name='rec', ntime=receiver.nt, ndim=receiver.ndim,
                    npoint=receiver.npoint)
 
@@ -204,11 +204,11 @@ def BornOperator(model, source, receiver, time_order=2, space_order=4, **kwargs)
                    npoint=receiver.npoint)
 
     # Create wavefields and a dm field
-    u = TimeData(name="u", grid=model.grid, save=False,
-                 time_order=2, space_order=space_order)
-    U = TimeData(name="U", grid=model.grid, save=False,
-                 time_order=2, space_order=space_order)
-    dm = DenseData(name="dm", grid=model.grid)
+    u = TimeFunction(name="u", grid=model.grid, save=False,
+                     time_order=2, space_order=space_order)
+    U = TimeFunction(name="U", grid=model.grid, save=False,
+                     time_order=2, space_order=space_order)
+    dm = Function(name="dm", grid=model.grid)
 
     s = t.spacing
     # Get computational time-step value

@@ -3,7 +3,7 @@ import pytest
 from conftest import skipif_yask
 from sympy import Derivative, simplify
 
-from devito import Grid, DenseData, TimeData, t, x, y, z
+from devito import Grid, Function, TimeFunction, t, x, y, z
 
 
 @pytest.fixture
@@ -18,8 +18,8 @@ def grid(shape):
 
 @skipif_yask
 @pytest.mark.parametrize('SymbolType, dimension', [
-    (DenseData, x), (DenseData, y),
-    (TimeData, x), (TimeData, y), (TimeData, t),
+    (Function, x), (Function, y),
+    (TimeFunction, x), (TimeFunction, y), (TimeFunction, t),
 ])
 def test_stencil_derivative(grid, shape, SymbolType, dimension):
     """Test symbolic behaviour when expanding stencil derivatives"""
@@ -43,8 +43,8 @@ def test_stencil_derivative(grid, shape, SymbolType, dimension):
 
 @skipif_yask
 @pytest.mark.parametrize('SymbolType, derivative, dim', [
-    (DenseData, 'dx2', 3), (DenseData, 'dy2', 3),
-    (TimeData, 'dx2', 3), (TimeData, 'dy2', 3), (TimeData, 'dt', 2)
+    (Function, 'dx2', 3), (Function, 'dy2', 3),
+    (TimeFunction, 'dx2', 3), (TimeFunction, 'dy2', 3), (TimeFunction, 'dt', 2)
 ])
 def test_preformed_derivatives(grid, SymbolType, derivative, dim):
     """Test the stencil expressions provided by devito objects"""
@@ -61,7 +61,7 @@ def test_preformed_derivatives(grid, SymbolType, derivative, dim):
 def test_derivatives_space(derivative, dimension, order):
     """Test first derivative expressions against native sympy"""
     grid = Grid(shape=(20, 20, 20))
-    u = TimeData(name='u', grid=grid, time_order=2, space_order=order)
+    u = TimeFunction(name='u', grid=grid, time_order=2, space_order=order)
     expr = getattr(u, derivative)
     # Establish native sympy derivative expression
     width = int(order / 2)
@@ -83,7 +83,7 @@ def test_derivatives_space(derivative, dimension, order):
 def test_second_derivatives_space(derivative, dimension, order):
     """Test second derivative expressions against native sympy"""
     grid = Grid(shape=(20, 20, 20))
-    u = TimeData(name='u', grid=grid, time_order=2, space_order=order)
+    u = TimeFunction(name='u', grid=grid, time_order=2, space_order=order)
     expr = getattr(u, derivative)
     # Establish native sympy derivative expression
     width = int(order / 2)

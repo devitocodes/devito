@@ -1,19 +1,20 @@
-import devito.interfaces as interfaces
+import devito.types as types
+import devito.function as function
 
 from devito.yask.wrappers import contexts
 
-__all__ = ['ConstantData', 'DenseData', 'TimeData']
+__all__ = ['Constant', 'Function', 'TimeFunction']
 
 
-interfaces.Basic.from_YASK = False
+types.Basic.from_YASK = False
 
 
-class ConstantData(interfaces.ConstantData):
+class Constant(function.Constant):
 
     from_YASK = True
 
 
-class DenseData(interfaces.DenseData):
+class Function(function.Function):
 
     from_YASK = True
 
@@ -32,7 +33,7 @@ class DenseData(interfaces.DenseData):
 
     @property
     def _data_buffer(self):
-        return super(DenseData, self).data
+        return super(Function, self).data
 
     @property
     def data(self):
@@ -55,13 +56,13 @@ class DenseData(interfaces.DenseData):
         as the time spent in running Operators is expected to be vastly greater
         than any user-level data manipulation.
         """
-        super(DenseData, self).data
+        super(Function, self).data
         return self._data_object
 
     def initialize(self):
         raise NotImplementedError
 
 
-class TimeData(interfaces.TimeData, DenseData):
+class TimeFunction(function.TimeFunction, Function):
 
     from_YASK = True

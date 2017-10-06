@@ -3,7 +3,7 @@ import numpy as np
 import pytest
 from conftest import skipif_yask
 
-from devito import Grid, Eq, Operator, Forward, Backward, TimeData, t
+from devito import Grid, Eq, Operator, Forward, Backward, TimeFunction, t
 
 
 @pytest.fixture
@@ -14,29 +14,29 @@ def grid(shape=(11, 11)):
 @pytest.fixture
 def a(grid):
     """Forward time data object, unrolled (save=True)"""
-    return TimeData(name='a', grid=grid, time_order=1,
-                    time_dim=6, save=True)
+    return TimeFunction(name='a', grid=grid, time_order=1,
+                        time_dim=6, save=True)
 
 
 @pytest.fixture
 def b(grid):
     """Backward time data object, unrolled (save=True)"""
-    return TimeData(name='b', grid=grid, time_order=1,
-                    time_dim=6, save=True)
+    return TimeFunction(name='b', grid=grid, time_order=1,
+                        time_dim=6, save=True)
 
 
 @pytest.fixture
 def c(grid):
     """Forward time data object, buffered (save=False)"""
-    return TimeData(name='c', grid=grid, time_order=1,
-                    save=False, time_axis=Forward)
+    return TimeFunction(name='c', grid=grid, time_order=1,
+                        save=False, time_axis=Forward)
 
 
 @pytest.fixture
 def d(grid):
     """Forward time data object, unrolled (save=True), end order"""
-    return TimeData(name='d', grid=grid, time_order=2,
-                    time_dim=6, save=True)
+    return TimeFunction(name='d', grid=grid, time_order=2,
+                        time_dim=6, save=True)
 
 
 @skipif_yask

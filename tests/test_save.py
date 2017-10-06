@@ -2,7 +2,7 @@ import numpy as np
 from sympy import solve, symbols
 from conftest import skipif_yask
 
-from devito import Grid, Eq, Operator, TimeData, Forward, x, y, time
+from devito import Grid, Eq, Operator, TimeFunction, Forward, x, y, time
 
 
 def initial(dx=0.01, dy=0.01):
@@ -26,7 +26,7 @@ def run_simulation(save=False, dx=0.01, dy=0.01, a=0.5, timesteps=100):
     dt = dx2 * dy2 / (2 * a * (dx2 + dy2))
 
     grid = Grid(shape=(nx, ny))
-    u = TimeData(
+    u = TimeFunction(
         name='u', grid=grid, time_dim=timesteps, initializer=initializer,
         time_order=1, space_order=2, save=save
     )

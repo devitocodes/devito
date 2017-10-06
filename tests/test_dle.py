@@ -11,8 +11,8 @@ from conftest import EVAL
 
 from devito.dle import retrieve_iteration_tree, transform
 from devito.dle.backends import DevitoRewriter as Rewriter
-from devito import Grid, DenseData, TimeData, Eq, Operator, t, x, y
-from devito.nodes import ELEMENTAL, Expression, Function, Iteration, List, tagger
+from devito import Grid, Function, TimeFunction, Eq, Operator, t, x, y
+from devito.nodes import ELEMENTAL, Expression, Callable, Iteration, List, tagger
 from devito.visitors import (ResolveIterationVariable, SubstituteExpression,
                              Transformer, FindNodes)
 
@@ -38,7 +38,7 @@ def simple_function(a, b, c, d, exprs, iters):
     #         expr1
     symbols = [i.base.function for i in [a, b, c, d]]
     body = iters[0](iters[1](iters[2]([exprs[0], exprs[1]])))
-    f = Function('foo', body, 'void', symbols, ())
+    f = Callable('foo', body, 'void', symbols, ())
     subs = {}
     f = ResolveIterationVariable().visit(f, subs=subs)
     f = SubstituteExpression(subs=subs).visit(f)
@@ -54,7 +54,7 @@ def simple_function_with_paddable_arrays(a_dense, b_dense, exprs, iters):
     #         expr0
     symbols = [i.base.function for i in [a_dense, b_dense]]
     body = iters[0](iters[1](iters[2](exprs[6])))
-    f = Function('foo', body, 'void', symbols, ())
+    f = Callable('foo', body, 'void', symbols, ())
     subs = {}
     f = ResolveIterationVariable().visit(f, subs=subs)
     f = SubstituteExpression(subs=subs).visit(f)
@@ -71,7 +71,7 @@ def simple_function_fissionable(a, b, exprs, iters):
     #         expr2
     symbols = [i.base.function for i in [a, b]]
     body = iters[0](iters[1](iters[2]([exprs[0], exprs[2]])))
-    f = Function('foo', body, 'void', symbols, ())
+    f = Callable('foo', body, 'void', symbols, ())
     subs = {}
     f = ResolveIterationVariable().visit(f, subs=subs)
     f = SubstituteExpression(subs=subs).visit(f)
@@ -94,7 +94,7 @@ def complex_function(a, b, c, d, exprs, iters):
     body = iters[0]([iters[3](exprs[2]),
                      iters[1](iters[2]([exprs[3], exprs[4]])),
                      iters[4](exprs[5])])
-    f = Function('foo', body, 'void', symbols, ())
+    f = Callable('foo', body, 'void', symbols, ())
     subs = {}
     f = ResolveIterationVariable().visit(f, subs=subs)
     f = SubstituteExpression(subs=subs).visit(f)
@@ -103,10 +103,10 @@ def complex_function(a, b, c, d, exprs, iters):
 
 def _new_operator1(shape, **kwargs):
     grid = Grid(shape=shape, dtype=np.int32)
-    infield = DenseData(name='infield', grid=grid)
+    infield = Function(name='infield', grid=grid)
     infield.data[:] = np.arange(reduce(mul, shape), dtype=np.int32).reshape(shape)
 
-    outfield = DenseData(name='outfield', grid=grid)
+    outfield = Function(name='outfield', grid=grid)
 
     stencil = Eq(outfield.indexify(), outfield.indexify() + infield.indexify()*3.0)
 
@@ -119,10 +119,10 @@ def _new_operator1(shape, **kwargs):
 
 def _new_operator2(shape, time_order, **kwargs):
     grid = Grid(shape=shape, dtype=np.int32)
-    infield = TimeData(name='infield', grid=grid, time_order=time_order)
+    infield = TimeFunction(name='infield', grid=grid, time_order=time_order)
     infield.data[:] = np.arange(reduce(mul, shape), dtype=np.int32).reshape(shape)
 
-    outfield = TimeData(name='outfield', grid=grid, time_order=time_order)
+    outfield = TimeFunction(name='outfield', grid=grid, time_order=time_order)
 
     stencil = Eq(outfield.forward.indexify(),
                  outfield.indexify() + infield.indexify()*3.0)
@@ -144,7 +144,7 @@ def _new_operator3(shape, time_order, **kwargs):
 
     # Allocate the grid and set initial condition
     # Note: This should be made simpler through the use of defaults
-    u = TimeData(name='u', grid=grid, time_order=1, space_order=2)
+    u = TimeFunction(name='u', grid=grid, time_order=1, space_order=2)
     u.data[0, :] = np.arange(reduce(mul, shape), dtype=np.int32).reshape(shape)
 
     # Derive the stencil according to devito conventions

@@ -4,7 +4,7 @@ from argparse import ArgumentParser
 from devito.logger import info
 from examples.seismic.acoustic import AcousticWaveSolver
 from examples.seismic import Model, RickerSource, Receiver
-from devito import ConstantData
+from devito import Constant
 
 
 def acoustic_setup(dimensions=(50, 50, 50), spacing=(15.0, 15.0, 15.0), tn=500.,
@@ -60,8 +60,8 @@ def run(dimensions=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=1000.0,
     info("Applying Forward")
     # Default model.m
     rec, u, summary = solver.forward(save=full_run)
-    # With  a new m as ConstantData
-    m0 = ConstantData(name="m", value=.25, dtype=np.float32)
+    # With  a new m as Constant
+    m0 = Constant(name="m", value=.25, dtype=np.float32)
     solver.forward(save=full_run, m=m0)
     # With a new m as a scalar value
     solver.forward(save=full_run, m=.25)
