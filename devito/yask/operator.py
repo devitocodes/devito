@@ -242,12 +242,12 @@ class sympy2yask(object):
             elif expr.is_Float:
                 return nfac.new_const_number_node(float(expr))
             elif expr.is_Symbol:
-                assert expr in self.mapper
-                return self.mapper[expr]
+                function = expr.base.function
+                assert function in self.mapper
+                return self.mapper[function]
             elif isinstance(expr, Indexed):
                 function = expr.base.function
-                name = function.name
-                if name not in self.mapper:
+                if function not in self.mapper:
                     if function.is_TimeFunction:
                         dimensions = [nfac.new_step_index(function.indices[0].name)]
                         dimensions += [nfac.new_domain_index(i.name)
@@ -255,10 +255,11 @@ class sympy2yask(object):
                     else:
                         dimensions = [nfac.new_domain_index(i.name)
                                       for i in function.indices]
-                    self.mapper[name] = self.yc_soln.new_grid(name, dimensions)
+                    self.mapper[function] = self.yc_soln.new_grid(function.name,
+                                                                  dimensions)
                 indices = [int((i.origin if isinstance(i, LoweredDimension) else i) - j)
                            for i, j in zip(expr.indices, function.indices)]
-                return self.mapper[name].new_relative_grid_point(indices)
+                return self.mapper[function].new_relative_grid_point(indices)
             elif expr.is_Add:
                 return nary2binary(expr.args, nfac.new_add_node)
             elif expr.is_Mul:
@@ -269,8 +270,9 @@ class sympy2yask(object):
                     return nfac.new_divide_node(run(num), run(den))
             elif expr.is_Equality:
                 if expr.lhs.is_Symbol:
-                    assert expr.lhs not in self.mapper
-                    self.mapper[expr.lhs] = run(expr.rhs)
+                    function = expr.lhs.base.function
+                    assert function not in self.mapper
+                    self.mapper[function] = run(expr.rhs)
                 else:
                     return nfac.new_equation_node(*[run(i) for i in expr.args])
             else:
