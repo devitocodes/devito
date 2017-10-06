@@ -178,24 +178,27 @@ def test_create_elemental_functions_simple(simple_function):
 {
   float (*restrict a) __attribute__((aligned(64))) = (float (*)) a_vec;
   float (*restrict b) __attribute__((aligned(64))) = (float (*)) b_vec;
-  float (*restrict c)[5] __attribute__((aligned(64))) = (float (*)[5]) c_vec;
-  float (*restrict d)[5][7] __attribute__((aligned(64))) = (float (*)[5][7]) d_vec;
+  float (*restrict c)[j_size] __attribute__((aligned(64))) = (float (*)[j_size]) c_vec;
+  float (*restrict d)[j_size][k_size] __attribute__((aligned(64))) ="""
+         """ (float (*)[j_size][k_size]) d_vec;
   for (int i = 0; i < 3; i += 1)
   {
     for (int j = 0; j < 5; j += 1)
     {
-      f_0(0,7,(float*)a,(float*)b,(float*)c,(float*)d,i,j);
+      f_0(0,7,(float*)a,(float*)b,(float*)c,(float*)d,i,i_size,j,j_size,k_size);
     }
   }
 }
 void f_0(const int k_start, const int k_finish,"""
          """ float *restrict a_vec, float *restrict b_vec,"""
-         """ float *restrict c_vec, float *restrict d_vec, const int i, const int j)
+         """ float *restrict c_vec, float *restrict d_vec,"""
+         """ const int i, const int i_size, const int j, const int j_size, const int k_size)
 {
   float (*restrict a) __attribute__((aligned(64))) = (float (*)) a_vec;
   float (*restrict b) __attribute__((aligned(64))) = (float (*)) b_vec;
-  float (*restrict c)[5] __attribute__((aligned(64))) = (float (*)[5]) c_vec;
-  float (*restrict d)[5][7] __attribute__((aligned(64))) = (float (*)[5][7]) d_vec;
+  float (*restrict c)[j_size] __attribute__((aligned(64))) = (float (*)[j_size]) c_vec;
+  float (*restrict d)[j_size][k_size] __attribute__((aligned(64))) ="""
+         """ (float (*)[j_size][k_size]) d_vec;
   for (int k = k_start; k < k_finish; k += 1)
   {
     a[i] = a[i] + b[i] + 5.0F;
@@ -223,20 +226,21 @@ def test_create_elemental_functions_complex(complex_function):
 {
   float (*restrict a) __attribute__((aligned(64))) = (float (*)) a_vec;
   float (*restrict b) __attribute__((aligned(64))) = (float (*)) b_vec;
-  float (*restrict c)[5] __attribute__((aligned(64))) = (float (*)[5]) c_vec;
-  float (*restrict d)[5][7] __attribute__((aligned(64))) = (float (*)[5][7]) d_vec;
+  float (*restrict c)[j_size] __attribute__((aligned(64))) = (float (*)[j_size]) c_vec;
+  float (*restrict d)[j_size][k_size] __attribute__((aligned(64))) ="""
+         """ (float (*)[j_size][k_size]) d_vec;
   for (int i = 0; i < 3; i += 1)
   {
-    f_0(0,4,(float*)a,(float*)b,i);
+    f_0(0,4,(float*)a,(float*)b,i,i_size);
     for (int j = 0; j < 5; j += 1)
     {
-      f_1(0,7,(float*)a,(float*)b,(float*)c,(float*)d,i,j);
+      f_1(0,7,(float*)a,(float*)b,(float*)c,(float*)d,i,i_size,j,j_size,k_size);
     }
-    f_2(0,4,(float*)a,(float*)b,i);
+    f_2(0,4,(float*)a,(float*)b,i,i_size);
   }
 }
 void f_0(const int s_start, const int s_finish,"""
-         """ float *restrict a_vec, float *restrict b_vec, const int i)
+         """ float *restrict a_vec, float *restrict b_vec, const int i, const int i_size)
 {
   float (*restrict a) __attribute__((aligned(64))) = (float (*)) a_vec;
   float (*restrict b) __attribute__((aligned(64))) = (float (*)) b_vec;
@@ -247,12 +251,14 @@ void f_0(const int s_start, const int s_finish,"""
 }
 void f_1(const int k_start, const int k_finish,"""
          """ float *restrict a_vec, float *restrict b_vec,"""
-         """ float *restrict c_vec, float *restrict d_vec, const int i, const int j)
+         """ float *restrict c_vec, float *restrict d_vec,"""
+         """ const int i, const int i_size, const int j, const int j_size, const int k_size)
 {
   float (*restrict a) __attribute__((aligned(64))) = (float (*)) a_vec;
   float (*restrict b) __attribute__((aligned(64))) = (float (*)) b_vec;
-  float (*restrict c)[5] __attribute__((aligned(64))) = (float (*)[5]) c_vec;
-  float (*restrict d)[5][7] __attribute__((aligned(64))) = (float (*)[5][7]) d_vec;
+  float (*restrict c)[j_size] __attribute__((aligned(64))) = (float (*)[j_size]) c_vec;
+  float (*restrict d)[j_size][k_size] __attribute__((aligned(64))) ="""
+         """ (float (*)[j_size][k_size]) d_vec;
   for (int k = k_start; k < k_finish; k += 1)
   {
     a[i] = a[i]*b[i]*c[i][j]*d[i][j][k];
@@ -260,7 +266,7 @@ void f_1(const int k_start, const int k_finish,"""
   }
 }
 void f_2(const int q_start, const int q_finish,"""
-         """ float *restrict a_vec, float *restrict b_vec, const int i)
+         """ float *restrict a_vec, float *restrict b_vec, const int i, const int i_size)
 {
   float (*restrict a) __attribute__((aligned(64))) = (float (*)) a_vec;
   float (*restrict b) __attribute__((aligned(64))) = (float (*)) b_vec;
