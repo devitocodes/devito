@@ -92,6 +92,7 @@
               <ul>
 <li class="toctree-l1"><a class="reference internal" href="../../../download.html">Download</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../tutorials.html">Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../developer.html">Developer Documentation</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../examples.html">Example Documentation</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../devito.html">API Documentation</a></li>
 </ul>
@@ -158,8 +159,8 @@
            <div itemprop="articleBody">
             
   <h1>Source code for examples.seismic.source</h1><div class="highlight"><pre>
-<span></span><span class="kn">from</span> <span class="nn">devito.dimension</span> <span class="k">import</span> <span class="n">Dimension</span><span class="p">,</span> <span class="n">time</span>
-<span class="kn">from</span> <span class="nn">devito.pointdata</span> <span class="k">import</span> <span class="n">PointData</span>
+<span></span><span class="kn">from</span> <span class="nn">devito</span> <span class="k">import</span> <span class="n">Dimension</span><span class="p">,</span> <span class="n">time</span>
+<span class="kn">from</span> <span class="nn">devito.function</span> <span class="k">import</span> <span class="n">SparseFunction</span>
 <span class="kn">from</span> <span class="nn">devito.logger</span> <span class="k">import</span> <span class="n">error</span>
 
 <span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
@@ -171,8 +172,8 @@
 <span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;PointSource&#39;</span><span class="p">,</span> <span class="s1">&#39;Receiver&#39;</span><span class="p">,</span> <span class="s1">&#39;Shot&#39;</span><span class="p">,</span> <span class="s1">&#39;RickerSource&#39;</span><span class="p">,</span> <span class="s1">&#39;GaborSource&#39;</span><span class="p">]</span>
 
 
-<div class="viewcode-block" id="PointSource"><a class="viewcode-back" href="../../../examples.seismic.html#examples.seismic.source.PointSource">[docs]</a><span class="k">class</span> <span class="nc">PointSource</span><span class="p">(</span><span class="n">PointData</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;Symbolic data object for a set of sparse points sources</span>
+<div class="viewcode-block" id="PointSource"><a class="viewcode-back" href="../../../examples.seismic.html#examples.seismic.source.PointSource">[docs]</a><span class="k">class</span> <span class="nc">PointSource</span><span class="p">(</span><span class="n">SparseFunction</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Symbolic data object for a set of sparse point sources</span>
 
 <span class="sd">    :param name: Name of the symbol representing this source</span>
 <span class="sd">    :param coordinates: Point coordinates for this source</span>
@@ -198,10 +199,10 @@
         <span class="k">else</span><span class="p">:</span>
             <span class="n">ntime</span> <span class="o">=</span> <span class="n">ntime</span> <span class="ow">or</span> <span class="n">data</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
 
-        <span class="c1"># Create the underlying PointData object</span>
-        <span class="n">obj</span> <span class="o">=</span> <span class="n">PointData</span><span class="o">.</span><span class="fm">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="n">name</span><span class="p">,</span> <span class="n">dimensions</span><span class="o">=</span><span class="p">[</span><span class="n">time</span><span class="p">,</span> <span class="n">p_dim</span><span class="p">],</span>
-                                <span class="n">npoint</span><span class="o">=</span><span class="n">npoint</span><span class="p">,</span> <span class="n">nt</span><span class="o">=</span><span class="n">ntime</span><span class="p">,</span> <span class="n">ndim</span><span class="o">=</span><span class="n">ndim</span><span class="p">,</span>
-                                <span class="n">coordinates</span><span class="o">=</span><span class="n">coordinates</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="c1"># Create the underlying SparseFunction object</span>
+        <span class="n">obj</span> <span class="o">=</span> <span class="n">SparseFunction</span><span class="o">.</span><span class="fm">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="n">name</span><span class="p">,</span> <span class="n">dimensions</span><span class="o">=</span><span class="p">[</span><span class="n">time</span><span class="p">,</span> <span class="n">p_dim</span><span class="p">],</span>
+                                     <span class="n">npoint</span><span class="o">=</span><span class="n">npoint</span><span class="p">,</span> <span class="n">nt</span><span class="o">=</span><span class="n">ntime</span><span class="p">,</span> <span class="n">ndim</span><span class="o">=</span><span class="n">ndim</span><span class="p">,</span>
+                                     <span class="n">coordinates</span><span class="o">=</span><span class="n">coordinates</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
 
         <span class="c1"># If provided, copy initial data into the allocated buffer</span>
         <span class="k">if</span> <span class="n">data</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>

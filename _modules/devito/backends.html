@@ -92,6 +92,7 @@
               <ul>
 <li class="toctree-l1"><a class="reference internal" href="../../download.html">Download</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../tutorials.html">Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../developer.html">Developer Documentation</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../examples.html">Example Documentation</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../devito.html">API Documentation</a></li>
 </ul>
@@ -243,9 +244,9 @@
 <span class="sd">        Return True if instance is an instance of cls.</span>
 
 <span class="sd">        We need to override the default isinstance check because</span>
-<span class="sd">        ``type(interfaces.DenseData(...))`` is ``interfaces.DenseData``, but</span>
-<span class="sd">        type(interfaces.DenseData) is ``_BackendSelector`` and so by default</span>
-<span class="sd">        ``isinstance(interfaces.DenseData(...), interfaces.DenseData)`` is False.</span>
+<span class="sd">        ``type(function.Function(...))`` is ``function.Function``, but</span>
+<span class="sd">        type(function.Function) is ``_BackendSelector`` and so by default</span>
+<span class="sd">        ``isinstance(function.Function(...), function.Function)`` is False.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">instance</span><span class="p">,</span> <span class="bp">cls</span><span class="o">.</span><span class="n">_backend</span><span class="o">.</span><span class="vm">__dict__</span><span class="p">[</span><span class="bp">cls</span><span class="o">.</span><span class="vm">__name__</span><span class="p">])</span>
 
@@ -254,9 +255,9 @@
 <span class="sd">        Return True if subclass is a subclass of cls.</span>
 
 <span class="sd">        We need to override the default subclass check because</span>
-<span class="sd">        ``type(interfaces.DenseData(...))`` is ``interfaces.DenseData`, but</span>
-<span class="sd">        ``type(interfaces.DenseData)`` is ``_BackendSelector`` and so by default</span>
-<span class="sd">        ``isinstance(type(interfaces.DenseData(...)), interfaces.DenseData)`` is False.</span>
+<span class="sd">        ``type(function.Function(...))`` is ``function.Function`, but</span>
+<span class="sd">        ``type(function.Function)`` is ``_BackendSelector`` and so by default</span>
+<span class="sd">        ``isinstance(type(function.Function(...)), function.Function)`` is False.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="nb">issubclass</span><span class="p">(</span><span class="n">subclass</span><span class="p">,</span> <span class="bp">cls</span><span class="o">.</span><span class="n">_backend</span><span class="o">.</span><span class="vm">__dict__</span><span class="p">[</span><span class="bp">cls</span><span class="o">.</span><span class="vm">__name__</span><span class="p">])</span>
 

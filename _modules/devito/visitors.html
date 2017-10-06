@@ -92,6 +92,7 @@
               <ul>
 <li class="toctree-l1"><a class="reference internal" href="../../download.html">Download</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../tutorials.html">Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../developer.html">Developer Documentation</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../examples.html">Example Documentation</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../devito.html">API Documentation</a></li>
 </ul>
@@ -343,11 +344,11 @@
         <span class="n">body</span> <span class="o">=</span> <span class="s1">&#39; </span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="nb">str</span><span class="p">(</span><span class="n">o</span><span class="o">.</span><span class="n">element</span><span class="p">)</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">verbose</span> <span class="k">else</span> <span class="s1">&#39;&#39;</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">indent</span> <span class="o">+</span> <span class="s1">&#39;&lt;Element</span><span class="si">%s</span><span class="s1">&gt;&#39;</span> <span class="o">%</span> <span class="n">body</span>
 
-    <span class="k">def</span> <span class="nf">visit_Function</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">o</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">visit_Callable</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">o</span><span class="p">):</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_depth</span> <span class="o">+=</span> <span class="mi">1</span>
         <span class="n">body</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">o</span><span class="o">.</span><span class="n">children</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_depth</span> <span class="o">-=</span> <span class="mi">1</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">indent</span> <span class="o">+</span> <span class="s1">&#39;&lt;Function </span><span class="si">%s</span><span class="s1">&gt;</span><span class="se">\n</span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">o</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">body</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">indent</span> <span class="o">+</span> <span class="s1">&#39;&lt;Callable </span><span class="si">%s</span><span class="s1">&gt;</span><span class="se">\n</span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">o</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">body</span><span class="p">)</span>
 
     <span class="k">def</span> <span class="nf">visit_list</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">o</span><span class="p">):</span>
         <span class="k">return</span> <span class="p">(</span><span class="s1">&#39;</span><span class="se">\n</span><span class="s1">&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">join</span><span class="p">([</span><span class="bp">self</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">o</span><span class="p">])</span>
@@ -443,7 +444,7 @@
         <span class="k">return</span> <span class="n">c</span><span class="o">.</span><span class="n">Initializer</span><span class="p">(</span><span class="n">c</span><span class="o">.</span><span class="n">Value</span><span class="p">(</span><span class="n">c</span><span class="o">.</span><span class="n">dtype_to_ctype</span><span class="p">(</span><span class="n">o</span><span class="o">.</span><span class="n">dtype</span><span class="p">),</span>
                              <span class="n">ccode</span><span class="p">(</span><span class="n">o</span><span class="o">.</span><span class="n">expr</span><span class="o">.</span><span class="n">lhs</span><span class="p">)),</span> <span class="n">ccode</span><span class="p">(</span><span class="n">o</span><span class="o">.</span><span class="n">expr</span><span class="o">.</span><span class="n">rhs</span><span class="p">))</span></div>
 
-<div class="viewcode-block" id="CGen.visit_FunCall"><a class="viewcode-back" href="../../devito.html#devito.visitors.CGen.visit_FunCall">[docs]</a>    <span class="k">def</span> <span class="nf">visit_FunCall</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">o</span><span class="p">):</span>
+<div class="viewcode-block" id="CGen.visit_Call"><a class="viewcode-back" href="../../devito.html#devito.visitors.CGen.visit_Call">[docs]</a>    <span class="k">def</span> <span class="nf">visit_Call</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">o</span><span class="p">):</span>
         <span class="k">return</span> <span class="n">c</span><span class="o">.</span><span class="n">Statement</span><span class="p">(</span><span class="s1">&#39;</span><span class="si">%s</span><span class="s1">(</span><span class="si">%s</span><span class="s1">)&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">o</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="s1">&#39;,&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">o</span><span class="o">.</span><span class="n">params</span><span class="p">)))</span></div>
 
 <div class="viewcode-block" id="CGen.visit_Iteration"><a class="viewcode-back" href="../../devito.html#devito.visitors.CGen.visit_Iteration">[docs]</a>    <span class="k">def</span> <span class="nf">visit_Iteration</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">o</span><span class="p">):</span>
@@ -495,7 +496,7 @@
 
         <span class="k">return</span> <span class="n">handle</span></div>
 
-<div class="viewcode-block" id="CGen.visit_Function"><a class="viewcode-back" href="../../devito.html#devito.visitors.CGen.visit_Function">[docs]</a>    <span class="k">def</span> <span class="nf">visit_Function</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">o</span><span class="p">):</span>
+<div class="viewcode-block" id="CGen.visit_Callable"><a class="viewcode-back" href="../../devito.html#devito.visitors.CGen.visit_Callable">[docs]</a>    <span class="k">def</span> <span class="nf">visit_Callable</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">o</span><span class="p">):</span>
         <span class="n">body</span> <span class="o">=</span> <span class="n">flatten</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">o</span><span class="o">.</span><span class="n">children</span><span class="p">)</span>
         <span class="n">decls</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_args_decl</span><span class="p">(</span><span class="n">o</span><span class="o">.</span><span class="n">parameters</span><span class="p">)</span>
         <span class="n">casts</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_args_cast</span><span class="p">(</span><span class="n">o</span><span class="o">.</span><span class="n">parameters</span><span class="p">)</span>
@@ -570,7 +571,7 @@
         <span class="k">return</span> <span class="n">ret</span></div>
 
     <span class="n">visit_Element</span> <span class="o">=</span> <span class="n">visit_Expression</span>
-    <span class="n">visit_FunCall</span> <span class="o">=</span> <span class="n">visit_Expression</span></div>
+    <span class="n">visit_Call</span> <span class="o">=</span> <span class="n">visit_Expression</span></div>
 
 
 <div class="viewcode-block" id="FindScopes"><a class="viewcode-back" href="../../devito.html#devito.visitors.FindScopes">[docs]</a><span class="k">class</span> <span class="nc">FindScopes</span><span class="p">(</span><span class="n">FindSections</span><span class="p">):</span>
@@ -580,17 +581,17 @@
         <span class="k">return</span> <span class="n">OrderedDict</span><span class="p">()</span></div>
 
     <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    Map each written variable or :class:`FunCall` object in the Iteration/Expression</span>
+<span class="sd">    Map each written variable or :class:`Call` object in the Iteration/Expression</span>
 <span class="sd">    tree to its section.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-<div class="viewcode-block" id="FindScopes.visit_FunCall"><a class="viewcode-back" href="../../devito.html#devito.visitors.FindScopes.visit_FunCall">[docs]</a>    <span class="k">def</span> <span class="nf">visit_FunCall</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">o</span><span class="p">,</span> <span class="n">ret</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">queue</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">in_omp_region</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+<div class="viewcode-block" id="FindScopes.visit_Call"><a class="viewcode-back" href="../../devito.html#devito.visitors.FindScopes.visit_Call">[docs]</a>    <span class="k">def</span> <span class="nf">visit_Call</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">o</span><span class="p">,</span> <span class="n">ret</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">queue</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">in_omp_region</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
         <span class="k">if</span> <span class="n">ret</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
             <span class="n">ret</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">default_retval</span><span class="p">()</span>
         <span class="n">ret</span><span class="p">[</span><span class="n">o</span><span class="p">]</span> <span class="o">=</span> <span class="n">as_tuple</span><span class="p">(</span><span class="n">queue</span><span class="p">)</span>
         <span class="k">return</span> <span class="n">ret</span></div>
 
-    <span class="n">visit_Expression</span> <span class="o">=</span> <span class="n">visit_FunCall</span>
+    <span class="n">visit_Expression</span> <span class="o">=</span> <span class="n">visit_Call</span>
     <span class="n">visit_Element</span> <span class="o">=</span> <span class="n">FindSections</span><span class="o">.</span><span class="n">visit_Node</span></div>
 
 
@@ -604,7 +605,7 @@
 
 <span class="sd">    :param mode: Drive the search. Accepted values are: ::</span>
 
-<span class="sd">        * &#39;kernel-data&#39; (default): Collect :class:`SymbolicData` objects.</span>
+<span class="sd">        * &#39;kernel-data&#39; (default): Collect :class:`SymbolicFunction` objects.</span>
 <span class="sd">        * &#39;symbolics&#39;: Collect :class:`AbstractSymbol` objects.</span>
 <span class="sd">        * &#39;symbolics-writes&#39;: Collect written :class:`AbstractSymbol` objects.</span>
 <span class="sd">        * &#39;free-symbols&#39;: Collect all free symbols.</span>
@@ -612,7 +613,7 @@
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">rules</span> <span class="o">=</span> <span class="p">{</span>
-        <span class="s1">&#39;kernel-data&#39;</span><span class="p">:</span> <span class="k">lambda</span> <span class="n">e</span><span class="p">:</span> <span class="p">[</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">e</span><span class="o">.</span><span class="n">functions</span> <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">is_SymbolicData</span><span class="p">],</span>
+        <span class="s1">&#39;kernel-data&#39;</span><span class="p">:</span> <span class="k">lambda</span> <span class="n">e</span><span class="p">:</span> <span class="p">[</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">e</span><span class="o">.</span><span class="n">functions</span> <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">is_SymbolicFunction</span><span class="p">],</span>
         <span class="s1">&#39;symbolics&#39;</span><span class="p">:</span> <span class="k">lambda</span> <span class="n">e</span><span class="p">:</span> <span class="n">e</span><span class="o">.</span><span class="n">functions</span><span class="p">,</span>
         <span class="s1">&#39;symbolics-writes&#39;</span><span class="p">:</span> <span class="k">lambda</span> <span class="n">e</span><span class="p">:</span> <span class="n">as_tuple</span><span class="p">(</span><span class="n">e</span><span class="o">.</span><span class="n">output_function</span><span class="p">),</span>
         <span class="s1">&#39;free-symbols&#39;</span><span class="p">:</span> <span class="k">lambda</span> <span class="n">e</span><span class="p">:</span> <span class="n">e</span><span class="o">.</span><span class="n">expr</span><span class="o">.</span><span class="n">free_symbols</span><span class="p">,</span>

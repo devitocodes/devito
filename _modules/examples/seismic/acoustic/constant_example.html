@@ -92,6 +92,7 @@
               <ul>
 <li class="toctree-l1"><a class="reference internal" href="../../../../download.html">Download</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../tutorials.html">Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../developer.html">Developer Documentation</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../examples.html">Example Documentation</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../devito.html">API Documentation</a></li>
 </ul>
@@ -164,7 +165,7 @@
 <span class="kn">from</span> <span class="nn">devito.logger</span> <span class="k">import</span> <span class="n">info</span>
 <span class="kn">from</span> <span class="nn">examples.seismic.acoustic</span> <span class="k">import</span> <span class="n">AcousticWaveSolver</span>
 <span class="kn">from</span> <span class="nn">examples.seismic</span> <span class="k">import</span> <span class="n">Model</span><span class="p">,</span> <span class="n">RickerSource</span><span class="p">,</span> <span class="n">Receiver</span>
-<span class="kn">from</span> <span class="nn">devito</span> <span class="k">import</span> <span class="n">ConstantData</span>
+<span class="kn">from</span> <span class="nn">devito</span> <span class="k">import</span> <span class="n">Constant</span>
 
 
 <div class="viewcode-block" id="acoustic_setup"><a class="viewcode-back" href="../../../../examples.seismic.acoustic.html#examples.seismic.acoustic.constant_example.acoustic_setup">[docs]</a><span class="k">def</span> <span class="nf">acoustic_setup</span><span class="p">(</span><span class="n">dimensions</span><span class="o">=</span><span class="p">(</span><span class="mi">50</span><span class="p">,</span> <span class="mi">50</span><span class="p">,</span> <span class="mi">50</span><span class="p">),</span> <span class="n">spacing</span><span class="o">=</span><span class="p">(</span><span class="mf">15.0</span><span class="p">,</span> <span class="mf">15.0</span><span class="p">,</span> <span class="mf">15.0</span><span class="p">),</span> <span class="n">tn</span><span class="o">=</span><span class="mf">500.</span><span class="p">,</span>
@@ -220,8 +221,8 @@
     <span class="n">info</span><span class="p">(</span><span class="s2">&quot;Applying Forward&quot;</span><span class="p">)</span>
     <span class="c1"># Default model.m</span>
     <span class="n">rec</span><span class="p">,</span> <span class="n">u</span><span class="p">,</span> <span class="n">summary</span> <span class="o">=</span> <span class="n">solver</span><span class="o">.</span><span class="n">forward</span><span class="p">(</span><span class="n">save</span><span class="o">=</span><span class="n">full_run</span><span class="p">)</span>
-    <span class="c1"># With  a new m as ConstantData</span>
-    <span class="n">m0</span> <span class="o">=</span> <span class="n">ConstantData</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">&quot;m&quot;</span><span class="p">,</span> <span class="n">value</span><span class="o">=.</span><span class="mi">25</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span>
+    <span class="c1"># With  a new m as Constant</span>
+    <span class="n">m0</span> <span class="o">=</span> <span class="n">Constant</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">&quot;m&quot;</span><span class="p">,</span> <span class="n">value</span><span class="o">=.</span><span class="mi">25</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span>
     <span class="n">solver</span><span class="o">.</span><span class="n">forward</span><span class="p">(</span><span class="n">save</span><span class="o">=</span><span class="n">full_run</span><span class="p">,</span> <span class="n">m</span><span class="o">=</span><span class="n">m0</span><span class="p">)</span>
     <span class="c1"># With a new m as a scalar value</span>
     <span class="n">solver</span><span class="o">.</span><span class="n">forward</span><span class="p">(</span><span class="n">save</span><span class="o">=</span><span class="n">full_run</span><span class="p">,</span> <span class="n">m</span><span class="o">=.</span><span class="mi">25</span><span class="p">)</span>

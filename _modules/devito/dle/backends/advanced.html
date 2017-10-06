@@ -92,6 +92,7 @@
               <ul>
 <li class="toctree-l1"><a class="reference internal" href="../../../../download.html">Download</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../tutorials.html">Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../developer.html">Developer Documentation</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../examples.html">Example Documentation</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../devito.html">API Documentation</a></li>
 </ul>
@@ -180,7 +181,7 @@
                                  <span class="n">simdinfo</span><span class="p">,</span> <span class="n">get_simd_flag</span><span class="p">,</span> <span class="n">get_simd_items</span><span class="p">)</span>
 <span class="kn">from</span> <span class="nn">devito.dse</span> <span class="k">import</span> <span class="n">promote_scalar_expressions</span>
 <span class="kn">from</span> <span class="nn">devito.exceptions</span> <span class="k">import</span> <span class="n">DLEException</span>
-<span class="kn">from</span> <span class="nn">devito.interfaces</span> <span class="k">import</span> <span class="n">TensorFunction</span>
+<span class="kn">from</span> <span class="nn">devito.types</span> <span class="k">import</span> <span class="n">Array</span>
 <span class="kn">from</span> <span class="nn">devito.logger</span> <span class="k">import</span> <span class="n">dle_warning</span>
 <span class="kn">from</span> <span class="nn">devito.nodes</span> <span class="k">import</span> <span class="p">(</span><span class="n">Block</span><span class="p">,</span> <span class="n">Denormals</span><span class="p">,</span> <span class="n">Expression</span><span class="p">,</span> <span class="n">Iteration</span><span class="p">,</span> <span class="n">List</span><span class="p">,</span>
                           <span class="n">PARALLEL</span><span class="p">,</span> <span class="n">ELEMENTAL</span><span class="p">,</span> <span class="n">REMAINDER</span><span class="p">,</span> <span class="n">tagger</span><span class="p">)</span>
@@ -491,7 +492,7 @@
 
                     <span class="c1"># Track the thread-private and thread-shared variables</span>
                     <span class="n">private</span><span class="o">.</span><span class="n">extend</span><span class="p">([</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">FindSymbols</span><span class="p">(</span><span class="s1">&#39;symbolics&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">root</span><span class="p">)</span>
-                                    <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">is_TensorFunction</span> <span class="ow">and</span> <span class="n">i</span><span class="o">.</span><span class="n">_mem_stack</span><span class="p">])</span>
+                                    <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">is_Array</span> <span class="ow">and</span> <span class="n">i</span><span class="o">.</span><span class="n">_mem_stack</span><span class="p">])</span>
 
                 <span class="c1"># Build the parallel region</span>
                 <span class="n">private</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="nb">set</span><span class="p">([</span><span class="n">i</span><span class="o">.</span><span class="n">name</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">private</span><span class="p">]))</span>
@@ -528,7 +529,7 @@
 
             <span class="c1"># Padding</span>
             <span class="n">writes</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">FindSymbols</span><span class="p">(</span><span class="s1">&#39;symbolics-writes&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">root</span><span class="p">)</span>
-                      <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">is_TensorFunction</span><span class="p">]</span>
+                      <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">is_Array</span><span class="p">]</span>
             <span class="n">padding</span> <span class="o">=</span> <span class="p">[]</span>
             <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">writes</span><span class="p">:</span>
                 <span class="k">try</span><span class="p">:</span>
@@ -647,10 +648,10 @@
             <span class="n">shapes</span> <span class="o">=</span> <span class="p">{</span><span class="n">k</span><span class="p">:</span> <span class="n">k</span><span class="o">.</span><span class="n">shape</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="p">(</span><span class="n">roundm</span><span class="p">(</span><span class="n">k</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span> <span class="n">simd_items</span><span class="p">),)</span>
                       <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">candidates</span><span class="p">}</span>
             <span class="n">mapper</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">OrderedDict</span><span class="p">([(</span><span class="n">k</span><span class="o">.</span><span class="n">indexed</span><span class="p">,</span>
-                                        <span class="n">TensorFunction</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;p</span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="n">k</span><span class="o">.</span><span class="n">name</span><span class="p">,</span>
-                                                       <span class="n">shape</span><span class="o">=</span><span class="n">shapes</span><span class="p">[</span><span class="n">k</span><span class="p">],</span>
-                                                       <span class="n">dimensions</span><span class="o">=</span><span class="n">k</span><span class="o">.</span><span class="n">indices</span><span class="p">,</span>
-                                                       <span class="n">onstack</span><span class="o">=</span><span class="n">k</span><span class="o">.</span><span class="n">_mem_stack</span><span class="p">)</span><span class="o">.</span><span class="n">indexed</span><span class="p">)</span>
+                                        <span class="n">Array</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;p</span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="n">k</span><span class="o">.</span><span class="n">name</span><span class="p">,</span>
+                                              <span class="n">shape</span><span class="o">=</span><span class="n">shapes</span><span class="p">[</span><span class="n">k</span><span class="p">],</span>
+                                              <span class="n">dimensions</span><span class="o">=</span><span class="n">k</span><span class="o">.</span><span class="n">indices</span><span class="p">,</span>
+                                              <span class="n">onstack</span><span class="o">=</span><span class="n">k</span><span class="o">.</span><span class="n">_mem_stack</span><span class="p">)</span><span class="o">.</span><span class="n">indexed</span><span class="p">)</span>
                           <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">candidates</span><span class="p">]))</span>
 
         <span class="c1"># Substitute original arrays with padded buffers</span>
@@ -658,7 +659,7 @@
 
         <span class="c1"># Build Iteration trees for initialization and copy-back of padded arrays</span>
         <span class="n">mapper</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">([(</span><span class="n">k</span><span class="p">,</span> <span class="n">v</span><span class="p">)</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">mapper</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
-                              <span class="k">if</span> <span class="n">k</span><span class="o">.</span><span class="n">function</span><span class="o">.</span><span class="n">is_SymbolicData</span><span class="p">])</span>
+                              <span class="k">if</span> <span class="n">k</span><span class="o">.</span><span class="n">function</span><span class="o">.</span><span class="n">is_SymbolicFunction</span><span class="p">])</span>
         <span class="n">init</span> <span class="o">=</span> <span class="n">copy_arrays</span><span class="p">(</span><span class="n">mapper</span><span class="p">,</span> <span class="n">reverse</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
         <span class="n">copyback</span> <span class="o">=</span> <span class="n">copy_arrays</span><span class="p">(</span><span class="n">mapper</span><span class="p">)</span>
 

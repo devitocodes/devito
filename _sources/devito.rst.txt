@@ -79,18 +79,18 @@ devito\.finite\_difference module
     :undoc-members:
     :show-inheritance:
 
-devito\.grid module
--------------------
+devito\.function module
+-----------------------
 
-.. automodule:: devito.grid
+.. automodule:: devito.function
     :members:
     :undoc-members:
     :show-inheritance:
 
-devito\.interfaces module
--------------------------
+devito\.grid module
+-------------------
 
-.. automodule:: devito.interfaces
+.. automodule:: devito.grid
     :members:
     :undoc-members:
     :show-inheritance:
@@ -135,14 +135,6 @@ devito\.parameters module
     :undoc-members:
     :show-inheritance:
 
-devito\.pointdata module
-------------------------
-
-.. automodule:: devito.pointdata
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
 devito\.profiling module
 ------------------------
 
@@ -163,6 +155,14 @@ devito\.tools module
 --------------------
 
 .. automodule:: devito.tools
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+devito\.types module
+--------------------
+
+.. automodule:: devito.types
     :members:
     :undoc-members:
     :show-inheritance:

@@ -8,7 +8,7 @@
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
-  <title>Download Devito &mdash; Devito 1 documentation</title>
+  <title>Developer documentation &mdash; Devito 1 documentation</title>
   
 
   
@@ -36,8 +36,8 @@
               href="genindex.html"/>
         <link rel="search" title="Search" href="search.html"/>
     <link rel="top" title="Devito 1 documentation" href="index.html"/>
-        <link rel="next" title="Devito tutorials" href="tutorials.html"/>
-        <link rel="prev" title="Devito - Fast Finite Difference Computation" href="index.html"/> 
+        <link rel="next" title="examples package" href="examples.html"/>
+        <link rel="prev" title="Devito tutorials" href="tutorials.html"/> 
 
   
   <script src="_static/js/modernizr.min.js"></script>
@@ -91,9 +91,12 @@
             
             
               <ul class="current">
-<li class="toctree-l1 current"><a class="current reference internal" href="#">Download</a></li>
+<li class="toctree-l1"><a class="reference internal" href="download.html">Download</a></li>
 <li class="toctree-l1"><a class="reference internal" href="tutorials.html">Tutorials</a></li>
-<li class="toctree-l1"><a class="reference internal" href="developer.html">Developer Documentation</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Developer Documentation</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#core-data-structures">Core data structures</a></li>
+</ul>
+</li>
 <li class="toctree-l1"><a class="reference internal" href="examples.html">Example Documentation</a></li>
 <li class="toctree-l1"><a class="reference internal" href="devito.html">API Documentation</a></li>
 </ul>
@@ -140,13 +143,13 @@
     
       <li><a href="index.html">Docs</a> &raquo;</li>
         
-      <li>Download Devito</li>
+      <li>Developer documentation</li>
     
     
       <li class="wy-breadcrumbs-aside">
         
             
-            <a href="_sources/download.rst.txt" rel="nofollow"> View page source</a>
+            <a href="_sources/developer.rst.txt" rel="nofollow"> View page source</a>
           
         
       </li>
@@ -159,25 +162,19 @@
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
            <div itemprop="articleBody">
             
-  <div class="section" id="download-devito">
-<h1>Download Devito<a class="headerlink" href="#download-devito" title="Permalink to this headline">¶</a></h1>
-<p>The recommended way to install Devito uses the Conda package manager
-for installation of the necessary software dependencies. Please
-install either <a class="reference external" href="https://www.continuum.io/downloads">Anaconda</a> or <a class="reference external" href="https://conda.io/miniconda.html">Miniconda</a> using the instructions
-provided at the download links.</p>
-<p>To install the editable development version Devito, including examples,
-tests and tutorial notebooks, please run the following commands:</p>
-<div class="highlight-shell"><div class="highlight"><pre><span></span>git clone https://github.com/opesci/devito.git
-<span class="nb">cd</span> devito
-conda env create -f environment.yml
-<span class="nb">source</span> activate devito
-pip install -e .
-</pre></div>
-</div>
-<p>If you don’t want to use the Conda environment manager, Devito can
-also be installed directly from GitHub via pip:</p>
-<div class="highlight-shell"><div class="highlight"><pre><span></span>pip install --user git+https://github.com/opesci/devito.git
-</pre></div>
+  <div class="section" id="developer-documentation">
+<h1>Developer documentation<a class="headerlink" href="#developer-documentation" title="Permalink to this headline">¶</a></h1>
+<p>This page provides an introduction into the internal workings of
+Devito and is aimed at new developers and people who want to
+contribute to the project. We will give a brief glimpse under the hood
+to provide some context for the various design and implementation
+choices.</p>
+<p>If you are only interested in learning how to use Devito, please start
+with the <a class="reference internal" href="tutorials.html"><span class="doc">tutorials and examples</span></a>.</p>
+<p><em>Please note that this page is currently still under ongoing development.</em></p>
+<div class="section" id="core-data-structures">
+<h2>Core data structures<a class="headerlink" href="#core-data-structures" title="Permalink to this headline">¶</a></h2>
+<img alt="_images/data_structures.png" src="_images/data_structures.png" />
 </div>
 </div>
 
@@ -191,10 +188,10 @@ also be installed directly from GitHub via pip:</p>
   
     <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
       
-        <a href="tutorials.html" class="btn btn-neutral float-right" title="Devito tutorials" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
+        <a href="examples.html" class="btn btn-neutral float-right" title="examples package" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
       
       
-        <a href="index.html" class="btn btn-neutral" title="Devito - Fast Finite Difference Computation" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
+        <a href="tutorials.html" class="btn btn-neutral" title="Devito tutorials" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
       
     </div>
   

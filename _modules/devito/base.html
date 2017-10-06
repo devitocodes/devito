@@ -92,6 +92,7 @@
               <ul>
 <li class="toctree-l1"><a class="reference internal" href="../../download.html">Download</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../tutorials.html">Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../developer.html">Developer Documentation</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../examples.html">Example Documentation</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../devito.html">API Documentation</a></li>
 </ul>
@@ -167,32 +168,32 @@
 <span class="kn">from</span> <span class="nn">sympy.core.compatibility</span> <span class="k">import</span> <span class="n">with_metaclass</span>
 
 <span class="kn">from</span> <span class="nn">devito.backends</span> <span class="k">import</span> <span class="n">_BackendSelector</span>
-<span class="kn">import</span> <span class="nn">devito.interfaces</span> <span class="k">as</span> <span class="nn">interfaces</span>
-<span class="kn">import</span> <span class="nn">devito.pointdata</span> <span class="k">as</span> <span class="nn">pointdata</span>
+<span class="kn">import</span> <span class="nn">devito.types</span> <span class="k">as</span> <span class="nn">types</span>
+<span class="kn">import</span> <span class="nn">devito.function</span> <span class="k">as</span> <span class="nn">function</span>
 <span class="kn">import</span> <span class="nn">devito.operator</span> <span class="k">as</span> <span class="nn">operator</span>
 
 
-<div class="viewcode-block" id="ScalarFunction"><a class="viewcode-back" href="../../devito.html#devito.base.ScalarFunction">[docs]</a><span class="k">class</span> <span class="nc">ScalarFunction</span><span class="p">(</span><span class="n">with_metaclass</span><span class="p">(</span><span class="n">_BackendSelector</span><span class="p">,</span> <span class="n">interfaces</span><span class="o">.</span><span class="n">ScalarFunction</span><span class="p">)):</span>
+<div class="viewcode-block" id="Scalar"><a class="viewcode-back" href="../../devito.html#devito.base.Scalar">[docs]</a><span class="k">class</span> <span class="nc">Scalar</span><span class="p">(</span><span class="n">with_metaclass</span><span class="p">(</span><span class="n">_BackendSelector</span><span class="p">,</span> <span class="n">types</span><span class="o">.</span><span class="n">Scalar</span><span class="p">)):</span>
     <span class="k">pass</span></div>
 
 
-<div class="viewcode-block" id="TensorFunction"><a class="viewcode-back" href="../../devito.html#devito.base.TensorFunction">[docs]</a><span class="k">class</span> <span class="nc">TensorFunction</span><span class="p">(</span><span class="n">with_metaclass</span><span class="p">(</span><span class="n">_BackendSelector</span><span class="p">,</span> <span class="n">interfaces</span><span class="o">.</span><span class="n">TensorFunction</span><span class="p">)):</span>
+<div class="viewcode-block" id="Array"><a class="viewcode-back" href="../../devito.html#devito.base.Array">[docs]</a><span class="k">class</span> <span class="nc">Array</span><span class="p">(</span><span class="n">with_metaclass</span><span class="p">(</span><span class="n">_BackendSelector</span><span class="p">,</span> <span class="n">types</span><span class="o">.</span><span class="n">Array</span><span class="p">)):</span>
     <span class="k">pass</span></div>
 
 
-<div class="viewcode-block" id="ConstantData"><a class="viewcode-back" href="../../devito.html#devito.base.ConstantData">[docs]</a><span class="k">class</span> <span class="nc">ConstantData</span><span class="p">(</span><span class="n">with_metaclass</span><span class="p">(</span><span class="n">_BackendSelector</span><span class="p">,</span> <span class="n">interfaces</span><span class="o">.</span><span class="n">ConstantData</span><span class="p">)):</span>
+<div class="viewcode-block" id="Constant"><a class="viewcode-back" href="../../devito.html#devito.base.Constant">[docs]</a><span class="k">class</span> <span class="nc">Constant</span><span class="p">(</span><span class="n">with_metaclass</span><span class="p">(</span><span class="n">_BackendSelector</span><span class="p">,</span> <span class="n">function</span><span class="o">.</span><span class="n">Constant</span><span class="p">)):</span>
     <span class="k">pass</span></div>
 
 
-<div class="viewcode-block" id="DenseData"><a class="viewcode-back" href="../../devito.html#devito.base.DenseData">[docs]</a><span class="k">class</span> <span class="nc">DenseData</span><span class="p">(</span><span class="n">with_metaclass</span><span class="p">(</span><span class="n">_BackendSelector</span><span class="p">,</span> <span class="n">interfaces</span><span class="o">.</span><span class="n">DenseData</span><span class="p">)):</span>
+<div class="viewcode-block" id="Function"><a class="viewcode-back" href="../../devito.html#devito.base.Function">[docs]</a><span class="k">class</span> <span class="nc">Function</span><span class="p">(</span><span class="n">with_metaclass</span><span class="p">(</span><span class="n">_BackendSelector</span><span class="p">,</span> <span class="n">function</span><span class="o">.</span><span class="n">Function</span><span class="p">)):</span>
     <span class="k">pass</span></div>
 
 
-<div class="viewcode-block" id="TimeData"><a class="viewcode-back" href="../../devito.html#devito.base.TimeData">[docs]</a><span class="k">class</span> <span class="nc">TimeData</span><span class="p">(</span><span class="n">with_metaclass</span><span class="p">(</span><span class="n">_BackendSelector</span><span class="p">,</span> <span class="n">interfaces</span><span class="o">.</span><span class="n">TimeData</span><span class="p">)):</span>
+<div class="viewcode-block" id="TimeFunction"><a class="viewcode-back" href="../../devito.html#devito.base.TimeFunction">[docs]</a><span class="k">class</span> <span class="nc">TimeFunction</span><span class="p">(</span><span class="n">with_metaclass</span><span class="p">(</span><span class="n">_BackendSelector</span><span class="p">,</span> <span class="n">function</span><span class="o">.</span><span class="n">TimeFunction</span><span class="p">)):</span>
     <span class="k">pass</span></div>
 
 
-<div class="viewcode-block" id="PointData"><a class="viewcode-back" href="../../devito.html#devito.base.PointData">[docs]</a><span class="k">class</span> <span class="nc">PointData</span><span class="p">(</span><span class="n">with_metaclass</span><span class="p">(</span><span class="n">_BackendSelector</span><span class="p">,</span> <span class="n">pointdata</span><span class="o">.</span><span class="n">PointData</span><span class="p">)):</span>
+<div class="viewcode-block" id="SparseFunction"><a class="viewcode-back" href="../../devito.html#devito.base.SparseFunction">[docs]</a><span class="k">class</span> <span class="nc">SparseFunction</span><span class="p">(</span><span class="n">with_metaclass</span><span class="p">(</span><span class="n">_BackendSelector</span><span class="p">,</span> <span class="n">function</span><span class="o">.</span><span class="n">SparseFunction</span><span class="p">)):</span>
     <span class="k">pass</span></div>
 
 

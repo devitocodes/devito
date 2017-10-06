@@ -92,6 +92,7 @@
               <ul>
 <li class="toctree-l1"><a class="reference internal" href="../../download.html">Download</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../tutorials.html">Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../developer.html">Developer Documentation</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../examples.html">Example Documentation</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../devito.html">API Documentation</a></li>
 </ul>
@@ -172,12 +173,12 @@
 
 <span class="kn">from</span> <span class="nn">devito.cgen_utils</span> <span class="k">import</span> <span class="n">ccode</span>
 <span class="kn">from</span> <span class="nn">devito.dse</span> <span class="k">import</span> <span class="n">as_symbol</span><span class="p">,</span> <span class="n">retrieve_terminals</span>
-<span class="kn">from</span> <span class="nn">devito.interfaces</span> <span class="k">import</span> <span class="n">Indexed</span><span class="p">,</span> <span class="n">Symbol</span>
+<span class="kn">from</span> <span class="nn">devito.types</span> <span class="k">import</span> <span class="n">Indexed</span><span class="p">,</span> <span class="n">Symbol</span>
 <span class="kn">from</span> <span class="nn">devito.stencil</span> <span class="k">import</span> <span class="n">Stencil</span>
 <span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">as_tuple</span><span class="p">,</span> <span class="n">filter_ordered</span><span class="p">,</span> <span class="n">flatten</span><span class="p">,</span> <span class="n">is_integer</span>
 <span class="kn">from</span> <span class="nn">devito.arguments</span> <span class="k">import</span> <span class="n">ArgumentProvider</span><span class="p">,</span> <span class="n">Argument</span>
 
-<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;Node&#39;</span><span class="p">,</span> <span class="s1">&#39;Block&#39;</span><span class="p">,</span> <span class="s1">&#39;Denormals&#39;</span><span class="p">,</span> <span class="s1">&#39;Expression&#39;</span><span class="p">,</span> <span class="s1">&#39;Function&#39;</span><span class="p">,</span> <span class="s1">&#39;FunCall&#39;</span><span class="p">,</span>
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;Node&#39;</span><span class="p">,</span> <span class="s1">&#39;Block&#39;</span><span class="p">,</span> <span class="s1">&#39;Denormals&#39;</span><span class="p">,</span> <span class="s1">&#39;Expression&#39;</span><span class="p">,</span> <span class="s1">&#39;Callable&#39;</span><span class="p">,</span> <span class="s1">&#39;Call&#39;</span><span class="p">,</span>
            <span class="s1">&#39;Iteration&#39;</span><span class="p">,</span> <span class="s1">&#39;List&#39;</span><span class="p">,</span> <span class="s1">&#39;LocalExpression&#39;</span><span class="p">,</span> <span class="s1">&#39;TimedList&#39;</span><span class="p">]</span>
 
 
@@ -188,8 +189,8 @@
     <span class="n">is_Iteration</span> <span class="o">=</span> <span class="kc">False</span>
     <span class="n">is_IterationFold</span> <span class="o">=</span> <span class="kc">False</span>
     <span class="n">is_Expression</span> <span class="o">=</span> <span class="kc">False</span>
-    <span class="n">is_Function</span> <span class="o">=</span> <span class="kc">False</span>
-    <span class="n">is_FunCall</span> <span class="o">=</span> <span class="kc">False</span>
+    <span class="n">is_Callable</span> <span class="o">=</span> <span class="kc">False</span>
+    <span class="n">is_Call</span> <span class="o">=</span> <span class="kc">False</span>
     <span class="n">is_List</span> <span class="o">=</span> <span class="kc">False</span>
     <span class="n">is_Element</span> <span class="o">=</span> <span class="kc">False</span>
 
@@ -299,18 +300,18 @@
         <span class="k">return</span> <span class="s2">&quot;Element::</span><span class="se">\n\t</span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">element</span><span class="p">)</span>
 
 
-<div class="viewcode-block" id="FunCall"><a class="viewcode-back" href="../../devito.html#devito.nodes.FunCall">[docs]</a><span class="k">class</span> <span class="nc">FunCall</span><span class="p">(</span><span class="n">Node</span><span class="p">):</span>
+<div class="viewcode-block" id="Call"><a class="viewcode-back" href="../../devito.html#devito.nodes.Call">[docs]</a><span class="k">class</span> <span class="nc">Call</span><span class="p">(</span><span class="n">Node</span><span class="p">):</span>
 
     <span class="sd">&quot;&quot;&quot;A node representing a function call.&quot;&quot;&quot;</span>
 
-    <span class="n">is_FunCall</span> <span class="o">=</span> <span class="kc">True</span>
+    <span class="n">is_Call</span> <span class="o">=</span> <span class="kc">True</span>
 
     <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">params</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">name</span> <span class="o">=</span> <span class="n">name</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">params</span> <span class="o">=</span> <span class="n">as_tuple</span><span class="p">(</span><span class="n">params</span><span class="p">)</span>
 
     <span class="k">def</span> <span class="nf">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">return</span> <span class="s2">&quot;FunCall::</span><span class="se">\n\t</span><span class="si">%s</span><span class="s2">(...)&quot;</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span></div>
+        <span class="k">return</span> <span class="s2">&quot;Call::</span><span class="se">\n\t</span><span class="si">%s</span><span class="s2">(...)&quot;</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span></div>
 
 
 <div class="viewcode-block" id="Expression"><a class="viewcode-back" href="../../devito.html#devito.nodes.Expression">[docs]</a><span class="k">class</span> <span class="nc">Expression</span><span class="p">(</span><span class="n">Node</span><span class="p">):</span>
@@ -594,9 +595,9 @@
         <span class="k">return</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">nodes</span><span class="p">,)</span></div>
 
 
-<div class="viewcode-block" id="Function"><a class="viewcode-back" href="../../devito.html#devito.nodes.Function">[docs]</a><span class="k">class</span> <span class="nc">Function</span><span class="p">(</span><span class="n">Node</span><span class="p">):</span>
+<div class="viewcode-block" id="Callable"><a class="viewcode-back" href="../../devito.html#devito.nodes.Callable">[docs]</a><span class="k">class</span> <span class="nc">Callable</span><span class="p">(</span><span class="n">Node</span><span class="p">):</span>
 
-    <span class="sd">&quot;&quot;&quot;Represent a C function.</span>
+    <span class="sd">&quot;&quot;&quot;A node representing a C function.</span>
 
 <span class="sd">    :param name: The name of the function.</span>
 <span class="sd">    :param body: A :class:`Node` or an iterable of :class:`Node` objects representing</span>
@@ -608,7 +609,7 @@
 <span class="sd">                   The default value is (&#39;static&#39;, &#39;inline&#39;).</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="n">is_Function</span> <span class="o">=</span> <span class="kc">True</span>
+    <span class="n">is_Callable</span> <span class="o">=</span> <span class="kc">True</span>
 
     <span class="n">_traversable</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;body&#39;</span><span class="p">]</span>
 

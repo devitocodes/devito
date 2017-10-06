@@ -92,6 +92,7 @@
               <ul>
 <li class="toctree-l1"><a class="reference internal" href="../../../download.html">Download</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../tutorials.html">Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../developer.html">Developer Documentation</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../examples.html">Example Documentation</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../devito.html">API Documentation</a></li>
 </ul>
@@ -165,7 +166,7 @@
 <span class="kn">from</span> <span class="nn">devito.dse.graph</span> <span class="k">import</span> <span class="n">temporaries_graph</span>
 <span class="kn">from</span> <span class="nn">devito.dse.manipulation</span> <span class="k">import</span> <span class="n">xreplace_indices</span>
 
-<span class="kn">from</span> <span class="nn">devito.interfaces</span> <span class="k">import</span> <span class="n">ScalarFunction</span>
+<span class="kn">from</span> <span class="nn">devito.types</span> <span class="k">import</span> <span class="n">Scalar</span>
 <span class="kn">from</span> <span class="nn">devito.stencil</span> <span class="k">import</span> <span class="n">Stencil</span>
 <span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">as_tuple</span>
 
@@ -267,11 +268,11 @@
         <span class="n">mapper</span> <span class="o">=</span> <span class="p">{}</span>
         <span class="n">temporaries</span> <span class="o">=</span> <span class="p">[]</span>
         <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">c1</span><span class="o">.</span><span class="n">trace</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
-            <span class="k">if</span> <span class="n">v</span><span class="o">.</span><span class="n">function</span><span class="o">.</span><span class="n">is_TensorFunction</span> <span class="ow">and</span>\
+            <span class="k">if</span> <span class="n">v</span><span class="o">.</span><span class="n">function</span><span class="o">.</span><span class="n">is_Array</span> <span class="ow">and</span>\
                     <span class="ow">not</span> <span class="nb">any</span><span class="p">(</span><span class="n">v</span><span class="o">.</span><span class="n">function</span> <span class="ow">in</span> <span class="n">c2</span><span class="o">.</span><span class="n">unknown</span> <span class="k">for</span> <span class="n">c2</span> <span class="ow">in</span> <span class="n">clusters</span><span class="p">):</span>
                 <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">c1</span><span class="o">.</span><span class="n">tensors</span><span class="p">[</span><span class="n">v</span><span class="o">.</span><span class="n">function</span><span class="p">]:</span>
                     <span class="c1"># LHS scalarization</span>
-                    <span class="n">scalarized</span> <span class="o">=</span> <span class="n">ScalarFunction</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;s</span><span class="si">%d</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="nb">len</span><span class="p">(</span><span class="n">mapper</span><span class="p">))</span><span class="o">.</span><span class="n">indexify</span><span class="p">()</span>
+                    <span class="n">scalarized</span> <span class="o">=</span> <span class="n">Scalar</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;s</span><span class="si">%d</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="nb">len</span><span class="p">(</span><span class="n">mapper</span><span class="p">))</span><span class="o">.</span><span class="n">indexify</span><span class="p">()</span>
                     <span class="n">mapper</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">scalarized</span>
 
                     <span class="c1"># May have to &quot;unroll&quot; some tensor expressions for scalarization;</span>

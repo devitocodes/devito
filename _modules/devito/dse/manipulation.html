@@ -92,6 +92,7 @@
               <ul>
 <li class="toctree-l1"><a class="reference internal" href="../../../download.html">Download</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../tutorials.html">Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../developer.html">Developer Documentation</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../examples.html">Example Documentation</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../devito.html">API Documentation</a></li>
 </ul>
@@ -173,7 +174,7 @@
 <span class="kn">from</span> <span class="nn">devito.dse.inspection</span> <span class="k">import</span> <span class="n">count</span><span class="p">,</span> <span class="n">estimate_cost</span><span class="p">,</span> <span class="n">retrieve_indexed</span>
 <span class="kn">from</span> <span class="nn">devito.dse.graph</span> <span class="k">import</span> <span class="n">temporaries_graph</span>
 <span class="kn">from</span> <span class="nn">devito.dse.queries</span> <span class="k">import</span> <span class="n">q_op</span><span class="p">,</span> <span class="n">q_leaf</span>
-<span class="kn">from</span> <span class="nn">devito.interfaces</span> <span class="k">import</span> <span class="n">Indexed</span><span class="p">,</span> <span class="n">TensorFunction</span>
+<span class="kn">from</span> <span class="nn">devito.types</span> <span class="k">import</span> <span class="n">Indexed</span><span class="p">,</span> <span class="n">Array</span>
 <span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">as_tuple</span>
 
 <span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;collect_nested&#39;</span><span class="p">,</span> <span class="s1">&#39;common_subexprs_elimination&#39;</span><span class="p">,</span> <span class="s1">&#39;freeze_expression&#39;</span><span class="p">,</span>
@@ -213,8 +214,8 @@
     <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">graph</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
         <span class="k">if</span> <span class="n">v</span><span class="o">.</span><span class="n">is_scalar</span><span class="p">:</span>
             <span class="c1"># Create a new function symbol</span>
-            <span class="n">data</span> <span class="o">=</span> <span class="n">TensorFunction</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="n">k</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">shape</span><span class="o">=</span><span class="n">shape</span><span class="p">,</span>
-                                  <span class="n">dimensions</span><span class="o">=</span><span class="n">indices</span><span class="p">,</span> <span class="n">onstack</span><span class="o">=</span><span class="n">onstack</span><span class="p">)</span>
+            <span class="n">data</span> <span class="o">=</span> <span class="n">Array</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="n">k</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">shape</span><span class="o">=</span><span class="n">shape</span><span class="p">,</span>
+                         <span class="n">dimensions</span><span class="o">=</span><span class="n">indices</span><span class="p">,</span> <span class="n">onstack</span><span class="o">=</span><span class="n">onstack</span><span class="p">)</span>
             <span class="n">indexed</span> <span class="o">=</span> <span class="n">Indexed</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">indexed</span><span class="p">,</span> <span class="o">*</span><span class="n">indices</span><span class="p">)</span>
             <span class="n">mapper</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="n">indexed</span>
             <span class="n">processed</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">Eq</span><span class="p">(</span><span class="n">indexed</span><span class="p">,</span> <span class="n">v</span><span class="o">.</span><span class="n">rhs</span><span class="p">))</span>

@@ -92,6 +92,7 @@
               <ul>
 <li class="toctree-l1"><a class="reference internal" href="../../download.html">Download</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../tutorials.html">Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../developer.html">Developer Documentation</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../examples.html">Example Documentation</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../devito.html">API Documentation</a></li>
 </ul>
@@ -174,9 +175,10 @@
 <span class="kn">from</span> <span class="nn">devito.dimension</span> <span class="k">import</span> <span class="n">time</span><span class="p">,</span> <span class="n">Dimension</span>
 <span class="kn">from</span> <span class="nn">devito.dle</span> <span class="k">import</span> <span class="n">compose_nodes</span><span class="p">,</span> <span class="n">filter_iterations</span><span class="p">,</span> <span class="n">transform</span>
 <span class="kn">from</span> <span class="nn">devito.dse</span> <span class="k">import</span> <span class="n">clusterize</span><span class="p">,</span> <span class="n">indexify</span><span class="p">,</span> <span class="n">rewrite</span><span class="p">,</span> <span class="n">retrieve_terminals</span>
-<span class="kn">from</span> <span class="nn">devito.interfaces</span> <span class="k">import</span> <span class="n">Forward</span><span class="p">,</span> <span class="n">Backward</span><span class="p">,</span> <span class="n">CompositeData</span><span class="p">,</span> <span class="n">Object</span>
+<span class="kn">from</span> <span class="nn">devito.function</span> <span class="k">import</span> <span class="n">Forward</span><span class="p">,</span> <span class="n">Backward</span><span class="p">,</span> <span class="n">CompositeFunction</span>
+<span class="kn">from</span> <span class="nn">devito.types</span> <span class="k">import</span> <span class="n">Object</span>
 <span class="kn">from</span> <span class="nn">devito.logger</span> <span class="k">import</span> <span class="n">bar</span><span class="p">,</span> <span class="n">error</span><span class="p">,</span> <span class="n">info</span>
-<span class="kn">from</span> <span class="nn">devito.nodes</span> <span class="k">import</span> <span class="n">Element</span><span class="p">,</span> <span class="n">Expression</span><span class="p">,</span> <span class="n">Function</span><span class="p">,</span> <span class="n">Iteration</span><span class="p">,</span> <span class="n">List</span><span class="p">,</span> <span class="n">LocalExpression</span>
+<span class="kn">from</span> <span class="nn">devito.nodes</span> <span class="k">import</span> <span class="n">Element</span><span class="p">,</span> <span class="n">Expression</span><span class="p">,</span> <span class="n">Callable</span><span class="p">,</span> <span class="n">Iteration</span><span class="p">,</span> <span class="n">List</span><span class="p">,</span> <span class="n">LocalExpression</span>
 <span class="kn">from</span> <span class="nn">devito.parameters</span> <span class="k">import</span> <span class="n">configuration</span>
 <span class="kn">from</span> <span class="nn">devito.profiling</span> <span class="k">import</span> <span class="n">create_profile</span>
 <span class="kn">from</span> <span class="nn">devito.stencil</span> <span class="k">import</span> <span class="n">Stencil</span>
@@ -186,13 +188,13 @@
 <span class="kn">from</span> <span class="nn">devito.exceptions</span> <span class="k">import</span> <span class="n">InvalidArgument</span><span class="p">,</span> <span class="n">InvalidOperator</span>
 
 
-<div class="viewcode-block" id="Operator"><a class="viewcode-back" href="../../devito.html#devito.operator.Operator">[docs]</a><span class="k">class</span> <span class="nc">Operator</span><span class="p">(</span><span class="n">Function</span><span class="p">):</span>
+<div class="viewcode-block" id="Operator"><a class="viewcode-back" href="../../devito.html#devito.operator.Operator">[docs]</a><span class="k">class</span> <span class="nc">Operator</span><span class="p">(</span><span class="n">Callable</span><span class="p">):</span>
 
     <span class="n">_default_headers</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;#define _POSIX_C_SOURCE 200809L&#39;</span><span class="p">]</span>
     <span class="n">_default_includes</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;stdlib.h&#39;</span><span class="p">,</span> <span class="s1">&#39;math.h&#39;</span><span class="p">,</span> <span class="s1">&#39;sys/time.h&#39;</span><span class="p">]</span>
     <span class="n">_default_globals</span> <span class="o">=</span> <span class="p">[]</span>
 
-    <span class="sd">&quot;&quot;&quot;A special :class:`Function` to generate and compile C code evaluating</span>
+    <span class="sd">&quot;&quot;&quot;A special :class:`Callable` to generate and compile C code evaluating</span>
 <span class="sd">    an ordered sequence of stencil expressions.</span>
 
 <span class="sd">    :param expressions: SymPy equation or list of equations that define the</span>
@@ -291,10 +293,10 @@
 <span class="sd">            any remaining arguments</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="n">new_params</span> <span class="o">=</span> <span class="p">{}</span>
-        <span class="c1"># If we&#39;ve been passed CompositeData objects as kwargs, they might have children</span>
-        <span class="c1"># that need to be substituted as well.</span>
+        <span class="c1"># If we&#39;ve been passed CompositeFunction objects as kwargs,</span>
+        <span class="c1"># they might have children that need to be substituted as well.</span>
         <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
-            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="n">CompositeData</span><span class="p">):</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="n">CompositeFunction</span><span class="p">):</span>
                 <span class="n">orig_param_l</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">input</span> <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">name</span> <span class="o">==</span> <span class="n">k</span><span class="p">]</span>
                 <span class="c1"># If I have been passed a parameter, I must have seen it before</span>
                 <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">orig_param_l</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
@@ -504,7 +506,7 @@
         <span class="c1"># Resolve function calls first</span>
         <span class="n">scopes</span> <span class="o">=</span> <span class="p">[]</span>
         <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">FindScopes</span><span class="p">()</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">nodes</span><span class="p">)</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
-            <span class="k">if</span> <span class="n">k</span><span class="o">.</span><span class="n">is_FunCall</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">k</span><span class="o">.</span><span class="n">is_Call</span><span class="p">:</span>
                 <span class="n">func</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">func_table</span><span class="p">[</span><span class="n">k</span><span class="o">.</span><span class="n">name</span><span class="p">]</span>
                 <span class="k">if</span> <span class="n">func</span><span class="o">.</span><span class="n">local</span><span class="p">:</span>
                     <span class="n">scopes</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">FindScopes</span><span class="p">()</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">func</span><span class="o">.</span><span class="n">root</span><span class="p">,</span> <span class="n">queue</span><span class="o">=</span><span class="nb">list</span><span class="p">(</span><span class="n">v</span><span class="p">))</span><span class="o">.</span><span class="n">items</span><span class="p">())</span>

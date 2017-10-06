@@ -92,6 +92,7 @@
               <ul>
 <li class="toctree-l1"><a class="reference internal" href="../../download.html">Download</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../tutorials.html">Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../developer.html">Developer Documentation</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../examples.html">Example Documentation</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../devito.html">API Documentation</a></li>
 </ul>
@@ -202,7 +203,7 @@
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">value</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">try</span><span class="p">:</span>
-            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_value</span><span class="o">.</span><span class="n">is_SymbolicData</span><span class="p">:</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_value</span><span class="o">.</span><span class="n">is_SymbolicFunction</span><span class="p">:</span>
                 <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_value</span><span class="o">.</span><span class="n">_data_buffer</span>
             <span class="k">else</span><span class="p">:</span>
                 <span class="k">raise</span> <span class="n">InvalidArgument</span><span class="p">(</span><span class="s2">&quot;Unexpected data object </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="nb">type</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_value</span><span class="p">))</span>
@@ -410,7 +411,7 @@
         <span class="k">return</span> <span class="n">verify</span></div></div>
 
 
-<div class="viewcode-block" id="ConstantDataArgProvider"><a class="viewcode-back" href="../../devito.html#devito.arguments.ConstantDataArgProvider">[docs]</a><span class="k">class</span> <span class="nc">ConstantDataArgProvider</span><span class="p">(</span><span class="n">ArgumentProvider</span><span class="p">):</span>
+<div class="viewcode-block" id="ConstantArgProvider"><a class="viewcode-back" href="../../devito.html#devito.arguments.ConstantArgProvider">[docs]</a><span class="k">class</span> <span class="nc">ConstantArgProvider</span><span class="p">(</span><span class="n">ArgumentProvider</span><span class="p">):</span>
 
     <span class="sd">&quot;&quot;&quot; Class used to decorate Constat Data objects with behaviour required for runtime</span>
 <span class="sd">        arguments.</span>
@@ -421,7 +422,7 @@
         <span class="k">return</span> <span class="p">[</span><span class="n">ScalarArgument</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="bp">self</span><span class="p">,</span> <span class="k">lambda</span> <span class="n">old</span><span class="p">,</span> <span class="n">new</span><span class="p">:</span> <span class="n">new</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="p">)]</span></div>
 
 
-<div class="viewcode-block" id="TensorDataArgProvider"><a class="viewcode-back" href="../../devito.html#devito.arguments.TensorDataArgProvider">[docs]</a><span class="k">class</span> <span class="nc">TensorDataArgProvider</span><span class="p">(</span><span class="n">ArgumentProvider</span><span class="p">):</span>
+<div class="viewcode-block" id="TensorFunctionArgProvider"><a class="viewcode-back" href="../../devito.html#devito.arguments.TensorFunctionArgProvider">[docs]</a><span class="k">class</span> <span class="nc">TensorFunctionArgProvider</span><span class="p">(</span><span class="n">ArgumentProvider</span><span class="p">):</span>
 
     <span class="sd">&quot;&quot;&quot; Class used to decorate Symbolic Data objects with behaviour required for runtime</span>
 <span class="sd">        arguments.</span>
@@ -432,7 +433,7 @@
         <span class="k">return</span> <span class="p">[</span><span class="n">TensorArgument</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="bp">self</span><span class="p">)]</span></div>
 
 
-<div class="viewcode-block" id="ScalarFunctionArgProvider"><a class="viewcode-back" href="../../devito.html#devito.arguments.ScalarFunctionArgProvider">[docs]</a><span class="k">class</span> <span class="nc">ScalarFunctionArgProvider</span><span class="p">(</span><span class="n">ArgumentProvider</span><span class="p">):</span>
+<div class="viewcode-block" id="ScalarArgProvider"><a class="viewcode-back" href="../../devito.html#devito.arguments.ScalarArgProvider">[docs]</a><span class="k">class</span> <span class="nc">ScalarArgProvider</span><span class="p">(</span><span class="n">ArgumentProvider</span><span class="p">):</span>
 
     <span class="sd">&quot;&quot;&quot; Class used to decorate Scalar Function objects with behaviour required for runtime</span>
 <span class="sd">        arguments.</span>
@@ -443,7 +444,7 @@
         <span class="k">return</span> <span class="p">[</span><span class="n">ScalarArgument</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="bp">self</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">dtype</span><span class="p">)]</span></div>
 
 
-<div class="viewcode-block" id="TensorFunctionArgProvider"><a class="viewcode-back" href="../../devito.html#devito.arguments.TensorFunctionArgProvider">[docs]</a><span class="k">class</span> <span class="nc">TensorFunctionArgProvider</span><span class="p">(</span><span class="n">ArgumentProvider</span><span class="p">):</span>
+<div class="viewcode-block" id="ArrayArgProvider"><a class="viewcode-back" href="../../devito.html#devito.arguments.ArrayArgProvider">[docs]</a><span class="k">class</span> <span class="nc">ArrayArgProvider</span><span class="p">(</span><span class="n">ArgumentProvider</span><span class="p">):</span>
 
     <span class="sd">&quot;&quot;&quot; Class used to decorate Tensor Function objects with behaviour required for runtime</span>
 <span class="sd">        arguments.</span>

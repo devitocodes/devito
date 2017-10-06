@@ -92,6 +92,7 @@
               <ul>
 <li class="toctree-l1"><a class="reference internal" href="../download.html">Download</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../tutorials.html">Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../developer.html">Developer Documentation</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../examples.html">Example Documentation</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../devito.html">API Documentation</a></li>
 </ul>
@@ -168,7 +169,8 @@
 <span class="kn">from</span> <span class="nn">devito.finite_difference</span> <span class="k">import</span> <span class="o">*</span>  <span class="c1"># noqa</span>
 <span class="kn">from</span> <span class="nn">devito.dimension</span> <span class="k">import</span> <span class="o">*</span>  <span class="c1"># noqa</span>
 <span class="kn">from</span> <span class="nn">devito.grid</span> <span class="k">import</span> <span class="o">*</span>  <span class="c1"># noqa</span>
-<span class="kn">from</span> <span class="nn">devito.interfaces</span> <span class="k">import</span> <span class="n">Forward</span><span class="p">,</span> <span class="n">Backward</span><span class="p">,</span> <span class="n">_SymbolCache</span>  <span class="c1"># noqa</span>
+<span class="kn">from</span> <span class="nn">devito.function</span> <span class="k">import</span> <span class="n">Forward</span><span class="p">,</span> <span class="n">Backward</span>  <span class="c1"># noqa</span>
+<span class="kn">from</span> <span class="nn">devito.types</span> <span class="k">import</span> <span class="n">_SymbolCache</span>  <span class="c1"># noqa</span>
 <span class="kn">from</span> <span class="nn">devito.logger</span> <span class="k">import</span> <span class="n">error</span><span class="p">,</span> <span class="n">warning</span><span class="p">,</span> <span class="n">info</span>  <span class="c1"># noqa</span>
 <span class="kn">from</span> <span class="nn">devito.parameters</span> <span class="k">import</span> <span class="p">(</span><span class="n">configuration</span><span class="p">,</span> <span class="n">init_configuration</span><span class="p">,</span>  <span class="c1"># noqa</span>
                                <span class="n">env_vars_mapper</span><span class="p">)</span>

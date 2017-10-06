@@ -92,6 +92,7 @@
               <ul>
 <li class="toctree-l1"><a class="reference internal" href="../../../download.html">Download</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../tutorials.html">Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../developer.html">Developer Documentation</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../examples.html">Example Documentation</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../devito.html">API Documentation</a></li>
 </ul>
@@ -221,7 +222,7 @@
     <span class="c1"># Will drop block sizes that might lead to a stack overflow</span>
     <span class="n">functions</span> <span class="o">=</span> <span class="n">FindSymbols</span><span class="p">(</span><span class="s1">&#39;symbolics&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">operator</span><span class="o">.</span><span class="n">body</span> <span class="o">+</span>
                                                <span class="n">operator</span><span class="o">.</span><span class="n">elemental_functions</span><span class="p">)</span>
-    <span class="n">stack_shapes</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span><span class="o">.</span><span class="n">shape</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">functions</span> <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">is_TensorFunction</span> <span class="ow">and</span> <span class="n">i</span><span class="o">.</span><span class="n">_mem_stack</span><span class="p">]</span>
+    <span class="n">stack_shapes</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span><span class="o">.</span><span class="n">shape</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">functions</span> <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">is_Array</span> <span class="ow">and</span> <span class="n">i</span><span class="o">.</span><span class="n">_mem_stack</span><span class="p">]</span>
     <span class="n">stack_space</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="n">reduce</span><span class="p">(</span><span class="n">mul</span><span class="p">,</span> <span class="n">i</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">stack_shapes</span><span class="p">)</span><span class="o">*</span><span class="n">operator</span><span class="o">.</span><span class="n">dtype</span><span class="p">()</span><span class="o">.</span><span class="n">itemsize</span>
 
     <span class="c1"># Note: there is only a single loop over &#39;blocksize&#39; because only</span>

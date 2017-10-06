@@ -92,6 +92,7 @@
               <ul>
 <li class="toctree-l1"><a class="reference internal" href="../../../../download.html">Download</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../tutorials.html">Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../developer.html">Developer Documentation</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../examples.html">Example Documentation</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../devito.html">API Documentation</a></li>
 </ul>
@@ -172,7 +173,7 @@
 <span class="kn">from</span> <span class="nn">devito.dse.manipulation</span> <span class="k">import</span> <span class="p">(</span><span class="n">common_subexprs_elimination</span><span class="p">,</span> <span class="n">collect_nested</span><span class="p">,</span>
                                      <span class="n">xreplace_constrained</span><span class="p">,</span> <span class="n">compact_temporaries</span><span class="p">)</span>
 <span class="kn">from</span> <span class="nn">devito.dse.queries</span> <span class="k">import</span> <span class="n">iq_timeinvariant</span>
-<span class="kn">from</span> <span class="nn">devito.interfaces</span> <span class="k">import</span> <span class="n">Indexed</span><span class="p">,</span> <span class="n">ScalarFunction</span><span class="p">,</span> <span class="n">TensorFunction</span>
+<span class="kn">from</span> <span class="nn">devito.types</span> <span class="k">import</span> <span class="n">Indexed</span><span class="p">,</span> <span class="n">Scalar</span><span class="p">,</span> <span class="n">Array</span>
 
 
 <div class="viewcode-block" id="AdvancedRewriter"><a class="viewcode-back" href="../../../../devito.dse.backends.html#devito.dse.backends.advanced.AdvancedRewriter">[docs]</a><span class="k">class</span> <span class="nc">AdvancedRewriter</span><span class="p">(</span><span class="n">BasicRewriter</span><span class="p">):</span>
@@ -191,7 +192,7 @@
 <span class="sd">        &quot;&quot;&quot;</span>
 
         <span class="c1"># Extract time invariants</span>
-        <span class="n">make</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">i</span><span class="p">:</span> <span class="n">ScalarFunction</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="n">template</span><span class="p">(</span><span class="n">i</span><span class="p">))</span><span class="o">.</span><span class="n">indexify</span><span class="p">()</span>
+        <span class="n">make</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">i</span><span class="p">:</span> <span class="n">Scalar</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="n">template</span><span class="p">(</span><span class="n">i</span><span class="p">))</span><span class="o">.</span><span class="n">indexify</span><span class="p">()</span>
         <span class="n">rule</span> <span class="o">=</span> <span class="n">iq_timeinvariant</span><span class="p">(</span><span class="n">cluster</span><span class="o">.</span><span class="n">trace</span><span class="p">)</span>
         <span class="n">costmodel</span> <span class="o">=</span> <span class="n">costmodel</span> <span class="ow">or</span> <span class="p">(</span><span class="k">lambda</span> <span class="n">e</span><span class="p">:</span> <span class="n">estimate_cost</span><span class="p">(</span><span class="n">e</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">)</span>
         <span class="n">processed</span><span class="p">,</span> <span class="n">found</span> <span class="o">=</span> <span class="n">xreplace_constrained</span><span class="p">(</span><span class="n">cluster</span><span class="o">.</span><span class="n">exprs</span><span class="p">,</span> <span class="n">make</span><span class="p">,</span> <span class="n">rule</span><span class="p">,</span> <span class="n">costmodel</span><span class="p">)</span>
@@ -200,7 +201,7 @@
             <span class="n">leaves</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">processed</span> <span class="k">if</span> <span class="n">i</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">found</span><span class="p">]</span>
 
             <span class="c1"># Search for common sub-expressions amongst them (and only them)</span>
-            <span class="n">make</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">i</span><span class="p">:</span> <span class="n">ScalarFunction</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="n">template</span><span class="p">(</span><span class="n">i</span> <span class="o">+</span> <span class="nb">len</span><span class="p">(</span><span class="n">found</span><span class="p">)))</span><span class="o">.</span><span class="n">indexify</span><span class="p">()</span>
+            <span class="n">make</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">i</span><span class="p">:</span> <span class="n">Scalar</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="n">template</span><span class="p">(</span><span class="n">i</span> <span class="o">+</span> <span class="nb">len</span><span class="p">(</span><span class="n">found</span><span class="p">)))</span><span class="o">.</span><span class="n">indexify</span><span class="p">()</span>
             <span class="n">found</span> <span class="o">=</span> <span class="n">common_subexprs_elimination</span><span class="p">(</span><span class="n">found</span><span class="p">,</span> <span class="n">make</span><span class="p">)</span>
 
             <span class="c1"># Some temporaries may be droppable at this point</span>
@@ -278,8 +279,8 @@
 
         <span class="c1"># Template for captured redundancies</span>
         <span class="n">shape</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">symbolic_size</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">indices</span><span class="p">)</span>
-        <span class="n">make</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">i</span><span class="p">:</span> <span class="n">TensorFunction</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="n">template</span><span class="p">(</span><span class="n">i</span><span class="p">),</span> <span class="n">shape</span><span class="o">=</span><span class="n">shape</span><span class="p">,</span>
-                                        <span class="n">dimensions</span><span class="o">=</span><span class="n">indices</span><span class="p">)</span><span class="o">.</span><span class="n">indexed</span>
+        <span class="n">make</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">i</span><span class="p">:</span> <span class="n">Array</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="n">template</span><span class="p">(</span><span class="n">i</span><span class="p">),</span> <span class="n">shape</span><span class="o">=</span><span class="n">shape</span><span class="p">,</span>
+                               <span class="n">dimensions</span><span class="o">=</span><span class="n">indices</span><span class="p">)</span><span class="o">.</span><span class="n">indexed</span>
 
         <span class="c1"># Find the candidate expressions</span>
         <span class="n">processed</span> <span class="o">=</span> <span class="p">[]</span>

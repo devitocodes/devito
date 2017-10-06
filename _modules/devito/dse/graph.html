@@ -92,6 +92,7 @@
               <ul>
 <li class="toctree-l1"><a class="reference internal" href="../../../download.html">Download</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../tutorials.html">Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../developer.html">Developer Documentation</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../examples.html">Example Documentation</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../devito.html">API Documentation</a></li>
 </ul>
@@ -406,7 +407,7 @@
                 <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">Dimension</span><span class="p">):</span>
                     <span class="c1"># Go on with the search, as /i/ is not a time dimension</span>
                     <span class="k">continue</span>
-                <span class="k">elif</span> <span class="ow">not</span> <span class="n">i</span><span class="o">.</span><span class="n">base</span><span class="o">.</span><span class="n">function</span><span class="o">.</span><span class="n">is_SymbolicData</span><span class="p">:</span>
+                <span class="k">elif</span> <span class="ow">not</span> <span class="n">i</span><span class="o">.</span><span class="n">base</span><span class="o">.</span><span class="n">function</span><span class="o">.</span><span class="n">is_SymbolicFunction</span><span class="p">:</span>
                     <span class="c1"># It didn&#39;t come from the outside and it&#39;s not in self, so</span>
                     <span class="c1"># cannot determine if time-invariant; assume time-varying</span>
                     <span class="k">return</span> <span class="kc">False</span>

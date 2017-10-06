@@ -94,6 +94,7 @@
               <ul class="current">
 <li class="toctree-l1"><a class="reference internal" href="download.html">Download</a></li>
 <li class="toctree-l1"><a class="reference internal" href="tutorials.html">Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="developer.html">Developer Documentation</a></li>
 <li class="toctree-l1 current"><a class="reference internal" href="examples.html">Example Documentation</a><ul class="current">
 <li class="toctree-l2 current"><a class="reference internal" href="examples.html#subpackages">Subpackages</a><ul class="current">
 <li class="toctree-l3"><a class="reference internal" href="examples.cfd.html">examples.cfd package</a></li>
@@ -308,7 +309,7 @@ absorbing boundary conditions.</p>
 <dd><p><code class="xref py py-class docutils literal"><span class="pre">numpy.ndarray</span></code> holding the model velocity in km/s.</p>
 <p>Updating the velocity field also updates the square slowness
 <code class="docutils literal"><span class="pre">self.m</span></code>. However, only <code class="docutils literal"><span class="pre">self.m</span></code> should be used in seismic
-operators, since it is of type <code class="xref py py-class docutils literal"><span class="pre">DenseData</span></code>.</p>
+operators, since it is of type <code class="xref py py-class docutils literal"><span class="pre">Function</span></code>.</p>
 </dd></dl>
 
 </dd></dl>
@@ -455,8 +456,8 @@ object. Optionally also includes point markers for sources and receivers.</p>
 <dl class="class">
 <dt id="examples.seismic.source.PointSource">
 <em class="property">class </em><code class="descclassname">examples.seismic.source.</code><code class="descname">PointSource</code><span class="sig-paren">(</span><em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/examples/seismic/source.html#PointSource"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#examples.seismic.source.PointSource" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <a class="reference internal" href="devito.html#devito.pointdata.PointData" title="devito.pointdata.PointData"><code class="xref py py-class docutils literal"><span class="pre">devito.pointdata.PointData</span></code></a></p>
-<p>Symbolic data object for a set of sparse points sources</p>
+<dd><p>Bases: <a class="reference internal" href="devito.html#devito.function.SparseFunction" title="devito.function.SparseFunction"><code class="xref py py-class docutils literal"><span class="pre">devito.function.SparseFunction</span></code></a></p>
+<p>Symbolic data object for a set of sparse point sources</p>
 <table class="docutils field-list" frame="void" rules="none">
 <col class="field-name" />
 <col class="field-body" />
