@@ -38,6 +38,13 @@ def as_tuple(item, type=None, length=None):
     return t
 
 
+def is_integer(value):
+    """
+    A thorough instance comparison for all integer types.
+    """
+    return isinstance(value, int) or isinstance(value, np.integer)
+
+
 def grouper(iterable, n):
     """Split an interable into groups of size n, plus a reminder"""
     args = [iter(iterable)] * n

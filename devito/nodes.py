@@ -12,7 +12,7 @@ from devito.cgen_utils import ccode
 from devito.dse import as_symbol, retrieve_terminals
 from devito.interfaces import Indexed, Symbol
 from devito.stencil import Stencil
-from devito.tools import as_tuple, filter_ordered, flatten
+from devito.tools import as_tuple, filter_ordered, flatten, is_integer
 from devito.arguments import ArgumentProvider, Argument
 
 __all__ = ['Node', 'Block', 'Denormals', 'Expression', 'Function', 'FunCall',
@@ -398,12 +398,12 @@ class Iteration(Node):
         try:
             lower = int(self.limits[0]) - self.offsets[0]
         except (TypeError, ValueError):
-            if isinstance(start, int):
+            if is_integer(start):
                 lower = start - self.offsets[0]
         try:
             upper = int(self.limits[1]) - self.offsets[1]
         except (TypeError, ValueError):
-            if isinstance(finish, int):
+            if is_integer(finish):
                 upper = finish - self.offsets[1]
         return (lower, upper)
 

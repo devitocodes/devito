@@ -309,7 +309,7 @@ class YaskKernel(object):
 
         # Set up the solution domain size
         for k, v in domain.items():
-            self.soln.set_rank_domain_size(k, v)
+            self.soln.set_rank_domain_size(k, int(v))
 
     def new_grid(self, obj_name, grid_name, dimensions):
         """Create a new YASK grid."""
@@ -470,7 +470,7 @@ class ContextManager(OrderedDict):
                               if i != namespace['time-dim']])
 
         # A unique key for this context.
-        key = tuple([yask_configuration['isa'], dtype] + domain.items())
+        key = tuple([yask_configuration['isa'], dtype] + list(domain.items()))
 
         # Fetch or create a YaskContext
         if key in self:

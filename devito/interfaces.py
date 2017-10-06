@@ -497,7 +497,7 @@ class DenseData(TensorData):
 
                 # Second derivative
                 dx2 = partial(generic_derivative, deriv_order=2, dim=dim,
-                              fd_order=self.space_order / 2)
+                              fd_order=int(self.space_order / 2))
                 setattr(self.__class__, 'd%s2' % dim.name,
                         property(dx2, 'Return the symbolic expression for '
                                  'the second derivative wrt. the '
