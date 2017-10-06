@@ -382,9 +382,13 @@ class YaskContext(object):
     def time_dimension(self):
         return self.yk_hook.time_dimension
 
-    @cached_property
+    @property
     def dimensions(self):
         return (self.time_dimension,) + self.space_dimensions
+
+    @property
+    def shape_domain(self):
+        return tuple(self.domain.values())
 
     @property
     def nsolutions(self):
