@@ -659,7 +659,7 @@
 
                 <span class="c1"># Second derivative</span>
                 <span class="n">dx2</span> <span class="o">=</span> <span class="n">partial</span><span class="p">(</span><span class="n">generic_derivative</span><span class="p">,</span> <span class="n">deriv_order</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">dim</span><span class="o">=</span><span class="n">dim</span><span class="p">,</span>
-                              <span class="n">fd_order</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">space_order</span> <span class="o">/</span> <span class="mi">2</span><span class="p">)</span>
+                              <span class="n">fd_order</span><span class="o">=</span><span class="nb">int</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">space_order</span> <span class="o">/</span> <span class="mi">2</span><span class="p">))</span>
                 <span class="nb">setattr</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="vm">__class__</span><span class="p">,</span> <span class="s1">&#39;d</span><span class="si">%s</span><span class="s1">2&#39;</span> <span class="o">%</span> <span class="n">dim</span><span class="o">.</span><span class="n">name</span><span class="p">,</span>
                         <span class="nb">property</span><span class="p">(</span><span class="n">dx2</span><span class="p">,</span> <span class="s1">&#39;Return the symbolic expression for &#39;</span>
                                  <span class="s1">&#39;the second derivative wrt. the &#39;</span>

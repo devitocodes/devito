@@ -216,7 +216,7 @@
 <dd><p>Bases: <a class="reference internal" href="#devito.dle.backends.advanced.DevitoSpeculativeRewriter" title="devito.dle.backends.advanced.DevitoSpeculativeRewriter"><code class="xref py py-class docutils literal"><span class="pre">devito.dle.backends.advanced.DevitoSpeculativeRewriter</span></code></a></p>
 <dl class="attribute">
 <dt id="devito.dle.backends.advanced.DevitoCustomRewriter.passes_mapper">
-<code class="descname">passes_mapper</code><em class="property"> = {'fission': &lt;unbound method DevitoSpeculativeRewriter.wrapper&gt;, 'padding': &lt;unbound method DevitoSpeculativeRewriter.wrapper&gt;, 'split': &lt;unbound method DevitoSpeculativeRewriter.wrapper&gt;, 'simd': &lt;unbound method DevitoSpeculativeRewriter.wrapper&gt;, 'openmp': &lt;unbound method DevitoSpeculativeRewriter.wrapper&gt;, 'blocking': &lt;unbound method DevitoSpeculativeRewriter.wrapper&gt;}</em><a class="headerlink" href="#devito.dle.backends.advanced.DevitoCustomRewriter.passes_mapper" title="Permalink to this definition">¶</a></dt>
+<code class="descname">passes_mapper</code><em class="property"> = {'blocking': &lt;function dle_pass.&lt;locals&gt;.wrapper&gt;, 'openmp': &lt;function dle_pass.&lt;locals&gt;.wrapper&gt;, 'simd': &lt;function dle_pass.&lt;locals&gt;.wrapper&gt;, 'fission': &lt;function dle_pass.&lt;locals&gt;.wrapper&gt;, 'padding': &lt;function dle_pass.&lt;locals&gt;.wrapper&gt;, 'split': &lt;function dle_pass.&lt;locals&gt;.wrapper&gt;}</em><a class="headerlink" href="#devito.dle.backends.advanced.DevitoCustomRewriter.passes_mapper" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 </dd></dl>
@@ -269,7 +269,7 @@ abstract method <code class="docutils literal"><span class="pre">_pipeline</span
 
 <dl class="attribute">
 <dt id="devito.dle.backends.common.AbstractRewriter.thresholds">
-<code class="descname">thresholds</code><em class="property"> = {'max_fission': 800, 'collapse': 32, 'min_fission': 20}</em><a class="headerlink" href="#devito.dle.backends.common.AbstractRewriter.thresholds" title="Permalink to this definition">¶</a></dt>
+<code class="descname">thresholds</code><em class="property"> = {'collapse': 32, 'max_fission': 800, 'min_fission': 20}</em><a class="headerlink" href="#devito.dle.backends.common.AbstractRewriter.thresholds" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 </dd></dl>
@@ -327,7 +327,7 @@ register on the current architecture.</p>
 
 <dl class="data">
 <dt id="devito.dle.backends.utils.omplang">
-<code class="descclassname">devito.dle.backends.utils.</code><code class="descname">omplang</code><em class="property"> = {'collapse': &lt;function &lt;lambda&gt;&gt;, 'for': &lt;cgen.Pragma object&gt;, 'par-for': &lt;cgen.Pragma object&gt;, 'par-region': &lt;function &lt;lambda&gt;&gt;, 'simd-for': &lt;cgen.Pragma object&gt;, 'simd-for-aligned': &lt;function &lt;lambda&gt;&gt;}</em><a class="headerlink" href="#devito.dle.backends.utils.omplang" title="Permalink to this definition">¶</a></dt>
+<code class="descclassname">devito.dle.backends.utils.</code><code class="descname">omplang</code><em class="property"> = {'for': &lt;cgen.Pragma object&gt;, 'collapse': &lt;function &lt;lambda&gt;&gt;, 'par-region': &lt;function &lt;lambda&gt;&gt;, 'par-for': &lt;cgen.Pragma object&gt;, 'simd-for': &lt;cgen.Pragma object&gt;, 'simd-for-aligned': &lt;function &lt;lambda&gt;&gt;}</em><a class="headerlink" href="#devito.dle.backends.utils.omplang" title="Permalink to this definition">¶</a></dt>
 <dd><p>Compiler-specific language</p>
 </dd></dl>
 
