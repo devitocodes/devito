@@ -340,15 +340,16 @@ class TestOperatorAcoustic(object):
     This test is very similar to the one in test_adjointA.
     """
 
-    presets = {
-        'constant': {'preset': 'constant'},
-        'layers': {'preset': 'layers', 'ratio': 3},
-    }
+    @pytest.fixture
+    def shape(self):
+        return (60, 70, 80)
 
     @pytest.fixture
-    def model(self):
-        shape = (60, 70, 80)
-        nbpml = 10
+    def nbpml(self):
+        return 10
+
+    @pytest.fixture
+    def model(self, shape, nbpml):
         return demo_model(spacing=[15., 15., 15.], shape=shape, nbpml=nbpml,
                           preset='layers-isotropic', ratio=3)
 
@@ -448,11 +449,16 @@ class TestOperatorAcoustic(object):
         op = Operator(eqns, subs=subs)
         op.apply(u=u, m=m, damp=damp, src=src, rec=rec, t=1)
 
-        # TODO: the following "hacky" way of asserting correctness will be replaced
-        # once adjoint operators might be run through YASK. At the moment, the following
-        # expected norms have been "manually" derived from an analogous test (same
-        # equation, same model, ...) in test_adjointA.py
+        # The expected norms have been computed "by hand" looking at the output
+        # of test_adjointA's forward operator w/o using the YASK backend.
         exp_u = 152.76
         exp_rec = 212.00
         assert np.isclose(np.linalg.norm(u.data[:]), exp_u, atol=exp_u*1.e-2)
         assert np.isclose(np.linalg.norm(rec.data), exp_rec, atol=exp_rec*1.e-2)
+
+    def test_acoustic_adjoint(self, shape, time_order, space_order, nbpml):
+        """
+        Full acoustic wave test, forward + adjoint operators
+        """
+        from test_adjointA import test_acoustic
+        test_acoustic('layers', shape, time_order, space_order, nbpml)
