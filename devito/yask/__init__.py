@@ -24,7 +24,7 @@ def exit(emsg):
 
 log("Backend initialization...")
 try:
-    from yask import compiler as yc
+    import yask as yc
     # YASK compiler factories
     cfac = yc.yc_factory()
     nfac = yc.yc_node_factory()

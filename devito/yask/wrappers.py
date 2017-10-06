@@ -470,7 +470,7 @@ class ContextManager(OrderedDict):
                               if i != namespace['time-dim']])
 
         # A unique key for this context.
-        key = tuple([yask_configuration['isa'], dtype] + domain.items())
+        key = tuple([yask_configuration['isa'], dtype] + list(domain.items()))
 
         # Fetch or create a YaskContext
         if key in self:
