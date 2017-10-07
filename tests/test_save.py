@@ -1,8 +1,8 @@
 import numpy as np
-from sympy import solve, symbols
+from sympy import solve
 from conftest import skipif_yask
 
-from devito import Grid, Eq, Operator, TimeFunction, Forward, x, y, time
+from devito import Grid, Eq, Operator, TimeFunction, Forward
 
 
 def initial(dx=0.01, dy=0.01):
@@ -31,14 +31,10 @@ def run_simulation(save=False, dx=0.01, dy=0.01, a=0.5, timesteps=100):
         time_order=1, space_order=2, save=save
     )
 
-    a = symbols('a')
     eqn = Eq(u.dt, a * (u.dx2 + u.dy2))
     stencil = solve(eqn, u.forward)[0]
-    op = Operator(Eq(u.forward, stencil),
-                  subs={a: 0.5, x.spacing: dx,
-                        y.spacing: dx, time.spacing: dt},
-                  time_axis=Forward)
-    op.apply(time=timesteps)
+    op = Operator(Eq(u.forward, stencil), time_axis=Forward)
+    op.apply(time=timesteps, dt=dt)
 
     if save:
         return u.data[timesteps - 1, :]

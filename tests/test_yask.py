@@ -5,8 +5,9 @@ import pytest  # noqa
 
 pexpect = pytest.importorskip('yask')  # Run only if YASK is available
 
-from devito import (Eq, Operator, Constant, Function, TimeFunction, SparseFunction,
-                    Backward, time, t, x, y, z, configuration, clear_cache)  # noqa
+from devito import (Eq, Grid, Operator, Constant, Function, TimeFunction,
+                    SparseFunction, Backward, time, t, x, y, z, configuration,
+                    clear_cache)  # noqa
 from devito.dle import retrieve_iteration_tree  # noqa
 from devito.yask.wrappers import YaskGrid, contexts  # noqa
 
@@ -170,8 +171,8 @@ class TestOperatorSimple(object):
         u = TimeFunction(name='yu4D', shape=(16, 16, 16), dimensions=(x, y, z),
                          space_order=space_order)
         u.data.with_halo[:] = 0.
-        op = Operator(Eq(u.forward, u + 1.), subs={t.spacing: 1})
-        op(yu4D=u, t=1)
+        op = Operator(Eq(u.forward, u + 1.))
+        op(yu4D=u, t=1, dt=1.)
         assert 'run_solution' in str(op)
         # Chech that the domain size has actually been written to
         assert np.all(u.data[1] == 1.)
@@ -189,8 +190,8 @@ class TestOperatorSimple(object):
         u = TimeFunction(name='yu4D', shape=(8, 8, 8),
                          dimensions=(x, y, z), space_order=0)
         u.data.with_halo[:] = 0.
-        op = Operator(Eq(u.forward, u + 1.), subs={t.spacing: 1})
-        op(yu4D=u, t=12)
+        op = Operator(Eq(u.forward, u + 1.))
+        op(yu4D=u, t=12, dt=1.)
         assert 'run_solution' in str(op)
         assert np.all(u.data[0] == 10.)
         assert np.all(u.data[1] == 11.)
@@ -208,12 +209,11 @@ class TestOperatorSimple(object):
             1 4 4 ... 4 1
             1 1 1 ... 1 1
         """
-        v = TimeFunction(name='yv4D', shape=(16, 16, 16), dimensions=(x, y, z),
-                         space_order=space_order)
+        grid = Grid(shape=(16, 16, 16))
+        v = TimeFunction(name='yv4D', grid=grid, space_order=space_order)
         v.data.with_halo[:] = 1.
-        op = Operator(Eq(v.forward, v.laplace + 6*v),
-                      subs={t.spacing: 1, x.spacing: 1, y.spacing: 1, z.spacing: 1})
-        op(yv4D=v, t=1)
+        op = Operator(Eq(v.forward, v.laplace + 6*v))
+        op(yv4D=v, t=1, dt=1.)
         assert 'run_solution' in str(op)
         # Chech that the domain size has actually been written to
         assert np.all(v.data[1] == 6.)
@@ -233,8 +233,8 @@ class TestOperatorSimple(object):
                          dimensions=(x, y, z), space_order=1)
         u.data.with_halo[:] = 1.
         v.data.with_halo[:] = 2.
-        op = Operator(Eq(v.forward, u + v), subs={t.spacing: 1})
-        op(yu4D=u, yv4D=v, t=1)
+        op = Operator(Eq(v.forward, u + v))
+        op(yu4D=u, yv4D=v, t=1, dt=1.)
         assert 'run_solution' in str(op)
         # Chech that the domain size has actually been written to
         assert np.all(v.data[1] == 3.)
@@ -268,8 +268,8 @@ class TestOperatorSimple(object):
                Eq(u.forward, u + 1.),
                Eq(v.indexed[t + 1, 0, 2, z], v.indexed[t + 1, 0, 2, z] + 2.),
                Eq(v.indexed[t + 1, 0, 5, z], v.indexed[t + 1, 0, 5, z] + 2.)]
-        op = Operator(eqs, subs={t.spacing: 1})
-        op(yu4D=u, yv4D=v, t=1)
+        op = Operator(eqs)
+        op(yu4D=u, yv4D=v, t=1, dt=1.)
         assert 'run_solution' in str(op)
         assert len(retrieve_iteration_tree(op)) == 3
         assert np.all(u.data[0] == 0.)
@@ -310,8 +310,8 @@ class TestOperatorSimple(object):
         eqs = [Eq(p.indexed[0, 0], 3.), Eq(p.indexed[0, 1], 2.),
                Eq(p.indexed[0, 2], 1.), Eq(p.indexed[0, 3], 0.),
                Eq(u.indexed[t + 1, ind(x), ind(y), ind(z)], u.indexed[t, x, y, z])]
-        op = Operator(eqs, subs={t.spacing: 1})
-        op(yu4D=u, t=1)
+        op = Operator(eqs)
+        op(yu4D=u, t=1, dt=1.)
         assert 'run_solution' not in str(op)
         assert all(np.all(u.data[1, :, :, i] == 3 - i) for i in range(4))
 
@@ -431,7 +431,7 @@ class TestOperatorAcoustic(object):
 
     @pytest.fixture
     def u(self, model, space_order, time_order):
-        return TimeFunction(name='u', shape=model.shape_domain, dimensions=(x, y, z),
+        return TimeFunction(name='u', grid=model.grid,
                             space_order=space_order, time_order=time_order)
 
     @pytest.fixture
@@ -456,25 +456,19 @@ class TestOperatorAcoustic(object):
         rec.coordinates.data[:, 1:] = src.coordinates.data[0, 1:]
         return rec
 
-    @pytest.fixture
-    def subs(self, model, u):
-        dt = model.critical_dt
-        return dict([(t.spacing, dt)] + [(time.spacing, dt)] +
-                    [(i.spacing, model.spacing[j]) for i, j
-                     in zip(u.indices[1:], range(len(model.shape)))])
-
-    def test_acoustic_wo_src_wo_rec(self, model, eqn, subs, m, damp, u):
+    def test_acoustic_wo_src_wo_rec(self, model, eqn, m, damp, u):
         """
         Test that the acoustic wave equation runs without crashing in absence
         of sources and receivers.
         """
+        dt = model.critical_dt
         u.data[:] = 0.0
-        op = Operator(eqn, subs=subs)
+        op = Operator(eqn)
         assert 'run_solution' in str(op)
 
-        op.apply(u=u, m=m, damp=damp, t=10)
+        op.apply(u=u, m=m, damp=damp, t=10, dt=dt)
 
-    def test_acoustic_w_src_wo_rec(self, model, eqn, subs, m, damp, u, src):
+    def test_acoustic_w_src_wo_rec(self, model, eqn, m, damp, u, src):
         """
         Test that the acoustic wave equation runs without crashing in absence
         of receivers.
@@ -483,15 +477,15 @@ class TestOperatorAcoustic(object):
         u.data[:] = 0.0
         eqns = eqn
         eqns += src.inject(field=u.forward, expr=src * dt**2 / m, offset=model.nbpml)
-        op = Operator(eqns, subs=subs)
+        op = Operator(eqns)
         assert 'run_solution' in str(op)
 
-        op.apply(u=u, m=m, damp=damp, src=src, t=1)
+        op.apply(u=u, m=m, damp=damp, src=src, t=1, dt=dt)
 
         exp_u = 152.76
         assert np.isclose(np.linalg.norm(u.data[:]), exp_u, atol=exp_u*1.e-2)
 
-    def test_acoustic_w_src_w_rec(self, model, eqn, subs, m, damp, u, src, rec):
+    def test_acoustic_w_src_w_rec(self, model, eqn, m, damp, u, src, rec):
         """
         Test that the acoustic wave equation forward operator produces the correct
         results when running a 3D model also used in ``test_adjointA.py``.
@@ -501,10 +495,10 @@ class TestOperatorAcoustic(object):
         eqns = eqn
         eqns += src.inject(field=u.forward, expr=src * dt**2 / m, offset=model.nbpml)
         eqns += rec.interpolate(expr=u, offset=model.nbpml)
-        op = Operator(eqns, subs=subs)
+        op = Operator(eqns)
         assert 'run_solution' in str(op)
 
-        op.apply(u=u, m=m, damp=damp, src=src, rec=rec, t=1)
+        op.apply(u=u, m=m, damp=damp, src=src, rec=rec, t=1, dt=dt)
 
         # The expected norms have been computed "by hand" looking at the output
         # of test_adjointA's forward operator w/o using the YASK backend.
