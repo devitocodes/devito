@@ -55,7 +55,7 @@ class Constant(AbstractSymbol, ConstantArgProvider):
     def __init__(self, *args, **kwargs):
         self.name = kwargs.get('name')
         self.dtype = kwargs.get('dtype', np.float32)
-        self._value = kwargs.get('value', 0.)
+        self._value = kwargs.get('value')
 
     @property
     def data(self):
