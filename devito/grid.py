@@ -1,8 +1,8 @@
 from devito.tools import as_tuple
 from devito.dimension import SpaceDimension, TimeDimension, SteppingDimension
+from devito.function import Constant
 
 import numpy as np
-from sympy import Symbol
 
 __all__ = ['Grid']
 
@@ -73,7 +73,7 @@ class Grid(object):
             # Create the spatial dimensions and constant spacing symbols
             assert(self.dim <= 3)
             dim_names = self._default_dimensions[:self.dim]
-            dim_spacing = tuple(Symbol('h_%s' % name)
+            dim_spacing = tuple(Constant(name='h_%s' % name, value=val)
                                 for name, val in zip(dim_names, self.spacing))
             self.dimensions = tuple(SpaceDimension(name=name, spacing=spc)
                                     for name, spc in zip(dim_names, dim_spacing))
@@ -82,7 +82,7 @@ class Grid(object):
 
         # Store or create default symbols for time and stepping dimensions
         if time_dimension is None:
-            self.time_dim = TimeDimension('time', spacing=Symbol('s'))
+            self.time_dim = TimeDimension('time', spacing=Constant(name='dt'))
             self.stepping_dim = SteppingDimension('t', parent=self.time_dim)
         else:
             self.time_dim = time_dimension

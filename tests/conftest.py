@@ -44,11 +44,11 @@ def dims():
 
 
 # Testing dimensions for space and time
-time = TimeDimension('time', spacing=Symbol('s'))
+time = TimeDimension('time', spacing=Constant(name='dt'))
 t = SteppingDimension('t', parent=time)
-x = SpaceDimension('x', spacing=Symbol('h_x'))
-y = SpaceDimension('y', spacing=Symbol('h_y'))
-z = SpaceDimension('z', spacing=Symbol('h_z'))
+x = SpaceDimension('x', spacing=Constant(name='h_x'))
+y = SpaceDimension('y', spacing=Constant(name='h_y'))
+z = SpaceDimension('z', spacing=Constant(name='h_z'))
 
 
 @pytest.fixture(scope="session")
