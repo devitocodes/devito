@@ -3,7 +3,7 @@ import pytest
 from conftest import skipif_yask
 
 from devito.cgen_utils import FLOAT
-from devito import Grid, Operator, Function, SparseFunction, x, y, z
+from devito import Grid, Operator, Function, SparseFunction
 
 
 @pytest.fixture
@@ -45,13 +45,11 @@ def test_interpolate(shape, coords, npoints=20):
     abitrary set of points going across the grid.
     """
     a = unit_box(shape=shape)
-    spacing = a.data[tuple([1 for _ in shape])]
     p = points(coords, npoints=npoints)
     xcoords = p.coordinates.data[:, 0]
 
     expr = p.interpolate(a)
-    Operator(expr, subs={x.spacing: spacing, y.spacing: spacing,
-                         z.spacing: spacing})(a=a, time=1)
+    Operator(expr)(a=a, time=1)
 
     assert np.allclose(p.data[0, :], xcoords, rtol=1e-6)
 
@@ -66,14 +64,12 @@ def test_inject(shape, coords, result, npoints=19):
     through the middle of the grid.
     """
     a = unit_box(shape=shape)
-    spacing = a.data[tuple([1 for _ in shape])]
     a.data[:] = 0.
     p = points(ranges=coords, npoints=npoints)
 
     expr = p.inject(a, FLOAT(1.))
 
-    Operator(expr, subs={x.spacing: spacing, y.spacing: spacing,
-                         z.spacing: spacing})(a=a)
+    Operator(expr)(a=a)
 
     indices = [slice(4, 6, 1) for _ in coords]
     indices[0] = slice(1, -1, 1)
@@ -90,15 +86,13 @@ def test_inject_from_field(shape, coords, result, npoints=19):
     through the middle of the grid.
     """
     a = unit_box(shape=shape)
-    spacing = a.data[tuple([1 for _ in shape])]
     a.data[:] = 0.
     b = Function(name='b', grid=a.grid)
     b.data[:] = 1.
     p = points(ranges=coords, npoints=npoints)
 
     expr = p.inject(field=a, expr=b)
-    Operator(expr, subs={x.spacing: spacing, y.spacing: spacing,
-                         z.spacing: spacing})(a=a, b=b)
+    Operator(expr)(a=a, b=b)
 
     indices = [slice(4, 6, 1) for _ in coords]
     indices[0] = slice(1, -1, 1)
@@ -114,7 +108,6 @@ def test_adjoint_inject_interpolate(shape, coords,
                                     npoints=19):
 
     a = unit_box(shape=shape)
-    spacing = a.data[tuple([1 for _ in shape])]
     a.data[:] = 0.
     c = unit_box(shape=shape, name='c')
     c.data[:] = 27.
@@ -125,8 +118,7 @@ def test_adjoint_inject_interpolate(shape, coords,
     # Read receiver
     p2 = points(name='points2', ranges=coords, npoints=npoints)
     expr2 = p2.interpolate(expr=c)
-    Operator(expr + expr2, subs={x.spacing: spacing, y.spacing: spacing,
-                                 z.spacing: spacing})(a=a, c=c, time=1)
+    Operator(expr + expr2)(a=a, c=c, time=1)
     # < P x, y > - < x, P^T y>
     # Px => p2
     # y => p

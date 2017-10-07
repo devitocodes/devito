@@ -135,13 +135,11 @@ def execute_devito(ui, spacing=0.01, a=0.5, timesteps=500):
     # Derive the stencil according to devito conventions
     eqn = Eq(u.dt, a * (u.dx2 + u.dy2))
     stencil = sympy.solve(eqn, u.forward)[0]
-    op = Operator(Eq(u.forward, stencil), subs={x.spacing: spacing,
-                                                y.spacing: spacing,
-                                                t.spacing: dt})
+    op = Operator(Eq(u.forward, stencil))
 
     # Execute the generated Devito stencil operator
     tstart = time.time()
-    op.apply(u=u, t=timesteps)
+    op.apply(u=u, t=timesteps, dt=dt)
     runtime = time.time() - tstart
     log("Devito: Diffusion with dx=%0.4f, dy=%0.4f, executed %d timesteps in %f seconds"
         % (spacing, spacing, timesteps, runtime))
