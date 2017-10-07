@@ -42,6 +42,8 @@ class Argument(object):
         try:
             if self._value.is_SymbolicFunction:
                 return self._value._data_buffer
+            elif self._value.is_Constant:
+                return self._value.data
             else:
                 raise InvalidArgument("Unexpected data object %s" % type(self._value))
         except AttributeError:

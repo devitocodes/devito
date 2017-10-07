@@ -10,7 +10,7 @@ from devito.memory import CMemory, first_touch
 from devito.cgen_utils import INT, FLOAT
 from devito.dimension import d, p, t, time, x, y, z
 from devito.arguments import ConstantArgProvider, TensorFunctionArgProvider
-from devito.types import SymbolicFunction, AbstractSymbol
+from devito.types import SymbolicFunction
 from devito.finite_difference import (centered, cross_derivative,
                                       first_derivative, left, right,
                                       second_derivative, generic_derivative,
@@ -44,26 +44,21 @@ Forward = TimeAxis('Forward')
 Backward = TimeAxis('Backward')
 
 
-class Constant(SymbolicFunction, ConstantArgProvider):
+class Constant(sympy.Symbol, ConstantArgProvider):
 
     """
-    Data object for constant values.
+    Symbol representing constant values in symbolic equations.
     """
 
     is_Constant = True
     is_Scalar = True
 
-    def __new__(cls, *args, **kwargs):
-        kwargs.update({'options': {'evaluate': False}})
-        return AbstractSymbol.__new__(cls, *args, **kwargs)
+    is_SymbolicFunction = False
 
     def __init__(self, *args, **kwargs):
-        if not self._cached():
-            self.name = kwargs.get('name')
-            self.shape = ()
-            self.indices = ()
-            self.dtype = kwargs.get('dtype', np.float32)
-            self._value = kwargs.get('value', 0.)
+        self.name = kwargs.get('name')
+        self.dtype = kwargs.get('dtype', np.float32)
+        self._value = kwargs.get('value', 0.)
 
     @property
     def data(self):
@@ -73,6 +68,17 @@ class Constant(SymbolicFunction, ConstantArgProvider):
     @data.setter
     def data(self, val):
         self._value = val
+
+    def indexify(self):
+        return self
+
+    @property
+    def base(self):
+        return self
+
+    @property
+    def function(self):
+        return self
 
 
 class TensorFunction(SymbolicFunction, TensorFunctionArgProvider):
