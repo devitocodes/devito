@@ -3,7 +3,7 @@ from sympy import cos, sin
 from devito import Eq, Operator, TimeFunction
 from examples.seismic import PointSource, Receiver
 from devito.finite_difference import centered, first_derivative, right, transpose
-from devito.dimension import x, y, z, t, time
+from devito.dimension import x, y, z
 
 
 def Gxx_shifted(field, costheta, sintheta, cosphi, sinphi, space_order):
@@ -390,8 +390,9 @@ def ForwardOperator(model, source, receiver, time_order=2, space_order=4,
 
     FD_kernel = kernels[(kernel, len(model.shape))]
     H0, Hz = FD_kernel(u, v, ang0, ang1, ang2, ang3, space_order)
-    s = t.spacing
+
     # Stencils
+    s = model.grid.stepping_dim.spacing
     stencilp = 1.0 / (2.0 * m + s * damp) * \
         (4.0 * m * u + (s * damp - 2.0 * m) *
          u.backward + 2.0 * s ** 2 * (epsilon * H0 + delta * Hz))
@@ -408,12 +409,9 @@ def ForwardOperator(model, source, receiver, time_order=2, space_order=4,
     stencils += src.inject(field=v.forward, expr=src * dt * dt / m,
                            offset=model.nbpml)
     stencils += rec.interpolate(expr=u + v, offset=model.nbpml)
-    # Add substitutions for spacing (temporal and spatial)
-    subs = dict([(t.spacing, dt)] + [(time.spacing, dt)] +
-                [(i.spacing, model.spacing[j]) for i, j
-                 in zip(u.indices[1:], range(len(model.shape)))])
-    # Operator
-    return Operator(stencils, subs=subs, name='ForwardTTI', **kwargs)
+
+    # Substitute spacing terms to reduce flops
+    return Operator(stencils, subs=model.spacing_map, name='ForwardTTI', **kwargs)
 
 
 kernels = {('shifted', 3): kernel_shited_3d, ('shifted', 2): kernel_shited_2d,

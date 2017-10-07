@@ -105,6 +105,13 @@ class Grid(object):
         return as_tuple(d.spacing for d in self.dimensions)
 
     @property
+    def spacing_map(self):
+        """
+        Map between spacing symbols and their values for each :class:`SpaceDimension`
+        """
+        return dict(zip(self.spacing_symbols, self.spacing))
+
+    @property
     def shape_domain(self):
         """Shape of the physical domain (without external boundary layer)"""
         return self.shape
