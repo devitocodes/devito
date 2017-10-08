@@ -87,8 +87,8 @@ script:
     fi
 
   # Test tutorial notebooks for the website using nbval
-  - if [[ $DEVITO_BACKEND != 'yask' ]]; then py.test -vs --nbval-lax examples/seismic/tutorials; fi
-  - if [[ $DEVITO_BACKEND != 'yask' ]]; then py.test -vs --nbval-lax examples/cfd; fi
+  - if [[ $DEVITO_BACKEND != 'yask' ]]; then py.test -vs --nbval examples/seismic/tutorials; fi
+  - if [[ $DEVITO_BACKEND != 'yask' ]]; then py.test -vs --nbval examples/cfd; fi
 
   # Docs generation and deployment
   - sphinx-apidoc -f -o docs/ examples

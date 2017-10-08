@@ -15,9 +15,6 @@ dependencies:
   - psutil>=5.1.0
   - sphinx
   - sphinx_rtd_theme
-  # Some utilities for the pip dependencies below
-  - pandocfilters
-  - scandir
   - pip:
     - "git+git://github.com/inducer/cgen"
     - "git+git://github.com/inducer/codepy"
