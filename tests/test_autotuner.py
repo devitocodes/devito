@@ -102,7 +102,7 @@ def test_timesteps_per_at_run():
         op = Operator(stencil, dle=('blocking', {'blockalways': True}))
         op(infield=infield, outfield=outfield, autotune=True)
         out = [i for i in buffer.getvalue().split('\n') if 'AutoTuner:' in i]
-        expected = options['at_squeezer'] - to
+        expected = options['at_squeezer']
         assert len(out) == 3
         assert all('in %d time steps' % expected in i for i in out)
         buffer.truncate(0)
