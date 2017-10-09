@@ -48,45 +48,18 @@ class Operator(OperatorRunnable):
 
         log("Specializing a Devito Operator for YASK...")
 
-        # Find offloadable Iteration/Expression trees
-        offloadable = []
-        for tree in retrieve_iteration_tree(nodes):
-            parallel = filter_iterations(tree, lambda i: i.is_Parallel)
-            if not parallel:
-                # Cannot offload non-parallel loops
-                continue
-            if not (IsPerfectIteration().visit(tree) and
-                    all(i.is_Expression for i in tree[-1].nodes)):
-                # Don't know how to offload this Iteration/Expression to YASK
-                continue
-            functions = flatten(i.functions for i in tree[-1].nodes)
-            keys = set((i.indices, i.shape, i.dtype)
-                       for i in functions if i.is_TimeFunction)
-            if len(keys) == 0:
-                continue
-            elif len(keys) > 1:
-                exit("Cannot handle Operators w/ heterogeneous grids")
-            dimensions, shape, dtype = keys.pop()
-            if len(dimensions) == len(tree) and\
-                    all(i.dim == j for i, j in zip(tree, dimensions)):
-                # Detected a "full" Iteration/Expression tree (over both
-                # time and space dimensions)
-                offloadable.append((tree, dimensions, shape, dtype))
-
-        # Construct YASK ASTs given Devito expressions. New grids may be allocated.
         self.context = YaskNullContext()
         self.yk_soln = YaskNullSolution()
         self._local_grids = {}
-        processed = nodes
+
+        offloadable = find_offloadable_trees(nodes)
         if len(offloadable) == 0:
             log("No offloadable trees found")
         elif len(offloadable) == 1:
-            # Found *the* offloadable tree for this Operator
             tree, dimensions, shape, dtype = offloadable[0]
             self.context = contexts.fetch(dimensions, shape, dtype)
 
             # Create a YASK compiler solution for this Operator
-            # Note: this can be dropped as soon as the kernel has been built
             yc_soln = self.context.make_yc_solution(namespace['jit-yc-soln'])
 
             transform = sympy2yask(self.context, yc_soln)
@@ -97,7 +70,7 @@ class Operator(OperatorRunnable):
                 funcall = make_sharedptr_funcall(namespace['code-soln-run'], ['time'],
                                                  namespace['code-soln-name'])
                 funcall = Element(c.Statement(ccode(funcall)))
-                processed = Transformer({tree[1]: funcall}).visit(nodes)
+                nodes = Transformer({tree[1]: funcall}).visit(nodes)
 
                 # Track this is an external function call
                 self.func_table[namespace['code-soln-run']] = FunMeta(None, False)
@@ -136,7 +109,7 @@ class Operator(OperatorRunnable):
         # Some Iteration/Expression trees are not offloaded to YASK and may
         # require further processing to be executed in YASK, due to the differences
         # in storage layout employed by Devito and YASK
-        processed = make_grid_accesses(processed)
+        nodes = make_grid_accesses(nodes)
 
         # Update the parameters list adding all necessary YASK grids
         for i in list(parameters) + list(self._local_grids):
@@ -150,7 +123,7 @@ class Operator(OperatorRunnable):
 
         log("Specialization successfully performed!")
 
-        return processed
+        return nodes
 
     def arguments(self, **kwargs):
         # The user has the illusion to provide plain data objects to the
@@ -299,3 +272,36 @@ class sympy2yask(object):
                 raise NotImplementedError
 
         return run(expr)
+
+
+def find_offloadable_trees(nodes):
+    """
+    Return the trees within ``nodes`` that can be computed by YASK.
+
+    A tree is "offloadable to YASK" if it is embedded in a time stepping loop
+    *and* all of the grids accessed by the enclosed equations are homogeneous
+    (i.e., same dimensions, shape, data type).
+    """
+    offloadable = []
+    for tree in retrieve_iteration_tree(nodes):
+        parallel = filter_iterations(tree, lambda i: i.is_Parallel)
+        if not parallel:
+            # Cannot offload non-parallel loops
+            continue
+        if not (IsPerfectIteration().visit(tree) and
+                all(i.is_Expression for i in tree[-1].nodes)):
+            # Don't know how to offload this Iteration/Expression to YASK
+            continue
+        functions = flatten(i.functions for i in tree[-1].nodes)
+        keys = set((i.indices, i.shape, i.dtype) for i in functions if i.is_TimeFunction)
+        if len(keys) == 0:
+            continue
+        elif len(keys) > 1:
+            exit("Cannot handle Operators w/ heterogeneous grids")
+        dimensions, shape, dtype = keys.pop()
+        if len(dimensions) == len(tree) and\
+                all(i.dim == j for i, j in zip(tree, dimensions)):
+            # Detected a "full" Iteration/Expression tree (over both
+            # time and space dimensions)
+            offloadable.append((tree, dimensions, shape, dtype))
+    return offloadable
