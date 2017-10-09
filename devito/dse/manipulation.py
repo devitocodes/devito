@@ -270,14 +270,19 @@ def common_subexprs_elimination(exprs, make, mode='default'):
     return processed
 
 
-def compact_temporaries(exprs):
+def compact_temporaries(temporaries, leaves):
     """
     Drop temporaries consisting of single symbols.
     """
+    exprs = temporaries + leaves
+    targets = {i.lhs for i in leaves}
+
     g = temporaries_graph(exprs)
 
     mapper = {k: v.rhs for k, v in g.items()
-              if v.is_scalar and (q_leaf(v.rhs) or v.rhs.is_Function)}
+              if v.is_scalar and
+              (q_leaf(v.rhs) or v.rhs.is_Function) and
+              not v.readby.issubset(targets)}
 
     processed = []
     for k, v in g.items():
