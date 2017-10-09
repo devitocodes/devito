@@ -25,11 +25,11 @@ def unit_box(name='a', shape=(11, 11)):
     return a
 
 
-def points(ranges, npoints, name='points'):
+def points(grid, ranges, npoints, name='points'):
     """Create a set of sparse points from a set of coordinate
     ranges for each spatial dimension.
     """
-    points = SparseFunction(name=name, nt=1, npoint=npoints, ndim=len(ranges))
+    points = SparseFunction(name=name, grid=grid, nt=1, npoint=npoints)
     for i, r in enumerate(ranges):
         points.coordinates.data[:, i] = np.linspace(r[0], r[1], npoints)
     return points
@@ -45,7 +45,7 @@ def test_interpolate(shape, coords, npoints=20):
     abitrary set of points going across the grid.
     """
     a = unit_box(shape=shape)
-    p = points(coords, npoints=npoints)
+    p = points(a.grid, coords, npoints=npoints)
     xcoords = p.coordinates.data[:, 0]
 
     expr = p.interpolate(a)
@@ -65,7 +65,7 @@ def test_inject(shape, coords, result, npoints=19):
     """
     a = unit_box(shape=shape)
     a.data[:] = 0.
-    p = points(ranges=coords, npoints=npoints)
+    p = points(a.grid, ranges=coords, npoints=npoints)
 
     expr = p.inject(a, FLOAT(1.))
 
@@ -89,7 +89,7 @@ def test_inject_from_field(shape, coords, result, npoints=19):
     a.data[:] = 0.
     b = Function(name='b', grid=a.grid)
     b.data[:] = 1.
-    p = points(ranges=coords, npoints=npoints)
+    p = points(a.grid, ranges=coords, npoints=npoints)
 
     expr = p.inject(field=a, expr=b)
     Operator(expr)(a=a, b=b)
@@ -112,11 +112,11 @@ def test_adjoint_inject_interpolate(shape, coords,
     c = unit_box(shape=shape, name='c')
     c.data[:] = 27.
     # Inject receiver
-    p = points(ranges=coords, npoints=npoints)
+    p = points(a.grid, ranges=coords, npoints=npoints)
     p.data[:] = 1.2
     expr = p.inject(field=a, expr=p)
     # Read receiver
-    p2 = points(name='points2', ranges=coords, npoints=npoints)
+    p2 = points(a.grid, name='points2', ranges=coords, npoints=npoints)
     expr2 = p2.interpolate(expr=c)
     Operator(expr + expr2)(a=a, c=c, time=1)
     # < P x, y > - < x, P^T y>

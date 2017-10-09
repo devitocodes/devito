@@ -44,12 +44,12 @@ def test_acoustic(mkey, shape, time_order, space_order, nbpml):
     time_values = np.linspace(t0, tn, nt)  # Discretized time axis
 
     # Define source geometry (center of domain, just below surface)
-    src = RickerSource(name='src', ndim=model.dim, f0=0.01, time=time_values)
+    src = RickerSource(name='src', grid=model.grid, f0=0.01, time=time_values)
     src.coordinates.data[0, :] = np.array(model.domain_size) * .5
     src.coordinates.data[0, -1] = 30.
 
     # Define receiver geometry (same as source, but spread across x)
-    rec = Receiver(name='nrec', ntime=nt, npoint=nrec, ndim=model.dim)
+    rec = Receiver(name='nrec', grid=model.grid, ntime=nt, npoint=nrec)
     rec.coordinates.data[:, 0] = np.linspace(0., model.domain_size[0], num=nrec)
     rec.coordinates.data[:, 1:] = src.coordinates.data[0, 1:]
 
@@ -59,7 +59,7 @@ def test_acoustic(mkey, shape, time_order, space_order, nbpml):
                                 space_order=space_order)
 
     # Create adjoint receiver symbol
-    srca = Receiver(name='srca', ntime=solver.source.nt,
+    srca = Receiver(name='srca', grid=model.grid, ntime=solver.source.nt,
                     coordinates=solver.source.coordinates.data)
 
     # Run forward and adjoint operators

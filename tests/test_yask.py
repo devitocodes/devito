@@ -421,7 +421,7 @@ class TestOperatorAcoustic(object):
     def src(self, model, time_params):
         time_values = np.linspace(*time_params)  # Discretized time axis
         # Define source geometry (center of domain, just below surface)
-        src = RickerSource(name='src', ndim=model.dim, f0=0.01, time=time_values)
+        src = RickerSource(name='src', grid=model.grid, f0=0.01, time=time_values)
         src.coordinates.data[0, :] = np.array(model.domain_size) * .5
         src.coordinates.data[0, -1] = 30.
         return src
@@ -430,7 +430,7 @@ class TestOperatorAcoustic(object):
     def rec(self, model, time_params, src):
         nrec = 130  # Number of receivers
         t0, tn, nt = time_params
-        rec = Receiver(name='rec', ntime=nt, npoint=nrec, ndim=model.dim)
+        rec = Receiver(name='rec', grid=model.grid, ntime=nt, npoint=nrec)
         rec.coordinates.data[:, 0] = np.linspace(0., model.domain_size[0], num=nrec)
         rec.coordinates.data[:, 1:] = src.coordinates.data[0, 1:]
         return rec
