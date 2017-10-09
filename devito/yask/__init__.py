@@ -24,7 +24,7 @@ def exit(emsg):
 
 log("Backend initialization...")
 try:
-    import yask_compiler as yc
+    import yask as yc
     # YASK compiler factories
     cfac = yc.yc_factory()
     nfac = yc.yc_node_factory()
@@ -35,7 +35,7 @@ try:
     # Set directories for generated code
     path = os.environ['YASK_HOME']
 except KeyError:
-    exit("Missing YASK_HOME")
+    path = os.path.dirname(os.path.dirname(yc.__file__))
 
 # YASK conventions
 namespace = OrderedDict()
@@ -82,12 +82,13 @@ yask_configuration = Parameters('YASK-Configuration')
 yask_configuration.add('compiler', YaskCompiler())
 yask_configuration.add('python-exec', False, [False, True])
 # Set the Instruction Set Architecture used by the YASK code generator
-isa, ISAs = 'cpp', ['cpp', 'avx', 'avx2', 'avx512', 'knc']
-yask_configuration.add('isa', isa, ISAs)
+default_isa = 'cpp'
+ISAs = ['cpp', 'avx', 'avx2', 'avx512', 'knc']
+yask_configuration.add('isa', default_isa, ISAs)
 # Currently YASK also require the CPU architecture (e.g., snb for sandy bridge,
 # hsw for haswell, etc.). At the moment, we simply infer it from the ISA
 arch_mapper = {'cpp': 'intel64', 'avx': 'snb', 'avx2': 'hsw', 'avx512': 'knl'}
-yask_configuration.add('arch', arch_mapper[isa], arch_mapper.values())
+yask_configuration.add('arch', arch_mapper[default_isa], arch_mapper.values())
 
 
 # In develop-mode, no optimizations are applied to the generated code (e.g., SIMD)
@@ -95,14 +96,13 @@ yask_configuration.add('arch', arch_mapper[isa], arch_mapper.values())
 # sniffing the highest Instruction Set Architecture level available on the current
 # machine and providing it to YASK
 def reset_yask_isa(develop_mode):
-    if develop_mode is True:
-        return
-    cpu_flags = cpuinfo.get_cpu_info()['flags']
-    isa = 'cpp'
-    for i in reversed(ISAs):
-        if i in cpu_flags:
-            isa = i
-            break
+    isa = default_isa
+    if develop_mode is False:
+        cpu_flags = cpuinfo.get_cpu_info()['flags']
+        for i in reversed(ISAs):
+            if i in cpu_flags:
+                isa = i
+                break
     yask_configuration['isa'] = isa
     yask_configuration['arch'] = arch_mapper[isa]
 yask_configuration.add('develop-mode', True, [False, True], reset_yask_isa)  # noqa
@@ -113,6 +113,6 @@ log("Backend successfully initialized!")
 
 
 # The following used by backends.backendSelector
-from devito.yask.interfaces import ConstantData, DenseData, TimeData  # noqa
-from devito.pointdata import PointData  # noqa
+from devito.yask.function import Constant, Function, TimeFunction  # noqa
+from devito.function import SparseFunction  # noqa
 from devito.yask.operator import Operator  # noqa

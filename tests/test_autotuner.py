@@ -9,15 +9,16 @@ except ImportError:
     from io import StringIO
 
 import pytest
+from conftest import skipif_yask
 
 import numpy as np
-from sympy import Eq
 
-from devito import DenseData, TimeData, Operator, t, x, y, z, configuration
+from devito import Grid, Function, TimeFunction, Eq, Operator, t, x, y, z, configuration
 from devito.logger import logger, logging, set_log_level
 from devito.core.autotuning import options
 
 
+@skipif_yask
 @pytest.mark.parametrize("shape,expected", [
     ((30, 30), 12),
     ((30, 30, 30), 16)
@@ -27,15 +28,16 @@ def test_at_is_actually_working(shape, expected):
     Check that autotuning is actually running when switched on,
     in both 2D and 3D operators.
     """
+    grid = Grid(shape=shape)
 
     buffer = StringIO()
     temporary_handler = logging.StreamHandler(buffer)
     logger.addHandler(temporary_handler)
     set_log_level('DEBUG')
 
-    infield = DenseData(name='infield', shape=shape, dtype=np.int32)
+    infield = Function(name='infield', grid=grid)
     infield.data[:] = np.arange(reduce(mul, shape), dtype=np.int32).reshape(shape)
-    outfield = DenseData(name='outfield', shape=shape, dtype=np.int32)
+    outfield = Function(name='outfield', grid=grid)
     stencil = Eq(outfield.indexify(), outfield.indexify() + infield.indexify()*3.0)
     op = Operator(stencil, dle=('blocking', {'blockinner': True, 'blockalways': True}))
 
@@ -60,6 +62,7 @@ def test_at_is_actually_working(shape, expected):
     set_log_level('INFO')
 
 
+@skipif_yask
 def test_timesteps_per_at_run():
     """
     Check that each autotuning run (ie with a given block shape) takes
@@ -74,11 +77,12 @@ def test_timesteps_per_at_run():
     set_log_level('DEBUG')
 
     shape = (30, 30, 30)
+    grid = Grid(shape=shape)
 
-    # DenseData
-    infield = DenseData(name='infield', shape=shape, dtype=np.int32)
+    # Function
+    infield = Function(name='infield', grid=grid)
     infield.data[:] = np.arange(reduce(mul, shape), dtype=np.int32).reshape(shape)
-    outfield = DenseData(name='outfield', shape=shape, dtype=np.int32)
+    outfield = Function(name='outfield', grid=grid)
     stencil = Eq(outfield.indexify(), outfield.indexify() + infield.indexify()*3.0)
     op = Operator(stencil, dle=('blocking', {'blockalways': True}))
     op(infield=infield, outfield=outfield, autotune=True)
@@ -87,12 +91,12 @@ def test_timesteps_per_at_run():
     assert all('in 1 time steps' in i for i in out)
     buffer.truncate(0)
 
-    # TimeData with increasing time order
+    # TimeFunction with increasing time order
     for to in [1, 2, 4]:
-        infield = TimeData(name='infield', shape=shape, dtype=np.int32, time_order=to)
+        infield = TimeFunction(name='infield', grid=grid, time_order=to)
         infield.data[:] = np.arange(reduce(mul, infield.shape),
                                     dtype=np.int32).reshape(infield.shape)
-        outfield = TimeData(name='outfield', shape=shape, dtype=np.int32, time_order=to)
+        outfield = TimeFunction(name='outfield', grid=grid, time_order=to)
         stencil = Eq(outfield.indexed[t + to, x, y, z],
                      outfield.indexify() + infield.indexify()*3.0)
         op = Operator(stencil, dle=('blocking', {'blockalways': True}))

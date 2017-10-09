@@ -1,8 +1,9 @@
 import cgen as c
 import pytest
-from sympy import Eq
+from conftest import skipif_yask
 
-from devito.nodes import Block, Expression, Function
+from devito import Eq
+from devito.nodes import Block, Expression, Callable
 from devito.visitors import (FindSections, FindSymbols, IsPerfectIteration,
                              MergeOuterIterations, Transformer, printAST,
                              NestedTransformer)
@@ -54,6 +55,7 @@ def block3(exprs, iters):
                      iters[4](exprs[3])])
 
 
+@skipif_yask
 def test_printAST(block1, block2, block3):
     str1 = printAST(block1)
     assert str1 in """
@@ -86,8 +88,9 @@ def test_printAST(block1, block2, block3):
 """
 
 
+@skipif_yask
 def test_create_cgen_tree(block1, block2, block3):
-    assert str(Function('foo', block1, 'void', ()).ccode) == """\
+    assert str(Callable('foo', block1, 'void', ()).ccode) == """\
 void foo()
 {
   for (int i = 0; i < 3; i += 1)
@@ -101,7 +104,7 @@ void foo()
     }
   }
 }"""
-    assert str(Function('foo', block2, 'void', ()).ccode) == """\
+    assert str(Callable('foo', block2, 'void', ()).ccode) == """\
 void foo()
 {
   for (int i = 0; i < 3; i += 1)
@@ -116,7 +119,7 @@ void foo()
     }
   }
 }"""
-    assert str(Function('foo', block3, 'void', ()).ccode) == """\
+    assert str(Callable('foo', block3, 'void', ()).ccode) == """\
 void foo()
 {
   for (int i = 0; i < 3; i += 1)
@@ -141,6 +144,7 @@ void foo()
 }"""
 
 
+@skipif_yask
 def test_find_sections(exprs, block1, block2, block3):
     finder = FindSections()
 
@@ -167,6 +171,7 @@ def test_find_sections(exprs, block1, block2, block3):
     assert found[2][0].stencil == exprs[3].stencil
 
 
+@skipif_yask
 def test_is_perfect_iteration(block1, block2, block3):
     checker = IsPerfectIteration()
 
@@ -184,6 +189,7 @@ def test_is_perfect_iteration(block1, block2, block3):
     assert checker.visit(block3.nodes[2]) is True
 
 
+@skipif_yask
 def test_transformer_wrap(exprs, block1, block2, block3):
     """Basic transformer test that wraps an expression in comments"""
     line1 = '// This is the opening comment'
@@ -202,6 +208,7 @@ def test_transformer_wrap(exprs, block1, block2, block3):
         assert "a[i] = a[i] + b[i] + 5.0F;" in newcode
 
 
+@skipif_yask
 def test_transformer_replace(exprs, block1, block2, block3):
     """Basic transformer test that replaces an expression"""
     line1 = '// Replaced expression'
@@ -218,10 +225,11 @@ def test_transformer_replace(exprs, block1, block2, block3):
         assert "a[i0] = a[i0] + b[i0] + 5.0F;" not in newcode
 
 
+@skipif_yask
 def test_transformer_replace_function_body(block1, block2):
     """Create a Function and replace its body with another."""
     args = FindSymbols().visit(block1)
-    f = Function('foo', block1, 'void', args)
+    f = Callable('foo', block1, 'void', args)
     assert str(f.ccode) == """void foo()
 {
   for (int i = 0; i < 3; i += 1)
@@ -253,6 +261,7 @@ def test_transformer_replace_function_body(block1, block2):
 }"""
 
 
+@skipif_yask
 def test_transformer_add_replace(exprs, block2, block3):
     """Basic transformer test that adds one expression and replaces another"""
     line1 = '// Replaced expression'
@@ -273,6 +282,7 @@ def test_transformer_add_replace(exprs, block2, block3):
         assert "a[i0] = a[i0] + b[i0] + 5.0F;" not in newcode
 
 
+@skipif_yask
 def test_nested_transformer(exprs, iters, block2):
     """Unlike Transformer, based on BFS, a NestedTransformer applies transformations
     performing a DFS. This test simultaneously replace an inner expression and an
@@ -289,6 +299,7 @@ def test_nested_transformer(exprs, iters, block2):
       <Expression a[i] = 8.0*a[i] + 6.0/b[i]>"""
 
 
+@skipif_yask
 def test_merge_iterations_flat(exprs, iters):
     """Test outer loop merging on a simple two-level hierarchy:
 
@@ -310,6 +321,7 @@ def test_merge_iterations_flat(exprs, iters):
     <Expression a[i] = -a[i] + b[i]>"""
 
 
+@skipif_yask
 def test_merge_iterations_deep(exprs, iters):
     """Test outer loop merging on a deep hierarchy:
 
@@ -334,6 +346,7 @@ def test_merge_iterations_deep(exprs, iters):
     <Expression a[i] = -a[i] + b[i]>"""
 
 
+@skipif_yask
 def test_merge_iterations_nested(exprs, iters):
     """Test outer loop merging on a nested hierarchy that only exposes
     the second-level merge after the first level has been performed:

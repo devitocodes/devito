@@ -1,6 +1,6 @@
-from sympy import Eq, cos, sin
+from sympy import cos, sin
 
-from devito import Operator, TimeData
+from devito import Eq, Operator, TimeFunction
 from examples.seismic import PointSource, Receiver
 from devito.finite_difference import centered, first_derivative, right, transpose
 from devito.dimension import x, y, z, t, time
@@ -368,12 +368,12 @@ def ForwardOperator(model, source, receiver, time_order=2, space_order=4,
                                            model.delta, model.theta, model.phi)
 
     # Create symbols for forward wavefield, source and receivers
-    u = TimeData(name='u', shape=model.shape_domain, dtype=model.dtype,
-                 save=save, time_dim=source.nt if save else None,
-                 time_order=time_order, space_order=space_order)
-    v = TimeData(name='v', shape=model.shape_domain, dtype=model.dtype,
-                 save=save, time_dim=source.nt if save else None,
-                 time_order=time_order, space_order=space_order)
+    u = TimeFunction(name='u', grid=model.grid,
+                     save=save, time_dim=source.nt if save else None,
+                     time_order=time_order, space_order=space_order)
+    v = TimeFunction(name='v', grid=model.grid,
+                     save=save, time_dim=source.nt if save else None,
+                     time_order=time_order, space_order=space_order)
     src = PointSource(name='src', ntime=source.nt, ndim=source.ndim,
                       npoint=source.npoint)
     rec = Receiver(name='rec', ntime=receiver.nt, ndim=receiver.ndim,
@@ -410,7 +410,7 @@ def ForwardOperator(model, source, receiver, time_order=2, space_order=4,
     stencils += rec.interpolate(expr=u + v, offset=model.nbpml)
     # Add substitutions for spacing (temporal and spatial)
     subs = dict([(t.spacing, dt)] + [(time.spacing, dt)] +
-                [(i.spacing, model.get_spacing()[j]) for i, j
+                [(i.spacing, model.spacing[j]) for i, j
                  in zip(u.indices[1:], range(len(model.shape)))])
     # Operator
     return Operator(stencils, subs=subs, name='ForwardTTI', **kwargs)

@@ -7,7 +7,7 @@ from devito.cgen_utils import ccode
 from devito.compiler import jit_compile
 from devito.dimension import LoweredDimension
 from devito.dle import filter_iterations, retrieve_iteration_tree
-from devito.interfaces import Object
+from devito.types import Object
 from devito.logger import yask as log, yask_warning as warning
 from devito.nodes import Element
 from devito.operator import OperatorRunnable, FunMeta
@@ -60,7 +60,8 @@ class Operator(OperatorRunnable):
                 # Don't know how to offload this Iteration/Expression to YASK
                 continue
             functions = flatten(i.functions for i in tree[-1].nodes)
-            keys = set((i.indices, i.shape, i.dtype) for i in functions if i.is_TimeData)
+            keys = set((i.indices, i.shape, i.dtype)
+                       for i in functions if i.is_TimeFunction)
             if len(keys) == 0:
                 continue
             elif len(keys) > 1:
@@ -247,11 +248,17 @@ class sympy2yask(object):
                 function = expr.base.function
                 name = function.name
                 if name not in self.mapper:
-                    dimensions = [str(i) for i in function.indices]
+                    if function.is_TimeFunction:
+                        dimensions = [nfac.new_step_index(function.indices[0].name)]
+                        dimensions += [nfac.new_domain_index(i.name)
+                                       for i in function.indices[1:]]
+                    else:
+                        dimensions = [nfac.new_domain_index(i.name)
+                                      for i in function.indices]
                     self.mapper[name] = self.yc_soln.new_grid(name, dimensions)
                 indices = [int((i.origin if isinstance(i, LoweredDimension) else i) - j)
                            for i, j in zip(expr.indices, function.indices)]
-                return self.mapper[name].new_relative_grid_point(*indices)
+                return self.mapper[name].new_relative_grid_point(indices)
             elif expr.is_Add:
                 return nary2binary(expr.args, nfac.new_add_node)
             elif expr.is_Mul:

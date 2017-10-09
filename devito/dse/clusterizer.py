@@ -3,7 +3,7 @@ from collections import OrderedDict, namedtuple
 from devito.dse.graph import temporaries_graph
 from devito.dse.manipulation import xreplace_indices
 
-from devito.interfaces import ScalarFunction
+from devito.types import Scalar
 from devito.stencil import Stencil
 from devito.tools import as_tuple
 
@@ -105,11 +105,11 @@ def optimize(clusters):
         mapper = {}
         temporaries = []
         for k, v in c1.trace.items():
-            if v.function.is_TensorFunction and\
+            if v.function.is_Array and\
                     not any(v.function in c2.unknown for c2 in clusters):
                 for i in c1.tensors[v.function]:
                     # LHS scalarization
-                    scalarized = ScalarFunction(name='s%d' % len(mapper)).indexify()
+                    scalarized = Scalar(name='s%d' % len(mapper)).indexify()
                     mapper[i] = scalarized
 
                     # May have to "unroll" some tensor expressions for scalarization;

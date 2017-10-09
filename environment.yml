@@ -1,9 +1,11 @@
 name: devito
 channels:
   - defaults
+  - conda-forge
 dependencies:
+  - python >=3.6
   - numpy >=1.11
-  - sympy ==1.0
+  - sympy >=1.1
   - scipy
   - matplotlib
   - pytest
@@ -12,6 +14,9 @@ dependencies:
   - psutil>=5.1.0
   - sphinx
   - sphinx_rtd_theme
+  # Some utilities for the pip dependencies below
+  - pandocfilters
+  - scandir
   - pip:
     - "git+git://github.com/inducer/cgen"
     - "git+git://github.com/inducer/codepy"

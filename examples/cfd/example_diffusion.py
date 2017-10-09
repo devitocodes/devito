@@ -16,9 +16,9 @@ import time
 from argparse import ArgumentParser
 
 import numpy as np
-from sympy import Eq, Function, as_finite_diff, lambdify, solve
+import sympy
 
-from devito import Operator, TimeData, t, x, y
+from devito import Grid, Eq, Operator, TimeFunction, t, x, y
 from devito.logger import log
 
 try:
@@ -94,18 +94,18 @@ def execute_lambdify(ui, spacing=0.01, a=0.5, timesteps=500):
 
     def diffusion_stencil():
         """Create stencil and substitutions for the diffusion equation"""
-        p = Function('p')
+        p = sympy.Function('p')
         s = t.spacing
         h = x.spacing
-        dx2 = as_finite_diff(p(x, y, t).diff(x, x), [x - h, x, x + h])
-        dy2 = as_finite_diff(p(x, y, t).diff(y, y), [y - h, y, y + h])
-        dt = as_finite_diff(p(x, y, t).diff(t), [t, t + s])
-        eqn = Eq(dt, a * (dx2 + dy2))
-        stencil = solve(eqn, p(x, y, t + s))[0]
+        dx2 = p(x, y, t).diff(x, x).as_finite_difference([x - h, x, x + h])
+        dy2 = p(x, y, t).diff(y, y).as_finite_difference([y - h, y, y + h])
+        dt = p(x, y, t).diff(t).as_finite_difference([t, t + s])
+        eqn = sympy.Eq(dt, a * (dx2 + dy2))
+        stencil = sympy.solve(eqn, p(x, y, t + s))[0]
         return stencil, (p(x, y, t), p(x + h, y, t), p(x - h, y, t),
                          p(x, y + h, t), p(x, y - h, t), s, h)
     stencil, subs = diffusion_stencil()
-    kernel = lambdify(subs, stencil, 'numpy')
+    kernel = sympy.lambdify(subs, stencil, 'numpy')
 
     # Execute timestepping loop with alternating buffers
     tstart = time.time()
@@ -128,12 +128,13 @@ def execute_devito(ui, spacing=0.01, a=0.5, timesteps=500):
     dt = dx2 * dy2 / (2 * a * (dx2 + dy2))
     # Allocate the grid and set initial condition
     # Note: This should be made simpler through the use of defaults
-    u = TimeData(name='u', shape=(nx, ny), time_order=1, space_order=2)
+    grid = Grid(shape=(nx, ny))
+    u = TimeFunction(name='u', grid=grid, time_order=1, space_order=2)
     u.data[0, :] = ui[:]
 
     # Derive the stencil according to devito conventions
     eqn = Eq(u.dt, a * (u.dx2 + u.dy2))
-    stencil = solve(eqn, u.forward)[0]
+    stencil = sympy.solve(eqn, u.forward)[0]
     op = Operator(Eq(u.forward, stencil), subs={x.spacing: spacing,
                                                 y.spacing: spacing,
                                                 t.spacing: dt})

@@ -81,9 +81,9 @@ class _BackendSelector(FunctionClass):
         Return True if instance is an instance of cls.
 
         We need to override the default isinstance check because
-        ``type(interfaces.DenseData(...))`` is ``interfaces.DenseData``, but
-        type(interfaces.DenseData) is ``_BackendSelector`` and so by default
-        ``isinstance(interfaces.DenseData(...), interfaces.DenseData)`` is False.
+        ``type(function.Function(...))`` is ``function.Function``, but
+        type(function.Function) is ``_BackendSelector`` and so by default
+        ``isinstance(function.Function(...), function.Function)`` is False.
         """
         return isinstance(instance, cls._backend.__dict__[cls.__name__])
 
@@ -92,9 +92,9 @@ class _BackendSelector(FunctionClass):
         Return True if subclass is a subclass of cls.
 
         We need to override the default subclass check because
-        ``type(interfaces.DenseData(...))`` is ``interfaces.DenseData`, but
-        ``type(interfaces.DenseData)`` is ``_BackendSelector`` and so by default
-        ``isinstance(type(interfaces.DenseData(...)), interfaces.DenseData)`` is False.
+        ``type(function.Function(...))`` is ``function.Function`, but
+        ``type(function.Function)`` is ``_BackendSelector`` and so by default
+        ``isinstance(type(function.Function(...)), function.Function)`` is False.
         """
         return issubclass(subclass, cls._backend.__dict__[cls.__name__])
 

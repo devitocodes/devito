@@ -1,5 +1,5 @@
 # coding: utf-8
-from devito import TimeData, memoized
+from devito import TimeFunction, memoized
 from examples.seismic.tti.operators import ForwardOperator
 from examples.seismic import Receiver
 
@@ -70,18 +70,14 @@ class AnisotropicWaveSolver(object):
 
         # Create the forward wavefield if not provided
         if u is None:
-            u = TimeData(name='u', shape=self.model.shape_domain, save=save,
-                         time_dim=self.source.nt if save else None,
-                         time_order=self.time_order,
-                         space_order=self.space_order,
-                         dtype=self.model.dtype)
+            u = TimeFunction(name='u', grid=self.model.grid, save=save,
+                             time_dim=self.source.nt if save else None,
+                             time_order=self.time_order, space_order=self.space_order)
         # Create the forward wavefield if not provided
         if v is None:
-            v = TimeData(name='v', shape=self.model.shape_domain,
-                         save=save, time_dim=self.source.nt if save else None,
-                         time_order=self.time_order,
-                         space_order=self.space_order,
-                         dtype=self.model.dtype)
+            v = TimeFunction(name='v', grid=self.model.grid, save=save,
+                             time_dim=self.source.nt if save else None,
+                             time_order=self.time_order, space_order=self.space_order)
         # Pick m from model unless explicitly provided
         if m is None:
             m = m or self.model.m

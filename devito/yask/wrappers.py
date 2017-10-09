@@ -15,7 +15,7 @@ from devito.exceptions import CompilationError
 from devito.logger import yask as log
 from devito.tools import numpy_to_ctypes
 
-from devito.yask import cfac, ofac, namespace, exit, yask_configuration
+from devito.yask import cfac, nfac, ofac, namespace, exit, yask_configuration
 from devito.yask.utils import convert_multislice
 
 
@@ -80,7 +80,7 @@ class YaskGrid(object):
         if not shape:
             log("YaskGrid: Getting single entry %s" % str(start))
             assert start == stop
-            out = self.grid.get_element(*start)
+            out = self.grid.get_element(start)
         else:
             log("YaskGrid: Getting full-array/block via index [%s]" % str(index))
             out = np.empty(shape, self.dtype, 'C')
@@ -92,7 +92,7 @@ class YaskGrid(object):
         if all(i == 1 for i in shape):
             log("YaskGrid: Setting single entry %s" % str(start))
             assert start == stop
-            self.grid.set_element(val, *start)
+            self.grid.set_element(val, start)
         elif isinstance(val, np.ndarray):
             log("YaskGrid: Setting full-array/block via index [%s]" % str(index))
             self.grid.set_elements_in_slice(val, start, stop)
@@ -268,19 +268,22 @@ class YaskKernel(object):
 
         # JIT-compile it
         try:
+            compiler = yask_configuration['compiler']
             opt_level = 1 if yask_configuration['develop-mode'] else 3
-            make(os.environ['YASK_HOME'], ['-j', 'YK_CXXOPT=-O%d' % opt_level,
-                                           # "EXTRA_MACROS=TRACE",
-                                           'YK_BASE=%s' % str(name),
-                                           'stencil=%s' % yc_soln.get_name(),
-                                           'arch=%s' % yask_configuration['arch'],
-                                           '-C', namespace['kernel-path'], 'api'])
+            make(namespace['path'], ['-j3', 'YK_CXX=%s' % compiler.cc,
+                                     'YK_CXXOPT=-O%d' % opt_level,
+                                     'mpi=0',  # Disable MPI for now
+                                     # "EXTRA_MACROS=TRACE",
+                                     'YK_BASE=%s' % str(name),
+                                     'stencil=%s' % yc_soln.get_name(),
+                                     'arch=%s' % yask_configuration['arch'],
+                                     '-C', namespace['kernel-path'], 'api'])
         except CompilationError:
             exit("Kernel solution compilation")
 
         # Import the corresponding Python (SWIG-generated) module
         try:
-            yk = importlib.import_module(name)
+            yk = getattr(__import__('yask', fromlist=[name]), name)
         except ImportError:
             exit("Python YASK kernel bindings")
         try:
@@ -306,11 +309,11 @@ class YaskKernel(object):
 
         # Set up the solution domain size
         for k, v in domain.items():
-            self.soln.set_rank_domain_size(k, v)
+            self.soln.set_rank_domain_size(k, int(v))
 
     def new_grid(self, obj_name, grid_name, dimensions):
         """Create a new YASK grid."""
-        return self.soln.new_grid(grid_name, *dimensions)
+        return self.soln.new_grid(grid_name, dimensions)
 
     def prepare(self):
         self.soln.prepare_solution()
@@ -363,6 +366,12 @@ class YaskContext(object):
 
         # Build the hook kernel solution (wrapper) to create grids
         yc_hook = self.make_yc_solution(namespace['jit-yc-hook'])
+        # Need to add dummy grids to make YASK happy
+        # TODO: improve me
+        dimensions = [nfac.new_domain_index(i) for i in domain]
+        yc_hook.new_grid('dummy_wo_time', dimensions)
+        dimensions = [nfac.new_step_index(namespace['time-dim'])] + dimensions
+        yc_hook.new_grid('dummy_w_time', dimensions)
         self.yk_hook = YaskKernel(namespace['jit-yk-hook'](name, 0), yc_hook, domain)
 
     @cached_property
@@ -394,7 +403,7 @@ class YaskContext(object):
         """
         dimensions = [str(i) for i in obj.indices]
         if set(dimensions) < set(self.space_dimensions):
-            exit("Need a DenseData[x,y,z] to create a YASK grid.")
+            exit("Need a Function[x,y,z] to create a YASK grid.")
         name = 'devito_%s_%d' % (obj.name, contexts.ngrids)
         log("Allocating YaskGrid for %s (%s)" % (obj.name, str(obj.shape)))
         grid = self.yk_hook.new_grid(obj.name, name, dimensions)
@@ -408,8 +417,6 @@ class YaskContext(object):
         """
         yc_soln = cfac.new_solution(namer(self.name, self.nsolutions))
         yc_soln.set_debug_output(ofac.new_null_output())
-        yc_soln.set_step_dim_name(namespace['time-dim'])
-        yc_soln.set_domain_dim_names(*list(self.domain))
         yc_soln.set_element_bytes(self.dtype().itemsize)
         return yc_soln
 
@@ -439,9 +446,10 @@ class ContextManager(OrderedDict):
 
     def dump(self):
         """
-        Drop all known contexts and clean up lib directory.
+        Drop all known contexts and clean up the relevant YASK directories.
         """
         self.clear()
+        call(['rm', '-f'] + glob(os.path.join(namespace['path'], 'yask', '*devito*')))
         call(['rm', '-f'] + glob(os.path.join(namespace['path'], 'lib', '*devito*')))
         call(['rm', '-f'] + glob(os.path.join(namespace['path'], 'lib', '*hook*')))
 
@@ -455,14 +463,14 @@ class ContextManager(OrderedDict):
         assert len(dimensions) == len(shape)
         dimensions = [str(i) for i in dimensions]
         if set(dimensions) < {'x', 'y', 'z'}:
-            exit("Need a DenseData[x,y,z] for initialization")
+            exit("Need a Function[x,y,z] for initialization")
 
         # The time dimension is dropped as implicit to the context
         domain = OrderedDict([(i, j) for i, j in zip(dimensions, shape)
                               if i != namespace['time-dim']])
 
         # A unique key for this context.
-        key = tuple([yask_configuration['isa'], dtype] + domain.items())
+        key = tuple([yask_configuration['isa'], dtype] + list(domain.items()))
 
         # Fetch or create a YaskContext
         if key in self:

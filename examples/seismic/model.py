@@ -1,7 +1,7 @@
 import numpy as np
 import os
 
-from devito import DenseData, ConstantData
+from devito import Grid, Function, Constant
 from devito.logger import error
 
 
@@ -13,9 +13,27 @@ def demo_model(preset, **kwargs):
     Utility function to create preset :class:`Model` objects for
     demonstration and testing purposes. The particular presets are ::
 
-    * 'layer2D': Simple two-layer model with velocities 1.5 km/s
+    * `constant-isotropic` : Constant velocity (1.5km/sec) isotropic model
+    * `constant-tti` : Constant anisotropic model. Velocity is 1.5 km/sec and
+                      Thomsen parameters are epsilon=.3, delta=.2, theta = .7rad
+                      and phi=.35rad for 3D. 2d/3d is defined from the input shape
+    * 'layers-isotropic': Simple two-layer model with velocities 1.5 km/s
                  and 2.5 km/s in the top and bottom layer respectively.
-    * 'marmousi2D': Loads the 2D Marmousi data set from the given
+                 2d/3d is defined from the input shape
+    * 'layers-tti': Simple two-layer TTI model with velocities 1.5 km/s
+                    and 2.5 km/s in the top and bottom layer respectively.
+                    Thomsen parameters in the top layer are 0 and in the lower layer
+                    are epsilon=.3, delta=.2, theta = .5rad and phi=.1 rad for 3D.
+                    2d/3d is defined from the input shape
+    * 'circle-isotropic': Simple camembert model with velocities 1.5 km/s
+                 and 2.5 km/s in a circle at the center. 2D only.
+    * 'marmousi2d-isotropic': Loads the 2D Marmousi data set from the given
+                    filepath. Requires the ``opesci/data`` repository
+                    to be available on your machine.
+    * 'marmousi2d-tti': Loads the 2D Marmousi data set from the given
+                    filepath. Requires the ``opesci/data`` repository
+                    to be available on your machine.
+    * 'marmousi3d-tti': Loads the 2D Marmousi data set from the given
                     filepath. Requires the ``opesci/data`` repository
                     to be available on your machine.
     """
@@ -285,37 +303,34 @@ class Model(object):
     """
     def __init__(self, origin, spacing, shape, vp, nbpml=20, dtype=np.float32,
                  epsilon=None, delta=None, theta=None, phi=None):
-        self.origin = origin
-        self.spacing = spacing
         self.shape = shape
         self.nbpml = int(nbpml)
-        self.dtype = dtype
 
-        # Ensure same dimensions on all inpute parameters
-        assert(len(origin) == len(spacing))
-        assert(len(origin) == len(shape))
+        shape_pml = np.array(shape) + 2 * self.nbpml
+        # Physical extent is calculated per cell, so shape - 1
+        extent = tuple(np.array(spacing) * (shape_pml - 1))
+        self.grid = Grid(extent=extent, shape=shape_pml,
+                         origin=origin, dtype=dtype)
 
         # Create square slowness of the wave as symbol `m`
         if isinstance(vp, np.ndarray):
-            self.m = DenseData(name="m", shape=self.shape_domain, dtype=self.dtype)
+            self.m = Function(name="m", grid=self.grid)
         else:
-            self.m = ConstantData(name="m", value=1/vp**2, dtype=self.dtype)
+            self.m = Constant(name="m", value=1/vp**2)
 
         # Set model velocity, which will also set `m`
         self.vp = vp
 
         # Create dampening field as symbol `damp`
-        self.damp = DenseData(name="damp", shape=self.shape_domain,
-                              dtype=self.dtype)
-        damp_boundary(self.damp.data, self.nbpml, spacing=self.get_spacing())
+        self.damp = Function(name="damp", grid=self.grid)
+        damp_boundary(self.damp.data, self.nbpml, spacing=self.spacing)
 
         # Additional parameter fields for TTI operators
         self.scale = 1.
 
         if epsilon is not None:
             if isinstance(epsilon, np.ndarray):
-                self.epsilon = DenseData(name="epsilon", shape=self.shape_domain,
-                                         dtype=self.dtype)
+                self.epsilon = Function(name="epsilon", grid=self.grid)
                 self.epsilon.data[:] = self.pad(1 + 2 * epsilon)
                 # Maximum velocity is scale*max(vp) if epsilon > 0
                 if np.max(self.epsilon.data) > 0:
@@ -328,8 +343,7 @@ class Model(object):
 
         if delta is not None:
             if isinstance(delta, np.ndarray):
-                self.delta = DenseData(name="delta", shape=self.shape_domain,
-                                       dtype=self.dtype)
+                self.delta = Function(name="delta", grid=self.grid)
                 self.delta.data[:] = self.pad(np.sqrt(1 + 2 * delta))
             else:
                 self.delta = delta
@@ -338,8 +352,7 @@ class Model(object):
 
         if theta is not None:
             if isinstance(theta, np.ndarray):
-                self.theta = DenseData(name="theta", shape=self.shape_domain,
-                                       dtype=self.dtype)
+                self.theta = Function(name="theta", grid=self.grid)
                 self.theta.data[:] = self.pad(theta)
             else:
                 self.theta = theta
@@ -348,8 +361,7 @@ class Model(object):
 
         if phi is not None:
             if isinstance(phi, np.ndarray):
-                self.phi = DenseData(name="phi", shape=self.shape_domain,
-                                     dtype=self.dtype)
+                self.phi = Function(name="phi", grid=self.grid)
                 self.phi.data[:] = self.pad(phi)
             else:
                 self.phi = phi
@@ -359,9 +371,30 @@ class Model(object):
     @property
     def dim(self):
         """
-        Spatial dimension of the model domain
+        Spatial dimension of the problem and model domain.
         """
-        return len(self.shape)
+        return self.grid.dim
+
+    @property
+    def spacing(self):
+        """
+        Grid spacing for all fields in the physical model.
+        """
+        return self.grid.spacing
+
+    @property
+    def origin(self):
+        """
+        Coordinates of the origin of the physical model.
+        """
+        return self.grid.origin
+
+    @property
+    def dtype(self):
+        """
+        Data type for all assocaited data objects.
+        """
+        return self.grid.dtype
 
     @property
     def shape_domain(self):
@@ -393,7 +426,7 @@ class Model(object):
 
         Updating the velocity field also updates the square slowness
         ``self.m``. However, only ``self.m`` should be used in seismic
-        operators, since it is of type :class:`DenseData`.
+        operators, since it is of type :class:`Function`.
         """
         return self._vp
 
@@ -410,10 +443,6 @@ class Model(object):
             self.m.data[:] = self.pad(1 / (self.vp * self.vp))
         else:
             self.m.data = 1 / vp**2
-
-    def get_spacing(self):
-        """Return the grid size"""
-        return self.spacing
 
     def pad(self, data):
         """Padding function PNL layers in every direction for for the

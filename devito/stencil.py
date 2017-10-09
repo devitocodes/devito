@@ -2,7 +2,6 @@ from collections import OrderedDict, namedtuple
 
 from sympy import Eq
 
-from devito.dse.queries import q_indexed
 from devito.dse.search import retrieve_indexed, retrieve_terminals
 from devito.exceptions import StencilOperationError
 from devito.dimension import Dimension
@@ -59,7 +58,7 @@ class Stencil(DefaultOrderedDict):
 
         # Collect all indexed objects appearing in /expr/
         terminals = retrieve_terminals(expr, mode='all')
-        indexeds = [i for i in terminals if q_indexed(i)]
+        indexeds = [i for i in terminals if i.is_Indexed]
         indexeds += flatten([retrieve_indexed(i) for i in e.indices] for e in indexeds)
 
         # Enforce deterministic dimension ordering...
@@ -67,15 +66,16 @@ class Stencil(DefaultOrderedDict):
         for e in terminals:
             if isinstance(e, Dimension):
                 dims[(e,)] = e
-            elif q_indexed(e):
+            elif e.is_Indexed:
                 d = []
                 for a in e.indices:
                     found = [i for i in a.free_symbols if isinstance(i, Dimension)]
                     d.extend([i for i in found if i not in d])
                 dims[tuple(d)] = e
-        # ... giving higher priority to TimeData objects; time always go first
-        dims = sorted(list(dims), key=lambda i: not (isinstance(dims[i], Dimension) or
-                                                     dims[i].base.function.is_TimeData))
+        # ... giving higher priority to TimeFunction objects; time always go first
+        dims = sorted(list(dims),
+                      key=lambda i: not (isinstance(dims[i], Dimension) or
+                                         dims[i].base.function.is_TimeFunction))
         stencil = Stencil([(i, set()) for i in partial_order(dims)])
 
         # Determine the points accessed along each dimension

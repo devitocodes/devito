@@ -41,7 +41,7 @@ class Argument(object):
     @property
     def value(self):
         try:
-            if self._value.is_SymbolicData:
+            if self._value.is_SymbolicFunction:
                 return self._value._data_buffer
             else:
                 raise InvalidArgument("Unexpected data object %s" % type(self._value))
@@ -288,7 +288,7 @@ class DimensionArgProvider(ArgumentProvider):
         return verify
 
 
-class ConstantDataArgProvider(ArgumentProvider):
+class ConstantArgProvider(ArgumentProvider):
 
     """ Class used to decorate Constant Data objects with behaviour required for runtime
         arguments.
@@ -299,7 +299,7 @@ class ConstantDataArgProvider(ArgumentProvider):
         return (ScalarArgument(self.name, self, default_value=self.data),)
 
 
-class TensorDataArgProvider(ArgumentProvider):
+class TensorFunctionArgProvider(ArgumentProvider):
 
     """ Class used to decorate Symbolic Data objects with behaviour required for runtime
         arguments.
@@ -310,7 +310,7 @@ class TensorDataArgProvider(ArgumentProvider):
         return (TensorArgument(self.name, self),)
 
 
-class ScalarFunctionArgProvider(ArgumentProvider):
+class ScalarArgProvider(ArgumentProvider):
 
     """ Class used to decorate Scalar Function objects with behaviour required for runtime
         arguments.
@@ -321,7 +321,7 @@ class ScalarFunctionArgProvider(ArgumentProvider):
         return (ScalarArgument(self.name, self, self.dtype),)
 
 
-class TensorFunctionArgProvider(ArgumentProvider):
+class ArrayArgProvider(ArgumentProvider):
 
     """ Class used to decorate Tensor Function objects with behaviour required for runtime
         arguments.

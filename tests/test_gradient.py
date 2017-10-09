@@ -1,12 +1,14 @@
 import numpy as np
 import pytest
 from numpy import linalg
+from conftest import skipif_yask
 
 from devito.logger import info
 from examples.seismic.acoustic.acoustic_example import smooth10, acoustic_setup as setup
 from examples.seismic import Receiver
 
 
+@skipif_yask
 @pytest.mark.parametrize('space_order', [4])
 @pytest.mark.parametrize('time_order', [2])
 @pytest.mark.parametrize('shape', [(70, 80)])
@@ -74,6 +76,7 @@ def test_gradientFWI(shape, time_order, space_order):
     assert np.isclose(p2[0], 2.0, rtol=0.1)
 
 
+@skipif_yask
 @pytest.mark.parametrize('space_order', [4])
 @pytest.mark.parametrize('time_order', [2])
 @pytest.mark.parametrize('shape', [(70, 80)])
@@ -121,8 +124,9 @@ def test_gradientJ(shape, time_order, space_order):
     # Test slope of the  tests
     p1 = np.polyfit(np.log10(H), np.log10(error1), 1)
     p2 = np.polyfit(np.log10(H), np.log10(error2), 1)
-    info('1st order error, Phi(m0+dm)-Phi(m0): %s' % (p1))
-    info('2nd order error, Phi(m0+dm)-Phi(m0) - <J(m0)^T \delta d, dm>: %s' % (p2))
+    info('1st order error, Phi(m0+dm)-Phi(m0) with slope: %s compared to 1' % (p1[0]))
+    info('2nd order error, Phi(m0+dm)-Phi(m0) - <J(m0)^T \delta d, dm>with slope:'
+         ' %s comapred to 2' % (p2[0]))
     assert np.isclose(p1[0], 1.0, rtol=0.1)
     assert np.isclose(p2[0], 2.0, rtol=0.1)
 
