@@ -296,23 +296,14 @@ def compact_temporaries(temporaries, leaves):
 
 
 def pow_to_mul(expr):
-    """
-    Convert integer powers in an expression to Muls, like a**2 => a*a.
-    Readapted from: ::
-
-        stackoverflow.com/questions/14264431/expanding-algebraic-powers-in-python-sympy
-
-    The readaptation was necessary to make it work with Indexed.
-    """
-    lhs, rhs = expr.args
-    pows = [i for i in rhs.args if i.is_Pow]
-    non_pows = [i for i in rhs.args if i not in pows]
-    if not pows:
+    if expr.is_Atom or expr.is_Indexed:
         return expr
-    if any(not e.is_Integer or e <= 0 for b, e in (i.as_base_exp() for i in pows)):
-        # Cannot handle powers containing non-integer non-positive exponents
-        return expr
-    muls = [sympy.Mul(*[b]*e, evaluate=False)
-            for b, e in (i.as_base_exp() for i in pows)]
-    rhs = rhs.func(*(muls + non_pows), evaluate=False)
-    return expr.func(expr.lhs, rhs.func(*(muls + non_pows), evaluate=False))
+    elif expr.is_Pow:
+        base, exp = expr.as_base_exp()
+        if exp <= 0:
+            # Cannot handle powers containing non-integer non-positive exponents
+            return expr
+        else:
+            return sympy.Mul(*[base]*exp, evaluate=False)
+    else:
+        return expr.func(*[pow_to_mul(i) for i in expr.args], evaluate=False)
