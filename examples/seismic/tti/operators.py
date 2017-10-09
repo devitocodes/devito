@@ -3,7 +3,6 @@ from sympy import cos, sin
 from devito import Eq, Operator, TimeFunction
 from examples.seismic import PointSource, Receiver
 from devito.finite_difference import centered, first_derivative, right, transpose
-from devito.dimension import x, y, z
 
 
 def Gxx_shifted(field, costheta, sintheta, cosphi, sinphi, space_order):
@@ -18,6 +17,7 @@ def Gxx_shifted(field, costheta, sintheta, cosphi, sinphi, space_order):
     :param space_order: discretization order
     :return: rotated second order derivative wrt x
     """
+    x, y, z = field.space_dimensions
     Gx1 = (costheta * cosphi * field.dx + costheta * sinphi * field.dyr -
            sintheta * field.dzr)
     Gxx1 = (first_derivative(Gx1 * costheta * cosphi,
@@ -53,6 +53,7 @@ def Gxx_shifted_2d(field, costheta, sintheta, space_order):
     :param space_order: discretization order
     :return: rotated second order derivative wrt x
     """
+    x, y = field.space_dimensions[:2]
     Gx1 = (costheta * field.dxr - sintheta * field.dy)
     Gxx1 = (first_derivative(Gx1 * costheta, dim=x,
                              side=right, order=space_order,
@@ -81,6 +82,7 @@ def Gyy_shifted(field, cosphi, sinphi, space_order):
     :param space_order: discretization order
     :return: rotated second order derivative wrt y
     """
+    x, y = field.space_dimensions[:2]
     Gyp = (sinphi * field.dx - cosphi * field.dyr)
     Gyy = (first_derivative(Gyp * sinphi,
                             dim=x, side=centered, order=space_order,
@@ -110,6 +112,7 @@ def Gzz_shited(field, costheta, sintheta, cosphi, sinphi, space_order):
     :param space_order: discretization order
     :return: rotated second order derivative wrt z
     """
+    x, y, z = field.space_dimensions
     Gzr = (sintheta * cosphi * field.dx + sintheta * sinphi * field.dyr +
            costheta * field.dzr)
     Gzz = (first_derivative(Gzr * sintheta * cosphi,
@@ -145,6 +148,7 @@ def Gzz_shited_2d(field, costheta, sintheta, space_order):
     :param space_order: discretization order
     :return: rotated second order derivative wrt z
     """
+    x, y = field.space_dimensions[:2]
     Gz1r = (sintheta * field.dxr + costheta * field.dy)
     Gzz1 = (first_derivative(Gz1r * sintheta, dim=x,
                              side=right, order=space_order,
@@ -175,6 +179,7 @@ def Gzz_centered(field, costheta, sintheta, cosphi, sinphi, space_order):
     :return: rotated second order derivative wrt z
     """
     order1 = space_order / 2
+    x, y, z = field.space_dimensions
     Gz = -(sintheta * cosphi * first_derivative(field, dim=x,
                                                 side=centered, order=order1) +
            sintheta * sinphi * first_derivative(field, dim=y,
@@ -203,6 +208,7 @@ def Gzz_centered_2d(field, costheta, sintheta, space_order):
     :return: rotated second order derivative wrt z
     """
     order1 = space_order / 2
+    x, y = field.space_dimensions[:2]
     Gz = -(sintheta * first_derivative(field, dim=x, side=centered, order=order1) +
            costheta * first_derivative(field, dim=y, side=centered, order=order1))
     Gzz = (first_derivative(Gz * sintheta, dim=x,

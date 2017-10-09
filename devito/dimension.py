@@ -4,7 +4,7 @@ from cached_property import cached_property
 from devito.arguments import DimensionArgProvider
 from devito.types import Symbol
 
-__all__ = ['Dimension', 'x', 'y', 'z', 't', 'p', 'd', 'time',
+__all__ = ['Dimension', 't', 'p', 'd', 'time',
            'SpaceDimension', 'TimeDimension', 'SteppingDimension']
 
 
@@ -144,11 +144,6 @@ class LoweredDimension(Dimension):
 # Default dimensions for time
 time = TimeDimension('time', spacing=sympy.Symbol('s'))
 t = SteppingDimension('t', parent=time)
-
-# Default dimensions for space
-x = SpaceDimension('x', spacing=sympy.Symbol('h_x'))
-y = SpaceDimension('y', spacing=sympy.Symbol('h_y'))
-z = SpaceDimension('z', spacing=sympy.Symbol('h_z'))
 
 d = Dimension('d')
 p = Dimension('p')

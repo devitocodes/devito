@@ -13,7 +13,7 @@ from conftest import skipif_yask
 
 import numpy as np
 
-from devito import Grid, Function, TimeFunction, Eq, Operator, t, x, y, z, configuration
+from devito import Grid, Function, TimeFunction, Eq, Operator, configuration
 from devito.logger import logger, logging, set_log_level
 from devito.core.autotuning import options
 
@@ -78,6 +78,8 @@ def test_timesteps_per_at_run():
 
     shape = (30, 30, 30)
     grid = Grid(shape=shape)
+    x, y, z = grid.dimensions
+    t = grid.stepping_dim
 
     # Function
     infield = Function(name='infield', grid=grid)
