@@ -3,12 +3,12 @@ from conftest import EVAL
 from sympy import sin  # noqa
 import numpy as np
 import pytest
-from conftest import skipif_yask
+from conftest import x, y, z, time, skipif_yask  # noqa
 
 from devito.dse import (clusterize, rewrite, xreplace_constrained, iq_timeinvariant,
                         iq_timevarying, estimate_cost, temporaries_graph,
                         pow_to_mul, common_subexprs_elimination, collect)
-from devito import Eq, Dimension, x, y, z, time, clear_cache  # noqa
+from devito import Eq  # noqa
 from devito.types import Scalar
 from devito.nodes import Expression
 from devito.stencil import Stencil
