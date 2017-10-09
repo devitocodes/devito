@@ -15,8 +15,8 @@ from devito.tools import flatten
 from devito.visitors import IsPerfectIteration, Transformer
 
 from devito.yask import nfac, namespace, exit, yask_configuration
-from devito.yask.utils import make_grid_accesses, make_sharedptr_funcall
-from devito.yask.wrappers import YaskNullContext, YaskNullSolution, contexts
+from devito.yask.utils import make_grid_accesses, make_sharedptr_funcall, rawpointer
+from devito.yask.wrappers import YaskNullContext, YaskNullKernel, contexts
 
 __all__ = ['Operator']
 
@@ -45,12 +45,11 @@ class Operator(OperatorRunnable):
 
         ``parameters`` is modified in-place adding YASK-related arguments.
         """
-
         log("Specializing a Devito Operator for YASK...")
 
         self.context = YaskNullContext()
-        self.yk_soln = YaskNullSolution()
-        self._local_grids = {}
+        self.yk_soln = YaskNullKernel()
+        local_grids = []
 
         offloadable = find_offloadable_trees(nodes)
         if len(offloadable) == 0:
@@ -76,21 +75,9 @@ class Operator(OperatorRunnable):
                 self.func_table[namespace['code-soln-run']] = FunMeta(None, False)
 
                 # JIT-compile the newly-created YASK kernel
+                local_grids += [i for i in transform.mapper if i.is_TensorFunction]
                 self.yk_soln = self.context.make_yk_solution(namespace['jit-yk-soln'],
-                                                             yc_soln)
-
-                # Convert temporary tensors into YASK grids, and drop them into
-                # the generated code
-                # TODO: ATM, *all* TensorFunction are hoisted to Python-land; but some,
-                # the vector temporaries *not* spanning the whole grids, will be managed
-                # directly by YASK. These need be traced from the DSE, and treated
-                # appropriately here
-                for i in transform.mapper:
-                    if i.is_TensorFunction:
-                        assert i.shape == self.context.shape_domain
-                        self._local_grids[i] = self.context.make_grid(i)
-                        # No need to allocate memory in C-land through e.g. malloc
-                        i.update(external=True)
+                                                             yc_soln, local_grids)
 
                 # Now we must drop a pointer to the YASK solution down to C-land
                 parameters.append(Object(namespace['code-soln-name'],
@@ -112,11 +99,11 @@ class Operator(OperatorRunnable):
         nodes = make_grid_accesses(nodes)
 
         # Update the parameters list adding all necessary YASK grids
-        for i in list(parameters) + list(self._local_grids):
+        for i in list(parameters) + local_grids:
             try:
                 if i.from_YASK:
                     parameters.append(Object(namespace['code-grid-name'](i.name),
-                                             namespace['type-grid'], None))
+                                             namespace['type-grid']))
             except AttributeError:
                 # Ignore e.g. Dimensions
                 pass
@@ -145,14 +132,20 @@ class Operator(OperatorRunnable):
         # Update this Operator's grids by sharing user-provided data
         for i in self.parameters:
             obj = kwargs.get(i.name)
-            if obj is not None and obj.from_YASK:
-                kgrid = self.yk_soln.grids.get(i.name)
-                if kgrid is not None:
-                    obj.data.give_storage(kgrid)
+            if obj is not None:
+                if obj.name in self.yk_soln.grids:
+                    self.yk_soln.update(obj)
                 else:
                     # A YaskGrid read/written by this Operator but not appearing
                     # in the offloaded YASK kernel (if any)
                     pass
+
+        # Add pointers to temporary YASK grids
+        local_grids = {namespace['code-grid-name'](k): v
+                       for k, v in self.yk_soln.local_grids.items()}
+        for i in self.parameters:
+            if i.name in local_grids:
+                assert(i.verify(rawpointer(local_grids[i.name])))
 
         return super(Operator, self).arguments(**kwargs)
 
@@ -160,32 +153,23 @@ class Operator(OperatorRunnable):
         # Build the arguments list to invoke the kernel function
         arguments, dim_sizes = self.arguments(**kwargs)
 
-        # Allocate temporary grids
-        for i in self._local_grids.values():
-            i.alloc_storage()
-
         # Print some info about the solution.
         log("Stencil-solution '%s':" % self.yk_soln.name)
         log("  Step dimension: %s" % self.context.time_dimension)
         log("  Domain dimensions: %s" % str(self.context.space_dimensions))
         log("  Grids:")
         for grid in self.yk_soln.grids.values():
-            pad = str([grid.get_pad_size(i) for i in self.context.space_dimensions])
-            log("    %s%s, pad=%s" % (grid.get_name(), str(grid.get_dim_names()), pad))
-
-        # Required by YASK before running any stencils
-        self.yk_soln.prepare()
+            size = [grid.get_rank_domain_size(i) for i in self.context.space_dimensions]
+            pad = [grid.get_pad_size(i) for i in self.context.space_dimensions]
+            log("    %s%s, size=%s, pad=%s" % (grid.get_name(), str(grid.get_dim_names()),
+                                               size, pad))
 
         if yask_configuration['python-exec']:
             log("Running YASK Operator through YASK...")
-            self.yk_soln.run(dim_sizes[self.context.time_dimension])
+            self.yk_soln.run_py(dim_sizes[self.context.time_dimension])
         else:
             log("Running YASK Operator through Devito...")
-            self.cfunction(*list(arguments.values()))
-
-        # Deallocate temporary grids
-        for i in self._local_grids.values():
-            i.release_storage()
+            self.yk_soln.run_c(self.cfunction, list(arguments.values()))
 
         log("YASK Operator successfully run!")
 
@@ -204,7 +188,7 @@ class Operator(OperatorRunnable):
         """
         if self._lib is None:
             # No need to recompile if a shared object has already been loaded.
-            if not isinstance(self.yk_soln, YaskNullSolution):
+            if not isinstance(self.yk_soln, YaskNullKernel):
                 self._compiler.libraries.append(self.yk_soln.soname)
             return jit_compile(self.ccode, self._compiler)
         else:
