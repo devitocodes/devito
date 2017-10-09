@@ -286,8 +286,8 @@ class TestArguments(object):
         """Test that the dimension sizes are being inferred correctly"""
         i, j, k = dimify('i j k')
         shape = tuple([d.size for d in [i, j, k]])
-        a = DenseData(name='a', shape=shape).indexed
-        b = TimeData(name='b', shape=shape, save=True, time_dim=nt).indexed
+        a = Function(name='a', shape=shape).indexed
+        b = TimeFunction(name='b', shape=shape, save=True, time_dim=nt).indexed
         eqn = Eq(b[time+1, x, y, z], b[time-1, x, y, z] + b[time, x, y, z] + a[x, y, z])
         op = Operator(eqn)
 
@@ -339,7 +339,7 @@ class TestArguments(object):
         shape = (10, 10)
         start = 3
         end = 6
-        a = DenseData(name='a', shape=shape)
+        a = Function(name='a', shape=shape)
         eqn = Eq(a, a + 1)
         op = Operator(eqn)
         op(x_s=start, x_e=end, y_s=start, y_e=end)
@@ -352,7 +352,7 @@ class TestArguments(object):
         shape = (10, 10, 10)
         start = 3
         end = 6
-        a = DenseData(name='a', shape=shape)
+        a = Function(name='a', shape=shape)
         eqn = Eq(a, a + 1)
         op = Operator(eqn)
         op(x_s=start, x_e=end, y_s=start, y_e=end, z_s=start, z_e=end)
@@ -364,9 +364,9 @@ class TestArguments(object):
     def test_argument_derivation_order(self, nt=100):
         i, j, k = dimify('i j k')
         shape = tuple([d.size for d in [i, j, k]])
-        a = DenseData(name='a', shape=shape).indexed
-        b = TimeData(name='b', shape=shape, save=True, time_dim=nt).indexed
-        b1 = TimeData(name='b1', shape=shape, save=True, time_dim=nt+1).indexed
+        a = Function(name='a', shape=shape).indexed
+        b = TimeFunction(name='b', shape=shape, save=True, time_dim=nt).indexed
+        b1 = TimeFunction(name='b1', shape=shape, save=True, time_dim=nt+1).indexed
         eqn = Eq(b[time, x, y, z], a[x, y, z])
         op = Operator(eqn)
 
