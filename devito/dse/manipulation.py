@@ -160,7 +160,10 @@ def xreplace_constrained(exprs, make, rule=None, costmodel=lambda e: True, repea
             return expr, rule(expr)
         elif expr.is_Pow:
             base, flag = run(expr.base)
-            return expr.func(base, expr.exp, evaluate=False), flag
+            if flag and costmodel(base):
+                return expr.func(replace(base), expr.exp, evaluate=False), False
+            else:
+                return expr.func(base, expr.exp, evaluate=False), flag
         else:
             children = [run(a) for a in expr.args]
             matching = [a for a, flag in children if flag]
