@@ -75,9 +75,9 @@ def ForwardOperator(model, source, receiver, time_order=2, space_order=4,
     u = TimeFunction(name='u', grid=model.grid,
                      save=save, time_dim=source.nt if save else None,
                      time_order=2, space_order=space_order)
-    src = PointSource(name='src', ntime=source.nt, ndim=source.ndim,
+    src = PointSource(name='src', grid=model.grid, ntime=source.nt,
                       npoint=source.npoint)
-    rec = Receiver(name='rec', ntime=receiver.nt, ndim=receiver.ndim,
+    rec = Receiver(name='rec', grid=model.grid, ntime=receiver.nt,
                    npoint=receiver.npoint)
 
     # Get computational time-step value
@@ -112,9 +112,9 @@ def AdjointOperator(model, source, receiver, time_order=2, space_order=4, **kwar
 
     v = TimeFunction(name='v', grid=model.grid, save=False,
                      time_order=2, space_order=space_order)
-    srca = PointSource(name='srca', ntime=source.nt, ndim=source.ndim,
+    srca = PointSource(name='srca', grid=model.grid, ntime=source.nt,
                        npoint=source.npoint)
-    rec = Receiver(name='rec', ntime=receiver.nt, ndim=receiver.ndim,
+    rec = Receiver(name='rec', grid=model.grid, ntime=receiver.nt,
                    npoint=receiver.npoint)
 
     # Get computational time-step value
@@ -153,7 +153,7 @@ def GradientOperator(model, source, receiver, time_order=2, space_order=4, **kwa
                      time_order=2, space_order=space_order)
     v = TimeFunction(name='v', grid=model.grid, save=False,
                      time_order=2, space_order=space_order)
-    rec = Receiver(name='rec', ntime=receiver.nt, ndim=receiver.ndim,
+    rec = Receiver(name='rec', grid=model.grid, ntime=receiver.nt,
                    npoint=receiver.npoint)
 
     # Get computational time-step value
@@ -190,9 +190,9 @@ def BornOperator(model, source, receiver, time_order=2, space_order=4, **kwargs)
     m, damp = model.m, model.damp
 
     # Create source and receiver symbols
-    src = PointSource(name='src', ntime=source.nt, ndim=source.ndim,
+    src = PointSource(name='src', grid=model.grid, ntime=source.nt,
                       npoint=source.npoint)
-    rec = Receiver(name='rec', ntime=receiver.nt, ndim=receiver.ndim,
+    rec = Receiver(name='rec', grid=model.grid, ntime=receiver.nt,
                    npoint=receiver.npoint)
 
     # Create wavefields and a dm field

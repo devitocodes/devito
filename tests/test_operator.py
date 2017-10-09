@@ -302,16 +302,15 @@ class TestArguments(object):
 
     def test_override_composite_data(self):
         i, j = dimify('i j')
+        grid = Grid(shape=(10, 10), dimensions=(i, j))
         original_coords = (1., 1.)
         new_coords = (2., 2.)
         p_dim = Dimension('p_src')
-        ndim = len(original_coords)
-        u = TimeFunction(name='u', time_order=2, space_order=2,
-                         shape=(10, 10), dimensions=(i, j))
-        src1 = SparseFunction(name='src1', dimensions=[time, p_dim], npoint=1,
-                              nt=10, ndim=ndim, coordinates=original_coords)
-        src2 = SparseFunction(name='src1', dimensions=[time, p_dim], npoint=1,
-                              nt=10, ndim=ndim, coordinates=new_coords)
+        u = TimeFunction(name='u', grid=grid, time_order=2, space_order=2)
+        src1 = SparseFunction(name='src1', grid=grid, dimensions=[time, p_dim],
+                              npoint=1, nt=10, coordinates=original_coords)
+        src2 = SparseFunction(name='src1', grid=grid, dimensions=[time, p_dim],
+                              npoint=1, nt=10, coordinates=new_coords)
         op = Operator(src1.inject(u, src1))
 
         # Move the source from the location where the setup put it so we can test

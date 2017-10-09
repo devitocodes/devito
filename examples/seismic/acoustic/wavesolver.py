@@ -88,7 +88,8 @@ class AcousticWaveSolver(object):
             src = self.source
         # Create a new receiver object to store the result
         if rec is None:
-            rec = Receiver(name='rec', ntime=self.receiver.nt,
+            rec = Receiver(name='rec', grid=self.model.grid,
+                           ntime=self.receiver.nt,
                            coordinates=self.receiver.coordinates.data)
 
         # Create the forward wavefield if not provided
@@ -122,7 +123,8 @@ class AcousticWaveSolver(object):
         """
         # Create a new adjoint source and receiver symbol
         if srca is None:
-            srca = PointSource(name='srca', ntime=self.source.nt,
+            srca = PointSource(name='srca', grid=self.model.grid,
+                               ntime=self.source.nt,
                                coordinates=self.source.coordinates.data)
 
         # Create the adjoint wavefield if not provided
@@ -186,7 +188,8 @@ class AcousticWaveSolver(object):
             src = self.source
         # Create a new receiver object to store the result
         if rec is None:
-            rec = rec or Receiver(name='rec', ntime=self.receiver.nt,
+            rec = rec or Receiver(name='rec', grid=self.model.grid,
+                                  ntime=self.receiver.nt,
                                   coordinates=self.receiver.coordinates.data)
 
         # Create the forward wavefields u and U if not provided

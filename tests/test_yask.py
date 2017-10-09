@@ -303,7 +303,7 @@ class TestOperatorSimple(object):
         grid = Grid(shape=(4, 4, 4))
         x, y, z = grid.dimensions
         t = grid.stepping_dim
-        p = SparseFunction(name='points', nt=1, npoint=4)
+        p = SparseFunction(name='points', grid=grid, nt=1, npoint=4)
         u = TimeFunction(name='yu4D', grid=grid, space_order=0)
         for i in range(4):
             for j in range(4):
@@ -366,7 +366,7 @@ class TestOperatorSimple(object):
         """
         grid = Grid(shape=(4, 4, 4))
         c = Constant(name='c', value=2.)
-        p = SparseFunction(name='points', nt=1, npoint=1)
+        p = SparseFunction(name='points', grid=grid, nt=1, npoint=1)
         u = TimeFunction(name='yu4D', grid=grid, space_order=0)
         u.data[:] = 0.
         op = Operator([Eq(u.forward, u + c), Eq(p.indexed[0, 0], 1. + c)])
@@ -444,7 +444,7 @@ class TestOperatorAcoustic(object):
     def src(self, model, time_params):
         time_values = np.linspace(*time_params)  # Discretized time axis
         # Define source geometry (center of domain, just below surface)
-        src = RickerSource(name='src', ndim=model.dim, f0=0.01, time=time_values)
+        src = RickerSource(name='src', grid=model.grid, f0=0.01, time=time_values)
         src.coordinates.data[0, :] = np.array(model.domain_size) * .5
         src.coordinates.data[0, -1] = 30.
         return src
@@ -453,7 +453,7 @@ class TestOperatorAcoustic(object):
     def rec(self, model, time_params, src):
         nrec = 130  # Number of receivers
         t0, tn, nt = time_params
-        rec = Receiver(name='rec', ntime=nt, npoint=nrec, ndim=model.dim)
+        rec = Receiver(name='rec', grid=model.grid, ntime=nt, npoint=nrec)
         rec.coordinates.data[:, 0] = np.linspace(0., model.domain_size[0], num=nrec)
         rec.coordinates.data[:, 1:] = src.coordinates.data[0, 1:]
         return rec

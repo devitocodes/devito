@@ -38,12 +38,12 @@ def run_acoustic_forward(dse=None):
     time_values = np.linspace(t0, tn, nt)  # Discretized time axis
 
     # Define source geometry (center of domain, just below surface)
-    src = RickerSource(name='src', ndim=model.dim, f0=0.01, time=time_values)
+    src = RickerSource(name='src', grid=model.grid, f0=0.01, time=time_values)
     src.coordinates.data[0, :] = np.array(model.domain_size) * .5
     src.coordinates.data[0, -1] = 20.
 
     # Define receiver geometry (same as source, but spread across x)
-    rec = Receiver(name='nrec', ntime=nt, npoint=nrec, ndim=model.dim)
+    rec = Receiver(name='nrec', grid=model.grid, ntime=nt, npoint=nrec)
     rec.coordinates.data[:, 0] = np.linspace(0., model.domain_size[0], num=nrec)
     rec.coordinates.data[:, 1:] = src.coordinates.data[0, 1:]
 
@@ -83,12 +83,12 @@ def tti_operator(dse=False, space_order=4):
     time_values = np.linspace(t0, tn, nt)  # Discretized time axis
 
     # Define source geometry (center of domain, just below surface)
-    src = GaborSource(name='src', ndim=model.dim, f0=0.01, time=time_values)
+    src = GaborSource(name='src', grid=model.grid, f0=0.01, time=time_values)
     src.coordinates.data[0, :] = np.array(model.domain_size) * .5
     src.coordinates.data[0, -1] = model.origin[-1] + 2 * spacing[-1]
 
     # Define receiver geometry (spread across x, lust below surface)
-    rec = Receiver(name='nrec', ntime=nt, npoint=nrec, ndim=model.dim)
+    rec = Receiver(name='nrec', grid=model.grid, ntime=nt, npoint=nrec)
     rec.coordinates.data[:, 0] = np.linspace(0., model.domain_size[0], num=nrec)
     rec.coordinates.data[:, 1:] = src.coordinates.data[0, 1:]
 
