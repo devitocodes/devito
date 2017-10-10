@@ -75,7 +75,7 @@ class Operator(OperatorRunnable):
                 self.func_table[namespace['code-soln-run']] = FunMeta(None, False)
 
                 # JIT-compile the newly-created YASK kernel
-                local_grids += [i for i in transform.mapper if i.is_TensorFunction]
+                local_grids += [i for i in transform.mapper if i.is_Array]
                 self.yk_soln = self.context.make_yk_solution(namespace['jit-yk-soln'],
                                                              yc_soln, local_grids)
 

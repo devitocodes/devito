@@ -321,8 +321,8 @@ class TestOperatorSimple(object):
         Check that YASK evaluates stencil equations correctly when iterating in the
         reverse time direction.
         """
-        u = TimeData(name='yu4D', shape=(4, 4, 4), dimensions=(x, y, z),
-                     space_order=0, time_order=2)
+        u = TimeFunction(name='yu4D', shape=(4, 4, 4), dimensions=(x, y, z),
+                         space_order=0, time_order=2)
         u.data[:] = 2.
         eq = Eq(u.backward, u - 1.)
         op = Operator(eq, subs={t.spacing: 1}, time_axis=Backward)
@@ -342,10 +342,10 @@ class TestOperatorSimple(object):
             * passed down to the generated code, and
             * re-initializaed to 0. at each operator application
         """
-        u = TimeData(name='yu4D', shape=(4, 4, 4), dimensions=(x, y, z),
+        u = TimeFunction(name='yu4D', shape=(4, 4, 4), dimensions=(x, y, z),
+                         space_order=0)
+        v = Function(name='yv3D', shape=(4, 4, 4), dimensions=(x, y, z),
                      space_order=0)
-        v = DenseData(name='yv3D', shape=(4, 4, 4), dimensions=(x, y, z),
-                      space_order=0)
         eqs = [Eq(u.forward, u + cos(v)*2. + cos(v)*cos(v)*3.)]
         op = Operator(eqs, subs={t.spacing: 1})
         # Sanity check of the generated code
