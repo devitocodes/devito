@@ -16,7 +16,7 @@ from devito.logger import yask as log
 from devito.tools import numpy_to_ctypes
 
 from devito.yask import cfac, nfac, ofac, namespace, exit, yask_configuration
-from devito.yask.utils import convert_multislice
+from devito.yask.utils import convert_multislice, rawpointer
 
 
 class YaskGrid(object):
@@ -201,7 +201,7 @@ class YaskGrid(object):
 
     @property
     def rawpointer(self):
-        return ctypes.cast(int(self.grid), ctypes.c_void_p)
+        return rawpointer(self.grid)
 
     def give_storage(self, target):
         """
@@ -335,7 +335,7 @@ class YaskKernel(object):
 
     @property
     def rawpointer(self):
-        return ctypes.cast(int(self.soln), ctypes.c_void_p)
+        return rawpointer(self.soln)
 
     def __repr__(self):
         return "YaskKernel [%s]" % self.name
