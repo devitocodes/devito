@@ -272,10 +272,10 @@ class TestArguments(object):
         """Test that the dimension sizes are being inferred correctly"""
         i, j, k = dimify('i j k')
         shape = (3, 5, 7)
-        a = Function(name='a', shape=shape, dimensions=(i, j, k)).indexed
-        b = TimeFunction(name='b', shape=shape, dimensions=(i, j, k),
-                         save=True, time_dim=nt).indexed
-        eqn = Eq(b[time, x, y, z], a[x, y, z])
+        grid = Grid(shape=shape, dimensions=(i, j, k))
+        a = Function(name='a', grid=grid).indexed
+        b = TimeFunction(name='b', grid=grid, save=True, time_dim=nt).indexed
+        eqn = Eq(b[time, i, j, k], a[i, j, k])
         op = Operator(eqn)
 
         op_arguments, _ = op.arguments()
@@ -285,10 +285,11 @@ class TestArguments(object):
     def test_dimension_offsets_infer(self, nt=100):
         """Test that the dimension sizes are being inferred correctly"""
         i, j, k = dimify('i j k')
-        shape = tuple([d.size for d in [i, j, k]])
-        a = Function(name='a', shape=shape).indexed
-        b = TimeFunction(name='b', shape=shape, save=True, time_dim=nt).indexed
-        eqn = Eq(b[time+1, x, y, z], b[time-1, x, y, z] + b[time, x, y, z] + a[x, y, z])
+        shape = (10, 10, 10)
+        grid = Grid(shape=shape, dimensions=(i, j, k))
+        a = Function(name='a', grid=grid).indexed
+        b = TimeFunction(name='b', grid=grid, save=True, time_dim=nt).indexed
+        eqn = Eq(b[time+1, i, j, k], b[time-1, i, j, k] + b[time, i, j, k] + a[i, j, k])
         op = Operator(eqn)
 
         op_arguments, _ = op.arguments()
@@ -336,26 +337,28 @@ class TestArguments(object):
         assert(np.array_equal(args[arg_name], np.asarray((new_coords,))))
 
     def test_start_end_2d(self):
+        i, j = dimify('i j')
         shape = (10, 10)
         start = 3
         end = 6
-        a = Function(name='a', shape=shape)
+        a = Function(name='a', shape=shape, dimensions=(i, j))
         eqn = Eq(a, a + 1)
         op = Operator(eqn)
-        op(x_s=start, x_e=end, y_s=start, y_e=end)
+        op(i_s=start, i_e=end, j_s=start, j_e=end)
         mask = np.ones(shape, np.bool)
         mask[start:end, start:end] = 0
         assert(np.allclose(a.data[start:end, start:end], 1))
         assert(np.allclose(a.data[mask], 0))
 
     def test_start_end_3d(self):
+        i, j, k = dimify('i j k')
         shape = (10, 10, 10)
         start = 3
         end = 6
-        a = Function(name='a', shape=shape)
+        a = Function(name='a', shape=shape, dimensions=(i, j, k))
         eqn = Eq(a, a + 1)
         op = Operator(eqn)
-        op(x_s=start, x_e=end, y_s=start, y_e=end, z_s=start, z_e=end)
+        op(i_s=start, i_e=end, j_s=start, j_e=end, k_s=start, k_e=end)
         mask = np.ones(shape, np.bool)
         mask[start:end, start:end, start:end] = 0
         assert(np.allclose(a.data[start:end, start:end, start:end], 1))
@@ -363,11 +366,12 @@ class TestArguments(object):
 
     def test_argument_derivation_order(self, nt=100):
         i, j, k = dimify('i j k')
-        shape = tuple([d.size for d in [i, j, k]])
-        a = Function(name='a', shape=shape).indexed
-        b = TimeFunction(name='b', shape=shape, save=True, time_dim=nt).indexed
-        b1 = TimeFunction(name='b1', shape=shape, save=True, time_dim=nt+1).indexed
-        eqn = Eq(b[time, x, y, z], a[x, y, z])
+        shape = (10, 10, 10)
+        grid = Grid(shape=shape, dimensions=(i, j, k))
+        a = Function(name='a', grid=grid).indexed
+        b = TimeFunction(name='b', grid=grid, save=True, time_dim=nt).indexed
+        b1 = TimeFunction(name='b1', grid=grid, save=True, time_dim=nt+1).indexed
+        eqn = Eq(b[time, i, j, k], a[i, j, k])
         op = Operator(eqn)
 
         # Simple case, same as that tested above.
