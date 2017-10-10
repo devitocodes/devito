@@ -338,7 +338,10 @@ class YaskKernel(object):
         :param cfunction: The JIT-compiler function, of type :class:`ctypes.FuncPtr`
         :param arguments: List of run-time values to be passed to ``cfunction``.
         """
+        # Sanity check
         assert all(not i.is_storage_allocated() for i in self.local_grids.values())
+        assert all(v.is_storage_allocated() for k, v in self.grids.items()
+                   if k not in self.local_grids)
         # This, amongst other things, will also allocate storage for the
         # temporary grids
         self.soln.prepare_solution()

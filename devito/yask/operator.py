@@ -71,7 +71,7 @@ class Operator(OperatorRunnable):
                 funcall = Element(c.Statement(ccode(funcall)))
                 nodes = Transformer({tree[1]: funcall}).visit(nodes)
 
-                # Track this is an external function call
+                # Track /funcall/ as an external function call
                 self.func_table[namespace['code-soln-run']] = FunMeta(None, False)
 
                 # JIT-compile the newly-created YASK kernel
@@ -113,39 +113,26 @@ class Operator(OperatorRunnable):
         return nodes
 
     def arguments(self, **kwargs):
+        mapper = {i.name: i for i in self.parameters}
+        local_grids_mapper = {namespace['code-grid-name'](k): v
+                              for k, v in self.yk_soln.local_grids.items()}
+
         # The user has the illusion to provide plain data objects to the
         # generated kernels, but what we actually need and thus going to
-        # provide are pointers to the wrapped YASK grids
-        shadow_kwargs = {}
-        for k, v in kwargs.items():
-            try:
-                if v.from_YASK is True:
-                    shadow_kwargs[namespace['code-grid-name'](k)] = v
-            except AttributeError:
-                pass
+        # provide are pointers to the wrapped YASK grids.
         for i in self.parameters:
-            # Assign the yk::yk_grid pointers
-            obj = shadow_kwargs.get(i.name)
-            if i.is_PtrArgument and obj is not None:
-                assert(i.verify(obj.data.rawpointer))
-
-        # Update this Operator's grids by sharing user-provided data
-        for i in self.parameters:
-            obj = kwargs.get(i.name)
-            if obj is not None:
-                if obj.name in self.yk_soln.grids:
+            grid_arg = mapper.get(namespace['code-grid-name'](i.name))
+            if grid_arg is not None:
+                assert i.provider.from_YASK is True
+                obj = kwargs.get(i.name, i.provider)
+                # Setup YASK grids ("sharing" user-provided or default data)
+                if i.name in self.yk_soln.grids:
                     self.yk_soln.update(obj)
-                else:
-                    # A YaskGrid read/written by this Operator but not appearing
-                    # in the offloaded YASK kernel (if any)
-                    pass
-
-        # Add pointers to temporary YASK grids
-        local_grids = {namespace['code-grid-name'](k): v
-                       for k, v in self.yk_soln.local_grids.items()}
-        for i in self.parameters:
-            if i.name in local_grids:
-                assert(i.verify(rawpointer(local_grids[i.name])))
+                # Add C-level pointer to the YASK grids
+                assert grid_arg.verify(obj.data.rawpointer)
+            elif i.name in local_grids_mapper:
+                # Add C-level pointer to the temporary YASK grids
+                assert i.verify(rawpointer(local_grids_mapper[i.name]))
 
         return super(Operator, self).arguments(**kwargs)
 
