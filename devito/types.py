@@ -282,10 +282,7 @@ class AbstractFunction(sympy.Function, CachedSymbol):
 
         subs = dict([(i.spacing, 1) for i in self.indices])
         indices = [a.subs(subs) for a in self.args]
-        if indices:
-            return Indexed(self.indexed, *indices)
-        else:
-            return Symbol(name=self.indexed.function.name)
+        return Indexed(self.indexed, *indices)
 
 
 class SymbolicData(AbstractFunction):
@@ -307,7 +304,7 @@ class SymbolicData(AbstractFunction):
         return
 
 
-class Scalar(SymbolicData, ScalarArgProvider):
+class Scalar(Symbol, ScalarArgProvider):
     """Symbolic object representing a scalar.
 
     :param name: Name of the symbol
@@ -318,10 +315,11 @@ class Scalar(SymbolicData, ScalarArgProvider):
 
     def __init__(self, *args, **kwargs):
         if not self._cached():
-            self.name = kwargs.get('name')
-            self.shape = ()
-            self.indices = ()
             self.dtype = kwargs.get('dtype', np.float32)
+
+    @property
+    def shape(self):
+        return ()
 
     @property
     def _mem_stack(self):
