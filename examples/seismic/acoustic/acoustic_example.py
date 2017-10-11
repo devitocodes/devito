@@ -107,7 +107,7 @@ if __name__ == "__main__":
     parser.add_argument("-dle", default="advanced",
                         choices=["noop", "advanced", "speculative"],
                         help="Devito loop engine (DSE) mode")
-    parser.add_argument("--c", default=False, dest='constant', action='store_true',
+    parser.add_argument("--constant", default=False, action='store_true',
                         help="Constant velocity model, default is a two layer model")
     args = parser.parse_args()
 
