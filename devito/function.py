@@ -10,7 +10,7 @@ from devito.memory import CMemory, first_touch
 from devito.cgen_utils import INT, FLOAT
 from devito.dimension import d, p, t, time, x, y, z
 from devito.arguments import ConstantArgProvider, TensorFunctionArgProvider
-from devito.types import SymbolicFunction
+from devito.types import SymbolicFunction, AbstractSymbol
 from devito.finite_difference import (centered, cross_derivative,
                                       first_derivative, left, right,
                                       second_derivative, generic_derivative,
@@ -44,7 +44,7 @@ Forward = TimeAxis('Forward')
 Backward = TimeAxis('Backward')
 
 
-class Constant(sympy.Symbol, ConstantArgProvider):
+class Constant(AbstractSymbol, ConstantArgProvider):
 
     """
     Symbol representing constant values in symbolic equations.
