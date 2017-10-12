@@ -119,6 +119,34 @@ class AbstractSymbol(sympy.Symbol, CachedSymbol):
         return newobj
 
 
+class Symbol(AbstractSymbol):
+
+    """A :class:`sympy.Symbol` capable of mimicking an :class:`sympy.Indexed`"""
+
+    def __init__(self, *args, **kwargs):
+        if not self._cached():
+            self.dtype = kwargs.get('dtype', np.int32)
+
+    @property
+    def base(self):
+        return self
+
+    @property
+    def function(self):
+        return self
+
+    @property
+    def indices(self):
+        return ()
+
+    @property
+    def symbolic_shape(self):
+        return ()
+
+    def indexify(self):
+        return self
+
+
 class AbstractFunction(sympy.Function, CachedSymbol):
     """Base class for data classes that provides symbolic behaviour.
 
@@ -257,7 +285,7 @@ class AbstractFunction(sympy.Function, CachedSymbol):
         if indices:
             return Indexed(self.indexed, *indices)
         else:
-            return Symbol(self.indexed)
+            return Symbol(name=self.indexed.function.name)
 
 
 class SymbolicData(AbstractFunction):
@@ -429,21 +457,6 @@ class IndexedData(sympy.IndexedBase):
         """
         indexed = super(IndexedData, self).__getitem__(indices, **kwargs)
         return Indexed(*indexed.args)
-
-
-class Symbol(sympy.Symbol):
-
-    """A :class:`sympy.Symbol` capable of mimicking an :class:`sympy.Indexed`"""
-
-    def __new__(cls, base):
-        obj = sympy.Symbol.__new__(cls, base.label.name)
-        obj.base = base
-        obj.indices = ()
-        obj.function = base.function
-        return obj
-
-    def func(self, *args):
-        return super(Symbol, self).func(self.base.func(*self.base.args))
 
 
 class Indexed(sympy.Indexed):
