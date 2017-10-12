@@ -20,14 +20,14 @@ class ABC(object):
     """
 
     def __init__(self, model, field, m, taxis=Forward, **kwargs):
-        self.nbpml = model.nbpml
+        self.nbpml = int(model.nbpml)
         self.full_shape = model.shape_domain
-        self.p_abc = Dimension(name="abc", size=self.nbpml)
+        self.p_abc = Dimension(name="abc")
         self.ndim = model.dim
         self.field = field
         self.m = m
         self.taxis = taxis
-        self.fs = Dimension(name="fs", size=model.nbpml)
+        self.fs = Dimension(name="fs")
         self.freesurface = kwargs.get("freesurface", False)
 
     @property

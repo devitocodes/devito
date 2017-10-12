@@ -1,6 +1,6 @@
 from sympy import Eq, solve, Symbol
 
-from devito import Operator, Forward, Backward, DenseData, TimeData, time, t
+from devito import Operator, Forward, Backward, Function, TimeFunction, time, t
 from devito.logger import error
 from examples.seismic import PointSource, Receiver, ABC
 
@@ -54,36 +54,6 @@ def iso_stencil(field, time_order, m, s, **kwargs):
     return [Eq(next, eq_time.subs({H: lap}))]
 
 
-def iso_stencil(field, time_order, m, s, damp, **kwargs):
-    """
-    Stencil for the acoustic isotropic wave-equation:
-    u.dt2 - H + damp*u.dt = 0
-    :param field: Symbolic TimeFunction object, solution to be computed
-    :param time_order: time order
-    :param m: square slowness
-    :param s: symbol for the time-step
-    :param damp: ABC dampening field (Function)
-    :param kwargs: forwad/backward wave equation (sign of u.dt will change accordingly
-    as well as the updated time-step (u.forwad or u.backward)
-    :return: Stencil for the wave-equation
-    """
-
-    # Creat a temporary symbol for H to avoid expensive sympy solve
-    H = Symbol('H')
-    # Define time sep to be updated
-    next = field.forward if kwargs.get('forward', True) else field.backward
-    # Define PDE
-    eq = m * field.dt2 - H - kwargs.get('q', 0)
-    # Add dampening field according to the propagation direction
-    eq += damp * field.dt if kwargs.get('forward', True) else -damp * field.dt
-    # Solve the symbolic equation for the field to be updated
-    eq_time = solve(eq, next, rational=False, simplify=False)[0]
-    # Get the spacial FD
-    lap = laplacian(field, time_order, m, s)
-    # return the Stencil with H replaced by its symbolic expression
-    return [Eq(next, eq_time.subs({H: lap}))]
-
-
 def ForwardOperator(model, source, receiver, time_order=2, space_order=4,
                     save=False, **kwargs):
     """
@@ -111,7 +81,7 @@ def ForwardOperator(model, source, receiver, time_order=2, space_order=4,
     # Get computational time-step value
     dt = model.critical_dt * (1.73 if time_order == 4 else 1.0)
 
-    eqn = iso_stencil(u, time_order, m, s, damp)
+    eqn = iso_stencil(u, time_order, m, s)
     # Construct expression to inject source values
     # Note that src and field terms have differing time indices:
     #   src[time, ...] - always accesses the "unrolled" time index
@@ -254,7 +224,7 @@ def BornOperator(model, source, receiver, time_order=2, space_order=4, **kwargs)
     # Get computational time-step value
     dt = model.critical_dt * (1.73 if time_order == 4 else 1.0)
 
-    eqn1 = iso_stencil(u, time_order, m, s, damp)
+    eqn1 = iso_stencil(u, time_order, m, s)
     eqn2 = iso_stencil(U, time_order, m, s, damp, q=-dm*u.dt2)
 
     # Add source term expression for u
