@@ -9,7 +9,6 @@ env:
   - ENCRYPTION_LABEL: "1909213e8aea"
   - COMMIT_AUTHOR_EMAIL: "pandolfovince@gmail.com"
   - DEVITO_LOGGING: "DEBUG"
-  - DEVITO_TRAVIS_TEST: "1"
 
 matrix:
   include:
@@ -86,8 +85,9 @@ script:
       python examples/seismic/acoustic/acoustic_example.py --constant --full;
     fi
 
-  - if [[ $DEVITO_BACKEND != 'yask' ]]; then py.test -vs examples/seismic/tutorials; fi
-  - if [[ $DEVITO_BACKEND != 'yask' ]]; then py.test -vs examples/cfd; fi
+  # Test tutorial notebooks for the website using nbval
+  - if [[ $DEVITO_BACKEND != 'yask' ]]; then py.test -vs --nbval examples/seismic/tutorials; fi
+  - if [[ $DEVITO_BACKEND != 'yask' ]]; then py.test -vs --nbval examples/cfd; fi
 
   # Docs generation and deployment
   - sphinx-apidoc -f -o docs/ examples
