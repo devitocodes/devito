@@ -395,8 +395,8 @@ class Iteration(Node):
         available (either statically known or provided through ``start``/
         ``finish``). ``None`` is used as a placeholder in the returned 2-tuple
         if a limit is unknown."""
-        lower = start or self.limits[0]
-        upper = finish or self.limits[1]
+        lower = start if start is not None else self.limits[0]
+        upper = finish if finish is not None else self.limits[1]
         if lower and self.offsets[0]:
             lower = lower - self.offsets[0]
 

@@ -145,7 +145,9 @@ class Profiler(object):
                 else:
                     start = arguments[dims[i].start_name]
                     end = arguments[dims[i].end_name]
+                    print(start, end)
                 itershape.append(i.extent(finish=end, start=start))
+            print(itershape)
             iterspace = reduce(operator.mul, itershape)
             flops = float(profile.ops*iterspace)
             gflops = flops/10**9
