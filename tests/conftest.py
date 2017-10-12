@@ -21,7 +21,8 @@ def scalar(name):
 
 
 def array(name, shape, dimensions, onstack=False):
-    return Array(name=name, shape=shape, dimensions=dimensions, onstack=onstack)
+    return Array(name=name, shape=shape, dimensions=dimensions,
+                 onstack=onstack, onheap=(not onstack))
 
 
 def constant(name):

@@ -1,10 +1,11 @@
+from sympy import cos
 import numpy as np
 
 import pytest  # noqa
 
 pexpect = pytest.importorskip('yask')  # Run only if YASK is available
 
-from devito import (Eq, Operator, Function, TimeFunction, SparseFunction,
+from devito import (Eq, Operator, Function, TimeFunction, SparseFunction, Backward,
                     time, t, x, y, z, configuration, clear_cache)  # noqa
 from devito.dle import retrieve_iteration_tree  # noqa
 from devito.yask import arch_mapper, yask_configuration  # noqa
@@ -315,6 +316,49 @@ class TestOperatorSimple(object):
         assert 'run_solution' not in str(op)
         assert all(np.all(u.data[1, :, :, i] == 3 - i) for i in range(4))
 
+    def test_reverse_time_loop(self):
+        """
+        Check that YASK evaluates stencil equations correctly when iterating in the
+        reverse time direction.
+        """
+        u = TimeFunction(name='yu4D', shape=(4, 4, 4), dimensions=(x, y, z),
+                         space_order=0, time_order=2)
+        u.data[:] = 2.
+        eq = Eq(u.backward, u - 1.)
+        op = Operator(eq, subs={t.spacing: 1}, time_axis=Backward)
+        op(yu4D=u, t=2)
+        assert 'run_solution' in str(op)
+        assert np.all(u.data[2] == 2.)
+        assert np.all(u.data[1] == 1.)
+        assert np.all(u.data[0] == 0.)
+
+    def test_capture_vector_temporaries(self):
+        """
+        Check that all vector temporaries appearing in a offloaded stencil
+        equation are: ::
+
+            * mapped to a YASK grid, directly in Python-land,
+            * so no memory needs to be allocated in C-land, and
+            * passed down to the generated code, and
+            * re-initializaed to 0. at each operator application
+        """
+        u = TimeFunction(name='yu4D', shape=(4, 4, 4), dimensions=(x, y, z),
+                         space_order=0)
+        v = Function(name='yv3D', shape=(4, 4, 4), dimensions=(x, y, z),
+                     space_order=0)
+        eqs = [Eq(u.forward, u + cos(v)*2. + cos(v)*cos(v)*3.)]
+        op = Operator(eqs, subs={t.spacing: 1})
+        # Sanity check of the generated code
+        assert 'posix_memalign' not in str(op)
+        assert 'run_solution' in str(op)
+        # No data has been allocated for the temporaries yet
+        assert op.yk_soln.grids['r0'].is_storage_allocated() is False
+        op.apply(yu4D=u, yv3D=v, t=1)
+        # Temporary data has already been released after execution
+        assert op.yk_soln.grids['r0'].is_storage_allocated() is False
+        assert np.all(v.data == 0.)
+        assert np.all(u.data[1] == 5.)
+
 
 class TestOperatorAcoustic(object):
 
@@ -324,15 +368,16 @@ class TestOperatorAcoustic(object):
     This test is very similar to the one in test_adjointA.
     """
 
-    presets = {
-        'constant': {'preset': 'constant'},
-        'layers': {'preset': 'layers', 'ratio': 3},
-    }
+    @pytest.fixture
+    def shape(self):
+        return (60, 70, 80)
 
     @pytest.fixture
-    def model(self):
-        shape = (60, 70, 80)
-        nbpml = 10
+    def nbpml(self):
+        return 10
+
+    @pytest.fixture
+    def model(self, shape, nbpml):
         return demo_model(spacing=[15., 15., 15.], shape=shape, nbpml=nbpml,
                           preset='layers-isotropic', ratio=3)
 
@@ -432,11 +477,16 @@ class TestOperatorAcoustic(object):
         op = Operator(eqns, subs=subs)
         op.apply(u=u, m=m, damp=damp, src=src, rec=rec, t=1)
 
-        # TODO: the following "hacky" way of asserting correctness will be replaced
-        # once adjoint operators might be run through YASK. At the moment, the following
-        # expected norms have been "manually" derived from an analogous test (same
-        # equation, same model, ...) in test_adjointA.py
+        # The expected norms have been computed "by hand" looking at the output
+        # of test_adjointA's forward operator w/o using the YASK backend.
         exp_u = 152.76
         exp_rec = 212.00
         assert np.isclose(np.linalg.norm(u.data[:]), exp_u, atol=exp_u*1.e-2)
         assert np.isclose(np.linalg.norm(rec.data), exp_rec, atol=exp_rec*1.e-2)
+
+    def test_acoustic_adjoint(self, shape, time_order, space_order, nbpml):
+        """
+        Full acoustic wave test, forward + adjoint operators
+        """
+        from test_adjointA import test_acoustic
+        test_acoustic('layers', shape, time_order, space_order, nbpml)

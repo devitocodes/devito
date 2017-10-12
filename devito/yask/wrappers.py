@@ -16,7 +16,7 @@ from devito.logger import yask as log
 from devito.tools import numpy_to_ctypes
 
 from devito.yask import cfac, nfac, ofac, namespace, exit, yask_configuration
-from devito.yask.utils import convert_multislice
+from devito.yask.utils import convert_multislice, rawpointer
 
 
 class YaskGrid(object):
@@ -201,7 +201,7 @@ class YaskGrid(object):
 
     @property
     def rawpointer(self):
-        return ctypes.cast(int(self.grid), ctypes.c_void_p)
+        return rawpointer(self.grid)
 
     def give_storage(self, target):
         """
@@ -241,7 +241,7 @@ class YaskKernel(object):
     A ``YaskKernel`` wraps a YASK kernel solution.
     """
 
-    def __init__(self, name, yc_soln, domain):
+    def __init__(self, name, yc_soln, domain, local_grids=None):
         """
         Write out a YASK kernel, build it using YASK's Makefiles,
         import the corresponding SWIG-generated Python module, and finally
@@ -250,6 +250,12 @@ class YaskKernel(object):
         :param name: Unique name of this YaskKernel.
         :param yc_soln: YaskCompiler solution.
         :param domain: A mapper from space dimensions to their domain size.
+        :param local_grids: A local grid is necessary to run the YaskKernel,
+                            but its final content can be ditched. Indeed, local
+                            grids are hidden to users -- for example, they could
+                            represent temporary arrays introduced by the DSE.
+                            This parameter tells which of the ``yc_soln``'s grids
+                            are local.
         """
         self.name = name
 
@@ -311,15 +317,48 @@ class YaskKernel(object):
         for k, v in domain.items():
             self.soln.set_rank_domain_size(k, int(v))
 
+        # Users may want to run the same Operator (same domain etc.) with
+        # different grids.
+        self.grids = {i.get_name(): i for i in self.soln.get_grids()}
+        self.local_grids = {i.name: self.grids[i.name] for i in (local_grids or [])}
+
     def new_grid(self, obj_name, grid_name, dimensions):
         """Create a new YASK grid."""
         return self.soln.new_grid(grid_name, dimensions)
 
-    def prepare(self):
+    def run_py(self, ntimesteps):
+        """Run the YaskKernel through the YASK Python API."""
         self.soln.prepare_solution()
-
-    def run(self, ntimesteps):
         self.soln.run_solution(ntimesteps)
+
+    def run_c(self, cfunction, arguments):
+        """
+        Run the YaskKernel through a JIT-compiled function.
+
+        :param cfunction: The JIT-compiler function, of type :class:`ctypes.FuncPtr`
+        :param arguments: List of run-time values to be passed to ``cfunction``.
+        """
+        # Sanity check
+        assert all(not i.is_storage_allocated() for i in self.local_grids.values())
+        assert all(v.is_storage_allocated() for k, v in self.grids.items()
+                   if k not in self.local_grids)
+        # This, amongst other things, will also allocate storage for the
+        # temporary grids
+        self.soln.prepare_solution()
+        # Run the YaskKernel
+        cfunction(*arguments)
+        # Deallocate temporary grids
+        for i in self.local_grids.values():
+            i.release_storage()
+
+    def update(self, obj):
+        """
+        Switch to a different grid in the YaskKernel.
+
+        :param obj: a symbolic object wrapping a :class:`YaskGrid`.
+        """
+        assert obj.name in self.grids
+        obj.data.give_storage(self.grids[obj.name])
 
     @property
     def space_dimensions(self):
@@ -330,12 +369,8 @@ class YaskKernel(object):
         return self.soln.get_step_dim_name()
 
     @property
-    def grids(self):
-        return {i.get_name(): i for i in self.soln.get_grids()}
-
-    @property
     def rawpointer(self):
-        return ctypes.cast(int(self.soln), ctypes.c_void_p)
+        return rawpointer(self.soln)
 
     def __repr__(self):
         return "YaskKernel [%s]" % self.name
@@ -382,9 +417,13 @@ class YaskContext(object):
     def time_dimension(self):
         return self.yk_hook.time_dimension
 
-    @cached_property
+    @property
     def dimensions(self):
         return (self.time_dimension,) + self.space_dimensions
+
+    @property
+    def shape_domain(self):
+        return tuple(self.domain.values())
 
     @property
     def nsolutions(self):
@@ -420,12 +459,13 @@ class YaskContext(object):
         yc_soln.set_element_bytes(self.dtype().itemsize)
         return yc_soln
 
-    def make_yk_solution(self, namer, yc_soln):
+    def make_yk_solution(self, namer, yc_soln, local_grids):
         """
         Create and return a new :class:`YaskKernel` using ``self`` as context
         and ``yc_soln`` as YASK compiler ("stencil") solution.
         """
-        soln = YaskKernel(namer(self.name, self.nsolutions), yc_soln, self.domain)
+        soln = YaskKernel(namer(self.name, self.nsolutions), yc_soln,
+                          self.domain, local_grids)
         self.solutions.append(soln)
         return soln
 
@@ -492,22 +532,20 @@ contexts = ContextManager()
 
 # Helpers
 
-class YaskNullSolution(object):
+class YaskNullKernel(object):
 
     """Used when an Operator doesn't actually have a YASK-offloadable tree."""
 
     def __init__(self):
         self.name = 'null solution'
+        self.grids = {}
+        self.local_grids = {}
 
-    def prepare(self):
-        pass
-
-    def run(self, ntimesteps):
+    def run_py(self, ntimesteps):
         exit("Cannot run a NullSolution through YASK's Python bindings")
 
-    @property
-    def grids(self):
-        return {}
+    def run_c(self, cfunction, arguments):
+        cfunction(*arguments)
 
 
 class YaskNullContext(object):

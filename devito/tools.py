@@ -77,6 +77,15 @@ def flatten(l):
     return newlist
 
 
+def single_or(l):
+    """Return True iff only one item is different than ``None``, False otherwise.
+    Note that this is not a XOR function, according to the truth table of the XOR
+    boolean function with n > 2 inputs. Hence the name ``single_or``."""
+    # No
+    i = iter(l)
+    return any(i) and not any(i)
+
+
 def filter_ordered(elements, key=None):
     """Filter elements in a list while preserving order.
 

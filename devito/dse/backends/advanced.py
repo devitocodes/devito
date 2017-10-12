@@ -42,7 +42,7 @@ class AdvancedRewriter(BasicRewriter):
             found = common_subexprs_elimination(found, make)
 
             # Some temporaries may be droppable at this point
-            processed = compact_temporaries(found + leaves)
+            processed = compact_temporaries(found, leaves)
 
         return cluster.reschedule(processed)
 
