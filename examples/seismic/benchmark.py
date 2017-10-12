@@ -4,7 +4,7 @@ from itertools import product
 
 import numpy as np
 
-from devito import clear_cache
+from devito import clear_cache, configuration
 from devito.logger import warning
 from examples.seismic.acoustic.acoustic_example import run as acoustic_run
 from examples.seismic.tti.tti_example import run as tti_run
@@ -93,6 +93,9 @@ if __name__ == "__main__":
 
     parameters["shape"] = tuple(parameters["shape"])
     parameters["spacing"] = tuple(parameters["spacing"])
+
+    # Make sure that with YASK we run in performance mode
+    configuration.get('yask', {})['develop-mode'] = False
 
     if args.execmode == "run":
         parameters["space_order"] = parameters["space_order"][0]
