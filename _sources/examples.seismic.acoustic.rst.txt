@@ -12,14 +12,6 @@ examples\.seismic\.acoustic\.acoustic\_example module
     :undoc-members:
     :show-inheritance:
 
-examples\.seismic\.acoustic\.constant\_example module
------------------------------------------------------
-
-.. automodule:: examples.seismic.acoustic.constant_example
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
 examples\.seismic\.acoustic\.gradient\_example module
 -----------------------------------------------------
 
