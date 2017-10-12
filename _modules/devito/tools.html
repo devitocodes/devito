@@ -240,6 +240,15 @@
     <span class="k">return</span> <span class="n">newlist</span>
 
 
+<span class="k">def</span> <span class="nf">single_or</span><span class="p">(</span><span class="n">l</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Return True iff only one item is different than ``None``, False otherwise.</span>
+<span class="sd">    Note that this is not a XOR function, according to the truth table of the XOR</span>
+<span class="sd">    boolean function with n &gt; 2 inputs. Hence the name ``single_or``.&quot;&quot;&quot;</span>
+    <span class="c1"># No</span>
+    <span class="n">i</span> <span class="o">=</span> <span class="nb">iter</span><span class="p">(</span><span class="n">l</span><span class="p">)</span>
+    <span class="k">return</span> <span class="nb">any</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="ow">and</span> <span class="ow">not</span> <span class="nb">any</span><span class="p">(</span><span class="n">i</span><span class="p">)</span>
+
+
 <span class="k">def</span> <span class="nf">filter_ordered</span><span class="p">(</span><span class="n">elements</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;Filter elements in a list while preserving order.</span>
 

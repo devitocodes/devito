@@ -323,7 +323,10 @@
             <span class="k">return</span> <span class="n">expr</span><span class="p">,</span> <span class="n">rule</span><span class="p">(</span><span class="n">expr</span><span class="p">)</span>
         <span class="k">elif</span> <span class="n">expr</span><span class="o">.</span><span class="n">is_Pow</span><span class="p">:</span>
             <span class="n">base</span><span class="p">,</span> <span class="n">flag</span> <span class="o">=</span> <span class="n">run</span><span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="n">base</span><span class="p">)</span>
-            <span class="k">return</span> <span class="n">expr</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="n">base</span><span class="p">,</span> <span class="n">expr</span><span class="o">.</span><span class="n">exp</span><span class="p">,</span> <span class="n">evaluate</span><span class="o">=</span><span class="kc">False</span><span class="p">),</span> <span class="n">flag</span>
+            <span class="k">if</span> <span class="n">flag</span> <span class="ow">and</span> <span class="n">costmodel</span><span class="p">(</span><span class="n">base</span><span class="p">):</span>
+                <span class="k">return</span> <span class="n">expr</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="n">replace</span><span class="p">(</span><span class="n">base</span><span class="p">),</span> <span class="n">expr</span><span class="o">.</span><span class="n">exp</span><span class="p">,</span> <span class="n">evaluate</span><span class="o">=</span><span class="kc">False</span><span class="p">),</span> <span class="kc">False</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">expr</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="n">base</span><span class="p">,</span> <span class="n">expr</span><span class="o">.</span><span class="n">exp</span><span class="p">,</span> <span class="n">evaluate</span><span class="o">=</span><span class="kc">False</span><span class="p">),</span> <span class="n">flag</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="n">children</span> <span class="o">=</span> <span class="p">[</span><span class="n">run</span><span class="p">(</span><span class="n">a</span><span class="p">)</span> <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="n">expr</span><span class="o">.</span><span class="n">args</span><span class="p">]</span>
             <span class="n">matching</span> <span class="o">=</span> <span class="p">[</span><span class="n">a</span> <span class="k">for</span> <span class="n">a</span><span class="p">,</span> <span class="n">flag</span> <span class="ow">in</span> <span class="n">children</span> <span class="k">if</span> <span class="n">flag</span><span class="p">]</span>
@@ -430,14 +433,19 @@
     <span class="k">return</span> <span class="n">processed</span></div>
 
 
-<span class="k">def</span> <span class="nf">compact_temporaries</span><span class="p">(</span><span class="n">exprs</span><span class="p">):</span>
+<span class="k">def</span> <span class="nf">compact_temporaries</span><span class="p">(</span><span class="n">temporaries</span><span class="p">,</span> <span class="n">leaves</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Drop temporaries consisting of single symbols.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">exprs</span> <span class="o">=</span> <span class="n">temporaries</span> <span class="o">+</span> <span class="n">leaves</span>
+    <span class="n">targets</span> <span class="o">=</span> <span class="p">{</span><span class="n">i</span><span class="o">.</span><span class="n">lhs</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">leaves</span><span class="p">}</span>
+
     <span class="n">g</span> <span class="o">=</span> <span class="n">temporaries_graph</span><span class="p">(</span><span class="n">exprs</span><span class="p">)</span>
 
     <span class="n">mapper</span> <span class="o">=</span> <span class="p">{</span><span class="n">k</span><span class="p">:</span> <span class="n">v</span><span class="o">.</span><span class="n">rhs</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">g</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
-              <span class="k">if</span> <span class="n">v</span><span class="o">.</span><span class="n">is_scalar</span> <span class="ow">and</span> <span class="p">(</span><span class="n">q_leaf</span><span class="p">(</span><span class="n">v</span><span class="o">.</span><span class="n">rhs</span><span class="p">)</span> <span class="ow">or</span> <span class="n">v</span><span class="o">.</span><span class="n">rhs</span><span class="o">.</span><span class="n">is_Function</span><span class="p">)}</span>
+              <span class="k">if</span> <span class="n">v</span><span class="o">.</span><span class="n">is_scalar</span> <span class="ow">and</span>
+              <span class="p">(</span><span class="n">q_leaf</span><span class="p">(</span><span class="n">v</span><span class="o">.</span><span class="n">rhs</span><span class="p">)</span> <span class="ow">or</span> <span class="n">v</span><span class="o">.</span><span class="n">rhs</span><span class="o">.</span><span class="n">is_Function</span><span class="p">)</span> <span class="ow">and</span>
+              <span class="ow">not</span> <span class="n">v</span><span class="o">.</span><span class="n">readby</span><span class="o">.</span><span class="n">issubset</span><span class="p">(</span><span class="n">targets</span><span class="p">)}</span>
 
     <span class="n">processed</span> <span class="o">=</span> <span class="p">[]</span>
     <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">g</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
@@ -451,26 +459,17 @@
 
 
 <div class="viewcode-block" id="pow_to_mul"><a class="viewcode-back" href="../../../devito.dse.html#devito.dse.manipulation.pow_to_mul">[docs]</a><span class="k">def</span> <span class="nf">pow_to_mul</span><span class="p">(</span><span class="n">expr</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    Convert integer powers in an expression to Muls, like a**2 =&gt; a*a.</span>
-<span class="sd">    Readapted from: ::</span>
-
-<span class="sd">        stackoverflow.com/questions/14264431/expanding-algebraic-powers-in-python-sympy</span>
-
-<span class="sd">    The readaptation was necessary to make it work with Indexed.</span>
-<span class="sd">    &quot;&quot;&quot;</span>
-    <span class="n">lhs</span><span class="p">,</span> <span class="n">rhs</span> <span class="o">=</span> <span class="n">expr</span><span class="o">.</span><span class="n">args</span>
-    <span class="n">pows</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">rhs</span><span class="o">.</span><span class="n">args</span> <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">is_Pow</span><span class="p">]</span>
-    <span class="n">non_pows</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">rhs</span><span class="o">.</span><span class="n">args</span> <span class="k">if</span> <span class="n">i</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">pows</span><span class="p">]</span>
-    <span class="k">if</span> <span class="ow">not</span> <span class="n">pows</span><span class="p">:</span>
+    <span class="k">if</span> <span class="n">expr</span><span class="o">.</span><span class="n">is_Atom</span> <span class="ow">or</span> <span class="n">expr</span><span class="o">.</span><span class="n">is_Indexed</span><span class="p">:</span>
         <span class="k">return</span> <span class="n">expr</span>
-    <span class="k">if</span> <span class="nb">any</span><span class="p">(</span><span class="ow">not</span> <span class="n">e</span><span class="o">.</span><span class="n">is_Integer</span> <span class="ow">or</span> <span class="n">e</span> <span class="o">&lt;=</span> <span class="mi">0</span> <span class="k">for</span> <span class="n">b</span><span class="p">,</span> <span class="n">e</span> <span class="ow">in</span> <span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">as_base_exp</span><span class="p">()</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">pows</span><span class="p">)):</span>
-        <span class="c1"># Cannot handle powers containing non-integer non-positive exponents</span>
-        <span class="k">return</span> <span class="n">expr</span>
-    <span class="n">muls</span> <span class="o">=</span> <span class="p">[</span><span class="n">sympy</span><span class="o">.</span><span class="n">Mul</span><span class="p">(</span><span class="o">*</span><span class="p">[</span><span class="n">b</span><span class="p">]</span><span class="o">*</span><span class="n">e</span><span class="p">,</span> <span class="n">evaluate</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
-            <span class="k">for</span> <span class="n">b</span><span class="p">,</span> <span class="n">e</span> <span class="ow">in</span> <span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">as_base_exp</span><span class="p">()</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">pows</span><span class="p">)]</span>
-    <span class="n">rhs</span> <span class="o">=</span> <span class="n">rhs</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="o">*</span><span class="p">(</span><span class="n">muls</span> <span class="o">+</span> <span class="n">non_pows</span><span class="p">),</span> <span class="n">evaluate</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
-    <span class="k">return</span> <span class="n">expr</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="n">expr</span><span class="o">.</span><span class="n">lhs</span><span class="p">,</span> <span class="n">rhs</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="o">*</span><span class="p">(</span><span class="n">muls</span> <span class="o">+</span> <span class="n">non_pows</span><span class="p">),</span> <span class="n">evaluate</span><span class="o">=</span><span class="kc">False</span><span class="p">))</span></div>
+    <span class="k">elif</span> <span class="n">expr</span><span class="o">.</span><span class="n">is_Pow</span><span class="p">:</span>
+        <span class="n">base</span><span class="p">,</span> <span class="n">exp</span> <span class="o">=</span> <span class="n">expr</span><span class="o">.</span><span class="n">as_base_exp</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">exp</span> <span class="o">&lt;=</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="c1"># Cannot handle powers containing non-integer non-positive exponents</span>
+            <span class="k">return</span> <span class="n">expr</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">sympy</span><span class="o">.</span><span class="n">Mul</span><span class="p">(</span><span class="o">*</span><span class="p">[</span><span class="n">base</span><span class="p">]</span><span class="o">*</span><span class="n">exp</span><span class="p">,</span> <span class="n">evaluate</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">expr</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="o">*</span><span class="p">[</span><span class="n">pow_to_mul</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">expr</span><span class="o">.</span><span class="n">args</span><span class="p">],</span> <span class="n">evaluate</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span></div>
 </pre></div>
 
            </div>

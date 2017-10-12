@@ -169,6 +169,7 @@
 
 <span class="kn">from</span> <span class="nn">devito.arguments</span> <span class="k">import</span> <span class="n">ScalarArgProvider</span><span class="p">,</span> <span class="n">ArrayArgProvider</span><span class="p">,</span> <span class="n">ObjectArgProvider</span>
 <span class="kn">from</span> <span class="nn">devito.parameters</span> <span class="k">import</span> <span class="n">configuration</span>
+<span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">single_or</span>
 
 <span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;Symbol&#39;</span><span class="p">,</span> <span class="s1">&#39;Indexed&#39;</span><span class="p">]</span>
 
@@ -449,7 +450,9 @@
 <span class="sd">    :param dtype: Data type of the scalar</span>
 <span class="sd">    :param shape: The shape of the tensor</span>
 <span class="sd">    :param dimensions: The symbolic dimensions of the tensor.</span>
-<span class="sd">    :param onstack: Pass True to enforce allocation on stack</span>
+<span class="sd">    :param external: Pass True if there is no need to allocate storage</span>
+<span class="sd">    :param onstack: Pass True to enforce allocation on the stack</span>
+<span class="sd">    :param onheap: Pass True to enforce allocation on the heap</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">is_Array</span> <span class="o">=</span> <span class="kc">True</span>
@@ -461,11 +464,21 @@
             <span class="bp">self</span><span class="o">.</span><span class="n">shape</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;shape&#39;</span><span class="p">)</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">indices</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;dimensions&#39;</span><span class="p">)</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">dtype</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;dtype&#39;</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">)</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">_onstack</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;onstack&#39;</span><span class="p">,</span> <span class="kc">False</span><span class="p">)</span>
+
+            <span class="bp">self</span><span class="o">.</span><span class="n">_external</span> <span class="o">=</span> <span class="nb">bool</span><span class="p">(</span><span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;external&#39;</span><span class="p">,</span> <span class="kc">False</span><span class="p">))</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_onstack</span> <span class="o">=</span> <span class="nb">bool</span><span class="p">(</span><span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;onstack&#39;</span><span class="p">,</span> <span class="kc">False</span><span class="p">))</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_onheap</span> <span class="o">=</span> <span class="nb">bool</span><span class="p">(</span><span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;onheap&#39;</span><span class="p">,</span> <span class="kc">True</span><span class="p">))</span>
+
+            <span class="c1"># The memory scope of a TensorFunction must be well-defined</span>
+            <span class="k">assert</span> <span class="n">single_or</span><span class="p">([</span><span class="bp">self</span><span class="o">.</span><span class="n">_external</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_onstack</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_onheap</span><span class="p">])</span>
 
     <span class="nd">@classmethod</span>
     <span class="k">def</span> <span class="nf">_indices</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
         <span class="k">return</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;dimensions&#39;</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">_mem_external</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_external</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">_mem_stack</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
@@ -473,13 +486,18 @@
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">_mem_heap</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">return</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_onstack</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_onheap</span>
 
-    <span class="k">def</span> <span class="nf">update</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">shape</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">dimensions</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">onstack</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">update</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">shape</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">dimensions</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">onstack</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+               <span class="n">onheap</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">external</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">dtype</span> <span class="o">=</span> <span class="n">dtype</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">dtype</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">shape</span> <span class="o">=</span> <span class="n">shape</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">shape</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">indices</span> <span class="o">=</span> <span class="n">dimensions</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">indices</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_onstack</span> <span class="o">=</span> <span class="n">onstack</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">_mem_stack</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_external</span> <span class="o">=</span> <span class="nb">bool</span><span class="p">(</span><span class="n">external</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_onstack</span> <span class="o">=</span> <span class="nb">bool</span><span class="p">(</span><span class="n">onstack</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_onheap</span> <span class="o">=</span> <span class="nb">bool</span><span class="p">(</span><span class="n">onheap</span><span class="p">)</span>
+        <span class="k">assert</span> <span class="n">single_or</span><span class="p">([</span><span class="bp">self</span><span class="o">.</span><span class="n">_external</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_onstack</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_onheap</span><span class="p">])</span>
 
 
 <span class="k">class</span> <span class="nc">SymbolicFunction</span><span class="p">(</span><span class="n">AbstractSymbol</span><span class="p">):</span>
