@@ -1,12 +1,11 @@
 numpy>=1.11.1
-sympy==1.0
+sympy>=1.1
 scipy
 mpmath>=0.19
 pytest
 pytest-ipynb
 flake8>=2.1.0
 cached-property
-isort
 py-cpuinfo
 psutil>=5.1.0
 git+git://github.com/inducer/cgen

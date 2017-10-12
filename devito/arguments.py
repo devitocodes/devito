@@ -40,7 +40,7 @@ class Argument(object):
     @property
     def value(self):
         try:
-            if self._value.is_SymbolicData:
+            if self._value.is_SymbolicFunction:
                 return self._value._data_buffer
             else:
                 raise InvalidArgument("Unexpected data object %s" % type(self._value))
@@ -148,6 +148,40 @@ class ArgumentProvider(object):
         raise NotImplemented()
 
 
+class FixedDimensionArgProvider(ArgumentProvider):
+
+    """ This class is used to decorate the FixedDimension class with behaviour required
+        to handle runtime arguments. All properties/methods defined here are available
+        in any Dimension object.
+    """
+    @property
+    def value(self):
+        return self.size
+
+    @property
+    def dtype(self):
+        """The data type of the iteration variable"""
+        return np.int32
+
+    @cached_property
+    def rtargs(self):
+        return []
+
+    def verify(self, value):
+        if value is None:
+            return True
+
+        # Assuming the only people calling my verify are symbolic data, they need to
+        # be bigger than my size if I have a hard-coded size
+        if not self.is_Buffered:
+            verify = (value >= self.size)
+        else:
+            # If I am a buffered dimension, I just need to make sure the calling
+            # object has enough buffers as my modulo
+            verify = (value >= self.modulo)
+        return verify
+
+
 class DimensionArgProvider(ArgumentProvider):
 
     """ This class is used to decorate the Dimension class with behaviour required
@@ -176,55 +210,45 @@ class DimensionArgProvider(ArgumentProvider):
 
     @cached_property
     def rtargs(self):
-        if self.size is not None:
-            return []
-        else:
-            size = ScalarArgument("%s_size" % self.name, self, max)
-            return [size]
-
-    @property
-    def decl(self):
-        return self.rtargs[0].decl
+        size = ScalarArgument("%s_size" % self.name, self, max)
+        return [size]
 
     # TODO: Can we do without a verify on a dimension?
     def verify(self, value):
         verify = True
+        if value is None:
+            if self.value is not None:
+                return True
 
-        if value is None and self._value is not None:
-            return verify
+            try:
+                parent_value = self.parent.value
+                if parent_value is None:
+                    return False
+            except AttributeError:
+                return False
 
-        if value is not None and value == self._value:
-            return verify
+        try:
+            parent_value = self.parent.value
+            if parent_value is not None:
+                value = self.reducer(value, parent_value)
+            verify = verify and self.parent.verify(value)
+        except AttributeError:
+            pass
 
-        if self.size is not None:
-            # Assuming the only people calling my verify are symbolic data, they need to
-            # be bigger than my size if I have a hard-coded size
-            if not self.is_Buffered:
-                verify = (value >= self.size)
-            else:
-                # If I am a buffered dimension, I just need to make sure the calling
-                # object has enough buffers as my modulo
-                verify = (value >= self.modulo)
-        else:
-            if value is not None and self._value is not None:
-                value = self.reducer(self._value, value)
-            if hasattr(self, 'parent'):
-                verify = verify and self.parent.verify(value)
-                # If I don't know my value, ask my parent
-                if value is None:
-                    value = self.parent.value
+        if value == self.value:
+            return True
 
-            # Derived dimensions could be linked through constraints
-            # At this point, a constraint needs to be added that enforces
-            # dim_e - dim_s < SOME_MAX
-            # Also need a default constraint that dim_e > dim_s (or vice-versa)
-            verify = verify and all([a.verify(v) for a, v in zip(self.rtargs, (value,))])
-            if verify:
-                self._value = value
+        # Derived dimensions could be linked through constraints
+        # At this point, a constraint needs to be added that enforces
+        # dim_e - dim_s < SOME_MAX
+        # Also need a default constraint that dim_e > dim_s (or vice-versa)
+        verify = verify and all([a.verify(v) for a, v in zip(self.rtargs, (value,))])
+        if verify:
+            self._value = value
         return verify
 
 
-class ConstantDataArgProvider(ArgumentProvider):
+class ConstantArgProvider(ArgumentProvider):
 
     """ Class used to decorate Constat Data objects with behaviour required for runtime
         arguments.
@@ -235,7 +259,7 @@ class ConstantDataArgProvider(ArgumentProvider):
         return [ScalarArgument(self.name, self, lambda old, new: new, self.data)]
 
 
-class TensorDataArgProvider(ArgumentProvider):
+class TensorFunctionArgProvider(ArgumentProvider):
 
     """ Class used to decorate Symbolic Data objects with behaviour required for runtime
         arguments.
@@ -246,7 +270,7 @@ class TensorDataArgProvider(ArgumentProvider):
         return [TensorArgument(self.name, self)]
 
 
-class ScalarFunctionArgProvider(ArgumentProvider):
+class ScalarArgProvider(ArgumentProvider):
 
     """ Class used to decorate Scalar Function objects with behaviour required for runtime
         arguments.
@@ -257,7 +281,7 @@ class ScalarFunctionArgProvider(ArgumentProvider):
         return [ScalarArgument(self.name, self, self.dtype)]
 
 
-class TensorFunctionArgProvider(ArgumentProvider):
+class ArrayArgProvider(ArgumentProvider):
 
     """ Class used to decorate Tensor Function objects with behaviour required for runtime
         arguments.

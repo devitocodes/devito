@@ -1,39 +1,45 @@
 import numpy as np
-from sympy import Eq
 
 import pytest
+from conftest import skipif_yask
 
-from devito import Operator, Forward, Backward, TimeData, t
+from devito import Grid, Eq, Operator, Forward, Backward, TimeFunction, t
 
 
 @pytest.fixture
-def a(shape=(11, 11)):
+def grid(shape=(11, 11)):
+    return Grid(shape=shape)
+
+
+@pytest.fixture
+def a(grid):
     """Forward time data object, unrolled (save=True)"""
-    return TimeData(name='a', shape=shape, time_order=1,
-                    time_dim=6, save=True)
+    return TimeFunction(name='a', grid=grid, time_order=1,
+                        time_dim=6, save=True)
 
 
 @pytest.fixture
-def b(shape=(11, 11)):
+def b(grid):
     """Backward time data object, unrolled (save=True)"""
-    return TimeData(name='b', shape=shape, time_order=1,
-                    time_dim=6, save=True)
+    return TimeFunction(name='b', grid=grid, time_order=1,
+                        time_dim=6, save=True)
 
 
 @pytest.fixture
-def c(shape=(11, 11)):
+def c(grid):
     """Forward time data object, buffered (save=False)"""
-    return TimeData(name='c', shape=shape, time_order=1,
-                    save=False, time_axis=Forward)
+    return TimeFunction(name='c', grid=grid, time_order=1,
+                        save=False, time_axis=Forward)
 
 
 @pytest.fixture
-def d(shape=(11, 11)):
+def d(grid):
     """Forward time data object, unrolled (save=True), end order"""
-    return TimeData(name='d', shape=shape, time_order=2,
-                    time_dim=6, save=True)
+    return TimeFunction(name='d', grid=grid, time_order=2,
+                        time_dim=6, save=True)
 
 
+@skipif_yask
 def test_forward(a):
     a.data[0, :] = 1.
     Operator(Eq(a.forward, a + 1.))()
@@ -41,6 +47,7 @@ def test_forward(a):
         assert np.allclose(a.data[i, :], 1. + i, rtol=1.e-12)
 
 
+@skipif_yask
 def test_backward(b):
     b.data[-1, :] = 7.
     Operator(Eq(b.backward, b - 1.), time_axis=Backward)()
@@ -48,6 +55,7 @@ def test_backward(b):
         assert np.allclose(b.data[i, :], 2. + i, rtol=1.e-12)
 
 
+@skipif_yask
 def test_forward_unroll(a, c, nt=5):
     """Test forward time marching with a buffered and an unrolled t"""
     a.data[0, :] = 1.
@@ -59,6 +67,7 @@ def test_forward_unroll(a, c, nt=5):
         assert np.allclose(a.data[i, :], 1. + i, rtol=1.e-12)
 
 
+@skipif_yask
 def test_forward_backward(a, b, nt=5):
     """Test a forward operator followed by a backward marching one"""
     a.data[0, :] = 1.
@@ -72,6 +81,7 @@ def test_forward_backward(a, b, nt=5):
         assert np.allclose(b.data[i, :], 2. + i, rtol=1.e-12)
 
 
+@skipif_yask
 def test_forward_backward_overlapping(a, b, nt=5):
     """
     Test a forward operator followed by a backward one, but with
@@ -88,6 +98,7 @@ def test_forward_backward_overlapping(a, b, nt=5):
         assert np.allclose(b.data[i, :], 2. + i, rtol=1.e-12)
 
 
+@skipif_yask
 def test_loop_bounds_forward(d):
     """Test the automatic bound detection for forward time loops"""
     d.data[:] = 1.
@@ -99,6 +110,7 @@ def test_loop_bounds_forward(d):
         assert np.allclose(d.data[i, :], 1. + i, rtol=1.e-12)
 
 
+@skipif_yask
 def test_loop_bounds_backward(d):
     """Test the automatic bound detection for backward time loops"""
     d.data[:] = 1.

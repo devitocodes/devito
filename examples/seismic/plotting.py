@@ -1,11 +1,15 @@
 import numpy as np
-import matplotlib as mpl
-import matplotlib.pyplot as plt
-from matplotlib import cm
-from mpl_toolkits.axes_grid1 import make_axes_locatable
+try:
+    import matplotlib as mpl
+    import matplotlib.pyplot as plt
+    from matplotlib import cm
+    from mpl_toolkits.axes_grid1 import make_axes_locatable
 
-mpl.rc('font', size=16)
-mpl.rc('figure', figsize=(8, 6))
+    mpl.rc('font', size=16)
+    mpl.rc('figure', figsize=(8, 6))
+except:
+    plt = None
+    cm = None
 
 
 def plot_perturbation(model, model1, colorbar=True):
@@ -92,13 +96,11 @@ def plot_shotrecord(rec, model, t0, tn, colorbar=True):
     :param t0: Start of time dimension to plot
     :param tn: End of time dimension to plot
     """
-    aspect = model.domain_size[0] / tn
     scale = np.max(rec) / 10.
     extent = [model.origin[0], model.origin[0] + 1e-3*model.domain_size[0],
               1e-3*tn, t0]
 
-    plot = plt.imshow(rec, vmin=-scale, vmax=scale, cmap=cm.gray,
-                      aspect=aspect, extent=extent)
+    plot = plt.imshow(rec, vmin=-scale, vmax=scale, cmap=cm.gray, extent=extent)
     plt.xlabel('X position (km)')
     plt.ylabel('Time (s)')
 

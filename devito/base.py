@@ -5,32 +5,32 @@ from __future__ import absolute_import
 from sympy.core.compatibility import with_metaclass
 
 from devito.backends import _BackendSelector
-import devito.interfaces as interfaces
-import devito.pointdata as pointdata
+import devito.types as types
+import devito.function as function
 import devito.operator as operator
 
 
-class ScalarFunction(with_metaclass(_BackendSelector, interfaces.ScalarFunction)):
+class Scalar(with_metaclass(_BackendSelector, types.Scalar)):
     pass
 
 
-class TensorFunction(with_metaclass(_BackendSelector, interfaces.TensorFunction)):
+class Array(with_metaclass(_BackendSelector, types.Array)):
     pass
 
 
-class ConstantData(with_metaclass(_BackendSelector, interfaces.ConstantData)):
+class Constant(with_metaclass(_BackendSelector, function.Constant)):
     pass
 
 
-class DenseData(with_metaclass(_BackendSelector, interfaces.DenseData)):
+class Function(with_metaclass(_BackendSelector, function.Function)):
     pass
 
 
-class TimeData(with_metaclass(_BackendSelector, interfaces.TimeData)):
+class TimeFunction(with_metaclass(_BackendSelector, function.TimeFunction)):
     pass
 
 
-class PointData(with_metaclass(_BackendSelector, pointdata.PointData)):
+class SparseFunction(with_metaclass(_BackendSelector, function.SparseFunction)):
     pass
 
 

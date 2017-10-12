@@ -1,7 +1,8 @@
 import cgen as c
+import ctypes
 
 from devito.cgen_utils import INT, ccode
-from devito.dse import FunctionFromPointer, retrieve_indexed
+from devito.dse import FunctionFromPointer, ListInitializer, retrieve_indexed
 from devito.nodes import Element, Expression
 from devito.tools import as_tuple
 from devito.visitors import FindNodes, Transformer
@@ -16,7 +17,7 @@ def make_sharedptr_funcall(call, params, sharedptr):
 def make_grid_accesses(node):
     """
     Construct a new Iteration/Expression based on ``node``, in which all
-    :class:`interfaces.Indexed` accesses have been converted into YASK grid
+    :class:`types.Indexed` accesses have been converted into YASK grid
     accesses.
     """
 
@@ -26,7 +27,7 @@ def make_grid_accesses(node):
         data_carriers = [i for i in indexeds if i.base.function.from_YASK]
         for i in data_carriers:
             name = namespace['code-grid-name'](i.base.function.name)
-            args = [INT(make_grid_gets(j)) for j in i.indices]
+            args = [ListInitializer([INT(make_grid_gets(j)) for j in i.indices])]
             mapper[i] = make_sharedptr_funcall(namespace['code-grid-get'], args, name)
         return expr.xreplace(mapper)
 
@@ -40,7 +41,8 @@ def make_grid_accesses(node):
         # LHS translation
         if e.output_function.from_YASK:
             name = namespace['code-grid-name'](e.output_function.name)
-            args = [rhs] + [INT(make_grid_gets(i)) for i in lhs.indices]
+            args = [rhs]
+            args += [ListInitializer([INT(make_grid_gets(i)) for i in lhs.indices])]
             handle = make_sharedptr_funcall(namespace['code-grid-put'], args, name)
             processed = Element(c.Statement(ccode(handle)))
         else:
@@ -50,6 +52,11 @@ def make_grid_accesses(node):
         mapper.update({e: processed})
 
     return Transformer(mapper).visit(node)
+
+
+def rawpointer(obj):
+    """Return a :class:`ctypes.c_void_p` pointing to ``obj``."""
+    return ctypes.cast(int(obj), ctypes.c_void_p)
 
 
 def convert_multislice(multislice, shape, offsets, mode='get'):
@@ -137,7 +144,7 @@ def convert_multislice(multislice, shape, offsets, mode='get'):
     assert len(shape) == len(cstart) == len(cstop) == len(offsets)
 
     # Shift by the specified offsets
-    cstart = [j + i for i, j in zip(offsets, cstart)]
-    cstop = [j + i for i, j in zip(offsets, cstop)]
+    cstart = [int(j + i) for i, j in zip(offsets, cstart)]
+    cstop = [int(j + i) for i, j in zip(offsets, cstop)]
 
     return cstart, cstop, cshape

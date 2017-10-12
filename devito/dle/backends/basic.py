@@ -11,8 +11,8 @@ from devito.cgen_utils import ccode
 from devito.dse import as_symbol
 from devito.dle import retrieve_iteration_tree, filter_iterations
 from devito.dle.backends import AbstractRewriter, dle_pass, complang_ALL
-from devito.interfaces import ScalarFunction
-from devito.nodes import (Denormals, Expression, FunCall, Function, List,
+from devito.types import Scalar
+from devito.nodes import (Denormals, Expression, Call, Callable, List,
                           UnboundedIndex)
 from devito.tools import filter_sorted, flatten
 from devito.visitors import FindNodes, FindSymbols, NestedTransformer, Transformer
@@ -38,7 +38,7 @@ class BasicRewriter(AbstractRewriter):
     @dle_pass
     def _create_elemental_functions(self, state, **kwargs):
         """
-        Extract :class:`Iteration` sub-trees and move them into :class:`Function`s.
+        Extract :class:`Iteration` sub-trees and move them into :class:`Callable`s.
 
         Currently, only tagged, elementizable Iteration objects are targeted.
         """
@@ -68,11 +68,11 @@ class BasicRewriter(AbstractRewriter):
                 for i in target:
                     name, bounds = i.dim.name, i.bounds_symbolic
                     # Iteration bounds
-                    start = ScalarFunction(name='%s_start' % name, dtype=np.int32)
-                    finish = ScalarFunction(name='%s_finish' % name, dtype=np.int32)
+                    start = Scalar(name='%s_start' % name, dtype=np.int32)
+                    finish = Scalar(name='%s_finish' % name, dtype=np.int32)
                     args.extend(zip([ccode(j) for j in bounds], (start, finish)))
                     # Iteration unbounded indices
-                    ufunc = [ScalarFunction(name='%s_ub%d' % (name, j), dtype=np.int32)
+                    ufunc = [Scalar(name='%s_ub%d' % (name, j), dtype=np.int32)
                              for j in range(len(i.uindices))]
                     args.extend(zip([ccode(j.start) for j in i.uindices], ufunc))
                     limits = [Symbol(start.name), Symbol(finish.name), 1]
@@ -89,11 +89,11 @@ class BasicRewriter(AbstractRewriter):
 
                 # Retrieve symbolic arguments
                 for i in fsymbols:
-                    if i.is_TensorFunction:
+                    if i.is_Array:
                         args.append(("(%s*)%s" % (c.dtype_to_ctype(i.dtype), i.name), i))
-                    elif i.is_TensorData:
+                    elif i.is_TensorFunction:
                         args.append(("%s_vec" % i.name, i))
-                    elif i.is_ConstantData:
+                    elif i.is_Constant:
                         args.append((i.name, i))
 
                 # Retrieve scalar arguments
@@ -105,19 +105,19 @@ class BasicRewriter(AbstractRewriter):
                         maybe_required.update(j.free_symbols)
                 required = filter_sorted(maybe_required - not_required,
                                          key=attrgetter('name'))
-                args.extend([(i.name, ScalarFunction(name=i.name, dtype=np.int32))
+                args.extend([(i.name, Scalar(name=i.name, dtype=np.int32))
                              for i in required])
 
                 call, params = zip(*args)
                 handle = flatten([p.rtargs for p in params])
                 name = "f_%d" % root.tag
 
-                # Produce the new FunCall
-                mapper[root] = List(header=noinline, body=FunCall(name, call))
+                # Produce the new Call
+                mapper[root] = List(header=noinline, body=Call(name, call))
 
-                # Produce the new Function
+                # Produce the new Callable
                 functions.setdefault(name,
-                                     Function(name, free, 'void', handle, ('static',)))
+                                     Callable(name, free, 'void', handle, ('static',)))
 
             # Transform the main tree
             processed.append(Transformer(mapper).visit(node))

@@ -10,12 +10,12 @@ from sympy import Eq
 
 from devito.cgen_utils import ccode
 from devito.dse import as_symbol, retrieve_terminals
-from devito.interfaces import Indexed, Symbol
+from devito.types import Indexed, Symbol
 from devito.stencil import Stencil
-from devito.tools import as_tuple, filter_ordered, flatten
+from devito.tools import as_tuple, filter_ordered, flatten, is_integer
 from devito.arguments import ArgumentProvider, Argument
 
-__all__ = ['Node', 'Block', 'Denormals', 'Expression', 'Function', 'FunCall',
+__all__ = ['Node', 'Block', 'Denormals', 'Expression', 'Callable', 'Call',
            'Iteration', 'List', 'LocalExpression', 'TimedList']
 
 
@@ -26,8 +26,8 @@ class Node(object):
     is_Iteration = False
     is_IterationFold = False
     is_Expression = False
-    is_Function = False
-    is_FunCall = False
+    is_Callable = False
+    is_Call = False
     is_List = False
     is_Element = False
 
@@ -137,18 +137,18 @@ class Element(Node):
         return "Element::\n\t%s" % (self.element)
 
 
-class FunCall(Node):
+class Call(Node):
 
     """A node representing a function call."""
 
-    is_FunCall = True
+    is_Call = True
 
     def __init__(self, name, params=None):
         self.name = name
         self.params = as_tuple(params)
 
     def __repr__(self):
-        return "FunCall::\n\t%s(...)" % self.name
+        return "Call::\n\t%s(...)" % self.name
 
 
 class Expression(Node):
@@ -278,13 +278,6 @@ class Iteration(Node):
         else:
             self.limits = list((0, limits, 1))
 
-        # Replace open limits with variables names
-        if self.limits[1] is None:
-            # FIXME: Add dimension size as variable bound.
-            # Needs further generalisation to support loop blocking.
-            dim = self.dim.parent if self.dim.is_Buffered else self.dim
-            self.limits[1] = dim.size or dim.symbolic_size
-
         # Record offsets to later adjust loop limits accordingly
         self.offsets = [0, 0]
         for off in (offsets or {}):
@@ -405,12 +398,12 @@ class Iteration(Node):
         try:
             lower = int(self.limits[0]) - self.offsets[0]
         except (TypeError, ValueError):
-            if isinstance(start, int):
+            if is_integer(start):
                 lower = start - self.offsets[0]
         try:
             upper = int(self.limits[1]) - self.offsets[1]
         except (TypeError, ValueError):
-            if isinstance(finish, int):
+            if is_integer(finish):
                 upper = finish - self.offsets[1]
         return (lower, upper)
 
@@ -439,9 +432,9 @@ class Iteration(Node):
         return (self.nodes,)
 
 
-class Function(Node):
+class Callable(Node):
 
-    """Represent a C function.
+    """A node representing a C function.
 
     :param name: The name of the function.
     :param body: A :class:`Node` or an iterable of :class:`Node` objects representing
@@ -453,7 +446,7 @@ class Function(Node):
                    The default value is ('static', 'inline').
     """
 
-    is_Function = True
+    is_Callable = True
 
     _traversable = ['body']
 

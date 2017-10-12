@@ -1,6 +1,4 @@
-from cached_property import cached_property
-
-from devito import DenseData, TimeData
+from devito import Function, TimeFunction, memoized
 from examples.seismic import PointSource, Receiver
 from examples.seismic.acoustic.operators import (
     ForwardOperator, AdjointOperator, GradientOperator, BornOperator
@@ -16,7 +14,13 @@ class AcousticWaveSolver(object):
     :param model: Physical model with domain parameters
     :param source: Sparse point symbol providing the injected wave
     :param receiver: Sparse point symbol describing an array of receivers
-    :param time_order: Order of the time-stepping scheme (default: 2)
+    :param time_order: Order of the time-stepping scheme (default: 2, choices: 2,4)
+                       time_order=4 will not implement a 4th order FD discretization
+                       of the time-derivative as it is unstable. It implements instead
+                       a 4th order accurate wave-equation with only second order
+                       time derivative. Full derivation and explanation of the 4th order
+                       in time can be found at:
+                       http://www.hl107.math.msstate.edu/pdfs/rein/HighANM_final.pdf
     :param space_order: Order of the spatial stencil discretisation (default: 4)
 
     Note: space_order must always be greater than time_order
@@ -38,35 +42,28 @@ class AcousticWaveSolver(object):
         # Cache compiler options
         self._kwargs = kwargs
 
-    @cached_property
-    def op_fwd(self):
+    @memoized
+    def op_fwd(self, save=False):
         """Cached operator for forward runs with buffered wavefield"""
-        return ForwardOperator(self.model, save=False, source=self.source,
+        return ForwardOperator(self.model, save=save, source=self.source,
                                receiver=self.receiver, time_order=self.time_order,
                                space_order=self.space_order, **self._kwargs)
 
-    @cached_property
-    def op_fwd_save(self):
-        """Cached operator for forward runs with unrolled wavefield"""
-        return ForwardOperator(self.model, save=True, source=self.source,
-                               receiver=self.receiver, time_order=self.time_order,
-                               space_order=self.space_order, **self._kwargs)
-
-    @property
+    @memoized
     def op_adj(self):
         """Cached operator for adjoint runs"""
         return AdjointOperator(self.model, save=False, source=self.source,
                                receiver=self.receiver, time_order=self.time_order,
                                space_order=self.space_order, **self._kwargs)
 
-    @cached_property
+    @memoized
     def op_grad(self):
         """Cached operator for gradient runs"""
         return GradientOperator(self.model, save=False, source=self.source,
                                 receiver=self.receiver, time_order=self.time_order,
                                 space_order=self.space_order, **self._kwargs)
 
-    @property
+    @memoized
     def op_born(self):
         """Cached operator for born runs"""
         return BornOperator(self.model, save=False, source=self.source,
@@ -96,21 +93,16 @@ class AcousticWaveSolver(object):
 
         # Create the forward wavefield if not provided
         if u is None:
-            u = TimeData(name='u', shape=self.model.shape_domain, save=save,
-                         time_dim=self.source.nt if save else None,
-                         time_order=2,
-                         space_order=self.space_order,
-                         dtype=self.model.dtype)
+            u = TimeFunction(name='u', grid=self.model.grid, save=save,
+                             time_dim=self.source.nt if save else None,
+                             time_order=2, space_order=self.space_order)
 
         # Pick m from model unless explicitly provided
         if m is None:
             m = m or self.model.m
 
         # Execute operator and return wavefield and receiver data
-        if save:
-            summary = self.op_fwd_save.apply(src=src, rec=rec, u=u, m=m, **kwargs)
-        else:
-            summary = self.op_fwd.apply(src=src, rec=rec, u=u, m=m, **kwargs)
+        summary = self.op_fwd(save).apply(src=src, rec=rec, u=u, m=m, **kwargs)
         return rec, u, summary
 
     def adjoint(self, rec, srca=None, v=None, m=None, **kwargs):
@@ -134,17 +126,15 @@ class AcousticWaveSolver(object):
 
         # Create the adjoint wavefield if not provided
         if v is None:
-            v = TimeData(name='v', shape=self.model.shape_domain,
-                         save=False, time_order=2,
-                         space_order=self.space_order,
-                         dtype=self.model.dtype)
+            v = TimeFunction(name='v', grid=self.model.grid, save=False,
+                             time_order=2, space_order=self.space_order)
 
         # Pick m from model unless explicitly provided
         if m is None:
             m = self.model.m
 
         # Execute operator and return wavefield and receiver data
-        summary = self.op_adj.apply(srca=srca, rec=rec, v=v, m=m, **kwargs)
+        summary = self.op_adj().apply(srca=srca, rec=rec, v=v, m=m, **kwargs)
         return srca, v, summary
 
     def gradient(self, rec, u, v=None, grad=None, m=None, **kwargs):
@@ -163,21 +153,18 @@ class AcousticWaveSolver(object):
 
         # Gradient symbol
         if grad is None:
-            grad = DenseData(name='grad', shape=self.model.shape_domain,
-                             dtype=self.model.dtype)
+            grad = Function(name='grad', grid=self.model.grid)
 
         # Create the forward wavefield
         if v is None:
-            v = TimeData(name='v', shape=self.model.shape_domain, save=False,
-                         time_order=2,
-                         space_order=self.space_order,
-                         dtype=self.model.dtype)
+            v = TimeFunction(name='v', grid=self.model.grid, save=False,
+                             time_order=2, space_order=self.space_order)
 
         # Pick m from model unless explicitly provided
         if m is None:
             m = m or self.model.m
 
-        summary = self.op_grad.apply(rec=rec, grad=grad, v=v, u=u, m=m, **kwargs)
+        summary = self.op_grad().apply(rec=rec, grad=grad, v=v, u=u, m=m, **kwargs)
         return grad, summary
 
     def born(self, dmin, src=None, rec=None, u=None, U=None, m=None, **kwargs):
@@ -201,19 +188,16 @@ class AcousticWaveSolver(object):
 
         # Create the forward wavefields u and U if not provided
         if u is None:
-            u = TimeData(name='u', shape=self.model.shape_domain,
-                         save=False, time_order=2,
-                         space_order=self.space_order,
-                         dtype=self.model.dtype)
+            u = TimeFunction(name='u', grid=self.model.grid, save=False,
+                             time_order=2, space_order=self.space_order)
         if U is None:
-            U = TimeData(name='U', shape=self.model.shape_domain,
-                         save=False, time_order=2,
-                         space_order=self.space_order, dtype=self.model.dtype)
+            U = TimeFunction(name='U', grid=self.model.grid, save=False,
+                             time_order=2, space_order=self.space_order)
 
         # Pick m from model unless explicitly provided
         if m is None:
             m = self.model.m
 
         # Execute operator and return wavefield and receiver data
-        summary = self.op_born.apply(dm=dmin, u=u, U=U, src=src, rec=rec, m=m, **kwargs)
+        summary = self.op_born().apply(dm=dmin, u=u, U=U, src=src, rec=rec, m=m, **kwargs)
         return rec, u, U, summary

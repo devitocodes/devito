@@ -1,14 +1,16 @@
 import numpy as np
 import pytest
+from conftest import skipif_yask
 from numpy import linalg
 
-from devito import TimeData
+from devito import TimeFunction
 from devito.logger import log
 from examples.seismic import PointSource, Receiver, demo_model
 from examples.seismic.acoustic import AcousticWaveSolver
 from examples.seismic.tti import AnisotropicWaveSolver
 
 
+@skipif_yask
 @pytest.mark.parametrize('shape', [(120, 140), (120, 140, 150)])
 @pytest.mark.parametrize('space_order', [4, 8])
 def test_tti(shape, space_order):
@@ -76,15 +78,15 @@ def test_tti(shape, space_order):
                                        time_order=2, space_order=space_order)
 
     # Create new wavefield object restart forward computation
-    u = TimeData(name='u', shape=model.shape_domain, save=False,
-                 time_order=2, space_order=space_order, dtype=model.dtype)
+    u = TimeFunction(name='u', grid=model.grid, save=False,
+                     time_order=2, space_order=space_order, dtype=model.dtype)
     u.data[0:3, :] = u1.data[indlast, :]
     rec, _, _ = acoustic.forward(save=False, u=u)
 
-    utti = TimeData(name='u', shape=model.shape_domain, save=False,
-                    time_order=2, space_order=space_order, dtype=model.dtype)
-    vtti = TimeData(name='v', shape=model.shape_domain, save=False,
-                    time_order=2, space_order=space_order, dtype=model.dtype)
+    utti = TimeFunction(name='u', grid=model.grid, save=False,
+                        time_order=2, space_order=space_order, dtype=model.dtype)
+    vtti = TimeFunction(name='v', grid=model.grid, save=False,
+                        time_order=2, space_order=space_order, dtype=model.dtype)
     utti.data[0:3, :] = u1.data[indlast, :]
     vtti.data[0:3, :] = u1.data[indlast, :]
     rec_tti, u_tti, v_tti, _ = solver_tti.forward(u=utti, v=vtti)

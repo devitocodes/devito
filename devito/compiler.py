@@ -43,7 +43,8 @@ class Compiler(GCCToolchain):
         * :data:`self.undefines`
     """
 
-    cpp_mapper = {'gcc': 'g++', 'clang': 'clang++', 'icc': 'icpc'}
+    cpp_mapper = {'gcc': 'g++', 'clang': 'clang++', 'icc': 'icpc',
+                  'gcc-4.9': 'g++-4.9', 'gcc-5': 'g++-5', 'gcc-6': 'g++-6'}
 
     fields = ['cc', 'ld']
 
@@ -254,7 +255,7 @@ def make(loc, args):
     """
     Invoke ``make`` command from within ``loc`` with arguments ``args``.
     """
-    hash_key = sha1(loc + str(args).encode()).hexdigest()
+    hash_key = sha1((loc + str(args)).encode()).hexdigest()
     logfile = path.join(get_tmp_dir(), "%s.log" % hash_key)
     errfile = path.join(get_tmp_dir(), "%s.err" % hash_key)
 

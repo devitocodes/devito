@@ -15,8 +15,8 @@ from devito.exceptions import CompilationError
 from devito.logger import yask as log
 from devito.tools import numpy_to_ctypes
 
-from devito.yask import cfac, ofac, namespace, exit, yask_configuration
-from devito.yask.utils import convert_multislice
+from devito.yask import cfac, nfac, ofac, namespace, exit, yask_configuration
+from devito.yask.utils import convert_multislice, rawpointer
 
 
 class YaskGrid(object):
@@ -80,7 +80,7 @@ class YaskGrid(object):
         if not shape:
             log("YaskGrid: Getting single entry %s" % str(start))
             assert start == stop
-            out = self.grid.get_element(*start)
+            out = self.grid.get_element(start)
         else:
             log("YaskGrid: Getting full-array/block via index [%s]" % str(index))
             out = np.empty(shape, self.dtype, 'C')
@@ -92,7 +92,7 @@ class YaskGrid(object):
         if all(i == 1 for i in shape):
             log("YaskGrid: Setting single entry %s" % str(start))
             assert start == stop
-            self.grid.set_element(val, *start)
+            self.grid.set_element(val, start)
         elif isinstance(val, np.ndarray):
             log("YaskGrid: Setting full-array/block via index [%s]" % str(index))
             self.grid.set_elements_in_slice(val, start, stop)
@@ -201,7 +201,7 @@ class YaskGrid(object):
 
     @property
     def rawpointer(self):
-        return ctypes.cast(int(self.grid), ctypes.c_void_p)
+        return rawpointer(self.grid)
 
     def give_storage(self, target):
         """
@@ -241,7 +241,7 @@ class YaskKernel(object):
     A ``YaskKernel`` wraps a YASK kernel solution.
     """
 
-    def __init__(self, name, yc_soln, domain):
+    def __init__(self, name, yc_soln, domain, local_grids=None):
         """
         Write out a YASK kernel, build it using YASK's Makefiles,
         import the corresponding SWIG-generated Python module, and finally
@@ -250,6 +250,12 @@ class YaskKernel(object):
         :param name: Unique name of this YaskKernel.
         :param yc_soln: YaskCompiler solution.
         :param domain: A mapper from space dimensions to their domain size.
+        :param local_grids: A local grid is necessary to run the YaskKernel,
+                            but its final content can be ditched. Indeed, local
+                            grids are hidden to users -- for example, they could
+                            represent temporary arrays introduced by the DSE.
+                            This parameter tells which of the ``yc_soln``'s grids
+                            are local.
         """
         self.name = name
 
@@ -268,19 +274,22 @@ class YaskKernel(object):
 
         # JIT-compile it
         try:
+            compiler = yask_configuration['compiler']
             opt_level = 1 if yask_configuration['develop-mode'] else 3
-            make(os.environ['YASK_HOME'], ['-j', 'YK_CXXOPT=-O%d' % opt_level,
-                                           # "EXTRA_MACROS=TRACE",
-                                           'YK_BASE=%s' % str(name),
-                                           'stencil=%s' % yc_soln.get_name(),
-                                           'arch=%s' % yask_configuration['arch'],
-                                           '-C', namespace['kernel-path'], 'api'])
+            make(namespace['path'], ['-j3', 'YK_CXX=%s' % compiler.cc,
+                                     'YK_CXXOPT=-O%d' % opt_level,
+                                     'mpi=0',  # Disable MPI for now
+                                     # "EXTRA_MACROS=TRACE",
+                                     'YK_BASE=%s' % str(name),
+                                     'stencil=%s' % yc_soln.get_name(),
+                                     'arch=%s' % yask_configuration['arch'],
+                                     '-C', namespace['kernel-path'], 'api'])
         except CompilationError:
             exit("Kernel solution compilation")
 
         # Import the corresponding Python (SWIG-generated) module
         try:
-            yk = importlib.import_module(name)
+            yk = getattr(__import__('yask', fromlist=[name]), name)
         except ImportError:
             exit("Python YASK kernel bindings")
         try:
@@ -306,17 +315,50 @@ class YaskKernel(object):
 
         # Set up the solution domain size
         for k, v in domain.items():
-            self.soln.set_rank_domain_size(k, v)
+            self.soln.set_rank_domain_size(k, int(v))
+
+        # Users may want to run the same Operator (same domain etc.) with
+        # different grids.
+        self.grids = {i.get_name(): i for i in self.soln.get_grids()}
+        self.local_grids = {i.name: self.grids[i.name] for i in (local_grids or [])}
 
     def new_grid(self, obj_name, grid_name, dimensions):
         """Create a new YASK grid."""
-        return self.soln.new_grid(grid_name, *dimensions)
+        return self.soln.new_grid(grid_name, dimensions)
 
-    def prepare(self):
+    def run_py(self, ntimesteps):
+        """Run the YaskKernel through the YASK Python API."""
         self.soln.prepare_solution()
-
-    def run(self, ntimesteps):
         self.soln.run_solution(ntimesteps)
+
+    def run_c(self, cfunction, arguments):
+        """
+        Run the YaskKernel through a JIT-compiled function.
+
+        :param cfunction: The JIT-compiler function, of type :class:`ctypes.FuncPtr`
+        :param arguments: List of run-time values to be passed to ``cfunction``.
+        """
+        # Sanity check
+        assert all(not i.is_storage_allocated() for i in self.local_grids.values())
+        assert all(v.is_storage_allocated() for k, v in self.grids.items()
+                   if k not in self.local_grids)
+        # This, amongst other things, will also allocate storage for the
+        # temporary grids
+        self.soln.prepare_solution()
+        # Run the YaskKernel
+        cfunction(*arguments)
+        # Deallocate temporary grids
+        for i in self.local_grids.values():
+            i.release_storage()
+
+    def update(self, obj):
+        """
+        Switch to a different grid in the YaskKernel.
+
+        :param obj: a symbolic object wrapping a :class:`YaskGrid`.
+        """
+        assert obj.name in self.grids
+        obj.data.give_storage(self.grids[obj.name])
 
     @property
     def space_dimensions(self):
@@ -327,12 +369,8 @@ class YaskKernel(object):
         return self.soln.get_step_dim_name()
 
     @property
-    def grids(self):
-        return {i.get_name(): i for i in self.soln.get_grids()}
-
-    @property
     def rawpointer(self):
-        return ctypes.cast(int(self.soln), ctypes.c_void_p)
+        return rawpointer(self.soln)
 
     def __repr__(self):
         return "YaskKernel [%s]" % self.name
@@ -363,6 +401,12 @@ class YaskContext(object):
 
         # Build the hook kernel solution (wrapper) to create grids
         yc_hook = self.make_yc_solution(namespace['jit-yc-hook'])
+        # Need to add dummy grids to make YASK happy
+        # TODO: improve me
+        dimensions = [nfac.new_domain_index(i) for i in domain]
+        yc_hook.new_grid('dummy_wo_time', dimensions)
+        dimensions = [nfac.new_step_index(namespace['time-dim'])] + dimensions
+        yc_hook.new_grid('dummy_w_time', dimensions)
         self.yk_hook = YaskKernel(namespace['jit-yk-hook'](name, 0), yc_hook, domain)
 
     @cached_property
@@ -373,9 +417,13 @@ class YaskContext(object):
     def time_dimension(self):
         return self.yk_hook.time_dimension
 
-    @cached_property
+    @property
     def dimensions(self):
         return (self.time_dimension,) + self.space_dimensions
+
+    @property
+    def shape_domain(self):
+        return tuple(self.domain.values())
 
     @property
     def nsolutions(self):
@@ -394,7 +442,7 @@ class YaskContext(object):
         """
         dimensions = [str(i) for i in obj.indices]
         if set(dimensions) < set(self.space_dimensions):
-            exit("Need a DenseData[x,y,z] to create a YASK grid.")
+            exit("Need a Function[x,y,z] to create a YASK grid.")
         name = 'devito_%s_%d' % (obj.name, contexts.ngrids)
         log("Allocating YaskGrid for %s (%s)" % (obj.name, str(obj.shape)))
         grid = self.yk_hook.new_grid(obj.name, name, dimensions)
@@ -408,17 +456,16 @@ class YaskContext(object):
         """
         yc_soln = cfac.new_solution(namer(self.name, self.nsolutions))
         yc_soln.set_debug_output(ofac.new_null_output())
-        yc_soln.set_step_dim_name(namespace['time-dim'])
-        yc_soln.set_domain_dim_names(*list(self.domain))
         yc_soln.set_element_bytes(self.dtype().itemsize)
         return yc_soln
 
-    def make_yk_solution(self, namer, yc_soln):
+    def make_yk_solution(self, namer, yc_soln, local_grids):
         """
         Create and return a new :class:`YaskKernel` using ``self`` as context
         and ``yc_soln`` as YASK compiler ("stencil") solution.
         """
-        soln = YaskKernel(namer(self.name, self.nsolutions), yc_soln, self.domain)
+        soln = YaskKernel(namer(self.name, self.nsolutions), yc_soln,
+                          self.domain, local_grids)
         self.solutions.append(soln)
         return soln
 
@@ -439,9 +486,10 @@ class ContextManager(OrderedDict):
 
     def dump(self):
         """
-        Drop all known contexts and clean up lib directory.
+        Drop all known contexts and clean up the relevant YASK directories.
         """
         self.clear()
+        call(['rm', '-f'] + glob(os.path.join(namespace['path'], 'yask', '*devito*')))
         call(['rm', '-f'] + glob(os.path.join(namespace['path'], 'lib', '*devito*')))
         call(['rm', '-f'] + glob(os.path.join(namespace['path'], 'lib', '*hook*')))
 
@@ -455,14 +503,14 @@ class ContextManager(OrderedDict):
         assert len(dimensions) == len(shape)
         dimensions = [str(i) for i in dimensions]
         if set(dimensions) < {'x', 'y', 'z'}:
-            exit("Need a DenseData[x,y,z] for initialization")
+            exit("Need a Function[x,y,z] for initialization")
 
         # The time dimension is dropped as implicit to the context
         domain = OrderedDict([(i, j) for i, j in zip(dimensions, shape)
                               if i != namespace['time-dim']])
 
         # A unique key for this context.
-        key = tuple([yask_configuration['isa'], dtype] + domain.items())
+        key = tuple([yask_configuration['isa'], dtype] + list(domain.items()))
 
         # Fetch or create a YaskContext
         if key in self:
@@ -484,22 +532,20 @@ contexts = ContextManager()
 
 # Helpers
 
-class YaskNullSolution(object):
+class YaskNullKernel(object):
 
     """Used when an Operator doesn't actually have a YASK-offloadable tree."""
 
     def __init__(self):
         self.name = 'null solution'
+        self.grids = {}
+        self.local_grids = {}
 
-    def prepare(self):
-        pass
-
-    def run(self, ntimesteps):
+    def run_py(self, ntimesteps):
         exit("Cannot run a NullSolution through YASK's Python bindings")
 
-    @property
-    def grids(self):
-        return {}
+    def run_c(self, cfunction, arguments):
+        cfunction(*arguments)
 
 
 class YaskNullContext(object):

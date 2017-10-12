@@ -1,15 +1,18 @@
-from devito.dimension import Dimension, time
-from devito.pointdata import PointData
+from devito import Dimension, time
+from devito.function import SparseFunction
 from devito.logger import error
 
 import numpy as np
-import matplotlib.pyplot as plt
+try:
+    import matplotlib.pyplot as plt
+except:
+    plt = None
 
 __all__ = ['PointSource', 'Receiver', 'Shot', 'RickerSource', 'GaborSource']
 
 
-class PointSource(PointData):
-    """Symbolic data object for a set of sparse points sources
+class PointSource(SparseFunction):
+    """Symbolic data object for a set of sparse point sources
 
     :param name: Name of the symbol representing this source
     :param coordinates: Point coordinates for this source
@@ -35,10 +38,10 @@ class PointSource(PointData):
         else:
             ntime = ntime or data.shape[0]
 
-        # Create the underlying PointData object
-        obj = PointData.__new__(cls, name=name, dimensions=[time, p_dim],
-                                npoint=npoint, nt=ntime, ndim=ndim,
-                                coordinates=coordinates, **kwargs)
+        # Create the underlying SparseFunction object
+        obj = SparseFunction.__new__(cls, name=name, dimensions=[time, p_dim],
+                                     npoint=npoint, nt=ntime, ndim=ndim,
+                                     coordinates=coordinates, **kwargs)
 
         # If provided, copy initial data into the allocated buffer
         if data is not None:

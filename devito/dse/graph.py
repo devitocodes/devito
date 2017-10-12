@@ -29,7 +29,7 @@ from devito.dimension import Dimension, x, y, z, t, time
 from devito.dse.extended_sympy import Eq
 from devito.dse.search import retrieve_indexed, retrieve_terminals
 from devito.dse.inspection import as_symbol
-from devito.dse.queries import q_indexed, q_indirect
+from devito.dse.queries import q_indirect
 from devito.exceptions import DSEException
 from devito.tools import flatten
 
@@ -244,7 +244,7 @@ class TemporariesGraph(OrderedDict):
                 elif isinstance(i, Dimension):
                     # Go on with the search, as /i/ is not a time dimension
                     continue
-                elif not i.base.function.is_SymbolicData:
+                elif not i.base.function.is_SymbolicFunction:
                     # It didn't come from the outside and it's not in self, so
                     # cannot determine if time-invariant; assume time-varying
                     return False
@@ -364,7 +364,7 @@ def temporaries_graph(temporaries):
 
         # Tensors (does not inspect indirections such as A[B[i]])
         for i in list(handle):
-            if q_indexed(i):
+            if i.is_Indexed:
                 for idx in i.indices:
                     handle |= retrieve_terminals(idx)
 

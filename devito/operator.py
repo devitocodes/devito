@@ -11,10 +11,11 @@ from devito.cgen_utils import Allocator
 from devito.compiler import jit_compile, load
 from devito.dimension import time, Dimension
 from devito.dle import compose_nodes, filter_iterations, transform
-from devito.dse import clusterize, indexify, rewrite, q_indexed, retrieve_terminals
-from devito.interfaces import Forward, Backward, CompositeData, Object
+from devito.dse import clusterize, indexify, rewrite, retrieve_terminals
+from devito.function import Forward, Backward, CompositeFunction
+from devito.types import Object
 from devito.logger import bar, error, info
-from devito.nodes import Element, Expression, Function, Iteration, List, LocalExpression
+from devito.nodes import Element, Expression, Callable, Iteration, List, LocalExpression
 from devito.parameters import configuration
 from devito.profiling import create_profile
 from devito.stencil import Stencil
@@ -24,13 +25,13 @@ from devito.visitors import (FindScopes, ResolveIterationVariable,
 from devito.exceptions import InvalidArgument, InvalidOperator
 
 
-class Operator(Function):
+class Operator(Callable):
 
     _default_headers = ['#define _POSIX_C_SOURCE 200809L']
     _default_includes = ['stdlib.h', 'math.h', 'sys/time.h']
     _default_globals = []
 
-    """A special :class:`Function` to generate and compile C code evaluating
+    """A special :class:`Callable` to generate and compile C code evaluating
     an ordered sequence of stencil expressions.
 
     :param expressions: SymPy equation or list of equations that define the
@@ -83,7 +84,7 @@ class Operator(Function):
         stencils = self._retrieve_stencils(expressions)
 
         # Parameters of the Operator (Dimensions necessary for data casts)
-        parameters = self.input + [i for i in self.dimensions if i.size is None]
+        parameters = self.input + [i for i in self.dimensions if not i.is_Fixed]
 
         # Group expressions based on their Stencil
         clusters = clusterize(expressions, stencils)
@@ -129,10 +130,10 @@ class Operator(Function):
             any remaining arguments
         """
         new_params = {}
-        # If we've been passed CompositeData objects as kwargs, they might have children
-        # that need to be substituted as well.
+        # If we've been passed CompositeFunction objects as kwargs,
+        # they might have children that need to be substituted as well.
         for k, v in kwargs.items():
-            if isinstance(v, CompositeData):
+            if isinstance(v, CompositeFunction):
                 orig_param_l = [i for i in self.input if i.name == k]
                 # If I have been passed a parameter, I must have seen it before
                 if len(orig_param_l) == 0:
@@ -198,7 +199,9 @@ class Operator(Function):
         dle_arguments = OrderedDict()
         autotune = True
         for i in self.dle_arguments:
-            dim_size = dim_sizes.get(i.original_dim.name, i.original_dim.size)
+            dim_size = dim_sizes.get(i.original_dim.name,
+                                     i.original_dim.size if i.original_dim.is_Fixed
+                                     else None)
             if dim_size is None:
                 error('Unable to derive size of dimension %s from defaults. '
                       'Please provide an explicit value.' % i.original_dim.name)
@@ -302,7 +305,8 @@ class Operator(Function):
                 needed = entries[index:]
 
                 # Build and insert the required Iterations
-                iters = [Iteration([], j.dim, j.dim.size, offsets=j.ofs) for j in needed]
+                iters = [Iteration([], j.dim, j.dim.symbolic_size, offsets=j.ofs)
+                         for j in needed]
                 body, tree = compose_nodes(iters + [expressions], retrieve=True)
                 scheduling = OrderedDict(zip(needed, tree))
                 if root is None:
@@ -339,7 +343,7 @@ class Operator(Function):
         # Resolve function calls first
         scopes = []
         for k, v in FindScopes().visit(nodes).items():
-            if k.is_FunCall:
+            if k.is_Call:
                 func = self.func_table[k.name]
                 if func.local:
                     scopes.extend(FindScopes().visit(func.root, queue=list(v)).items())
@@ -420,9 +424,9 @@ class Operator(Function):
                 pass
         input = filter_sorted(input, key=attrgetter('name'))
 
-        output = [i.lhs.base.function for i in expressions if q_indexed(i.lhs)]
+        output = [i.lhs.base.function for i in expressions if i.lhs.is_Indexed]
 
-        indexeds = [i for i in terms if q_indexed(i)]
+        indexeds = [i for i in terms if i.is_Indexed]
         dimensions = []
         for indexed in indexeds:
             for i in indexed.indices:

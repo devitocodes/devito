@@ -18,7 +18,7 @@ from devito.dle.backends import (BasicRewriter, BlockingArg, dle_pass, omplang,
                                  simdinfo, get_simd_flag, get_simd_items)
 from devito.dse import promote_scalar_expressions
 from devito.exceptions import DLEException
-from devito.interfaces import TensorFunction
+from devito.types import Array
 from devito.logger import dle_warning
 from devito.nodes import (Block, Denormals, Expression, Iteration, List,
                           PARALLEL, ELEMENTAL, REMAINDER, tagger)
@@ -162,7 +162,7 @@ class DevitoRewriter(BasicRewriter):
                     # Build Iteration over blocks
                     dim = blocked.setdefault(i, Dimension("%s_block" % i.dim.name))
                     block_size = dim.symbolic_size
-                    iter_size = i.dim.size or i.dim.symbolic_size
+                    iter_size = i.dim.symbolic_size
                     start = i.limits[0] - i.offsets[0]
                     finish = iter_size - i.offsets[1]
                     innersize = iter_size - (-i.offsets[0] + i.offsets[1])
@@ -329,7 +329,7 @@ class DevitoRewriter(BasicRewriter):
 
                     # Track the thread-private and thread-shared variables
                     private.extend([i for i in FindSymbols('symbolics').visit(root)
-                                    if i.is_TensorFunction and i._mem_stack])
+                                    if i.is_Array and i._mem_stack])
 
                 # Build the parallel region
                 private = sorted(set([i.name for i in private]))
@@ -366,7 +366,7 @@ class DevitoRewriter(BasicRewriter):
 
             # Padding
             writes = [i for i in FindSymbols('symbolics-writes').visit(root)
-                      if i.is_TensorFunction]
+                      if i.is_Array]
             padding = []
             for i in writes:
                 try:
@@ -485,10 +485,10 @@ class DevitoSpeculativeRewriter(DevitoRewriter):
             shapes = {k: k.shape[:-1] + (roundm(k.shape[-1], simd_items),)
                       for k in candidates}
             mapper.update(OrderedDict([(k.indexed,
-                                        TensorFunction(name='p%s' % k.name,
-                                                       shape=shapes[k],
-                                                       dimensions=k.indices,
-                                                       onstack=k._mem_stack).indexed)
+                                        Array(name='p%s' % k.name,
+                                              shape=shapes[k],
+                                              dimensions=k.indices,
+                                              onstack=k._mem_stack).indexed)
                           for k in candidates]))
 
         # Substitute original arrays with padded buffers
@@ -496,7 +496,7 @@ class DevitoSpeculativeRewriter(DevitoRewriter):
 
         # Build Iteration trees for initialization and copy-back of padded arrays
         mapper = OrderedDict([(k, v) for k, v in mapper.items()
-                              if k.function.is_SymbolicData])
+                              if k.function.is_SymbolicFunction])
         init = copy_arrays(mapper, reverse=True)
         copyback = copy_arrays(mapper)
 

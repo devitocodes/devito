@@ -1,22 +1,25 @@
 import numpy as np
 import pytest
+from conftest import skipif_yask
 
 from devito.cgen_utils import FLOAT
-from devito import Operator, DenseData, PointData, x, y, z
+from devito import Grid, Operator, Function, SparseFunction, x, y, z
 
 
 @pytest.fixture
 def a(shape=(11, 11)):
-    x = np.linspace(0., 1., shape[0])
-    y = np.linspace(0., 1., shape[1])
-    a = DenseData(name='a', shape=shape)
-    a.data[:] = np.meshgrid(x, y)[1]
+    grid = Grid(shape=shape)
+    a = Function(name='a', grid=grid)
+    xarr = np.linspace(0., 1., shape[0])
+    yarr = np.linspace(0., 1., shape[1])
+    a.data[:] = np.meshgrid(xarr, yarr)[1]
     return a
 
 
 def unit_box(name='a', shape=(11, 11)):
     """Create a field with value 0. to 1. in each dimension"""
-    a = DenseData(name=name, shape=shape)
+    grid = Grid(shape=shape)
+    a = Function(name=name, grid=grid)
     dims = tuple([np.linspace(0., 1., d) for d in shape])
     a.data[:] = np.meshgrid(*dims)[1]
     return a
@@ -26,12 +29,13 @@ def points(ranges, npoints, name='points'):
     """Create a set of sparse points from a set of coordinate
     ranges for each spatial dimension.
     """
-    points = PointData(name=name, nt=1, npoint=npoints, ndim=len(ranges))
+    points = SparseFunction(name=name, nt=1, npoint=npoints, ndim=len(ranges))
     for i, r in enumerate(ranges):
         points.coordinates.data[:, i] = np.linspace(r[0], r[1], npoints)
     return points
 
 
+@skipif_yask
 @pytest.mark.parametrize('shape, coords', [
     ((11, 11), [(.05, .9), (.01, .8)]),
     ((11, 11, 11), [(.05, .9), (.01, .8), (0.07, 0.84)])
@@ -52,6 +56,7 @@ def test_interpolate(shape, coords, npoints=20):
     assert np.allclose(p.data[0, :], xcoords, rtol=1e-6)
 
 
+@skipif_yask
 @pytest.mark.parametrize('shape, coords, result', [
     ((11, 11), [(.05, .95), (.45, .45)], 1.),
     ((11, 11, 11), [(.05, .95), (.45, .45), (.45, .45)], 0.5)
@@ -75,6 +80,7 @@ def test_inject(shape, coords, result, npoints=19):
     assert np.allclose(a.data[indices], result, rtol=1.e-5)
 
 
+@skipif_yask
 @pytest.mark.parametrize('shape, coords, result', [
     ((11, 11), [(.05, .95), (.45, .45)], 1.),
     ((11, 11, 11), [(.05, .95), (.45, .45), (.45, .45)], 0.5)
@@ -86,7 +92,7 @@ def test_inject_from_field(shape, coords, result, npoints=19):
     a = unit_box(shape=shape)
     spacing = a.data[tuple([1 for _ in shape])]
     a.data[:] = 0.
-    b = DenseData(name='b', shape=a.data.shape)
+    b = Function(name='b', grid=a.grid)
     b.data[:] = 1.
     p = points(ranges=coords, npoints=npoints)
 
@@ -99,6 +105,7 @@ def test_inject_from_field(shape, coords, result, npoints=19):
     assert np.allclose(a.data[indices], result, rtol=1.e-5)
 
 
+@skipif_yask
 @pytest.mark.parametrize('shape, coords', [
     ((11, 11), [(.05, .9), (.01, .8)]),
     ((11, 11, 11), [(.05, .9), (.01, .8), (0.07, 0.84)])

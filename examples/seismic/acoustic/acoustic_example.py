@@ -2,14 +2,16 @@ import numpy as np
 from argparse import ArgumentParser
 
 from devito.logger import info
+from devito import Constant
 from examples.seismic.acoustic import AcousticWaveSolver
 from examples.seismic import demo_model, RickerSource, Receiver
 
 
 # Velocity models
 def smooth10(vel, shape):
+    if np.isscalar(vel):
+        return .9 * vel * np.ones(shape, dtype=np.float32)
     out = np.ones(shape, dtype=np.float32)
-    out[:] = vel[:]
     nz = shape[-1]
 
     for a in range(5, nz-6):
@@ -22,10 +24,11 @@ def smooth10(vel, shape):
 
 
 def acoustic_setup(shape=(50, 50, 50), spacing=(15.0, 15.0, 15.0),
-                   tn=500., time_order=2, space_order=4, nbpml=10, **kwargs):
+                   tn=500., time_order=2, space_order=4, nbpml=10,
+                   constant=False, **kwargs):
     nrec = shape[0]
-    model = demo_model('layers-isotropic', ratio=2, shape=shape,
-                       spacing=spacing, nbpml=nbpml)
+    preset = 'constant-isotropic' if constant else 'layers-isotropic'
+    model = demo_model(preset, shape=shape, spacing=spacing, nbpml=nbpml)
 
     # Derive timestepping from model spacing
     dt = model.critical_dt * (1.73 if time_order == 4 else 1.0)
@@ -52,10 +55,11 @@ def acoustic_setup(shape=(50, 50, 50), spacing=(15.0, 15.0, 15.0),
 
 def run(shape=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=1000.0,
         time_order=2, space_order=4, nbpml=40, full_run=False,
-        autotune=False, **kwargs):
+        autotune=False, constant=False, **kwargs):
 
     solver = acoustic_setup(shape=shape, spacing=spacing, nbpml=nbpml, tn=tn,
-                            space_order=space_order, time_order=time_order, **kwargs)
+                            space_order=space_order, time_order=time_order,
+                            constant=constant, **kwargs)
 
     initial_vp = smooth10(solver.model.m.data, solver.model.shape_domain)
     dm = np.float32(initial_vp**2 - solver.model.m.data)
@@ -68,6 +72,13 @@ def run(shape=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=1000.0,
     plt.figure()
     plt.imshow(np.transpose(u.data[1, :, :]), vmin=-.1, vmax=.1, cmap="seismic", aspect=1)
     plt.show()
+
+    if constant:
+        # With  a new m as Constant
+        m0 = Constant(name="m", value=.25, dtype=np.float32)
+        solver.forward(save=full_run, m=m0)
+        # With a new m as a scalar value
+        solver.forward(save=full_run, m=.25)
 
     if not full_run:
         return summary.gflopss, summary.oi, summary.timings, [rec, u.data]
@@ -102,6 +113,8 @@ if __name__ == "__main__":
     parser.add_argument("-dle", default="advanced",
                         choices=["noop", "advanced", "speculative"],
                         help="Devito loop engine (DSE) mode")
+    parser.add_argument("--constant", default=False, action='store_true',
+                        help="Constant velocity model, default is a two layer model")
     args = parser.parse_args()
 
     # 3D preset parameters
@@ -115,5 +128,5 @@ if __name__ == "__main__":
         tn = 500.0
 
     run(shape=shape, spacing=spacing, nbpml=args.nbpml, tn=tn,
-        space_order=args.space_order, time_order=args.time_order,
+        space_order=args.space_order, time_order=args.time_order, constant=args.constant,
         autotune=args.autotune, dse=args.dse, dle=args.dle, full_run=args.full)
