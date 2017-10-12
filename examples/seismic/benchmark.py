@@ -47,11 +47,11 @@ if __name__ == "__main__":
                             type=int, help="End time of the simulation in ms")
 
     devito = parser.add_argument_group("Devito")
-    devito.add_argument("-dse", default="advanced",
+    devito.add_argument("-dse", default="noop",
                         choices=["noop", "basic", "advanced", "speculative",
                                  "aggressive"],
                         help="Devito symbolic engine (DSE) mode")
-    devito.add_argument("-dle", default="advanced",
+    devito.add_argument("-dle", default="noop",
                         choices=["noop", "advanced", "speculative"],
                         help="Devito loop engine (DSE) mode")
     devito.add_argument("-a", "--autotune", action="store_true",
