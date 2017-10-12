@@ -337,6 +337,9 @@ class TestArguments(object):
         assert(np.array_equal(args[arg_name], np.asarray((new_coords,))))
 
     def test_start_end_2d(self):
+        """ In a 2D square domain, ask the operator to operate over a smaller square
+        and then ensure that it only operated on the requested region
+        """
         i, j = dimify('i j')
         shape = (10, 10)
         start = 3
@@ -351,6 +354,9 @@ class TestArguments(object):
         assert(np.allclose(a.data[mask], 0))
 
     def test_start_end_3d(self):
+        """ In a 3D cubical domain, ask the operator to operate over a smaller cube
+        and then ensure that it only operated on the requested region
+        """
         i, j, k = dimify('i j k')
         shape = (10, 10, 10)
         start = 3
@@ -365,6 +371,9 @@ class TestArguments(object):
         assert(np.allclose(a.data[mask], 0))
 
     def test_argument_derivation_order(self, nt=100):
+        """ Ensure the precedence order of arguments is respected
+        Defaults < (overriden by) Tensor Arguments < Dimensions < Scalar Arguments
+        """
         i, j, k = dimify('i j k')
         shape = (10, 10, 10)
         grid = Grid(shape=shape, dimensions=(i, j, k))

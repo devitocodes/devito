@@ -395,20 +395,14 @@ class Iteration(Node):
         available (either statically known or provided through ``start``/
         ``finish``). ``None`` is used as a placeholder in the returned 2-tuple
         if a limit is unknown."""
-        lower = None
-        upper = None
-        try:
-            lower = start if start is not None else (int(self.limits[0]) -
-                                                     self.offsets[0])
-        except (TypeError, ValueError):
-            if is_integer(start):
-                lower = start - self.offsets[0]
-        try:
-            upper = finish if finish is not None else (int(self.limits[1]) -
-                                                       self.offsets[1])
-        except (TypeError, ValueError):
-            if is_integer(finish):
-                upper = finish - self.offsets[1]
+        lower = start or self.limits[0]
+        upper = finish or self.limits[1]
+        if lower and self.offsets[0]:
+            lower = lower - self.offsets[0]
+
+        if upper and self.offsets[1]:
+            upper = upper - self.offsets[1]
+
         return (lower, upper)
 
     def extent(self, start=None, finish=None):
