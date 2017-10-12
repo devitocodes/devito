@@ -55,7 +55,7 @@ separate shell while Devito is running.
 One can control the number of threads used by OpenMP by setting the
 environment variable
 ```
-OMP_NUM_PROCS=X
+OMP_NUM_THREADS=X
 ```
 In which case, X threads will be used. If left unset, as many threads as the
 number of logical cores available on the node will be used.
@@ -171,7 +171,7 @@ on how auto-tuning is getting along.
    multi-socket nodes.  The ideal setting on multi-socket nodes would be to
    have 1 MPI process per socket, and OpenMP (or, why not, MPI itself in
    shared-memory mode) for the processes within a socket. One can still use
-   OpenMP across all available sockets (the default case if `OMP_NUM_PROCS` is
+   OpenMP across all available sockets (the default case if `OMP_NUM_THREADS` is
    unset and more than one sockets are available), but the final performance
    will be very far from the attainable machine peak, due to the well known
    NUMA effect.
