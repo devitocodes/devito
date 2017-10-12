@@ -10,15 +10,12 @@ dependencies:
   - matplotlib
   - pytest
   - flake8>=2.1.0
+  - nbval
   - cached-property
   - psutil>=5.1.0
   - sphinx
   - sphinx_rtd_theme
-  # Some utilities for the pip dependencies below
-  - pandocfilters
-  - scandir
   - pip:
     - "git+git://github.com/inducer/cgen"
     - "git+git://github.com/inducer/codepy"
-    - pytest-ipynb >=1.1
     - py-cpuinfo
