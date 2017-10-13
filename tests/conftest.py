@@ -5,8 +5,7 @@ import pytest
 from sympy import cos  # noqa
 
 from devito import Eq  # noqa
-from devito import (Dimension, t, x, y, z, Constant, Function,
-                    FixedDimension, configuration)
+from devito import (Dimension, t, x, y, z, Constant, Function, configuration)
 from devito.types import Scalar, Array
 from devito.nodes import Iteration
 from devito.tools import as_tuple
@@ -34,16 +33,6 @@ def function(name, shape, dimensions):
 
 @pytest.fixture(scope="session")
 def dims():
-    return {'i': FixedDimension(name='i', size=3),
-            'j': FixedDimension(name='j', size=5),
-            'k': FixedDimension(name='k', size=7),
-            'l': FixedDimension(name='l', size=6),
-            's': FixedDimension(name='s', size=4),
-            'q': FixedDimension(name='q', size=4)}
-
-
-@pytest.fixture(scope="session")
-def dims_open():
     return {'i': Dimension(name='i'),
             'j': Dimension(name='j'),
             'k': Dimension(name='k'),

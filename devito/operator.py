@@ -85,7 +85,7 @@ class Operator(Callable):
         stencils = self._retrieve_stencils(expressions)
 
         # Parameters of the Operator (Dimensions necessary for data casts)
-        parameters = self.input + [i for i in self.dimensions if not i.is_Fixed]
+        parameters = self.input + [i for i in self.dimensions]
 
         # Group expressions based on their Stencil
         clusters = clusterize(expressions, stencils)
@@ -317,9 +317,7 @@ class Operator(Callable):
                 needed = entries[index:]
 
                 # Build and insert the required Iterations
-                iters = [Iteration([], j.dim, j.dim.limits,
-                                   offsets=j.ofs if j.dim.is_Fixed else (0, 0))
-                         for j in needed]
+                iters = [Iteration([], j.dim, j.dim.limits, offsets=j.ofs) for j in needed]
                 body, tree = compose_nodes(iters + [expressions], retrieve=True)
                 scheduling = OrderedDict(zip(needed, tree))
                 if root is None:

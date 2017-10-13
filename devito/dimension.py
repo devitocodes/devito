@@ -1,7 +1,7 @@
-from sympy import Number, Symbol
-from devito.arguments import DimensionArgProvider, FixedDimensionArgProvider
+from sympy import Symbol
+from devito.arguments import DimensionArgProvider
 
-__all__ = ['Dimension', 'FixedDimension', 'x', 'y', 'z', 't', 'p', 'd', 'time']
+__all__ = ['Dimension', 'x', 'y', 'z', 't', 'p', 'd', 'time']
 
 
 class Dimension(Symbol, DimensionArgProvider):
@@ -65,41 +65,6 @@ class Dimension(Symbol, DimensionArgProvider):
     def symbolic_end(self):
         _, _, end = self.rtargs
         return end.as_symbol
-
-
-class FixedDimension(FixedDimensionArgProvider, Dimension):
-
-    is_Fixed = True
-    """This class defines the behaviour of a dimension whose size is fixed
-       at the time of problem definition and can thus be baked into generated
-       code
-    """
-
-    def __new__(cls, name, **kwargs):
-        newobj = super(FixedDimension, cls).__new__(cls, name)
-        newobj._size = kwargs.get('size', None)
-        return newobj
-
-    @property
-    def symbolic_size(self):
-        """The symbolic size of this dimension."""
-        return Number(self.size)
-
-    @property
-    def size(self):
-        return self._size
-
-    @property
-    def limits(self):
-        return (0, self.size, 1)
-
-    @size.setter
-    def size(self, value):
-        self._size = value
-
-    @property
-    def symbolic_end(self):
-        return self.symbolic_size
 
 
 class SpaceDimension(Dimension):
