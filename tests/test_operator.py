@@ -2,7 +2,7 @@ from __future__ import absolute_import
 
 from collections import OrderedDict
 
-from conftest import EVAL, dims, dims_open, skipif_yask
+from conftest import EVAL, dims, skipif_yask
 
 import numpy as np
 import pytest
@@ -14,10 +14,9 @@ from devito.dle import retrieve_iteration_tree
 from devito.visitors import IsPerfectIteration
 
 
-def dimify(dimensions, open=True):
+def dimify(dimensions):
     assert isinstance(dimensions, str)
-    mapper = dims() if not open else dims_open()
-    return tuple(mapper[i] for i in dimensions.split())
+    return tuple(dims()[i] for i in dimensions.split())
 
 
 def symbol(name, dimensions, value=0., shape=(3, 5), mode='function'):
@@ -43,13 +42,15 @@ class TestAPI(object):
         """
         eqn = Eq(a_dense, a_dense + 2.*const)
         op = Operator(eqn)
-        assert len(op.parameters) == 3
+        assert len(op.parameters) == 4
         assert op.parameters[0].name == 'a_dense'
         assert op.parameters[0].is_TensorArgument
         assert op.parameters[1].name == 'constant'
         assert op.parameters[1].is_ScalarArgument
-        assert op.parameters[2].name == 'timings'
-        assert op.parameters[2].is_PtrArgument
+        assert op.parameters[2].name == 'i_size'
+        assert op.parameters[2].is_ScalarArgument
+        assert op.parameters[3].name == 'timings'
+        assert op.parameters[3].is_PtrArgument
         assert 'a_dense[i] = 2.0F*constant + a_dense[i]' in str(op.ccode)
 
 
@@ -148,7 +149,7 @@ class TestArithmetic(object):
     def test_indexed_buffered(self, expr, result):
         """Test point-wise arithmetic with stencil offsets across a single
         functions with buffering dimension in indexed expression format"""
-        i, j, l = dimify('i j l', open=False)
+        i, j, l = dimify('i j l')
         a = symbol(name='a', dimensions=(i, j, l), value=2., shape=(3, 5, 6),
                    mode='indexed').base
         fa = a.function
@@ -163,7 +164,7 @@ class TestArithmetic(object):
     def test_indexed_open_loops(self, expr, result):
         """Test point-wise arithmetic with stencil offsets and open loop
         boundaries in indexed expression format"""
-        i, j, l = dimify('i j l', open=True)
+        i, j, l = dimify('i j l')
         a = Function(name='a', dimensions=(i, j, l), shape=(3, 5, 6)).indexed
         fa = a.function
         fa.data[0, :, :] = 2.
@@ -333,10 +334,10 @@ class TestDeclarator(object):
         operator = Operator(Eq(a, a + b + 5.), dse='noop', dle='noop')
         assert """\
   float (*a);
-  posix_memalign((void**)&a, 64, sizeof(float[3]));
+  posix_memalign((void**)&a, 64, sizeof(float[i_size]));
   struct timeval start_section_0, end_section_0;
   gettimeofday(&start_section_0, NULL);
-  for (int i = 0; i < 3; i += 1)
+  for (int i = 0; i < i_size; i += 1)
   {
     a[i] = a[i] + b[i] + 5.0F;
   }
@@ -350,14 +351,14 @@ class TestDeclarator(object):
         operator = Operator([Eq(a, c), Eq(c, c*a)], dse='noop', dle='noop', aaa=True)
         assert """\
   float (*a);
-  float (*c)[5];
-  posix_memalign((void**)&a, 64, sizeof(float[3]));
-  posix_memalign((void**)&c, 64, sizeof(float[3][5]));
+  float (*c)[j_size];
+  posix_memalign((void**)&a, 64, sizeof(float[i_size]));
+  posix_memalign((void**)&c, 64, sizeof(float[i_size][j_size]));
   struct timeval start_section_0, end_section_0;
   gettimeofday(&start_section_0, NULL);
-  for (int i = 0; i < 3; i += 1)
+  for (int i = 0; i < i_size; i += 1)
   {
-    for (int j = 0; j < 5; j += 1)
+    for (int j = 0; j < j_size; j += 1)
     {
       a[i] = c[i][j];
       c[i][j] = a[i]*c[i][j];
@@ -372,17 +373,18 @@ class TestDeclarator(object):
 
     def test_heap_imperfect_2D_stencil(self, a, c):
         operator = Operator([Eq(a, 0.), Eq(c, c*a)], dse='noop', dle='noop')
+        print(str(operator.ccode))
         assert """\
   float (*a);
-  float (*c)[5];
-  posix_memalign((void**)&a, 64, sizeof(float[3]));
-  posix_memalign((void**)&c, 64, sizeof(float[3][5]));
+  float (*c)[j_size];
+  posix_memalign((void**)&a, 64, sizeof(float[i_size]));
+  posix_memalign((void**)&c, 64, sizeof(float[i_size][j_size]));
   struct timeval start_section_0, end_section_0;
   gettimeofday(&start_section_0, NULL);
-  for (int i = 0; i < 3; i += 1)
+  for (int i = 0; i < i_size; i += 1)
   {
     a[i] = 0.0F;
-    for (int j = 0; j < 5; j += 1)
+    for (int j = 0; j < j_size; j += 1)
     {
       c[i][j] = a[i]*c[i][j];
     }
@@ -399,10 +401,10 @@ class TestDeclarator(object):
                             dse='noop', dle='noop')
         assert """\
   float (*a);
-  posix_memalign((void**)&a, 64, sizeof(float[3]));
+  posix_memalign((void**)&a, 64, sizeof(float[i_size]));
   struct timeval start_section_0, end_section_0;
   gettimeofday(&start_section_0, NULL);
-  for (int i = 0; i < 3; i += 1)
+  for (int i = 0; i < i_size; i += 1)
   {
     float t0 = 1.00000000000000F;
     float t1 = 2.00000000000000F;
@@ -419,16 +421,16 @@ class TestDeclarator(object):
         assert """\
   struct timeval start_section_0, end_section_0;
   gettimeofday(&start_section_0, NULL);
-  for (int k = 0; k < 7; k += 1)
+  for (int k = 0; k < k_size; k += 1)
   {
-    float c_stack[3][5] __attribute__((aligned(64)));
-    for (int s = 0; s < 4; s += 1)
+    float c_stack[i_size][j_size] __attribute__((aligned(64)));
+    for (int s = 0; s < s_size; s += 1)
     {
-      for (int q = 0; q < 4; q += 1)
+      for (int q = 0; q < q_size; q += 1)
       {
-        for (int i = 0; i < 3; i += 1)
+        for (int i = 0; i < i_size; i += 1)
         {
-          for (int j = 0; j < 5; j += 1)
+          for (int j = 0; j < j_size; j += 1)
           {
             c_stack[i][j] = 1.0F*e[k][s][q][i][j];
           }

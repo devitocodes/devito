@@ -148,40 +148,6 @@ class ArgumentProvider(object):
         raise NotImplemented()
 
 
-class FixedDimensionArgProvider(ArgumentProvider):
-
-    """ This class is used to decorate the FixedDimension class with behaviour required
-        to handle runtime arguments. All properties/methods defined here are available
-        in any Dimension object.
-    """
-    @property
-    def value(self):
-        return self.size
-
-    @property
-    def dtype(self):
-        """The data type of the iteration variable"""
-        return np.int32
-
-    @cached_property
-    def rtargs(self):
-        return []
-
-    def verify(self, value):
-        if value is None:
-            return True
-
-        # Assuming the only people calling my verify are symbolic data, they need to
-        # be bigger than my size if I have a hard-coded size
-        if not self.is_Buffered:
-            verify = (value >= self.size)
-        else:
-            # If I am a buffered dimension, I just need to make sure the calling
-            # object has enough buffers as my modulo
-            verify = (value >= self.modulo)
-        return verify
-
-
 class DimensionArgProvider(ArgumentProvider):
 
     """ This class is used to decorate the Dimension class with behaviour required
