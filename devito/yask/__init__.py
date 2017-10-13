@@ -11,7 +11,7 @@ import cpuinfo
 from devito import configuration
 from devito.exceptions import InvalidOperator
 from devito.logger import yask as log
-from devito.parameters import Parameters
+from devito.parameters import Parameters, add_sub_configuration
 from devito.tools import ctypes_pointer
 
 
@@ -75,7 +75,7 @@ class YaskCompiler(configuration['compiler'].__class__):
         self.ldflags.append('-Wl,-rpath,%s' % os.path.join(namespace['path'], 'lib'))
 
 
-yask_configuration = Parameters('YASK-Configuration')
+yask_configuration = Parameters('yask')
 yask_configuration.add('compiler', YaskCompiler())
 yask_configuration.add('python-exec', False, [False, True])
 # Set the Instruction Set Architecture used by the YASK code generator
@@ -94,7 +94,7 @@ yask_configuration.add('arch', arch_mapper[default_isa], arch_mapper.values())
 # machine and providing it to YASK
 def reset_yask_isa(develop_mode):
     isa = default_isa
-    if develop_mode is False:
+    if bool(develop_mode) is False:
         cpu_flags = cpuinfo.get_cpu_info()['flags']
         for i in reversed(ISAs):
             if i in cpu_flags:
@@ -104,7 +104,11 @@ def reset_yask_isa(develop_mode):
     yask_configuration['arch'] = arch_mapper[isa]
 yask_configuration.add('develop-mode', True, [False, True], reset_yask_isa)  # noqa
 
-configuration.add('yask', yask_configuration)
+env_vars_mapper = {
+    'DEVITO_YASK_DEVELOP': 'develop-mode'
+}
+
+add_sub_configuration(yask_configuration, env_vars_mapper)
 
 log("Backend successfully initialized!")
 
