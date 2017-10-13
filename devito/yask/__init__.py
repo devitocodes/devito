@@ -104,8 +104,13 @@ def reset_yask_isa(develop_mode):
     yask_configuration['arch'] = arch_mapper[isa]
 yask_configuration.add('develop-mode', True, [False, True], reset_yask_isa)  # noqa
 
+yask_configuration.add('folding', None, callback=lambda i: eval(i) if i else None)
+yask_configuration.add('blockshape', None, callback=lambda i: eval(i) if i else None)
+
 env_vars_mapper = {
-    'DEVITO_YASK_DEVELOP': 'develop-mode'
+    'DEVITO_YASK_DEVELOP': 'develop-mode',
+    'DEVITO_YASK_FOLDING': 'folding',
+    'DEVITO_YASK_BLOCKING': 'blockshape'
 }
 
 add_sub_configuration(yask_configuration, env_vars_mapper)

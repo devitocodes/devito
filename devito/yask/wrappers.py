@@ -317,6 +317,13 @@ class YaskKernel(object):
         for k, v in domain.items():
             self.soln.set_rank_domain_size(k, int(v))
 
+        # Set up the block shape for loop blocking
+        block_shape = yask_configuration.get('blockshape')
+        if block_shape is not None:
+            assert len(block_shape) == len(domain)
+            for i, j in zip(list(domain), block_shape):
+                self.soln.set_block_size(i, j)
+
         # Users may want to run the same Operator (same domain etc.) with
         # different grids.
         self.grids = {i.get_name(): i for i in self.soln.get_grids()}
@@ -457,6 +464,15 @@ class YaskContext(object):
         yc_soln = cfac.new_solution(namer(self.name, self.nsolutions))
         yc_soln.set_debug_output(ofac.new_null_output())
         yc_soln.set_element_bytes(self.dtype().itemsize)
+
+        # Set vector folding (a compile-time choice)
+        folds_length = yask_configuration.get('folding')
+        if folds_length is not None:
+            dimensions = [nfac.new_domain_index(i) for i in self.domain]
+            assert len(dimensions) == len(folds_length)
+            for i, j in zip(dimensions, folds_length):
+                yc_soln.set_fold_len(i, j)
+
         return yc_soln
 
     def make_yk_solution(self, namer, yc_soln, local_grids):
