@@ -15,8 +15,8 @@ from devito.tools import flatten
 from devito.visitors import IsPerfectIteration, Transformer
 
 from devito.yask import nfac, namespace, exit, yask_configuration
-from devito.yask.utils import make_grid_accesses, make_sharedptr_funcall
-from devito.yask.wrappers import YaskNullContext, YaskNullSolution, contexts
+from devito.yask.utils import make_grid_accesses, make_sharedptr_funcall, rawpointer
+from devito.yask.wrappers import YaskNullContext, YaskNullKernel, contexts
 
 __all__ = ['Operator']
 
@@ -45,48 +45,20 @@ class Operator(OperatorRunnable):
 
         ``parameters`` is modified in-place adding YASK-related arguments.
         """
-
         log("Specializing a Devito Operator for YASK...")
 
-        # Find offloadable Iteration/Expression trees
-        offloadable = []
-        for tree in retrieve_iteration_tree(nodes):
-            parallel = filter_iterations(tree, lambda i: i.is_Parallel)
-            if not parallel:
-                # Cannot offload non-parallel loops
-                continue
-            if not (IsPerfectIteration().visit(tree) and
-                    all(i.is_Expression for i in tree[-1].nodes)):
-                # Don't know how to offload this Iteration/Expression to YASK
-                continue
-            functions = flatten(i.functions for i in tree[-1].nodes)
-            keys = set((i.indices, i.shape, i.dtype)
-                       for i in functions if i.is_TimeFunction)
-            if len(keys) == 0:
-                continue
-            elif len(keys) > 1:
-                exit("Cannot handle Operators w/ heterogeneous grids")
-            dimensions, shape, dtype = keys.pop()
-            if len(dimensions) == len(tree) and\
-                    all(i.dim == j for i, j in zip(tree, dimensions)):
-                # Detected a "full" Iteration/Expression tree (over both
-                # time and space dimensions)
-                offloadable.append((tree, dimensions, shape, dtype))
+        self.context = YaskNullContext()
+        self.yk_soln = YaskNullKernel()
+        local_grids = []
 
-        # Construct YASK ASTs given Devito expressions. New grids may be allocated.
+        offloadable = find_offloadable_trees(nodes)
         if len(offloadable) == 0:
-            # No offloadable trees found
-            self.context = YaskNullContext()
-            self.yk_soln = YaskNullSolution()
-            processed = nodes
             log("No offloadable trees found")
         elif len(offloadable) == 1:
-            # Found *the* offloadable tree for this Operator
             tree, dimensions, shape, dtype = offloadable[0]
             self.context = contexts.fetch(dimensions, shape, dtype)
 
             # Create a YASK compiler solution for this Operator
-            # Note: this can be dropped as soon as the kernel has been built
             yc_soln = self.context.make_yc_solution(namespace['jit-yc-soln'])
 
             transform = sympy2yask(self.context, yc_soln)
@@ -97,14 +69,15 @@ class Operator(OperatorRunnable):
                 funcall = make_sharedptr_funcall(namespace['code-soln-run'], ['time'],
                                                  namespace['code-soln-name'])
                 funcall = Element(c.Statement(ccode(funcall)))
-                processed = Transformer({tree[1]: funcall}).visit(nodes)
+                nodes = Transformer({tree[1]: funcall}).visit(nodes)
 
-                # Track this is an external function call
+                # Track /funcall/ as an external function call
                 self.func_table[namespace['code-soln-run']] = FunMeta(None, False)
 
                 # JIT-compile the newly-created YASK kernel
+                local_grids += [i for i in transform.mapper if i.is_Array]
                 self.yk_soln = self.context.make_yk_solution(namespace['jit-yk-soln'],
-                                                             yc_soln)
+                                                             yc_soln, local_grids)
 
                 # Now we must drop a pointer to the YASK solution down to C-land
                 parameters.append(Object(namespace['code-soln-name'],
@@ -116,8 +89,6 @@ class Operator(OperatorRunnable):
                     (yc_soln.get_name(), yc_soln.get_num_grids(),
                      yc_soln.get_num_equations()))
             except:
-                self.yk_soln = YaskNullSolution()
-                processed = nodes
                 log("Unable to offload a candidate tree.")
         else:
             exit("Found more than one offloadable trees in a single Operator")
@@ -125,51 +96,43 @@ class Operator(OperatorRunnable):
         # Some Iteration/Expression trees are not offloaded to YASK and may
         # require further processing to be executed in YASK, due to the differences
         # in storage layout employed by Devito and YASK
-        processed = make_grid_accesses(processed)
+        nodes = make_grid_accesses(nodes)
 
         # Update the parameters list adding all necessary YASK grids
-        for i in list(parameters):
+        for i in list(parameters) + local_grids:
             try:
                 if i.from_YASK:
                     parameters.append(Object(namespace['code-grid-name'](i.name),
-                                             namespace['type-grid'],
-                                             i.data.rawpointer))
+                                             namespace['type-grid']))
             except AttributeError:
                 # Ignore e.g. Dimensions
                 pass
 
         log("Specialization successfully performed!")
 
-        return processed
+        return nodes
 
     def arguments(self, **kwargs):
+        mapper = {i.name: i for i in self.parameters}
+        local_grids_mapper = {namespace['code-grid-name'](k): v
+                              for k, v in self.yk_soln.local_grids.items()}
+
         # The user has the illusion to provide plain data objects to the
         # generated kernels, but what we actually need and thus going to
-        # provide are pointers to the wrapped YASK grids
-        shadow_kwargs = {}
-        for k, v in kwargs.items():
-            try:
-                if v.from_YASK is True:
-                    shadow_kwargs[namespace['code-grid-name'](k)] = v
-            except AttributeError:
-                pass
+        # provide are pointers to the wrapped YASK grids.
         for i in self.parameters:
-            # Assign the yk::yk_grid pointers
-            obj = shadow_kwargs.get(i.name)
-            if i.is_PtrArgument and obj is not None:
-                assert(i.verify(obj.data.rawpointer))
-
-        # Also need to update this Operator's grids by sharing user-provided data
-        for i in self.parameters:
-            obj = kwargs.get(i.name)
-            if obj is not None and obj.from_YASK:
-                kgrid = self.yk_soln.grids.get(i.name)
-                if kgrid is not None:
-                    obj.data.give_storage(kgrid)
-                else:
-                    # A YaskGrid read/written by this Operator but not appearing
-                    # in the offloaded YASK kernel (if any)
-                    pass
+            grid_arg = mapper.get(namespace['code-grid-name'](i.name))
+            if grid_arg is not None:
+                assert i.provider.from_YASK is True
+                obj = kwargs.get(i.name, i.provider)
+                # Setup YASK grids ("sharing" user-provided or default data)
+                if i.name in self.yk_soln.grids:
+                    self.yk_soln.update(obj)
+                # Add C-level pointer to the YASK grids
+                assert grid_arg.verify(obj.data.rawpointer)
+            elif i.name in local_grids_mapper:
+                # Add C-level pointer to the temporary YASK grids
+                assert i.verify(rawpointer(local_grids_mapper[i.name]))
 
         return super(Operator, self).arguments(**kwargs)
 
@@ -183,18 +146,18 @@ class Operator(OperatorRunnable):
         log("  Domain dimensions: %s" % str(self.context.space_dimensions))
         log("  Grids:")
         for grid in self.yk_soln.grids.values():
-            pad = str([grid.get_pad_size(i) for i in self.context.space_dimensions])
-            log("    %s%s, pad=%s" % (grid.get_name(), str(grid.get_dim_names()), pad))
-
-        # Required by YASK before running any stencils
-        self.yk_soln.prepare()
+            size = [grid.get_rank_domain_size(i) for i in self.context.space_dimensions]
+            pad = [grid.get_pad_size(i) for i in self.context.space_dimensions]
+            log("    %s%s, size=%s, pad=%s" % (grid.get_name(), str(grid.get_dim_names()),
+                                               size, pad))
 
         if yask_configuration['python-exec']:
             log("Running YASK Operator through YASK...")
-            self.yk_soln.run(dim_sizes[self.context.time_dimension])
+            self.yk_soln.run_py(dim_sizes[self.context.time_dimension])
         else:
             log("Running YASK Operator through Devito...")
-            self.cfunction(*list(arguments.values()))
+            self.yk_soln.run_c(self.cfunction, list(arguments.values()))
+
         log("YASK Operator successfully run!")
 
         # Output summary of performance achieved
@@ -212,7 +175,7 @@ class Operator(OperatorRunnable):
         """
         if self._lib is None:
             # No need to recompile if a shared object has already been loaded.
-            if not isinstance(self.yk_soln, YaskNullSolution):
+            if not isinstance(self.yk_soln, YaskNullKernel):
                 self._compiler.libraries.append(self.yk_soln.soname)
             return jit_compile(self.ccode, self._compiler)
         else:
@@ -242,12 +205,12 @@ class sympy2yask(object):
             elif expr.is_Float:
                 return nfac.new_const_number_node(float(expr))
             elif expr.is_Symbol:
-                assert expr in self.mapper
-                return self.mapper[expr]
+                function = expr.base.function
+                assert function in self.mapper
+                return self.mapper[function]
             elif isinstance(expr, Indexed):
                 function = expr.base.function
-                name = function.name
-                if name not in self.mapper:
+                if function not in self.mapper:
                     if function.is_TimeFunction:
                         dimensions = [nfac.new_step_index(function.indices[0].name)]
                         dimensions += [nfac.new_domain_index(i.name)
@@ -255,10 +218,11 @@ class sympy2yask(object):
                     else:
                         dimensions = [nfac.new_domain_index(i.name)
                                       for i in function.indices]
-                    self.mapper[name] = self.yc_soln.new_grid(name, dimensions)
+                    self.mapper[function] = self.yc_soln.new_grid(function.name,
+                                                                  dimensions)
                 indices = [int((i.origin if isinstance(i, LoweredDimension) else i) - j)
                            for i, j in zip(expr.indices, function.indices)]
-                return self.mapper[name].new_relative_grid_point(indices)
+                return self.mapper[function].new_relative_grid_point(indices)
             elif expr.is_Add:
                 return nary2binary(expr.args, nfac.new_add_node)
             elif expr.is_Mul:
@@ -269,8 +233,9 @@ class sympy2yask(object):
                     return nfac.new_divide_node(run(num), run(den))
             elif expr.is_Equality:
                 if expr.lhs.is_Symbol:
-                    assert expr.lhs not in self.mapper
-                    self.mapper[expr.lhs] = run(expr.rhs)
+                    function = expr.lhs.base.function
+                    assert function not in self.mapper
+                    self.mapper[function] = run(expr.rhs)
                 else:
                     return nfac.new_equation_node(*[run(i) for i in expr.args])
             else:
@@ -278,3 +243,36 @@ class sympy2yask(object):
                 raise NotImplementedError
 
         return run(expr)
+
+
+def find_offloadable_trees(nodes):
+    """
+    Return the trees within ``nodes`` that can be computed by YASK.
+
+    A tree is "offloadable to YASK" if it is embedded in a time stepping loop
+    *and* all of the grids accessed by the enclosed equations are homogeneous
+    (i.e., same dimensions, shape, data type).
+    """
+    offloadable = []
+    for tree in retrieve_iteration_tree(nodes):
+        parallel = filter_iterations(tree, lambda i: i.is_Parallel)
+        if not parallel:
+            # Cannot offload non-parallel loops
+            continue
+        if not (IsPerfectIteration().visit(tree) and
+                all(i.is_Expression for i in tree[-1].nodes)):
+            # Don't know how to offload this Iteration/Expression to YASK
+            continue
+        functions = flatten(i.functions for i in tree[-1].nodes)
+        keys = set((i.indices, i.shape, i.dtype) for i in functions if i.is_TimeFunction)
+        if len(keys) == 0:
+            continue
+        elif len(keys) > 1:
+            exit("Cannot handle Operators w/ heterogeneous grids")
+        dimensions, shape, dtype = keys.pop()
+        if len(dimensions) == len(tree) and\
+                all(i.dim == j for i, j in zip(tree, dimensions)):
+            # Detected a "full" Iteration/Expression tree (over both
+            # time and space dimensions)
+            offloadable.append((tree, dimensions, shape, dtype))
+    return offloadable

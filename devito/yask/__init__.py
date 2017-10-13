@@ -31,11 +31,8 @@ try:
     ofac = yc.yask_output_factory()
 except ImportError:
     exit("Python YASK compiler bindings")
-try:
-    # Set directories for generated code
-    path = os.environ['YASK_HOME']
-except KeyError:
-    path = os.path.dirname(os.path.dirname(yc.__file__))
+
+path = os.path.dirname(os.path.dirname(yc.__file__))
 
 # YASK conventions
 namespace = OrderedDict()

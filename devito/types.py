@@ -6,6 +6,7 @@ import sympy
 
 from devito.arguments import ScalarArgProvider, ArrayArgProvider, ObjectArgProvider
 from devito.parameters import configuration
+from devito.tools import single_or
 
 __all__ = ['Symbol', 'Indexed']
 
@@ -286,7 +287,9 @@ class Array(SymbolicData, ArrayArgProvider):
     :param dtype: Data type of the scalar
     :param shape: The shape of the tensor
     :param dimensions: The symbolic dimensions of the tensor.
-    :param onstack: Pass True to enforce allocation on stack
+    :param external: Pass True if there is no need to allocate storage
+    :param onstack: Pass True to enforce allocation on the stack
+    :param onheap: Pass True to enforce allocation on the heap
     """
 
     is_Array = True
@@ -298,11 +301,21 @@ class Array(SymbolicData, ArrayArgProvider):
             self.shape = kwargs.get('shape')
             self.indices = kwargs.get('dimensions')
             self.dtype = kwargs.get('dtype', np.float32)
-            self._onstack = kwargs.get('onstack', False)
+
+            self._external = bool(kwargs.get('external', False))
+            self._onstack = bool(kwargs.get('onstack', False))
+            self._onheap = bool(kwargs.get('onheap', True))
+
+            # The memory scope of a TensorFunction must be well-defined
+            assert single_or([self._external, self._onstack, self._onheap])
 
     @classmethod
     def _indices(cls, **kwargs):
         return kwargs.get('dimensions')
+
+    @property
+    def _mem_external(self):
+        return self._external
 
     @property
     def _mem_stack(self):
@@ -310,13 +323,18 @@ class Array(SymbolicData, ArrayArgProvider):
 
     @property
     def _mem_heap(self):
-        return not self._onstack
+        return self._onheap
 
-    def update(self, dtype=None, shape=None, dimensions=None, onstack=None):
+    def update(self, dtype=None, shape=None, dimensions=None, onstack=None,
+               onheap=None, external=None):
         self.dtype = dtype or self.dtype
         self.shape = shape or self.shape
         self.indices = dimensions or self.indices
-        self._onstack = onstack or self._mem_stack
+
+        self._external = bool(external)
+        self._onstack = bool(onstack)
+        self._onheap = bool(onheap)
+        assert single_or([self._external, self._onstack, self._onheap])
 
 
 class SymbolicFunction(AbstractSymbol):

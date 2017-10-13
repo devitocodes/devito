@@ -1,4 +1,5 @@
 import cgen as c
+import ctypes
 
 from devito.cgen_utils import INT, ccode
 from devito.dse import FunctionFromPointer, ListInitializer, retrieve_indexed
@@ -51,6 +52,11 @@ def make_grid_accesses(node):
         mapper.update({e: processed})
 
     return Transformer(mapper).visit(node)
+
+
+def rawpointer(obj):
+    """Return a :class:`ctypes.c_void_p` pointing to ``obj``."""
+    return ctypes.cast(int(obj), ctypes.c_void_p)
 
 
 def convert_multislice(multislice, shape, offsets, mode='get'):

@@ -1,12 +1,13 @@
 from conftest import EVAL
 
+from sympy import sin  # noqa
 import numpy as np
 import pytest
 from conftest import skipif_yask
 
 from devito.dse import (clusterize, rewrite, xreplace_constrained, iq_timeinvariant,
                         iq_timevarying, estimate_cost, temporaries_graph,
-                        common_subexprs_elimination, collect)
+                        pow_to_mul, common_subexprs_elimination, collect)
 from devito import Eq, Dimension, x, y, z, time, clear_cache  # noqa
 from devito.types import Scalar
 from devito.nodes import Expression
@@ -284,6 +285,21 @@ def test_graph_isindex(fa, fb, fc, t0, t1, t2, exprs, expected):
     mapper = eval(expected)
     for k, v in mapper.items():
         assert g.is_index(k) == v
+
+
+@skipif_yask
+@pytest.mark.parametrize('expr,expected', [
+    ('2*fa[x] + fb[x]', '2*fa[x] + fb[x]'),
+    ('fa[x]**2', 'fa[x]*fa[x]'),
+    ('fa[x]**2 + fb[x]**3', 'fa[x]*fa[x] + fb[x]*fb[x]*fb[x]'),
+    ('3*fa[x]**4', '3*(fa[x]*fa[x]*fa[x]*fa[x])'),
+    ('fa[x]**2', 'fa[x]*fa[x]'),
+    ('1/(fa[x]**2)', 'fa[x]**(-2)'),
+    ('1/(fa[x] + fb[x])', '1/(fa[x] + fb[x])'),
+    ('3*sin(fa[x])**2', '3*(sin(fa[x])*sin(fa[x]))'),
+])
+def test_pow_to_mul(fa, fb, expr, expected):
+    assert str(pow_to_mul(eval(expr))) == expected
 
 
 @skipif_yask

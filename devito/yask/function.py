@@ -8,6 +8,8 @@ __all__ = ['Constant', 'Function', 'TimeFunction']
 
 types.Basic.from_YASK = False
 
+types.Array.from_YASK = True
+
 
 class Constant(function.Constant):
 
