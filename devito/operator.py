@@ -163,7 +163,7 @@ class Operator(Callable):
         dle_arguments, autotune = self._dle_arguments(dim_sizes)
         dim_sizes.update(dle_arguments)
 
-        autotune = autotune and kwargs.pop('autotune', False)
+        autotune = kwargs.pop('autotune', False) and autotune
 
         # Make sure we've used all arguments passed
         if len(kwargs) > 0:
