@@ -52,8 +52,6 @@ class Constant(AbstractSymbol, ConstantArgProvider):
     is_Constant = True
     is_Scalar = True
 
-    is_SymbolicFunction = False
-
     def __init__(self, *args, **kwargs):
         self.name = kwargs.get('name')
         self.dtype = kwargs.get('dtype', np.float32)

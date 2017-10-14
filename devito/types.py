@@ -42,9 +42,11 @@ class Basic(object):
 
     # Top hierarchy
     is_AbstractFunction = False
+    is_AbstractSymbol = False
     is_Object = False
 
     # Symbolic objects created internally by Devito
+    is_Symbol = False
     is_SymbolicData = False
     is_Scalar = False
     is_Array = False
@@ -101,6 +103,8 @@ class AbstractSymbol(sympy.Symbol, CachedSymbol):
     :class:`Function` objects and do not have any indexing dimensions.
     """
 
+    is_AbstractSymbol = True
+
     def __new__(cls, *args, **kwargs):
         options = kwargs.get('options', {})
         if cls in _SymbolCache:
@@ -123,6 +127,8 @@ class Symbol(AbstractSymbol):
 
     """A :class:`sympy.Symbol` capable of mimicking an :class:`sympy.Indexed`"""
 
+    is_Symbol = True
+
     def __init__(self, *args, **kwargs):
         if not self._cached():
             self.dtype = kwargs.get('dtype', np.int32)
@@ -137,6 +143,10 @@ class Symbol(AbstractSymbol):
 
     @property
     def indices(self):
+        return ()
+
+    @property
+    def shape(self):
         return ()
 
     @property
@@ -316,10 +326,6 @@ class Scalar(Symbol, ScalarArgProvider):
     def __init__(self, *args, **kwargs):
         if not self._cached():
             self.dtype = kwargs.get('dtype', np.float32)
-
-    @property
-    def shape(self):
-        return ()
 
     @property
     def _mem_stack(self):
