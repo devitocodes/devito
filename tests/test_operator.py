@@ -271,23 +271,21 @@ class TestArguments(object):
 
     def test_dimension_size_infer(self, nt=100):
         """Test that the dimension sizes are being inferred correctly"""
-        i, j, k = dimify('i j k')
-        shape = (3, 5, 7)
-        a = Function(name='a', shape=shape, dimensions=(i, j, k)).indexed
-        b = TimeFunction(name='b', shape=shape, dimensions=(i, j, k),
-                         save=True, time_dim=nt).indexed
-        eqn = Eq(b[time, x, y, z], a[x, y, z])
-        op = Operator(eqn)
+        grid = Grid(shape=(3, 5, 7))
+        a = Function(name='a', grid=grid)
+        b = TimeFunction(name='b', grid=grid, save=True, time_dim=nt)
+        op = Operator(Eq(b, a))
 
+        time = b.indices[0]
         _, op_dim_sizes = op.arguments()
         assert(op_dim_sizes[time.name] == nt)
 
     def test_dimension_size_override(self, nt=100):
         """Test explicit overrides for the leading time dimension"""
-        i, j, k = dimify('i j k')
-        shape = (3, 5, 7)
-        a = TimeFunction(name='a', dimensions=(i, j, k), shape=shape)
-        one = symbol(name='one', dimensions=(i, j, k), shape=shape, value=1.)
+        grid = Grid(shape=(3, 5, 7))
+        a = TimeFunction(name='a', grid=grid)
+        one = Function(name='one', grid=grid)
+        one.data[:] = 1.
         op = Operator(Eq(a.forward, a + one))
 
         # Test dimension override via the buffered dimenions
