@@ -212,14 +212,15 @@ class TemporariesGraph(OrderedDict):
         if expr is None:
             return all(self.time_invariant(v) for v in self.values())
 
-        if any(i in expr.free_symbols for i in self.time_indices):
+        if any(isinstance(i, Dimension) and i.is_Time for i in expr.free_symbols):
             return False
+
         queue = [expr.rhs] if expr.is_Equality else [expr]
         while queue:
             item = queue.pop()
             temporaries = []
             for i in retrieve_terminals(item):
-                if any(j in i.free_symbols for j in self.time_indices):
+                if any(isinstance(j, Dimension) and j.is_Time for j in i.free_symbols):
                     # Definitely not time-invariant
                     return False
                 if i in self:
