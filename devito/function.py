@@ -136,66 +136,72 @@ class Function(TensorFunction):
             self._first_touch = kwargs.get('first_touch', configuration['first_touch'])
             self._data_object = None
 
-            # Dynamically create notational shortcuts for space derivatives
-            for dim in self.space_dimensions:
-                # First derivative, centred
-                dx = partial(first_derivative, order=self.space_order,
-                             dim=dim, side=centered)
-                setattr(self.__class__, 'd%s' % dim.name,
-                        property(dx, 'Return the symbolic expression for '
-                                 'the centered first derivative wrt. '
-                                 'the %s dimension' % dim.name))
+            # Dynamically add derivative short-cuts
+            self._initialize_derivatives()
 
-                # First derivative, left
-                dxl = partial(first_derivative, order=self.space_order,
-                              dim=dim, side=left)
-                setattr(self.__class__, 'd%sl' % dim.name,
-                        property(dxl, 'Return the symbolic expression for '
-                                 'the left-sided first derivative wrt. '
-                                 'the %s dimension' % dim.name))
+    def _initialize_derivatives(self):
+        """
+        Dynamically create notational shortcuts for space derivatives.
+        """
+        for dim in self.space_dimensions:
+            # First derivative, centred
+            dx = partial(first_derivative, order=self.space_order,
+                         dim=dim, side=centered)
+            setattr(self.__class__, 'd%s' % dim.name,
+                    property(dx, 'Return the symbolic expression for '
+                             'the centered first derivative wrt. '
+                             'the %s dimension' % dim.name))
 
-                # First derivative, right
-                dxr = partial(first_derivative, order=self.space_order,
-                              dim=dim, side=right)
-                setattr(self.__class__, 'd%sr' % dim.name,
-                        property(dxr, 'Return the symbolic expression for '
-                                 'the right-sided first derivative wrt. '
-                                 'the %s dimension' % dim.name))
+            # First derivative, left
+            dxl = partial(first_derivative, order=self.space_order,
+                          dim=dim, side=left)
+            setattr(self.__class__, 'd%sl' % dim.name,
+                    property(dxl, 'Return the symbolic expression for '
+                             'the left-sided first derivative wrt. '
+                             'the %s dimension' % dim.name))
 
-                # Second derivative
-                dx2 = partial(generic_derivative, deriv_order=2, dim=dim,
-                              fd_order=int(self.space_order / 2))
-                setattr(self.__class__, 'd%s2' % dim.name,
-                        property(dx2, 'Return the symbolic expression for '
-                                 'the second derivative wrt. the '
-                                 '%s dimension' % dim.name))
+            # First derivative, right
+            dxr = partial(first_derivative, order=self.space_order,
+                          dim=dim, side=right)
+            setattr(self.__class__, 'd%sr' % dim.name,
+                    property(dxr, 'Return the symbolic expression for '
+                             'the right-sided first derivative wrt. '
+                             'the %s dimension' % dim.name))
 
-                # Fourth derivative
-                dx4 = partial(generic_derivative, deriv_order=4, dim=dim,
-                              fd_order=max(int(self.space_order / 2), 2))
-                setattr(self.__class__, 'd%s4' % dim.name,
-                        property(dx4, 'Return the symbolic expression for '
-                                 'the fourth derivative wrt. the '
-                                 '%s dimension' % dim.name))
+            # Second derivative
+            dx2 = partial(generic_derivative, deriv_order=2, dim=dim,
+                          fd_order=int(self.space_order / 2))
+            setattr(self.__class__, 'd%s2' % dim.name,
+                    property(dx2, 'Return the symbolic expression for '
+                             'the second derivative wrt. the '
+                             '%s dimension' % dim.name))
 
-                for dim2 in self.space_dimensions:
-                    # First cross derivative
-                    dxy = partial(cross_derivative, order=self.space_order,
-                                  dims=(dim, dim2))
-                    setattr(self.__class__, 'd%s%s' % (dim.name, dim2.name),
-                            property(dxy, 'Return the symbolic expression for '
-                                     'the first cross derivative wrt. the '
-                                     '%s and %s dimensions' %
-                                     (dim.name, dim2.name)))
+            # Fourth derivative
+            dx4 = partial(generic_derivative, deriv_order=4, dim=dim,
+                          fd_order=max(int(self.space_order / 2), 2))
+            setattr(self.__class__, 'd%s4' % dim.name,
+                    property(dx4, 'Return the symbolic expression for '
+                             'the fourth derivative wrt. the '
+                             '%s dimension' % dim.name))
 
-                    # Second cross derivative
-                    dx2y2 = partial(second_cross_derivative, dims=(dim, dim2),
-                                    order=self.space_order)
-                    setattr(self.__class__, 'd%s2%s2' % (dim.name, dim2.name),
-                            property(dx2y2, 'Return the symbolic expression for '
-                                     'the second cross derivative wrt. the '
-                                     '%s and %s dimensions' %
-                                     (dim.name, dim2.name)))
+            for dim2 in self.space_dimensions:
+                # First cross derivative
+                dxy = partial(cross_derivative, order=self.space_order,
+                              dims=(dim, dim2))
+                setattr(self.__class__, 'd%s%s' % (dim.name, dim2.name),
+                        property(dxy, 'Return the symbolic expression for '
+                                 'the first cross derivative wrt. the '
+                                 '%s and %s dimensions' %
+                                 (dim.name, dim2.name)))
+
+                # Second cross derivative
+                dx2y2 = partial(second_cross_derivative, dims=(dim, dim2),
+                                order=self.space_order)
+                setattr(self.__class__, 'd%s2%s2' % (dim.name, dim2.name),
+                        property(dx2y2, 'Return the symbolic expression for '
+                                 'the second cross derivative wrt. the '
+                                 '%s and %s dimensions' %
+                                 (dim.name, dim2.name)))
 
     @classmethod
     def _indices(cls, **kwargs):
