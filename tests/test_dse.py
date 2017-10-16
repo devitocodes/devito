@@ -164,8 +164,8 @@ def test_tti_rewrite_aggressive(tti_nodse):
 
 @skipif_yask
 @pytest.mark.parametrize('kernel,space_order,expected', [
-    ('shifted', 8, 364), ('shifted', 16, 830),
-    ('centered', 8, 170), ('centered', 16, 306)
+    ('shifted', 8, 355), ('shifted', 16, 811),
+    ('centered', 8, 168), ('centered', 16, 300)
 ])
 def test_tti_rewrite_aggressive_opcounts(kernel, space_order, expected):
     operator = tti_operator(dse='aggressive', space_order=space_order)
