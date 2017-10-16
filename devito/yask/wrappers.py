@@ -15,7 +15,7 @@ from devito.exceptions import CompilationError
 from devito.logger import yask as log
 from devito.tools import numpy_to_ctypes
 
-from devito.yask import cfac, nfac, ofac, namespace, exit, yask_configuration
+from devito.yask import cfac, nfac, ofac, namespace, exit, configuration
 from devito.yask.utils import convert_multislice, rawpointer
 
 
@@ -260,7 +260,7 @@ class YaskKernel(object):
         self.name = name
 
         # Shared object name
-        self.soname = "%s.%s.%s" % (name, yc_soln.get_name(), yask_configuration['arch'])
+        self.soname = "%s.%s.%s" % (name, yc_soln.get_name(), configuration['platform'])
 
         # It's necessary to `clean` the YASK kernel directory *before*
         # writing out the first `yask_stencil_code.hpp`
@@ -269,20 +269,20 @@ class YaskKernel(object):
         # Write out the stencil file
         if not os.path.exists(namespace['kernel-path-gen']):
             os.makedirs(namespace['kernel-path-gen'])
-        yc_soln.format(yask_configuration['isa'],
+        yc_soln.format(configuration['isa'],
                        ofac.new_file_output(namespace['kernel-output']))
 
         # JIT-compile it
         try:
-            compiler = yask_configuration['compiler']
-            opt_level = 1 if yask_configuration['develop-mode'] else 3
+            compiler = configuration.yask['compiler']
+            opt_level = 1 if configuration.yask['develop-mode'] else 3
             make(namespace['path'], ['-j3', 'YK_CXX=%s' % compiler.cc,
                                      'YK_CXXOPT=-O%d' % opt_level,
                                      'mpi=0',  # Disable MPI for now
                                      # "EXTRA_MACROS=TRACE",
                                      'YK_BASE=%s' % str(name),
                                      'stencil=%s' % yc_soln.get_name(),
-                                     'arch=%s' % yask_configuration['arch'],
+                                     'arch=%s' % configuration['platform'],
                                      '-C', namespace['kernel-path'], 'api'])
         except CompilationError:
             exit("Kernel solution compilation")
@@ -318,7 +318,7 @@ class YaskKernel(object):
             self.soln.set_rank_domain_size(k, int(v))
 
         # Set up the block shape for loop blocking
-        block_shape = yask_configuration.get('blockshape')
+        block_shape = configuration.yask.get('blockshape')
         if block_shape is not None:
             assert len(block_shape) == len(domain)
             for i, j in zip(list(domain), block_shape):
@@ -466,8 +466,8 @@ class YaskContext(object):
         yc_soln.set_element_bytes(self.dtype().itemsize)
 
         # Set vector folding (a compile-time choice)
-        folds_length = yask_configuration.get('folding')
-        if folds_length is not None:
+        folds_length = configuration.yask.get('folding')
+        if configuration['isa'] != 'cpp' and folds_length is not None:
             dimensions = [nfac.new_domain_index(i) for i in self.domain]
             assert len(dimensions) == len(folds_length)
             for i, j in zip(dimensions, folds_length):
@@ -526,7 +526,7 @@ class ContextManager(OrderedDict):
                               if i != namespace['time-dim']])
 
         # A unique key for this context.
-        key = tuple([yask_configuration['isa'], dtype] + list(domain.items()))
+        key = tuple([configuration['isa'], dtype] + list(domain.items()))
 
         # Fetch or create a YaskContext
         if key in self:

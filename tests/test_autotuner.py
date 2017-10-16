@@ -47,11 +47,11 @@ def test_at_is_actually_working(shape, expected):
     assert len(out) == 4
 
     # Now try the same with aggressive autotuning, which tries 9 more cases
-    configuration['autotuning'] = 'aggressive'
+    configuration.core['autotuning'] = 'aggressive'
     op(infield=infield, outfield=outfield, autotune=True)
     out = [i for i in buffer.getvalue().split('\n') if 'AutoTuner:' in i]
     assert len(out) == expected
-    configuration['autotuning'] = configuration._defaults['autotuning']
+    configuration.core['autotuning'] = configuration.core._defaults['autotuning']
 
     logger.removeHandler(temporary_handler)
 

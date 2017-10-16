@@ -60,7 +60,7 @@ def autotune(operator, arguments, tunable):
     blocksizes.append(OrderedDict([(i, mapper[i].iteration.extent(0, j))
                       for i, j in zip(mapper, datashape)]))
     # ... More attempts if auto-tuning in aggressive mode
-    if configuration['autotuning'] == 'aggressive':
+    if configuration.core['autotuning'] == 'aggressive':
         blocksizes = more_heuristic_attempts(blocksizes)
 
     # How many temporaries are allocated on the stack?
