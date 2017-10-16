@@ -129,7 +129,7 @@ class Operator(Callable):
         nodes = self._insert_declarations(dle_state.nodes)
 
         # Initialise Argument Engine
-        self.argument_engine = ArgumentEngine(stencils, parameters)
+        self.argument_engine = ArgumentEngine(stencils, parameters, self.dle_arguments)
 
         parameters = self.argument_engine.arguments
 
@@ -140,49 +140,16 @@ class Operator(Callable):
         """ Process any apply-time arguments passed to apply and derive values for
             any remaining arguments
         """
+
+        arguments, autotune = self.argument_engine.handle(**kwargs)
         
-        autotune = kwargs.pop('autotune', False)
-
-        arguments = self.argument_engine.handle(**kwargs)
-
-        dim_sizes = dict([(d.name, self._runtime_dim_extent(d, arguments)) for d in self.dimensions])
-        dle_arguments, dle_autotune = self._dle_arguments(dim_sizes)
-        dim_sizes.update(dle_arguments)
-        autotune = autotune and dle_autotune
-
         if autotune:
             arguments = self._autotune(arguments)
 
-        return arguments, dim_sizes
-
-    def _runtime_dim_extent(self, dimension, arguments):
-        try:
-            return arguments[dimension.end_name] - arguments[dimension.start_name]
-        except KeyError:
-            return None
+        return arguments
     
     def _default_args(self):
         return OrderedDict([(x.name, x.value) for x in self.parameters])
-
-    def _dle_arguments(self, dim_sizes):
-        # Add user-provided block sizes, if any
-        dle_arguments = OrderedDict()
-        autotune = True
-        for i in self.dle_arguments:
-            dim_size = dim_sizes.get(i.original_dim.name, None)
-            if dim_size is None:
-                error('Unable to derive size of dimension %s from defaults. '
-                      'Please provide an explicit value.' % i.original_dim.name)
-                raise InvalidArgument('Unknown dimension size')
-            if i.value:
-                try:
-                    dle_arguments[i.argument.name] = i.value(dim_size)
-                except TypeError:
-                    dle_arguments[i.argument.name] = i.value
-                    autotune = False
-            else:
-                dle_arguments[i.argument.name] = dim_size
-        return dle_arguments, autotune
 
     @property
     def elemental_functions(self):

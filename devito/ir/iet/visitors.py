@@ -233,6 +233,9 @@ class CGen(Visitor):
         """Convert an iterable of :class:`Argument` into cgen format."""
         ret = []
         for i in args:
+            if not hasattr(i, "is_ScalarArgument"):
+                from devito.arguments import ArgumentVisitor
+                i = ArgumentVisitor().visit(i)
             if i.is_ScalarArgument:
                 ret.append(c.Value('const %s' % c.dtype_to_ctype(i.dtype), i.name))
             elif i.is_TensorArgument:
@@ -245,7 +248,11 @@ class CGen(Visitor):
     def _args_cast(self, args):
         """Build cgen type casts for an iterable of :class:`Argument`."""
         ret = []
+        print(args)
         for i in args:
+            if not hasattr(i, "is_ScalarArgument"):
+                from devito.arguments import ArgumentVisitor
+                i = ArgumentVisitor().visit(i)
             if i.is_TensorArgument:
                 align = "__attribute__((aligned(64)))"
                 shape = ''.join(["[%s]" % ccode(j)
