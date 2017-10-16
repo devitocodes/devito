@@ -25,8 +25,11 @@ from devito.ir.support import Stencil
 from devito.parameters import configuration
 from devito.profiling import create_profile
 from devito.symbolics import indexify, retrieve_terminals
-from devito.tools import as_tuple, filter_sorted, flatten, numpy_to_ctypes
+from devito.tools import as_tuple, filter_sorted, flatten, numpy_to_ctypes, partial_order
 from devito.types import Object
+from devito.stencil import Stencil
+from devito.exceptions import InvalidArgument, InvalidOperator
+from devito.arguments import runtime_arguments, ArgumentEngine
 
 
 class Operator(Callable):
@@ -83,20 +86,14 @@ class Operator(Callable):
         expressions = [s.xreplace(subs) for s in expressions]
 
         # Analysis
-        self.dtype = retrieve_dtype(expressions)
-        self.input, self.output, self.dimensions = retrieve_symbols(expressions)
-        stencils = make_stencils(expressions)
-        self.offsets = {d.end_name: v for d, v in retrieve_offsets(stencils).items()}
-
-        # Set the direction of time acoording to the given TimeAxis
-        for time in [d for d in self.dimensions if d.is_Time]:
-            if not time.is_Stepping:
-                time.reverse = time_axis == Backward
-
-        # Parameters of the Operator (Dimensions necessary for data casts)
+        self.dtype = self._retrieve_dtype(expressions)
+        self.input, self.output, self.dimensions = self._retrieve_symbols(expressions)
+        stencils = self._retrieve_stencils(expressions)
+        
+        # Parameters of the Operator
         parameters = self.input + self.dimensions
 
-        # Group expressions based on their Stencil and data dependences
+        # Group expressions based on their Stencil
         clusters = clusterize(expressions, stencils)
 
         # Apply the Devito Symbolic Engine (DSE) for symbolic optimization
@@ -104,9 +101,6 @@ class Operator(Callable):
 
         # Wrap expressions with Iterations according to dimensions
         nodes = self._schedule_expressions(clusters)
-
-        # Data dependency analysis. Properties are attached directly to nodes
-        nodes = analyze_iterations(nodes)
 
         # Introduce C-level profiling infrastructure
         nodes, self.profiler = self._profile_sections(nodes, parameters)
@@ -134,6 +128,11 @@ class Operator(Callable):
         # Introduce all required C declarations
         nodes = self._insert_declarations(dle_state.nodes)
 
+        # Initialise Argument Engine
+        self.argument_engine = ArgumentEngine(stencils, parameters)
+
+        parameters = self.argument_engine.arguments
+
         # Finish instantiation
         super(Operator, self).__init__(self.name, nodes, 'int', parameters, ())
 
@@ -141,84 +140,29 @@ class Operator(Callable):
         """ Process any apply-time arguments passed to apply and derive values for
             any remaining arguments
         """
-        new_params = {}
-        # If we've been passed CompositeFunction objects as kwargs,
-        # they might have children that need to be substituted as well.
-        for k, v in kwargs.items():
-            if isinstance(v, CompositeFunction):
-                orig_param_l = [i for i in self.input if i.name == k]
-                # If I have been passed a parameter, I must have seen it before
-                if len(orig_param_l) == 0:
-                    raise InvalidArgument("Parameter %s does not exist in expressions " +
-                                          "passed to this Operator" % k)
-                # We've made sure the list isn't empty. Names should be unique so it
-                # should have exactly one entry
-                assert(len(orig_param_l) == 1)
-                orig_param = orig_param_l[0]
-                # Pull out the children and add them to kwargs
-                for orig_child, new_child in zip(orig_param.children, v.children):
-                    new_params[orig_child.name] = new_child
-        kwargs.update(new_params)
+        
+        autotune = kwargs.pop('autotune', False)
 
-        # Derivation. It must happen in the order [tensors -> dimensions -> scalars]
-        for i in self.parameters:
-            if i.is_TensorArgument:
-                assert(i.verify(kwargs.pop(i.name, None)))
-        for d in self.dimensions:
-            user_provided_value = kwargs.pop(d.name, None)
-            if user_provided_value is not None:
-                user_provided_value = infer_dimension_values_tuple(user_provided_value,
-                                                                   d.rtargs,
-                                                                   self.offsets)
-            d.verify(user_provided_value, enforce=True)
-        for i in self.parameters:
-            if i.is_ScalarArgument:
-                user_provided_value = kwargs.pop(i.name, None)
-                if user_provided_value is not None:
-                    user_provided_value += self.offsets.get(i.name, 0)
-                i.verify(user_provided_value, enforce=True)
-        dim_sizes = {}
-        for d in self.dimensions:
-            if d.value is not None:
-                _, d_start, d_end = d.value
-                # Calculte loop extent
-                d_extent = d_end - d_start
-            else:
-                d_extent = None
-            dim_sizes[d.name] = d_extent
-        dle_arguments, autotune = self._dle_arguments(dim_sizes)
+        arguments = self.argument_engine.handle(**kwargs)
+
+        dim_sizes = dict([(d.name, self._runtime_dim_extent(d, arguments)) for d in self.dimensions])
+        dle_arguments, dle_autotune = self._dle_arguments(dim_sizes)
         dim_sizes.update(dle_arguments)
-
-        autotune = autotune and kwargs.pop('autotune', False)
-
-        # Make sure we've used all arguments passed
-        if len(kwargs) > 0:
-            raise InvalidArgument("Unknown arguments passed: " + ", ".join(kwargs.keys()))
-
-        mapper = OrderedDict([(d.name, d) for d in self.dimensions])
-        for d, v in dim_sizes.items():
-            assert(mapper[d].verify(v))
-
-        arguments = self._default_args()
+        autotune = autotune and dle_autotune
 
         if autotune:
             arguments = self._autotune(arguments)
 
-        # Clear the temp values we stored in the arg objects since we've pulled them out
-        # into the OrderedDict object above
-        self._reset_args()
+        return arguments, dim_sizes
 
-        return arguments
-
+    def _runtime_dim_extent(self, dimension, arguments):
+        try:
+            return arguments[dimension.end_name] - arguments[dimension.start_name]
+        except KeyError:
+            return None
+    
     def _default_args(self):
         return OrderedDict([(x.name, x.value) for x in self.parameters])
-
-    def _reset_args(self):
-        """
-        Reset any runtime argument derivation information from a previous run.
-        """
-        for x in list(self.parameters) + self.dimensions:
-            x.reset()
 
     def _dle_arguments(self, dim_sizes):
         # Add user-provided block sizes, if any
