@@ -166,7 +166,6 @@ class ArgumentEngine(object):
         self.dle_arguments = dle_arguments
         self.argument_mapper = self._build_argument_mapper(parameters)
         self.arguments = filter_ordered([x for x in self.argument_mapper if isinstance(x, Argument)], key=lambda x: x.name)
-        print(type(self.arguments))
 
     def handle(self, **kwargs):
 
@@ -185,7 +184,10 @@ class ArgumentEngine(object):
 
         assert(self._verify(values))
 
-        return dict([(k.name, v) for k, v in values.items()]), user_autotune and dle_autotune
+        arguments = dict([(k.name, v) for k, v in values.items()])
+        log_args(arguments)
+
+        return arguments, user_autotune and dle_autotune
         
 
     def _build_argument_mapper(self, parameters):
@@ -282,10 +284,16 @@ class ArgumentEngine(object):
             if values[i] is None:
                 provided_values = [get_value(i, x, values) for x in i.gets_value_from]
                 assert(len(provided_values) > 0)
+        
                 if len(provided_values) == 1:
                     values[i] = provided_values[0]
                 else:
                     values[i] = reduce(provided_values)
+
+        # Second pass to evaluate any Unevaluated dependencies from the first pass
+        for k, v in values.items():
+            if isinstance(v, UnevaluatedDependency):
+                values[k] = v.evaluate(values)
         return values
 
     def _verify(self, values):
@@ -332,13 +340,20 @@ def runtime_dim_extent(dimension, values):
     except (KeyError, TypeError):
         return None
 
+class UnevaluatedDependency(object):
+    def __init__(self, consumer, evaluator, extra_param=None):
+        self.consumer = consumer
+        self.evaluator = evaluator
+        self.extra_param = extra_param
+
+    def evaluate(self, known_values):
+        return self.evaluator(self.consumer, known_values, self.extra_param)
+    
 
 def derive_dle_argument_value(blocked_dim, known_values, dle_argument):
     dim_size = runtime_dim_extent(dle_argument.original_dim, known_values)
     if dim_size is None:
-        error('Unable to derive size of dimension %s from defaults. '
-                'Please provide an explicit value.' % dle_argument.original_dim.name)
-        raise InvalidArgument('Unknown dimension size')
+        return UnevaluatedDependency(blocked_dim, derive_dle_argument_value, dle_argument)
     value = None
     if dle_argument.value:
         try:
@@ -394,7 +409,6 @@ class ValueVisitor(Visitor):
         return self.visit(o.obj, o.param)
 
     def visit_function(self, o, param=None):
-        print("Found callable")
         return o(self.consumer, self.known_values, param)
 
     def visit_object(self, o, param=None):
@@ -463,4 +477,4 @@ def log_args(arguments):
                            (k, str(v.shape), np.linalg.norm(v.view())))
         else:
             arg_str.append('(%s, value=%s)' % (k, str(v)))
-    debug("Passing Arguments: " + ", ".join(arg_str))
+    print("Passing Arguments: " + ", ".join(arg_str))
