@@ -1,4 +1,4 @@
-from devito import Dimension, time
+from devito import Dimension
 from devito.function import SparseFunction
 from devito.logger import error
 
@@ -40,7 +40,7 @@ class PointSource(SparseFunction):
 
         # Create the underlying SparseFunction object
         obj = SparseFunction.__new__(cls, name=name, grid=grid,
-                                     dimensions=[time, p_dim],
+                                     dimensions=[grid.time_dim, p_dim],
                                      npoint=npoint, nt=ntime,
                                      coordinates=coordinates, **kwargs)
 

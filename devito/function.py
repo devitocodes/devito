@@ -7,7 +7,7 @@ from devito.parameters import configuration
 from devito.logger import debug, error, warning
 from devito.memory import CMemory, first_touch
 from devito.cgen_utils import INT, FLOAT
-from devito.dimension import d, p, t, time
+from devito.dimension import d, p, TimeDimension, SteppingDimension
 from devito.arguments import ConstantArgProvider, TensorFunctionArgProvider
 from devito.types import SymbolicFunction, AbstractSymbol
 from devito.finite_difference import (centered, cross_derivative,
@@ -375,6 +375,8 @@ class TimeFunction(Function):
         save = kwargs.get('save', None)
         grid = kwargs.get('grid', None)
         if grid is None:
+            time = TimeDimension('time', spacing=sympy.Symbol('dt'))
+            t = SteppingDimension('t', parent=time)
             tidx = time if save else t
         else:
             tidx = grid.time_dim if save else grid.stepping_dim
@@ -493,7 +495,8 @@ class SparseFunction(CompositeFunction):
         :return: indices used for axis.
         """
         dimensions = kwargs.get('dimensions', None)
-        return dimensions or [time, p]
+        grid = kwargs.get('grid', None)
+        return dimensions or [grid.time_dim, p]
 
     @property
     def shape_data(self):
@@ -622,6 +625,8 @@ class SparseFunction(CompositeFunction):
 
         # Apply optional time symbol substitutions to expr
         if u_t is not None:
+            time = self.grid.time_dim
+            t = self.grid.stepping_dim
             expr = expr.subs(t, u_t).subs(time, u_t)
 
         variables = list(retrieve_indexed(expr))
