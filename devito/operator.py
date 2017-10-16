@@ -9,7 +9,7 @@ import sympy
 
 from devito.cgen_utils import Allocator
 from devito.compiler import jit_compile, load
-from devito.dimension import time, Dimension
+from devito.dimension import Dimension
 from devito.dle import compose_nodes, filter_iterations, transform
 from devito.dse import clusterize, indexify, rewrite, retrieve_terminals
 from devito.function import Forward, Backward, CompositeFunction
@@ -71,9 +71,6 @@ class Operator(Callable):
         self._lib = None
         self._cfunction = None
 
-        # Set the direction of time acoording to the given TimeAxis
-        time.reverse = time_axis == Backward
-
         # Expression lowering
         expressions = [indexify(s) for s in expressions]
         expressions = [s.xreplace(subs) for s in expressions]
@@ -82,6 +79,11 @@ class Operator(Callable):
         self.dtype = self._retrieve_dtype(expressions)
         self.input, self.output, self.dimensions = self._retrieve_symbols(expressions)
         stencils = self._retrieve_stencils(expressions)
+
+        # Set the direction of time acoording to the given TimeAxis
+        for time in [d for d in self.dimensions if d.is_Time]:
+            if not time.is_Stepping:
+                time.reverse = time_axis == Backward
 
         # Parameters of the Operator (Dimensions necessary for data casts)
         parameters = self.input + [i for i in self.dimensions if not i.is_Fixed]
