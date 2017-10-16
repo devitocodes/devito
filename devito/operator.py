@@ -465,8 +465,9 @@ class OperatorRunnable(Operator):
         with bar():
             for k, v in summary.items():
                 name = '%s<%s>' % (k, ','.join('%d' % i for i in v.itershape))
-                info("Section %s with OI=%.2f computed in %.3f s [Perf: %.2f GFlops/s]" %
-                     (name, v.oi, v.time, v.gflopss))
+                gpointss = ", %.2f GPts/s" % v.gpointss if k == 'main' else ''
+                info("Section %s with OI=%.2f computed in %.3f s [%.2f GFlops/s%s]" %
+                     (name, v.oi, v.time, v.gflopss, gpointss))
         return summary
 
     def _profile_sections(self, nodes, parameters):
