@@ -95,7 +95,8 @@ if __name__ == "__main__":
     parameters["spacing"] = tuple(parameters["spacing"])
 
     # Make sure that with YASK we run in performance mode
-    configuration.get('yask', {})['develop-mode'] = False
+    if configuration['backend'] == 'yask':
+        configuration.yask['develop-mode'] = False
 
     if args.execmode == "run":
         parameters["space_order"] = parameters["space_order"][0]

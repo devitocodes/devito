@@ -86,21 +86,20 @@ yask_configuration.add('blockshape', None, callback=lambda i: eval(i) if i else 
 def switch_cpu(develop_mode):
     if bool(develop_mode) is False:
         isa, platform = infer_cpu()
-        if os.environ.get('DEVITO_ISA') is None:
-            configuration['isa'] = isa
-        if os.environ.get('DEVITO_PLATFORM') is None:
-            # Map to platforms known to YASK
-            mapper = {'intel64': 'intel64',
-                      'sandybridge': 'snb', 'ivybridge': 'ivb',
-                      'haswell': 'hsw', 'broadwell': 'hsw',
-                      'skylake': 'skx',
-                      'knc': 'knc', 'knl': 'knl'}
-            if platform in mapper.values():
-                configuration['platform'] = platform
-            elif platform in mapper:
-                configuration['platform'] = mapper[platform]
-            else:
-                exit("Unknown platform `%s` to run in optimized mode" % platform)
+        configuration['isa'] = os.environ.get('DEVITO_ISA', isa)
+        platform = os.environ.get('DEVITO_PLATFORM', platform)
+        # Need to map to platforms known to YASK
+        mapper = {'intel64': 'intel64',
+                  'sandybridge': 'snb', 'ivybridge': 'ivb',
+                  'haswell': 'hsw', 'broadwell': 'hsw',
+                  'skylake': 'skx',
+                  'knc': 'knc', 'knl': 'knl'}
+        if platform in mapper.values():
+            configuration['platform'] = platform
+        elif platform in mapper:
+            configuration['platform'] = mapper[platform]
+        else:
+            exit("Unknown platform `%s` to run in optimized mode" % platform)
     else:
         configuration['isa'], configuration['platform'] = 'cpp', 'intel64'
 yask_configuration.add('develop-mode', True, [False, True], switch_cpu)  # noqa
