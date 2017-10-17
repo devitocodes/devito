@@ -508,7 +508,7 @@ def set_dle_mode(mode):
     Transform :class:`Operator` input in a format understandable by the DLE.
     """
     if not mode:
-        return 'noop', {}
+        return mode, {}
     elif isinstance(mode, str):
         return mode, {}
     elif isinstance(mode, tuple):

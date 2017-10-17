@@ -86,6 +86,10 @@ def transform(node, mode='basic', options=None):
     params['compiler'] = configuration['compiler']
     params['openmp'] = configuration['openmp']
 
+    # Force OpenMP if parallelism was requested, even though mode is 'noop'
+    if mode == 'noop' and params['openmp'] is True:
+        mode = 'openmp'
+
     # Process the Iteration/Expression tree through the DLE
     if mode is None or mode == 'noop':
         return State(node)
