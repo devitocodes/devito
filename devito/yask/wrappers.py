@@ -317,6 +317,9 @@ class YaskKernel(object):
         for k, v in domain.items():
             self.soln.set_rank_domain_size(k, int(v))
 
+        # Apply any user-provided option, if any
+        self.soln.apply_command_line_options(configuration.yask['options'] or '')
+
         # Set up the block shape for loop blocking
         block_shape = configuration.yask.get('blockshape')
         if block_shape is not None:
