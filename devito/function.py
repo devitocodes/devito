@@ -477,7 +477,7 @@ class SparseFunction(CompositeFunction):
     def __new__(cls, *args, **kwargs):
         nt = kwargs.get('nt')
         npoint = kwargs.get('npoint')
-        kwargs['shape'] = (nt, npoint) if nt>0 else (npoint, )
+        kwargs['shape'] = (nt, npoint) if nt > 0 else (npoint, )
 
         return Function.__new__(cls, *args, **kwargs)
 
@@ -575,7 +575,8 @@ class SparseFunction(CompositeFunction):
     def coordinate_indices(self):
         """Symbol for each grid index according to the coordinates"""
         return tuple([INT(sympy.Function('floor')(c / i.spacing))
-                      for c, i in zip(self.coordinate_symbols, self.coordinates_dimensions)])
+                      for c, i in zip(self.coordinate_symbols,
+                                      self.coordinates_dimensions)])
 
     @property
     def coordinate_bases(self):
@@ -668,8 +669,10 @@ class SparseFunction(CompositeFunction):
                 for b, vsub in zip(self.coefficients, idx_subs)]
 
     def assign(self, field, expr, offset=0, **kwargs):
-        """Symbol for injection of an expression onto a grid
-
+        """Symbol for assignment of an expression onto a grid
+        This function works at the symbolic level and will therefor not perform any
+        safety check. Assigned value may be overwritten if the points are
+        too close to each other.
         :param field: The grid field into which we inject.
         :param expr: The expression to inject.
         :param offset: Additional offset from the boundary for
