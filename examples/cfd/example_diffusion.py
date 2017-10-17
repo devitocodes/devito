@@ -18,7 +18,7 @@ from argparse import ArgumentParser
 import numpy as np
 import sympy
 
-from devito import Grid, Eq, Operator, TimeFunction, t, x, y
+from devito import Grid, Eq, Operator, TimeFunction
 from devito.logger import log
 
 try:
@@ -95,8 +95,7 @@ def execute_lambdify(ui, spacing=0.01, a=0.5, timesteps=500):
     def diffusion_stencil():
         """Create stencil and substitutions for the diffusion equation"""
         p = sympy.Function('p')
-        s = t.spacing
-        h = x.spacing
+        x, y, t, h, s = sympy.symbols('x y t h s')
         dx2 = p(x, y, t).diff(x, x).as_finite_difference([x - h, x, x + h])
         dy2 = p(x, y, t).diff(y, y).as_finite_difference([y - h, y, y + h])
         dt = p(x, y, t).diff(t).as_finite_difference([t, t + s])
