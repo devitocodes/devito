@@ -149,16 +149,17 @@ def test_assign(shape, coords, npoints=9):
     spacing = a.data[tuple([1 for _ in shape])]
     a.data[:] = 0.
     p = points(ranges=coords, npoints=npoints)
-    p.data[:] = 1.0
+    p.data[:] = 1.
 
     expr = p.assign(a, p)
 
     Operator(expr, subs={x.spacing: spacing, y.spacing: spacing,
-                         z.spacing: spacing})(a=a, points=p)
+                         z.spacing: spacing})(a=a)
 
     indices = [slice(4, 5, 1) for _ in coords]
-    indices[0] = slice(1, -1, 1)
-    assert np.allclose(a.data[indices], 1., rtol=1.e-5)
+    indices[0] = slice(1, -2, 1)
+    print(a.data[indices])
+    assert np.allclose(a.data[indices], 1.0, rtol=1.e-5)
 
 
 @skipif_yask
