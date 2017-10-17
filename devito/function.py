@@ -458,25 +458,26 @@ class SparseFunction(CompositeFunction):
 
     def __init__(self, *args, **kwargs):
         if not self._cached():
-            self.nt = kwargs.get('nt')
+            self.nt = kwargs.get('nt', 0)
             self.npoint = kwargs.get('npoint')
             self.ndim = kwargs.get('ndim')
-            kwargs['shape'] = (self.nt, self.npoint)
+            kwargs['shape'] = (self.nt, self.npoint) if self.nt > 0 else (self.npoint, )
             super(SparseFunction, self).__init__(self, *args, **kwargs)
 
             # Allocate and copy coordinate data
             self.coordinates = Function(name='%s_coords' % self.name,
-                                        dimensions=[self.indices[1], d],
+                                        dimensions=[self.indices[-1], d],
                                         shape=(self.npoint, self.ndim))
             self._children.append(self.coordinates)
             coordinates = kwargs.get('coordinates', None)
             if coordinates is not None:
                 self.coordinates.data[:] = coordinates[:]
+            self.coordinates_dimensions = kwargs.get('coord_dims', (x, y, z)[:self.ndim])
 
     def __new__(cls, *args, **kwargs):
         nt = kwargs.get('nt')
         npoint = kwargs.get('npoint')
-        kwargs['shape'] = (nt, npoint)
+        kwargs['shape'] = (nt, npoint) if nt>0 else (npoint, )
 
         return Function.__new__(cls, *args, **kwargs)
 
@@ -488,7 +489,9 @@ class SparseFunction(CompositeFunction):
         :return: indices used for axis.
         """
         dimensions = kwargs.get('dimensions', None)
-        return dimensions or [time, p]
+        nt = kwargs.get('nt', 0)
+        defaults = [time, p] if nt > 0 else [p]
+        return dimensions or defaults
 
     @property
     def coefficients(self):
@@ -564,25 +567,23 @@ class SparseFunction(CompositeFunction):
     @property
     def coordinate_symbols(self):
         """Symbol representing the coordinate values in each dimension"""
-        p_dim = self.indices[1]
+        p_dim = self.indices[-1]
         return tuple([self.coordinates.indexify((p_dim, i))
                       for i in range(self.ndim)])
 
     @property
     def coordinate_indices(self):
         """Symbol for each grid index according to the coordinates"""
-        indices = (x, y, z)
         return tuple([INT(sympy.Function('floor')(c / i.spacing))
-                      for c, i in zip(self.coordinate_symbols, indices[:self.ndim])])
+                      for c, i in zip(self.coordinate_symbols, self.coordinates_dimensions)])
 
     @property
     def coordinate_bases(self):
         """Symbol for the base coordinates of the reference grid point"""
-        indices = (x, y, z)
         return tuple([FLOAT(c - idx * i.spacing)
                       for c, idx, i in zip(self.coordinate_symbols,
                                            self.coordinate_indices,
-                                           indices[:self.ndim])])
+                                           self.coordinates_dimensions)])
 
     def interpolate(self, expr, offset=0, **kwargs):
         """Creates a :class:`sympy.Eq` equation for the interpolation
@@ -619,7 +620,7 @@ class SparseFunction(CompositeFunction):
         subs = OrderedDict(zip(self.point_symbols, self.coordinate_bases))
         rhs = sum([expr.subs(vsub) * b.subs(subs)
                    for b, vsub in zip(self.coefficients, idx_subs)])
-
+        rhs += indexify(self) if kwargs.get('cumulative', False) else 0
         # Apply optional time symbol substitutions to lhs of assignment
         lhs = self if p_t is None else self.subs(self.indices[0], p_t)
         return [Eq(lhs, rhs)]
@@ -664,4 +665,45 @@ class SparseFunction(CompositeFunction):
         subs = OrderedDict(zip(self.point_symbols, self.coordinate_bases))
         return [Eq(field.subs(vsub),
                    field.subs(vsub) + expr.subs(subs).subs(vsub) * b.subs(subs))
+                for b, vsub in zip(self.coefficients, idx_subs)]
+
+    def assign(self, field, expr, offset=0, **kwargs):
+        """Symbol for injection of an expression onto a grid
+
+        :param field: The grid field into which we inject.
+        :param expr: The expression to inject.
+        :param offset: Additional offset from the boundary for
+                       absorbing boundary conditions.
+        :param u_t: (Optional) time index to use for indexing into `field`.
+        :param p_t: (Optional) time index to use for indexing into `expr`.
+        """
+        u_t = kwargs.get('u_t', None)
+        p_t = kwargs.get('p_t', None)
+
+        expr = indexify(expr)
+        field = indexify(field)
+        variables = list(retrieve_indexed(expr)) + [field]
+
+        # Apply optional time symbol substitutions to field and expr
+        if u_t is not None:
+            field = field.subs(field.indices[0], u_t)
+        if p_t is not None:
+            expr = expr.subs(self.indices[0], p_t)
+
+        # List of indirection indices for all adjacent grid points
+        index_matrix = [tuple(idx + ii + offset for ii, idx
+                              in zip(inc, self.coordinate_indices))
+                        for inc in self.point_increments]
+
+        # Generate index substituions for all grid variables except
+        # the sparse `SparseFunction` types
+        idx_subs = []
+        for i, idx in enumerate(index_matrix):
+            v_subs = [(v, v.base[v.indices[:-self.ndim] + idx])
+                      for v in variables if not v.base.function.is_SparseFunction]
+            idx_subs += [OrderedDict(v_subs)]
+
+        # Substitute coordinate base symbols into the coefficients
+        subs = OrderedDict(zip(self.point_symbols, self.coordinate_bases))
+        return [Eq(field.subs(vsub), expr.subs(subs).subs(vsub) * b.subs(subs))
                 for b, vsub in zip(self.coefficients, idx_subs)]
