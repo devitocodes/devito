@@ -1,7 +1,7 @@
 from functools import partial
 from hashlib import sha1
-from os import environ, getuid, mkdir, path
-from tempfile import gettempdir, mkdtemp
+from os import environ, path
+from tempfile import mkdtemp
 from time import time
 from sys import platform
 import subprocess
