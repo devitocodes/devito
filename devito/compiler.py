@@ -198,8 +198,7 @@ def get_tmp_dir():
     try:
         path.exists(_devito_compiler_tmpdir)
     except:
-        suffix = "devito-%s" % getuid()
-        _devito_compiler_tmpdir = mkdtemp(prefix=gettempdir(), suffix=suffix)
+        _devito_compiler_tmpdir = mkdtemp(prefix="devito-")
 
     return _devito_compiler_tmpdir
 
