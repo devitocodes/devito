@@ -191,7 +191,3 @@ def test_adjoint_inject_interpolate(shape, coords,
     term1 = np.dot(p2.data.reshape(-1), p.data.reshape(-1))
     term2 = np.dot(c.data.reshape(-1), a.data.reshape(-1))
     assert np.isclose((term1-term2) / term1, 0., atol=1.e-6)
-
-
-if __name__ == "__main__":
-    test_assign((11, 11), [(.1, .9), (.4, .4)], npoints=9)
