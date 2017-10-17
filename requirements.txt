@@ -12,3 +12,4 @@ git+git://github.com/inducer/cgen
 git+git://github.com/inducer/codepy
 matplotlib
 dask
+distributed
