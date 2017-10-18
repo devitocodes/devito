@@ -137,15 +137,7 @@ class Profiler(object):
             time = self.timings[profile.name]
 
             # Flops
-            itershape = []
-            for i in itspace:
-                if dims[i].is_Fixed:
-                    start = 0
-                    end = dims[i].size
-                else:
-                    start = arguments[dims[i].start_name]
-                    end = arguments[dims[i].end_name]
-                itershape.append(i.extent(finish=end, start=start))
+            itershape = [i.extent(finish=arguments[dims[i].end_name], start=arguments[dims[i].start_name]) for i in itspace]
             iterspace = reduce(operator.mul, itershape)
             flops = float(profile.ops*iterspace)
             gflops = flops/10**9

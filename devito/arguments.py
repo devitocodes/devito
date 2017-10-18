@@ -3,6 +3,7 @@ import abc
 import numpy as np
 from cached_property import cached_property
 from collections import defaultdict, namedtuple
+from sympy import Symbol
 
 from devito.exceptions import InvalidArgument
 from devito.logger import debug
