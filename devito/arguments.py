@@ -203,10 +203,7 @@ class DimensionArgProvider(ArgumentProvider):
         if not isinstance(value, tuple):
             # scalar
             size, start, end = self.rtargs
-            offsets = (0, 0)
-            if engine is not None:
-                offsets = engine.dimension_offsets[self]
-            value = (value, start.default_value + offsets[0], value - offsets[1])
+            value = (value, start.default_value, value)
         else:
             if len(value) == 2:
                 # 2-tuple
