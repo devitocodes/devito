@@ -425,7 +425,7 @@ class TestDeclarator(object):
   posix_memalign((void**)&a, 64, sizeof(float[i_size]));
   struct timeval start_section_0, end_section_0;
   gettimeofday(&start_section_0, NULL);
-  for (int i = 0; i < i_size; i += 1)
+  for (int i = i_s; i < i_e; i += 1)
   {
     a[i] = a[i] + b[i] + 5.0F;
   }
@@ -444,9 +444,9 @@ class TestDeclarator(object):
   posix_memalign((void**)&c, 64, sizeof(float[i_size][j_size]));
   struct timeval start_section_0, end_section_0;
   gettimeofday(&start_section_0, NULL);
-  for (int i = 0; i < i_size; i += 1)
+  for (int i = i_s; i < i_e; i += 1)
   {
-    for (int j = 0; j < j_size; j += 1)
+    for (int j = j_s; j < j_e; j += 1)
     {
       a[i] = c[i][j];
       c[i][j] = a[i]*c[i][j];
@@ -461,7 +461,6 @@ class TestDeclarator(object):
 
     def test_heap_imperfect_2D_stencil(self, a, c):
         operator = Operator([Eq(a, 0.), Eq(c, c*a)], dse='noop', dle='noop')
-        print(str(operator.ccode))
         assert """\
   float (*a);
   float (*c)[j_size];
@@ -469,10 +468,10 @@ class TestDeclarator(object):
   posix_memalign((void**)&c, 64, sizeof(float[i_size][j_size]));
   struct timeval start_section_0, end_section_0;
   gettimeofday(&start_section_0, NULL);
-  for (int i = 0; i < i_size; i += 1)
+  for (int i = i_s; i < i_e; i += 1)
   {
     a[i] = 0.0F;
-    for (int j = 0; j < j_size; j += 1)
+    for (int j = j_s; j < j_e; j += 1)
     {
       c[i][j] = a[i]*c[i][j];
     }
@@ -492,7 +491,7 @@ class TestDeclarator(object):
   posix_memalign((void**)&a, 64, sizeof(float[i_size]));
   struct timeval start_section_0, end_section_0;
   gettimeofday(&start_section_0, NULL);
-  for (int i = 0; i < i_size; i += 1)
+  for (int i = i_s; i < i_e; i += 1)
   {
     float t0 = 1.00000000000000F;
     float t1 = 2.00000000000000F;
@@ -509,16 +508,16 @@ class TestDeclarator(object):
         assert """\
   struct timeval start_section_0, end_section_0;
   gettimeofday(&start_section_0, NULL);
-  for (int k = 0; k < k_size; k += 1)
+  for (int k = k_s; k < k_e; k += 1)
   {
     float c_stack[i_size][j_size] __attribute__((aligned(64)));
-    for (int s = 0; s < s_size; s += 1)
+    for (int s = s_s; s < s_e; s += 1)
     {
-      for (int q = 0; q < q_size; q += 1)
+      for (int q = q_s; q < q_e; q += 1)
       {
-        for (int i = 0; i < i_size; i += 1)
+        for (int i = i_s; i < i_e; i += 1)
         {
-          for (int j = 0; j < j_size; j += 1)
+          for (int j = j_s; j < j_e; j += 1)
           {
             c_stack[i][j] = 1.0F*e[k][s][q][i][j];
           }
