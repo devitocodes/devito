@@ -4,8 +4,7 @@ from cached_property import cached_property
 from devito.arguments import DimensionArgProvider
 from devito.types import Symbol
 
-__all__ = ['Dimension', 'p', 'd',
-           'SpaceDimension', 'TimeDimension', 'SteppingDimension']
+__all__ = ['Dimension', 'SpaceDimension', 'TimeDimension', 'SteppingDimension']
 
 
 class Dimension(sympy.Symbol, DimensionArgProvider):
@@ -138,7 +137,3 @@ class LoweredDimension(Dimension):
     @property
     def reverse(self):
         return self.stepping.reverse
-
-
-d = Dimension('d')
-p = Dimension('p')

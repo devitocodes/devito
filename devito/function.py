@@ -7,7 +7,7 @@ from devito.parameters import configuration
 from devito.logger import debug, error, warning
 from devito.memory import CMemory, first_touch
 from devito.cgen_utils import INT, FLOAT
-from devito.dimension import d, p, TimeDimension, SteppingDimension
+from devito.dimension import Dimension, TimeDimension, SteppingDimension
 from devito.arguments import ConstantArgProvider, TensorFunctionArgProvider
 from devito.types import SymbolicFunction, AbstractSymbol
 from devito.finite_difference import (centered, cross_derivative,
@@ -472,6 +472,7 @@ class SparseFunction(CompositeFunction):
                 raise ValueError('No grid provided for SparseFunction.')
 
             # Allocate and copy coordinate data
+            d = Dimension('d')
             self.coordinates = Function(name='%s_coords' % self.name,
                                         dimensions=[self.indices[1], d],
                                         shape=(self.npoint, self.grid.dim))
@@ -496,7 +497,7 @@ class SparseFunction(CompositeFunction):
         """
         dimensions = kwargs.get('dimensions', None)
         grid = kwargs.get('grid', None)
-        return dimensions or [grid.time_dim, p]
+        return dimensions or [grid.time_dim, Dimension('p')]
 
     @property
     def shape_data(self):
