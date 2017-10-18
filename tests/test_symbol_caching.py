@@ -4,20 +4,21 @@ import numpy as np
 import pytest
 from conftest import skipif_yask
 
-from devito import Grid, Function, TimeFunction, clear_cache
+from devito import Grid, Function, TimeFunction, Constant, clear_cache
 from devito.types import _SymbolCache
 
 
 @skipif_yask
-@pytest.mark.xfail(reason="New function instances currently don't cache")
 @pytest.mark.parametrize('FunctionType', [Function, TimeFunction])
 def test_cache_function_new(FunctionType):
-    """Test caching of a new u[x, y] instance"""
+    """Test that new u[x, y] instances don't cache"""
     grid = Grid(shape=(3, 4))
     u0 = FunctionType(name='u', grid=grid)
     u0.data[:] = 6.
-    u = FunctionType(name='u', grid=grid)
-    assert np.allclose(u.data, u0.data)
+    u1 = FunctionType(name='u', grid=grid)
+    u1.data[:] = 2.
+    assert np.allclose(u0.data, 6.)
+    assert np.allclose(u1.data, 2.)
 
 
 @skipif_yask
@@ -27,9 +28,11 @@ def test_cache_function_same_indices(FunctionType):
     grid = Grid(shape=(3, 4))
     u0 = FunctionType(name='u', grid=grid)
     u0.data[:] = 6.
-    # Pick u[x, y] from derivative
-    u = u0.dx.args[1].args[2]
-    assert np.allclose(u.data, u0.data)
+    # Pick u(x, y) and u(x + h_x, y) from derivative
+    u1 = u0.dx.args[1].args[2]
+    u2 = u0.dx.args[0].args[1]
+    assert np.allclose(u1.data, 6.)
+    assert np.allclose(u2.data, 6.)
 
 
 @skipif_yask
@@ -42,6 +45,17 @@ def test_cache_function_different_indices(FunctionType):
     # Pick u[x + h, y] (different indices) from derivative
     u = u0.dx.args[0].args[1]
     assert np.allclose(u.data, u0.data)
+
+
+@skipif_yask
+def test_cache_constant_new():
+    """Test that new u[x, y] instances don't cache"""
+    u0 = Constant(name='u')
+    u0.data = 6.
+    u1 = Constant(name='u')
+    u1.data = 2.
+    assert u0.data == 6.
+    assert u1.data == 2.
 
 
 @skipif_yask

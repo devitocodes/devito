@@ -33,18 +33,20 @@ class Basic(object):
                     |                                |
               CachedSymbol                         Object
                     |                       <see Object.__doc__>
-             AbstractSymbol
-    <see diagram in AbstractSymbol.__doc__>
+             AbstractFunction
+    <see diagram in AbstractFunction.__doc__>
 
     All derived :class:`Basic` objects may be emitted through code generation
     to create a just-in-time compilable kernel.
     """
 
     # Top hierarchy
+    is_AbstractFunction = False
     is_AbstractSymbol = False
     is_Object = False
 
     # Symbolic objects created internally by Devito
+    is_Symbol = False
     is_SymbolicData = False
     is_Scalar = False
     is_Array = False
@@ -94,7 +96,68 @@ class CachedSymbol(Basic):
         self.__dict__ = original().__dict__
 
 
-class AbstractSymbol(sympy.Function, CachedSymbol):
+class AbstractSymbol(sympy.Symbol, CachedSymbol):
+    """
+    Base class for dimension-free symbols that are cached by Devito,
+    in addition to SymPy caching. Note that these objects are not
+    :class:`Function` objects and do not have any indexing dimensions.
+    """
+
+    is_AbstractSymbol = True
+
+    def __new__(cls, *args, **kwargs):
+        options = kwargs.get('options', {})
+        if cls in _SymbolCache:
+            newobj = sympy.Function.__new__(cls, *args, **options)
+            newobj._cached_init()
+        else:
+            name = kwargs.get('name')
+
+            # Create the new Function object and invoke __init__
+            newcls = cls._symbol_type(name)
+            newobj = sympy.Symbol.__new__(newcls, name, *args, **options)
+            newobj.__init__(*args, **kwargs)
+
+            # Store new instance in symbol cache
+            newcls._cache_put(newobj)
+        return newobj
+
+
+class Symbol(AbstractSymbol):
+
+    """A :class:`sympy.Symbol` capable of mimicking an :class:`sympy.Indexed`"""
+
+    is_Symbol = True
+
+    def __init__(self, *args, **kwargs):
+        if not self._cached():
+            self.dtype = kwargs.get('dtype', np.int32)
+
+    @property
+    def base(self):
+        return self
+
+    @property
+    def function(self):
+        return self
+
+    @property
+    def indices(self):
+        return ()
+
+    @property
+    def shape(self):
+        return ()
+
+    @property
+    def symbolic_shape(self):
+        return ()
+
+    def indexify(self):
+        return self
+
+
+class AbstractFunction(sympy.Function, CachedSymbol):
     """Base class for data classes that provides symbolic behaviour.
 
     :param name: Symbolic name to give to the resulting function. Must
@@ -122,7 +185,7 @@ class AbstractSymbol(sympy.Function, CachedSymbol):
     This class is the root of the Devito data objects hierarchy, which
     is structured as follows.
 
-                             AbstractSymbol
+                             AbstractFunction
                                    |
                  -------------------------------------
                  |                                   |
@@ -143,7 +206,7 @@ class AbstractSymbol(sympy.Function, CachedSymbol):
     computation, while the latter is created and managed internally by Devito.
     """
 
-    is_AbstractSymbol = True
+    is_AbstractFunction = True
 
     def __new__(cls, *args, **kwargs):
         if cls in _SymbolCache:
@@ -161,7 +224,7 @@ class AbstractSymbol(sympy.Function, CachedSymbol):
             newobj = sympy.Function.__new__(newcls, *args, **options)
             newobj.__init__(*args, **kwargs)
 
-            # All objects cached on the AbstractSymbol /newobj/ keep a reference
+            # All objects cached on the AbstractFunction /newobj/ keep a reference
             # to /newobj/ through the /function/ field. Thus, all indexified
             # object will point to /newobj/, the "actual Function".
             newobj.function = newobj
@@ -229,13 +292,10 @@ class AbstractSymbol(sympy.Function, CachedSymbol):
 
         subs = dict([(i.spacing, 1) for i in self.indices])
         indices = [a.subs(subs) for a in self.args]
-        if indices:
-            return Indexed(self.indexed, *indices)
-        else:
-            return Symbol(self.indexed)
+        return Indexed(self.indexed, *indices)
 
 
-class SymbolicData(AbstractSymbol):
+class SymbolicData(AbstractFunction):
 
     """
     A symbolic function object, created and managed directly by Devito.
@@ -248,13 +308,13 @@ class SymbolicData(AbstractSymbol):
 
     def __new__(cls, *args, **kwargs):
         kwargs.update({'options': {'evaluate': False}})
-        return AbstractSymbol.__new__(cls, *args, **kwargs)
+        return AbstractFunction.__new__(cls, *args, **kwargs)
 
     def update(self):
         return
 
 
-class Scalar(SymbolicData, ScalarArgProvider):
+class Scalar(Symbol, ScalarArgProvider):
     """Symbolic object representing a scalar.
 
     :param name: Name of the symbol
@@ -265,9 +325,6 @@ class Scalar(SymbolicData, ScalarArgProvider):
 
     def __init__(self, *args, **kwargs):
         if not self._cached():
-            self.name = kwargs.get('name')
-            self.shape = ()
-            self.indices = ()
             self.dtype = kwargs.get('dtype', np.float32)
 
     @property
@@ -337,7 +394,7 @@ class Array(SymbolicData, ArrayArgProvider):
         assert single_or([self._external, self._onstack, self._onheap])
 
 
-class SymbolicFunction(AbstractSymbol):
+class SymbolicFunction(AbstractFunction):
     """A symbolic object associated with data.
 
     Unlike :class:`SymbolicData` objects, the structure of a SymbolicFunction
@@ -404,21 +461,6 @@ class IndexedData(sympy.IndexedBase):
         """
         indexed = super(IndexedData, self).__getitem__(indices, **kwargs)
         return Indexed(*indexed.args)
-
-
-class Symbol(sympy.Symbol):
-
-    """A :class:`sympy.Symbol` capable of mimicking an :class:`sympy.Indexed`"""
-
-    def __new__(cls, base):
-        obj = sympy.Symbol.__new__(cls, base.label.name)
-        obj.base = base
-        obj.indices = ()
-        obj.function = base.function
-        return obj
-
-    def func(self, *args):
-        return super(Symbol, self).func(self.base.func(*self.base.args))
 
 
 class Indexed(sympy.Indexed):
