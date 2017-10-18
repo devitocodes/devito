@@ -285,19 +285,20 @@ class TestArguments(object):
         assert(op_arguments[time.start_name] == 0)
         assert(op_arguments[time.end_name] == nt)
 
-    def test_dimension_offsets_infer(self, nt=100):
+    def test_dimension_offset_adjust(self, nt=100):
         """Test that the dimension sizes are being inferred correctly"""
         i, j, k = dimify('i j k')
         shape = (10, 10, 10)
         grid = Grid(shape=shape, dimensions=(i, j, k))
         a = Function(name='a', grid=grid).indexed
-        b = TimeFunction(name='b', grid=grid, save=True, time_dim=nt).indexed
-        eqn = Eq(b[time+1, i, j, k], b[time-1, i, j, k] + b[time, i, j, k] + a[i, j, k])
+        b = TimeFunction(name='b', grid=grid, save=True, time_dim=nt)
+        time = b.indices[0]
+        eqn = Eq(b.indexed[time + 1, i, j, k], b.indexed[time - 1, i, j, k] + b.indexed[time, i, j, k] + a[i, j, k])
         op = Operator(eqn)
-
-        op_arguments, _ = op.arguments()
-        assert(op_arguments[time.start_name] == 1)
-        assert(op_arguments[time.end_name] == nt-1)
+        args = {time.end_name: nt-10}
+        op_arguments, _ = op.arguments(**args)
+        assert(op_arguments[time.start_name] == 0)
+        assert(op_arguments[time.end_name] == nt - 8)
 
     def test_dimension_size_override(self, nt=100):
         """Test explicit overrides for the leading time dimension"""
@@ -380,7 +381,9 @@ class TestArguments(object):
         shape = (10, 10, 10)
         grid = Grid(shape=shape, dimensions=(i, j, k))
         a = Function(name='a', grid=grid).indexed
-        b = TimeFunction(name='b', grid=grid, save=True, time_dim=nt).indexed
+        b_function = TimeFunction(name='b', grid=grid, save=True, time_dim=nt)
+        b = b_function.indexed
+        time = b_function.indices[0]
         b1 = TimeFunction(name='b1', grid=grid, save=True, time_dim=nt+1).indexed
         eqn = Eq(b[time, i, j, k], a[i, j, k])
         op = Operator(eqn)

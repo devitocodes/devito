@@ -186,7 +186,7 @@ class DimensionArgProvider(ArgumentProvider):
         return namedtuple("RuntimeArguments", ["size", "start", "end"])(size, start, end)
 
     def _promote(self, value):
-        """ Strictly, a dimension's value is a (currently) 3-tuple consisting of the
+        """ Strictly, a dimension's value is a 3-tuple consisting of the
             values of each of its rtargs - currently size, start and end. However, for
             convenience, we may accept partial representations of the value, e.g. scalars
             and 2-tuples and interpret them in a certain way while assuming defaults for
@@ -216,8 +216,6 @@ class DimensionArgProvider(ArgumentProvider):
 
     # TODO: Can we do without a verify on a dimension?
     def verify(self, value, enforce=False):
-        print("***")
-        print(self.name, value, self.value)
         verify = True 
         if value is None:
             if self.value is not None:
@@ -231,7 +229,6 @@ class DimensionArgProvider(ArgumentProvider):
                 return False
         # Make sure we're dealing with a 3-tuple. See docstring of _promote for more
         value = self._promote(value)
-        print(self.name, value, self.value)
         if hasattr(self, 'parent'):
             parent_value = self.parent.value
             if parent_value is not None and not enforce:
@@ -239,7 +236,6 @@ class DimensionArgProvider(ArgumentProvider):
                 value = tuple([self.reducer(i1, i2) for i1, i2 in zip(value,
                                                                       parent_value)])
             verify = verify and self.parent.verify(value)
-        print(self.name, value, self.value)
         if value == self.value:
             return True
 
@@ -249,7 +245,6 @@ class DimensionArgProvider(ArgumentProvider):
         # Also need a default constraint that dim_e > dim_s (or vice-versa)
         verify = verify and all([a.verify(v, enforce=enforce) for a, v in
                                  zip(self.rtargs, value)])
-        print("***")
         return verify
 
 
