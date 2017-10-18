@@ -187,7 +187,7 @@ def test_create_elemental_functions_simple(simple_function):
     }
   }
 }
-void f_0(const int k_begin, const int k_finish,"""
+void f_0(const int k_start, const int k_finish,"""
          """ float *restrict a_vec, float *restrict b_vec,"""
          """ float *restrict c_vec, float *restrict d_vec,"""
          """ const int i, const int i_size, const int j, const int j_size, const int k_size)
@@ -197,7 +197,7 @@ void f_0(const int k_begin, const int k_finish,"""
   float (*restrict c)[j_size] __attribute__((aligned(64))) = (float (*)[j_size]) c_vec;
   float (*restrict d)[j_size][k_size] __attribute__((aligned(64))) ="""
          """ (float (*)[j_size][k_size]) d_vec;
-  for (int k = k_begin; k < k_finish; k += 1)
+  for (int k = k_start; k < k_finish; k += 1)
   {
     a[i] = a[i] + b[i] + 5.0F;
     a[i] = -a[i]*c[i][j] + b[i]*d[i][j][k];
@@ -242,12 +242,12 @@ void f_0(const int s_start, const int s_finish,"""
 {
   float (*restrict a) __attribute__((aligned(64))) = (float (*)) a_vec;
   float (*restrict b) __attribute__((aligned(64))) = (float (*)) b_vec;
-  for (int s = s_begin; s < s_finish; s += 1)
+  for (int s = s_start; s < s_finish; s += 1)
   {
     b[i] = a[i] + pow(b[i], 2) + 3;
   }
 }
-void f_1(const int k_begin, const int k_finish,"""
+void f_1(const int k_start, const int k_finish,"""
          """ float *restrict a_vec, float *restrict b_vec,"""
          """ float *restrict c_vec, float *restrict d_vec,"""
          """ const int i, const int i_size, const int j, const int j_size, const int k_size)
@@ -268,7 +268,7 @@ void f_2(const int q_start, const int q_finish,"""
 {
   float (*restrict a) __attribute__((aligned(64))) = (float (*)) a_vec;
   float (*restrict b) __attribute__((aligned(64))) = (float (*)) b_vec;
-  for (int q = q_begin; q < q_finish; q += 1)
+  for (int q = q_start; q < q_finish; q += 1)
   {
     a[i] = 8.0F*a[i] + 6.0F/b[i];
   }
