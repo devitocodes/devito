@@ -243,8 +243,6 @@
 </li>
       <li><a href="devito.html#devito.arguments.ArrayArgProvider">ArrayArgProvider (class in devito.arguments)</a>
 </li>
-      <li><a href="devito.html#devito.arguments.Argument.as_symbol">as_symbol (devito.arguments.Argument attribute)</a>
-</li>
       <li><a href="devito.dse.html#devito.dse.inspection.as_symbol">as_symbol() (in module devito.dse.inspection)</a>
 </li>
       <li><a href="devito.core.html#devito.core.autotuning.autotune">autotune() (in module devito.core.autotuning)</a>
@@ -257,6 +255,12 @@
   <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="devito.html#devito.function.TimeFunction.backward">backward (devito.function.TimeFunction attribute)</a>
 </li>
+      <li><a href="devito.html#devito.function.Constant.base">base (devito.function.Constant attribute)</a>
+
+      <ul>
+        <li><a href="devito.html#devito.types.Symbol.base">(devito.types.Symbol attribute)</a>
+</li>
+      </ul></li>
       <li><a href="devito.dle.backends.html#devito.dle.backends.basic.BasicRewriter">BasicRewriter (class in devito.dle.backends.basic)</a>
 
       <ul>
@@ -265,10 +269,10 @@
       </ul></li>
       <li><a href="devito.dse.html#devito.dse.extended_sympy.bhaskara_cos">bhaskara_cos (class in devito.dse.extended_sympy)</a>
 </li>
-      <li><a href="devito.dse.html#devito.dse.extended_sympy.bhaskara_sin">bhaskara_sin (class in devito.dse.extended_sympy)</a>
-</li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="devito.dse.html#devito.dse.extended_sympy.bhaskara_sin">bhaskara_sin (class in devito.dse.extended_sympy)</a>
+</li>
       <li><a href="devito.html#devito.nodes.Block">Block (class in devito.nodes)</a>
 </li>
       <li><a href="devito.dle.backends.html#devito.dle.backends.common.BlockingArg">BlockingArg (class in devito.dle.backends.common)</a>
@@ -755,12 +759,16 @@
 </li>
       <li><a href="devito.dse.html#devito.dse.extended_sympy.FrozenExpr">FrozenExpr (class in devito.dse.extended_sympy)</a>
 </li>
-      <li><a href="devito.html#devito.types.Symbol.func">func() (devito.types.Symbol method)</a>
-</li>
       <li><a href="devito.html#devito.base.Function">Function (class in devito.base)</a>
 
       <ul>
         <li><a href="devito.html#devito.function.Function">(class in devito.function)</a>
+</li>
+      </ul></li>
+      <li><a href="devito.html#devito.function.Constant.function">function (devito.function.Constant attribute)</a>
+
+      <ul>
+        <li><a href="devito.html#devito.types.Symbol.function">(devito.types.Symbol attribute)</a>
 </li>
       </ul></li>
       <li><a href="devito.dse.html#devito.dse.extended_sympy.FunctionFromPointer">FunctionFromPointer (class in devito.dse.extended_sympy)</a>
@@ -835,7 +843,15 @@
   <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="devito.html#devito.types.Indexed">Indexed (class in devito.types)</a>
 </li>
-      <li><a href="devito.dse.html#devito.dse.inspection.indexify">indexify() (in module devito.dse.inspection)</a>
+      <li><a href="devito.html#devito.function.Constant.indexify">indexify() (devito.function.Constant method)</a>
+
+      <ul>
+        <li><a href="devito.html#devito.types.Symbol.indexify">(devito.types.Symbol method)</a>
+</li>
+        <li><a href="devito.dse.html#devito.dse.inspection.indexify">(in module devito.dse.inspection)</a>
+</li>
+      </ul></li>
+      <li><a href="devito.html#devito.types.Symbol.indices">indices (devito.types.Symbol attribute)</a>
 </li>
       <li><a href="devito.html#devito.logger.info_at">info_at() (in module devito.logger)</a>
 </li>
@@ -931,10 +947,10 @@
 </li>
       <li><a href="devito.html#devito.base.Operator.is_hermitian">is_hermitian (devito.base.Operator attribute)</a>
 </li>
-      <li><a href="devito.html#devito.base.Operator.is_imaginary">is_imaginary (devito.base.Operator attribute)</a>
-</li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="devito.html#devito.base.Operator.is_imaginary">is_imaginary (devito.base.Operator attribute)</a>
+</li>
       <li><a href="devito.html#devito.base.Operator.is_infinite">is_infinite (devito.base.Operator attribute)</a>
 </li>
       <li><a href="devito.html#devito.base.Operator.is_integer">is_integer (devito.base.Operator attribute)</a>
@@ -1012,7 +1028,11 @@
       <li><a href="devito.html#devito.function.SparseFunction.is_SparseFunction">is_SparseFunction (devito.function.SparseFunction attribute)</a>
 </li>
       <li><a href="devito.html#devito.types.Indexed.is_Symbol">is_Symbol (devito.types.Indexed attribute)</a>
+
+      <ul>
+        <li><a href="devito.html#devito.types.Symbol.is_Symbol">(devito.types.Symbol attribute)</a>
 </li>
+      </ul></li>
       <li><a href="devito.html#devito.nodes.Expression.is_tensor">is_tensor (devito.nodes.Expression attribute)</a>
 </li>
       <li><a href="devito.html#devito.arguments.Argument.is_TensorArgument">is_TensorArgument (devito.arguments.Argument attribute)</a>
@@ -1370,6 +1390,8 @@
       <ul>
         <li><a href="devito.html#devito.nodes.Expression.shape">(devito.nodes.Expression attribute)</a>
 </li>
+        <li><a href="devito.html#devito.types.Symbol.shape">(devito.types.Symbol attribute)</a>
+</li>
       </ul></li>
       <li><a href="devito.html#devito.function.Function.shape_data">shape_data (devito.function.Function attribute)</a>
 
@@ -1440,6 +1462,8 @@
       <li><a href="devito.html#devito.stencil.Stencil.subtract">subtract() (devito.stencil.Stencil method)</a>
 </li>
       <li><a href="devito.html#devito.types.Symbol">Symbol (class in devito.types)</a>
+</li>
+      <li><a href="devito.html#devito.types.Symbol.symbolic_shape">symbolic_shape (devito.types.Symbol attribute)</a>
 </li>
       <li><a href="devito.html#devito.dimension.Dimension.symbolic_size">symbolic_size (devito.dimension.Dimension attribute)</a>
 </li>

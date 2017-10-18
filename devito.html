@@ -271,11 +271,6 @@
 <p>Abstract base class for any object that represents a run time argument for
 generated kernels.</p>
 <dl class="attribute">
-<dt id="devito.arguments.Argument.as_symbol">
-<code class="descname">as_symbol</code><a class="headerlink" href="#devito.arguments.Argument.as_symbol" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="attribute">
 <dt id="devito.arguments.Argument.dtype">
 <code class="descname">dtype</code><a class="headerlink" href="#devito.arguments.Argument.dtype" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
@@ -578,7 +573,7 @@ arguments.</p>
 <dt id="devito.base.Constant">
 <em class="property">class </em><code class="descclassname">devito.base.</code><code class="descname">Constant</code><span class="sig-paren">(</span><em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/base.html#Constant"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.base.Constant" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <a class="reference internal" href="#devito.function.Constant" title="devito.function.Constant"><code class="xref py py-class docutils literal"><span class="pre">devito.function.Constant</span></code></a></p>
-<p>Data object for constant values.</p>
+<p>Symbol representing constant values in symbolic equations.</p>
 <dl class="attribute">
 <dt id="devito.base.Constant.default_assumptions">
 <code class="descname">default_assumptions</code><em class="property"> = {}</em><a class="headerlink" href="#devito.base.Constant.default_assumptions" title="Permalink to this definition">¶</a></dt>
@@ -1332,8 +1327,13 @@ the width of the resulting stencil expression.</li>
 <dl class="class">
 <dt id="devito.function.Constant">
 <em class="property">class </em><code class="descclassname">devito.function.</code><code class="descname">Constant</code><span class="sig-paren">(</span><em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/function.html#Constant"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.function.Constant" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">devito.types.SymbolicFunction</span></code>, <a class="reference internal" href="#devito.arguments.ConstantArgProvider" title="devito.arguments.ConstantArgProvider"><code class="xref py py-class docutils literal"><span class="pre">devito.arguments.ConstantArgProvider</span></code></a></p>
-<p>Data object for constant values.</p>
+<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">devito.types.AbstractSymbol</span></code>, <a class="reference internal" href="#devito.arguments.ConstantArgProvider" title="devito.arguments.ConstantArgProvider"><code class="xref py py-class docutils literal"><span class="pre">devito.arguments.ConstantArgProvider</span></code></a></p>
+<p>Symbol representing constant values in symbolic equations.</p>
+<dl class="attribute">
+<dt id="devito.function.Constant.base">
+<code class="descname">base</code><a class="headerlink" href="#devito.function.Constant.base" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
 <dl class="attribute">
 <dt id="devito.function.Constant.data">
 <code class="descname">data</code><a class="headerlink" href="#devito.function.Constant.data" title="Permalink to this definition">¶</a></dt>
@@ -1343,6 +1343,16 @@ the width of the resulting stencil expression.</li>
 <dl class="attribute">
 <dt id="devito.function.Constant.default_assumptions">
 <code class="descname">default_assumptions</code><em class="property"> = {}</em><a class="headerlink" href="#devito.function.Constant.default_assumptions" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="devito.function.Constant.function">
+<code class="descname">function</code><a class="headerlink" href="#devito.function.Constant.function" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="devito.function.Constant.indexify">
+<code class="descname">indexify</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/function.html#Constant.indexify"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.function.Constant.indexify" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 <dl class="attribute">
@@ -2595,17 +2605,47 @@ If called later with the same arguments, the cached value is returned
 <span id="devito-types-module"></span><h2>devito.types module<a class="headerlink" href="#module-devito.types" title="Permalink to this headline">¶</a></h2>
 <dl class="class">
 <dt id="devito.types.Symbol">
-<em class="property">class </em><code class="descclassname">devito.types.</code><code class="descname">Symbol</code><a class="reference internal" href="_modules/devito/types.html#Symbol"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.types.Symbol" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">sympy.core.symbol.Symbol</span></code></p>
+<em class="property">class </em><code class="descclassname">devito.types.</code><code class="descname">Symbol</code><span class="sig-paren">(</span><em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/types.html#Symbol"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.types.Symbol" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">devito.types.AbstractSymbol</span></code></p>
 <p>A <code class="xref py py-class docutils literal"><span class="pre">sympy.Symbol</span></code> capable of mimicking an <code class="xref py py-class docutils literal"><span class="pre">sympy.Indexed</span></code></p>
+<dl class="attribute">
+<dt id="devito.types.Symbol.base">
+<code class="descname">base</code><a class="headerlink" href="#devito.types.Symbol.base" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
 <dl class="attribute">
 <dt id="devito.types.Symbol.default_assumptions">
 <code class="descname">default_assumptions</code><em class="property"> = {}</em><a class="headerlink" href="#devito.types.Symbol.default_assumptions" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
+<dl class="attribute">
+<dt id="devito.types.Symbol.function">
+<code class="descname">function</code><a class="headerlink" href="#devito.types.Symbol.function" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
 <dl class="method">
-<dt id="devito.types.Symbol.func">
-<code class="descname">func</code><span class="sig-paren">(</span><em>*args</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/types.html#Symbol.func"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.types.Symbol.func" title="Permalink to this definition">¶</a></dt>
+<dt id="devito.types.Symbol.indexify">
+<code class="descname">indexify</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/types.html#Symbol.indexify"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.types.Symbol.indexify" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="devito.types.Symbol.indices">
+<code class="descname">indices</code><a class="headerlink" href="#devito.types.Symbol.indices" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="devito.types.Symbol.is_Symbol">
+<code class="descname">is_Symbol</code><em class="property"> = True</em><a class="headerlink" href="#devito.types.Symbol.is_Symbol" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="devito.types.Symbol.shape">
+<code class="descname">shape</code><a class="headerlink" href="#devito.types.Symbol.shape" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="devito.types.Symbol.symbolic_shape">
+<code class="descname">symbolic_shape</code><a class="headerlink" href="#devito.types.Symbol.symbolic_shape" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 </dd></dl>
