@@ -36,23 +36,27 @@ class Dimension(sympy.Symbol, DimensionArgProvider):
     @cached_property
     def symbolic_size(self):
         """The symbolic size of this dimension."""
-        return Symbol(name=self.rtargs.size.name)
+        return Symbol(name=self.size_name)
 
-    @property
-    def size(self):
-        return None
+    @cached_property
+    def symbolic_start(self):
+        return Symbol(name=self.start_name)
+
+    @cached_property
+    def symbolic_end(self):
+        return Symbol(name=self.end_name)
 
     @property
     def symbolic_extent(self):
         """Return the extent of the loop over this dimension.
         Would be the same as size if using default values """
         _, start, end = self.rtargs
-        return (Symbol(name=end.name) - Symbol(name=start.name))
+        return (self.symbolic_end - self.symbolic_start)
 
     @property
     def limits(self):
         _, start, end = self.rtargs
-        return (Symbol(name=start.name), Symbol(name=end.name), 1)
+        return (self.symbolic_start, self.symbolic_end, 1)
 
     @property
     def size_name(self):
@@ -66,10 +70,7 @@ class Dimension(sympy.Symbol, DimensionArgProvider):
     def end_name(self):
         return "%s_e" % self.name
 
-    @property
-    def symbolic_end(self):
-        _, _, end = self.rtargs
-        return Symbol(name=end.name)
+
 
 
 class SpaceDimension(Dimension):
