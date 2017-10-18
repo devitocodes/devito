@@ -1,5 +1,4 @@
 import sympy
-import numpy as np
 from cached_property import cached_property
 
 from devito.arguments import DimensionArgProvider
@@ -69,8 +68,6 @@ class Dimension(sympy.Symbol, DimensionArgProvider):
     @property
     def end_name(self):
         return "%s_e" % self.name
-
-
 
 
 class SpaceDimension(Dimension):

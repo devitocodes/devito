@@ -12,7 +12,7 @@ from devito.cgen_utils import ccode
 from devito.dse import as_symbol, retrieve_terminals
 from devito.types import Indexed, Symbol
 from devito.stencil import Stencil
-from devito.tools import as_tuple, filter_ordered, flatten, is_integer
+from devito.tools import as_tuple, filter_ordered, flatten
 from devito.arguments import ArgumentProvider, Argument
 
 __all__ = ['Node', 'Block', 'Denormals', 'Expression', 'Callable', 'Call',

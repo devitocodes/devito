@@ -293,7 +293,8 @@ class TestArguments(object):
         a = Function(name='a', grid=grid).indexed
         b = TimeFunction(name='b', grid=grid, save=True, time_dim=nt)
         time = b.indices[0]
-        eqn = Eq(b.indexed[time + 1, i, j, k], b.indexed[time - 1, i, j, k] + b.indexed[time, i, j, k] + a[i, j, k])
+        eqn = Eq(b.indexed[time + 1, i, j, k], b.indexed[time - 1, i, j, k]
+                 + b.indexed[time, i, j, k] + a[i, j, k])
         op = Operator(eqn)
         args = {time.end_name: nt-10}
         op_arguments, _ = op.arguments(**args)

@@ -241,14 +241,13 @@ class Operator(Callable):
 
         for d in all_dimension_offsets:
             dimension_offset = (-min(all_dimension_offsets[d]),
-                                    max(all_dimension_offsets[d]))
+                                max(all_dimension_offsets[d]))
             end_offset = dimension_offset[0] + dimension_offset[1]
             argument_offsets[d.end_name] = end_offset
             try:
                 argument_offsets[d.parent.end_name] = end_offset
             except:
                 pass
-            
 
         self.argument_offsets = argument_offsets
 
@@ -337,7 +336,8 @@ class Operator(Callable):
                 needed = entries[index:]
 
                 # Build and insert the required Iterations
-                iters = [Iteration([], j.dim, j.dim.limits, offsets=j.ofs) for j in needed]
+                iters = [Iteration([], j.dim, j.dim.limits, offsets=j.ofs) for j in
+                         needed]
                 body, tree = compose_nodes(iters + [expressions], retrieve=True)
                 scheduling = OrderedDict(zip(needed, tree))
                 if root is None:

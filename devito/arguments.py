@@ -2,8 +2,7 @@ import abc
 
 import numpy as np
 from cached_property import cached_property
-from collections import defaultdict, namedtuple
-from sympy import Symbol
+from collections import namedtuple
 
 from devito.exceptions import InvalidArgument
 from devito.logger import debug
@@ -216,7 +215,7 @@ class DimensionArgProvider(ArgumentProvider):
 
     # TODO: Can we do without a verify on a dimension?
     def verify(self, value, enforce=False):
-        verify = True 
+        verify = True
         if value is None:
             if self.value is not None:
                 return True
