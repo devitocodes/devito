@@ -79,7 +79,7 @@ class ScalarArgument(Argument):
         super(ScalarArgument, self).__init__(name, provider, default_value)
         self.reducer = reducer
 
-    def verify(self, value, engine, enforce=False):
+    def verify(self, value, enforce=False):
         # Assuming self._value was initialised as appropriate for the reducer
         if value is not None:
             if self._value is not None and not enforce:
@@ -100,13 +100,13 @@ class TensorArgument(Argument):
     def __init__(self, name, provider):
         super(TensorArgument, self).__init__(name, provider, provider)
 
-    def verify(self, value, engine):
+    def verify(self, value):
         if value is None:
             value = self._value
 
         verify = len(self.provider.shape) == len(value.shape)
 
-        verify = verify and all(d.verify(v, engine) for d, v in
+        verify = verify and all(d.verify(v) for d, v in
                                 zip(self.provider.indices, value.shape))
         if verify:
             self._value = value
@@ -185,7 +185,7 @@ class DimensionArgProvider(ArgumentProvider):
         end = ScalarArgument(self.end_name, self, max)
         return namedtuple("RuntimeArguments", ["size", "start", "end"])(size, start, end)
 
-    def _promote(self, value, engine):
+    def _promote(self, value):
         """ Strictly, a dimension's value is a (currently) 3-tuple consisting of the
             values of each of its rtargs - currently size, start and end. However, for
             convenience, we may accept partial representations of the value, e.g. scalars
@@ -215,8 +215,10 @@ class DimensionArgProvider(ArgumentProvider):
         return value
 
     # TODO: Can we do without a verify on a dimension?
-    def verify(self, value, engine, enforce=False):
-        verify = True
+    def verify(self, value, enforce=False):
+        print("***")
+        print(self.name, value, self.value)
+        verify = True 
         if value is None:
             if self.value is not None:
                 return True
@@ -228,15 +230,16 @@ class DimensionArgProvider(ArgumentProvider):
             except AttributeError:
                 return False
         # Make sure we're dealing with a 3-tuple. See docstring of _promote for more
-        value = self._promote(value, engine)
+        value = self._promote(value)
+        print(self.name, value, self.value)
         if hasattr(self, 'parent'):
             parent_value = self.parent.value
             if parent_value is not None and not enforce:
-                parent_value = self._promote(parent_value, engine)
+                parent_value = self._promote(parent_value)
                 value = tuple([self.reducer(i1, i2) for i1, i2 in zip(value,
                                                                       parent_value)])
-            verify = verify and self.parent.verify(value, engine)
-
+            verify = verify and self.parent.verify(value)
+        print(self.name, value, self.value)
         if value == self.value:
             return True
 
@@ -244,8 +247,9 @@ class DimensionArgProvider(ArgumentProvider):
         # At this point, a constraint needs to be added that enforces
         # dim_e - dim_s < SOME_MAX
         # Also need a default constraint that dim_e > dim_s (or vice-versa)
-        verify = verify and all([a.verify(v, engine, enforce=enforce) for a, v in
+        verify = verify and all([a.verify(v, enforce=enforce) for a, v in
                                  zip(self.rtargs, value)])
+        print("***")
         return verify
 
 
@@ -301,26 +305,6 @@ class ObjectArgProvider(ArgumentProvider):
     @cached_property
     def rtargs(self):
         return (PtrArgument(self.name, self),)
-
-
-class ArgumentEngine(object):
-    def extract_dimension_offsets(self, stencils):
-        all_dimension_offsets = defaultdict(list)
-        dimension_offsets = defaultdict(lambda: (0, 0))
-
-        for s in stencils:
-            for d in s:
-                all_dimension_offsets[d] += s[d]
-
-        for d in all_dimension_offsets:
-            dimension_offsets[d] = (-min(all_dimension_offsets[d]),
-                                    max(all_dimension_offsets[d]))
-            try:
-                # TODO: Maybe there should be some sort of reduction here
-                dimension_offsets[d.parent] = dimension_offsets[d]
-            except:
-                pass
-        self.dimension_offsets = dimension_offsets
 
 
 def log_args(arguments):

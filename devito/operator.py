@@ -1,6 +1,6 @@
 from __future__ import absolute_import
 
-from collections import OrderedDict, namedtuple
+from collections import OrderedDict, namedtuple, defaultdict
 from operator import attrgetter
 
 import ctypes
@@ -23,7 +23,6 @@ from devito.tools import as_tuple, filter_sorted, flatten, numpy_to_ctypes, part
 from devito.visitors import (FindScopes, ResolveIterationVariable,
                              SubstituteExpression, Transformer, NestedTransformer)
 from devito.exceptions import InvalidArgument, InvalidOperator
-from devito.arguments import ArgumentEngine
 
 
 class Operator(Callable):
@@ -98,11 +97,8 @@ class Operator(Callable):
         # Wrap expressions with Iterations according to dimensions
         nodes = self._schedule_expressions(clusters)
 
-        # Initialise Argument Engine
-        self.argument_engine = ArgumentEngine()
-
         # Extract dimension offsets
-        self.argument_engine.extract_dimension_offsets([i.stencil for i in clusters])
+        self._store_dimension_offsets([i.stencil for i in clusters])
 
         # Introduce C-level profiling infrastructure
         nodes, self.profiler = self._profile_sections(nodes, parameters)
@@ -160,12 +156,15 @@ class Operator(Callable):
         # Derivation. It must happen in the order [tensors -> dimensions -> scalars]
         for i in self.parameters:
             if i.is_TensorArgument:
-                assert(i.verify(kwargs.pop(i.name, None), self.argument_engine))
+                assert(i.verify(kwargs.pop(i.name, None)))
         for d in self.dimensions:
-            d.verify(kwargs.pop(d.name, None), self.argument_engine, enforce=True)
+            d.verify(kwargs.pop(d.name, None), enforce=True)
         for i in self.parameters:
             if i.is_ScalarArgument:
-                i.verify(kwargs.pop(i.name, None), self.argument_engine, enforce=True)
+                user_provided_value = kwargs.pop(i.name, None)
+                if user_provided_value is not None:
+                    user_provided_value += self.argument_offsets.get(i.name, 0)
+                i.verify(user_provided_value, enforce=True)
         dim_sizes = {}
         for d in self.dimensions:
             if d.value is not None:
@@ -186,7 +185,7 @@ class Operator(Callable):
 
         mapper = OrderedDict([(d.name, d) for d in self.dimensions])
         for d, v in dim_sizes.items():
-            assert(mapper[d].verify(v, self.argument_engine))
+            assert(mapper[d].verify(v))
 
         arguments = self._default_args()
 
@@ -232,6 +231,26 @@ class Operator(Callable):
     @property
     def elemental_functions(self):
         return tuple(i.root for i in self.func_table.values())
+
+    def _store_dimension_offsets(self, stencils):
+        all_dimension_offsets = defaultdict(list)
+        argument_offsets = dict()
+        for s in stencils:
+            for d in s:
+                all_dimension_offsets[d] += s[d]
+
+        for d in all_dimension_offsets:
+            dimension_offset = (-min(all_dimension_offsets[d]),
+                                    max(all_dimension_offsets[d]))
+            end_offset = dimension_offset[0] + dimension_offset[1]
+            argument_offsets[d.end_name] = end_offset
+            try:
+                argument_offsets[d.parent.end_name] = end_offset
+            except:
+                pass
+            
+
+        self.argument_offsets = argument_offsets
 
     @property
     def compile(self):
