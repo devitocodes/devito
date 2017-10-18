@@ -15,7 +15,6 @@ class Dimension(sympy.Symbol, DimensionArgProvider):
 
     is_Stepping = False
     is_Lowered = False
-    is_Fixed = False
 
     """Index object that represents a problem dimension and thus
     defines a potential iteration space.

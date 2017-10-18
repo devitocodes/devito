@@ -86,7 +86,7 @@ class Operator(Callable):
                 time.reverse = time_axis == Backward
 
         # Parameters of the Operator (Dimensions necessary for data casts)
-        parameters = self.input + [i for i in self.dimensions if not i.is_Fixed]
+        parameters = self.input + self.dimensions
 
         # Group expressions based on their Stencil
         clusters = clusterize(expressions, stencils)
@@ -200,9 +200,7 @@ class Operator(Callable):
         dle_arguments = OrderedDict()
         autotune = True
         for i in self.dle_arguments:
-            dim_size = dim_sizes.get(i.original_dim.name,
-                                     i.original_dim.size if i.original_dim.is_Fixed
-                                     else None)
+            dim_size = dim_sizes.get(i.original_dim.name, None)
             if dim_size is None:
                 error('Unable to derive size of dimension %s from defaults. '
                       'Please provide an explicit value.' % i.original_dim.name)
