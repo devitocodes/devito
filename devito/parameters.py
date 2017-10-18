@@ -181,6 +181,11 @@ def print_state():
 
 
 def infer_cpu():
+    """
+    Detect the highest Instruction Set Architecture and the platform
+    codename using cpu flags and/or leveraging other tools. Return default
+    values if the detection procedure was unsuccesful.
+    """
     info = cpuinfo.get_cpu_info()
     # ISA
     isa = default_isa
