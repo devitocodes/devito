@@ -304,6 +304,7 @@
             <span class="n">iterspace</span> <span class="o">=</span> <span class="n">reduce</span><span class="p">(</span><span class="n">operator</span><span class="o">.</span><span class="n">mul</span><span class="p">,</span> <span class="n">itershape</span><span class="p">)</span>
             <span class="n">flops</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">profile</span><span class="o">.</span><span class="n">ops</span><span class="o">*</span><span class="n">iterspace</span><span class="p">)</span>
             <span class="n">gflops</span> <span class="o">=</span> <span class="n">flops</span><span class="o">/</span><span class="mi">10</span><span class="o">**</span><span class="mi">9</span>
+            <span class="n">gpoints</span> <span class="o">=</span> <span class="n">iterspace</span><span class="o">/</span><span class="mi">10</span><span class="o">**</span><span class="mi">9</span>
 
             <span class="c1"># Compulsory traffic</span>
             <span class="n">datashape</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span><span class="o">.</span><span class="n">dim</span><span class="o">.</span><span class="n">size</span> <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">dim</span><span class="o">.</span><span class="n">is_Fixed</span>
@@ -314,9 +315,10 @@
             <span class="c1"># Derived metrics</span>
             <span class="n">oi</span> <span class="o">=</span> <span class="n">flops</span><span class="o">/</span><span class="n">traffic</span>
             <span class="n">gflopss</span> <span class="o">=</span> <span class="n">gflops</span><span class="o">/</span><span class="n">time</span>
+            <span class="n">gpointss</span> <span class="o">=</span> <span class="n">gpoints</span><span class="o">/</span><span class="n">time</span>
 
             <span class="c1"># Keep track of performance achieved</span>
-            <span class="n">summary</span><span class="o">.</span><span class="n">setsection</span><span class="p">(</span><span class="n">profile</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">time</span><span class="p">,</span> <span class="n">gflopss</span><span class="p">,</span> <span class="n">oi</span><span class="p">,</span> <span class="n">profile</span><span class="o">.</span><span class="n">ops</span><span class="p">,</span>
+            <span class="n">summary</span><span class="o">.</span><span class="n">setsection</span><span class="p">(</span><span class="n">profile</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">time</span><span class="p">,</span> <span class="n">gflopss</span><span class="p">,</span> <span class="n">gpointss</span><span class="p">,</span> <span class="n">oi</span><span class="p">,</span> <span class="n">profile</span><span class="o">.</span><span class="n">ops</span><span class="p">,</span>
                                <span class="n">itershape</span><span class="p">,</span> <span class="n">datashape</span><span class="p">)</span>
 
         <span class="c1"># Rename the most time consuming section as &#39;main&#39;</span>
@@ -358,8 +360,8 @@
 <span class="sd">    A special dictionary to track and quickly access performance data.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="k">def</span> <span class="nf">setsection</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="n">time</span><span class="p">,</span> <span class="n">gflopss</span><span class="p">,</span> <span class="n">oi</span><span class="p">,</span> <span class="n">ops</span><span class="p">,</span> <span class="n">itershape</span><span class="p">,</span> <span class="n">datashape</span><span class="p">):</span>
-        <span class="bp">self</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">PerfEntry</span><span class="p">(</span><span class="n">time</span><span class="p">,</span> <span class="n">gflopss</span><span class="p">,</span> <span class="n">oi</span><span class="p">,</span> <span class="n">ops</span><span class="p">,</span> <span class="n">itershape</span><span class="p">,</span> <span class="n">datashape</span><span class="p">)</span>
+    <span class="k">def</span> <span class="nf">setsection</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="n">time</span><span class="p">,</span> <span class="n">gflopss</span><span class="p">,</span> <span class="n">gpointss</span><span class="p">,</span> <span class="n">oi</span><span class="p">,</span> <span class="n">ops</span><span class="p">,</span> <span class="n">itershape</span><span class="p">,</span> <span class="n">datashape</span><span class="p">):</span>
+        <span class="bp">self</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">PerfEntry</span><span class="p">(</span><span class="n">time</span><span class="p">,</span> <span class="n">gflopss</span><span class="p">,</span> <span class="n">gpointss</span><span class="p">,</span> <span class="n">oi</span><span class="p">,</span> <span class="n">ops</span><span class="p">,</span> <span class="n">itershape</span><span class="p">,</span> <span class="n">datashape</span><span class="p">)</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">gflopss</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
@@ -378,7 +380,7 @@
 <span class="sd">&quot;&quot;&quot;Metadata for a profiled code section.&quot;&quot;&quot;</span>
 
 
-<span class="n">PerfEntry</span> <span class="o">=</span> <span class="n">namedtuple</span><span class="p">(</span><span class="s1">&#39;PerfEntry&#39;</span><span class="p">,</span> <span class="s1">&#39;time gflopss oi ops itershape datashape&#39;</span><span class="p">)</span>
+<span class="n">PerfEntry</span> <span class="o">=</span> <span class="n">namedtuple</span><span class="p">(</span><span class="s1">&#39;PerfEntry&#39;</span><span class="p">,</span> <span class="s1">&#39;time gflopss gpointss oi ops itershape datashape&#39;</span><span class="p">)</span>
 <span class="sd">&quot;&quot;&quot;Structured performance data.&quot;&quot;&quot;</span>
 </pre></div>
 

@@ -172,8 +172,7 @@
 <span class="kn">from</span> <span class="nn">devito.function</span> <span class="k">import</span> <span class="n">Forward</span><span class="p">,</span> <span class="n">Backward</span>  <span class="c1"># noqa</span>
 <span class="kn">from</span> <span class="nn">devito.types</span> <span class="k">import</span> <span class="n">_SymbolCache</span>  <span class="c1"># noqa</span>
 <span class="kn">from</span> <span class="nn">devito.logger</span> <span class="k">import</span> <span class="n">error</span><span class="p">,</span> <span class="n">warning</span><span class="p">,</span> <span class="n">info</span>  <span class="c1"># noqa</span>
-<span class="kn">from</span> <span class="nn">devito.parameters</span> <span class="k">import</span> <span class="p">(</span><span class="n">configuration</span><span class="p">,</span> <span class="n">init_configuration</span><span class="p">,</span>  <span class="c1"># noqa</span>
-                               <span class="n">env_vars_mapper</span><span class="p">)</span>
+<span class="kn">from</span> <span class="nn">devito.parameters</span> <span class="k">import</span> <span class="o">*</span>  <span class="c1"># noqa</span>
 <span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="o">*</span>  <span class="c1"># noqa</span>
 <span class="kn">from</span> <span class="nn">devito.dse</span> <span class="k">import</span> <span class="o">*</span>  <span class="c1"># noqa</span>
 
@@ -193,24 +192,8 @@
 
 
 <span class="c1"># Initialize the Devito backend</span>
-<span class="n">configuration</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="s1">&#39;travis_test&#39;</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">],</span> <span class="k">lambda</span> <span class="n">i</span><span class="p">:</span> <span class="nb">bool</span><span class="p">(</span><span class="n">i</span><span class="p">))</span>
-<span class="n">configuration</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="s1">&#39;autotuning&#39;</span><span class="p">,</span> <span class="s1">&#39;basic&#39;</span><span class="p">,</span> <span class="p">[</span><span class="s1">&#39;none&#39;</span><span class="p">,</span> <span class="s1">&#39;basic&#39;</span><span class="p">,</span> <span class="s1">&#39;aggressive&#39;</span><span class="p">])</span>
 <span class="n">init_configuration</span><span class="p">()</span>
 <span class="n">init_backend</span><span class="p">(</span><span class="n">configuration</span><span class="p">[</span><span class="s1">&#39;backend&#39;</span><span class="p">])</span>
-
-
-<div class="viewcode-block" id="print_defaults"><a class="viewcode-back" href="../devito.html#devito.print_defaults">[docs]</a><span class="k">def</span> <span class="nf">print_defaults</span><span class="p">():</span>
-    <span class="sd">&quot;&quot;&quot;Print the environment variables accepted by Devito, their default value,</span>
-<span class="sd">    as well as all of the accepted values.&quot;&quot;&quot;</span>
-    <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">env_vars_mapper</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
-        <span class="n">info</span><span class="p">(</span><span class="s1">&#39;</span><span class="si">%s</span><span class="s1">: </span><span class="si">%s</span><span class="s1">. Default: </span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">configuration</span><span class="o">.</span><span class="n">_accepted</span><span class="p">[</span><span class="n">v</span><span class="p">],</span>
-                                      <span class="n">configuration</span><span class="o">.</span><span class="n">_defaults</span><span class="p">[</span><span class="n">v</span><span class="p">]))</span></div>
-
-
-<div class="viewcode-block" id="print_state"><a class="viewcode-back" href="../devito.html#devito.print_state">[docs]</a><span class="k">def</span> <span class="nf">print_state</span><span class="p">():</span>
-    <span class="sd">&quot;&quot;&quot;Print the current configuration state.&quot;&quot;&quot;</span>
-    <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">configuration</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
-        <span class="n">info</span><span class="p">(</span><span class="s1">&#39;</span><span class="si">%s</span><span class="s1">: </span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">v</span><span class="p">))</span></div>
 </pre></div>
 
            </div>

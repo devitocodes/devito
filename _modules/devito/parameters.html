@@ -165,8 +165,12 @@
 
 <span class="kn">from</span> <span class="nn">collections</span> <span class="k">import</span> <span class="n">OrderedDict</span>
 <span class="kn">from</span> <span class="nn">os</span> <span class="k">import</span> <span class="n">environ</span>
+<span class="kn">from</span> <span class="nn">subprocess</span> <span class="k">import</span> <span class="n">PIPE</span><span class="p">,</span> <span class="n">Popen</span>
 
-<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;configuration&#39;</span><span class="p">,</span> <span class="s1">&#39;init_configuration&#39;</span><span class="p">]</span>
+<span class="kn">import</span> <span class="nn">cpuinfo</span>
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;configuration&#39;</span><span class="p">,</span> <span class="s1">&#39;init_configuration&#39;</span><span class="p">,</span> <span class="s1">&#39;print_defaults&#39;</span><span class="p">,</span> <span class="s1">&#39;print_state&#39;</span><span class="p">,</span>
+           <span class="s1">&#39;add_sub_configuration&#39;</span><span class="p">,</span> <span class="s1">&#39;infer_cpu&#39;</span><span class="p">]</span>
 
 <span class="c1"># Be EXTREMELY careful when writing to a Parameters dictionary</span>
 <span class="c1"># Read here for reference: http://wiki.c2.com/?GlobalVariablesAreBad</span>
@@ -237,13 +241,15 @@
         <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_updated</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">v</span><span class="p">)</span>
 
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">name</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_name</span>
 
-<span class="n">configuration</span> <span class="o">=</span> <span class="n">Parameters</span><span class="p">(</span><span class="s2">&quot;Devito-Configuration&quot;</span><span class="p">)</span>
-<span class="sd">&quot;&quot;&quot;The Devito configuration parameters.&quot;&quot;&quot;</span>
 
 <span class="n">env_vars_mapper</span> <span class="o">=</span> <span class="p">{</span>
     <span class="s1">&#39;DEVITO_ARCH&#39;</span><span class="p">:</span> <span class="s1">&#39;compiler&#39;</span><span class="p">,</span>
-    <span class="s1">&#39;DEVITO_AUTOTUNING&#39;</span><span class="p">:</span> <span class="s1">&#39;autotuning&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;DEVITO_ISA&#39;</span><span class="p">:</span> <span class="s1">&#39;isa&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;DEVITO_PLATFORM&#39;</span><span class="p">:</span> <span class="s1">&#39;platform&#39;</span><span class="p">,</span>
     <span class="s1">&#39;DEVITO_BACKEND&#39;</span><span class="p">:</span> <span class="s1">&#39;backend&#39;</span><span class="p">,</span>
     <span class="s1">&#39;DEVITO_DSE&#39;</span><span class="p">:</span> <span class="s1">&#39;dse&#39;</span><span class="p">,</span>
     <span class="s1">&#39;DEVITO_DLE&#39;</span><span class="p">:</span> <span class="s1">&#39;dle&#39;</span><span class="p">,</span>
@@ -254,8 +260,23 @@
     <span class="s1">&#39;DEVITO_DEBUG_COMPILER&#39;</span><span class="p">:</span> <span class="s1">&#39;debug_compiler&#39;</span><span class="p">,</span>
 <span class="p">}</span>
 
+<span class="n">configuration</span> <span class="o">=</span> <span class="n">Parameters</span><span class="p">(</span><span class="s2">&quot;Devito-Configuration&quot;</span><span class="p">)</span>
+<span class="sd">&quot;&quot;&quot;The Devito configuration parameters.&quot;&quot;&quot;</span>
 
-<div class="viewcode-block" id="init_configuration"><a class="viewcode-back" href="../../devito.html#devito.parameters.init_configuration">[docs]</a><span class="k">def</span> <span class="nf">init_configuration</span><span class="p">():</span>
+<span class="n">configuration</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="s1">&#39;travis_test&#39;</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">],</span> <span class="k">lambda</span> <span class="n">i</span><span class="p">:</span> <span class="nb">bool</span><span class="p">(</span><span class="n">i</span><span class="p">))</span>
+<span class="c1"># Set the Instruction Set Architecture (ISA)</span>
+<span class="n">default_isa</span> <span class="o">=</span> <span class="s1">&#39;cpp&#39;</span>
+<span class="n">ISAs</span> <span class="o">=</span> <span class="p">[</span><span class="kc">None</span><span class="p">,</span> <span class="s1">&#39;cpp&#39;</span><span class="p">,</span> <span class="s1">&#39;avx&#39;</span><span class="p">,</span> <span class="s1">&#39;avx2&#39;</span><span class="p">,</span> <span class="s1">&#39;avx512&#39;</span><span class="p">,</span> <span class="s1">&#39;knc&#39;</span><span class="p">]</span>
+<span class="n">configuration</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="s1">&#39;isa&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="n">ISAs</span><span class="p">)</span>
+<span class="c1"># Set the CPU architecture (only codename)</span>
+<span class="n">default_platform</span> <span class="o">=</span> <span class="s1">&#39;intel64&#39;</span>
+<span class="n">PLATFORMs</span> <span class="o">=</span> <span class="p">[</span><span class="kc">None</span><span class="p">,</span> <span class="s1">&#39;intel64&#39;</span><span class="p">,</span> <span class="s1">&#39;sandybridge&#39;</span><span class="p">,</span> <span class="s1">&#39;ivybridge&#39;</span><span class="p">,</span> <span class="s1">&#39;haswell&#39;</span><span class="p">,</span>
+             <span class="s1">&#39;broadwell&#39;</span><span class="p">,</span> <span class="s1">&#39;skylake&#39;</span><span class="p">,</span> <span class="s1">&#39;knc&#39;</span><span class="p">,</span> <span class="s1">&#39;knl&#39;</span><span class="p">]</span>
+<span class="c1"># TODO: switch arch to actual architecture names; use the mapper in /YASK/</span>
+<span class="n">configuration</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="s1">&#39;platform&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="n">PLATFORMs</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="init_configuration"><a class="viewcode-back" href="../../devito.html#devito.parameters.init_configuration">[docs]</a><span class="k">def</span> <span class="nf">init_configuration</span><span class="p">(</span><span class="n">configuration</span><span class="o">=</span><span class="n">configuration</span><span class="p">,</span> <span class="n">env_vars_mapper</span><span class="o">=</span><span class="n">env_vars_mapper</span><span class="p">):</span>
     <span class="c1"># Populate /configuration/ with user-provided options</span>
     <span class="k">if</span> <span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;DEVITO_CONFIG&#39;</span><span class="p">)</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
         <span class="c1"># Try env variables, otherwise stick to defaults</span>
@@ -288,7 +309,7 @@
                 <span class="k">except</span> <span class="p">(</span><span class="ne">TypeError</span><span class="p">,</span> <span class="ne">ValueError</span><span class="p">):</span>
                     <span class="n">keys</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">j</span>
         <span class="n">accepted</span> <span class="o">=</span> <span class="n">configuration</span><span class="o">.</span><span class="n">_accepted</span><span class="p">[</span><span class="n">k</span><span class="p">]</span>
-        <span class="k">if</span> <span class="nb">any</span><span class="p">(</span><span class="n">i</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">accepted</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">keys</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">accepted</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="nb">any</span><span class="p">(</span><span class="n">i</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">accepted</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">keys</span><span class="p">):</span>
             <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Illegal configuration parameter (</span><span class="si">%s</span><span class="s2">, </span><span class="si">%s</span><span class="s2">). &quot;</span>
                              <span class="s2">&quot;Accepted: </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">v</span><span class="p">,</span> <span class="nb">str</span><span class="p">(</span><span class="n">accepted</span><span class="p">)))</span>
         <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">keys</span><span class="p">)</span> <span class="o">==</span> <span class="nb">len</span><span class="p">(</span><span class="n">values</span><span class="p">):</span>
@@ -299,6 +320,62 @@
             <span class="n">configuration</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">keys</span><span class="p">)</span>
 
     <span class="n">configuration</span><span class="o">.</span><span class="n">initialize</span><span class="p">()</span></div>
+
+
+<div class="viewcode-block" id="add_sub_configuration"><a class="viewcode-back" href="../../devito.html#devito.parameters.add_sub_configuration">[docs]</a><span class="k">def</span> <span class="nf">add_sub_configuration</span><span class="p">(</span><span class="n">sub_configuration</span><span class="p">,</span> <span class="n">sub_env_vars_mapper</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="n">init_configuration</span><span class="p">(</span><span class="n">sub_configuration</span><span class="p">,</span> <span class="n">sub_env_vars_mapper</span> <span class="ow">or</span> <span class="p">{})</span>
+    <span class="nb">setattr</span><span class="p">(</span><span class="n">configuration</span><span class="p">,</span> <span class="n">sub_configuration</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">sub_configuration</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="print_defaults"><a class="viewcode-back" href="../../devito.html#devito.parameters.print_defaults">[docs]</a><span class="k">def</span> <span class="nf">print_defaults</span><span class="p">():</span>
+    <span class="sd">&quot;&quot;&quot;Print the environment variables accepted by Devito, their default value,</span>
+<span class="sd">    as well as all of the accepted values.&quot;&quot;&quot;</span>
+    <span class="kn">from</span> <span class="nn">devito.logger</span> <span class="k">import</span> <span class="n">info</span>
+    <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">env_vars_mapper</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="n">info</span><span class="p">(</span><span class="s1">&#39;</span><span class="si">%s</span><span class="s1">: </span><span class="si">%s</span><span class="s1">. Default: </span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">configuration</span><span class="o">.</span><span class="n">_accepted</span><span class="p">[</span><span class="n">v</span><span class="p">],</span>
+                                      <span class="n">configuration</span><span class="o">.</span><span class="n">_defaults</span><span class="p">[</span><span class="n">v</span><span class="p">]))</span></div>
+
+
+<div class="viewcode-block" id="print_state"><a class="viewcode-back" href="../../devito.html#devito.parameters.print_state">[docs]</a><span class="k">def</span> <span class="nf">print_state</span><span class="p">():</span>
+    <span class="sd">&quot;&quot;&quot;Print the current configuration state.&quot;&quot;&quot;</span>
+    <span class="kn">from</span> <span class="nn">devito.logger</span> <span class="k">import</span> <span class="n">info</span>
+    <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">configuration</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="n">info</span><span class="p">(</span><span class="s1">&#39;</span><span class="si">%s</span><span class="s1">: </span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">v</span><span class="p">))</span></div>
+
+
+<div class="viewcode-block" id="infer_cpu"><a class="viewcode-back" href="../../devito.html#devito.parameters.infer_cpu">[docs]</a><span class="k">def</span> <span class="nf">infer_cpu</span><span class="p">():</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Detect the highest Instruction Set Architecture and the platform</span>
+<span class="sd">    codename using cpu flags and/or leveraging other tools. Return default</span>
+<span class="sd">    values if the detection procedure was unsuccesful.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">info</span> <span class="o">=</span> <span class="n">cpuinfo</span><span class="o">.</span><span class="n">get_cpu_info</span><span class="p">()</span>
+    <span class="c1"># ISA</span>
+    <span class="n">isa</span> <span class="o">=</span> <span class="n">default_isa</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">reversed</span><span class="p">(</span><span class="n">ISAs</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">info</span><span class="p">[</span><span class="s1">&#39;flags&#39;</span><span class="p">]:</span>
+            <span class="n">isa</span> <span class="o">=</span> <span class="n">i</span>
+            <span class="k">break</span>
+    <span class="c1"># Platform</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="c1"># First, try leveraging `gcc`</span>
+        <span class="n">p1</span> <span class="o">=</span> <span class="n">Popen</span><span class="p">([</span><span class="s1">&#39;gcc&#39;</span><span class="p">,</span> <span class="s1">&#39;-march=native&#39;</span><span class="p">,</span> <span class="s1">&#39;-Q&#39;</span><span class="p">,</span> <span class="s1">&#39;--help=target&#39;</span><span class="p">],</span> <span class="n">stdout</span><span class="o">=</span><span class="n">PIPE</span><span class="p">)</span>
+        <span class="n">p2</span> <span class="o">=</span> <span class="n">Popen</span><span class="p">([</span><span class="s1">&#39;grep&#39;</span><span class="p">,</span> <span class="s1">&#39;march&#39;</span><span class="p">],</span> <span class="n">stdin</span><span class="o">=</span><span class="n">p1</span><span class="o">.</span><span class="n">stdout</span><span class="p">,</span> <span class="n">stdout</span><span class="o">=</span><span class="n">PIPE</span><span class="p">)</span>
+        <span class="n">p1</span><span class="o">.</span><span class="n">stdout</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>  <span class="c1"># Allow p1 to receive a SIGPIPE if p2 exits.</span>
+        <span class="n">output</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">p2</span><span class="o">.</span><span class="n">communicate</span><span class="p">()</span>
+        <span class="n">platform</span> <span class="o">=</span> <span class="n">output</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="s2">&quot;utf-8&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">split</span><span class="p">()[</span><span class="mi">1</span><span class="p">]</span>
+    <span class="k">except</span><span class="p">:</span>
+        <span class="c1"># Then, try infer from the brand name, otherwise fallback to default</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">mapper</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;v3&#39;</span><span class="p">:</span> <span class="s1">&#39;haswell&#39;</span><span class="p">,</span> <span class="s1">&#39;v4&#39;</span><span class="p">:</span> <span class="s1">&#39;broadwell&#39;</span><span class="p">,</span> <span class="s1">&#39;v5&#39;</span><span class="p">:</span> <span class="s1">&#39;skylake&#39;</span><span class="p">}</span>
+            <span class="n">cpu_iteration</span> <span class="o">=</span> <span class="n">info</span><span class="p">[</span><span class="s1">&#39;brand&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">split</span><span class="p">()[</span><span class="mi">4</span><span class="p">]</span>
+            <span class="n">platform</span> <span class="o">=</span> <span class="n">mapper</span><span class="p">[</span><span class="n">cpu_iteration</span><span class="p">]</span>
+        <span class="k">except</span><span class="p">:</span>
+            <span class="n">platform</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="c1"># Is it a known platform?</span>
+    <span class="k">if</span> <span class="n">platform</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">PLATFORMs</span><span class="p">:</span>
+        <span class="n">platform</span> <span class="o">=</span> <span class="n">default_platform</span>
+    <span class="k">return</span> <span class="n">isa</span><span class="p">,</span> <span class="n">platform</span></div>
 </pre></div>
 
            </div>
