@@ -446,6 +446,8 @@ class TestOperatorAcoustic(object):
         """
         u.data[:] = 0.0
         op = Operator(eqn, subs=subs)
+        assert 'run_solution' in str(op)
+
         op.apply(u=u, m=m, damp=damp, t=10)
 
     def test_acoustic_w_src_wo_rec(self, model, eqn, subs, m, damp, u, src):
@@ -458,6 +460,8 @@ class TestOperatorAcoustic(object):
         eqns = eqn
         eqns += src.inject(field=u.forward, expr=src * dt**2 / m, offset=model.nbpml)
         op = Operator(eqns, subs=subs)
+        assert 'run_solution' in str(op)
+
         op.apply(u=u, m=m, damp=damp, src=src, t=1)
 
         exp_u = 152.76
@@ -474,6 +478,8 @@ class TestOperatorAcoustic(object):
         eqns += src.inject(field=u.forward, expr=src * dt**2 / m, offset=model.nbpml)
         eqns += rec.interpolate(expr=u, offset=model.nbpml)
         op = Operator(eqns, subs=subs)
+        assert 'run_solution' in str(op)
+
         op.apply(u=u, m=m, damp=damp, src=src, rec=rec, t=1)
 
         # The expected norms have been computed "by hand" looking at the output
