@@ -51,10 +51,6 @@ class Argument(object):
             return self._value
 
     @property
-    def as_symbol(self):
-        return Symbol(self.name)
-
-    @property
     def dtype(self):
         return self.provider.dtype
 

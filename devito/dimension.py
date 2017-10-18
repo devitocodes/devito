@@ -1,4 +1,5 @@
 import sympy
+import numpy as np
 from cached_property import cached_property
 
 from devito.arguments import DimensionArgProvider
@@ -35,7 +36,7 @@ class Dimension(sympy.Symbol, DimensionArgProvider):
     @cached_property
     def symbolic_size(self):
         """The symbolic size of this dimension."""
-        return Symbol(name=self.rtargs[0].name)
+        return Symbol(name=self.rtargs.size.name)
 
     @property
     def size(self):
@@ -46,12 +47,12 @@ class Dimension(sympy.Symbol, DimensionArgProvider):
         """Return the extent of the loop over this dimension.
         Would be the same as size if using default values """
         _, start, end = self.rtargs
-        return (end.as_symbol - start.as_symbol)
+        return (Symbol(name=end.name) - Symbol(name=start.name))
 
     @property
     def limits(self):
         _, start, end = self.rtargs
-        return (start.as_symbol, end.as_symbol, 1)
+        return (Symbol(name=start.name), Symbol(name=end.name), 1)
 
     @property
     def size_name(self):
@@ -68,7 +69,7 @@ class Dimension(sympy.Symbol, DimensionArgProvider):
     @property
     def symbolic_end(self):
         _, _, end = self.rtargs
-        return end.as_symbol
+        return Symbol(name=end.name)
 
 
 class SpaceDimension(Dimension):
