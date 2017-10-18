@@ -1,6 +1,6 @@
 from sympy import solve, Symbol
 
-from devito import Eq, Operator, Forward, Backward, Function, TimeFunction, time, t
+from devito import Eq, Operator, Forward, Backward, Function, TimeFunction
 from devito.logger import error
 from examples.seismic import PointSource, Receiver
 
@@ -75,15 +75,15 @@ def ForwardOperator(model, source, receiver, time_order=2, space_order=4,
     u = TimeFunction(name='u', grid=model.grid,
                      save=save, time_dim=source.nt if save else None,
                      time_order=2, space_order=space_order)
-    src = PointSource(name='src', ntime=source.nt, ndim=source.ndim,
+    src = PointSource(name='src', grid=model.grid, ntime=source.nt,
                       npoint=source.npoint)
-    rec = Receiver(name='rec', ntime=receiver.nt, ndim=receiver.ndim,
+    rec = Receiver(name='rec', grid=model.grid, ntime=receiver.nt,
                    npoint=receiver.npoint)
 
-    s = t.spacing
     # Get computational time-step value
     dt = model.critical_dt * (1.73 if time_order == 4 else 1.0)
 
+    s = model.grid.stepping_dim.spacing
     eqn = iso_stencil(u, time_order, m, s, damp)
 
     # Construct expression to inject source values
@@ -93,11 +93,8 @@ def ForwardOperator(model, source, receiver, time_order=2, space_order=4,
     # Create interpolation expression for receivers
     rec_term = rec.interpolate(expr=u, offset=model.nbpml)
 
-    subs = dict([(t.spacing, dt)] + [(time.spacing, dt)] +
-                [(i.spacing, model.spacing[j]) for i, j
-                 in zip(u.indices[1:], range(len(model.shape)))])
-    return Operator(eqn + src_term + rec_term,
-                    subs=subs,
+    # Substitute spacing terms to reduce flops
+    return Operator(eqn + src_term + rec_term, subs=model.spacing_map,
                     time_axis=Forward, name='Forward', **kwargs)
 
 
@@ -115,15 +112,15 @@ def AdjointOperator(model, source, receiver, time_order=2, space_order=4, **kwar
 
     v = TimeFunction(name='v', grid=model.grid, save=False,
                      time_order=2, space_order=space_order)
-    srca = PointSource(name='srca', ntime=source.nt, ndim=source.ndim,
+    srca = PointSource(name='srca', grid=model.grid, ntime=source.nt,
                        npoint=source.npoint)
-    rec = Receiver(name='rec', ntime=receiver.nt, ndim=receiver.ndim,
+    rec = Receiver(name='rec', grid=model.grid, ntime=receiver.nt,
                    npoint=receiver.npoint)
 
-    s = t.spacing
     # Get computational time-step value
     dt = model.critical_dt * (1.73 if time_order == 4 else 1.0)
 
+    s = model.grid.stepping_dim.spacing
     eqn = iso_stencil(v, time_order, m, s, damp, forward=False)
 
     # Construct expression to inject receiver values
@@ -132,11 +129,9 @@ def AdjointOperator(model, source, receiver, time_order=2, space_order=4, **kwar
 
     # Create interpolation expression for the adjoint-source
     source_a = srca.interpolate(expr=v, offset=model.nbpml)
-    subs = dict([(t.spacing, dt)] + [(time.spacing, dt)] +
-                [(i.spacing, model.spacing[j]) for i, j
-                 in zip(v.indices[1:], range(len(model.shape)))])
-    return Operator(eqn + receivers + source_a,
-                    subs=subs,
+
+    # Substitute spacing terms to reduce flops
+    return Operator(eqn + receivers + source_a, subs=model.spacing_map,
                     time_axis=Backward, name='Adjoint', **kwargs)
 
 
@@ -158,13 +153,13 @@ def GradientOperator(model, source, receiver, time_order=2, space_order=4, **kwa
                      time_order=2, space_order=space_order)
     v = TimeFunction(name='v', grid=model.grid, save=False,
                      time_order=2, space_order=space_order)
-    rec = Receiver(name='rec', ntime=receiver.nt, ndim=receiver.ndim,
+    rec = Receiver(name='rec', grid=model.grid, ntime=receiver.nt,
                    npoint=receiver.npoint)
 
-    s = t.spacing
     # Get computational time-step value
     dt = model.critical_dt * (1.73 if time_order == 4 else 1.0)
 
+    s = model.grid.stepping_dim.spacing
     eqn = iso_stencil(v, time_order, m, s, damp, forward=False)
 
     if time_order == 2:
@@ -177,11 +172,8 @@ def GradientOperator(model, source, receiver, time_order=2, space_order=4, **kwa
     receivers = rec.inject(field=v.backward, expr=rec * dt**2 / m,
                            offset=model.nbpml)
 
-    subs = dict([(t.spacing, dt)] + [(time.spacing, dt)] +
-                [(i.spacing, model.spacing[j]) for i, j
-                 in zip(v.indices[1:], range(len(model.shape)))])
-    return Operator(eqn + receivers + [gradient_update],
-                    subs=subs,
+    # Substitute spacing terms to reduce flops
+    return Operator(eqn + receivers + [gradient_update], subs=model.spacing_map,
                     time_axis=Backward, name='Gradient', **kwargs)
 
 
@@ -198,9 +190,9 @@ def BornOperator(model, source, receiver, time_order=2, space_order=4, **kwargs)
     m, damp = model.m, model.damp
 
     # Create source and receiver symbols
-    src = PointSource(name='src', ntime=source.nt, ndim=source.ndim,
+    src = PointSource(name='src', grid=model.grid, ntime=source.nt,
                       npoint=source.npoint)
-    rec = Receiver(name='rec', ntime=receiver.nt, ndim=receiver.ndim,
+    rec = Receiver(name='rec', grid=model.grid, ntime=receiver.nt,
                    npoint=receiver.npoint)
 
     # Create wavefields and a dm field
@@ -210,10 +202,10 @@ def BornOperator(model, source, receiver, time_order=2, space_order=4, **kwargs)
                      time_order=2, space_order=space_order)
     dm = Function(name="dm", grid=model.grid)
 
-    s = t.spacing
     # Get computational time-step value
     dt = model.critical_dt * (1.73 if time_order == 4 else 1.0)
 
+    s = model.grid.stepping_dim.spacing
     eqn1 = iso_stencil(u, time_order, m, s, damp)
     eqn2 = iso_stencil(U, time_order, m, s, damp, q=-dm*u.dt2)
 
@@ -223,9 +215,7 @@ def BornOperator(model, source, receiver, time_order=2, space_order=4, **kwargs)
 
     # Create receiver interpolation expression from U
     receivers = rec.interpolate(expr=U, offset=model.nbpml)
-    subs = dict([(t.spacing, dt)] + [(time.spacing, dt)] +
-                [(i.spacing, model.spacing[j]) for i, j
-                 in zip(u.indices[1:], range(len(model.shape)))])
-    return Operator(eqn1 + source + eqn2 + receivers,
-                    subs=subs,
+
+    # Substitute spacing terms to reduce flops
+    return Operator(eqn1 + source + eqn2 + receivers, subs=model.spacing_map,
                     time_axis=Forward, name='Born', **kwargs)

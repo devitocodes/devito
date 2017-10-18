@@ -2,13 +2,13 @@ from __future__ import absolute_import
 
 from collections import OrderedDict
 
-from conftest import EVAL, dims, skipif_yask
+from conftest import EVAL, dims, time, x, y, z, skipif_yask
 
 import numpy as np
 import pytest
 
 from devito import (clear_cache, Grid, Eq, Operator, Constant, Function,
-                    TimeFunction, SparseFunction, Dimension, time, x, y, z, configuration)
+                    TimeFunction, SparseFunction, Dimension, configuration)
 from devito.foreign import Operator as OperatorForeign
 from devito.dle import retrieve_iteration_tree
 from devito.visitors import IsPerfectIteration
@@ -271,14 +271,12 @@ class TestArguments(object):
 
     def test_dimension_size_infer(self, nt=100):
         """Test that the dimension sizes are being inferred correctly"""
-        i, j, k = dimify('i j k')
-        shape = (3, 5, 7)
-        grid = Grid(shape=shape, dimensions=(i, j, k))
-        a = Function(name='a', grid=grid).indexed
-        b = TimeFunction(name='b', grid=grid, save=True, time_dim=nt).indexed
-        eqn = Eq(b[time, i, j, k], a[i, j, k])
-        op = Operator(eqn)
+        grid = Grid(shape=(3, 5, 7))
+        a = Function(name='a', grid=grid)
+        b = TimeFunction(name='b', grid=grid, save=True, time_dim=nt)
+        op = Operator(Eq(b, a))
 
+        time = b.indices[0]
         op_arguments, _ = op.arguments()
         assert(op_arguments[time.start_name] == 0)
         assert(op_arguments[time.end_name] == nt)
@@ -299,10 +297,10 @@ class TestArguments(object):
 
     def test_dimension_size_override(self, nt=100):
         """Test explicit overrides for the leading time dimension"""
-        i, j, k = dimify('i j k')
-        shape = (3, 5, 7)
-        a = TimeFunction(name='a', dimensions=(i, j, k), shape=shape)
-        one = symbol(name='one', dimensions=(i, j, k), shape=shape, value=1.)
+        grid = Grid(shape=(3, 5, 7))
+        a = TimeFunction(name='a', grid=grid)
+        one = Function(name='one', grid=grid)
+        one.data[:] = 1.
         op = Operator(Eq(a.forward, a + one))
 
         # Test dimension override via the buffered dimenions
@@ -317,16 +315,15 @@ class TestArguments(object):
 
     def test_override_composite_data(self):
         i, j = dimify('i j')
+        grid = Grid(shape=(10, 10), dimensions=(i, j))
         original_coords = (1., 1.)
         new_coords = (2., 2.)
         p_dim = Dimension('p_src')
-        ndim = len(original_coords)
-        u = TimeFunction(name='u', time_order=2, space_order=2,
-                         shape=(10, 10), dimensions=(i, j))
-        src1 = SparseFunction(name='src1', dimensions=[time, p_dim], npoint=1,
-                              nt=10, ndim=ndim, coordinates=original_coords)
-        src2 = SparseFunction(name='src1', dimensions=[time, p_dim], npoint=1,
-                              nt=10, ndim=ndim, coordinates=new_coords)
+        u = TimeFunction(name='u', grid=grid, time_order=2, space_order=2)
+        src1 = SparseFunction(name='src1', grid=grid, dimensions=[time, p_dim],
+                              npoint=1, nt=10, coordinates=original_coords)
+        src2 = SparseFunction(name='src1', grid=grid, dimensions=[time, p_dim],
+                              npoint=1, nt=10, coordinates=new_coords)
         op = Operator(src1.inject(u, src1))
 
         # Move the source from the location where the setup put it so we can test
@@ -662,7 +659,8 @@ class TestLoopScheduler(object):
         Test that equations using a mixture of Function and TimeFunction objects
         are embedded within the same time loop.
         """
-        a = TimeFunction(name='a', shape=shape, time_order=2, dimensions=dimensions,
+        grid = Grid(shape=shape, dimensions=dimensions, time_dimension=time)
+        a = TimeFunction(name='a', grid=grid, time_order=2,
                          space_order=2, time_dim=6, save=False)
         p_aux = Dimension(name='p_aux', size=10)
         b = Function(name='b', shape=shape + (10,), dimensions=dimensions + (p_aux,),

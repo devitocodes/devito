@@ -11,7 +11,7 @@ from conftest import EVAL
 
 from devito.dle import retrieve_iteration_tree, transform
 from devito.dle.backends import DevitoRewriter as Rewriter
-from devito import Grid, Function, TimeFunction, Eq, Operator, t, x, y
+from devito import Grid, Function, TimeFunction, Eq, Operator
 from devito.nodes import ELEMENTAL, Expression, Callable, Iteration, List, tagger
 from devito.visitors import (ResolveIterationVariable, SubstituteExpression,
                              Transformer, FindNodes)
@@ -150,12 +150,10 @@ def _new_operator3(shape, time_order, **kwargs):
     # Derive the stencil according to devito conventions
     eqn = Eq(u.dt, a * (u.dx2 + u.dy2) - c * (u.dxl + u.dyl))
     stencil = solve(eqn, u.forward, rational=False)[0]
-    op = Operator(Eq(u.forward, stencil), subs={x.spacing: spacing,
-                                                y.spacing: spacing,
-                                                t.spacing: dt}, **kwargs)
+    op = Operator(Eq(u.forward, stencil), **kwargs)
 
     # Execute the generated Devito stencil operator
-    op.apply(u=u, t=10)
+    op.apply(u=u, t=10, dt=dt)
     return u.data[1, :], op
 
 

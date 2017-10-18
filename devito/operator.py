@@ -9,7 +9,7 @@ import sympy
 
 from devito.cgen_utils import Allocator
 from devito.compiler import jit_compile, load
-from devito.dimension import time, Dimension
+from devito.dimension import Dimension
 from devito.dle import compose_nodes, filter_iterations, transform
 from devito.dse import clusterize, indexify, rewrite, retrieve_terminals
 from devito.function import Forward, Backward, CompositeFunction
@@ -72,9 +72,6 @@ class Operator(Callable):
         self._lib = None
         self._cfunction = None
 
-        # Set the direction of time acoording to the given TimeAxis
-        time.reverse = time_axis == Backward
-
         # Expression lowering
         expressions = [indexify(s) for s in expressions]
         expressions = [s.xreplace(subs) for s in expressions]
@@ -84,8 +81,13 @@ class Operator(Callable):
         self.input, self.output, self.dimensions = self._retrieve_symbols(expressions)
         stencils = self._retrieve_stencils(expressions)
 
+        # Set the direction of time acoording to the given TimeAxis
+        for time in [d for d in self.dimensions if d.is_Time]:
+            if not time.is_Stepping:
+                time.reverse = time_axis == Backward
+
         # Parameters of the Operator (Dimensions necessary for data casts)
-        parameters = self.input + [i for i in self.dimensions]
+        parameters = self.input + self.dimensions
 
         # Group expressions based on their Stencil
         clusters = clusterize(expressions, stencils)
@@ -159,14 +161,13 @@ class Operator(Callable):
         for i in self.parameters:
             if i.is_TensorArgument:
                 assert(i.verify(kwargs.pop(i.name, None), self.argument_engine))
-        runtime_dimensions = [d for d in self.dimensions if not d.is_Fixed]
-        for d in runtime_dimensions:
+        for d in self.dimensions:
             d.verify(kwargs.pop(d.name, None), self.argument_engine, enforce=True)
         for i in self.parameters:
             if i.is_ScalarArgument:
                 i.verify(kwargs.pop(i.name, None), self.argument_engine, enforce=True)
         dim_sizes = {}
-        for d in runtime_dimensions:
+        for d in self.dimensions:
             if d.value is not None:
                 _, d_start, d_end = d.value
                 # Calculte loop extent
@@ -213,7 +214,7 @@ class Operator(Callable):
         dle_arguments = OrderedDict()
         autotune = True
         for i in self.dle_arguments:
-            dim_size = dim_sizes.get(i.original_dim.name, i.original_dim.size)
+            dim_size = dim_sizes.get(i.original_dim.name, None)
             if dim_size is None:
                 error('Unable to derive size of dimension %s from defaults. '
                       'Please provide an explicit value.' % i.original_dim.name)
@@ -288,7 +289,7 @@ class Operator(Callable):
         # Topologically sort Iterations
         ordering = partial_order([i.stencil.dimensions for i in clusters])
         for i, d in enumerate(list(ordering)):
-            if d.is_Buffered:
+            if d.is_Stepping:
                 ordering.insert(i, d.parent)
 
         # Build the Iteration/Expression tree
@@ -411,8 +412,8 @@ class Operator(Callable):
         stencils = [Stencil(i) for i in expressions]
         dimensions = set.union(*[set(i.dimensions) for i in stencils])
 
-        # Filter out aliasing buffered dimensions
-        mapper = {d.parent: d for d in dimensions if d.is_Buffered}
+        # Filter out aliasing stepping dimensions
+        mapper = {d.parent: d for d in dimensions if d.is_Stepping}
         for i in list(stencils):
             for d in i.dimensions:
                 if d in mapper:
@@ -444,7 +445,7 @@ class Operator(Callable):
                 dimensions.extend([k for k in i.free_symbols
                                    if isinstance(k, Dimension)])
             dimensions.extend(list(indexed.base.function.indices))
-        dimensions.extend([d.parent for d in dimensions if d.is_Buffered])
+        dimensions.extend([d.parent for d in dimensions if d.is_Stepping])
         dimensions = filter_sorted(dimensions, key=attrgetter('name'))
 
         return input, output, dimensions

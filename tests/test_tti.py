@@ -57,8 +57,10 @@ def test_tti(shape, space_order):
     time_series = np.zeros((nt, 1))
     time_series[:, 0] = ricker_source(np.linspace(t0, tn, nt), f0)
     # Adjoint test
-    source = PointSource(name='src', data=time_series, coordinates=location)
-    receiver = Receiver(name='rec', ntime=nt, coordinates=receiver_coords)
+    source = PointSource(name='src', grid=model.grid, data=time_series,
+                         coordinates=location)
+    receiver = Receiver(name='rec', grid=model.grid, ntime=nt,
+                        coordinates=receiver_coords)
     acoustic = AcousticWaveSolver(model, source=source, receiver=receiver,
                                   time_order=2, space_order=space_order)
     rec, u1, _ = acoustic.forward(save=False)
@@ -69,8 +71,10 @@ def test_tti(shape, space_order):
     time_series = np.zeros((nt, 1))
     time_series[:, 0] = 0*ricker_source(np.linspace(t0, tn, nt), f0)
 
-    source = PointSource(name='src', data=time_series, coordinates=location)
-    receiver = Receiver(name='rec', ntime=nt, coordinates=receiver_coords)
+    source = PointSource(name='src', grid=model.grid, data=time_series,
+                         coordinates=location)
+    receiver = Receiver(name='rec', grid=model.grid, ntime=nt,
+                        coordinates=receiver_coords)
     acoustic = AcousticWaveSolver(model, source=source, receiver=receiver,
                                   time_order=2, space_order=space_order)
 
