@@ -29,7 +29,7 @@ from devito.dimension import Dimension
 from devito.dse.extended_sympy import Eq
 from devito.dse.search import retrieve_indexed, retrieve_terminals
 from devito.dse.inspection import as_symbol
-from devito.dse.queries import q_indirect
+from devito.dse.queries import q_indirect, q_timedimension
 from devito.exceptions import DSEException
 from devito.tools import flatten, filter_ordered
 
@@ -212,7 +212,7 @@ class TemporariesGraph(OrderedDict):
         if expr is None:
             return all(self.time_invariant(v) for v in self.values())
 
-        if any(isinstance(i, Dimension) and i.is_Time for i in expr.free_symbols):
+        if any(q_timedimension(i) for i in expr.free_symbols):
             return False
 
         queue = [expr.rhs] if expr.is_Equality else [expr]

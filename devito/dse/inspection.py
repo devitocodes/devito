@@ -4,6 +4,7 @@ from sympy import Function, Indexed, Number, Symbol, cos, preorder_traversal, si
 
 from devito.dimension import Dimension
 from devito.dse.search import retrieve_indexed, retrieve_ops, search
+from devito.dse.queries import q_timedimension
 from devito.logger import warning
 from devito.tools import flatten
 
@@ -101,8 +102,7 @@ def estimate_memory(handle, mode='realistic'):
         handle = [handle]
 
     if mode in ['ideal', 'ideal_with_stores']:
-        filter = lambda s: any(isinstance(Dimension, i) and i.is_Time
-                               for i in s.atoms())
+        filter = lambda s: any(q_timedimension(i) for i in s.atoms())
     else:
         filter = lambda s: s
     reads = set(flatten([retrieve_indexed(e.rhs) for e in handle]))
