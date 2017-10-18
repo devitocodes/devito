@@ -105,7 +105,7 @@ class BasicRewriter(AbstractRewriter):
                         maybe_required.update(j.free_symbols)
                 required = filter_sorted(maybe_required - not_required,
                                          key=attrgetter('name'))
-                args.extend([(i.name, Scalar(name=i.name, dtype=np.int32))
+                args.extend([(i.name, Scalar(name=i.name, dtype=i.dtype))
                              for i in required])
 
                 call, params = zip(*args)
