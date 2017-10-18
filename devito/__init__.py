@@ -11,8 +11,7 @@ from devito.grid import *  # noqa
 from devito.function import Forward, Backward  # noqa
 from devito.types import _SymbolCache  # noqa
 from devito.logger import error, warning, info  # noqa
-from devito.parameters import (configuration, init_configuration,  # noqa
-                               env_vars_mapper)
+from devito.parameters import *  # noqa
 from devito.tools import *  # noqa
 from devito.dse import *  # noqa
 
@@ -32,21 +31,5 @@ del get_versions
 
 
 # Initialize the Devito backend
-configuration.add('travis_test', 0, [0, 1], lambda i: bool(i))
-configuration.add('autotuning', 'basic', ['none', 'basic', 'aggressive'])
 init_configuration()
 init_backend(configuration['backend'])
-
-
-def print_defaults():
-    """Print the environment variables accepted by Devito, their default value,
-    as well as all of the accepted values."""
-    for k, v in env_vars_mapper.items():
-        info('%s: %s. Default: %s' % (k, configuration._accepted[v],
-                                      configuration._defaults[v]))
-
-
-def print_state():
-    """Print the current configuration state."""
-    for k, v in configuration.items():
-        info('%s: %s' % (k, v))

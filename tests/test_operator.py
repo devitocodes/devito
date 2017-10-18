@@ -331,7 +331,7 @@ class TestDeclarator(object):
         clear_cache()
 
     def test_heap_1D_stencil(self, a, b):
-        operator = Operator(Eq(a, a + b + 5.), dse='noop', dle='noop')
+        operator = Operator(Eq(a, a + b + 5.), dse='noop', dle=None)
         assert """\
   float (*a);
   posix_memalign((void**)&a, 64, sizeof(float[i_size]));
@@ -348,7 +348,7 @@ class TestDeclarator(object):
   return 0;""" in str(operator.ccode)
 
     def test_heap_perfect_2D_stencil(self, a, c):
-        operator = Operator([Eq(a, c), Eq(c, c*a)], dse='noop', dle='noop', aaa=True)
+        operator = Operator([Eq(a, c), Eq(c, c*a)], dse='noop', dle=None)
         assert """\
   float (*a);
   float (*c)[j_size];
@@ -372,8 +372,7 @@ class TestDeclarator(object):
   return 0;""" in str(operator.ccode)
 
     def test_heap_imperfect_2D_stencil(self, a, c):
-        operator = Operator([Eq(a, 0.), Eq(c, c*a)], dse='noop', dle='noop')
-        print(str(operator.ccode))
+        operator = Operator([Eq(a, 0.), Eq(c, c*a)], dse='noop', dle=None)
         assert """\
   float (*a);
   float (*c)[j_size];
@@ -398,7 +397,7 @@ class TestDeclarator(object):
 
     def test_stack_scalar_temporaries(self, a, t0, t1):
         operator = Operator([Eq(t0, 1.), Eq(t1, 2.), Eq(a, t0*t1*3.)],
-                            dse='noop', dle='noop')
+                            dse='noop', dle=None)
         assert """\
   float (*a);
   posix_memalign((void**)&a, 64, sizeof(float[i_size]));
@@ -417,7 +416,7 @@ class TestDeclarator(object):
   return 0;""" in str(operator.ccode)
 
     def test_stack_vector_temporaries(self, c_stack, e):
-        operator = Operator([Eq(c_stack, e*1.)], dse='noop', dle='noop')
+        operator = Operator([Eq(c_stack, e*1.)], dse='noop', dle=None)
         assert """\
   struct timeval start_section_0, end_section_0;
   gettimeofday(&start_section_0, NULL);

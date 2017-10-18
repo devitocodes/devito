@@ -4,7 +4,7 @@ from itertools import product
 
 import numpy as np
 
-from devito import clear_cache
+from devito import clear_cache, configuration
 from devito.logger import warning
 from examples.seismic.acoustic.acoustic_example import run as acoustic_run
 from examples.seismic.tti.tti_example import run as tti_run
@@ -47,11 +47,11 @@ if __name__ == "__main__":
                             type=int, help="End time of the simulation in ms")
 
     devito = parser.add_argument_group("Devito")
-    devito.add_argument("-dse", default="advanced",
+    devito.add_argument("-dse", default="noop",
                         choices=["noop", "basic", "advanced", "speculative",
                                  "aggressive"],
                         help="Devito symbolic engine (DSE) mode")
-    devito.add_argument("-dle", default="advanced",
+    devito.add_argument("-dle", default="noop",
                         choices=["noop", "advanced", "speculative"],
                         help="Devito loop engine (DSE) mode")
     devito.add_argument("-a", "--autotune", action="store_true",
@@ -93,6 +93,10 @@ if __name__ == "__main__":
 
     parameters["shape"] = tuple(parameters["shape"])
     parameters["spacing"] = tuple(parameters["spacing"])
+
+    # Make sure that with YASK we run in performance mode
+    if configuration['backend'] == 'yask':
+        configuration.yask['develop-mode'] = False
 
     if args.execmode == "run":
         parameters["space_order"] = parameters["space_order"][0]

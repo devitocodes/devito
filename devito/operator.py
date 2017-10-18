@@ -163,7 +163,7 @@ class Operator(Callable):
         dle_arguments, autotune = self._dle_arguments(dim_sizes)
         dim_sizes.update(dle_arguments)
 
-        autotune = autotune and kwargs.pop('autotune', False)
+        autotune = kwargs.pop('autotune', False) and autotune
 
         # Make sure we've used all arguments passed
         if len(kwargs) > 0:
@@ -465,8 +465,9 @@ class OperatorRunnable(Operator):
         with bar():
             for k, v in summary.items():
                 name = '%s<%s>' % (k, ','.join('%d' % i for i in v.itershape))
-                info("Section %s with OI=%.2f computed in %.3f s [Perf: %.2f GFlops/s]" %
-                     (name, v.oi, v.time, v.gflopss))
+                gpointss = ", %.2f GPts/s" % v.gpointss if k == 'main' else ''
+                info("Section %s with OI=%.2f computed in %.3f s [%.2f GFlops/s%s]" %
+                     (name, v.oi, v.time, v.gflopss, gpointss))
         return summary
 
     def _profile_sections(self, nodes, parameters):
@@ -507,7 +508,7 @@ def set_dle_mode(mode):
     Transform :class:`Operator` input in a format understandable by the DLE.
     """
     if not mode:
-        return 'noop', {}
+        return mode, {}
     elif isinstance(mode, str):
         return mode, {}
     elif isinstance(mode, tuple):

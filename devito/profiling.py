@@ -141,6 +141,7 @@ class Profiler(object):
             iterspace = reduce(operator.mul, itershape)
             flops = float(profile.ops*iterspace)
             gflops = flops/10**9
+            gpoints = iterspace/10**9
 
             # Compulsory traffic
             datashape = [i.dim.size if i.dim.is_Fixed
@@ -151,9 +152,10 @@ class Profiler(object):
             # Derived metrics
             oi = flops/traffic
             gflopss = gflops/time
+            gpointss = gpoints/time
 
             # Keep track of performance achieved
-            summary.setsection(profile.name, time, gflopss, oi, profile.ops,
+            summary.setsection(profile.name, time, gflopss, gpointss, oi, profile.ops,
                                itershape, datashape)
 
         # Rename the most time consuming section as 'main'
@@ -195,8 +197,8 @@ class PerformanceSummary(OrderedDict):
     A special dictionary to track and quickly access performance data.
     """
 
-    def setsection(self, key, time, gflopss, oi, ops, itershape, datashape):
-        self[key] = PerfEntry(time, gflopss, oi, ops, itershape, datashape)
+    def setsection(self, key, time, gflopss, gpointss, oi, ops, itershape, datashape):
+        self[key] = PerfEntry(time, gflopss, gpointss, oi, ops, itershape, datashape)
 
     @property
     def gflopss(self):
@@ -215,5 +217,5 @@ Profile = namedtuple('Profile', 'name ops memory')
 """Metadata for a profiled code section."""
 
 
-PerfEntry = namedtuple('PerfEntry', 'time gflopss oi ops itershape datashape')
+PerfEntry = namedtuple('PerfEntry', 'time gflopss gpointss oi ops itershape datashape')
 """Structured performance data."""
