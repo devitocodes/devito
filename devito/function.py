@@ -21,6 +21,13 @@ __all__ = ['Constant', 'Function', 'TimeFunction', 'SparseFunction',
            'Forward', 'Backward']
 
 
+def default_time_dimensions():
+    """ Create default time and stepping dimensions"""
+    time = TimeDimension('time', spacing=Constant(name='dt'))
+    t = SteppingDimension('t', parent=time)
+    return (time, t)
+
+
 class TimeAxis(object):
     """Direction in which to advance the time index on
     :class:`TimeFunction` objects.
@@ -382,8 +389,7 @@ class TimeFunction(Function):
         save = kwargs.get('save', None)
         grid = kwargs.get('grid', None)
         if grid is None:
-            time = TimeDimension('time', spacing=sympy.Symbol('dt'))
-            t = SteppingDimension('t', parent=time)
+            time, t = default_time_dimensions()
             tidx = time if save else t
         else:
             tidx = grid.time_dim if save else grid.stepping_dim

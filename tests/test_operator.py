@@ -575,7 +575,8 @@ class TestLoopScheduler(object):
         Test that equations using a mixture of Function and TimeFunction objects
         are embedded within the same time loop.
         """
-        a = TimeFunction(name='a', shape=shape, time_order=2, dimensions=dimensions,
+        grid = Grid(shape=shape, dimensions=dimensions, time_dimension=time)
+        a = TimeFunction(name='a', grid=grid, time_order=2,
                          space_order=2, time_dim=6, save=False)
         p_aux = Dimension(name='p_aux', size=10)
         b = Function(name='b', shape=shape + (10,), dimensions=dimensions + (p_aux,),

@@ -1,6 +1,6 @@
 from devito.tools import as_tuple
-from devito.dimension import SpaceDimension, TimeDimension, SteppingDimension
-from devito.function import Constant
+from devito.dimension import SpaceDimension, SteppingDimension
+from devito.function import Constant, default_time_dimensions
 
 import numpy as np
 
@@ -82,12 +82,11 @@ class Grid(object):
 
         # Store or create default symbols for time and stepping dimensions
         if time_dimension is None:
-            self.time_dim = TimeDimension('time', spacing=Constant(name='dt'))
-            self.stepping_dim = SteppingDimension('t', parent=self.time_dim)
+            self.time_dim, self.stepping_dim = default_time_dimensions()
         else:
             self.time_dim = time_dimension
             self.stepping_dim = SteppingDimension('%s_s' % time_dimension.name,
-                                                  parent=self.time)
+                                                  parent=self.time_dim)
 
     @property
     def dim(self):
