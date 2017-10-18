@@ -79,6 +79,7 @@ yask_configuration.add('python-exec', False, [False, True])
 yask_configuration.add('folding', None, callback=lambda i: eval(i) if i else None)
 yask_configuration.add('blockshape', None, callback=lambda i: eval(i) if i else None)
 yask_configuration.add('options', None)
+yask_configuration.add('dump', None)
 
 
 # In develop-mode, no optimizations are applied to the generated code (e.g., SIMD).
@@ -109,7 +110,8 @@ env_vars_mapper = {
     'DEVITO_YASK_DEVELOP': 'develop-mode',
     'DEVITO_YASK_FOLDING': 'folding',
     'DEVITO_YASK_BLOCKING': 'blockshape',
-    'DEVITO_YASK_OPTIONS': 'options'
+    'DEVITO_YASK_OPTIONS': 'options',
+    'DEVITO_YASK_DUMP': 'dump'
 }
 
 add_sub_configuration(yask_configuration, env_vars_mapper)

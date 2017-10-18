@@ -309,8 +309,15 @@ class YaskKernel(object):
         self.soln.set_num_ranks(self.soln.get_domain_dim_names()[0],
                                 self.env.get_num_ranks())
 
-        # Redirect stdout/strerr to a string
-        self.output = yk.yask_output_factory().new_string_output()
+        # Redirect stdout/strerr to a string or file
+        if configuration.yask['dump']:
+            filename = 'yk_dump.%s.%s.%s.txt' % (self.name,
+                                                 configuration['platform'],
+                                                 configuration['isa'])
+            filename = os.path.join(configuration.yask['dump'], filename)
+            self.output = yk.yask_output_factory().new_file_output(filename)
+        else:
+            self.output = yk.yask_output_factory().new_string_output()
         self.soln.set_debug_output(self.output)
 
         # Set up the solution domain size
@@ -464,8 +471,20 @@ class YaskContext(object):
         """
         Create and return a YASK compiler solution object.
         """
-        yc_soln = cfac.new_solution(namer(self.name, self.nsolutions))
-        yc_soln.set_debug_output(ofac.new_null_output())
+        name = namer(self.name, self.nsolutions)
+
+        yc_soln = cfac.new_solution(name)
+
+        # Redirect stdout/strerr to a string or file
+        if configuration.yask['dump']:
+            filename = 'yc_dump.%s.%s.%s.txt' % (name, configuration['platform'],
+                                                 configuration['isa'])
+            filename = os.path.join(configuration.yask['dump'], filename)
+            yc_soln.set_debug_output(ofac.new_file_output(filename))
+        else:
+            yc_soln.set_debug_output(ofac.new_null_output())
+
+        # Set data type size
         yc_soln.set_element_bytes(self.dtype().itemsize)
 
         # Set vector folding (a compile-time choice)
