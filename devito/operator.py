@@ -154,14 +154,13 @@ class Operator(Callable):
         for i in self.parameters:
             if i.is_TensorArgument:
                 assert(i.verify(kwargs.pop(i.name, None)))
-        runtime_dimensions = [d for d in self.dimensions if d.value is not None]
-        for d in runtime_dimensions:
+        for d in self.dimensions:
             d.verify(kwargs.pop(d.name, None))
         for i in self.parameters:
             if i.is_ScalarArgument:
                 i.verify(kwargs.pop(i.name, None))
 
-        dim_sizes = OrderedDict([(d.name, d.value) for d in runtime_dimensions])
+        dim_sizes = OrderedDict([(d.name, d.value) for d in self.dimensions])
         dle_arguments, autotune = self._dle_arguments(dim_sizes)
         dim_sizes.update(dle_arguments)
 
