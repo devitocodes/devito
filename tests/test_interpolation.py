@@ -5,7 +5,6 @@ from conftest import skipif_yask
 from devito.cgen_utils import FLOAT
 from devito import Grid, Operator, Function, SparseFunction, TimeFunction, x, y, z
 
-
 @pytest.fixture
 def a(shape=(11, 11)):
     grid = Grid(shape=shape)
