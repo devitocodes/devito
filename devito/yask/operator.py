@@ -14,7 +14,7 @@ from devito.operator import OperatorRunnable, FunMeta
 from devito.tools import flatten
 from devito.visitors import IsPerfectIteration, Transformer
 
-from devito.yask import nfac, namespace, exit, yask_configuration
+from devito.yask import nfac, namespace, exit, configuration
 from devito.yask.utils import make_grid_accesses, make_sharedptr_funcall, rawpointer
 from devito.yask.wrappers import YaskNullContext, YaskNullKernel, contexts
 
@@ -37,7 +37,7 @@ class Operator(OperatorRunnable):
         # Each YASK Operator needs to have its own compiler (hence the copy()
         # below) because Operator-specific shared object will be added to the
         # list of linked libraries
-        self._compiler = yask_configuration['compiler'].copy()
+        self._compiler = configuration.yask['compiler'].copy()
 
     def _specialize(self, nodes, parameters):
         """
@@ -151,7 +151,7 @@ class Operator(OperatorRunnable):
             log("    %s%s, size=%s, pad=%s" % (grid.get_name(), str(grid.get_dim_names()),
                                                size, pad))
 
-        if yask_configuration['python-exec']:
+        if configuration.yask['python-exec']:
             log("Running YASK Operator through YASK...")
             self.yk_soln.run_py(dim_sizes[self.context.time_dimension])
         else:
