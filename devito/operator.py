@@ -7,6 +7,7 @@ import ctypes
 import numpy as np
 import sympy
 
+from devito.algorithms import analyze_iterations
 from devito.cgen_utils import Allocator
 from devito.compiler import jit_compile, load
 from devito.dimension import Dimension
@@ -99,6 +100,9 @@ class Operator(Callable):
 
         # Wrap expressions with Iterations according to dimensions
         nodes = self._schedule_expressions(clusters)
+
+        # Data dependency analysis. Properties are attached directly to nodes
+        nodes = analyze_iterations(nodes)
 
         # Introduce C-level profiling infrastructure
         nodes, self.profiler = self._profile_sections(nodes, parameters)

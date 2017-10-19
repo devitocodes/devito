@@ -507,11 +507,11 @@ class TestDeclarator(object):
     def test_stack_vector_temporaries(self, c_stack, e):
         operator = Operator([Eq(c_stack, e*1.)], dse='noop', dle=None)
         assert """\
+  float c_stack[i_size][j_size] __attribute__((aligned(64)));
   struct timeval start_section_0, end_section_0;
   gettimeofday(&start_section_0, NULL);
   for (int k = k_s; k < k_e; k += 1)
   {
-    float c_stack[i_size][j_size] __attribute__((aligned(64)));
     for (int s = s_s; s < s_e; s += 1)
     {
       for (int q = q_s; q < q_e; q += 1)
