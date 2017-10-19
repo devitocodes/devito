@@ -289,7 +289,7 @@ class Iteration(Node):
 
         # Track this Iteration's properties, pragmas and unbounded indices
         self.properties = as_tuple(properties)
-        assert (i in known_properties for i in self.properties)
+        assert (i in IterationProperty._KNOWN for i in self.properties)
         self.pragmas = as_tuple(pragmas)
         self.uindices = as_tuple(uindices)
         assert all(isinstance(i, UnboundedIndex) for i in self.uindices)
@@ -331,6 +331,10 @@ class Iteration(Node):
     @property
     def is_Elementizable(self):
         return ELEMENTAL in self.properties
+
+    @property
+    def is_Wrappable(self):
+        return WRAPPABLE in self.properties
 
     @property
     def is_Remainder(self):
@@ -538,6 +542,8 @@ class LocalExpression(Expression):
 
 class IterationProperty(object):
 
+    _KNOWN = []
+
     """
     An IterationProperty is an object that can be used to decorate an Iteration.
     """
@@ -545,6 +551,8 @@ class IterationProperty(object):
     def __init__(self, name, val=None):
         self.name = name
         self.val = val
+
+        self._KNOWN.append(self)
 
     def __eq__(self, other):
         if not isinstance(other, IterationProperty):
@@ -569,20 +577,16 @@ PARALLEL = IterationProperty('parallel')
 VECTOR = IterationProperty('vector-dim')
 ELEMENTAL = IterationProperty('elemental')
 REMAINDER = IterationProperty('remainder')
-
-known_properties = [SEQUENTIAL, PARALLEL, VECTOR, ELEMENTAL, REMAINDER]
+WRAPPABLE = IterationProperty('wrappable')
 
 
 def tagger(i):
-    handle = IterationProperty('tag', i)
-    if handle not in known_properties:
-        known_properties.append(handle)
-    return handle
+    return IterationProperty('tag', i)
 
 
 def ntags():
-    return len(known_properties) - ntags.n_original_properties
-ntags.n_original_properties = len(known_properties)  # noqa
+    return len(IterationProperty._KNOWN) - ntags.n_original_properties
+ntags.n_original_properties = len(IterationProperty._KNOWN)  # noqa
 
 
 class UnboundedIndex(object):
