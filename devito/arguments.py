@@ -1,7 +1,6 @@
 import abc
 
 import numpy as np
-from sympy import Symbol
 from cached_property import cached_property
 
 from devito.exceptions import InvalidArgument
@@ -42,14 +41,12 @@ class Argument(object):
         try:
             if self._value.is_SymbolicFunction:
                 return self._value._data_buffer
+            elif self._value.is_Constant:
+                return self._value.data
             else:
                 raise InvalidArgument("Unexpected data object %s" % type(self._value))
         except AttributeError:
             return self._value
-
-    @property
-    def as_symbol(self):
-        return Symbol(self.name)
 
     @property
     def ready(self):

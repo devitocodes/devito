@@ -6,6 +6,8 @@ from functools import reduce
 from operator import mul
 import resource
 
+from psutil import cpu_count
+
 from devito.logger import info, info_at
 from devito.nodes import Iteration
 from devito.parameters import configuration
@@ -38,21 +40,27 @@ def autotune(operator, arguments, tunable):
         timesteps = 1
     elif len(sequentials) == 1:
         sequential = sequentials[0]
-        squeeze = sequential.dim.parent if sequential.dim.is_Buffered else sequential.dim
         timesteps = sequential.extent(finish=options['at_squeezer'])
         if timesteps < 0:
             timesteps = options['at_squeezer'] - timesteps + 1
             info_at("Adjusted auto-tuning timestep to %d" % timesteps)
-        at_arguments[squeeze.symbolic_size.name] = timesteps
+        at_arguments[sequential.dim.symbolic_size.name] = timesteps
+        if sequential.dim.is_Buffered:
+            at_arguments[sequential.dim.parent.symbolic_size.name] = timesteps
     else:
         info_at("Couldn't understand loop structure, giving up auto-tuning")
         return arguments
 
-    # Attempted block sizes
+    # Attempted block sizes ...
     mapper = OrderedDict([(i.argument.symbolic_size.name, i) for i in tunable])
-    blocksizes = [OrderedDict([(i, v) for i in mapper])
-                  for v in options['at_blocksize']]
-    if configuration['autotuning'] == 'aggressive':
+    # ... Defaults (basic mode)
+    blocksizes = [OrderedDict([(i, v) for i in mapper]) for v in options['at_blocksize']]
+    # ... Always try the entire iteration space (degenerate block)
+    datashape = [at_arguments[mapper[i].original_dim.symbolic_size.name] for i in mapper]
+    blocksizes.append(OrderedDict([(i, mapper[i].iteration.extent(0, j))
+                      for i, j in zip(mapper, datashape)]))
+    # ... More attempts if auto-tuning in aggressive mode
+    if configuration.core['autotuning'] == 'aggressive':
         blocksizes = more_heuristic_attempts(blocksizes)
 
     # How many temporaries are allocated on the stack?
@@ -70,8 +78,8 @@ def autotune(operator, arguments, tunable):
         for k, v in at_arguments.items():
             if k in bs:
                 val = bs[k]
-                handle = at_arguments.get(mapper[k].original_dim.symbolic_size.name)
-                if val <= mapper[k].iteration.end(handle):
+                handle = at_arguments[mapper[k].original_dim.symbolic_size.name]
+                if val <= mapper[k].iteration.extent(0, handle):
                     at_arguments[k] = val
                 else:
                     # Block size cannot be larger than actual dimension
@@ -128,19 +136,24 @@ def autotune(operator, arguments, tunable):
 
 
 def more_heuristic_attempts(blocksizes):
+    # Ramp up to higher block sizes
+    handle = OrderedDict([(i, options['at_blocksize'][-1]) for i in blocksizes[0]])
+    for i in range(3):
+        new_bs = OrderedDict([(k, v*2) for k, v in handle.items()])
+        blocksizes.insert(blocksizes.index(handle) + 1, new_bs)
+        handle = new_bs
+
     handle = []
-
-    for blocksize in blocksizes[:3]:
+    # Extended shuffling for the smaller block sizes
+    for bs in blocksizes[:4]:
         for i in blocksizes:
-            handle.append(OrderedDict(list(blocksize.items())[:-1] +
-                                      [list(i.items())[-1]]))
-
-    for blocksize in list(blocksizes):
-        ncombs = len(blocksize)
+            handle.append(OrderedDict(list(bs.items())[:-1] + [list(i.items())[-1]]))
+    # Some more shuffling for all block sizes
+    for bs in list(blocksizes):
+        ncombs = len(bs)
         for i in range(ncombs):
-            for j in combinations(blocksize, i+1):
-                item = [(k, blocksize[k]*2 if k in j else v)
-                        for k, v in blocksize.items()]
+            for j in combinations(bs, i+1):
+                item = [(k, bs[k]*2 if k in j else v) for k, v in bs.items()]
                 handle.append(OrderedDict(item))
 
     unique = []
@@ -153,7 +166,7 @@ def more_heuristic_attempts(blocksizes):
 
 options = {
     'at_squeezer': 5,
-    'at_blocksize': [8, 16, 24, 32, 40, 64, 128],
+    'at_blocksize': sorted({8, 16, 24, 32, 40, 64, 128, cpu_count(logical=False)}),
     'at_stack_limit': resource.getrlimit(resource.RLIMIT_STACK)[0] / 4
 }
 """Autotuning options."""

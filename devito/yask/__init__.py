@@ -6,12 +6,10 @@ JIT-compile, and run kernels.
 from collections import OrderedDict
 import os
 
-import cpuinfo
-
 from devito import configuration
 from devito.exceptions import InvalidOperator
 from devito.logger import yask as log
-from devito.parameters import Parameters
+from devito.parameters import Parameters, add_sub_configuration, infer_cpu
 from devito.tools import ctypes_pointer
 
 
@@ -75,36 +73,48 @@ class YaskCompiler(configuration['compiler'].__class__):
         self.ldflags.append('-Wl,-rpath,%s' % os.path.join(namespace['path'], 'lib'))
 
 
-yask_configuration = Parameters('YASK-Configuration')
+yask_configuration = Parameters('yask')
 yask_configuration.add('compiler', YaskCompiler())
 yask_configuration.add('python-exec', False, [False, True])
-# Set the Instruction Set Architecture used by the YASK code generator
-default_isa = 'cpp'
-ISAs = ['cpp', 'avx', 'avx2', 'avx512', 'knc']
-yask_configuration.add('isa', default_isa, ISAs)
-# Currently YASK also require the CPU architecture (e.g., snb for sandy bridge,
-# hsw for haswell, etc.). At the moment, we simply infer it from the ISA
-arch_mapper = {'cpp': 'intel64', 'avx': 'snb', 'avx2': 'hsw', 'avx512': 'knl'}
-yask_configuration.add('arch', arch_mapper[default_isa], arch_mapper.values())
+yask_configuration.add('folding', None, callback=lambda i: eval(i) if i else None)
+yask_configuration.add('blockshape', None, callback=lambda i: eval(i) if i else None)
+yask_configuration.add('options', None)
+yask_configuration.add('dump', None)
 
 
-# In develop-mode, no optimizations are applied to the generated code (e.g., SIMD)
+# In develop-mode, no optimizations are applied to the generated code (e.g., SIMD).
 # When switching to non-develop-mode, optimizations are automatically switched on,
-# sniffing the highest Instruction Set Architecture level available on the current
-# machine and providing it to YASK
-def reset_yask_isa(develop_mode):
-    isa = default_isa
-    if develop_mode is False:
-        cpu_flags = cpuinfo.get_cpu_info()['flags']
-        for i in reversed(ISAs):
-            if i in cpu_flags:
-                isa = i
-                break
-    yask_configuration['isa'] = isa
-    yask_configuration['arch'] = arch_mapper[isa]
-yask_configuration.add('develop-mode', True, [False, True], reset_yask_isa)  # noqa
+# sniffing the highest Instruction Set Architecture level available on the architecture
+def switch_cpu(develop_mode):
+    if bool(develop_mode) is False:
+        isa, platform = infer_cpu()
+        configuration['isa'] = os.environ.get('DEVITO_ISA', isa)
+        platform = os.environ.get('DEVITO_PLATFORM', platform)
+        # Need to map to platforms known to YASK
+        mapper = {'intel64': 'intel64',
+                  'sandybridge': 'snb', 'ivybridge': 'ivb',
+                  'haswell': 'hsw', 'broadwell': 'hsw',
+                  'skylake': 'skx',
+                  'knc': 'knc', 'knl': 'knl'}
+        if platform in mapper.values():
+            configuration['platform'] = platform
+        elif platform in mapper:
+            configuration['platform'] = mapper[platform]
+        else:
+            exit("Unknown platform `%s` to run in optimized mode" % platform)
+    else:
+        configuration['isa'], configuration['platform'] = 'cpp', 'intel64'
+yask_configuration.add('develop-mode', True, [False, True], switch_cpu)  # noqa
 
-configuration.add('yask', yask_configuration)
+env_vars_mapper = {
+    'DEVITO_YASK_DEVELOP': 'develop-mode',
+    'DEVITO_YASK_FOLDING': 'folding',
+    'DEVITO_YASK_BLOCKING': 'blockshape',
+    'DEVITO_YASK_OPTIONS': 'options',
+    'DEVITO_YASK_DUMP': 'dump'
+}
+
+add_sub_configuration(yask_configuration, env_vars_mapper)
 
 log("Backend successfully initialized!")
 

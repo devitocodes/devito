@@ -1,10 +1,13 @@
-from sympy import Symbol
+import sympy
+from cached_property import cached_property
+
 from devito.arguments import DimensionArgProvider
+from devito.types import Symbol
 
 __all__ = ['Dimension', 'x', 'y', 'z', 't', 'p', 'd', 'time']
 
 
-class Dimension(Symbol, DimensionArgProvider):
+class Dimension(sympy.Symbol, DimensionArgProvider):
 
     is_Buffered = False
     is_Lowered = False
@@ -20,18 +23,18 @@ class Dimension(Symbol, DimensionArgProvider):
     """
 
     def __new__(cls, name, **kwargs):
-        newobj = Symbol.__new__(cls, name)
+        newobj = sympy.Symbol.__new__(cls, name)
         newobj.reverse = kwargs.get('reverse', False)
-        newobj.spacing = kwargs.get('spacing', Symbol('h_%s' % name))
+        newobj.spacing = kwargs.get('spacing', sympy.Symbol('h_%s' % name))
         return newobj
 
     def __str__(self):
         return self.name
 
-    @property
+    @cached_property
     def symbolic_size(self):
         """The symbolic size of this dimension."""
-        return self.rtargs[0].as_symbol
+        return Symbol(name=self.rtargs[0].name)
 
     @property
     def size(self):
@@ -65,7 +68,7 @@ class BufferedDimension(Dimension):
     """
 
     def __new__(cls, name, parent, **kwargs):
-        newobj = Symbol.__new__(cls, name)
+        newobj = sympy.Symbol.__new__(cls, name)
         assert isinstance(parent, Dimension)
         newobj.parent = parent
         newobj.modulo = kwargs.get('modulo', 2)
@@ -93,7 +96,7 @@ class LoweredDimension(Dimension):
     """
 
     def __new__(cls, name, buffered, offset, **kwargs):
-        newobj = Symbol.__new__(cls, name)
+        newobj = sympy.Symbol.__new__(cls, name)
         assert isinstance(buffered, BufferedDimension)
         newobj.buffered = buffered
         newobj.offset = offset
@@ -113,13 +116,13 @@ class LoweredDimension(Dimension):
 
 
 # Default dimensions for time
-time = Dimension('time', spacing=Symbol('s'))
+time = Dimension('time', spacing=sympy.Symbol('s'))
 t = BufferedDimension('t', parent=time)
 
 # Default dimensions for space
-x = SpaceDimension('x', spacing=Symbol('h_x'))
-y = SpaceDimension('y', spacing=Symbol('h_y'))
-z = SpaceDimension('z', spacing=Symbol('h_z'))
+x = SpaceDimension('x', spacing=sympy.Symbol('h_x'))
+y = SpaceDimension('y', spacing=sympy.Symbol('h_y'))
+z = SpaceDimension('z', spacing=sympy.Symbol('h_z'))
 
 d = Dimension('d')
 p = Dimension('p')

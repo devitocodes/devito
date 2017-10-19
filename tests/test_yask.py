@@ -8,7 +8,6 @@ pexpect = pytest.importorskip('yask')  # Run only if YASK is available
 from devito import (Eq, Operator, Function, TimeFunction, SparseFunction, Backward,
                     time, t, x, y, z, configuration, clear_cache)  # noqa
 from devito.dle import retrieve_iteration_tree  # noqa
-from devito.yask import arch_mapper, yask_configuration  # noqa
 from devito.yask.wrappers import YaskGrid, contexts  # noqa
 
 # For the acoustic wave test
@@ -37,7 +36,7 @@ def u(dims):
 def reset_isa():
     """Force back to NO-SIMD after each test, as some tests may optionally
     switch on SIMD."""
-    yask_configuration['develop-mode'] = True
+    configuration.yask['develop-mode'] = True
 
 
 class TestGrids(object):
@@ -166,7 +165,7 @@ class TestOperatorSimple(object):
         And so on and so forth.
         """
         # SIMD on/off
-        yask_configuration['develop-mode'] = nosimd
+        configuration.yask['develop-mode'] = nosimd
 
         u = TimeFunction(name='yu4D', shape=(16, 16, 16), dimensions=(x, y, z),
                          space_order=space_order)
@@ -447,6 +446,8 @@ class TestOperatorAcoustic(object):
         """
         u.data[:] = 0.0
         op = Operator(eqn, subs=subs)
+        assert 'run_solution' in str(op)
+
         op.apply(u=u, m=m, damp=damp, t=10)
 
     def test_acoustic_w_src_wo_rec(self, model, eqn, subs, m, damp, u, src):
@@ -459,6 +460,8 @@ class TestOperatorAcoustic(object):
         eqns = eqn
         eqns += src.inject(field=u.forward, expr=src * dt**2 / m, offset=model.nbpml)
         op = Operator(eqns, subs=subs)
+        assert 'run_solution' in str(op)
+
         op.apply(u=u, m=m, damp=damp, src=src, t=1)
 
         exp_u = 152.76
@@ -475,6 +478,8 @@ class TestOperatorAcoustic(object):
         eqns += src.inject(field=u.forward, expr=src * dt**2 / m, offset=model.nbpml)
         eqns += rec.interpolate(expr=u, offset=model.nbpml)
         op = Operator(eqns, subs=subs)
+        assert 'run_solution' in str(op)
+
         op.apply(u=u, m=m, damp=damp, src=src, rec=rec, t=1)
 
         # The expected norms have been computed "by hand" looking at the output
