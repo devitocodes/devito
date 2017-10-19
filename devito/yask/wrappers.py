@@ -368,15 +368,6 @@ class YaskKernel(object):
         for i in self.local_grids.values():
             i.release_storage()
 
-    def update(self, obj):
-        """
-        Switch to a different grid in the YaskKernel.
-
-        :param obj: a symbolic object wrapping a :class:`YaskGrid`.
-        """
-        assert obj.name in self.grids
-        obj.data.give_storage(self.grids[obj.name])
-
     @property
     def space_dimensions(self):
         return tuple(self.soln.get_domain_dim_names())
@@ -569,6 +560,20 @@ contexts = ContextManager()
 
 
 # Helpers
+
+class YaskGridConst(np.float64):
+
+    """A YASK grid wrapper for scalar values."""
+
+    def give_storage(self, target):
+        if not target.is_storage_allocated():
+            target.alloc_storage()
+        target.set_element(float(self.real), [])
+
+    @property
+    def rawpointer(self):
+        return None
+
 
 class YaskNullKernel(object):
 
