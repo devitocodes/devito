@@ -9,10 +9,11 @@ from devito.exceptions import InvalidArgument
 class DevitoOperator(Operator):
     """Class to wrap devito operators so they conform to the pyRevolve API
     """
-    def __init__(self, op, args, argnames):
+    def __init__(self, op, args, argnames, name):
         self.op = op
         self.args = args
         self.argnames = argnames
+        self.name = name
 
     def apply(self, t_start, t_end):
         """ If the devito operator requires some extra arguments in the call to apply
@@ -20,6 +21,7 @@ class DevitoOperator(Operator):
             pyRevolve.Operator.apply() without caring about these extra arguments while
             this method passes them on correctly to devito.Operator
         """
+        print(self.name, t_start, t_end)
         args = self.args.copy()
         args[self.argnames['t_start']] = t_start
         args[self.argnames['t_end']] = t_end
@@ -35,13 +37,18 @@ class DevitoCheckpoint(Checkpoint):
         stores only a reference to the symbols that are passed into it.
         The symbols must be passed as a mapping symbolname->symbolobject."""
         assert(all(isinstance(s, TimeFunction) for s in symbols))
-        self.dtype = symbols[0].dtype
+        self._dtype = symbols[0].dtype
         self.symbols = symbols
         self.revolver = None
+
+    @property
+    def dtype(self):
+        return self._dtype
 
     def save(self, ptr):
         """Overwrite live-data in this Checkpoint object with data found at
         the ptr location."""
+        print("save")
         i_ptr_lo = 0
         i_ptr_hi = 0
         for s in self.symbols:
@@ -52,6 +59,7 @@ class DevitoCheckpoint(Checkpoint):
     def load(self, ptr):
         """Copy live-data from this Checkpoint object into the memory given by
         the ptr."""
+        print("load")
         i_ptr_lo = 0
         i_ptr_hi = 0
         for s in self.symbols:
