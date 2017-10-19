@@ -80,6 +80,9 @@ class Operator(Callable):
         self.input, self.output, self.dimensions = self._retrieve_symbols(expressions)
         stencils = self._retrieve_stencils(expressions)
 
+        # Extract argument offsets
+        self._store_argument_offsets(stencils)
+
         # Set the direction of time acoording to the given TimeAxis
         for time in [d for d in self.dimensions if d.is_Time]:
             if not time.is_Stepping:
@@ -96,9 +99,6 @@ class Operator(Callable):
 
         # Wrap expressions with Iterations according to dimensions
         nodes = self._schedule_expressions(clusters)
-
-        # Extract dimension offsets
-        self._store_dimension_offsets([i.stencil for i in clusters])
 
         # Introduce C-level profiling infrastructure
         nodes, self.profiler = self._profile_sections(nodes, parameters)
@@ -232,7 +232,7 @@ class Operator(Callable):
     def elemental_functions(self):
         return tuple(i.root for i in self.func_table.values())
 
-    def _store_dimension_offsets(self, stencils):
+    def _store_argument_offsets(self, stencils):
         all_dimension_offsets = defaultdict(list)
         argument_offsets = dict()
         for s in stencils:
