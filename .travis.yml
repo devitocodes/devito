@@ -83,6 +83,7 @@ script:
       python examples/seismic/benchmark.py test -P acoustic -a;
       python examples/seismic/acoustic/acoustic_example.py --full;
       python examples/seismic/acoustic/acoustic_example.py --constant --full;
+      python examples/seismic/acoustic/gradient_example.py;
     fi
 
   # Test tutorial notebooks for the website using nbval
