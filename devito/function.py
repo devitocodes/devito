@@ -66,15 +66,8 @@ class Constant(AbstractSymbol, ConstantArgProvider):
     def data(self, val):
         self._value = val
 
-    def indexify(self):
-        return self
-
     @property
     def base(self):
-        return self
-
-    @property
-    def function(self):
         return self
 
 
