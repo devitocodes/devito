@@ -6,8 +6,6 @@ from functools import reduce
 from operator import mul
 import resource
 
-from psutil import cpu_count
-
 from devito.logger import info, info_at
 from devito.nodes import Iteration
 from devito.parameters import configuration
@@ -166,7 +164,7 @@ def more_heuristic_attempts(blocksizes):
 
 options = {
     'at_squeezer': 5,
-    'at_blocksize': sorted({8, 16, 24, 32, 40, 64, 128, cpu_count(logical=False)}),
+    'at_blocksize': sorted({8, 16, 24, 32, 40, 64, 128}),
     'at_stack_limit': resource.getrlimit(resource.RLIMIT_STACK)[0] / 4
 }
 """Autotuning options."""
