@@ -472,7 +472,7 @@ class DevitoSpeculativeRewriter(DevitoRewriter):
             # Retrieve the maximum number of items in a SIMD register when processing
             # the expressions in /node/
             exprs = FindNodes(Expression).visit(node)
-            exprs = [e for e in exprs if e.output_function in candidates]
+            exprs = [e for e in exprs if e.write in candidates]
             assert len(exprs) > 0
             dtype = exprs[0].dtype
             assert all(e.dtype == dtype for e in exprs)

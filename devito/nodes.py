@@ -6,14 +6,14 @@ import inspect
 from collections import Iterable, OrderedDict
 
 import cgen as c
-from sympy import Eq
+from sympy import Eq, Indexed, Symbol
 
 from devito.cgen_utils import ccode
 from devito.dse import as_symbol, retrieve_terminals
-from devito.types import Indexed, Symbol
 from devito.stencil import Stencil
 from devito.tools import as_tuple, filter_ordered, flatten
 from devito.arguments import ArgumentProvider, Argument
+import devito.types as types
 
 __all__ = ['Node', 'Block', 'Denormals', 'Expression', 'Callable', 'Call',
            'Iteration', 'List', 'LocalExpression', 'TimedList']
@@ -159,16 +159,19 @@ class Expression(Node):
 
     def __init__(self, expr, dtype=None):
         assert isinstance(expr, Eq)
+        assert isinstance(expr.lhs, (Symbol, Indexed))
         self.expr = expr
         self.dtype = dtype
 
         # Traverse /expression/ to determine meta information
         # Note: at this point, expressions have already been indexified
-        self.functions = [i.base.function for i in retrieve_terminals(self.expr)
-                          if isinstance(i, (Indexed, Symbol))]
-        self.dimensions = flatten(i.indices for i in self.functions)
-        # Filter collected dimensions and functions
+        self.reads = [i for i in retrieve_terminals(self.expr.rhs)
+                      if isinstance(i, (types.Indexed, types.Symbol))]
+        self.reads = filter_ordered(self.reads)
+        self.functions = [self.write] + [i.base.function for i in self.reads]
         self.functions = filter_ordered(self.functions)
+        # Filter collected dimensions and functions
+        self.dimensions = flatten(i.indices for i in self.functions)
         self.dimensions = filter_ordered(self.dimensions)
 
     def __repr__(self):
@@ -188,10 +191,10 @@ class Expression(Node):
         """
         Return the symbol written by this Expression.
         """
-        return as_symbol(self.expr.lhs)
+        return self.expr.lhs
 
     @property
-    def output_function(self):
+    def write(self):
         """
         Return the function written by this Expression.
         """

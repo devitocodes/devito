@@ -3,7 +3,7 @@ from sympy import Symbol
 
 from devito.cgen_utils import ccode
 from devito.dle import compose_nodes, is_foldable, retrieve_iteration_tree
-from devito.dse import xreplace_indices
+from devito.dse import as_symbol, xreplace_indices
 from devito.nodes import Expression, Iteration, List, UnboundedIndex, ntags
 from devito.visitors import (FindAdjacentIterations, FindNodes, IsPerfectIteration,
                              NestedTransformer, Transformer)
@@ -167,8 +167,8 @@ def optimize_unfolded_tree(unfolded, root):
         if all(not j.is_Remainder for j in modified_tree):
             shape = tuple(j.bounds_symbolic[1] for j in modified_tree)
             for j in exprs:
-                j_shape = shape + j.output_function.shape[len(modified_tree):]
-                j.output_function.update(shape=j_shape, onstack=True)
+                j_shape = shape + j.write.shape[len(modified_tree):]
+                j.write.update(shape=j_shape, onstack=True)
 
         # Substitute iteration variables within the folded trees
         modified_tree = compose_nodes(modified_tree)
@@ -179,7 +179,7 @@ def optimize_unfolded_tree(unfolded, root):
         # Introduce the new iteration variables within /root/
         modified_root = compose_nodes(modified_root)
         exprs = FindNodes(Expression).visit(modified_root)
-        candidates = [j.output for j in subs]
+        candidates = [as_symbol(j.output) for j in subs]
         replaced = xreplace_indices([j.expr for j in exprs], mapper, candidates)
         subs = [j._rebuild(expr=k) for j, k in zip(exprs, replaced)]
         root = Transformer(dict(zip(exprs, subs))).visit(modified_root)

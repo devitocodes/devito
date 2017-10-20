@@ -452,7 +452,7 @@ class FindSymbols(Visitor):
     rules = {
         'kernel-data': lambda e: [i for i in e.functions if i.is_SymbolicFunction],
         'symbolics': lambda e: e.functions,
-        'symbolics-writes': lambda e: as_tuple(e.output_function),
+        'symbolics-writes': lambda e: as_tuple(e.write),
         'free-symbols': lambda e: e.expr.free_symbols,
         'dimensions': lambda e: e.dimensions,
     }

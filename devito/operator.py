@@ -375,17 +375,17 @@ class Operator(Callable):
             if k.is_scalar:
                 # Inline declaration
                 mapper[k] = LocalExpression(**k.args)
-            elif k.output_function._mem_external:
+            elif k.write._mem_external:
                 # Nothing to do, variable passed as kernel argument
                 continue
-            elif k.output_function._mem_stack:
+            elif k.write._mem_stack:
                 # On the stack, as established by the DLE
                 key = lambda i: not i.is_Parallel
                 site = filter_iterations(v, key=key, stop='asap') or [nodes]
-                allocator.push_stack(site[-1], k.output_function)
+                allocator.push_stack(site[-1], k.write)
             else:
                 # On the heap, as a tensor that must be globally accessible
-                allocator.push_heap(k.output_function)
+                allocator.push_heap(k.write)
 
         # Introduce declarations on the stack
         for k, v in allocator.onstack:
