@@ -478,13 +478,17 @@ class YaskContext(object):
         # Set data type size
         yc_soln.set_element_bytes(self.dtype().itemsize)
 
-        # Set vector folding (a compile-time choice)
-        folds_length = configuration.yask.get('folding')
-        if configuration['isa'] != 'cpp' and folds_length is not None:
+        # Apply compile-time optimizations
+        if configuration['isa'] != 'cpp':
             dimensions = [nfac.new_domain_index(i) for i in self.domain]
-            assert len(dimensions) == len(folds_length)
+            # Vector folding
+            folds_length = configuration.yask.get('folding', [])
             for i, j in zip(dimensions, folds_length):
                 yc_soln.set_fold_len(i, j)
+            # Unrolling
+            clusters_mult = configuration.yask.get('clustering', [])
+            for i, j in zip(dimensions, clusters_mult):
+                yc_soln.set_cluster_mult(i, j)
 
         return yc_soln
 

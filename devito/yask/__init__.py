@@ -76,8 +76,10 @@ class YaskCompiler(configuration['compiler'].__class__):
 yask_configuration = Parameters('yask')
 yask_configuration.add('compiler', YaskCompiler())
 yask_configuration.add('python-exec', False, [False, True])
-yask_configuration.add('folding', None, callback=lambda i: eval(i) if i else None)
-yask_configuration.add('blockshape', None, callback=lambda i: eval(i) if i else None)
+callback = lambda i: eval(i) if i else None
+yask_configuration.add('folding', None, callback=callback)
+yask_configuration.add('blockshape', None, callback=callback)
+yask_configuration.add('clustering', None, callback=callback)
 yask_configuration.add('options', None)
 yask_configuration.add('dump', None)
 
@@ -110,6 +112,7 @@ env_vars_mapper = {
     'DEVITO_YASK_DEVELOP': 'develop-mode',
     'DEVITO_YASK_FOLDING': 'folding',
     'DEVITO_YASK_BLOCKING': 'blockshape',
+    'DEVITO_YASK_CLUSTERING': 'clustering',
     'DEVITO_YASK_OPTIONS': 'options',
     'DEVITO_YASK_DUMP': 'dump'
 }
