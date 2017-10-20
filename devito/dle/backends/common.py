@@ -13,7 +13,12 @@ def dle_pass(func):
 
     def wrapper(self, state, **kwargs):
         tic = time()
-        state.update(**func(self, state))
+        # Processing
+        processed, extra = func(self, state.nodes, state)
+        for i, nodes in enumerate(list(state.elemental_functions)):
+            state.elemental_functions[i], _ = func(self, nodes, state)
+        # State update
+        state.update(processed, **extra)
         toc = time()
 
         self.timings[func.__name__] = toc - tic
@@ -26,21 +31,20 @@ class State(object):
     """Represent the output of the DLE."""
 
     def __init__(self, nodes):
-        self.nodes = as_tuple(nodes)
+        self.nodes = nodes
 
-        self.elemental_functions = ()
-        self.arguments = ()
-        self.includes = ()
+        self.elemental_functions = []
+        self.arguments = []
+        self.includes = []
         self.flags = defaultdict(bool)
 
-    def update(self, nodes=None, elemental_functions=None, arguments=None,
-               includes=None, flags=None):
-        self.nodes = as_tuple(nodes) or self.nodes
-        self.elemental_functions = as_tuple(elemental_functions) or\
-            self.elemental_functions
-        self.arguments += as_tuple(arguments)
-        self.includes += as_tuple(includes)
-        self.flags.update({i: True for i in as_tuple(flags)})
+    def update(self, nodes, **kwargs):
+        self.nodes = nodes
+
+        self.elemental_functions.extend(list(kwargs.get('elemental_functions', [])))
+        self.arguments.extend(list(kwargs.get('arguments', [])))
+        self.includes.extend(list(kwargs.get('includes', [])))
+        self.flags.update({i: True for i in as_tuple(kwargs.get('flags', ()))})
 
 
 class Arg(object):

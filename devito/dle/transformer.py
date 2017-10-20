@@ -1,5 +1,4 @@
-from collections import Sequence
-
+from devito.nodes import Node
 from devito.dle.backends import (State, BasicRewriter, DevitoCustomRewriter,
                                  DevitoRewriter, DevitoRewriterSafeMath,
                                  DevitoSpeculativeRewriter)
@@ -62,16 +61,9 @@ def transform(node, mode='basic', options=None):
                          worthwhile applying it.
     """
     # Check input parameters
+    assert isinstance(node, Node)
     if not (mode is None or isinstance(mode, str)):
         raise ValueError("Parameter 'mode' should be a string, not %s." % type(mode))
-
-    if isinstance(node, Sequence):
-        assert all(n.is_Node for n in node)
-        node = list(node)
-    elif node.is_Node:
-        node = [node]
-    else:
-        raise ValueError("Got illegal node of type %s." % type(node))
 
     # Parse options (local options take precedence over global options)
     options = options or {}
