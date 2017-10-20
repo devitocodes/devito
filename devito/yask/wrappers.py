@@ -328,11 +328,8 @@ class YaskKernel(object):
         self.soln.apply_command_line_options(configuration.yask['options'] or '')
 
         # Set up the block shape for loop blocking
-        block_shape = configuration.yask.get('blockshape')
-        if block_shape is not None:
-            assert len(block_shape) == len(domain)
-            for i, j in zip(list(domain), block_shape):
-                self.soln.set_block_size(i, j)
+        for i, j in zip(list(domain), configuration.yask['blockshape']):
+            self.soln.set_block_size(i, j)
 
         # Users may want to run the same Operator (same domain etc.) with
         # different grids.
@@ -482,12 +479,10 @@ class YaskContext(object):
         if configuration['isa'] != 'cpp':
             dimensions = [nfac.new_domain_index(i) for i in self.domain]
             # Vector folding
-            folds_length = configuration.yask.get('folding', [])
-            for i, j in zip(dimensions, folds_length):
+            for i, j in zip(dimensions, configuration.yask['folding']):
                 yc_soln.set_fold_len(i, j)
             # Unrolling
-            clusters_mult = configuration.yask.get('clustering', [])
-            for i, j in zip(dimensions, clusters_mult):
+            for i, j in zip(dimensions, configuration.yask['clustering']):
                 yc_soln.set_cluster_mult(i, j)
 
         return yc_soln

@@ -76,10 +76,10 @@ class YaskCompiler(configuration['compiler'].__class__):
 yask_configuration = Parameters('yask')
 yask_configuration.add('compiler', YaskCompiler())
 yask_configuration.add('python-exec', False, [False, True])
-callback = lambda i: eval(i) if i else None
-yask_configuration.add('folding', None, callback=callback)
-yask_configuration.add('blockshape', None, callback=callback)
-yask_configuration.add('clustering', None, callback=callback)
+callback = lambda i: eval(i) if i else ()
+yask_configuration.add('folding', (), callback=callback)
+yask_configuration.add('blockshape', (), callback=callback)
+yask_configuration.add('clustering', (), callback=callback)
 yask_configuration.add('options', None)
 yask_configuration.add('dump', None)
 
