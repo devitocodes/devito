@@ -1,6 +1,6 @@
 from collections import OrderedDict
 
-from devito.dse import as_symbol, retrieve_terminals
+from devito.dse import as_symbol
 from devito.nodes import Iteration, SEQUENTIAL, PARALLEL, VECTOR
 from devito.tools import as_tuple
 from devito.visitors import FindSections, IsPerfectIteration, NestedTransformer
@@ -17,63 +17,144 @@ def analyze_iterations(nodes):
           of this kind has no dependencies across its iterations.
         * vectorizable (attach VECTOR): Innermost fully-parallel Iterations
           are also marked as vectorizable.
+        * wrappable (attach WRAPPABLE): When its dimension uses modulo buffered
+          iteration and at least one slot can be reused to save memory (e.g.,
+          u[t+1, ...] = f(u[t, ...], u[t-1, ...]) can sometimes be optimized as
+          u[t-1, ...] = f(u[t, ...], u[t-1, ...]), thus avoiding to use one
+          buffer location).
     """
     sections = FindSections().visit(nodes)
 
-    # The analysis below may return "false positives" (ie, absence of fully-
-    # parallel or OSIP trees when this is actually false), but this should
-    # never be the case in practice, given the targeted stencil codes.
+    # Local analysis: detect Iteration properties, inspecting trees in isolation
     mapper = OrderedDict()
-    for tree, nexprs in sections.items():
-        exprs = [e.expr for e in nexprs]
+    for tree, exprs in sections.items():
+        deps_graph = compute_dependency_graph(exprs)
 
-        # "Prefetch" objects to speed up the analsys
-        terms = {e: tuple(retrieve_terminals(e.rhs)) for e in exprs}
+        mapper = detect_fully_parallel(tree, deps_graph, mapper)
+        mapper = detect_outermost_parallel(tree, deps_graph, mapper)
+        mapper = detect_outermost_sequential_inner_parallel(tree, deps_graph, mapper)
+        mapper = detect_innermost_unitstride(tree, deps_graph, mapper)
+        mapper = detect_wrappable_iterations(tree, deps_graph, mapper)
 
-        # Determine whether the Iteration tree ...
-        is_FP = True  # ... is fully parallel (FP)
-        is_OP = True  # ... has an outermost parallel dimension (OP)
-        is_OSIP = True  # ... is outermost-sequential, inner-parallel (OSIP)
-        is_US = True  # ... has a unit-strided innermost dimension (US)
-        for lhs in [e.lhs for e in exprs if not e.lhs.is_Symbol]:
-            for e in exprs:
-                for i in [j for j in terms[e] if as_symbol(j) == as_symbol(lhs)]:
-                    is_FP &= lhs.indices == i.indices
-
-                    is_OP &= lhs.indices[0] == i.indices[0] and\
-                        all(lhs.indices[0].free_symbols.isdisjoint(j.free_symbols)
-                            for j in i.indices[1:])  # not A[x,y] = A[x,x+1]
-
-                    is_US &= lhs.indices[-1] == i.indices[-1]
-
-                    lhs_function, i_function = lhs.base.function, i.base.function
-                    is_OSIP &= lhs_function.indices[0] == i_function.indices[0] and\
-                        (lhs.indices[0] != i.indices[0] or len(lhs.indices) == 1 or
-                         lhs.indices[1] == i.indices[1])
-
-        # Build a node->property mapper
-        if is_FP:
-            for i in tree:
-                mapper.setdefault(i, []).append(PARALLEL)
-        elif is_OP:
-            mapper.setdefault(tree[0], []).append(PARALLEL)
-        elif is_OSIP:
-            mapper.setdefault(tree[0], []).append(SEQUENTIAL)
-            for i in tree[1:]:
-                mapper.setdefault(i, []).append(PARALLEL)
-        if IsPerfectIteration().visit(tree[-1]) and (is_FP or is_OSIP or is_US):
-            # Vectorizable
-            if len(tree) > 1 and SEQUENTIAL not in mapper.get(tree[-2], []):
-                # Heuristic: there's at least an outer parallel Iteration
-                mapper.setdefault(tree[-1], []).append(VECTOR)
-
-    # Store the discovered properties in the Iteration/Expression tree
+    # Global analysis
     for k, v in list(mapper.items()):
         args = k.args
         # SEQUENTIAL kills PARALLEL
         properties = SEQUENTIAL if (SEQUENTIAL in v or not k.is_Linear) else v
         properties = as_tuple(args.pop('properties')) + as_tuple(properties)
         mapper[k] = Iteration(properties=properties, **args)
-    nodes = NestedTransformer(mapper).visit(nodes)
 
-    return nodes
+    # Store the discovered properties in the Iteration/Expression tree
+    processed = NestedTransformer(mapper).visit(nodes)
+
+    return processed
+
+
+def compute_dependency_graph(exprs):
+    """
+    Given an ordered list of :class:`Expression`, build a mapper from lvalues
+    to reads occurring in the rvalues.
+    """
+    deps_graph = OrderedDict()
+    writes = [e.output for e in exprs if e.is_tensor]
+    for i in writes:
+        for e in exprs:
+            i_reads = [j for j in e.reads if as_symbol(i) == as_symbol(j)]
+            deps_graph.setdefault(i, []).extend(i_reads)
+    return deps_graph
+
+
+def detect_fully_parallel(tree, deps_graph, mapper=None):
+    """
+    Update ``mapper``, a dictionary from :class:`Iteration`s to
+    :class:`IterationProperty`s, by annotating fully parallel (PARALLEL) Iterations.
+    """
+    if mapper is None:
+        mapper = OrderedDict()
+    is_FP = True
+    for k, v in deps_graph.items():
+        is_FP &= all(k.indices == i.indices for i in v)
+    if is_FP:
+        for i in tree:
+            mapper.setdefault(i, []).append(PARALLEL)
+    return mapper
+
+
+def detect_outermost_parallel(tree, deps_graph, mapper=None):
+    """
+    Update ``mapper``, a dictionary from :class:`Iteration`s to
+    :class:`IterationProperty`s, by annotating the outermost Iteration if this
+    turns out to be parallel.
+    """
+    if mapper is None:
+        mapper = OrderedDict()
+    is_OP = True
+    for k, v in deps_graph.items():
+        for i in v:
+            is_OP &= k.indices[0] == i.indices[0]
+            is_OP &= all(k.indices[0].free_symbols.isdisjoint(j.free_symbols)
+                         for j in i.indices[1:])  # not A[x,y] = A[x,x+1]
+    if is_OP:
+        mapper.setdefault(tree[0], []).append(PARALLEL)
+    return mapper
+
+
+def detect_outermost_sequential_inner_parallel(tree, deps_graph, mapper=None):
+    """
+    Update ``mapper``, a dictionary from :class:`Iteration`s to
+    :class:`IterationProperty`s, by annotating the outermost Iteration if this
+    turns out to be sequential and, if that's the case, by annotating the inner
+    Iterations as parallel.
+    """
+    if mapper is None:
+        mapper = OrderedDict()
+    candidate = tree[0]
+    filtered_mapper = OrderedDict()
+    for k, v in deps_graph.items():
+        if candidate.dim == k.base.function.indices[0] and len(v) > 0:
+            filtered_mapper[k] = v
+    if not filtered_mapper:
+        # The outermost Iteration is actually parallel
+        return mapper
+    if len({i.base.function.indices[0] for i in filtered_mapper}) > 1:
+        # Must be u[t+1] = ... v[t+1] = ... , not u[t+1] = ... v[t+2] = ...
+        return mapper
+    is_OS = True
+    for k, v in filtered_mapper.items():
+        # At least one access along the candidate dimension differs (u[t+1] = u[t] ...)
+        # AND the others either differ too or are identical to the LHS, that is
+        # u[t+1, x] = u[t, x] + u[t+1, x] OK, but u[t+1, x] = u[t, x] + u[t+1, x-1] NO
+        is_OS &= all(k.base.function.indices[0] == i.base.function.indices[0] for i in v)
+        is_OS &= any(k.indices[0] != i.indices[0] for i in v)
+        is_OS &= all(k.indices[0] != i.indices[0] or
+                     k.indices[1:] == i.indices[1:] for i in v)
+    if is_OS:
+        mapper.setdefault(candidate, []).append(SEQUENTIAL)
+        for i in tree[tree.index(candidate) + 1:]:
+            mapper.setdefault(i, []).append(PARALLEL)
+    return mapper
+
+
+def detect_innermost_unitstride(tree, deps_graph, mapper=None):
+    """
+    Update ``mapper``, a dictionary from :class:`Iteration`s to
+    :class:`IterationProperty`s, by annotating the innermost Iteration as
+    vectorizable if all array accesses along its dimension turn out to
+    be unit-strided.
+    """
+    if mapper is None:
+        mapper = OrderedDict()
+    innermost = tree[-1]
+    if not IsPerfectIteration().visit(innermost):
+        return mapper
+    if len(tree) == 1 or SEQUENTIAL in mapper.get(tree[-2], []):
+        # Heuristic: there should be at least an outer parallel Iteration
+        # to mark /innermost/ as vectorizable, otherwise it is preferable
+        # to save it for shared-memory parallelism
+        return mapper
+    is_US = True
+    for k, v in deps_graph.items():
+        is_US &= all(k.indices[-1] == i.indices[-1] for i in v)
+    if is_US or PARALLEL in mapper.get(innermost, []):
+        mapper.setdefault(innermost, []).append(VECTOR)
+    return mapper
