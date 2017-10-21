@@ -11,7 +11,7 @@ from sympy import Eq, Indexed, Symbol
 from devito.cgen_utils import ccode
 from devito.dse import as_symbol, retrieve_terminals
 from devito.stencil import Stencil
-from devito.tools import as_tuple, filter_ordered, flatten
+from devito.tools import as_tuple, filter_ordered, filter_sorted, flatten
 from devito.arguments import ArgumentProvider, Argument
 import devito.types as types
 
@@ -288,8 +288,9 @@ class Iteration(Node):
             self.offsets[1] = max(self.offsets[1], int(off))
 
         # Track this Iteration's properties, pragmas and unbounded indices
-        self.properties = as_tuple(properties)
-        assert (i in IterationProperty._KNOWN for i in self.properties)
+        properties = as_tuple(properties)
+        assert (i in IterationProperty._KNOWN for i in properties)
+        self.properties = as_tuple(filter_sorted(properties, key=lambda i: i.name))
         self.pragmas = as_tuple(pragmas)
         self.uindices = as_tuple(uindices)
         assert all(isinstance(i, UnboundedIndex) for i in self.uindices)
@@ -561,6 +562,9 @@ class IterationProperty(object):
 
     def __ne__(self, other):
         return not self.__eq__(other)
+
+    def __hash__(self):
+        return hash((self.name, self.val))
 
     def __str__(self):
         return self.name if self.val is None else '%s%s' % (self.name, str(self.val))
