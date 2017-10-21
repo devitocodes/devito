@@ -407,14 +407,14 @@ def test_cache_blocking_edge_cases_highorder(shape, blockshape):
     # outermost sequential w/ repeated dimensions
     (['Eq(t0, fc[x,x] + fd[x,y+1])', 'Eq(fc[x,x+1], t0 + 1)'],
      (False, False)),
-    # outermost sequential, innermost sequential
+    # outermost sequential, innermost sequential (classic skewing example)
     (['Eq(fc[x,y], fc[x,y+1] + fc[x-1,y])'],
      (False, False)),
     # outermost parallel, innermost sequential w/ double tensor write
     (['Eq(fc[x,y], fc[x,y+1] + fd[x-1,y])', 'Eq(fd[x-1,y+1], fd[x-1,y] + fc[x,y+1])'],
      (True, False)),
     # outermost sequential, innermost parallel w/ mixed dimensions
-    (['Eq(fc[x+1,y], fc[x,y+1] + fa[y])', 'Eq(fa[y], 2. + fc[x,y+1])'],
+    (['Eq(fc[x+1,y], fc[x,y+1] + fc[x,y])', 'Eq(fc[x+1,y], 2. + fc[x,y+1])'],
      (False, True)),
 ])
 def test_loops_ompized(fa, fb, fc, fd, t0, t1, t2, t3, exprs, expected, iters):
