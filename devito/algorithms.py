@@ -1,8 +1,8 @@
 from collections import OrderedDict
 
 from devito.dse import as_symbol
-from devito.nodes import Iteration, SEQUENTIAL, PARALLEL, VECTOR
-from devito.tools import as_tuple
+from devito.nodes import Iteration, SEQUENTIAL, PARALLEL, VECTOR, WRAPPABLE
+from devito.tools import as_tuple, flatten
 from devito.visitors import FindSections, IsPerfectIteration, NestedTransformer
 
 
@@ -157,4 +157,30 @@ def detect_innermost_unitstride(tree, deps_graph, mapper=None):
         is_US &= all(k.indices[-1] == i.indices[-1] for i in v)
     if is_US or PARALLEL in mapper.get(innermost, []):
         mapper.setdefault(innermost, []).append(VECTOR)
+    return mapper
+
+
+def detect_wrappable_iterations(tree, deps_graph, mapper=None):
+    """
+    Update ``mapper``, a dictionary from :class:`Iteration`s to
+    :class:`IterationProperty`s, by annotating an Iteration as wrappable
+    if the first and last slots accessed through modulo buffered iteration
+    can be mapped to a single slot, thus reducing the working set.
+    """
+    if mapper is None:
+        mapper = OrderedDict()
+    buffered = [i for i in tree if i.dim.is_Buffered]
+    if len(buffered) != 1:
+        return mapper
+    buffered = buffered[0]
+    is_WP = all(buffered.dim == i.base.function.indices[0] for i in deps_graph)
+    if is_WP:
+        accesses = {i.indices[0] for i in deps_graph}
+        accesses |= {i.indices[0] for i in flatten(deps_graph.values())}
+        candidate = sorted(accesses, key=lambda i: i.subs(buffered.dim, 0))[0]
+        for k, v in deps_graph.items():
+            is_WP &= all(k.indices[1:] == i.indices[1:] for i in v
+                         if candidate == i.indices[0])
+    if is_WP:
+        mapper.setdefault(buffered, []).append(WRAPPABLE)
     return mapper
