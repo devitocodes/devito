@@ -14,7 +14,7 @@ from devito.dle.backends import DevitoRewriter as Rewriter
 from devito import Grid, Function, TimeFunction, Eq, Operator
 from devito.algorithms import analyze_iterations
 from devito.nodes import ELEMENTAL, Expression, Callable, Iteration, List, tagger
-from devito.visitors import (ResolveIterationVariable, SubstituteExpression,
+from devito.visitors import (ResolveTimeStepping, SubstituteExpression,
                              Transformer, FindNodes)
 
 
@@ -40,8 +40,7 @@ def simple_function(a, b, c, d, exprs, iters):
     symbols = [i.base.function for i in [a, b, c, d]]
     body = iters[0](iters[1](iters[2]([exprs[0], exprs[1]])))
     f = Callable('foo', body, 'void', symbols, ())
-    subs = {}
-    f = ResolveIterationVariable().visit(f, subs=subs)
+    f, subs = ResolveTimeStepping().visit(f)
     f = SubstituteExpression(subs=subs).visit(f)
     return f
 
@@ -56,8 +55,7 @@ def simple_function_with_paddable_arrays(a_dense, b_dense, exprs, iters):
     symbols = [i.base.function for i in [a_dense, b_dense]]
     body = iters[0](iters[1](iters[2](exprs[6])))
     f = Callable('foo', body, 'void', symbols, ())
-    subs = {}
-    f = ResolveIterationVariable().visit(f, subs=subs)
+    f, subs = ResolveTimeStepping().visit(f)
     f = SubstituteExpression(subs=subs).visit(f)
     return f
 
@@ -73,8 +71,7 @@ def simple_function_fissionable(a, b, exprs, iters):
     symbols = [i.base.function for i in [a, b]]
     body = iters[0](iters[1](iters[2]([exprs[0], exprs[2]])))
     f = Callable('foo', body, 'void', symbols, ())
-    subs = {}
-    f = ResolveIterationVariable().visit(f, subs=subs)
+    f, subs = ResolveTimeStepping().visit(f)
     f = SubstituteExpression(subs=subs).visit(f)
     return f
 
@@ -96,8 +93,7 @@ def complex_function(a, b, c, d, exprs, iters):
                      iters[1](iters[2]([exprs[3], exprs[4]])),
                      iters[4](exprs[5])])
     f = Callable('foo', body, 'void', symbols, ())
-    subs = {}
-    f = ResolveIterationVariable().visit(f, subs=subs)
+    f, subs = ResolveTimeStepping().visit(f)
     f = SubstituteExpression(subs=subs).visit(f)
     return f
 

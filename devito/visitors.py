@@ -22,7 +22,7 @@ from devito.tools import as_tuple, filter_ordered, filter_sorted, flatten, ctype
 
 __all__ = ['FindNodes', 'FindSections', 'FindSymbols', 'FindScopes',
            'IsPerfectIteration', 'SubstituteExpression', 'printAST', 'CGen',
-           'ResolveIterationVariable', 'Transformer', 'NestedTransformer',
+           'ResolveTimeStepping', 'Transformer', 'NestedTransformer',
            'FindAdjacentIterations']
 
 
@@ -679,7 +679,7 @@ class SubstituteExpression(Transformer):
         return o._rebuild(expr=o.expr)
 
 
-class ResolveIterationVariable(Transformer):
+class ResolveTimeStepping(Transformer):
     """
     :class:`Transformer` class that creates a substitution dictionary
     for replacing :class:`Dimension` instances with explicit loop
@@ -695,11 +695,27 @@ class ResolveIterationVariable(Transformer):
                int t1 = (t + 1) % 2;
     """
 
-    def visit_Iteration(self, o, subs={}, offsets=defaultdict(set)):
-        nodes = self.visit(o.children, subs=subs, offsets=offsets)
+    def visit_object(self, o, subs, **kwargs):
+        return o, subs
+
+    def visit_tuple(self, o, subs, **kwargs):
+        visited = []
+        for i in o:
+            handle, subs = self.visit(i, subs, **kwargs)
+            visited.append(handle)
+        return tuple(visited), subs
+
+    visit_list = visit_object
+
+    def visit_Node(self, o, subs, **kwargs):
+        rebuilt, _ = zip(*[self.visit(i, subs, **kwargs) for i in o.children])
+        return o._rebuild(*rebuilt, **o.args_frozen), subs
+
+    def visit_Iteration(self, o, subs, offsets=defaultdict(set)):
+        nodes, subs = self.visit(o.children, subs, offsets=offsets)
         if o.dim.is_Stepping:
-            # For stepping dimensions insert the explicit
-            # definition of stepping variables, eg. t+1 => t1
+            # For buffered dimensions insert the explicit
+            # definition of buffered variables, eg. t+1 => t1
             init = []
             for i, off in enumerate(filter_ordered(offsets[o.dim])):
                 vname = Symbol(name="%s%d" % (o.dim.name, i))
@@ -708,15 +724,21 @@ class ResolveIterationVariable(Transformer):
                 subs[o.dim + off] = LoweredDimension(vname.name, o.dim, off)
             # Always lower to symbol
             subs[o.dim.parent] = Symbol(name=o.dim.parent.name)
-            return o._rebuild(index=o.dim.parent.name, uindices=init)
+            return o._rebuild(index=o.dim.parent.name, uindices=init), subs
         else:
-            return o._rebuild(*nodes)
+            return o._rebuild(*nodes), subs
 
-    def visit_Expression(self, o, subs={}, offsets=defaultdict(set)):
+    def visit_Expression(self, o, subs, offsets=defaultdict(set)):
         """Collect all offsets used with a dimension"""
         for dim, offs in o.stencil.entries:
             offsets[dim].update(offs)
-        return o
+        return o, subs
+
+    def visit(self, o, subs=None, **kwargs):
+        if subs is None:
+            subs = {}
+        obj, subs = super(ResolveTimeStepping, self).visit(o, subs, **kwargs)
+        return obj, subs
 
 
 class MergeOuterIterations(Transformer):

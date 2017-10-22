@@ -21,7 +21,7 @@ from devito.parameters import configuration
 from devito.profiling import create_profile
 from devito.stencil import Stencil
 from devito.tools import as_tuple, filter_sorted, flatten, numpy_to_ctypes, partial_order
-from devito.visitors import (FindScopes, ResolveIterationVariable,
+from devito.visitors import (FindScopes, ResolveTimeStepping,
                              SubstituteExpression, Transformer, NestedTransformer)
 from devito.exceptions import InvalidArgument, InvalidOperator
 
@@ -108,8 +108,7 @@ class Operator(Callable):
         nodes, self.profiler = self._profile_sections(nodes, parameters)
 
         # Resolve and substitute dimensions for loop index variables
-        subs = {}
-        nodes = ResolveIterationVariable().visit(nodes, subs=subs)
+        nodes, subs = ResolveTimeStepping().visit(nodes)
         nodes = SubstituteExpression(subs=subs).visit(nodes)
 
         # Apply the Devito Loop Engine (DLE) for loop optimization
