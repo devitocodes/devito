@@ -40,7 +40,7 @@ def analyze_iterations(nodes):
     for k, v in list(mapper.items()):
         args = k.args
         # SEQUENTIAL kills PARALLEL
-        properties = SEQUENTIAL if (SEQUENTIAL in v or not k.is_Linear) else v
+        properties = [i for i in v if i != PARALLEL] if SEQUENTIAL in v else v
         properties = as_tuple(args.pop('properties')) + as_tuple(properties)
         mapper[k] = Iteration(properties=properties, **args)
 
