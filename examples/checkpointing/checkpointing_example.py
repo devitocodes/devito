@@ -2,7 +2,7 @@ import numpy as np
 from numpy import linalg
 from math import floor
 from devito import Function, TimeFunction
-from examples.seismic import Model, PointSource, Receiver, demo_model, RickerSource
+from examples.seismic import Receiver, demo_model, RickerSource
 from examples.seismic.acoustic import ForwardOperator, GradientOperator, smooth10
 from examples.checkpointing.checkpoint import DevitoCheckpoint, DevitoOperator
 from pyrevolve import Revolver
@@ -15,7 +15,7 @@ def setup(shape, tn, spacing, time_order, space_order, nbpml):
     t0 = 0.0
     nt = int(1 + (tn-t0) / dt)  # Number of timesteps
     time = np.linspace(t0, tn, nt)  # Discretized time axis
-    
+
     # Define source geometry (center of domain, just below surface)
     src = RickerSource(name='src', grid=model.grid, f0=0.01, time=time)
     src.coordinates.data[0, :] = np.array(model.domain_size) * .5
@@ -32,7 +32,8 @@ def setup(shape, tn, spacing, time_order, space_order, nbpml):
                      coordinates=rec_t.coordinates.data)
 
     # Receiver for Gradient run
-    rec_g = Receiver(name="rec_g", grid=model.grid, ntime=nt, coordinates=rec_s.coordinates.data)
+    rec_g = Receiver(name="rec_g", grid=model.grid, ntime=nt,
+                     coordinates=rec_s.coordinates.data)
 
     # Create the forward wavefield to use (only 3 timesteps)
     u = TimeFunction(name="u", grid=model.grid, time_order=time_order,
@@ -47,10 +48,9 @@ def setup(shape, tn, spacing, time_order, space_order, nbpml):
 
     # Gradient symbol
     grad = Function(name="grad", grid=model.grid, dtype=model.dtype)
-    
+
     gradop = GradientOperator(model, src, rec_g, time_order=time_order,
                               spc_order=space_order, save=False)
-
     # Calculate receiver data for true velocity
     fw.apply(u=u, rec=rec_t, src=src, dt=dt)
     u.data[:] = 0
@@ -65,18 +65,22 @@ def gradient(fw, gradop, u, maxmem, rec_s, m0, src, rec_g, v, grad, rec_t, nt, d
     if maxmem is not None:
         n_checkpoints = int(floor(maxmem*10**6/(cp.size*u.data.itemsize)))
 
-    wrap_fw = DevitoOperator(fw, {'u': u, 'rec': rec_s, 'm': m0, 'src': src, 'dt': dt}, {'t_start': 't_s', 't_end': 't_e'}, "fw")
-    wrap_rev = DevitoOperator(gradop, {'u':u, 'v': v, 'm': m0, 'rec': rec_g,'grad':grad, 'dt': dt}, {'t_start': 't_s', 't_end': 't_e'}, "rev")
+    wrap_fw = DevitoOperator(fw, {'u': u, 'rec': rec_s, 'm': m0, 'src': src, 'dt': dt},
+                             {'t_start': 't_s', 't_end': 't_e'})
+    wrap_rev = DevitoOperator(gradop, {'u': u, 'v': v, 'm': m0, 'rec': rec_g,
+                                       'grad': grad, 'dt': dt},
+                              {'t_start': 't_s', 't_end': 't_e'})
     wrp = Revolver(cp, wrap_fw, wrap_rev, n_checkpoints, nt-2)
-    
+
     wrp.apply_forward()
 
     rec_g.data[:] = rec_s.data[:] - rec_t.data[:]
 
     wrp.apply_reverse()
-    
+
     # The result is in grad
     return grad.data
+
 
 def verify(gradient, dm, m0, u, rec_s, fw, src, rec_t, dt):
     # Objective function value
@@ -109,21 +113,31 @@ def verify(gradient, dm, m0, u, rec_s, fw, src, rec_t, dt):
     assert np.isclose(p1[0], 1.0, rtol=0.1)
     assert np.isclose(p2[0], 2.0, rtol=0.1)
 
+
 class CheckpointedGradientExample(object):
-    def __init__(self, dimensions=(50, 50, 50), tn=None, spacing=None, 
-        time_order=2, space_order=4, nbpml=40):
-        self.fw, self.gradop, self.u, self.rec_s, self.m0, self.src, self.rec_g, self.v, self.grad, self.rec_t, self.dm, self.nt, self.dt = setup(dimensions, tn, spacing, time_order, space_order, nbpml)
+    def __init__(self, dimensions=(50, 50, 50), tn=None, spacing=None, time_order=2,
+                 space_order=4, nbpml=40):
+        self.fw, self.gradop, self.u, self.rec_s, self.m0, self.src, self.rec_g, self.v,
+        self.grad, self.rec_t, self.dm, self.nt, self.dt = setup(dimensions, tn,
+                                                                 spacing, time_order,
+                                                                 space_order, nbpml)
 
     def do_gradient(self, maxmem):
-        return gradient(self.fw, self.gradop, self.u, maxmem, self.rec_s, self.m0, self.src, self.rec_g, self.v, self.grad, self.rec_t, self.nt, self.dt)
+        return gradient(self.fw, self.gradop, self.u, maxmem, self.rec_s, self.m0,
+                        self.src, self.rec_g, self.v, self.grad, self.rec_t, self.nt,
+                        self.dt)
 
     def do_verify(self, grad):
-        verify(grad, self.dm, self.m0, self.v, self.rec_s, self.fw, self.src, self.rec_t, self.dt)
+        verify(grad, self.dm, self.m0, self.v, self.rec_s, self.fw, self.src, self.rec_t,
+               self.dt)
 
-def run(shape=(50, 50, 50), tn=None, spacing=None, time_order=2, space_order=4, nbpml=40, maxmem=None):
+
+def run(shape=(50, 50, 50), tn=None, spacing=None, time_order=2, space_order=4, nbpml=10,
+        maxmem=None):
     ex = CheckpointedGradientExample(shape, tn, spacing, time_order, space_order, nbpml)
     grad = ex.do_gradient(maxmem)
     ex.do_verify(grad)
+
 
 if __name__ == "__main__":
     run(shape=(150, 150), spacing=(15.0, 15.0), tn=750.0, time_order=2, space_order=4)

@@ -1,19 +1,14 @@
 from pyrevolve import Checkpoint, Operator
-from operator import mul
-from functools import reduce
 from devito import TimeFunction
-import numpy as np
-from devito.exceptions import InvalidArgument
 
 
 class DevitoOperator(Operator):
     """Class to wrap devito operators so they conform to the pyRevolve API
     """
-    def __init__(self, op, args, argnames, name):
+    def __init__(self, op, args, argnames):
         self.op = op
         self.args = args
         self.argnames = argnames
-        self.name = name
 
     def apply(self, t_start, t_end):
         """ If the devito operator requires some extra arguments in the call to apply
@@ -21,7 +16,6 @@ class DevitoOperator(Operator):
             pyRevolve.Operator.apply() without caring about these extra arguments while
             this method passes them on correctly to devito.Operator
         """
-        print(self.name, t_start, t_end)
         args = self.args.copy()
         args[self.argnames['t_start']] = t_start
         args[self.argnames['t_end']] = t_end
@@ -48,7 +42,6 @@ class DevitoCheckpoint(Checkpoint):
     def save(self, ptr):
         """Overwrite live-data in this Checkpoint object with data found at
         the ptr location."""
-        print("save")
         i_ptr_lo = 0
         i_ptr_hi = 0
         for s in self.symbols:
@@ -59,14 +52,13 @@ class DevitoCheckpoint(Checkpoint):
     def load(self, ptr):
         """Copy live-data from this Checkpoint object into the memory given by
         the ptr."""
-        print("load")
         i_ptr_lo = 0
         i_ptr_hi = 0
         for s in self.symbols:
             i_ptr_hi = i_ptr_hi + s.size
             s.data[:] = ptr[i_ptr_lo:i_ptr_hi].reshape(s.shape)
             i_ptr_lo = i_ptr_hi
-    
+
     @property
     def size(self):
         """The memory consumption of the data contained in a checkpoint."""
