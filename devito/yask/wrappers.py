@@ -328,11 +328,8 @@ class YaskKernel(object):
         self.soln.apply_command_line_options(configuration.yask['options'] or '')
 
         # Set up the block shape for loop blocking
-        block_shape = configuration.yask.get('blockshape')
-        if block_shape is not None:
-            assert len(block_shape) == len(domain)
-            for i, j in zip(list(domain), block_shape):
-                self.soln.set_block_size(i, j)
+        for i, j in zip(list(domain), configuration.yask['blockshape']):
+            self.soln.set_block_size(i, j)
 
         # Users may want to run the same Operator (same domain etc.) with
         # different grids.
@@ -367,15 +364,6 @@ class YaskKernel(object):
         # Deallocate temporary grids
         for i in self.local_grids.values():
             i.release_storage()
-
-    def update(self, obj):
-        """
-        Switch to a different grid in the YaskKernel.
-
-        :param obj: a symbolic object wrapping a :class:`YaskGrid`.
-        """
-        assert obj.name in self.grids
-        obj.data.give_storage(self.grids[obj.name])
 
     @property
     def space_dimensions(self):
@@ -487,13 +475,15 @@ class YaskContext(object):
         # Set data type size
         yc_soln.set_element_bytes(self.dtype().itemsize)
 
-        # Set vector folding (a compile-time choice)
-        folds_length = configuration.yask.get('folding')
-        if configuration['isa'] != 'cpp' and folds_length is not None:
+        # Apply compile-time optimizations
+        if configuration['isa'] != 'cpp':
             dimensions = [nfac.new_domain_index(i) for i in self.domain]
-            assert len(dimensions) == len(folds_length)
-            for i, j in zip(dimensions, folds_length):
+            # Vector folding
+            for i, j in zip(dimensions, configuration.yask['folding']):
                 yc_soln.set_fold_len(i, j)
+            # Unrolling
+            for i, j in zip(dimensions, configuration.yask['clustering']):
+                yc_soln.set_cluster_mult(i, j)
 
         return yc_soln
 
@@ -569,6 +559,20 @@ contexts = ContextManager()
 
 
 # Helpers
+
+class YaskGridConst(np.float64):
+
+    """A YASK grid wrapper for scalar values."""
+
+    def give_storage(self, target):
+        if not target.is_storage_allocated():
+            target.alloc_storage()
+        target.set_element(float(self.real), [])
+
+    @property
+    def rawpointer(self):
+        return None
+
 
 class YaskNullKernel(object):
 

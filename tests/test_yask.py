@@ -5,8 +5,8 @@ import pytest  # noqa
 
 pexpect = pytest.importorskip('yask')  # Run only if YASK is available
 
-from devito import (Eq, Operator, Function, TimeFunction, SparseFunction, Backward,
-                    time, t, x, y, z, configuration, clear_cache)  # noqa
+from devito import (Eq, Operator, Constant, Function, TimeFunction, SparseFunction,
+                    Backward, time, t, x, y, z, configuration, clear_cache)  # noqa
 from devito.dle import retrieve_iteration_tree  # noqa
 from devito.yask.wrappers import YaskGrid, contexts  # noqa
 
@@ -357,6 +357,30 @@ class TestOperatorSimple(object):
         assert op.yk_soln.grids['r0'].is_storage_allocated() is False
         assert np.all(v.data == 0.)
         assert np.all(u.data[1] == 5.)
+
+    def test_constants(self):
+        """
+        Check that :class:`Constant` objects are treated correctly.
+        """
+        c = Constant(name='c', value=2.)
+        p = SparseFunction(name='points', nt=1, npoint=1)
+        u = TimeFunction(name='yu4D', shape=(4, 4, 4), dimensions=(x, y, z),
+                         space_order=0)
+        u.data[:] = 0.
+        op = Operator([Eq(u.forward, u + c), Eq(p.indexed[0, 0], 1. + c)],
+                      subs={t.spacing: 1})
+        assert 'run_solution' in str(op)
+        op.apply(yu4D=u, c=c, t=11)
+        # Check YASK did its job and could read constant grids w/o problems
+        assert np.all(u.data[0] == 20.)
+        # Check the Constant could be read correctly even in Devito-land, i.e.,
+        # outside of run_solution
+        assert p.data[0][0] == 3.
+        # Check re-executing with another constant gives the correct result
+        c2 = Constant(name='c', value=5.)
+        op.apply(yu4D=u, c=c2, t=3)
+        assert np.all(u.data[0] == 30.)
+        assert p.data[0][0] == 6.
 
 
 class TestOperatorAcoustic(object):
