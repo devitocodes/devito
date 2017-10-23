@@ -32,9 +32,9 @@ class Node(object):
     is_Element = False
 
     """
-    :attr:`_traversable`. A list of traversable objects (ie, traversed by
-    :class:`Visitor` objects). A traversable object is intended as an argument
-    of a Node constructor and is represented as a string.
+    :attr:`_traversable`. The traversable fields of the Node; that is, fields
+    walked over by a :class:`Visitor`. All arguments in __init__ whose name
+    appears in this list are treated as traversable fields.
     """
     _traversable = []
 
@@ -96,6 +96,8 @@ class Node(object):
 
 class Block(Node):
 
+    """A sequence of nodes, wrapped in a block {...}."""
+
     is_Block = True
 
     _traversable = ['body']
@@ -116,7 +118,7 @@ class Block(Node):
 
 class List(Block):
 
-    """Class representing a sequence of one or more statements."""
+    """A sequence of nodes."""
 
     is_List = True
 
@@ -139,7 +141,7 @@ class Element(Node):
 
 class Call(Node):
 
-    """A node representing a function call."""
+    """A function call."""
 
     is_Call = True
 
@@ -153,7 +155,7 @@ class Call(Node):
 
 class Expression(Node):
 
-    """Class encpasulating a single SymPy equation."""
+    """A node encapsulating a single SymPy equation."""
 
     is_Expression = True
 
@@ -228,7 +230,7 @@ class Expression(Node):
 
 
 class Iteration(Node):
-    """Iteration object that encapsualtes a single loop over nodes.
+    """Implement a for-loop over nodes.
 
     :param nodes: Single or list of :class:`Node` objects defining the loop body.
     :param dimension: :class:`Dimension` object over which to iterate.
@@ -236,9 +238,8 @@ class Iteration(Node):
                    tuple of the form (start, finish, stepping).
     :param index: Symbol to be used as iteration variable.
     :param offsets: Optional map list of offsets to honour in the loop.
-    :param properties: A bag of strings indicating properties of this Iteration.
-                       For example, the string 'parallel' may be used to identify
-                       a parallelizable Iteration.
+    :param properties: A bag of :class:`IterationProperty` objects, decorating
+                       the Iteration (sequential, parallel, vectorizable, ...).
     :param pragmas: A bag of pragmas attached to this Iteration.
     :param uindices: a bag of UnboundedIndex objects, representing free iteration
                      variables (i.e., the Iteration end point is independent of
@@ -248,17 +249,6 @@ class Iteration(Node):
     is_Iteration = True
 
     _traversable = ['nodes']
-
-    """
-    List of known properties, usable to decorate an Iteration: ::
-
-        * sequential: An inherently sequential iteration space.
-        * parallel: An iteration space whose iterations can safely be
-                    executed in parallel.
-        * vector-dim: A (SIMD) vectorizable iteration space.
-        * elemental: Hoistable to an elemental function.
-        * remainder: A remainder iteration (e.g., by-product of some transformations)
-    """
 
     def __init__(self, nodes, dimension, limits, index=None, offsets=None,
                  properties=None, pragmas=None, uindices=None):
@@ -440,7 +430,7 @@ class Iteration(Node):
 
 class Callable(Node):
 
-    """A node representing a C function.
+    """A node representing a function.
 
     :param name: The name of the function.
     :param body: A :class:`Node` or an iterable of :class:`Node` objects representing
@@ -530,8 +520,8 @@ class Denormals(List):
 class LocalExpression(Expression):
 
     """
-    Class encpasulating a single expression with known data type
-    (represented as a NumPy data type).
+    A node encapsulating a single SymPy equation with known data type,
+    represented as a NumPy data type.
     """
 
     def __init__(self, expr, dtype):
@@ -546,7 +536,7 @@ class IterationProperty(object):
     _KNOWN = []
 
     """
-    An IterationProperty is an object that can be used to decorate an Iteration.
+    A :class:`Iteration` decorator.
     """
 
     def __init__(self, name, val=None):
@@ -577,11 +567,24 @@ class IterationProperty(object):
 
 
 SEQUENTIAL = IterationProperty('sequential')
+"""The Iteration is inherently serial, i.e., its iterations cannot run in parallel."""
+
 PARALLEL = IterationProperty('parallel')
+"""The Iteration can be executed in parallel w/o need for synchronization."""
+
 VECTOR = IterationProperty('vector-dim')
+"""The Iteration can be SIMD-vectorized."""
+
 ELEMENTAL = IterationProperty('elemental')
+"""The Iteration can be pulled out to an elemental function."""
+
 REMAINDER = IterationProperty('remainder')
+"""The Iteration implements a remainder/peeler loop."""
+
 WRAPPABLE = IterationProperty('wrappable')
+"""The Iteration implements modulo buffered iteration and its expressions are so that
+one or more buffer slots can be dropped without affecting correctness. For example,
+u[t+1, ...] = f(u[t, ...], u[t-1, ...]) --> u[t-1, ...] = f(u[t, ...], u[t-1, ...])."""
 
 
 def tagger(i):

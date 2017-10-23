@@ -7,7 +7,7 @@ import ctypes
 import numpy as np
 import sympy
 
-from devito.algorithms import analyze_iterations
+from devito.flow import analyze_iterations
 from devito.cgen_utils import Allocator
 from devito.compiler import jit_compile, load
 from devito.dimension import Dimension
@@ -290,9 +290,8 @@ class Operator(Callable):
         return arguments
 
     def _schedule_expressions(self, clusters):
-        """Wrap :class:`Expression` objects, already grouped in :class:`Cluster`
-        objects, within nested :class:`Iteration` objects (representing loops),
-        according to dimensions and stencils."""
+        """Create an Iteartion/Expression tree given an iterable of
+        :class:`Cluster` objects."""
 
         # Topologically sort Iterations
         ordering = partial_order([i.stencil.dimensions for i in clusters])
@@ -358,8 +357,7 @@ class Operator(Callable):
         return nodes
 
     def _insert_declarations(self, nodes):
-        """Populate the Operator's body with the required array and variable
-        declarations, to generate a legal C file."""
+        """Populate the Operator's body with the necessary variable declarations."""
 
         # Resolve function calls first
         scopes = []

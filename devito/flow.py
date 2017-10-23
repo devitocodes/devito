@@ -1,3 +1,14 @@
+"""
+A collection of algorithms to analyze and decorate :class:`Iteration` in an
+Iteration/Expression tree. Decoration comes in the form of :class:`IterationProperty`
+objects, attached to nodes in the Iteration/Expression tree.
+
+The current implementation is based on simplistic analysis of Iteration/Expression
+trees. A better implementation would use a control flow graph, perhaps derived
+the Iteration/Expression tree itself. An ever better implementation would use
+a library such as ISL (the Integer Set Library).
+"""
+
 from collections import OrderedDict
 
 from devito.dse import as_symbol
@@ -8,20 +19,9 @@ from devito.visitors import FindSections, IsPerfectIteration, NestedTransformer
 
 def analyze_iterations(nodes):
     """
-    Attach :class:`IterationProperty` to :class:`Iteration` nodes within
-    ``nodes`` that verify one or more of the following properties.
-
-        * sequential (attach SEQUENTIAL): In no way the iterations can be
-          executed in parallel, unless techniques such as skewing are applied.
-        * fully-parallel (attach PARALLEL): As the name suggests, an Iteration
-          of this kind has no dependencies across its iterations.
-        * vectorizable (attach VECTOR): Innermost fully-parallel Iterations
-          are also marked as vectorizable.
-        * wrappable (attach WRAPPABLE): When its dimension uses modulo buffered
-          iteration and at least one slot can be reused to save memory (e.g.,
-          u[t+1, ...] = f(u[t, ...], u[t-1, ...]) can sometimes be optimized as
-          u[t-1, ...] = f(u[t, ...], u[t-1, ...]), thus avoiding to use one
-          buffer location).
+    Attach :class:`IterationProperty` to :class:`Iteration` objects within
+    ``nodes``. The recognized IterationProperty decorators are listed in
+    ``nodes.IterationProperty._KNOWN``.
     """
     sections = FindSections().visit(nodes)
 
@@ -67,7 +67,7 @@ def compute_dependency_graph(exprs):
 def detect_fully_parallel(tree, deps_graph, mapper=None):
     """
     Update ``mapper``, a dictionary from :class:`Iteration`s to
-    :class:`IterationProperty`s, by annotating fully parallel (PARALLEL) Iterations.
+    :class:`IterationProperty`s, by annotating nested, fully-parallel Iterations.
     """
     if mapper is None:
         mapper = OrderedDict()
