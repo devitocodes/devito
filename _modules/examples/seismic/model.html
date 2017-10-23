@@ -544,6 +544,13 @@
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="o">.</span><span class="n">spacing</span>
 
     <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">spacing_map</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Map between spacing symbols and their values for each :class:`SpaceDimension`</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">grid</span><span class="o">.</span><span class="n">spacing_map</span>
+
+    <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">origin</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Coordinates of the origin of the physical model.</span>

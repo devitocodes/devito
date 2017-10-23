@@ -167,15 +167,16 @@
 <span class="kn">from</span> <span class="nn">devito.arguments</span> <span class="k">import</span> <span class="n">DimensionArgProvider</span>
 <span class="kn">from</span> <span class="nn">devito.types</span> <span class="k">import</span> <span class="n">Symbol</span>
 
-<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;Dimension&#39;</span><span class="p">,</span> <span class="s1">&#39;x&#39;</span><span class="p">,</span> <span class="s1">&#39;y&#39;</span><span class="p">,</span> <span class="s1">&#39;z&#39;</span><span class="p">,</span> <span class="s1">&#39;t&#39;</span><span class="p">,</span> <span class="s1">&#39;p&#39;</span><span class="p">,</span> <span class="s1">&#39;d&#39;</span><span class="p">,</span> <span class="s1">&#39;time&#39;</span><span class="p">]</span>
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;Dimension&#39;</span><span class="p">,</span> <span class="s1">&#39;SpaceDimension&#39;</span><span class="p">,</span> <span class="s1">&#39;TimeDimension&#39;</span><span class="p">,</span> <span class="s1">&#39;SteppingDimension&#39;</span><span class="p">]</span>
 
 
 <div class="viewcode-block" id="Dimension"><a class="viewcode-back" href="../../devito.html#devito.dimension.Dimension">[docs]</a><span class="k">class</span> <span class="nc">Dimension</span><span class="p">(</span><span class="n">sympy</span><span class="o">.</span><span class="n">Symbol</span><span class="p">,</span> <span class="n">DimensionArgProvider</span><span class="p">):</span>
 
-    <span class="n">is_Buffered</span> <span class="o">=</span> <span class="kc">False</span>
-    <span class="n">is_Lowered</span> <span class="o">=</span> <span class="kc">False</span>
-    <span class="n">is_Fixed</span> <span class="o">=</span> <span class="kc">False</span>
     <span class="n">is_Space</span> <span class="o">=</span> <span class="kc">False</span>
+    <span class="n">is_Time</span> <span class="o">=</span> <span class="kc">False</span>
+
+    <span class="n">is_Stepping</span> <span class="o">=</span> <span class="kc">False</span>
+    <span class="n">is_Lowered</span> <span class="o">=</span> <span class="kc">False</span>
 
     <span class="sd">&quot;&quot;&quot;Index object that represents a problem dimension and thus</span>
 <span class="sd">    defines a potential iteration space.</span>
@@ -204,7 +205,7 @@
         <span class="k">return</span> <span class="kc">None</span></div>
 
 
-<span class="k">class</span> <span class="nc">SpaceDimension</span><span class="p">(</span><span class="n">Dimension</span><span class="p">):</span>
+<div class="viewcode-block" id="SpaceDimension"><a class="viewcode-back" href="../../devito.html#devito.dimension.SpaceDimension">[docs]</a><span class="k">class</span> <span class="nc">SpaceDimension</span><span class="p">(</span><span class="n">Dimension</span><span class="p">):</span>
 
     <span class="n">is_Space</span> <span class="o">=</span> <span class="kc">True</span>
 
@@ -217,15 +218,32 @@
 <span class="sd">    :param name: Name of the dimension symbol.</span>
 <span class="sd">    :param reverse: Traverse dimension in reverse order (default False)</span>
 <span class="sd">    :param spacing: Optional, symbol for the spacing along this dimension.</span>
-<span class="sd">    &quot;&quot;&quot;</span>
+<span class="sd">    &quot;&quot;&quot;</span></div>
 
 
-<span class="k">class</span> <span class="nc">BufferedDimension</span><span class="p">(</span><span class="n">Dimension</span><span class="p">):</span>
+<div class="viewcode-block" id="TimeDimension"><a class="viewcode-back" href="../../devito.html#devito.dimension.TimeDimension">[docs]</a><span class="k">class</span> <span class="nc">TimeDimension</span><span class="p">(</span><span class="n">Dimension</span><span class="p">):</span>
 
-    <span class="n">is_Buffered</span> <span class="o">=</span> <span class="kc">True</span>
+    <span class="n">is_Time</span> <span class="o">=</span> <span class="kc">True</span>
 
     <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    Dimension symbol that implies modulo buffered iteration.</span>
+<span class="sd">    Dimension symbol to represent a dimension that defines the extent</span>
+<span class="sd">    of time. As time might be used in different contexts, all derived</span>
+<span class="sd">    time dimensions should inherit from :class:`TimeDimension`.</span>
+
+<span class="sd">    :param name: Name of the dimension symbol.</span>
+<span class="sd">    :param reverse: Traverse dimension in reverse order (default False)</span>
+<span class="sd">    :param spacing: Optional, symbol for the spacing along this dimension.</span>
+<span class="sd">    &quot;&quot;&quot;</span></div>
+
+
+<div class="viewcode-block" id="SteppingDimension"><a class="viewcode-back" href="../../devito.html#devito.dimension.SteppingDimension">[docs]</a><span class="k">class</span> <span class="nc">SteppingDimension</span><span class="p">(</span><span class="n">Dimension</span><span class="p">):</span>
+
+    <span class="n">is_Stepping</span> <span class="o">=</span> <span class="kc">True</span>
+
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Dimension symbol that defines the stepping direction of an</span>
+<span class="sd">    :class:`Operator` and implies modulo buffered iteration. This is most</span>
+<span class="sd">    commonly use to represent a timestepping dimension.</span>
 
 <span class="sd">    :param parent: Parent dimension over which to loop in modulo fashion.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
@@ -235,6 +253,11 @@
         <span class="k">assert</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">parent</span><span class="p">,</span> <span class="n">Dimension</span><span class="p">)</span>
         <span class="n">newobj</span><span class="o">.</span><span class="n">parent</span> <span class="o">=</span> <span class="n">parent</span>
         <span class="n">newobj</span><span class="o">.</span><span class="n">modulo</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;modulo&#39;</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span>
+
+        <span class="c1"># Inherit time/space identifiers</span>
+        <span class="bp">cls</span><span class="o">.</span><span class="n">is_Time</span> <span class="o">=</span> <span class="n">parent</span><span class="o">.</span><span class="n">is_Time</span>
+        <span class="bp">cls</span><span class="o">.</span><span class="n">is_Space</span> <span class="o">=</span> <span class="n">parent</span><span class="o">.</span><span class="n">is_Space</span>
+
         <span class="k">return</span> <span class="n">newobj</span>
 
     <span class="nd">@property</span>
@@ -243,7 +266,7 @@
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">spacing</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">spacing</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">spacing</span></div>
 
 
 <span class="k">class</span> <span class="nc">LoweredDimension</span><span class="p">(</span><span class="n">Dimension</span><span class="p">):</span>
@@ -251,44 +274,32 @@
     <span class="n">is_Lowered</span> <span class="o">=</span> <span class="kc">True</span>
 
     <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    Dimension symbol representing modulo iteration created when resolving a</span>
-<span class="sd">    :class:`BufferedDimension`.</span>
+<span class="sd">    Dimension symbol representing a modulo iteration created when</span>
+<span class="sd">    resolving a :class:`SteppingDimension`.</span>
 
-<span class="sd">    :param buffered: BufferedDimension from which this Dimension originated.</span>
+<span class="sd">    :param stepping: :class:`SteppingDimension` from which this</span>
+<span class="sd">                     :class:`Dimension` originated.</span>
 <span class="sd">    :param offset: Offset value used in the modulo iteration.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="k">def</span> <span class="nf">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">buffered</span><span class="p">,</span> <span class="n">offset</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">stepping</span><span class="p">,</span> <span class="n">offset</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
         <span class="n">newobj</span> <span class="o">=</span> <span class="n">sympy</span><span class="o">.</span><span class="n">Symbol</span><span class="o">.</span><span class="fm">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">name</span><span class="p">)</span>
-        <span class="k">assert</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">buffered</span><span class="p">,</span> <span class="n">BufferedDimension</span><span class="p">)</span>
-        <span class="n">newobj</span><span class="o">.</span><span class="n">buffered</span> <span class="o">=</span> <span class="n">buffered</span>
+        <span class="k">assert</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">stepping</span><span class="p">,</span> <span class="n">SteppingDimension</span><span class="p">)</span>
+        <span class="n">newobj</span><span class="o">.</span><span class="n">stepping</span> <span class="o">=</span> <span class="n">stepping</span>
         <span class="n">newobj</span><span class="o">.</span><span class="n">offset</span> <span class="o">=</span> <span class="n">offset</span>
         <span class="k">return</span> <span class="n">newobj</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">origin</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">buffered</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">offset</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">stepping</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">offset</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">size</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">buffered</span><span class="o">.</span><span class="n">size</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">stepping</span><span class="o">.</span><span class="n">size</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">reverse</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">buffered</span><span class="o">.</span><span class="n">reverse</span>
-
-
-<span class="c1"># Default dimensions for time</span>
-<span class="n">time</span> <span class="o">=</span> <span class="n">Dimension</span><span class="p">(</span><span class="s1">&#39;time&#39;</span><span class="p">,</span> <span class="n">spacing</span><span class="o">=</span><span class="n">sympy</span><span class="o">.</span><span class="n">Symbol</span><span class="p">(</span><span class="s1">&#39;s&#39;</span><span class="p">))</span>
-<span class="n">t</span> <span class="o">=</span> <span class="n">BufferedDimension</span><span class="p">(</span><span class="s1">&#39;t&#39;</span><span class="p">,</span> <span class="n">parent</span><span class="o">=</span><span class="n">time</span><span class="p">)</span>
-
-<span class="c1"># Default dimensions for space</span>
-<span class="n">x</span> <span class="o">=</span> <span class="n">SpaceDimension</span><span class="p">(</span><span class="s1">&#39;x&#39;</span><span class="p">,</span> <span class="n">spacing</span><span class="o">=</span><span class="n">sympy</span><span class="o">.</span><span class="n">Symbol</span><span class="p">(</span><span class="s1">&#39;h_x&#39;</span><span class="p">))</span>
-<span class="n">y</span> <span class="o">=</span> <span class="n">SpaceDimension</span><span class="p">(</span><span class="s1">&#39;y&#39;</span><span class="p">,</span> <span class="n">spacing</span><span class="o">=</span><span class="n">sympy</span><span class="o">.</span><span class="n">Symbol</span><span class="p">(</span><span class="s1">&#39;h_y&#39;</span><span class="p">))</span>
-<span class="n">z</span> <span class="o">=</span> <span class="n">SpaceDimension</span><span class="p">(</span><span class="s1">&#39;z&#39;</span><span class="p">,</span> <span class="n">spacing</span><span class="o">=</span><span class="n">sympy</span><span class="o">.</span><span class="n">Symbol</span><span class="p">(</span><span class="s1">&#39;h_z&#39;</span><span class="p">))</span>
-
-<span class="n">d</span> <span class="o">=</span> <span class="n">Dimension</span><span class="p">(</span><span class="s1">&#39;d&#39;</span><span class="p">)</span>
-<span class="n">p</span> <span class="o">=</span> <span class="n">Dimension</span><span class="p">(</span><span class="s1">&#39;p&#39;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">stepping</span><span class="o">.</span><span class="n">reverse</span>
 </pre></div>
 
            </div>

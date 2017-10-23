@@ -165,8 +165,9 @@
 
 <span class="kn">from</span> <span class="nn">sympy</span> <span class="k">import</span> <span class="n">Function</span><span class="p">,</span> <span class="n">Indexed</span><span class="p">,</span> <span class="n">Number</span><span class="p">,</span> <span class="n">Symbol</span><span class="p">,</span> <span class="n">cos</span><span class="p">,</span> <span class="n">preorder_traversal</span><span class="p">,</span> <span class="n">sin</span>
 
-<span class="kn">from</span> <span class="nn">devito.dimension</span> <span class="k">import</span> <span class="n">Dimension</span><span class="p">,</span> <span class="n">t</span>
+<span class="kn">from</span> <span class="nn">devito.dimension</span> <span class="k">import</span> <span class="n">Dimension</span>
 <span class="kn">from</span> <span class="nn">devito.dse.search</span> <span class="k">import</span> <span class="n">retrieve_indexed</span><span class="p">,</span> <span class="n">retrieve_ops</span><span class="p">,</span> <span class="n">search</span>
+<span class="kn">from</span> <span class="nn">devito.dse.queries</span> <span class="k">import</span> <span class="n">q_timedimension</span>
 <span class="kn">from</span> <span class="nn">devito.logger</span> <span class="k">import</span> <span class="n">warning</span>
 <span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">flatten</span>
 
@@ -264,7 +265,7 @@
         <span class="n">handle</span> <span class="o">=</span> <span class="p">[</span><span class="n">handle</span><span class="p">]</span>
 
     <span class="k">if</span> <span class="n">mode</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;ideal&#39;</span><span class="p">,</span> <span class="s1">&#39;ideal_with_stores&#39;</span><span class="p">]:</span>
-        <span class="nb">filter</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">s</span><span class="p">:</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">s</span><span class="o">.</span><span class="n">atoms</span><span class="p">()</span>
+        <span class="nb">filter</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">s</span><span class="p">:</span> <span class="nb">any</span><span class="p">(</span><span class="n">q_timedimension</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">s</span><span class="o">.</span><span class="n">atoms</span><span class="p">())</span>
     <span class="k">else</span><span class="p">:</span>
         <span class="nb">filter</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">s</span><span class="p">:</span> <span class="n">s</span>
     <span class="n">reads</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">flatten</span><span class="p">([</span><span class="n">retrieve_indexed</span><span class="p">(</span><span class="n">e</span><span class="o">.</span><span class="n">rhs</span><span class="p">)</span> <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">handle</span><span class="p">]))</span>

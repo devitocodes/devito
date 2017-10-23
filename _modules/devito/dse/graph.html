@@ -188,13 +188,13 @@
 <span class="kn">from</span> <span class="nn">cached_property</span> <span class="k">import</span> <span class="n">cached_property</span>
 <span class="kn">from</span> <span class="nn">sympy</span> <span class="k">import</span> <span class="n">Indexed</span>
 
-<span class="kn">from</span> <span class="nn">devito.dimension</span> <span class="k">import</span> <span class="n">Dimension</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">z</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">time</span>
+<span class="kn">from</span> <span class="nn">devito.dimension</span> <span class="k">import</span> <span class="n">Dimension</span>
 <span class="kn">from</span> <span class="nn">devito.dse.extended_sympy</span> <span class="k">import</span> <span class="n">Eq</span>
 <span class="kn">from</span> <span class="nn">devito.dse.search</span> <span class="k">import</span> <span class="n">retrieve_indexed</span><span class="p">,</span> <span class="n">retrieve_terminals</span>
 <span class="kn">from</span> <span class="nn">devito.dse.inspection</span> <span class="k">import</span> <span class="n">as_symbol</span>
-<span class="kn">from</span> <span class="nn">devito.dse.queries</span> <span class="k">import</span> <span class="n">q_indirect</span>
+<span class="kn">from</span> <span class="nn">devito.dse.queries</span> <span class="k">import</span> <span class="n">q_indirect</span><span class="p">,</span> <span class="n">q_timedimension</span>
 <span class="kn">from</span> <span class="nn">devito.exceptions</span> <span class="k">import</span> <span class="n">DSEException</span>
-<span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">flatten</span>
+<span class="kn">from</span> <span class="nn">devito.tools</span> <span class="k">import</span> <span class="n">flatten</span><span class="p">,</span> <span class="n">filter_ordered</span>
 
 <span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;temporaries_graph&#39;</span><span class="p">]</span>
 
@@ -284,28 +284,12 @@
     <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
         <span class="nb">super</span><span class="p">(</span><span class="n">TemporariesGraph</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
 
-        <span class="c1"># TODO: The following need to be generalized to arbitrary dimensions,</span>
-        <span class="c1"># not just x, y, z, t, time</span>
-
         <span class="n">terms</span> <span class="o">=</span> <span class="p">[</span><span class="n">v</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">items</span><span class="p">()</span> <span class="k">if</span> <span class="n">v</span><span class="o">.</span><span class="n">is_tensor</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">q_indirect</span><span class="p">(</span><span class="n">k</span><span class="p">)]</span>
+        <span class="n">indices</span> <span class="o">=</span> <span class="n">filter_ordered</span><span class="p">(</span><span class="n">flatten</span><span class="p">([</span><span class="n">i</span><span class="o">.</span><span class="n">function</span><span class="o">.</span><span class="n">indices</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">terms</span><span class="p">]))</span>
 
-        <span class="c1"># Determine the indices along the space dimensions</span>
-        <span class="n">candidates</span> <span class="o">=</span> <span class="p">[</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">z</span><span class="p">]</span>
-        <span class="n">seen</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
-        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">terms</span><span class="p">:</span>
-            <span class="n">seen</span> <span class="o">|=</span> <span class="p">{</span><span class="n">j</span> <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="n">i</span><span class="o">.</span><span class="n">function</span><span class="o">.</span><span class="n">indices</span> <span class="k">if</span> <span class="n">j</span> <span class="ow">in</span> <span class="n">candidates</span><span class="p">}</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">space_indices</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="nb">sorted</span><span class="p">(</span><span class="n">seen</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">i</span><span class="p">:</span> <span class="n">candidates</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">i</span><span class="p">)))</span>
-
-        <span class="c1"># Determine the shape of the tensors in the spatial dimensions</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">space_shape</span> <span class="o">=</span> <span class="p">()</span>
-        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">terms</span><span class="p">:</span>
-            <span class="k">if</span> <span class="nb">set</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">space_indices</span><span class="p">)</span><span class="o">.</span><span class="n">issubset</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">function</span><span class="o">.</span><span class="n">indices</span><span class="p">)):</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">space_shape</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">k</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span> <span class="n">i</span><span class="o">.</span><span class="n">function</span><span class="o">.</span><span class="n">indices</span><span class="p">)</span>
-                                         <span class="k">if</span> <span class="n">v</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">space_indices</span><span class="p">)</span>
-                <span class="k">break</span>
-
-        <span class="c1"># Determine the indices along the time dimension</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">time_indices</span> <span class="o">=</span> <span class="p">[</span><span class="n">t</span><span class="p">,</span> <span class="n">time</span><span class="p">]</span>
+        <span class="c1"># Determine indices along the space and time dimensions</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">space_indices</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">indices</span> <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">is_Space</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">time_indices</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">indices</span> <span class="k">if</span> <span class="n">i</span><span class="o">.</span><span class="n">is_Time</span><span class="p">)</span>
 
     <span class="k">def</span> <span class="nf">trace</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="n">readby</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">strict</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
@@ -391,14 +375,15 @@
         <span class="k">if</span> <span class="n">expr</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
             <span class="k">return</span> <span class="nb">all</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">time_invariant</span><span class="p">(</span><span class="n">v</span><span class="p">)</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">values</span><span class="p">())</span>
 
-        <span class="k">if</span> <span class="nb">any</span><span class="p">(</span><span class="n">i</span> <span class="ow">in</span> <span class="n">expr</span><span class="o">.</span><span class="n">free_symbols</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">time_indices</span><span class="p">):</span>
+        <span class="k">if</span> <span class="nb">any</span><span class="p">(</span><span class="n">q_timedimension</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">expr</span><span class="o">.</span><span class="n">free_symbols</span><span class="p">):</span>
             <span class="k">return</span> <span class="kc">False</span>
+
         <span class="n">queue</span> <span class="o">=</span> <span class="p">[</span><span class="n">expr</span><span class="o">.</span><span class="n">rhs</span><span class="p">]</span> <span class="k">if</span> <span class="n">expr</span><span class="o">.</span><span class="n">is_Equality</span> <span class="k">else</span> <span class="p">[</span><span class="n">expr</span><span class="p">]</span>
         <span class="k">while</span> <span class="n">queue</span><span class="p">:</span>
             <span class="n">item</span> <span class="o">=</span> <span class="n">queue</span><span class="o">.</span><span class="n">pop</span><span class="p">()</span>
             <span class="n">temporaries</span> <span class="o">=</span> <span class="p">[]</span>
             <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">retrieve_terminals</span><span class="p">(</span><span class="n">item</span><span class="p">):</span>
-                <span class="k">if</span> <span class="nb">any</span><span class="p">(</span><span class="n">j</span> <span class="ow">in</span> <span class="n">i</span><span class="o">.</span><span class="n">free_symbols</span> <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">time_indices</span><span class="p">):</span>
+                <span class="k">if</span> <span class="nb">any</span><span class="p">(</span><span class="nb">isinstance</span><span class="p">(</span><span class="n">j</span><span class="p">,</span> <span class="n">Dimension</span><span class="p">)</span> <span class="ow">and</span> <span class="n">j</span><span class="o">.</span><span class="n">is_Time</span> <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="n">i</span><span class="o">.</span><span class="n">free_symbols</span><span class="p">):</span>
                     <span class="c1"># Definitely not time-invariant</span>
                     <span class="k">return</span> <span class="kc">False</span>
                 <span class="k">if</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="p">:</span>

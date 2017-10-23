@@ -404,6 +404,12 @@
 </li>
         <li><a href="devito.html#devito.dimension.Dimension.default_assumptions">(devito.dimension.Dimension attribute)</a>
 </li>
+        <li><a href="devito.html#devito.dimension.SpaceDimension.default_assumptions">(devito.dimension.SpaceDimension attribute)</a>
+</li>
+        <li><a href="devito.html#devito.dimension.SteppingDimension.default_assumptions">(devito.dimension.SteppingDimension attribute)</a>
+</li>
+        <li><a href="devito.html#devito.dimension.TimeDimension.default_assumptions">(devito.dimension.TimeDimension attribute)</a>
+</li>
         <li><a href="devito.dse.html#devito.dse.extended_sympy.Add.default_assumptions">(devito.dse.extended_sympy.Add attribute)</a>
 </li>
         <li><a href="devito.dse.html#devito.dse.extended_sympy.Eq.default_assumptions">(devito.dse.extended_sympy.Eq attribute)</a>
@@ -495,12 +501,12 @@
 </li>
       <li><a href="devito.dle.html#module-devito.dle.blocking_utils">devito.dle.blocking_utils (module)</a>
 </li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="devito.dle.html#module-devito.dle.inspection">devito.dle.inspection (module)</a>
 </li>
       <li><a href="devito.dle.html#module-devito.dle.manipulation">devito.dle.manipulation (module)</a>
 </li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="devito.dle.html#module-devito.dle.transformer">devito.dle.transformer (module)</a>
 </li>
       <li><a href="devito.dse.html#module-devito.dse">devito.dse (module)</a>
@@ -889,8 +895,6 @@
         <li><a href="devito.html#devito.nodes.Node.is_Block">(devito.nodes.Node attribute)</a>
 </li>
       </ul></li>
-      <li><a href="devito.html#devito.dimension.Dimension.is_Buffered">is_Buffered (devito.dimension.Dimension attribute)</a>
-</li>
       <li><a href="devito.html#devito.nodes.Call.is_Call">is_Call (devito.nodes.Call attribute)</a>
 
       <ul>
@@ -931,8 +935,6 @@
       </ul></li>
       <li><a href="devito.html#devito.base.Operator.is_finite">is_finite (devito.base.Operator attribute)</a>
 </li>
-      <li><a href="devito.html#devito.dimension.Dimension.is_Fixed">is_Fixed (devito.dimension.Dimension attribute)</a>
-</li>
       <li><a href="devito.dle.html#devito.dle.inspection.is_foldable">is_foldable() (in module devito.dle.inspection)</a>
 </li>
       <li><a href="devito.html#devito.function.Function.is_Function">is_Function (devito.function.Function attribute)</a>
@@ -941,8 +943,6 @@
 </li>
       <li><a href="devito.html#devito.base.Operator.is_imaginary">is_imaginary (devito.base.Operator attribute)</a>
 </li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="devito.html#devito.base.Operator.is_infinite">is_infinite (devito.base.Operator attribute)</a>
 </li>
       <li><a href="devito.html#devito.base.Operator.is_integer">is_integer (devito.base.Operator attribute)</a>
@@ -955,6 +955,8 @@
         <li><a href="devito.html#devito.nodes.Node.is_Iteration">(devito.nodes.Node attribute)</a>
 </li>
       </ul></li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="devito.html#devito.nodes.Node.is_IterationFold">is_IterationFold (devito.nodes.Node attribute)</a>
 </li>
       <li><a href="devito.html#devito.nodes.Iteration.is_Linear">is_Linear (devito.nodes.Iteration attribute)</a>
@@ -1016,9 +1018,19 @@
       <li><a href="devito.html#devito.nodes.Iteration.is_Sequential">is_Sequential (devito.nodes.Iteration attribute)</a>
 </li>
       <li><a href="devito.html#devito.dimension.Dimension.is_Space">is_Space (devito.dimension.Dimension attribute)</a>
+
+      <ul>
+        <li><a href="devito.html#devito.dimension.SpaceDimension.is_Space">(devito.dimension.SpaceDimension attribute)</a>
 </li>
+      </ul></li>
       <li><a href="devito.html#devito.function.SparseFunction.is_SparseFunction">is_SparseFunction (devito.function.SparseFunction attribute)</a>
 </li>
+      <li><a href="devito.html#devito.dimension.Dimension.is_Stepping">is_Stepping (devito.dimension.Dimension attribute)</a>
+
+      <ul>
+        <li><a href="devito.html#devito.dimension.SteppingDimension.is_Stepping">(devito.dimension.SteppingDimension attribute)</a>
+</li>
+      </ul></li>
       <li><a href="devito.html#devito.types.Indexed.is_Symbol">is_Symbol (devito.types.Indexed attribute)</a>
 
       <ul>
@@ -1031,6 +1043,12 @@
 
       <ul>
         <li><a href="devito.html#devito.arguments.TensorArgument.is_TensorArgument">(devito.arguments.TensorArgument attribute)</a>
+</li>
+      </ul></li>
+      <li><a href="devito.html#devito.dimension.Dimension.is_Time">is_Time (devito.dimension.Dimension attribute)</a>
+
+      <ul>
+        <li><a href="devito.html#devito.dimension.TimeDimension.is_Time">(devito.dimension.TimeDimension attribute)</a>
 </li>
       </ul></li>
       <li><a href="devito.html#devito.function.TimeFunction.is_TimeFunction">is_TimeFunction (devito.function.TimeFunction attribute)</a>
@@ -1267,6 +1285,8 @@
 </li>
       <li><a href="devito.dse.html#devito.dse.queries.q_terminalop">q_terminalop() (in module devito.dse.queries)</a>
 </li>
+      <li><a href="devito.dse.html#devito.dse.queries.q_timedimension">q_timedimension() (in module devito.dse.queries)</a>
+</li>
       <li><a href="devito.dse.html#devito.dse.queries.q_trigonometry">q_trigonometry() (in module devito.dse.queries)</a>
 </li>
   </ul></td>
@@ -1301,16 +1321,18 @@
 </li>
       <li><a href="devito.dse.html#devito.dse.search.retrieve_trigonometry">retrieve_trigonometry() (in module devito.dse.search)</a>
 </li>
+      <li><a href="devito.html#devito.dimension.SteppingDimension.reverse">reverse (devito.dimension.SteppingDimension attribute)</a>
+</li>
       <li><a href="devito.dse.html#devito.dse.symbolics.rewrite">rewrite() (in module devito.dse.symbolics)</a>
 </li>
       <li><a href="examples.seismic.html#examples.seismic.source.RickerSource">RickerSource (class in examples.seismic.source)</a>
 </li>
       <li><a href="examples.cfd.html#examples.cfd.example_diffusion.ring_initial">ring_initial() (in module examples.cfd.example_diffusion)</a>
 </li>
-      <li><a href="devito.html#devito.operator.FunMeta.root">root (devito.operator.FunMeta attribute)</a>
-</li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="devito.html#devito.operator.FunMeta.root">root (devito.operator.FunMeta attribute)</a>
+</li>
       <li><a href="devito.html#devito.stencil.Stencil.rshift">rshift() (devito.stencil.Stencil method)</a>
 </li>
       <li><a href="devito.html#devito.arguments.ArgumentProvider.rtargs">rtargs (devito.arguments.ArgumentProvider attribute)</a>
@@ -1386,6 +1408,8 @@
       <li><a href="devito.html#devito.function.Function.shape_data">shape_data (devito.function.Function attribute)</a>
 
       <ul>
+        <li><a href="devito.html#devito.function.SparseFunction.shape_data">(devito.function.SparseFunction attribute)</a>
+</li>
         <li><a href="devito.html#devito.function.TimeFunction.shape_data">(devito.function.TimeFunction attribute)</a>
 </li>
       </ul></li>
@@ -1405,18 +1429,30 @@
         <li><a href="examples.seismic.acoustic.html#examples.seismic.acoustic.gradient_example.smooth10">(in module examples.seismic.acoustic.gradient_example)</a>
 </li>
       </ul></li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="examples.seismic.acoustic.html#examples.seismic.acoustic.gradient_example.source">source() (in module examples.seismic.acoustic.gradient_example)</a>
 </li>
       <li><a href="devito.html#devito.function.Function.space_dimensions">space_dimensions (devito.function.Function attribute)</a>
 </li>
-      <li><a href="devito.html#devito.grid.Grid.spacing">spacing (devito.grid.Grid attribute)</a>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="devito.html#devito.dimension.SpaceDimension">SpaceDimension (class in devito.dimension)</a>
+</li>
+      <li><a href="devito.html#devito.dimension.SteppingDimension.spacing">spacing (devito.dimension.SteppingDimension attribute)</a>
 
       <ul>
+        <li><a href="devito.html#devito.grid.Grid.spacing">(devito.grid.Grid attribute)</a>
+</li>
         <li><a href="examples.seismic.html#examples.seismic.model.Model.spacing">(examples.seismic.model.Model attribute)</a>
 </li>
       </ul></li>
+      <li><a href="devito.html#devito.grid.Grid.spacing_map">spacing_map (devito.grid.Grid attribute)</a>
+
+      <ul>
+        <li><a href="examples.seismic.html#examples.seismic.model.Model.spacing_map">(examples.seismic.model.Model attribute)</a>
+</li>
+      </ul></li>
+      <li><a href="devito.html#devito.grid.Grid.spacing_symbols">spacing_symbols (devito.grid.Grid attribute)</a>
+</li>
       <li><a href="devito.html#devito.base.SparseFunction">SparseFunction (class in devito.base)</a>
 
       <ul>
@@ -1444,6 +1480,8 @@
       <li><a href="devito.html#devito.stencil.StencilEntry">StencilEntry (class in devito.stencil)</a>
 </li>
       <li><a href="devito.html#devito.exceptions.StencilOperationError">StencilOperationError</a>
+</li>
+      <li><a href="devito.html#devito.dimension.SteppingDimension">SteppingDimension (class in devito.dimension)</a>
 </li>
       <li><a href="devito.html#devito.nodes.Expression.substitute">substitute() (devito.nodes.Expression method)</a>
 </li>
@@ -1475,14 +1513,16 @@
 </li>
       <li><a href="examples.cfd.html#examples.cfd.example_diffusion.test_diffusion2d">test_diffusion2d() (in module examples.cfd.example_diffusion)</a>
 </li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="devito.dle.backends.html#devito.dle.backends.common.AbstractRewriter.thresholds">thresholds (devito.dle.backends.common.AbstractRewriter attribute)</a>
 
       <ul>
         <li><a href="devito.dse.backends.html#devito.dse.backends.common.AbstractRewriter.thresholds">(devito.dse.backends.common.AbstractRewriter attribute)</a>
 </li>
       </ul></li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="devito.html#devito.dimension.TimeDimension">TimeDimension (class in devito.dimension)</a>
+</li>
       <li><a href="devito.html#devito.nodes.TimedList">TimedList (class in devito.nodes)</a>
 </li>
       <li><a href="devito.html#devito.base.TimeFunction">TimeFunction (class in devito.base)</a>

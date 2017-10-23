@@ -846,7 +846,7 @@
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    :class:`Transformer` class that creates a substitution dictionary</span>
 <span class="sd">    for replacing :class:`Dimension` instances with explicit loop</span>
-<span class="sd">    variables in :class:`Iteration` nodes. For buffered dimensions it</span>
+<span class="sd">    variables in :class:`Iteration` nodes. For stepping dimensions it</span>
 <span class="sd">    also inserts the relevant definitions for buffer index variables,</span>
 <span class="sd">    for exaple.:</span>
 
@@ -860,9 +860,9 @@
 
 <div class="viewcode-block" id="ResolveIterationVariable.visit_Iteration"><a class="viewcode-back" href="../../devito.html#devito.visitors.ResolveIterationVariable.visit_Iteration">[docs]</a>    <span class="k">def</span> <span class="nf">visit_Iteration</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">o</span><span class="p">,</span> <span class="n">subs</span><span class="o">=</span><span class="p">{},</span> <span class="n">offsets</span><span class="o">=</span><span class="n">defaultdict</span><span class="p">(</span><span class="nb">set</span><span class="p">)):</span>
         <span class="n">nodes</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">o</span><span class="o">.</span><span class="n">children</span><span class="p">,</span> <span class="n">subs</span><span class="o">=</span><span class="n">subs</span><span class="p">,</span> <span class="n">offsets</span><span class="o">=</span><span class="n">offsets</span><span class="p">)</span>
-        <span class="k">if</span> <span class="n">o</span><span class="o">.</span><span class="n">dim</span><span class="o">.</span><span class="n">is_Buffered</span><span class="p">:</span>
-            <span class="c1"># For buffered dimensions insert the explicit</span>
-            <span class="c1"># definition of buffered variables, eg. t+1 =&gt; t1</span>
+        <span class="k">if</span> <span class="n">o</span><span class="o">.</span><span class="n">dim</span><span class="o">.</span><span class="n">is_Stepping</span><span class="p">:</span>
+            <span class="c1"># For stepping dimensions insert the explicit</span>
+            <span class="c1"># definition of stepping variables, eg. t+1 =&gt; t1</span>
             <span class="n">init</span> <span class="o">=</span> <span class="p">[]</span>
             <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">off</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">filter_ordered</span><span class="p">(</span><span class="n">offsets</span><span class="p">[</span><span class="n">o</span><span class="o">.</span><span class="n">dim</span><span class="p">])):</span>
                 <span class="n">vname</span> <span class="o">=</span> <span class="n">Symbol</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">&quot;</span><span class="si">%s%d</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">o</span><span class="o">.</span><span class="n">dim</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">i</span><span class="p">))</span>
@@ -895,11 +895,11 @@
 <span class="sd">        between the loops. A deeper analysis is required for this that</span>
 <span class="sd">        will be added soon.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">if</span> <span class="n">iter1</span><span class="o">.</span><span class="n">dim</span><span class="o">.</span><span class="n">is_Buffered</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">iter1</span><span class="o">.</span><span class="n">dim</span><span class="o">.</span><span class="n">is_Stepping</span><span class="p">:</span>
             <span class="c1"># Aliasing only works one-way because we left-merge</span>
             <span class="k">if</span> <span class="n">iter1</span><span class="o">.</span><span class="n">dim</span><span class="o">.</span><span class="n">parent</span> <span class="o">==</span> <span class="n">iter2</span><span class="o">.</span><span class="n">dim</span><span class="p">:</span>
                 <span class="k">return</span> <span class="kc">True</span>
-            <span class="k">if</span> <span class="n">iter2</span><span class="o">.</span><span class="n">dim</span><span class="o">.</span><span class="n">is_Buffered</span> <span class="ow">and</span> <span class="n">iter1</span><span class="o">.</span><span class="n">dim</span><span class="o">.</span><span class="n">parent</span> <span class="o">==</span> <span class="n">iter2</span><span class="o">.</span><span class="n">dim</span><span class="o">.</span><span class="n">parent</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">iter2</span><span class="o">.</span><span class="n">dim</span><span class="o">.</span><span class="n">is_Stepping</span> <span class="ow">and</span> <span class="n">iter1</span><span class="o">.</span><span class="n">dim</span><span class="o">.</span><span class="n">parent</span> <span class="o">==</span> <span class="n">iter2</span><span class="o">.</span><span class="n">dim</span><span class="o">.</span><span class="n">parent</span><span class="p">:</span>
                 <span class="k">return</span> <span class="kc">True</span>
         <span class="k">return</span> <span class="n">iter1</span><span class="o">.</span><span class="n">dim</span> <span class="o">==</span> <span class="n">iter2</span><span class="o">.</span><span class="n">dim</span> <span class="ow">and</span> <span class="n">iter1</span><span class="o">.</span><span class="n">bounds_symbolic</span> <span class="o">==</span> <span class="n">iter2</span><span class="o">.</span><span class="n">bounds_symbolic</span>
 

@@ -303,6 +303,12 @@ absorbing boundary conditions.</p>
 </dd></dl>
 
 <dl class="attribute">
+<dt id="examples.seismic.model.Model.spacing_map">
+<code class="descname">spacing_map</code><a class="headerlink" href="#examples.seismic.model.Model.spacing_map" title="Permalink to this definition">¶</a></dt>
+<dd><p>Map between spacing symbols and their values for each <code class="xref py py-class docutils literal"><span class="pre">SpaceDimension</span></code></p>
+</dd></dl>
+
+<dl class="attribute">
 <dt id="examples.seismic.model.Model.vp">
 <code class="descname">vp</code><a class="headerlink" href="#examples.seismic.model.Model.vp" title="Permalink to this definition">¶</a></dt>
 <dd><p><code class="xref py py-class docutils literal"><span class="pre">numpy.ndarray</span></code> holding the model velocity in km/s.</p>
@@ -463,6 +469,7 @@ object. Optionally also includes point markers for sources and receivers.</p>
 <tbody valign="top">
 <tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
 <li><strong>name</strong> – Name of the symbol representing this source</li>
+<li><strong>grid</strong> – <code class="xref py py-class docutils literal"><span class="pre">Grid</span></code> object defining the computational domain.</li>
 <li><strong>coordinates</strong> – Point coordinates for this source</li>
 <li><strong>data</strong> – (Optional) Data values to initialise point data</li>
 <li><strong>ntime</strong> – (Optional) Number of timesteps for which to allocate data</li>
@@ -508,9 +515,9 @@ pre-defined Ricker wavelet:</p>
 <tbody valign="top">
 <tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
 <li><strong>name</strong> – Name for the resulting symbol</li>
+<li><strong>grid</strong> – <code class="xref py py-class docutils literal"><span class="pre">Grid</span></code> object defining the computational domain.</li>
 <li><strong>f0</strong> – Peak frequency for Ricker wavelet in kHz</li>
 <li><strong>time</strong> – Discretized values of time in ms</li>
-<li><strong>ndim</strong> – Number of spatial dimensions</li>
 </ul>
 </td>
 </tr>
@@ -554,9 +561,9 @@ pre-defined Gabor wavelet:</p>
 <tbody valign="top">
 <tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
 <li><strong>name</strong> – Name for the resulting symbol</li>
+<li><strong>grid</strong> – <code class="xref py py-class docutils literal"><span class="pre">Grid</span></code> object defining the computational domain.</li>
 <li><strong>f0</strong> – Peak frequency for Ricker wavelet in kHz</li>
 <li><strong>time</strong> – Discretized values of time in ms</li>
-<li><strong>ndim</strong> – Number of spatial dimensions</li>
 </ul>
 </td>
 </tr>
