@@ -5,7 +5,6 @@ from operator import mul
 
 from sympy import finite_diff_weights
 
-from devito.dimension import x, y
 from devito.logger import error
 
 __all__ = ['first_derivative', 'second_derivative', 'cross_derivative',
@@ -79,7 +78,7 @@ def second_derivative(*args, **kwargs):
        1.0*f(h + x, y)*g(h + x, y)) / h**2``.
     """
     order = kwargs.get('order', 2)
-    dim = kwargs.get('dim', x)
+    dim = kwargs.get('dim')
     diff = kwargs.get('diff', dim.spacing)
 
     ind = [(dim + i * diff) for i in range(-int(order / 2),
@@ -112,7 +111,7 @@ def cross_derivative(*args, **kwargs):
        ``f(-h + x, h + y)*g(-h + x, h + y) + f(h + x, y)*g(h + x, y) -``
        ``f(h + x, -h + y)*g(h + x, -h + y)) / h**2``
     """
-    dims = kwargs.get('dims', (x, y))
+    dims = kwargs.get('dims')
     diff = kwargs.get('diff', (dims[0].spacing, dims[1].spacing))
     order = kwargs.get('order', 1)
 
@@ -166,7 +165,7 @@ def first_derivative(*args, **kwargs):
        results in:
        ``*(-f(x)*g(x) + f(x + h)*g(x + h) ) / h``
     """
-    dim = kwargs.get('dim', x)
+    dim = kwargs.get('dim')
     diff = kwargs.get('diff', dim.spacing)
     order = int(kwargs.get('order', 1))
     matvec = kwargs.get('matvec', direct)

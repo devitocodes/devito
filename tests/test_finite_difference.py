@@ -3,7 +3,7 @@ import pytest
 from conftest import skipif_yask
 from sympy import diff
 
-from devito import Grid, Eq, Operator, clear_cache, Function, x
+from devito import Grid, Eq, Operator, clear_cache, Function
 
 
 @skipif_yask
@@ -25,6 +25,7 @@ def test_fd_space(derivative, space_order):
     dx = xx[1] - xx[0]
     # Symbolic data
     grid = Grid(shape=(nx,), dtype=np.float32)
+    x = grid.dimensions[0]
     u = Function(name="u", grid=grid, space_order=space_order)
     du = Function(name="du", grid=grid, space_order=space_order)
     # Define polynomial with exact fd

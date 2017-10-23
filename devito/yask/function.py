@@ -37,7 +37,7 @@ class Function(function.Function):
         # Fetch the appropriate context
         context = contexts.fetch(self.indices, self.shape, self.dtype)
 
-        # TODO : the following will fail if not using a BufferedDimension,
+        # TODO : the following will fail if not using a SteppingDimension,
         # eg with save=True one gets /time/ instead /t/
         self._data_object = context.make_grid(self)
 

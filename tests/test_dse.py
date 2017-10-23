@@ -3,12 +3,12 @@ from conftest import EVAL
 from sympy import sin  # noqa
 import numpy as np
 import pytest
-from conftest import skipif_yask
+from conftest import x, y, z, time, skipif_yask  # noqa
 
 from devito.dse import (clusterize, rewrite, xreplace_constrained, iq_timeinvariant,
                         iq_timevarying, estimate_cost, temporaries_graph,
                         pow_to_mul, common_subexprs_elimination, collect)
-from devito import Eq, Dimension, x, y, z, time, clear_cache  # noqa
+from devito import Eq  # noqa
 from devito.types import Scalar
 from devito.nodes import Expression
 from devito.stencil import Stencil
@@ -38,12 +38,12 @@ def run_acoustic_forward(dse=None):
     time_values = np.linspace(t0, tn, nt)  # Discretized time axis
 
     # Define source geometry (center of domain, just below surface)
-    src = RickerSource(name='src', ndim=model.dim, f0=0.01, time=time_values)
+    src = RickerSource(name='src', grid=model.grid, f0=0.01, time=time_values)
     src.coordinates.data[0, :] = np.array(model.domain_size) * .5
     src.coordinates.data[0, -1] = 20.
 
     # Define receiver geometry (same as source, but spread across x)
-    rec = Receiver(name='nrec', ntime=nt, npoint=nrec, ndim=model.dim)
+    rec = Receiver(name='nrec', grid=model.grid, ntime=nt, npoint=nrec)
     rec.coordinates.data[:, 0] = np.linspace(0., model.domain_size[0], num=nrec)
     rec.coordinates.data[:, 1:] = src.coordinates.data[0, 1:]
 
@@ -83,12 +83,12 @@ def tti_operator(dse=False, space_order=4):
     time_values = np.linspace(t0, tn, nt)  # Discretized time axis
 
     # Define source geometry (center of domain, just below surface)
-    src = GaborSource(name='src', ndim=model.dim, f0=0.01, time=time_values)
+    src = GaborSource(name='src', grid=model.grid, f0=0.01, time=time_values)
     src.coordinates.data[0, :] = np.array(model.domain_size) * .5
     src.coordinates.data[0, -1] = model.origin[-1] + 2 * spacing[-1]
 
     # Define receiver geometry (spread across x, lust below surface)
-    rec = Receiver(name='nrec', ntime=nt, npoint=nrec, ndim=model.dim)
+    rec = Receiver(name='nrec', grid=model.grid, ntime=nt, npoint=nrec)
     rec.coordinates.data[:, 0] = np.linspace(0., model.domain_size[0], num=nrec)
     rec.coordinates.data[:, 1:] = src.coordinates.data[0, 1:]
 
@@ -164,8 +164,8 @@ def test_tti_rewrite_aggressive(tti_nodse):
 
 @skipif_yask
 @pytest.mark.parametrize('kernel,space_order,expected', [
-    ('shifted', 8, 364), ('shifted', 16, 830),
-    ('centered', 8, 170), ('centered', 16, 306)
+    ('shifted', 8, 355), ('shifted', 16, 811),
+    ('centered', 8, 168), ('centered', 16, 300)
 ])
 def test_tti_rewrite_aggressive_opcounts(kernel, space_order, expected):
     operator = tti_operator(dse='aggressive', space_order=space_order)

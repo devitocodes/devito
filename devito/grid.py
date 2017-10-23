@@ -1,5 +1,6 @@
 from devito.tools import as_tuple
-from devito.dimension import x, y, z
+from devito.dimension import SpaceDimension, TimeDimension, SteppingDimension
+from devito.base import Constant
 
 import numpy as np
 
@@ -17,6 +18,14 @@ class Grid(object):
                    unit box of extent 1m in all dimensions.
     :param origin: Physical coordinate of the origin of the domain;
                    defaults to 0. in all dimensions.
+    :param dimensions: (Optional) list of :class:`SpaceDimension`
+                       symbols that defines the spatial directions of
+                       the physical domain encapsulated by this
+                       :class:`Grid`.
+    :param time_dimension: (Optional) :class:`TimeDimension` symbols
+                           to to define the time dimension for all
+                           :class:`TimeFunction` symbols created
+                           from this :class:`Grid`.
     :param dtype: Default data type to be inherited by all Functions
                   created from this :class:`Grid`.
 
@@ -48,8 +57,10 @@ class Grid(object):
                        y
     """
 
+    _default_dimensions = ('x', 'y', 'z')
+
     def __init__(self, shape, extent=None, origin=None, dimensions=None,
-                 dtype=np.float32):
+                 time_dimension=None, dtype=np.float32):
         self.shape = as_tuple(shape)
         self.extent = as_tuple(extent or tuple(1. for _ in shape))
         self.origin = as_tuple(origin or tuple(0. for _ in shape))
@@ -58,8 +69,25 @@ class Grid(object):
         # TODO: Raise proper exceptions and logging
         assert(self.dim == len(self.origin) == len(self.extent) == len(self.spacing))
 
-        # TODO: Create Dimensions locally instead of using global ones
-        self.dimensions = (dimensions or (x, y, z))[:self.dim]
+        if dimensions is None:
+            # Create the spatial dimensions and constant spacing symbols
+            assert(self.dim <= 3)
+            dim_names = self._default_dimensions[:self.dim]
+            dim_spacing = tuple(Constant(name='h_%s' % name, value=val)
+                                for name, val in zip(dim_names, self.spacing))
+            self.dimensions = tuple(SpaceDimension(name=name, spacing=spc)
+                                    for name, spc in zip(dim_names, dim_spacing))
+        else:
+            self.dimensions = dimensions
+
+        # Store or create default symbols for time and stepping dimensions
+        if time_dimension is None:
+            self.time_dim = TimeDimension('time', spacing=Constant(name='dt'))
+            self.stepping_dim = SteppingDimension('t', parent=self.time_dim)
+        else:
+            self.time_dim = time_dimension
+            self.stepping_dim = SteppingDimension('%s_s' % time_dimension.name,
+                                                  parent=self.time_dim)
 
     @property
     def dim(self):
@@ -70,6 +98,18 @@ class Grid(object):
     def spacing(self):
         """Spacing between grid points in m."""
         return as_tuple(np.array(self.extent) / (np.array(self.shape) - 1))
+
+    @property
+    def spacing_symbols(self):
+        """Symbols representing the grid spacing in each :class:`SpaceDimension`"""
+        return as_tuple(d.spacing for d in self.dimensions)
+
+    @property
+    def spacing_map(self):
+        """
+        Map between spacing symbols and their values for each :class:`SpaceDimension`
+        """
+        return dict(zip(self.spacing_symbols, self.spacing))
 
     @property
     def shape_domain(self):

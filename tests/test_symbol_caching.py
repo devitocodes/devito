@@ -137,8 +137,8 @@ def test_symbol_cache_aliasing_reverse():
 @skipif_yask
 def test_clear_cache(nx=1000, ny=1000):
     clear_cache()
-    cache_size = len(_SymbolCache)
     grid = Grid(shape=(nx, ny), dtype=np.float64)
+    cache_size = len(_SymbolCache)
 
     for i in range(10):
         assert(len(_SymbolCache) == cache_size)
