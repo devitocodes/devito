@@ -77,14 +77,31 @@ class ScalarArgument(Argument):
     def __init__(self, name, provider, reducer=lambda old, new: new, default_value=None):
         super(ScalarArgument, self).__init__(name, provider, default_value)
         self.reducer = reducer
+        self._frozen = False
+
+    def reset(self):
+        super(ScalarArgument, self).reset()
+        self._frozen = False
 
     def verify(self, value, enforce=False):
-        # Assuming self._value was initialised as appropriate for the reducer
+        # If we're being passed a null value, ignore
         if value is not None:
             if self._value is not None and not enforce:
-                self._value = self.reducer(self._value, value)
+                # We already have a value and the value passed
+                # here is not enforced (i.e. optional)
+                # If we aren't frozen, use the reducer
+                if not self._frozen:
+                    self._value = self.reducer(self._value, value)
             else:
-                self._value = value
+                # Either this is the first time we're getting a value (self.value = None)
+                # or this is an enforced value
+                if not self._frozen:
+                    # If we're frozen, ignore, else use this value directly
+                    self._value = value
+                    if enforce:
+                        # If we were forced to use this value, make sure we don't change
+                        # it in the same invocation
+                        self._frozen = True
         return self._value is not None
 
 
