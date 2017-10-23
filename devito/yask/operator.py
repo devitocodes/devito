@@ -126,13 +126,8 @@ class Operator(OperatorRunnable):
             if grid_arg is not None:
                 assert i.provider.from_YASK is True
                 obj = kwargs.get(i.name, i.provider)
-                # Get the associated YaskGrid wrapper
-                try:
-                    wrapper = obj.data
-                except AttributeError:
-                    # On-the-fly wrapping for scalars
-                    assert np.isscalar(obj)
-                    wrapper = YaskGridConst(obj)
+                # Get the associated YaskGrid wrapper (scalars are a special case)
+                wrapper = obj.data if not np.isscalar(obj) else YaskGridConst(obj)
                 # Setup YASK grids ("sharing" user-provided or default data)
                 target = self.yk_soln.grids.get(i.name)
                 if target is not None:
