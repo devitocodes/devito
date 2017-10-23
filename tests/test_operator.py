@@ -521,10 +521,11 @@ class TestLoopScheduler(object):
         Test that bc-like equations get inserted into the same loop nest
         as the "main" equations.
         """
-        shape = (3, 3, 3)
-        a = Function(name='a', shape=shape, dimensions=(x, y)).indexed
-        b = TimeFunction(name='b', shape=shape, dimensions=(x, y),
-                         save=True, time_dim=6).indexed
+        grid = Grid(shape=(3, 3, 3))
+        x, y, z = grid.dimensions
+        time = grid.time_dim
+        a = Function(name='a', grid=grid).indexed
+        b = TimeFunction(name='b', grid=grid, save=True, time_dim=6).indexed
         main = Eq(b[time + 1, x, y, z], b[time - 1, x, y, z] + a[x, y, z] + 3.*t0)
         bcs = [Eq(b[time, 0, y, z], 0.),
                Eq(b[time, x, 0, z], 0.),
