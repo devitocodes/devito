@@ -186,18 +186,20 @@
 <span class="sd">    Base class for API objects, used to build and run :class:`Operator`s.</span>
 
 <span class="sd">    There are two main types of objects: symbolic and generic. Symbolic objects</span>
-<span class="sd">    may carry data, and are used to build equations. Generic objects may be</span>
-<span class="sd">    used to represent or pass arbitrary data structures. The following diagram</span>
-<span class="sd">    outlines the top of this hierarchy.</span>
+<span class="sd">    may carry data, and are used to build equations. Generic objects are used</span>
+<span class="sd">    to represent arbitrary data structures. The following diagram outlines the</span>
+<span class="sd">    top of this hierarchy.</span>
 
-<span class="sd">                                 Basic</span>
-<span class="sd">                                   |</span>
-<span class="sd">                    ----------------------------------</span>
-<span class="sd">                    |                                |</span>
-<span class="sd">              CachedSymbol                         Object</span>
-<span class="sd">                    |                       &lt;see Object.__doc__&gt;</span>
-<span class="sd">             AbstractFunction</span>
-<span class="sd">    &lt;see diagram in AbstractFunction.__doc__&gt;</span>
+<span class="sd">                                       Basic</span>
+<span class="sd">                                         |</span>
+<span class="sd">                        -----------------------------------</span>
+<span class="sd">                        |                                 |</span>
+<span class="sd">                  CachedSymbol                          Object</span>
+<span class="sd">                        |                          &lt;see Object.__doc__&gt;</span>
+<span class="sd">           --------------------------</span>
+<span class="sd">           |                        |</span>
+<span class="sd">    AbstractSymbol          AbstractFunction</span>
+<span class="sd">                        &lt;see AbstractFunction.__doc__&gt;</span>
 
 <span class="sd">    All derived :class:`Basic` objects may be emitted through code generation</span>
 <span class="sd">    to create a just-in-time compilable kernel.</span>
@@ -285,6 +287,25 @@
             <span class="n">newcls</span><span class="o">.</span><span class="n">_cache_put</span><span class="p">(</span><span class="n">newobj</span><span class="p">)</span>
         <span class="k">return</span> <span class="n">newobj</span>
 
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">indices</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="p">()</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">shape</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="p">()</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">symbolic_shape</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="p">()</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">function</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span>
+
+    <span class="k">def</span> <span class="nf">indexify</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span>
+
 
 <div class="viewcode-block" id="Symbol"><a class="viewcode-back" href="../../devito.html#devito.types.Symbol">[docs]</a><span class="k">class</span> <span class="nc">Symbol</span><span class="p">(</span><span class="n">AbstractSymbol</span><span class="p">):</span>
 
@@ -298,26 +319,7 @@
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">base</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">return</span> <span class="bp">self</span>
-
-    <span class="nd">@property</span>
-    <span class="k">def</span> <span class="nf">function</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">return</span> <span class="bp">self</span>
-
-    <span class="nd">@property</span>
-    <span class="k">def</span> <span class="nf">indices</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">return</span> <span class="p">()</span>
-
-    <span class="nd">@property</span>
-    <span class="k">def</span> <span class="nf">shape</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">return</span> <span class="p">()</span>
-
-    <span class="nd">@property</span>
-    <span class="k">def</span> <span class="nf">symbolic_shape</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">return</span> <span class="p">()</span>
-
-<div class="viewcode-block" id="Symbol.indexify"><a class="viewcode-back" href="../../devito.html#devito.types.Symbol.indexify">[docs]</a>    <span class="k">def</span> <span class="nf">indexify</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">return</span> <span class="bp">self</span></div></div>
+        <span class="k">return</span> <span class="bp">self</span></div>
 
 
 <span class="k">class</span> <span class="nc">AbstractFunction</span><span class="p">(</span><span class="n">sympy</span><span class="o">.</span><span class="n">Function</span><span class="p">,</span> <span class="n">CachedSymbol</span><span class="p">):</span>
