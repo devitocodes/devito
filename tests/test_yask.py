@@ -5,10 +5,9 @@ import pytest  # noqa
 
 pexpect = pytest.importorskip('yask')  # Run only if YASK is available
 
-from devito import (Eq, Grid, Operator, Function, TimeFunction, SparseFunction,
-                    Backward, configuration, clear_cache)  # noqa
+from devito import (Eq, Grid, Operator, Constant, Function, TimeFunction,
+                    SparseFunction, Backward, configuration, clear_cache)  # noqa
 from devito.dle import retrieve_iteration_tree  # noqa
-from devito.yask import arch_mapper, yask_configuration  # noqa
 from devito.yask.wrappers import YaskGrid, contexts  # noqa
 
 # For the acoustic wave test
@@ -38,7 +37,7 @@ def u(dims):
 def reset_isa():
     """Force back to NO-SIMD after each test, as some tests may optionally
     switch on SIMD."""
-    yask_configuration['develop-mode'] = True
+    configuration.yask['develop-mode'] = True
 
 
 class TestGrids(object):
@@ -168,7 +167,8 @@ class TestOperatorSimple(object):
         And so on and so forth.
         """
         # SIMD on/off
-        yask_configuration['develop-mode'] = nosimd
+        configuration.yask['develop-mode'] = nosimd
+
         grid = Grid(shape=(16, 16, 16))
         u = TimeFunction(name='yu4D', grid=grid, space_order=space_order)
         u.data.with_halo[:] = 0.
@@ -303,7 +303,7 @@ class TestOperatorSimple(object):
         grid = Grid(shape=(4, 4, 4))
         x, y, z = grid.dimensions
         t = grid.stepping_dim
-        p = SparseFunction(name='points', nt=1, npoint=4)
+        p = SparseFunction(name='points', grid=grid, nt=1, npoint=4)
         u = TimeFunction(name='yu4D', grid=grid, space_order=0)
         for i in range(4):
             for j in range(4):
@@ -359,6 +359,29 @@ class TestOperatorSimple(object):
         assert op.yk_soln.grids['r0'].is_storage_allocated() is False
         assert np.all(v.data == 0.)
         assert np.all(u.data[1] == 5.)
+
+    def test_constants(self):
+        """
+        Check that :class:`Constant` objects are treated correctly.
+        """
+        grid = Grid(shape=(4, 4, 4))
+        c = Constant(name='c', value=2.)
+        p = SparseFunction(name='points', grid=grid, nt=1, npoint=1)
+        u = TimeFunction(name='yu4D', grid=grid, space_order=0)
+        u.data[:] = 0.
+        op = Operator([Eq(u.forward, u + c), Eq(p.indexed[0, 0], 1. + c)])
+        assert 'run_solution' in str(op)
+        op.apply(yu4D=u, c=c, t=11)
+        # Check YASK did its job and could read constant grids w/o problems
+        assert np.all(u.data[0] == 20.)
+        # Check the Constant could be read correctly even in Devito-land, i.e.,
+        # outside of run_solution
+        assert p.data[0][0] == 3.
+        # Check re-executing with another constant gives the correct result
+        c2 = Constant(name='c', value=5.)
+        op.apply(yu4D=u, c=c2, t=3)
+        assert np.all(u.data[0] == 30.)
+        assert p.data[0][0] == 6.
 
 
 class TestOperatorAcoustic(object):
@@ -442,7 +465,9 @@ class TestOperatorAcoustic(object):
         """
         dt = model.critical_dt
         u.data[:] = 0.0
-        op = Operator(eqn)
+        op = Operator(eqn, subs=model.spacing_map)
+        assert 'run_solution' in str(op)
+
         op.apply(u=u, m=m, damp=damp, t=10, dt=dt)
 
     def test_acoustic_w_src_wo_rec(self, model, eqn, m, damp, u, src):
@@ -454,7 +479,9 @@ class TestOperatorAcoustic(object):
         u.data[:] = 0.0
         eqns = eqn
         eqns += src.inject(field=u.forward, expr=src * dt**2 / m, offset=model.nbpml)
-        op = Operator(eqns)
+        op = Operator(eqns, subs=model.spacing_map)
+        assert 'run_solution' in str(op)
+
         op.apply(u=u, m=m, damp=damp, src=src, t=1, dt=dt)
 
         exp_u = 152.76
@@ -470,7 +497,9 @@ class TestOperatorAcoustic(object):
         eqns = eqn
         eqns += src.inject(field=u.forward, expr=src * dt**2 / m, offset=model.nbpml)
         eqns += rec.interpolate(expr=u, offset=model.nbpml)
-        op = Operator(eqns)
+        op = Operator(eqns, subs=model.spacing_map)
+        assert 'run_solution' in str(op)
+
         op.apply(u=u, m=m, damp=damp, src=src, rec=rec, t=1, dt=dt)
 
         # The expected norms have been computed "by hand" looking at the output

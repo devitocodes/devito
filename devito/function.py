@@ -7,7 +7,7 @@ from devito.parameters import configuration
 from devito.logger import debug, error, warning
 from devito.memory import CMemory, first_touch
 from devito.cgen_utils import INT, FLOAT
-from devito.dimension import Dimension, TimeDimension, SteppingDimension
+from devito.dimension import Dimension
 from devito.arguments import ConstantArgProvider, TensorFunctionArgProvider
 from devito.types import SymbolicFunction, AbstractSymbol
 from devito.finite_difference import (centered, cross_derivative,
@@ -19,13 +19,6 @@ from devito.dse.extended_sympy import Eq
 
 __all__ = ['Constant', 'Function', 'TimeFunction', 'SparseFunction',
            'Forward', 'Backward']
-
-
-def default_time_dimensions():
-    """ Create default time and stepping dimensions"""
-    time = TimeDimension('time', spacing=Constant(name='dt'))
-    t = SteppingDimension('t', parent=time)
-    return (time, t)
 
 
 class TimeAxis(object):
@@ -73,15 +66,8 @@ class Constant(AbstractSymbol, ConstantArgProvider):
     def data(self, val):
         self._value = val
 
-    def indexify(self):
-        return self
-
     @property
     def base(self):
-        return self
-
-    @property
-    def function(self):
         return self
 
 
@@ -306,9 +292,6 @@ class TimeFunction(Function):
     :param name: Name of the resulting :class:`sympy.Function` symbol
     :param grid: :class:`Grid` object from which to infer the data shape
                  and :class:`Dimension` indices.
-    :param shape: (Optional) shape of the associated data for this symbol.
-    :param dimensions: (Optional) symbolic dimensions that define the
-                       data layout in addition to the time dimension.
     :param dtype: (Optional) data type of the buffered data
     :param save: Save the intermediate results to the data buffer. Defaults
                  to `False`, indicating the use of alternating buffers.
@@ -380,19 +363,18 @@ class TimeFunction(Function):
     def _indices(cls, **kwargs):
         """Return the default dimension indices for a given data shape
 
-        :param dimensions: Optional, list of :class:`Dimension`
-                           objects that defines data layout.
-        :param shape: Optional, shape of the spatial data to
-                      automatically infer dimension symbols.
+        :param grid: :class:`Grid` object from which to infer the data
+                     shape and :class:`Dimension` indices.
         :return: Dimension indices used for each axis.
         """
         save = kwargs.get('save', None)
         grid = kwargs.get('grid', None)
+
         if grid is None:
-            time, t = default_time_dimensions()
-            tidx = time if save else t
-        else:
-            tidx = grid.time_dim if save else grid.stepping_dim
+            error('TimeFunction objects require a grid parameter.')
+            raise ValueError('No grid provided for TimeFunction.')
+
+        tidx = grid.time_dim if save else grid.stepping_dim
         _indices = Function._indices(**kwargs)
         return tuple([tidx] + list(_indices))
 

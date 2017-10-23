@@ -420,7 +420,7 @@ class TestDeclarator(object):
         clear_cache()
 
     def test_heap_1D_stencil(self, a, b):
-        operator = Operator(Eq(a, a + b + 5.), dse='noop', dle='noop')
+        operator = Operator(Eq(a, a + b + 5.), dse='noop', dle=None)
         assert """\
   float (*a);
   posix_memalign((void**)&a, 64, sizeof(float[i_size]));
@@ -437,7 +437,7 @@ class TestDeclarator(object):
   return 0;""" in str(operator.ccode)
 
     def test_heap_perfect_2D_stencil(self, a, c):
-        operator = Operator([Eq(a, c), Eq(c, c*a)], dse='noop', dle='noop', aaa=True)
+        operator = Operator([Eq(a, c), Eq(c, c*a)], dse='noop', dle=None)
         assert """\
   float (*a);
   float (*c)[j_size];
@@ -461,7 +461,7 @@ class TestDeclarator(object):
   return 0;""" in str(operator.ccode)
 
     def test_heap_imperfect_2D_stencil(self, a, c):
-        operator = Operator([Eq(a, 0.), Eq(c, c*a)], dse='noop', dle='noop')
+        operator = Operator([Eq(a, 0.), Eq(c, c*a)], dse='noop', dle=None)
         assert """\
   float (*a);
   float (*c)[j_size];
@@ -486,7 +486,7 @@ class TestDeclarator(object):
 
     def test_stack_scalar_temporaries(self, a, t0, t1):
         operator = Operator([Eq(t0, 1.), Eq(t1, 2.), Eq(a, t0*t1*3.)],
-                            dse='noop', dle='noop')
+                            dse='noop', dle=None)
         assert """\
   float (*a);
   posix_memalign((void**)&a, 64, sizeof(float[i_size]));
@@ -505,7 +505,7 @@ class TestDeclarator(object):
   return 0;""" in str(operator.ccode)
 
     def test_stack_vector_temporaries(self, c_stack, e):
-        operator = Operator([Eq(c_stack, e*1.)], dse='noop', dle='noop')
+        operator = Operator([Eq(c_stack, e*1.)], dse='noop', dle=None)
         assert """\
   struct timeval start_section_0, end_section_0;
   gettimeofday(&start_section_0, NULL);
@@ -613,10 +613,11 @@ class TestLoopScheduler(object):
         Test that bc-like equations get inserted into the same loop nest
         as the "main" equations.
         """
-        shape = (3, 3, 3)
-        a = Function(name='a', shape=shape, dimensions=(x, y)).indexed
-        b = TimeFunction(name='b', shape=shape, dimensions=(x, y),
-                         save=True, time_dim=6).indexed
+        grid = Grid(shape=(3, 3, 3))
+        x, y, z = grid.dimensions
+        time = grid.time_dim
+        a = Function(name='a', grid=grid).indexed
+        b = TimeFunction(name='b', grid=grid, save=True, time_dim=6).indexed
         main = Eq(b[time + 1, x, y, z], b[time - 1, x, y, z] + a[x, y, z] + 3.*t0)
         bcs = [Eq(b[time, 0, y, z], 0.),
                Eq(b[time, x, 0, z], 0.),
