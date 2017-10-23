@@ -1,6 +1,6 @@
 from devito.tools import as_tuple
 from devito.dimension import SpaceDimension, TimeDimension, SteppingDimension
-from devito.function import Constant
+from devito.base import Constant
 
 import numpy as np
 
