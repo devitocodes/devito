@@ -169,18 +169,18 @@ def detect_wrappable_iterations(tree, deps_graph, mapper=None):
     """
     if mapper is None:
         mapper = OrderedDict()
-    buffered = [i for i in tree if i.dim.is_Buffered]
-    if len(buffered) != 1:
+    stepping = [i for i in tree if i.dim.is_Stepping]
+    if len(stepping) != 1:
         return mapper
-    buffered = buffered[0]
-    is_WP = all(buffered.dim == i.base.function.indices[0] for i in deps_graph)
+    stepping = stepping[0]
+    is_WP = all(stepping.dim == i.base.function.indices[0] for i in deps_graph)
     if is_WP:
         accesses = {i.indices[0] for i in deps_graph}
         accesses |= {i.indices[0] for i in flatten(deps_graph.values())}
-        candidate = sorted(accesses, key=lambda i: i.subs(buffered.dim, 0))[0]
+        candidate = sorted(accesses, key=lambda i: i.subs(stepping.dim, 0))[0]
         for k, v in deps_graph.items():
             is_WP &= all(k.indices[1:] == i.indices[1:] for i in v
                          if candidate == i.indices[0])
     if is_WP:
-        mapper.setdefault(buffered, []).append(WRAPPABLE)
+        mapper.setdefault(stepping, []).append(WRAPPABLE)
     return mapper

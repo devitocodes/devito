@@ -714,7 +714,7 @@ class ResolveTimeStepping(Transformer):
     def visit_Iteration(self, o, subs, offsets=defaultdict(set)):
         nodes, subs = self.visit(o.children, subs, offsets=offsets)
         if o.dim.is_Stepping:
-            # For buffered dimensions insert the explicit
+            # For SteppingDimension insert the explicit
             # definition of buffered variables, eg. t+1 => t1
             init = []
             for i, off in enumerate(filter_ordered(offsets[o.dim])):
