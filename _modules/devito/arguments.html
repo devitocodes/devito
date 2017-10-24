@@ -165,6 +165,7 @@
 
 <span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
 <span class="kn">from</span> <span class="nn">cached_property</span> <span class="k">import</span> <span class="n">cached_property</span>
+<span class="kn">from</span> <span class="nn">collections</span> <span class="k">import</span> <span class="n">namedtuple</span>
 
 <span class="kn">from</span> <span class="nn">devito.exceptions</span> <span class="k">import</span> <span class="n">InvalidArgument</span>
 <span class="kn">from</span> <span class="nn">devito.logger</span> <span class="k">import</span> <span class="n">debug</span>
@@ -197,7 +198,7 @@
     <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">provider</span><span class="p">,</span> <span class="n">default_value</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">name</span> <span class="o">=</span> <span class="n">name</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">provider</span> <span class="o">=</span> <span class="n">provider</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_value</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_default_value</span> <span class="o">=</span> <span class="n">default_value</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_value</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">default_value</span> <span class="o">=</span> <span class="n">default_value</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">value</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
@@ -212,37 +213,38 @@
             <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_value</span>
 
     <span class="nd">@property</span>
-    <span class="k">def</span> <span class="nf">ready</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_value</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
-
-    <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">dtype</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">provider</span><span class="o">.</span><span class="n">dtype</span>
 
 <div class="viewcode-block" id="Argument.reset"><a class="viewcode-back" href="../../devito.html#devito.arguments.Argument.reset">[docs]</a>    <span class="k">def</span> <span class="nf">reset</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_value</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_default_value</span></div>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_value</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">default_value</span></div>
 
     <span class="nd">@abc</span><span class="o">.</span><span class="n">abstractproperty</span>
     <span class="k">def</span> <span class="nf">verify</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">kwargs</span><span class="p">):</span>
-        <span class="k">return</span></div>
+        <span class="k">return</span>
+
+    <span class="k">def</span> <span class="nf">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span></div>
 
 
 <div class="viewcode-block" id="ScalarArgument"><a class="viewcode-back" href="../../devito.html#devito.arguments.ScalarArgument">[docs]</a><span class="k">class</span> <span class="nc">ScalarArgument</span><span class="p">(</span><span class="n">Argument</span><span class="p">):</span>
 
     <span class="sd">&quot;&quot;&quot; Class representing scalar arguments that a kernel might expect.</span>
 <span class="sd">        Most commonly used to pass dimension sizes</span>
+<span class="sd">        enforce determines whether any reduction will be performed or not.</span>
+<span class="sd">        i.e. if it is a user-provided value, use it directly.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">is_ScalarArgument</span> <span class="o">=</span> <span class="kc">True</span>
 
-    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">provider</span><span class="p">,</span> <span class="n">reducer</span><span class="p">,</span> <span class="n">default_value</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">provider</span><span class="p">,</span> <span class="n">reducer</span><span class="o">=</span><span class="k">lambda</span> <span class="n">old</span><span class="p">,</span> <span class="n">new</span><span class="p">:</span> <span class="n">new</span><span class="p">,</span> <span class="n">default_value</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
         <span class="nb">super</span><span class="p">(</span><span class="n">ScalarArgument</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">provider</span><span class="p">,</span> <span class="n">default_value</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">reducer</span> <span class="o">=</span> <span class="n">reducer</span>
 
-<div class="viewcode-block" id="ScalarArgument.verify"><a class="viewcode-back" href="../../devito.html#devito.arguments.ScalarArgument.verify">[docs]</a>    <span class="k">def</span> <span class="nf">verify</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
+<div class="viewcode-block" id="ScalarArgument.verify"><a class="viewcode-back" href="../../devito.html#devito.arguments.ScalarArgument.verify">[docs]</a>    <span class="k">def</span> <span class="nf">verify</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">value</span><span class="p">,</span> <span class="n">enforce</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
         <span class="c1"># Assuming self._value was initialised as appropriate for the reducer</span>
         <span class="k">if</span> <span class="n">value</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_value</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_value</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">enforce</span><span class="p">:</span>
                 <span class="bp">self</span><span class="o">.</span><span class="n">_value</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">reducer</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_value</span><span class="p">,</span> <span class="n">value</span><span class="p">)</span>
             <span class="k">else</span><span class="p">:</span>
                 <span class="bp">self</span><span class="o">.</span><span class="n">_value</span> <span class="o">=</span> <span class="n">value</span>
@@ -264,10 +266,10 @@
         <span class="k">if</span> <span class="n">value</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
             <span class="n">value</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_value</span>
 
-        <span class="n">verify</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">provider</span><span class="o">.</span><span class="n">shape</span> <span class="o">==</span> <span class="n">value</span><span class="o">.</span><span class="n">shape</span>
+        <span class="n">verify</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">provider</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span> <span class="o">==</span> <span class="nb">len</span><span class="p">(</span><span class="n">value</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
 
-        <span class="n">verify</span> <span class="o">=</span> <span class="n">verify</span> <span class="ow">and</span> <span class="nb">all</span><span class="p">(</span><span class="n">d</span><span class="o">.</span><span class="n">verify</span><span class="p">(</span><span class="n">v</span><span class="p">)</span> <span class="k">for</span> <span class="n">d</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">provider</span><span class="o">.</span><span class="n">indices</span><span class="p">,</span>
-                                                            <span class="n">value</span><span class="o">.</span><span class="n">shape</span><span class="p">))</span>
+        <span class="n">verify</span> <span class="o">=</span> <span class="n">verify</span> <span class="ow">and</span> <span class="nb">all</span><span class="p">(</span><span class="n">d</span><span class="o">.</span><span class="n">verify</span><span class="p">(</span><span class="n">v</span><span class="p">)</span> <span class="k">for</span> <span class="n">d</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span>
+                                <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">provider</span><span class="o">.</span><span class="n">indices</span><span class="p">,</span> <span class="n">value</span><span class="o">.</span><span class="n">shape</span><span class="p">))</span>
         <span class="k">if</span> <span class="n">verify</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_value</span> <span class="o">=</span> <span class="n">value</span>
 
@@ -320,14 +322,18 @@
 
     <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
         <span class="nb">super</span><span class="p">(</span><span class="n">DimensionArgProvider</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_value</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_default_value</span>
 
 <div class="viewcode-block" id="DimensionArgProvider.reset"><a class="viewcode-back" href="../../devito.html#devito.arguments.DimensionArgProvider.reset">[docs]</a>    <span class="k">def</span> <span class="nf">reset</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_value</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_default_value</span></div>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">rtargs</span><span class="p">:</span>
+            <span class="n">i</span><span class="o">.</span><span class="n">reset</span><span class="p">()</span></div>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">value</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_value</span>
+        <span class="sd">&quot;&quot;&quot; Returns a tuple (same order as rtargs) with the current value of each rtarg</span>
+<span class="sd">            If any of the rtargs has value None, the return value here is None.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">child_values</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">([</span><span class="n">i</span><span class="o">.</span><span class="n">value</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">rtargs</span><span class="p">])</span>
+        <span class="k">return</span> <span class="n">child_values</span> <span class="k">if</span> <span class="nb">all</span><span class="p">(</span><span class="n">i</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">child_values</span><span class="p">)</span> <span class="k">else</span> <span class="kc">None</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span> <span class="nf">dtype</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
@@ -336,11 +342,42 @@
 
     <span class="nd">@cached_property</span>
     <span class="k">def</span> <span class="nf">rtargs</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="n">size</span> <span class="o">=</span> <span class="n">ScalarArgument</span><span class="p">(</span><span class="s2">&quot;</span><span class="si">%s</span><span class="s2">_size&quot;</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="bp">self</span><span class="p">,</span> <span class="nb">max</span><span class="p">)</span>
-        <span class="k">return</span> <span class="p">[</span><span class="n">size</span><span class="p">]</span>
+        <span class="n">size</span> <span class="o">=</span> <span class="n">ScalarArgument</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">size_name</span><span class="p">,</span> <span class="bp">self</span><span class="p">,</span> <span class="nb">max</span><span class="p">)</span>
+        <span class="n">start</span> <span class="o">=</span> <span class="n">ScalarArgument</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">start_name</span><span class="p">,</span> <span class="bp">self</span><span class="p">,</span> <span class="nb">max</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+        <span class="n">end</span> <span class="o">=</span> <span class="n">ScalarArgument</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">end_name</span><span class="p">,</span> <span class="bp">self</span><span class="p">,</span> <span class="nb">max</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">namedtuple</span><span class="p">(</span><span class="s2">&quot;RuntimeArguments&quot;</span><span class="p">,</span> <span class="p">[</span><span class="s2">&quot;size&quot;</span><span class="p">,</span> <span class="s2">&quot;start&quot;</span><span class="p">,</span> <span class="s2">&quot;end&quot;</span><span class="p">])(</span><span class="n">size</span><span class="p">,</span> <span class="n">start</span><span class="p">,</span> <span class="n">end</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_promote</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot; Strictly, a dimension&#39;s value is a 3-tuple consisting of the</span>
+<span class="sd">            values of each of its rtargs - currently size, start and end. However, for</span>
+<span class="sd">            convenience, we may accept partial representations of the value, e.g. scalars</span>
+<span class="sd">            and 2-tuples and interpret them in a certain way while assuming defaults for</span>
+<span class="sd">            missing information. If value is:</span>
+<span class="sd">            3-tuple: it contains explicit values for all 3 rtargs and hence will be used</span>
+<span class="sd">            directly</span>
+<span class="sd">            2-tuple: We assume we are being provided the (start, end) values. This will be</span>
+<span class="sd">            promoted to a 3-tuple assuming size to be the same as end.</span>
+<span class="sd">            scalar: We assume we are being provided the value of size. Promote to 3-tuple</span>
+<span class="sd">            by assuming this scalar is the size and the end of the dimension. start will</span>
+<span class="sd">            default to 0.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">):</span>
+            <span class="c1"># scalar</span>
+            <span class="n">size</span><span class="p">,</span> <span class="n">start</span><span class="p">,</span> <span class="n">end</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">rtargs</span>
+            <span class="n">value</span> <span class="o">=</span> <span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">start</span><span class="o">.</span><span class="n">default_value</span><span class="p">,</span> <span class="n">value</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">value</span><span class="p">)</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
+                <span class="c1"># 2-tuple</span>
+                <span class="c1"># Assume we&#39;ve been passed a (start, end) tuple</span>
+                <span class="n">start</span><span class="p">,</span> <span class="n">end</span> <span class="o">=</span> <span class="n">value</span>
+                <span class="n">value</span> <span class="o">=</span> <span class="p">(</span><span class="n">end</span><span class="p">,</span> <span class="n">start</span><span class="p">,</span> <span class="n">end</span><span class="p">)</span>
+            <span class="k">elif</span> <span class="nb">len</span><span class="p">(</span><span class="n">value</span><span class="p">)</span> <span class="o">!=</span> <span class="mi">3</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="n">InvalidArgument</span><span class="p">(</span><span class="s2">&quot;Expected either a scalar value or a tuple(2/3)&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">value</span>
 
     <span class="c1"># TODO: Can we do without a verify on a dimension?</span>
-<div class="viewcode-block" id="DimensionArgProvider.verify"><a class="viewcode-back" href="../../devito.html#devito.arguments.DimensionArgProvider.verify">[docs]</a>    <span class="k">def</span> <span class="nf">verify</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
+<div class="viewcode-block" id="DimensionArgProvider.verify"><a class="viewcode-back" href="../../devito.html#devito.arguments.DimensionArgProvider.verify">[docs]</a>    <span class="k">def</span> <span class="nf">verify</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">value</span><span class="p">,</span> <span class="n">enforce</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
         <span class="n">verify</span> <span class="o">=</span> <span class="kc">True</span>
         <span class="k">if</span> <span class="n">value</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
             <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">value</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
@@ -352,15 +389,15 @@
                     <span class="k">return</span> <span class="kc">False</span>
             <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>
                 <span class="k">return</span> <span class="kc">False</span>
-
-        <span class="k">try</span><span class="p">:</span>
+        <span class="c1"># Make sure we&#39;re dealing with a 3-tuple. See docstring of _promote for more</span>
+        <span class="n">value</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_promote</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s1">&#39;parent&#39;</span><span class="p">):</span>
             <span class="n">parent_value</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">value</span>
-            <span class="k">if</span> <span class="n">parent_value</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-                <span class="n">value</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">reducer</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">parent_value</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">parent_value</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">enforce</span><span class="p">:</span>
+                <span class="n">parent_value</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_promote</span><span class="p">(</span><span class="n">parent_value</span><span class="p">)</span>
+                <span class="n">value</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">([</span><span class="bp">self</span><span class="o">.</span><span class="n">reducer</span><span class="p">(</span><span class="n">i1</span><span class="p">,</span> <span class="n">i2</span><span class="p">)</span> <span class="k">for</span> <span class="n">i1</span><span class="p">,</span> <span class="n">i2</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">value</span><span class="p">,</span>
+                                                                      <span class="n">parent_value</span><span class="p">)])</span>
             <span class="n">verify</span> <span class="o">=</span> <span class="n">verify</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">verify</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
-        <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>
-            <span class="k">pass</span>
-
         <span class="k">if</span> <span class="n">value</span> <span class="o">==</span> <span class="bp">self</span><span class="o">.</span><span class="n">value</span><span class="p">:</span>
             <span class="k">return</span> <span class="kc">True</span>
 
@@ -368,21 +405,20 @@
         <span class="c1"># At this point, a constraint needs to be added that enforces</span>
         <span class="c1"># dim_e - dim_s &lt; SOME_MAX</span>
         <span class="c1"># Also need a default constraint that dim_e &gt; dim_s (or vice-versa)</span>
-        <span class="n">verify</span> <span class="o">=</span> <span class="n">verify</span> <span class="ow">and</span> <span class="nb">all</span><span class="p">([</span><span class="n">a</span><span class="o">.</span><span class="n">verify</span><span class="p">(</span><span class="n">v</span><span class="p">)</span> <span class="k">for</span> <span class="n">a</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">rtargs</span><span class="p">,</span> <span class="p">(</span><span class="n">value</span><span class="p">,))])</span>
-        <span class="k">if</span> <span class="n">verify</span><span class="p">:</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">_value</span> <span class="o">=</span> <span class="n">value</span>
+        <span class="n">verify</span> <span class="o">=</span> <span class="n">verify</span> <span class="ow">and</span> <span class="nb">all</span><span class="p">([</span><span class="n">a</span><span class="o">.</span><span class="n">verify</span><span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="n">enforce</span><span class="o">=</span><span class="n">enforce</span><span class="p">)</span> <span class="k">for</span> <span class="n">a</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span>
+                                 <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">rtargs</span><span class="p">,</span> <span class="n">value</span><span class="p">)])</span>
         <span class="k">return</span> <span class="n">verify</span></div></div>
 
 
 <div class="viewcode-block" id="ConstantArgProvider"><a class="viewcode-back" href="../../devito.html#devito.arguments.ConstantArgProvider">[docs]</a><span class="k">class</span> <span class="nc">ConstantArgProvider</span><span class="p">(</span><span class="n">ArgumentProvider</span><span class="p">):</span>
 
-    <span class="sd">&quot;&quot;&quot; Class used to decorate Constat Data objects with behaviour required for runtime</span>
+    <span class="sd">&quot;&quot;&quot; Class used to decorate Constant Data objects with behaviour required for runtime</span>
 <span class="sd">        arguments.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="nd">@cached_property</span>
     <span class="k">def</span> <span class="nf">rtargs</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">return</span> <span class="p">[</span><span class="n">ScalarArgument</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="bp">self</span><span class="p">,</span> <span class="k">lambda</span> <span class="n">old</span><span class="p">,</span> <span class="n">new</span><span class="p">:</span> <span class="n">new</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="p">)]</span></div>
+        <span class="k">return</span> <span class="p">(</span><span class="n">ScalarArgument</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="bp">self</span><span class="p">,</span> <span class="n">default_value</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="p">),)</span></div>
 
 
 <div class="viewcode-block" id="TensorFunctionArgProvider"><a class="viewcode-back" href="../../devito.html#devito.arguments.TensorFunctionArgProvider">[docs]</a><span class="k">class</span> <span class="nc">TensorFunctionArgProvider</span><span class="p">(</span><span class="n">ArgumentProvider</span><span class="p">):</span>
@@ -393,7 +429,7 @@
 
     <span class="nd">@cached_property</span>
     <span class="k">def</span> <span class="nf">rtargs</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">return</span> <span class="p">[</span><span class="n">TensorArgument</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="bp">self</span><span class="p">)]</span></div>
+        <span class="k">return</span> <span class="p">(</span><span class="n">TensorArgument</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="bp">self</span><span class="p">),)</span></div>
 
 
 <div class="viewcode-block" id="ScalarArgProvider"><a class="viewcode-back" href="../../devito.html#devito.arguments.ScalarArgProvider">[docs]</a><span class="k">class</span> <span class="nc">ScalarArgProvider</span><span class="p">(</span><span class="n">ArgumentProvider</span><span class="p">):</span>
@@ -404,7 +440,7 @@
 
     <span class="nd">@cached_property</span>
     <span class="k">def</span> <span class="nf">rtargs</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">return</span> <span class="p">[</span><span class="n">ScalarArgument</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="bp">self</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">dtype</span><span class="p">)]</span></div>
+        <span class="k">return</span> <span class="p">(</span><span class="n">ScalarArgument</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="bp">self</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">dtype</span><span class="p">),)</span></div>
 
 
 <div class="viewcode-block" id="ArrayArgProvider"><a class="viewcode-back" href="../../devito.html#devito.arguments.ArrayArgProvider">[docs]</a><span class="k">class</span> <span class="nc">ArrayArgProvider</span><span class="p">(</span><span class="n">ArgumentProvider</span><span class="p">):</span>
@@ -415,7 +451,7 @@
 
     <span class="nd">@cached_property</span>
     <span class="k">def</span> <span class="nf">rtargs</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">return</span> <span class="p">[</span><span class="n">TensorArgument</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="bp">self</span><span class="p">)]</span></div>
+        <span class="k">return</span> <span class="p">(</span><span class="n">TensorArgument</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="bp">self</span><span class="p">),)</span></div>
 
 
 <div class="viewcode-block" id="ObjectArgProvider"><a class="viewcode-back" href="../../devito.html#devito.arguments.ObjectArgProvider">[docs]</a><span class="k">class</span> <span class="nc">ObjectArgProvider</span><span class="p">(</span><span class="n">ArgumentProvider</span><span class="p">):</span>
@@ -425,7 +461,7 @@
 
     <span class="nd">@cached_property</span>
     <span class="k">def</span> <span class="nf">rtargs</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">return</span> <span class="p">[</span><span class="n">PtrArgument</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="bp">self</span><span class="p">)]</span></div>
+        <span class="k">return</span> <span class="p">(</span><span class="n">PtrArgument</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="bp">self</span><span class="p">),)</span></div>
 
 
 <div class="viewcode-block" id="log_args"><a class="viewcode-back" href="../../devito.html#devito.arguments.log_args">[docs]</a><span class="k">def</span> <span class="nf">log_args</span><span class="p">(</span><span class="n">arguments</span><span class="p">):</span>

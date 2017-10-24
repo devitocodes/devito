@@ -290,11 +290,6 @@ generated kernels.</p>
 <code class="descname">is_TensorArgument</code><em class="property"> = False</em><a class="headerlink" href="#devito.arguments.Argument.is_TensorArgument" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
-<dl class="attribute">
-<dt id="devito.arguments.Argument.ready">
-<code class="descname">ready</code><a class="headerlink" href="#devito.arguments.Argument.ready" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
 <dl class="method">
 <dt id="devito.arguments.Argument.reset">
 <code class="descname">reset</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/arguments.html#Argument.reset"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.arguments.Argument.reset" title="Permalink to this definition">¶</a></dt>
@@ -344,7 +339,7 @@ arguments.</p>
 <dt id="devito.arguments.ConstantArgProvider">
 <em class="property">class </em><code class="descclassname">devito.arguments.</code><code class="descname">ConstantArgProvider</code><span class="sig-paren">(</span><em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/arguments.html#ConstantArgProvider"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.arguments.ConstantArgProvider" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <a class="reference internal" href="#devito.arguments.ArgumentProvider" title="devito.arguments.ArgumentProvider"><code class="xref py py-class docutils literal"><span class="pre">devito.arguments.ArgumentProvider</span></code></a></p>
-<p>Class used to decorate Constat Data objects with behaviour required for runtime
+<p>Class used to decorate Constant Data objects with behaviour required for runtime
 arguments.</p>
 <dl class="attribute">
 <dt id="devito.arguments.ConstantArgProvider.rtargs">
@@ -390,11 +385,13 @@ With two or more arguments, return the largest argument.</p>
 <dl class="attribute">
 <dt id="devito.arguments.DimensionArgProvider.value">
 <code class="descname">value</code><a class="headerlink" href="#devito.arguments.DimensionArgProvider.value" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
+<dd><p>Returns a tuple (same order as rtargs) with the current value of each rtarg
+If any of the rtargs has value None, the return value here is None.</p>
+</dd></dl>
 
 <dl class="method">
 <dt id="devito.arguments.DimensionArgProvider.verify">
-<code class="descname">verify</code><span class="sig-paren">(</span><em>value</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/arguments.html#DimensionArgProvider.verify"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.arguments.DimensionArgProvider.verify" title="Permalink to this definition">¶</a></dt>
+<code class="descname">verify</code><span class="sig-paren">(</span><em>value</em>, <em>enforce=False</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/arguments.html#DimensionArgProvider.verify"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.arguments.DimensionArgProvider.verify" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 </dd></dl>
@@ -445,10 +442,12 @@ arguments.</p>
 
 <dl class="class">
 <dt id="devito.arguments.ScalarArgument">
-<em class="property">class </em><code class="descclassname">devito.arguments.</code><code class="descname">ScalarArgument</code><span class="sig-paren">(</span><em>name</em>, <em>provider</em>, <em>reducer</em>, <em>default_value=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/arguments.html#ScalarArgument"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.arguments.ScalarArgument" title="Permalink to this definition">¶</a></dt>
+<em class="property">class </em><code class="descclassname">devito.arguments.</code><code class="descname">ScalarArgument</code><span class="sig-paren">(</span><em>name</em>, <em>provider</em>, <em>reducer=&lt;function ScalarArgument.&lt;lambda&gt;&gt;</em>, <em>default_value=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/arguments.html#ScalarArgument"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.arguments.ScalarArgument" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <a class="reference internal" href="#devito.arguments.Argument" title="devito.arguments.Argument"><code class="xref py py-class docutils literal"><span class="pre">devito.arguments.Argument</span></code></a></p>
 <p>Class representing scalar arguments that a kernel might expect.
-Most commonly used to pass dimension sizes</p>
+Most commonly used to pass dimension sizes
+enforce determines whether any reduction will be performed or not.
+i.e. if it is a user-provided value, use it directly.</p>
 <dl class="attribute">
 <dt id="devito.arguments.ScalarArgument.is_ScalarArgument">
 <code class="descname">is_ScalarArgument</code><em class="property"> = True</em><a class="headerlink" href="#devito.arguments.ScalarArgument.is_ScalarArgument" title="Permalink to this definition">¶</a></dt>
@@ -456,7 +455,7 @@ Most commonly used to pass dimension sizes</p>
 
 <dl class="method">
 <dt id="devito.arguments.ScalarArgument.verify">
-<code class="descname">verify</code><span class="sig-paren">(</span><em>value</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/arguments.html#ScalarArgument.verify"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.arguments.ScalarArgument.verify" title="Permalink to this definition">¶</a></dt>
+<code class="descname">verify</code><span class="sig-paren">(</span><em>value</em>, <em>enforce=False</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/devito/arguments.html#ScalarArgument.verify"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#devito.arguments.ScalarArgument.verify" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 </dd></dl>
@@ -1082,6 +1081,11 @@ we utilise the <cite>pymic</cite> package to manage device streams.</p>
 <dd></dd></dl>
 
 <dl class="attribute">
+<dt id="devito.dimension.Dimension.end_name">
+<code class="descname">end_name</code><a class="headerlink" href="#devito.dimension.Dimension.end_name" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
 <dt id="devito.dimension.Dimension.is_Lowered">
 <code class="descname">is_Lowered</code><em class="property"> = False</em><a class="headerlink" href="#devito.dimension.Dimension.is_Lowered" title="Permalink to this definition">¶</a></dt>
 <dd><p>Index object that represents a problem dimension and thus
@@ -1117,15 +1121,42 @@ defines a potential iteration space.</p>
 <dd></dd></dl>
 
 <dl class="attribute">
-<dt id="devito.dimension.Dimension.size">
-<code class="descname">size</code><a class="headerlink" href="#devito.dimension.Dimension.size" title="Permalink to this definition">¶</a></dt>
+<dt id="devito.dimension.Dimension.limits">
+<code class="descname">limits</code><a class="headerlink" href="#devito.dimension.Dimension.limits" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
+
+<dl class="attribute">
+<dt id="devito.dimension.Dimension.size_name">
+<code class="descname">size_name</code><a class="headerlink" href="#devito.dimension.Dimension.size_name" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="devito.dimension.Dimension.start_name">
+<code class="descname">start_name</code><a class="headerlink" href="#devito.dimension.Dimension.start_name" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="devito.dimension.Dimension.symbolic_end">
+<code class="descname">symbolic_end</code><a class="headerlink" href="#devito.dimension.Dimension.symbolic_end" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="devito.dimension.Dimension.symbolic_extent">
+<code class="descname">symbolic_extent</code><a class="headerlink" href="#devito.dimension.Dimension.symbolic_extent" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return the extent of the loop over this dimension.
+Would be the same as size if using default values</p>
+</dd></dl>
 
 <dl class="attribute">
 <dt id="devito.dimension.Dimension.symbolic_size">
 <code class="descname">symbolic_size</code><a class="headerlink" href="#devito.dimension.Dimension.symbolic_size" title="Permalink to this definition">¶</a></dt>
 <dd><p>The symbolic size of this dimension.</p>
 </dd></dl>
+
+<dl class="attribute">
+<dt id="devito.dimension.Dimension.symbolic_start">
+<code class="descname">symbolic_start</code><a class="headerlink" href="#devito.dimension.Dimension.symbolic_start" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
 
 </dd></dl>
 
@@ -2633,6 +2664,11 @@ self.anti(o) &gt;&gt; {-1, 0, 1, 2}</p>
 o = {-2, -1, 0, 1, 2}
 self.anti(o) &gt;&gt; {-1, 0, 1}</p>
 </dd></dl>
+
+<dl class="attribute">
+<dt id="devito.stencil.Stencil.diameter">
+<code class="descname">diameter</code><a class="headerlink" href="#devito.stencil.Stencil.diameter" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
 
 <dl class="attribute">
 <dt id="devito.stencil.Stencil.dimensions">
