@@ -1,6 +1,6 @@
 from __future__ import absolute_import
 
-from collections import OrderedDict, namedtuple, defaultdict
+from collections import OrderedDict, namedtuple
 from operator import attrgetter
 
 import ctypes
@@ -233,23 +233,10 @@ class Operator(Callable):
         return tuple(i.root for i in self.func_table.values())
 
     def _store_argument_offsets(self, stencils):
-        all_dimension_offsets = defaultdict(list)
-        argument_offsets = dict()
-        for s in stencils:
-            for d in s:
-                all_dimension_offsets[d] += s[d]
-
-        for d in all_dimension_offsets:
-            dimension_offset = (-min(all_dimension_offsets[d]),
-                                max(all_dimension_offsets[d]))
-            end_offset = dimension_offset[0] + dimension_offset[1]
-            argument_offsets[d.end_name] = end_offset
-            try:
-                argument_offsets[d.parent.end_name] = end_offset
-            except:
-                pass
-
-        self.argument_offsets = argument_offsets
+        offs = Stencil.union(*stencils)
+        arg_offs = {d: v for d, v in offs.diameter.items()}
+        arg_offs.update({d.parent: v for d, v in arg_offs.items() if d.is_Stepping})
+        self.argument_offsets = {d.end_name: v for d, v in arg_offs.items()}
 
     @property
     def compile(self):
