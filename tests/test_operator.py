@@ -42,15 +42,19 @@ class TestAPI(object):
         """
         eqn = Eq(a_dense, a_dense + 2.*const)
         op = Operator(eqn)
-        assert len(op.parameters) == 4
+        assert len(op.parameters) == 6
         assert op.parameters[0].name == 'a_dense'
         assert op.parameters[0].is_TensorArgument
         assert op.parameters[1].name == 'constant'
         assert op.parameters[1].is_ScalarArgument
         assert op.parameters[2].name == 'i_size'
         assert op.parameters[2].is_ScalarArgument
-        assert op.parameters[3].name == 'timings'
-        assert op.parameters[3].is_PtrArgument
+        assert op.parameters[3].name == 'i_s'
+        assert op.parameters[3].is_ScalarArgument
+        assert op.parameters[4].name == 'i_e'
+        assert op.parameters[4].is_ScalarArgument
+        assert op.parameters[5].name == 'timings'
+        assert op.parameters[5].is_PtrArgument
         assert 'a_dense[i] = 2.0F*constant + a_dense[i]' in str(op.ccode)
 
 
@@ -277,8 +281,25 @@ class TestArguments(object):
         op = Operator(Eq(b, a))
 
         time = b.indices[0]
-        _, op_dim_sizes = op.arguments()
-        assert(op_dim_sizes[time.name] == nt)
+        op_arguments, _ = op.arguments()
+        assert(op_arguments[time.start_name] == 0)
+        assert(op_arguments[time.end_name] == nt)
+
+    def test_dimension_offset_adjust(self, nt=100):
+        """Test that the dimension sizes are being inferred correctly"""
+        i, j, k = dimify('i j k')
+        shape = (10, 10, 10)
+        grid = Grid(shape=shape, dimensions=(i, j, k))
+        a = Function(name='a', grid=grid).indexed
+        b = TimeFunction(name='b', grid=grid, save=True, time_dim=nt)
+        time = b.indices[0]
+        eqn = Eq(b.indexed[time + 1, i, j, k], b.indexed[time - 1, i, j, k]
+                 + b.indexed[time, i, j, k] + a[i, j, k])
+        op = Operator(eqn)
+        args = {time.end_name: nt-10}
+        op_arguments, _ = op.arguments(**args)
+        assert(op_arguments[time.start_name] == 0)
+        assert(op_arguments[time.end_name] == nt - 8)
 
     def test_dimension_size_override(self, nt=100):
         """Test explicit overrides for the leading time dimension"""
@@ -319,6 +340,77 @@ class TestArguments(object):
         arg_name = src1.name + "_coords"
         assert(np.array_equal(args[arg_name], np.asarray((new_coords,))))
 
+    def test_start_end_2d(self):
+        """ In a 2D square domain, ask the operator to operate over a smaller square
+        and then ensure that it only operated on the requested region
+        """
+        i, j = dimify('i j')
+        shape = (10, 10)
+        start = 3
+        end = 6
+        a = Function(name='a', shape=shape, dimensions=(i, j))
+        eqn = Eq(a, a + 1)
+        op = Operator(eqn)
+        op(i_s=start, i_e=end, j_s=start, j_e=end)
+        mask = np.ones(shape, np.bool)
+        mask[start:end, start:end] = 0
+        assert(np.allclose(a.data[start:end, start:end], 1))
+        assert(np.allclose(a.data[mask], 0))
+
+    def test_start_end_3d(self):
+        """ In a 3D cubical domain, ask the operator to operate over a smaller cube
+        and then ensure that it only operated on the requested region
+        """
+        i, j, k = dimify('i j k')
+        shape = (10, 10, 10)
+        start = 3
+        end = 6
+        a = Function(name='a', shape=shape, dimensions=(i, j, k))
+        eqn = Eq(a, a + 1)
+        op = Operator(eqn)
+        op(i_s=start, i_e=end, j_s=start, j_e=end, k_s=start, k_e=end)
+        mask = np.ones(shape, np.bool)
+        mask[start:end, start:end, start:end] = 0
+        assert(np.allclose(a.data[start:end, start:end, start:end], 1))
+        assert(np.allclose(a.data[mask], 0))
+
+    def test_argument_derivation_order(self, nt=100):
+        """ Ensure the precedence order of arguments is respected
+        Defaults < (overriden by) Tensor Arguments < Dimensions < Scalar Arguments
+        """
+        i, j, k = dimify('i j k')
+        shape = (10, 10, 10)
+        grid = Grid(shape=shape, dimensions=(i, j, k))
+        a = Function(name='a', grid=grid).indexed
+        b_function = TimeFunction(name='b', grid=grid, save=True, time_dim=nt)
+        b = b_function.indexed
+        time = b_function.indices[0]
+        b1 = TimeFunction(name='b1', grid=grid, save=True, time_dim=nt+1).indexed
+        eqn = Eq(b[time, i, j, k], a[i, j, k])
+        op = Operator(eqn)
+
+        # Simple case, same as that tested above.
+        # Repeated here for clarity of further tests.
+        op_arguments, _ = op.arguments()
+        assert(op_arguments[time.start_name] == 0)
+        assert(op_arguments[time.end_name] == nt)
+
+        # Providing a tensor argument should infer the dimension size from its shape
+        op_arguments, _ = op.arguments(b=b1)
+        assert(op_arguments[time.start_name] == 0)
+        assert(op_arguments[time.end_name] == nt + 1)
+
+        # Providing a dimension size explicitly should override the automatically inferred
+        op_arguments, _ = op.arguments(b=b1, time=nt - 1)
+        assert(op_arguments[time.start_name] == 0)
+        assert(op_arguments[time.end_name] == nt - 1)
+
+        # Providing a scalar argument explicitly should override the automatically\
+        # inferred
+        op_arguments, _ = op.arguments(b=b1, time=nt - 1, time_e=nt - 2)
+        assert(op_arguments[time.start_name] == 0)
+        assert(op_arguments[time.end_name] == nt - 2)
+
 
 @skipif_yask
 class TestDeclarator(object):
@@ -334,7 +426,7 @@ class TestDeclarator(object):
   posix_memalign((void**)&a, 64, sizeof(float[i_size]));
   struct timeval start_section_0, end_section_0;
   gettimeofday(&start_section_0, NULL);
-  for (int i = 0; i < i_size; i += 1)
+  for (int i = i_s; i < i_e; i += 1)
   {
     a[i] = a[i] + b[i] + 5.0F;
   }
@@ -353,9 +445,9 @@ class TestDeclarator(object):
   posix_memalign((void**)&c, 64, sizeof(float[i_size][j_size]));
   struct timeval start_section_0, end_section_0;
   gettimeofday(&start_section_0, NULL);
-  for (int i = 0; i < i_size; i += 1)
+  for (int i = i_s; i < i_e; i += 1)
   {
-    for (int j = 0; j < j_size; j += 1)
+    for (int j = j_s; j < j_e; j += 1)
     {
       a[i] = c[i][j];
       c[i][j] = a[i]*c[i][j];
@@ -377,10 +469,10 @@ class TestDeclarator(object):
   posix_memalign((void**)&c, 64, sizeof(float[i_size][j_size]));
   struct timeval start_section_0, end_section_0;
   gettimeofday(&start_section_0, NULL);
-  for (int i = 0; i < i_size; i += 1)
+  for (int i = i_s; i < i_e; i += 1)
   {
     a[i] = 0.0F;
-    for (int j = 0; j < j_size; j += 1)
+    for (int j = j_s; j < j_e; j += 1)
     {
       c[i][j] = a[i]*c[i][j];
     }
@@ -400,7 +492,7 @@ class TestDeclarator(object):
   posix_memalign((void**)&a, 64, sizeof(float[i_size]));
   struct timeval start_section_0, end_section_0;
   gettimeofday(&start_section_0, NULL);
-  for (int i = 0; i < i_size; i += 1)
+  for (int i = i_s; i < i_e; i += 1)
   {
     float t0 = 1.00000000000000F;
     float t1 = 2.00000000000000F;
@@ -417,16 +509,16 @@ class TestDeclarator(object):
         assert """\
   struct timeval start_section_0, end_section_0;
   gettimeofday(&start_section_0, NULL);
-  for (int k = 0; k < k_size; k += 1)
+  for (int k = k_s; k < k_e; k += 1)
   {
     float c_stack[i_size][j_size] __attribute__((aligned(64)));
-    for (int s = 0; s < s_size; s += 1)
+    for (int s = s_s; s < s_e; s += 1)
     {
-      for (int q = 0; q < q_size; q += 1)
+      for (int q = q_s; q < q_e; q += 1)
       {
-        for (int i = 0; i < i_size; i += 1)
+        for (int i = i_s; i < i_e; i += 1)
         {
-          for (int j = 0; j < j_size; j += 1)
+          for (int j = j_s; j < j_e; j += 1)
           {
             c_stack[i][j] = 1.0F*e[k][s][q][i][j];
           }

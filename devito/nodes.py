@@ -12,7 +12,7 @@ from devito.cgen_utils import ccode
 from devito.dse import as_symbol, retrieve_terminals
 from devito.types import Indexed, Symbol
 from devito.stencil import Stencil
-from devito.tools import as_tuple, filter_ordered, flatten, is_integer
+from devito.tools import as_tuple, filter_ordered, flatten
 from devito.arguments import ArgumentProvider, Argument
 
 __all__ = ['Node', 'Block', 'Denormals', 'Expression', 'Callable', 'Call',
@@ -395,16 +395,14 @@ class Iteration(Node):
         available (either statically known or provided through ``start``/
         ``finish``). ``None`` is used as a placeholder in the returned 2-tuple
         if a limit is unknown."""
-        try:
-            lower = int(self.limits[0]) - self.offsets[0]
-        except (TypeError, ValueError):
-            if is_integer(start):
-                lower = start - self.offsets[0]
-        try:
-            upper = int(self.limits[1]) - self.offsets[1]
-        except (TypeError, ValueError):
-            if is_integer(finish):
-                upper = finish - self.offsets[1]
+        lower = start if start is not None else self.limits[0]
+        upper = finish if finish is not None else self.limits[1]
+        if lower and self.offsets[0]:
+            lower = lower - self.offsets[0]
+
+        if upper and self.offsets[1]:
+            upper = upper - self.offsets[1]
+
         return (lower, upper)
 
     def extent(self, start=None, finish=None):

@@ -80,6 +80,9 @@ class Operator(Callable):
         self.input, self.output, self.dimensions = self._retrieve_symbols(expressions)
         stencils = self._retrieve_stencils(expressions)
 
+        # Extract argument offsets
+        self._store_argument_offsets(stencils)
+
         # Set the direction of time acoording to the given TimeAxis
         for time in [d for d in self.dimensions if d.is_Time]:
             if not time.is_Stepping:
@@ -155,16 +158,26 @@ class Operator(Callable):
             if i.is_TensorArgument:
                 assert(i.verify(kwargs.pop(i.name, None)))
         for d in self.dimensions:
-            d.verify(kwargs.pop(d.name, None))
+            d.verify(kwargs.pop(d.name, None), enforce=True)
         for i in self.parameters:
             if i.is_ScalarArgument:
-                i.verify(kwargs.pop(i.name, None))
-
-        dim_sizes = OrderedDict([(d.name, d.value) for d in self.dimensions])
+                user_provided_value = kwargs.pop(i.name, None)
+                if user_provided_value is not None:
+                    user_provided_value += self.argument_offsets.get(i.name, 0)
+                i.verify(user_provided_value, enforce=True)
+        dim_sizes = {}
+        for d in self.dimensions:
+            if d.value is not None:
+                _, d_start, d_end = d.value
+                # Calculte loop extent
+                d_extent = d_end - d_start
+            else:
+                d_extent = None
+            dim_sizes[d.name] = d_extent
         dle_arguments, autotune = self._dle_arguments(dim_sizes)
         dim_sizes.update(dle_arguments)
 
-        autotune = kwargs.pop('autotune', False) and autotune
+        autotune = autotune and kwargs.pop('autotune', False)
 
         # Make sure we've used all arguments passed
         if len(kwargs) > 0:
@@ -218,6 +231,12 @@ class Operator(Callable):
     @property
     def elemental_functions(self):
         return tuple(i.root for i in self.func_table.values())
+
+    def _store_argument_offsets(self, stencils):
+        offs = Stencil.union(*stencils)
+        arg_offs = {d: v for d, v in offs.diameter.items()}
+        arg_offs.update({d.parent: v for d, v in arg_offs.items() if d.is_Stepping})
+        self.argument_offsets = {d.end_name: v for d, v in arg_offs.items()}
 
     @property
     def compile(self):
@@ -304,8 +323,8 @@ class Operator(Callable):
                 needed = entries[index:]
 
                 # Build and insert the required Iterations
-                iters = [Iteration([], j.dim, j.dim.symbolic_size, offsets=j.ofs)
-                         for j in needed]
+                iters = [Iteration([], j.dim, j.dim.limits, offsets=j.ofs) for j in
+                         needed]
                 body, tree = compose_nodes(iters + [expressions], retrieve=True)
                 scheduling = OrderedDict(zip(needed, tree))
                 if root is None:
@@ -456,11 +475,11 @@ class OperatorRunnable(Operator):
         self.cfunction(*list(arguments.values()))
 
         # Output summary of performance achieved
-        return self._profile_output(dim_sizes)
+        return self._profile_output(arguments)
 
-    def _profile_output(self, dim_sizes):
+    def _profile_output(self, arguments):
         """Return a performance summary of the profiled sections."""
-        summary = self.profiler.summary(dim_sizes, self.dtype)
+        summary = self.profiler.summary(arguments, self.dtype)
         with bar():
             for k, v in summary.items():
                 name = '%s<%s>' % (k, ','.join('%d' % i for i in v.itershape))

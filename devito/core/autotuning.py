@@ -38,7 +38,8 @@ def autotune(operator, arguments, tunable):
         timesteps = 1
     elif len(sequentials) == 1:
         sequential = sequentials[0]
-        timesteps = sequential.extent(finish=options['at_squeezer'])
+        start = sequential.dim.rtargs.start.default_value
+        timesteps = sequential.extent(start=start, finish=options['at_squeezer'])
         if timesteps < 0:
             timesteps = options['at_squeezer'] - timesteps + 1
             info_at("Adjusted auto-tuning timestep to %d" % timesteps)

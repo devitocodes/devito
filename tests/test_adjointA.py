@@ -24,8 +24,6 @@ presets = {
     ('layers', (60, 70, 80), 2, 4, 10), ('layers', (60, 70, 80), 2, 8, 10),
     ('layers', (60, 70, 80), 2, 12, 10), ('layers', (60, 70, 80), 4, 4, 10),
     ('layers', (60, 70, 80), 4, 8, 10), ('layers', (60, 70, 80), 4, 12, 10),
-    # Fixed dimension test in 2D and 3D
-    ('layers', (60, 70), 2, 4, 10), ('layers', (60, 70, 80), 2, 4, 10),
     # Constant model in 2D and 3D
     ('constant', (60, 70), 2, 8, 14), ('constant', (60, 70, 80), 2, 8, 14),
 ])

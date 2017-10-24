@@ -115,7 +115,7 @@ class AdvancedRewriter(BasicRewriter):
         time_invariants = {v.rhs: g.time_invariant(v) for v in g.values()}
 
         # Template for captured redundancies
-        shape = tuple(i.symbolic_size for i in indices)
+        shape = tuple(i.symbolic_extent for i in indices)
         make = lambda i: Array(name=template(i), shape=shape,
                                dimensions=indices).indexed
 
