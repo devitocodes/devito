@@ -167,7 +167,7 @@ class Operator(OperatorRunnable):
         log("YASK Operator successfully run!")
 
         # Output summary of performance achieved
-        return self._profile_output(dim_sizes)
+        return self._profile_output(arguments)
 
     @property
     def compile(self):
