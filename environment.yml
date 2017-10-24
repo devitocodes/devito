@@ -17,6 +17,7 @@ dependencies:
   - sphinx_rtd_theme
   - dask
   - distributed
+  - scikit-image
   - pip:
     - "git+https://github.com/inducer/cgen"
     - "git+https://github.com/inducer/codepy"
