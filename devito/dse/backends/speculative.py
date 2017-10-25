@@ -1,5 +1,5 @@
+from devito.ir.clusters import optimize
 from devito.dse.backends import AdvancedRewriter, dse_pass
-from devito.dse.clusterizer import optimize
 from devito.symbolics import (estimate_cost, xreplace_constrained,
                               iq_timevarying, q_leaf, q_sum_of_product, q_terminalop)
 from devito.types import Scalar
