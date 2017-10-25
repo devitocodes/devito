@@ -5,9 +5,9 @@ from cached_property import cached_property
 from sympy import Indexed
 
 from devito.dimension import Dimension
+from devito.exceptions import DSEException
 from devito.symbolics import (Eq, as_symbol, retrieve_indexed, retrieve_terminals,
                               q_indirect, q_timedimension)
-from devito.exceptions import DSEException
 from devito.tools import flatten, filter_ordered
 
 __all__ = ['temporaries_graph']
