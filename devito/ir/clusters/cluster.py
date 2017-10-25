@@ -1,9 +1,5 @@
-from collections import OrderedDict
-
 from devito.ir.dfg import temporaries_graph
 from devito.tools import as_tuple
-
-__all__ = ['optimize']
 
 
 class Cluster(object):
