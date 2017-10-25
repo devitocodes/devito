@@ -14,8 +14,7 @@ from devito.finite_difference import (centered, cross_derivative,
                                       first_derivative, left, right,
                                       second_derivative, generic_derivative,
                                       second_cross_derivative)
-from devito.dse.inspection import indexify, retrieve_indexed
-from devito.dse.extended_sympy import Eq
+from devito.symbolics import Eq, indexify, retrieve_indexed
 
 __all__ = ['Constant', 'Function', 'TimeFunction', 'SparseFunction',
            'Forward', 'Backward']

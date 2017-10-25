@@ -2,8 +2,8 @@ import cgen as c
 import ctypes
 
 from devito.cgen_utils import INT, ccode
-from devito.dse import FunctionFromPointer, ListInitializer, retrieve_indexed
 from devito.nodes import Element, Expression
+from devito.symbolics import FunctionFromPointer, ListInitializer, retrieve_indexed
 from devito.tools import as_tuple
 from devito.visitors import FindNodes, Transformer
 

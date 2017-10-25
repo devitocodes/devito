@@ -9,8 +9,8 @@ import cgen as c
 from sympy import Eq, Indexed, Symbol
 
 from devito.cgen_utils import ccode
-from devito.dse import as_symbol, retrieve_terminals
 from devito.stencil import Stencil
+from devito.symbolics import as_symbol, retrieve_terminals
 from devito.tools import as_tuple, filter_ordered, filter_sorted, flatten
 from devito.arguments import ArgumentProvider, Argument
 import devito.types as types

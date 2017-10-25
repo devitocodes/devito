@@ -5,10 +5,8 @@ from cached_property import cached_property
 from sympy import Indexed
 
 from devito.dimension import Dimension
-from devito.dse.extended_sympy import Eq
-from devito.dse.search import retrieve_indexed, retrieve_terminals
-from devito.dse.inspection import as_symbol
-from devito.dse.queries import q_indirect, q_timedimension
+from devito.symbolics import (Eq, as_symbol, retrieve_indexed, retrieve_terminals,
+                              q_indirect, q_timedimension)
 from devito.exceptions import DSEException
 from devito.tools import flatten, filter_ordered
 

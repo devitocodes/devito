@@ -12,7 +12,7 @@ from devito.cgen_utils import Allocator
 from devito.compiler import jit_compile, load
 from devito.dimension import Dimension
 from devito.dle import compose_nodes, filter_iterations, transform
-from devito.dse import clusterize, indexify, rewrite, retrieve_terminals
+from devito.dse import clusterize, rewrite
 from devito.function import Forward, Backward, CompositeFunction
 from devito.types import Object
 from devito.logger import bar, error, info
@@ -20,6 +20,7 @@ from devito.nodes import Element, Expression, Callable, Iteration, List, LocalEx
 from devito.parameters import configuration
 from devito.profiling import create_profile
 from devito.stencil import Stencil
+from devito.symbolics import indexify, retrieve_terminals
 from devito.tools import as_tuple, filter_sorted, flatten, numpy_to_ctypes, partial_order
 from devito.visitors import (FindScopes, ResolveTimeStepping,
                              SubstituteExpression, Transformer, NestedTransformer)

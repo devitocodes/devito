@@ -39,7 +39,7 @@ def q_op(expr):
 
 
 def q_terminalop(expr):
-    from devito.dse.inspection import as_symbol
+    from devito.symbolics.manipulation import as_symbol
     if not q_op(expr):
         return False
     else:
@@ -64,8 +64,7 @@ def q_indirect(expr):
     a[i] --> False
     a[b[i]] --> True
     """
-    from devito.dse.search import retrieve_indexed
-
+    from devito.symbolics.search import retrieve_indexed 
     if not expr.is_Indexed:
         return False
     return any(retrieve_indexed(i) for i in expr.indices)

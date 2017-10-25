@@ -5,13 +5,14 @@ import numpy as np
 import pytest
 from conftest import x, y, z, time, skipif_yask  # noqa
 
-from devito.dse import (clusterize, rewrite, xreplace_constrained, iq_timeinvariant,
-                        iq_timevarying, estimate_cost, temporaries_graph,
-                        pow_to_mul, common_subexprs_elimination, collect)
 from devito import Eq  # noqa
-from devito.types import Scalar
+from devito.dse import (clusterize, rewrite, temporaries_graph,
+                        common_subexprs_elimination, collect)
 from devito.nodes import Expression
+from devito.symbolics import (xreplace_constrained, iq_timeinvariant, iq_timevarying,
+                              estimate_cost, pow_to_mul)
 from devito.stencil import Stencil
+from devito.types import Scalar
 from devito.visitors import FindNodes
 from examples.seismic.acoustic import AcousticWaveSolver
 from examples.seismic import demo_model, RickerSource, GaborSource, Receiver

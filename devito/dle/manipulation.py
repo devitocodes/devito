@@ -1,5 +1,5 @@
-from devito.dse.extended_sympy import Eq
 from devito.nodes import Expression, Iteration, List
+from devito.symbolics import Eq
 from devito.tools import flatten
 from devito.visitors import MergeOuterIterations
 

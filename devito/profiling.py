@@ -7,8 +7,8 @@ from functools import reduce
 from ctypes import Structure, byref, c_double
 from cgen import Struct, Value
 
-from devito.dse import estimate_cost, estimate_memory
 from devito.nodes import Expression, TimedList
+from devito.symbolics import estimate_cost, estimate_memory
 from devito.visitors import IsPerfectIteration, FindSections, FindNodes, Transformer
 
 __all__ = ['Profile', 'create_profile']

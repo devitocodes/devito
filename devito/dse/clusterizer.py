@@ -1,8 +1,8 @@
 from collections import OrderedDict, namedtuple
 
 from devito.dse.graph import temporaries_graph
-from devito.dse.manipulation import xreplace_indices
 
+from devito.symbolics import xreplace_indices
 from devito.types import Scalar
 from devito.stencil import Stencil
 from devito.tools import as_tuple
