@@ -12,8 +12,9 @@ from devito.cgen_utils import Allocator
 from devito.compiler import jit_compile, load
 from devito.dimension import Dimension
 from devito.dle import compose_nodes, filter_iterations, transform
-from devito.dse import clusterize, rewrite
+from devito.dse import rewrite
 from devito.function import Forward, Backward, CompositeFunction
+from devito.ir import clusterize
 from devito.types import Object
 from devito.logger import bar, error, info
 from devito.nodes import Element, Expression, Callable, Iteration, List, LocalExpression

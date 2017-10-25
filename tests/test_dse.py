@@ -6,8 +6,8 @@ import pytest
 from conftest import x, y, z, time, skipif_yask  # noqa
 
 from devito import Eq  # noqa
-from devito.ir import temporaries_graph
-from devito.dse import clusterize, rewrite, common_subexprs_elimination, collect
+from devito.ir import clusterize, temporaries_graph
+from devito.dse import rewrite, common_subexprs_elimination, collect
 from devito.nodes import Expression
 from devito.symbolics import (xreplace_constrained, iq_timeinvariant, iq_timevarying,
                               estimate_cost, pow_to_mul)
