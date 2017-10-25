@@ -1,42 +1,14 @@
-"""
-Routines to construct new SymPy expressions transforming the provided input.
-"""
+from collections import OrderedDict
 
-from collections import Iterable, OrderedDict
+from sympy import collect, collect_const
 
-import sympy
-from sympy import collect, collect_const, flatten
-
-from devito.dse.extended_sympy import Add, Eq, Mul
-from devito.dse.inspection import count, estimate_cost, retrieve_indexed
+from devito.symbolics import Eq, count, estimate_cost, q_op, q_leaf, xreplace_constrained
 from devito.dse.graph import temporaries_graph
-from devito.dse.queries import q_op, q_leaf
 from devito.types import Indexed, Array
-from devito.tools import as_tuple
+from devito.tools import flatten
 
-__all__ = ['collect_nested', 'common_subexprs_elimination', 'freeze_expression',
-           'xreplace_constrained', 'xreplace_indices', 'promote_scalar_expressions',
-           'pow_to_mul']
-
-
-def freeze_expression(expr):
-    """
-    Reconstruct ``expr`` turning all :class:`sympy.Mul` and :class:`sympy.Add`
-    into, respectively, :class:`devito.Mul` and :class:`devito.Add`.
-    """
-    if expr.is_Atom or expr.is_Indexed:
-        return expr
-    elif expr.is_Add:
-        rebuilt_args = [freeze_expression(e) for e in expr.args]
-        return Add(*rebuilt_args, evaluate=False)
-    elif expr.is_Mul:
-        rebuilt_args = [freeze_expression(e) for e in expr.args]
-        return Mul(*rebuilt_args, evaluate=False)
-    elif expr.is_Equality:
-        rebuilt_args = [freeze_expression(e) for e in expr.args]
-        return Eq(*rebuilt_args, evaluate=False)
-    else:
-        return expr.func(*[freeze_expression(e) for e in expr.args])
+__all__ = ['promote_scalar_expressions', 'collect_nested',
+           'common_subexprs_elimination', 'compact_temporaries']
 
 
 def promote_scalar_expressions(exprs, shape, indices, onstack):
@@ -103,120 +75,6 @@ def collect_nested(expr, aggressive=False):
             return expr.func(*rebuilt), flatten(candidates)
 
     return run(expr)[0]
-
-
-def xreplace_constrained(exprs, make, rule=None, costmodel=lambda e: True, repeat=False):
-    """
-    Unlike ``xreplace``, which replaces all objects specified in a mapper,
-    this function replaces all objects satisfying two criteria: ::
-
-        * The "matching rule" -- a function returning True if a node within ``expr``
-            satisfies a given property, and as such should be replaced;
-        * A "cost model" -- a function triggering replacement only if a certain
-            cost (e.g., operation count) is exceeded. This function is optional.
-
-    Note that there is not necessarily a relationship between the set of nodes
-    for which the matching rule returns True and those nodes passing the cost
-    model check. It might happen for example that, given the expression ``a + b``,
-    all of ``a``, ``b``, and ``a + b`` satisfy the matching rule, but only
-    ``a + b`` satisfies the cost model.
-
-    :param exprs: The target SymPy expression, or a collection of SymPy expressions.
-    :param make: Either a mapper M: K -> V, indicating how to replace an expression
-                 in K with a symbol in V, or a function, used to construct new, unique
-                 symbols. Such a function should take as input a parameter, used to
-                 enumerate the new symbols.
-    :param rule: The matching rule (a lambda function). May be left unspecified if
-                 ``make`` is a mapper.
-    :param costmodel: The cost model (a lambda function, optional).
-    :param repeat: Repeatedly apply ``xreplace`` until no more replacements are
-                   possible (optional, defaults to False).
-    """
-    found = OrderedDict()
-    rebuilt = []
-
-    # Define /replace()/ based on the user-provided /make/
-    if isinstance(make, dict):
-        rule = rule if rule is not None else (lambda i: i in make)
-        replace = lambda i: make[i]
-    else:
-        assert callable(make) and callable(rule)
-
-        def replace(expr):
-            if isinstance(make, dict):
-                return make[expr]
-            temporary = found.get(expr)
-            if temporary:
-                return temporary
-            else:
-                temporary = make(replace.c)
-                found[expr] = temporary
-                replace.c += 1
-                return temporary
-        replace.c = 0  # Unique identifier for new temporaries
-
-    def run(expr):
-        if expr.is_Atom or expr.is_Indexed:
-            return expr, rule(expr)
-        elif expr.is_Pow:
-            base, flag = run(expr.base)
-            if flag and costmodel(base):
-                return expr.func(replace(base), expr.exp, evaluate=False), False
-            else:
-                return expr.func(base, expr.exp, evaluate=False), flag
-        else:
-            children = [run(a) for a in expr.args]
-            matching = [a for a, flag in children if flag]
-            other = [a for a, _ in children if a not in matching]
-            if matching:
-                matched = expr.func(*matching, evaluate=False)
-                if len(matching) == len(children) and rule(expr):
-                    # Go look for longer expressions first
-                    return matched, True
-                elif rule(matched) and costmodel(matched):
-                    # Replace what I can replace, then give up
-                    rebuilt = expr.func(*(other + [replace(matched)]), evaluate=False)
-                    return rebuilt, False
-                else:
-                    # Replace flagged children, then give up
-                    replaced = [replace(e) for e in matching if costmodel(e)]
-                    unreplaced = [e for e in matching if not costmodel(e)]
-                    rebuilt = expr.func(*(other + replaced + unreplaced), evaluate=False)
-                    return rebuilt, False
-            return expr.func(*other, evaluate=False), False
-
-    # Process the provided expressions
-    for expr in as_tuple(exprs):
-        assert expr.is_Equality
-        root = expr.rhs
-
-        while True:
-            ret, _ = run(root)
-            if repeat and ret != root:
-                root = ret
-            else:
-                rebuilt.append(expr.func(expr.lhs, ret))
-                break
-
-    # Post-process the output
-    found = [Eq(v, k) for k, v in found.items()]
-
-    return found + rebuilt, found
-
-
-def xreplace_indices(exprs, mapper, candidates=None, only_rhs=False):
-    """
-    Create new expressions from ``exprs``, by replacing all index variables
-    specified in mapper appearing as a tensor index. Only tensors whose symbolic
-    name appears in ``candidates`` are considered if ``candidates`` is not None.
-    """
-    get = lambda i: i.rhs if only_rhs is True else i
-    handle = flatten(retrieve_indexed(get(i)) for i in as_tuple(exprs))
-    if candidates is not None:
-        handle = [i for i in handle if i.base.label in candidates]
-    mapper = dict(zip(handle, [i.xreplace(mapper) for i in handle]))
-    replaced = [i.xreplace(mapper) for i in as_tuple(exprs)]
-    return replaced if isinstance(exprs, Iterable) else replaced[0]
 
 
 def common_subexprs_elimination(exprs, make, mode='default'):
@@ -293,17 +151,3 @@ def compact_temporaries(temporaries, leaves):
             processed.extend(handle)
 
     return processed
-
-
-def pow_to_mul(expr):
-    if expr.is_Atom or expr.is_Indexed:
-        return expr
-    elif expr.is_Pow:
-        base, exp = expr.as_base_exp()
-        if exp <= 0:
-            # Cannot handle powers containing non-integer non-positive exponents
-            return expr
-        else:
-            return sympy.Mul(*[base]*exp, evaluate=False)
-    else:
-        return expr.func(*[pow_to_mul(i) for i in expr.args], evaluate=False)

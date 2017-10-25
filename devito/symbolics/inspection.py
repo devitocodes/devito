@@ -1,14 +1,11 @@
 from collections import OrderedDict
 
-from sympy import Function, Indexed, Number, Symbol, cos, preorder_traversal, sin
+from sympy import Indexed, cos, sin
 
-from devito.dimension import Dimension
-from devito.dse.search import retrieve_indexed, retrieve_ops, search
-from devito.dse.queries import q_timedimension
+from devito.symbolics.search import retrieve_indexed, retrieve_ops, search
+from devito.symbolics.queries import q_timedimension
 from devito.logger import warning
 from devito.tools import flatten
-
-__all__ = ['estimate_cost', 'estimate_memory', 'indexify', 'as_symbol']
 
 
 def count(exprs, query):
@@ -113,40 +110,3 @@ def estimate_memory(handle, mode='realistic'):
         return len(set(reads) | set(writes))
     else:
         return len(reads) + len(writes)
-
-
-def as_symbol(expr):
-    """
-    Extract the "main" symbol from a SymPy object.
-    """
-    try:
-        return Number(expr)
-    except (TypeError, ValueError):
-        pass
-    if isinstance(expr, str):
-        return Symbol(expr)
-    elif isinstance(expr, Dimension):
-        return Symbol(expr.name)
-    elif expr.is_Symbol:
-        return expr
-    elif isinstance(expr, Indexed):
-        return expr.base.label
-    elif isinstance(expr, Function):
-        return Symbol(expr.__class__.__name__)
-    else:
-        raise TypeError("Cannot extract symbol from type %s" % type(expr))
-
-
-def indexify(expr):
-    """
-    Convert functions into indexed matrix accesses in sympy expression.
-
-    :param expr: sympy function expression to be converted.
-    """
-    replacements = {}
-
-    for e in preorder_traversal(expr):
-        if hasattr(e, 'indexed'):
-            replacements[e] = e.indexify()
-
-    return expr.xreplace(replacements)

@@ -1,7 +1,7 @@
-from devito.dse.queries import q_indexed, q_terminal, q_leaf, q_op, q_trigonometry
+from devito.symbolics.queries import q_indexed, q_terminal, q_leaf, q_op, q_trigonometry
 
 __all__ = ['retrieve_indexed', 'retrieve_terminals', 'retrieve_ops',
-           'retrieve_trigonometry']
+           'retrieve_trigonometry', 'search']
 
 
 class Search(object):
