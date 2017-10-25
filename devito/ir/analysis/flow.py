@@ -16,6 +16,8 @@ from devito.ir.iet import (Iteration, SEQUENTIAL, PARALLEL, VECTOR, WRAPPABLE,
 from devito.symbolics import as_symbol
 from devito.tools import as_tuple, flatten
 
+__all__ = ['analyze_iterations']
+
 
 def analyze_iterations(nodes):
     """
