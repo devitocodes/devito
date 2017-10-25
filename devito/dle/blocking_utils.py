@@ -3,10 +3,10 @@ from sympy import Symbol
 
 from devito.cgen_utils import ccode
 from devito.dle import compose_nodes, is_foldable, retrieve_iteration_tree
-from devito.nodes import Expression, Iteration, List, UnboundedIndex, ntags
+from devito.ir.iet import (Expression, Iteration, List, UnboundedIndex, ntags,
+                           FindAdjacentIterations, FindNodes, IsPerfectIteration,
+                           NestedTransformer, Transformer)
 from devito.symbolics import as_symbol, xreplace_indices
-from devito.visitors import (FindAdjacentIterations, FindNodes, IsPerfectIteration,
-                             NestedTransformer, Transformer)
 from devito.tools import as_tuple
 
 __all__ = ['fold_blockable_tree', 'unfold_blocked_tree']

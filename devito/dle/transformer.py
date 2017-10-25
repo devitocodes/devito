@@ -1,4 +1,4 @@
-from devito.nodes import Node
+from devito.ir.iet import Node
 from devito.dle.backends import (State, BasicRewriter, DevitoCustomRewriter,
                                  DevitoRewriter, DevitoRewriterSafeMath,
                                  DevitoSpeculativeRewriter)

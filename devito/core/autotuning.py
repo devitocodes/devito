@@ -6,10 +6,9 @@ from functools import reduce
 from operator import mul
 import resource
 
+from devito.ir.iet import Iteration, FindNodes, FindSymbols
 from devito.logger import info, info_at
-from devito.nodes import Iteration
 from devito.parameters import configuration
-from devito.visitors import FindNodes, FindSymbols
 
 __all__ = ['autotune']
 

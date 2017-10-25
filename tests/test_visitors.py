@@ -3,10 +3,9 @@ import pytest
 from conftest import skipif_yask
 
 from devito import Eq
-from devito.nodes import Block, Expression, Callable
-from devito.visitors import (FindSections, FindSymbols, IsPerfectIteration,
-                             MergeOuterIterations, Transformer, printAST,
-                             NestedTransformer)
+from devito.ir.iet import (Block, Expression, Callable, FindSections,
+                           FindSymbols, IsPerfectIteration, MergeOuterIterations,
+                           Transformer, NestedTransformer, printAST)
 
 
 @pytest.fixture(scope="module")

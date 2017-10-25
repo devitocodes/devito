@@ -18,13 +18,13 @@ from devito.dle.backends import (BasicRewriter, BlockingArg, dle_pass, omplang,
                                  simdinfo, get_simd_flag, get_simd_items)
 from devito.dse import promote_scalar_expressions
 from devito.exceptions import DLEException
-from devito.types import Array
+from devito.ir.iet import (Block, Denormals, Expression, Iteration, List,
+                           PARALLEL, ELEMENTAL, REMAINDER, tagger,
+                           FindNodes, FindSymbols, IsPerfectIteration,
+                           SubstituteExpression, Transformer)
 from devito.logger import dle_warning
-from devito.nodes import (Block, Denormals, Expression, Iteration, List,
-                          PARALLEL, ELEMENTAL, REMAINDER, tagger)
 from devito.tools import as_tuple, grouper, roundm
-from devito.visitors import (FindNodes, FindSymbols, IsPerfectIteration,
-                             SubstituteExpression, Transformer)
+from devito.types import Array
 
 
 class DevitoRewriter(BasicRewriter):

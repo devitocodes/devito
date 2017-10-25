@@ -10,12 +10,12 @@ from sympy import Symbol
 from devito.cgen_utils import ccode
 from devito.dle import retrieve_iteration_tree, filter_iterations
 from devito.dle.backends import AbstractRewriter, dle_pass, complang_ALL
-from devito.types import Scalar
-from devito.nodes import (Denormals, Expression, Call, Callable, List,
-                          UnboundedIndex)
+from devito.ir.iet import (Denormals, Expression, Call, Callable, List,
+                           UnboundedIndex, FindNodes, FindSymbols,
+                           NestedTransformer, Transformer)
 from devito.symbolics import as_symbol
 from devito.tools import filter_sorted, flatten
-from devito.visitors import FindNodes, FindSymbols, NestedTransformer, Transformer
+from devito.types import Scalar
 
 
 class BasicRewriter(AbstractRewriter):

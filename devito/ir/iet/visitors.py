@@ -1,7 +1,7 @@
 """
-Visitor hierarchy to inspect and/or create Expression/Iteration trees.
+Visitor hierarchy to inspect and/or create IETs.
 
-The main Visitor class is extracted from https://github.com/coneoproject/COFFEE.
+The main Visitor class is adapted from https://github.com/coneoproject/COFFEE.
 """
 
 from __future__ import absolute_import
@@ -15,7 +15,7 @@ import cgen as c
 from devito.cgen_utils import blankline, ccode
 from devito.dimension import LoweredDimension
 from devito.exceptions import VisitorException
-from devito.nodes import Iteration, Node, UnboundedIndex
+from devito.ir.iet.nodes import Iteration, Node, UnboundedIndex
 from devito.types import Symbol
 from devito.tools import as_tuple, filter_ordered, filter_sorted, flatten, ctypes_to_C
 
@@ -23,7 +23,7 @@ from devito.tools import as_tuple, filter_ordered, filter_sorted, flatten, ctype
 __all__ = ['FindNodes', 'FindSections', 'FindSymbols', 'FindScopes',
            'IsPerfectIteration', 'SubstituteExpression', 'printAST', 'CGen',
            'ResolveTimeStepping', 'Transformer', 'NestedTransformer',
-           'FindAdjacentIterations']
+           'FindAdjacentIterations', 'MergeOuterIterations']
 
 
 class Visitor(object):
