@@ -2,8 +2,8 @@ from collections import OrderedDict
 
 from sympy import collect, collect_const
 
+from devito.ir.dfg import temporaries_graph
 from devito.symbolics import Eq, count, estimate_cost, q_op, q_leaf, xreplace_constrained
-from devito.dse.graph import temporaries_graph
 from devito.types import Indexed, Array
 from devito.tools import flatten
 
