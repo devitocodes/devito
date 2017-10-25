@@ -2,13 +2,22 @@ from pyrevolve import Checkpoint, Operator
 from devito import TimeFunction
 
 
-class DevitoOperator(Operator):
-    """Class to wrap devito operators so they conform to the pyRevolve API
+class CheckpointOperator(Operator):
+    """Devito's concrete implementation of the ABC pyrevolve.Operator. This class wraps
+       devito.Operator so it conforms to the pyRevolve API. pyRevolve will call apply
+       with arguments t_start and t_end. Devito calls these arguments t_s and t_e so
+       the following dict is used to perform the translations between different names.
+       :param op: The devito.Operator object that this object will wrap
+       :param args: If devito.Operator.apply() expects any arguments, they can be provided
+                    here to be cached. Any calls to CheckpointOperator.apply() will
+                    automatically include these cached arguments in the call to the
+                    underlying devito.Operator.apply().
     """
-    def __init__(self, op, args, argnames):
+    t_arg_names = {'t_start': 't_s', 't_end': 't_e'}
+
+    def __init__(self, op, args):
         self.op = op
         self.args = args
-        self.argnames = argnames
 
     def apply(self, t_start, t_end):
         """ If the devito operator requires some extra arguments in the call to apply
@@ -17,8 +26,8 @@ class DevitoOperator(Operator):
             this method passes them on correctly to devito.Operator
         """
         args = self.args.copy()
-        args[self.argnames['t_start']] = t_start
-        args[self.argnames['t_end']] = t_end
+        args[self.t_arg_names['t_start']] = t_start
+        args[self.t_arg_names['t_end']] = t_end
         self.op.apply(**args)
 
 
@@ -26,27 +35,27 @@ class DevitoCheckpoint(Checkpoint):
     """Devito's concrete implementation of the Checkpoint abstract base class provided by
        pyRevolve. Holds a list of symbol objects that hold data.
     """
-    def __init__(self, symbols):
+    def __init__(self, objects):
         """Intialise a checkpoint object. Upon initialisation, a checkpoint
-        stores only a reference to the symbols that are passed into it.
-        The symbols must be passed as a mapping symbolname->symbolobject."""
-        assert(all(isinstance(s, TimeFunction) for s in symbols))
-        self._dtype = symbols[0].dtype
-        self.symbols = symbols
-        self.revolver = None
+        stores only a reference to the objects that are passed into it."""
+        assert(all(isinstance(o, TimeFunction) for o in objects))
+        self.objects = objects
 
     @property
     def dtype(self):
-        return self._dtype
+        try:
+            return self.objects[0].dtype
+        except:
+            return None
 
     def save(self, ptr):
         """Overwrite live-data in this Checkpoint object with data found at
         the ptr location."""
         i_ptr_lo = 0
         i_ptr_hi = 0
-        for s in self.symbols:
-            i_ptr_hi = i_ptr_hi + s.size
-            ptr[i_ptr_lo:i_ptr_hi] = s.data.flatten()[:]
+        for o in self.objects:
+            i_ptr_hi = i_ptr_hi + o.size
+            ptr[i_ptr_lo:i_ptr_hi] = o.data.flatten()[:]
             i_ptr_lo = i_ptr_hi
 
     def load(self, ptr):
@@ -54,12 +63,12 @@ class DevitoCheckpoint(Checkpoint):
         the ptr."""
         i_ptr_lo = 0
         i_ptr_hi = 0
-        for s in self.symbols:
-            i_ptr_hi = i_ptr_hi + s.size
-            s.data[:] = ptr[i_ptr_lo:i_ptr_hi].reshape(s.shape)
+        for o in self.objects:
+            i_ptr_hi = i_ptr_hi + o.size
+            o.data[:] = ptr[i_ptr_lo:i_ptr_hi].reshape(o.shape)
             i_ptr_lo = i_ptr_hi
 
     @property
     def size(self):
         """The memory consumption of the data contained in a checkpoint."""
-        return sum([s.size for s in self.symbols])
+        return sum([o.size for o in self.objects])

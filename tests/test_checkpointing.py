@@ -1,5 +1,5 @@
 from examples.checkpointing.checkpointing_example import setup as cp_setup
-from examples.checkpointing.checkpoint import DevitoCheckpoint, DevitoOperator
+from examples.checkpointing.checkpoint import DevitoCheckpoint, CheckpointOperator
 from examples.seismic.acoustic.acoustic_example import acoustic_setup
 from pyrevolve import Revolver
 import numpy as np
@@ -7,14 +7,16 @@ import numpy as np
 
 def test_forward_with_breaks():
     time_order = 2
-    fw, gradop, u, rec_s, m0, src, rec_g, v, grad, rec_t, dm, nt, dt = \
-      cp_setup((150, 150), 750.0, (15.0, 15.0), time_order, 4, 40)
+    fw, gradop, u, rec_s, m0, src, rec_g, v, grad, _, _, nt, dt = cp_setup((150, 150),
+                                                                           750.0,
+                                                                           (15.0, 15.0),
+                                                                           time_order, 4,
+                                                                           40)
     cp = DevitoCheckpoint([u])
-    wrap_fw = DevitoOperator(fw, {'u': u, 'rec': rec_s, 'm': m0, 'src': src, 'dt': dt},
-                             {'t_start': 't_s', 't_end': 't_e'})
-    wrap_rev = DevitoOperator(gradop, {'u': u, 'v': v, 'm': m0, 'rec': rec_g,
-                                       'grad': grad, 'dt': dt},
-                              {'t_start': 't_s', 't_end': 't_e'})
+    wrap_fw = CheckpointOperator(fw, {'u': u, 'rec': rec_s, 'm': m0, 'src': src, 'dt': dt}
+                                 )
+    wrap_rev = CheckpointOperator(gradop, {'u': u, 'v': v, 'm': m0, 'rec': rec_g,
+                                           'grad': grad, 'dt': dt})
     wrp = Revolver(cp, wrap_fw, wrap_rev, None, nt-time_order)
     fw.apply(u=u, rec=rec_s, m=m0, src=src, dt=dt)
     u_temp = np.copy(u.data)

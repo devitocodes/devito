@@ -84,7 +84,27 @@ class ScalarArgument(Argument):
         self._frozen = False
 
     def verify(self, value, enforce=False):
-        # If we're being passed a null value, ignore
+        """ ScalarArgument.verify is called from many different places, with different
+            values. e.g.
+            1. From inside Operator.arguments(), with an accompanying user-provided
+            value from kwargs
+            2. From the verify of a Dimension object, with an accompanying "derived"
+            value, which is the best-guess for this ScalarArgument's value that
+            the Dimension can come up with.
+            In the above two cases, the value passed in case 2 is "optional", since
+            a dimension "belongs" to multiple Function objects and each object might
+            lead to a different best-guess. During normal behaviour, verify is expected
+            to be called multiple times with different values and this method will
+            combine all the values received in the different invocations in a configurable
+            (self.reducer) way. However, if the user has explicitly passed in a value
+            (case 1 above), that value has to be respected and this best-guess behaviour
+            described above needs to be switched off.
+            Another thing to note is that, once a ScalarArgument has been passed a value
+            with enforce=True, any further calls to verify should not change the stored
+            value. The self._frozen flag is used to ensure that.
+            :param enforce: Turn off the best-guess behaviour and just use the value
+                            passed, ignoring any previously stored values.
+        """
         if value is not None:
             if self._value is not None and not enforce:
                 # We already have a value and the value passed
@@ -106,7 +126,6 @@ class ScalarArgument(Argument):
 
 
 class TensorArgument(Argument):
-
     """ Class representing tensor arguments that a kernel might expect.
         Most commonly used to pass numpy-like multi-dimensional arrays.
     """

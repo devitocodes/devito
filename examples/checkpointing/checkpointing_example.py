@@ -4,7 +4,7 @@ from math import floor
 from devito import Function, TimeFunction
 from examples.seismic import Receiver, demo_model, RickerSource
 from examples.seismic.acoustic import ForwardOperator, GradientOperator, smooth10
-from examples.checkpointing.checkpoint import DevitoCheckpoint, DevitoOperator
+from examples.checkpointing.checkpoint import DevitoCheckpoint, CheckpointOperator
 from pyrevolve import Revolver
 
 
@@ -65,11 +65,10 @@ def gradient(fw, gradop, u, maxmem, rec_s, m0, src, rec_g, v, grad, rec_t, nt, d
     if maxmem is not None:
         n_checkpoints = int(floor(maxmem*10**6/(cp.size*u.data.itemsize)))
 
-    wrap_fw = DevitoOperator(fw, {'u': u, 'rec': rec_s, 'm': m0, 'src': src, 'dt': dt},
-                             {'t_start': 't_s', 't_end': 't_e'})
-    wrap_rev = DevitoOperator(gradop, {'u': u, 'v': v, 'm': m0, 'rec': rec_g,
-                                       'grad': grad, 'dt': dt},
-                              {'t_start': 't_s', 't_end': 't_e'})
+    wrap_fw = CheckpointOperator(fw, {'u': u, 'rec': rec_s, 'm': m0, 'src': src,
+                                      'dt': dt})
+    wrap_rev = CheckpointOperator(gradop, {'u': u, 'v': v, 'm': m0, 'rec': rec_g,
+                                           'grad': grad, 'dt': dt})
     wrp = Revolver(cp, wrap_fw, wrap_rev, n_checkpoints, nt-2)
 
     wrp.apply_forward()
@@ -115,12 +114,12 @@ def verify(gradient, dm, m0, u, rec_s, fw, src, rec_t, dt):
 
 
 class CheckpointedGradientExample(object):
-    def __init__(self, dimensions=(50, 50, 50), tn=None, spacing=None, time_order=2,
-                 space_order=4, nbpml=40):
-        self.fw, self.gradop, self.u, self.rec_s, self.m0, self.src, self.rec_g, self.v,
-        self.grad, self.rec_t, self.dm, self.nt, self.dt = setup(dimensions, tn,
-                                                                 spacing, time_order,
-                                                                 space_order, nbpml)
+    def __init__(self, dimensions=(150, 150), tn=None, spacing=None, time_order=2,
+                 space_order=4, nbpml=10):
+        (self.fw, self.gradop, self.u, self.rec_s, self.m0, self.src, self.rec_g, self.v,
+         self.grad, self.rec_t, self.dm, self.nt, self.dt) = setup(dimensions, tn,
+                                                                   spacing, time_order,
+                                                                   space_order, nbpml)
 
     def do_gradient(self, maxmem):
         return gradient(self.fw, self.gradop, self.u, maxmem, self.rec_s, self.m0,
@@ -132,7 +131,7 @@ class CheckpointedGradientExample(object):
                self.dt)
 
 
-def run(shape=(50, 50, 50), tn=None, spacing=None, time_order=2, space_order=4, nbpml=10,
+def run(shape=(150, 150), tn=None, spacing=None, time_order=2, space_order=4, nbpml=10,
         maxmem=None):
     ex = CheckpointedGradientExample(shape, tn, spacing, time_order, space_order, nbpml)
     grad = ex.do_gradient(maxmem)

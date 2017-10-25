@@ -291,6 +291,10 @@ class AbstractFunction(sympy.Function, CachedSymbol):
 
     @property
     def size(self):
+        """Return the number of elements this function is expected to store in memory.
+           Note that this would need to be combined with self.dtype to give the actual
+           size in bytes
+        """
         return reduce(mul, self.shape)
 
     def indexify(self, indices=None):
