@@ -2,10 +2,9 @@ import cgen as c
 import ctypes
 
 from devito.cgen_utils import INT, ccode
-from devito.nodes import Element, Expression
+from devito.ir.iet import Element, Expression, FindNodes, Transformer
 from devito.symbolics import FunctionFromPointer, ListInitializer, retrieve_indexed
 from devito.tools import as_tuple
-from devito.visitors import FindNodes, Transformer
 
 from devito.yask import namespace
 

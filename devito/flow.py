@@ -11,10 +11,10 @@ a library such as ISL (the Integer Set Library).
 
 from collections import OrderedDict
 
-from devito.nodes import Iteration, SEQUENTIAL, PARALLEL, VECTOR, WRAPPABLE
+from devito.ir.iet import (Iteration, SEQUENTIAL, PARALLEL, VECTOR, WRAPPABLE,
+                           FindSections, IsPerfectIteration, NestedTransformer)
 from devito.symbolics import as_symbol
 from devito.tools import as_tuple, flatten
-from devito.visitors import FindSections, IsPerfectIteration, NestedTransformer
 
 
 def analyze_iterations(nodes):

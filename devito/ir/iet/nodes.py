@@ -1,4 +1,4 @@
-"""The Iteration/Expression hierarchy."""
+"""The Iteration/Expression Tree (IET) hierarchy."""
 
 from __future__ import absolute_import
 
@@ -9,14 +9,18 @@ import cgen as c
 from sympy import Eq, Indexed, Symbol
 
 from devito.cgen_utils import ccode
+from devito.ir.iet.properties import (IterationProperty, SEQUENTIAL, PARALLEL,
+                                      VECTOR, ELEMENTAL, REMAINDER, WRAPPABLE,
+                                      tagger, ntags)
+from devito.ir.iet.utils import UnboundedIndex
 from devito.stencil import Stencil
 from devito.symbolics import as_symbol, retrieve_terminals
 from devito.tools import as_tuple, filter_ordered, filter_sorted, flatten
 from devito.arguments import ArgumentProvider, Argument
 import devito.types as types
 
-__all__ = ['Node', 'Block', 'Denormals', 'Expression', 'Callable', 'Call',
-           'Iteration', 'List', 'LocalExpression', 'TimedList']
+__all__ = ['Node', 'Block', 'Denormals', 'Expression', 'Element', 'Callable',
+           'Call', 'Iteration', 'List', 'LocalExpression', 'TimedList']
 
 
 class Node(object):
@@ -60,12 +64,11 @@ class Node(object):
 
         This is a shorthand for
 
-           .. code-block:: python
-
-              from devito.visitors import CGen
+            .. code-block:: python
+              from devito.ir.iet import CGen
               CGen().visit(self)
         """
-        from devito.visitors import CGen
+        from devito.ir.iet.visitors import CGen
         return CGen().visit(self)
 
     @property
@@ -73,7 +76,7 @@ class Node(object):
         """
         Generate a representation of the Iteration/Expression tree rooted in ``self``.
         """
-        from devito.visitors import printAST
+        from devito.ir.iet.visitors import printAST
         return printAST(self)
 
     @property
@@ -528,83 +531,3 @@ class LocalExpression(Expression):
     def __init__(self, expr, dtype):
         super(LocalExpression, self).__init__(expr)
         self.dtype = dtype
-
-
-# Iteration utilities
-
-class IterationProperty(object):
-
-    _KNOWN = []
-
-    """
-    A :class:`Iteration` decorator.
-    """
-
-    def __init__(self, name, val=None):
-        self.name = name
-        self.val = val
-
-        self._KNOWN.append(self)
-
-    def __eq__(self, other):
-        if not isinstance(other, IterationProperty):
-            return False
-        return self.name == other.name and self.val == other.val
-
-    def __ne__(self, other):
-        return not self.__eq__(other)
-
-    def __hash__(self):
-        return hash((self.name, self.val))
-
-    def __str__(self):
-        return self.name if self.val is None else '%s%s' % (self.name, str(self.val))
-
-    def __repr__(self):
-        if self.val is None:
-            return "Property: %s" % self.name
-        else:
-            return "Property: %s[%s]" % (self.name, str(self.val))
-
-
-SEQUENTIAL = IterationProperty('sequential')
-"""The Iteration is inherently serial, i.e., its iterations cannot run in parallel."""
-
-PARALLEL = IterationProperty('parallel')
-"""The Iteration can be executed in parallel w/o need for synchronization."""
-
-VECTOR = IterationProperty('vector-dim')
-"""The Iteration can be SIMD-vectorized."""
-
-ELEMENTAL = IterationProperty('elemental')
-"""The Iteration can be pulled out to an elemental function."""
-
-REMAINDER = IterationProperty('remainder')
-"""The Iteration implements a remainder/peeler loop."""
-
-WRAPPABLE = IterationProperty('wrappable')
-"""The Iteration implements modulo buffered iteration and its expressions are so that
-one or more buffer slots can be dropped without affecting correctness. For example,
-u[t+1, ...] = f(u[t, ...], u[t-1, ...]) --> u[t-1, ...] = f(u[t, ...], u[t-1, ...])."""
-
-
-def tagger(i):
-    return IterationProperty('tag', i)
-
-
-def ntags():
-    return len(IterationProperty._KNOWN) - ntags.n_original_properties
-ntags.n_original_properties = len(IterationProperty._KNOWN)  # noqa
-
-
-class UnboundedIndex(object):
-
-    """
-    A generic loop iteration index that can be used in a :class:`Iteration` to
-    add a non-linear traversal of the iteration space.
-    """
-
-    def __init__(self, index, start=0, step=None):
-        self.index = index
-        self.start = start
-        self.step = index + 1 if step is None else step

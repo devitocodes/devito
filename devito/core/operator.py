@@ -3,9 +3,8 @@ from __future__ import absolute_import
 from devito.core.autotuning import autotune
 from devito.cgen_utils import printmark
 from devito.dle import filter_iterations, retrieve_iteration_tree
-from devito.nodes import List
+from devito.ir.iet import List, Transformer
 from devito.operator import OperatorRunnable
-from devito.visitors import Transformer
 from devito.tools import flatten
 
 __all__ = ['Operator']

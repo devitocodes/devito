@@ -176,7 +176,7 @@ def pprint(node, verbose=True):
     """
     Shortcut to pretty print Iteration/Expression trees.
     """
-    from devito.visitors import printAST
+    from devito.ir.iet import printAST
     print(printAST(node, verbose))
 
 
