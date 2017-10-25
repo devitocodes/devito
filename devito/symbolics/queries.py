@@ -64,7 +64,7 @@ def q_indirect(expr):
     a[i] --> False
     a[b[i]] --> True
     """
-    from devito.symbolics.search import retrieve_indexed 
+    from devito.symbolics.search import retrieve_indexed
     if not expr.is_Indexed:
         return False
     return any(retrieve_indexed(i) for i in expr.indices)
