@@ -39,14 +39,14 @@ class DevitoCheckpoint(Checkpoint):
         """Intialise a checkpoint object. Upon initialisation, a checkpoint
         stores only a reference to the objects that are passed into it."""
         assert(all(isinstance(o, TimeFunction) for o in objects))
+        dtypes = set([o.dtype for o in objects])
+        assert(len(dtypes) == 1)
+        self._dtype = dtypes.pop()
         self.objects = objects
 
     @property
     def dtype(self):
-        try:
-            return self.objects[0].dtype
-        except:
-            return None
+        return self._dtype
 
     def save(self, ptr):
         """Overwrite live-data in this Checkpoint object with data found at
