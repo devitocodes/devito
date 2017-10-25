@@ -12,7 +12,7 @@ from conftest import EVAL
 from devito.dle import retrieve_iteration_tree, transform
 from devito.dle.backends import DevitoRewriter as Rewriter
 from devito import Grid, Function, TimeFunction, Eq, Operator
-from devito.flow import analyze_iterations
+from devito.ir.analysis import analyze_iterations
 from devito.ir.iet import (ELEMENTAL, Expression, Callable, Iteration, List, tagger,
                            ResolveTimeStepping, SubstituteExpression,
                            Transformer, FindNodes)

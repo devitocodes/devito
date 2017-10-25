@@ -17,6 +17,7 @@ from devito.flow import analyze_iterations
 from devito.exceptions import InvalidArgument, InvalidOperator
 from devito.function import Forward, Backward, CompositeFunction
 from devito.logger import bar, error, info
+from devito.ir.analysis import analyze_iterations
 from devito.ir.clusters import clusterize
 from devito.ir.iet import (Element, Expression, Callable, Iteration, List,
                            LocalExpression, FindScopes, ResolveTimeStepping,

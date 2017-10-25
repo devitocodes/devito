@@ -1,6 +1,6 @@
 from collections import OrderedDict, namedtuple
 
-from devito.ir.clusters.cluster import Cluster
+from devito.ir.clusters import Cluster
 from devito.ir.dfg import temporaries_graph
 from devito.symbolics import xreplace_indices
 from devito.stencil import Stencil
