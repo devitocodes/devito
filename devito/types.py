@@ -390,10 +390,11 @@ class Array(SymbolicData, ArrayArgProvider):
         self.shape = shape or self.shape
         self.indices = dimensions or self.indices
 
-        self._external = bool(external)
-        self._onstack = bool(onstack)
-        self._onheap = bool(onheap)
-        assert single_or([self._external, self._onstack, self._onheap])
+        if any(i is not None for i in [external, onstack, onheap]):
+            self._external = bool(external)
+            self._onstack = bool(onstack)
+            self._onheap = bool(onheap)
+            assert single_or([self._external, self._onstack, self._onheap])
 
 
 class SymbolicFunction(AbstractFunction):

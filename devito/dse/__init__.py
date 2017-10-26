@@ -6,4 +6,4 @@ from devito.dse.inspection import *  # noqa
 from devito.dse.manipulation import *  # noqa
 from devito.dse.search import *  # noqa
 from devito.dse.queries import *  # noqa
-from devito.dse.symbolics import *  # noqa
+from devito.dse.transformer import *  # noqa

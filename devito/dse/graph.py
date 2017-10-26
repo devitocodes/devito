@@ -1,24 +1,3 @@
-"""
-In a DSE graph, a node is a temporary and an edge between two nodes n0 and n1
-indicates that n1 reads n0. For example, given the excerpt: ::
-
-    temp0 = a*b
-    temp1 = temp0*c
-    temp2 = temp0*d
-    temp3 = temp1 + temp2
-    ...
-
-A section of the ``temporaries graph`` looks as follows: ::
-
-    temp0 ---> temp1
-      |          |
-      |          |
-      v          v
-    temp2 ---> temp3
-
-Temporaries graph are used for symbolic as well as loop-level transformations.
-"""
-
 from collections import OrderedDict
 from itertools import islice
 
@@ -43,8 +22,6 @@ class Temporary(Eq):
 
         - :class:`sympy.Eq` writing to ``self``
         - :class:`sympy.Eq` reading from ``self``
-
-    A :class:`Temporary` is used as node in a temporaries graph.
     """
 
     def __new__(cls, lhs, rhs, **kwargs):
@@ -112,9 +89,27 @@ class Temporary(Eq):
 class TemporariesGraph(OrderedDict):
 
     """
-    A temporaries graph represents an ordered sequence of operations.
+    A temporaries graph represents an ordered sequence of operations. Operations,
+    of type :class:`Temporary`, are the nodes of the graph. An edge from ``n0`` to
+    ``n1`` indicates that ``n1`` reads from ``n0``. For example, the sequence: ::
 
-    The operations may involve scalars and indexed objects (arrays). The indices
+        temp0 = a*b
+        temp1 = temp0*c
+        temp2 = temp0*d
+        temp3 = temp1 + temp2
+
+    is represented by the following TemporariesGraph: ::
+
+        temp0 ---> temp1
+          |          |
+          |          |
+          v          v
+        temp2 ---> temp3
+
+    The input and output edges of a node ``n`` are encoded in ``n.reads`` and
+    ``n.readby``, respectively.
+
+    Operations may involve scalars and indexed objects (arrays). The indices
     of the indexed objects represent either "space" or "time" dimensions.
     """
 
@@ -328,7 +323,7 @@ class TemporariesGraph(OrderedDict):
 
 def temporaries_graph(temporaries):
     """
-    Create a dependency graph given a list of :class:`sympy.Eq`.
+    Create a :class:`TemporariesGraph` given a list of :class:`sympy.Eq`.
     """
 
     # Check input is legal and initialize the temporaries graph

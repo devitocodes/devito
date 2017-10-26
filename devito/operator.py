@@ -7,6 +7,7 @@ import ctypes
 import numpy as np
 import sympy
 
+from devito.flow import analyze_iterations
 from devito.cgen_utils import Allocator
 from devito.compiler import jit_compile, load
 from devito.dimension import Dimension
@@ -20,7 +21,7 @@ from devito.parameters import configuration
 from devito.profiling import create_profile
 from devito.stencil import Stencil
 from devito.tools import as_tuple, filter_sorted, flatten, numpy_to_ctypes, partial_order
-from devito.visitors import (FindScopes, ResolveIterationVariable,
+from devito.visitors import (FindScopes, ResolveTimeStepping,
                              SubstituteExpression, Transformer, NestedTransformer)
 from devito.exceptions import InvalidArgument, InvalidOperator
 
@@ -100,12 +101,14 @@ class Operator(Callable):
         # Wrap expressions with Iterations according to dimensions
         nodes = self._schedule_expressions(clusters)
 
+        # Data dependency analysis. Properties are attached directly to nodes
+        nodes = analyze_iterations(nodes)
+
         # Introduce C-level profiling infrastructure
         nodes, self.profiler = self._profile_sections(nodes, parameters)
 
         # Resolve and substitute dimensions for loop index variables
-        subs = {}
-        nodes = ResolveIterationVariable().visit(nodes, subs=subs)
+        nodes, subs = ResolveTimeStepping().visit(nodes)
         nodes = SubstituteExpression(subs=subs).visit(nodes)
 
         # Apply the Devito Loop Engine (DLE) for loop optimization
@@ -287,9 +290,8 @@ class Operator(Callable):
         return arguments
 
     def _schedule_expressions(self, clusters):
-        """Wrap :class:`Expression` objects, already grouped in :class:`Cluster`
-        objects, within nested :class:`Iteration` objects (representing loops),
-        according to dimensions and stencils."""
+        """Create an Iteartion/Expression tree given an iterable of
+        :class:`Cluster` objects."""
 
         # Topologically sort Iterations
         ordering = partial_order([i.stencil.dimensions for i in clusters])
@@ -355,8 +357,7 @@ class Operator(Callable):
         return nodes
 
     def _insert_declarations(self, nodes):
-        """Populate the Operator's body with the required array and variable
-        declarations, to generate a legal C file."""
+        """Populate the Operator's body with the necessary variable declarations."""
 
         # Resolve function calls first
         scopes = []
@@ -375,17 +376,17 @@ class Operator(Callable):
             if k.is_scalar:
                 # Inline declaration
                 mapper[k] = LocalExpression(**k.args)
-            elif k.output_function._mem_external:
+            elif k.write._mem_external:
                 # Nothing to do, variable passed as kernel argument
                 continue
-            elif k.output_function._mem_stack:
+            elif k.write._mem_stack:
                 # On the stack, as established by the DLE
                 key = lambda i: not i.is_Parallel
                 site = filter_iterations(v, key=key, stop='asap') or [nodes]
-                allocator.push_stack(site[-1], k.output_function)
+                allocator.push_stack(site[-1], k.write)
             else:
                 # On the heap, as a tensor that must be globally accessible
-                allocator.push_heap(k.output_function)
+                allocator.push_heap(k.write)
 
         # Introduce declarations on the stack
         for k, v in allocator.onstack:
