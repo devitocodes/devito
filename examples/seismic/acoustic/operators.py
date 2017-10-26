@@ -94,7 +94,7 @@ def ForwardOperator(model, source, receiver, time_order=2, space_order=4,
     eq_abc = BC.abc
 
     # Substitute spacing terms to reduce flops
-    return Operator(eqn + eq_abc +src_term + rec_term, subs=model.spacing_map,
+    return Operator(eqn + eq_abc + src_term + rec_term, subs=model.spacing_map,
                     time_axis=Forward, name='Forward', **kwargs)
 
 
@@ -108,7 +108,6 @@ def AdjointOperator(model, source, receiver, time_order=2, space_order=4, **kwar
     :param time_order: Time discretization order
     :param space_order: Space discretization order
     """
-    m, damp = model.m, model.damp
 
     v = TimeFunction(name='v', grid=model.grid, save=False,
                      time_order=2, space_order=space_order)
@@ -121,17 +120,20 @@ def AdjointOperator(model, source, receiver, time_order=2, space_order=4, **kwar
     dt = model.critical_dt * (1.73 if time_order == 4 else 1.0)
 
     s = model.grid.stepping_dim.spacing
-    eqn = iso_stencil(v, time_order, m, s, damp, forward=False)
+    eqn = iso_stencil(v, time_order, model.m, s, forward=False)
 
     # Construct expression to inject receiver values
-    receivers = rec.inject(field=v.backward, expr=rec * dt**2 / m,
+    receivers = rec.inject(field=v.backward, expr=rec * dt**2 / model.m,
                            offset=model.nbpml)
 
     # Create interpolation expression for the adjoint-source
     source_a = srca.interpolate(expr=v, offset=model.nbpml)
 
+    BC = ABC(model, v, model.m, taxis=Backward)
+    eq_abc = BC.abc
+
     # Substitute spacing terms to reduce flops
-    return Operator(eqn + receivers + source_a, subs=model.spacing_map,
+    return Operator(eqn + eq_abc + receivers + source_a, subs=model.spacing_map,
                     time_axis=Backward, name='Adjoint', **kwargs)
 
 
@@ -145,7 +147,6 @@ def GradientOperator(model, source, receiver, time_order=2, space_order=4, **kwa
     :param time_order: Time discretization order
     :param space_order: Space discretization order
     """
-    m, damp = model.m, model.damp
 
     # Gradient symbol and wavefield symbols
     grad = Function(name='grad', grid=model.grid)
@@ -160,20 +161,21 @@ def GradientOperator(model, source, receiver, time_order=2, space_order=4, **kwa
     dt = model.critical_dt * (1.73 if time_order == 4 else 1.0)
 
     s = model.grid.stepping_dim.spacing
-    eqn = iso_stencil(v, time_order, m, s, damp, forward=False)
+    eqn = iso_stencil(v, time_order, model.m, s, forward=False)
 
     if time_order == 2:
         gradient_update = Eq(grad, grad - u.dt2 * v)
     else:
         gradient_update = Eq(grad, grad - (u.dt2 +
-                                           s**2 / 12.0 * u.laplace2(m**(-2))) * v)
+                                           s**2 / 12.0 * u.laplace2(model.m**(-2))) * v)
 
     # Add expression for receiver injection
-    receivers = rec.inject(field=v.backward, expr=rec * dt**2 / m,
+    receivers = rec.inject(field=v.backward, expr=rec * dt**2 / model.m,
                            offset=model.nbpml)
-
+    BC = ABC(model, v, model.m, taxis=Backward)
+    eq_abc = BC.abc
     # Substitute spacing terms to reduce flops
-    return Operator(eqn + receivers + [gradient_update], subs=model.spacing_map,
+    return Operator(eqn + eq_abc + receivers + [gradient_update], subs=model.spacing_map,
                     time_axis=Backward, name='Gradient', **kwargs)
 
 
@@ -187,7 +189,6 @@ def BornOperator(model, source, receiver, time_order=2, space_order=4, **kwargs)
     :param time_order: Time discretization order
     :param space_order: Space discretization order
     """
-    m, damp = model.m, model.damp
 
     # Create source and receiver symbols
     src = PointSource(name='src', grid=model.grid, ntime=source.nt,
@@ -206,16 +207,22 @@ def BornOperator(model, source, receiver, time_order=2, space_order=4, **kwargs)
     dt = model.critical_dt * (1.73 if time_order == 4 else 1.0)
 
     s = model.grid.stepping_dim.spacing
-    eqn1 = iso_stencil(u, time_order, m, s, damp)
-    eqn2 = iso_stencil(U, time_order, m, s, damp, q=-dm*u.dt2)
+    eqn1 = iso_stencil(u, time_order, model.m, s)
+    eqn2 = iso_stencil(U, time_order, model.m, s, q=-dm*u.dt2)
 
     # Add source term expression for u
-    source = src.inject(field=u.forward, expr=src * dt**2 / m,
+    source = src.inject(field=u.forward, expr=src * dt**2 / model.m,
                         offset=model.nbpml)
 
     # Create receiver interpolation expression from U
     receivers = rec.interpolate(expr=U, offset=model.nbpml)
 
+    BC = ABC(model, u, model.m)
+    eq_abc = BC.abc
+
+    BCl = ABC(model, U, model.m)
+    eq_abcl = BCl.abc
+
     # Substitute spacing terms to reduce flops
-    return Operator(eqn1 + source + eqn2 + receivers, subs=model.spacing_map,
+    return Operator(eqn1 + eq_abc + source + eqn2 + eq_abcl + receivers, subs=model.spacing_map,
                     time_axis=Forward, name='Born', **kwargs)

@@ -70,7 +70,7 @@ def run(shape=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=1000.0,
     plt.figure()
     plt.imshow(rec.data[:, :], vmin=-10, vmax=10, cmap="seismic", aspect=.2)
     plt.figure()
-    plt.imshow(np.transpose(u.data[1, :, :]), vmin=-.1, vmax=.1, cmap="seismic", aspect=1)
+    plt.imshow(np.transpose(u.data[-1, :, :]), vmin=-1, vmax=1, cmap="seismic", aspect=1)
     plt.show()
 
     if constant:
@@ -94,7 +94,7 @@ def run(shape=(50, 50, 50), spacing=(20.0, 20.0, 20.0), tn=1000.0,
 if __name__ == "__main__":
     description = ("Example script for a set of acoustic operators.")
     parser = ArgumentParser(description=description)
-    parser.add_argument('--2d', dest='dim2', default=True, action='store_true',
+    parser.add_argument('--2d', dest='dim2', default=False, action='store_true',
                         help="Preset to determine the physical problem setup")
     parser.add_argument('-f', '--full', default=False, action='store_true',
                         help="Execute all operators and store forward wavefield")
@@ -106,11 +106,11 @@ if __name__ == "__main__":
                         type=int, help="Space order of the simulation")
     parser.add_argument("--nbpml", default=40,
                         type=int, help="Number of PML layers around the domain")
-    parser.add_argument("-dse", "-dse", default="noop",
+    parser.add_argument("-dse", "-dse", default="advanced",
                         choices=["noop", "basic", "advanced",
                                  "speculative", "aggressive"],
                         help="Devito symbolic engine (DSE) mode")
-    parser.add_argument("-dle", default="noop",
+    parser.add_argument("-dle", default="advanced",
                         choices=["noop", "advanced", "speculative"],
                         help="Devito loop engine (DLE) mode")
     parser.add_argument("--constant", default=False, action='store_true',
@@ -121,7 +121,7 @@ if __name__ == "__main__":
     if args.dim2:
         shape = (150, 150)
         spacing = (15.0, 15.0)
-        tn = 750.0
+        tn = 500.0
     else:
         shape = (100, 100, 100)
         spacing = (15.0, 15.0, 15.0)
