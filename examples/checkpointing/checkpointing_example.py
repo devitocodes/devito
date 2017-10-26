@@ -37,17 +37,17 @@ def setup(shape, tn, spacing, time_order, space_order, nbpml):
 
     # Create the forward wavefield to use (only 3 timesteps)
     u = TimeFunction(name="u", grid=model.grid, time_order=time_order,
-                     space_order=space_order, save=False, dtype=model.dtype)
+                     space_order=space_order, save=False)
 
     v = TimeFunction(name="v", grid=model.grid, time_order=time_order,
-                     space_order=space_order, save=False, dtype=model.dtype)
+                     space_order=space_order, save=False)
 
     # Forward Operator
     fw = ForwardOperator(model, src, rec_t, time_order=time_order,
                          spc_order=space_order, save=False)
 
     # Gradient symbol
-    grad = Function(name="grad", grid=model.grid, dtype=model.dtype)
+    grad = Function(name="grad", grid=model.grid)
 
     gradop = GradientOperator(model, src, rec_g, time_order=time_order,
                               spc_order=space_order, save=False)

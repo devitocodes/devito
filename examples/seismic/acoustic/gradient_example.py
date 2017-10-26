@@ -33,13 +33,12 @@ def run(shape=(50, 50, 50), spacing=(15.0, 15.0, 15.0), tn=500., time_order=2,
     # Create the forward wavefield to use (only 3 timesteps)
     # Once checkpointing is in, this will be the only wavefield we need
     u_nosave = TimeFunction(name="u", grid=model.grid, time_order=time_order,
-                            space_order=space_order, save=False, dtype=model.dtype)
+                            space_order=space_order, save=False)
 
     # Forward wavefield where all timesteps are stored
     # With checkpointing this should go away <----
     u_save = TimeFunction(name="u", grid=model.grid, time_dim=nt,
-                          time_order=time_order, space_order=space_order, save=True,
-                          dtype=model.dtype)
+                          time_order=time_order, space_order=space_order, save=True)
 
     # Forward Operators - one with save = True and one with save = False
     fw = ForwardOperator(model, src, rec_t, time_order=time_order,
@@ -64,7 +63,7 @@ def run(shape=(50, 50, 50), spacing=(15.0, 15.0, 15.0), tn=500., time_order=2,
     rec_g = Receiver(name="rec", coordinates=rec_s.coordinates.data, grid=model.grid,
                      data=rec_s.data - rec_t.data, dt=dt)
     # Gradient symbol
-    grad = Function(name="grad", grid=model.grid, dtype=model.dtype)
+    grad = Function(name="grad", grid=model.grid)
     # Reusing u_nosave from above as the adjoint wavefield since it is a temp var anyway
     gradop = GradientOperator(model, src, rec_g, time_order=time_order,
                               spc_order=space_order)
