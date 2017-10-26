@@ -2,8 +2,8 @@ from collections import OrderedDict, namedtuple
 
 from devito.ir.clusters.cluster import Cluster
 from devito.ir.dfg import temporaries_graph
+from devito.ir.support import Stencil
 from devito.symbolics import xreplace_indices
-from devito.stencil import Stencil
 from devito.types import Scalar
 
 __all__ = ['clusterize', 'optimize']
