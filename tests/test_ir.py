@@ -2,7 +2,7 @@ import pytest
 
 from conftest import x, y
 
-from devito.ir.analysis.basic import IterationInstance
+from devito.ir.support.basic import IterationInstance, TimedAccess
 
 
 @pytest.fixture(scope="session")
@@ -20,6 +20,19 @@ def ii_literal(fa, fc):
     fcxy = IterationInstance(fc[x, y])
     fcx1y = IterationInstance(fc[x + 1, y])
     return fax, fcxy, fcx1y
+
+
+@pytest.fixture(scope="session")
+def ta_literal(fc):
+    tcxy_w0 = TimedAccess(fc[x, y], 'W', 0)
+    tcxy_r0 = TimedAccess(fc[x, y], 'R', 0)
+    tcx1y1_r1 = TimedAccess(fc[x + 1, y + 1], 'R', 1)
+    tcx1y_r1 = TimedAccess(fc[x + 1, y], 'R', 1)
+    x.reverse = True
+    rev_tcxy_w0 = TimedAccess(fc[x, y], 'W', 0)
+    rev_tcx1y1_r1 = TimedAccess(fc[x + 1, y + 1], 'R', 1)
+    x.reverse = False
+    return tcxy_w0, tcxy_r0, tcx1y1_r1, tcx1y_r1, rev_tcxy_w0, rev_tcx1y1_r1
 
 
 def test_iteration_instance_arithmetic(dims, ii_num, ii_literal):
@@ -116,3 +129,36 @@ def test_iteration_instance_distance(dims, ii_num, ii_literal):
     # Distance up to provided dimension
     assert fcxy.distance(fcx1y, x) == (-1,)
     assert fcxy.distance(fcx1y, y) == (-1, 0)
+
+
+def test_timed_access_cmp(ta_literal):
+    tcxy_w0, tcxy_r0, tcx1y1_r1, tcx1y_r1, rev_tcxy_w0, rev_tcx1y1_r1 = ta_literal
+
+    # Equality check
+    assert tcxy_w0 == tcxy_w0
+    assert (tcxy_w0 != tcxy_r0) is False
+    assert tcxy_w0 != tcx1y1_r1
+    assert tcxy_w0 != rev_tcxy_w0
+
+    # Lexicographic comparison
+    assert tcxy_r0 < tcx1y1_r1
+    assert (tcxy_r0 > tcx1y1_r1) is False
+    assert (tcxy_r0 >= tcx1y1_r1) is False
+    assert tcx1y1_r1 > tcxy_r0
+    assert tcx1y1_r1 >= tcxy_r0
+    assert tcx1y_r1 > tcxy_w0
+    assert tcx1y_r1 < tcx1y1_r1
+    assert tcx1y1_r1 > tcx1y_r1
+
+    # Lexicographic comparison with reverse direction
+    assert rev_tcxy_w0 > rev_tcx1y1_r1
+    assert rev_tcx1y1_r1 <= rev_tcxy_w0
+
+    # Non-comparable due to different direction
+    try:
+        rev_tcxy_w0 > tcxy_r0
+        assert False
+    except TypeError:
+        assert True
+    except:
+        assert False
