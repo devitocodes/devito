@@ -15,7 +15,7 @@ from devito.exceptions import CompilationError
 from devito.logger import yask as log
 from devito.tools import numpy_to_ctypes
 
-from devito.yask import cfac, nfac, ofac, namespace, exit, yask_configuration
+from devito.yask import cfac, nfac, ofac, namespace, exit, configuration
 from devito.yask.utils import convert_multislice, rawpointer
 
 
@@ -260,7 +260,7 @@ class YaskKernel(object):
         self.name = name
 
         # Shared object name
-        self.soname = "%s.%s.%s" % (name, yc_soln.get_name(), yask_configuration['arch'])
+        self.soname = "%s.%s.%s" % (name, yc_soln.get_name(), configuration['platform'])
 
         # It's necessary to `clean` the YASK kernel directory *before*
         # writing out the first `yask_stencil_code.hpp`
@@ -269,20 +269,20 @@ class YaskKernel(object):
         # Write out the stencil file
         if not os.path.exists(namespace['kernel-path-gen']):
             os.makedirs(namespace['kernel-path-gen'])
-        yc_soln.format(yask_configuration['isa'],
+        yc_soln.format(configuration['isa'],
                        ofac.new_file_output(namespace['kernel-output']))
 
         # JIT-compile it
         try:
-            compiler = yask_configuration['compiler']
-            opt_level = 1 if yask_configuration['develop-mode'] else 3
+            compiler = configuration.yask['compiler']
+            opt_level = 1 if configuration.yask['develop-mode'] else 3
             make(namespace['path'], ['-j3', 'YK_CXX=%s' % compiler.cc,
                                      'YK_CXXOPT=-O%d' % opt_level,
                                      'mpi=0',  # Disable MPI for now
                                      # "EXTRA_MACROS=TRACE",
                                      'YK_BASE=%s' % str(name),
                                      'stencil=%s' % yc_soln.get_name(),
-                                     'arch=%s' % yask_configuration['arch'],
+                                     'arch=%s' % configuration['platform'],
                                      '-C', namespace['kernel-path'], 'api'])
         except CompilationError:
             exit("Kernel solution compilation")
@@ -309,13 +309,27 @@ class YaskKernel(object):
         self.soln.set_num_ranks(self.soln.get_domain_dim_names()[0],
                                 self.env.get_num_ranks())
 
-        # Redirect stdout/strerr to a string
-        self.output = yk.yask_output_factory().new_string_output()
+        # Redirect stdout/strerr to a string or file
+        if configuration.yask['dump']:
+            filename = 'yk_dump.%s.%s.%s.txt' % (self.name,
+                                                 configuration['platform'],
+                                                 configuration['isa'])
+            filename = os.path.join(configuration.yask['dump'], filename)
+            self.output = yk.yask_output_factory().new_file_output(filename)
+        else:
+            self.output = yk.yask_output_factory().new_string_output()
         self.soln.set_debug_output(self.output)
 
         # Set up the solution domain size
         for k, v in domain.items():
             self.soln.set_rank_domain_size(k, int(v))
+
+        # Apply any user-provided option, if any
+        self.soln.apply_command_line_options(configuration.yask['options'] or '')
+
+        # Set up the block shape for loop blocking
+        for i, j in zip(list(domain), configuration.yask['blockshape']):
+            self.soln.set_block_size(i, j)
 
         # Users may want to run the same Operator (same domain etc.) with
         # different grids.
@@ -350,15 +364,6 @@ class YaskKernel(object):
         # Deallocate temporary grids
         for i in self.local_grids.values():
             i.release_storage()
-
-    def update(self, obj):
-        """
-        Switch to a different grid in the YaskKernel.
-
-        :param obj: a symbolic object wrapping a :class:`YaskGrid`.
-        """
-        assert obj.name in self.grids
-        obj.data.give_storage(self.grids[obj.name])
 
     @property
     def space_dimensions(self):
@@ -454,9 +459,32 @@ class YaskContext(object):
         """
         Create and return a YASK compiler solution object.
         """
-        yc_soln = cfac.new_solution(namer(self.name, self.nsolutions))
-        yc_soln.set_debug_output(ofac.new_null_output())
+        name = namer(self.name, self.nsolutions)
+
+        yc_soln = cfac.new_solution(name)
+
+        # Redirect stdout/strerr to a string or file
+        if configuration.yask['dump']:
+            filename = 'yc_dump.%s.%s.%s.txt' % (name, configuration['platform'],
+                                                 configuration['isa'])
+            filename = os.path.join(configuration.yask['dump'], filename)
+            yc_soln.set_debug_output(ofac.new_file_output(filename))
+        else:
+            yc_soln.set_debug_output(ofac.new_null_output())
+
+        # Set data type size
         yc_soln.set_element_bytes(self.dtype().itemsize)
+
+        # Apply compile-time optimizations
+        if configuration['isa'] != 'cpp':
+            dimensions = [nfac.new_domain_index(i) for i in self.domain]
+            # Vector folding
+            for i, j in zip(dimensions, configuration.yask['folding']):
+                yc_soln.set_fold_len(i, j)
+            # Unrolling
+            for i, j in zip(dimensions, configuration.yask['clustering']):
+                yc_soln.set_cluster_mult(i, j)
+
         return yc_soln
 
     def make_yk_solution(self, namer, yc_soln, local_grids):
@@ -510,7 +538,7 @@ class ContextManager(OrderedDict):
                               if i != namespace['time-dim']])
 
         # A unique key for this context.
-        key = tuple([yask_configuration['isa'], dtype] + list(domain.items()))
+        key = tuple([configuration['isa'], dtype] + list(domain.items()))
 
         # Fetch or create a YaskContext
         if key in self:
@@ -531,6 +559,20 @@ contexts = ContextManager()
 
 
 # Helpers
+
+class YaskGridConst(np.float64):
+
+    """A YASK grid wrapper for scalar values."""
+
+    def give_storage(self, target):
+        if not target.is_storage_allocated():
+            target.alloc_storage()
+        target.set_element(float(self.real), [])
+
+    @property
+    def rawpointer(self):
+        return None
+
 
 class YaskNullKernel(object):
 

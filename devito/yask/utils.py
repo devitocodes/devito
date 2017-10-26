@@ -39,8 +39,8 @@ def make_grid_accesses(node):
         rhs = make_grid_gets(rhs)
 
         # LHS translation
-        if e.output_function.from_YASK:
-            name = namespace['code-grid-name'](e.output_function.name)
+        if e.write.from_YASK:
+            name = namespace['code-grid-name'](e.write.name)
             args = [rhs]
             args += [ListInitializer([INT(make_grid_gets(i)) for i in lhs.indices])]
             handle = make_sharedptr_funcall(namespace['code-grid-put'], args, name)

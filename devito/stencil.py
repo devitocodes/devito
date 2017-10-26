@@ -122,6 +122,10 @@ class Stencil(DefaultOrderedDict):
     def entries(self):
         return tuple(StencilEntry(k, frozenset(v)) for k, v in self.items())
 
+    @property
+    def diameter(self):
+        return {k: abs(max(v) - min(v)) for k, v in self.items()}
+
     def null(self):
         """
         Return the null Stencil of ``self``.

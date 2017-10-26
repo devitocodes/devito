@@ -1,4 +1,4 @@
-from devito import Dimension, time
+from devito import Dimension
 from devito.function import SparseFunction
 from devito.logger import error
 
@@ -15,6 +15,7 @@ class PointSource(SparseFunction):
     """Symbolic data object for a set of sparse point sources
 
     :param name: Name of the symbol representing this source
+    :param grid: :class:`Grid` object defining the computational domain.
     :param coordinates: Point coordinates for this source
     :param data: (Optional) Data values to initialise point data
     :param ntime: (Optional) Number of timesteps for which to allocate data
@@ -26,10 +27,9 @@ class PointSource(SparseFunction):
     initialised `data` array need to be provided.
     """
 
-    def __new__(cls, name, ntime=None, npoint=None, ndim=None,
-                data=None, coordinates=None, **kwargs):
+    def __new__(cls, name, grid, ntime=None, npoint=None, data=None,
+                coordinates=None, **kwargs):
         p_dim = kwargs.get('dimension', Dimension('p_%s' % name))
-        ndim = ndim or coordinates.shape[1]
         npoint = npoint or coordinates.shape[0]
         if data is None:
             if ntime is None:
@@ -39,8 +39,9 @@ class PointSource(SparseFunction):
             ntime = ntime or data.shape[0]
 
         # Create the underlying SparseFunction object
-        obj = SparseFunction.__new__(cls, name=name, dimensions=[time, p_dim],
-                                     npoint=npoint, nt=ntime, ndim=ndim,
+        obj = SparseFunction.__new__(cls, name=name, grid=grid,
+                                     dimensions=[grid.time_dim, p_dim],
+                                     npoint=npoint, nt=ntime,
                                      coordinates=coordinates, **kwargs)
 
         # If provided, copy initial data into the allocated buffer
@@ -63,9 +64,9 @@ class WaveletSource(PointSource):
     sources with a pre-defined source signal wavelet.
 
     :param name: Name for the resulting symbol
+    :param grid: :class:`Grid` object defining the computational domain.
     :param f0: Peak frequency for Ricker wavelet in kHz
     :param time: Discretized values of time in ms
-    :param ndim: Number of spatial dimensions
     """
 
     def __new__(cls, *args, **kwargs):
@@ -120,9 +121,9 @@ class RickerSource(WaveletSource):
     http://subsurfwiki.org/wiki/Ricker_wavelet
 
     :param name: Name for the resulting symbol
+    :param grid: :class:`Grid` object defining the computational domain.
     :param f0: Peak frequency for Ricker wavelet in kHz
     :param time: Discretized values of time in ms
-    :param ndim: Number of spatial dimensions
     """
 
     def wavelet(self, f0, t):
@@ -144,9 +145,9 @@ class GaborSource(WaveletSource):
     https://en.wikipedia.org/wiki/Gabor_wavelet
 
     :param name: Name for the resulting symbol
+    :param grid: :class:`Grid` object defining the computational domain.
     :param f0: Peak frequency for Ricker wavelet in kHz
     :param time: Discretized values of time in ms
-    :param ndim: Number of spatial dimensions
     """
 
     def wavelet(self, f0, t):

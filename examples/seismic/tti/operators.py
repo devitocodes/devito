@@ -1,10 +1,8 @@
-from sympy import Eq, cos, sin, solve, Symbol
+from sympy import cos, sin
 
-from devito import Operator, TimeData
-from examples.seismic import PointSource, Receiver, ABC
-
+from devito import Eq, Operator, TimeFunction
+from examples.seismic import PointSource, Receiver
 from devito.finite_difference import centered, first_derivative, right, transpose
-from devito.dimension import x, y, z, t, time
 
 
 def Gxx_shifted(field, costheta, sintheta, cosphi, sinphi, space_order):
@@ -19,6 +17,7 @@ def Gxx_shifted(field, costheta, sintheta, cosphi, sinphi, space_order):
     :param space_order: discretization order
     :return: rotated second order derivative wrt x
     """
+    x, y, z = field.space_dimensions
     Gx1 = (costheta * cosphi * field.dx + costheta * sinphi * field.dyr -
            sintheta * field.dzr)
     Gxx1 = (first_derivative(Gx1 * costheta * cosphi,
@@ -54,6 +53,7 @@ def Gxx_shifted_2d(field, costheta, sintheta, space_order):
     :param space_order: discretization order
     :return: rotated second order derivative wrt x
     """
+    x, y = field.space_dimensions[:2]
     Gx1 = (costheta * field.dxr - sintheta * field.dy)
     Gxx1 = (first_derivative(Gx1 * costheta, dim=x,
                              side=right, order=space_order,
@@ -82,6 +82,7 @@ def Gyy_shifted(field, cosphi, sinphi, space_order):
     :param space_order: discretization order
     :return: rotated second order derivative wrt y
     """
+    x, y = field.space_dimensions[:2]
     Gyp = (sinphi * field.dx - cosphi * field.dyr)
     Gyy = (first_derivative(Gyp * sinphi,
                             dim=x, side=centered, order=space_order,
@@ -111,6 +112,7 @@ def Gzz_shited(field, costheta, sintheta, cosphi, sinphi, space_order):
     :param space_order: discretization order
     :return: rotated second order derivative wrt z
     """
+    x, y, z = field.space_dimensions
     Gzr = (sintheta * cosphi * field.dx + sintheta * sinphi * field.dyr +
            costheta * field.dzr)
     Gzz = (first_derivative(Gzr * sintheta * cosphi,
@@ -146,6 +148,7 @@ def Gzz_shited_2d(field, costheta, sintheta, space_order):
     :param space_order: discretization order
     :return: rotated second order derivative wrt z
     """
+    x, y = field.space_dimensions[:2]
     Gz1r = (sintheta * field.dxr + costheta * field.dy)
     Gzz1 = (first_derivative(Gz1r * sintheta, dim=x,
                              side=right, order=space_order,
@@ -176,6 +179,7 @@ def Gzz_centered(field, costheta, sintheta, cosphi, sinphi, space_order):
     :return: rotated second order derivative wrt z
     """
     order1 = space_order / 2
+    x, y, z = field.space_dimensions
     Gz = -(sintheta * cosphi * first_derivative(field, dim=x,
                                                 side=centered, order=order1) +
            sintheta * sinphi * first_derivative(field, dim=y,
@@ -204,6 +208,7 @@ def Gzz_centered_2d(field, costheta, sintheta, space_order):
     :return: rotated second order derivative wrt z
     """
     order1 = space_order / 2
+    x, y = field.space_dimensions[:2]
     Gz = -(sintheta * first_derivative(field, dim=x, side=centered, order=order1) +
            costheta * first_derivative(field, dim=y, side=centered, order=order1))
     Gzz = (first_derivative(Gz * sintheta, dim=x,
@@ -352,72 +357,21 @@ def kernel_centered_3d(u, v, costheta, sintheta, cosphi, sinphi, space_order):
     return Gxx, Gzz
 
 
-def iso_stencil(field1, field2, m, epsilon, delta, theta, phi, kernel, **kwargs):
-    """
-    Stencil for the acoustic anisotropic wave-equation:
-
-    u.dt2 = (1+2 *epsilon) Hp + sqrt(1+ 2*delta) Hz
-    v.dt2 = sqrt(1+ 2*delta) Hp + Hz
-
-    Hp = (Gxx(u)+Gyy(u))s
-    Hz = Gzz(v)
-
-    :param field1: First symbolic TimeData object, solution to be computed
-    :param field1: Second symbolic TimeData object, solution to be computed
-    :param m: square slowness, data in s^2/km^2
-    :param epsilon: thomsen parameter with (1+2*epsilon) as its data
-    :param delta: thomsen parameter with sqrt(1+2*delta) as its data
-    :param theta: tilt angle, data in rad
-    :param phi: azymuth angle, data in rad
-    :param kernel: 'shifted' or 'centered', spatial FD operator
-    :param kwargs: q if full time/spcae source term
-    :return: Stencil for the wave-equation
-    """
-
-    # Tilt and azymuth setup
-    ang0 = cos(theta)
-    ang1 = sin(theta)
-    ang2 = 0
-    ang3 = 0
-    if len(m.shape) == 3:
-        ang2 = cos(phi)
-        ang3 = sin(phi)
-    # Creat a temporary symbol for H to avoid expensive sympy solve
-    H = Symbol('H')
-    # Define time sep to be updated
-    next1 = field1.forward
-    next2 = field2.forward
-    # Define PDE
-    eq1 = m * field1.dt2 - H + kwargs.get('q', 0)
-    eq2 = m * field2.dt2 - H + kwargs.get('q', 0)
-    # Solve the symbolic equation for the field to be updated
-    eq_time1 = solve(eq1, next1, rational=False, simplify=False)[0]
-    eq_time2 = solve(eq2, next2, rational=False, simplify=False)[0]
-    # return the Stencil with Hp, Hz replaced by its symbolic expression
-    FD_kernel = kernels[(kernel, len(m.shape))]
-    Hp, Hz = FD_kernel(field1, field2, ang0, ang1, ang2, ang3, field1.space_order)
-
-    return [Eq(next1, eq_time1.subs({H: epsilon * Hp + delta * Hz}))] +\
-           [Eq(next2, eq_time2.subs({H: delta * Hp + Hz}))]
-
-
 def ForwardOperator(model, source, receiver, time_order=2, space_order=4,
                     save=False, kernel='centered', **kwargs):
     """
-    Constructor method for the forward modelling operator in an acoustic media
+       Constructor method for the forward modelling operator in an acoustic media
 
-    :param model: :class:`Model` object containing the physical parameters
-    :param source: :class:`PointData` object containing the source geometry
-    :param receiver: :class:`PointData` object containing the acquisition geometry
-    :param time_order: Time discretization order
-    :param space_order: Space discretization order
-    :param save: Saving flag, True saves all time steps, False only the three
-    :param kernel: Choice of FD kernel, `centered` or `shifted`
-    """
+       :param model: :class:`Model` object containing the physical parameters
+       :param src: None ot IShot() (not currently supported properly)
+       :param data: IShot() object containing the acquisition geometry and field data
+       :param: time_order: Time discretization order
+       :param: spc_order: Space discretization order
+       """
     dt = model.critical_dt
 
-    m, epsilon, delta, theta, phi = (model.m, model.epsilon,
-                                     model.delta, model.theta, model.phi)
+    m, damp, epsilon, delta, theta, phi = (model.m, model.damp, model.epsilon,
+                                           model.delta, model.theta, model.phi)
 
     # Create symbols for forward wavefield, source and receivers
     u = TimeFunction(name='u', grid=model.grid,
@@ -426,13 +380,34 @@ def ForwardOperator(model, source, receiver, time_order=2, space_order=4,
     v = TimeFunction(name='v', grid=model.grid,
                      save=save, time_dim=source.nt if save else None,
                      time_order=time_order, space_order=space_order)
-    src = PointSource(name='src', ntime=source.nt, ndim=source.ndim,
+    src = PointSource(name='src', grid=model.grid, ntime=source.nt,
                       npoint=source.npoint)
-    rec = Receiver(name='rec', ntime=receiver.nt, ndim=receiver.ndim,
+    rec = Receiver(name='rec', grid=model.grid, ntime=receiver.nt,
                    npoint=receiver.npoint)
 
+    # Tilt and azymuth setup
+    ang0 = cos(theta)
+    ang1 = sin(theta)
+    ang2 = 0
+    ang3 = 0
+    if len(model.shape) == 3:
+        ang2 = cos(phi)
+        ang3 = sin(phi)
+
+    FD_kernel = kernels[(kernel, len(model.shape))]
+    H0, Hz = FD_kernel(u, v, ang0, ang1, ang2, ang3, space_order)
+
     # Stencils
-    stencils = iso_stencil(u, v, m, epsilon, delta, theta, phi, kernel)
+    s = model.grid.stepping_dim.spacing
+    stencilp = 1.0 / (2.0 * m + s * damp) * \
+        (4.0 * m * u + (s * damp - 2.0 * m) *
+         u.backward + 2.0 * s ** 2 * (epsilon * H0 + delta * Hz))
+    stencilr = 1.0 / (2.0 * m + s * damp) * \
+        (4.0 * m * v + (s * damp - 2.0 * m) *
+         v.backward + 2.0 * s ** 2 * (delta * H0 + Hz))
+    first_stencil = Eq(u.forward, stencilp)
+    second_stencil = Eq(v.forward, stencilr)
+    stencils = [first_stencil, second_stencil]
 
     # Source and receivers
     stencils += src.inject(field=u.forward, expr=src * dt * dt / m,
@@ -440,18 +415,9 @@ def ForwardOperator(model, source, receiver, time_order=2, space_order=4,
     stencils += src.inject(field=v.forward, expr=src * dt * dt / m,
                            offset=model.nbpml)
     stencils += rec.interpolate(expr=u + v, offset=model.nbpml)
-    # Add substitutions for spacing (temporal and spatial)
-    subs = dict([(t.spacing, dt)] + [(time.spacing, dt)] +
-                [(i.spacing, model.spacing[j]) for i, j
-                 in zip(u.indices[1:], range(len(model.shape)))])
 
-    BCu = ABC(model, u, m)
-    stencils += BCu.abc
-
-    BCv = ABC(model, v, m)
-    stencils += BCv.abc
-    # Operator
-    return Operator(stencils, subs=subs, name='ForwardTTI', **kwargs)
+    # Substitute spacing terms to reduce flops
+    return Operator(stencils, subs=model.spacing_map, name='ForwardTTI', **kwargs)
 
 
 kernels = {('shifted', 3): kernel_shited_3d, ('shifted', 2): kernel_shited_2d,

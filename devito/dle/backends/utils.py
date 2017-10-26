@@ -59,4 +59,5 @@ def get_simd_items(dtype):
     register on the current architecture."""
 
     simd_size = simdinfo[get_simd_flag()]
-    return simd_size / np.dtype(dtype).itemsize
+    assert simd_size % np.dtype(dtype).itemsize == 0
+    return int(simd_size / np.dtype(dtype).itemsize)

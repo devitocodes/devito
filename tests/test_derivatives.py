@@ -1,9 +1,9 @@
 import numpy as np
 import pytest
-from conftest import skipif_yask
+from conftest import t, x, y, z, skipif_yask
 from sympy import Derivative, simplify
 
-from devito import Grid, Function, TimeFunction, t, x, y, z
+from devito import Grid, Function, TimeFunction
 
 
 @pytest.fixture

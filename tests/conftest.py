@@ -2,11 +2,11 @@ from __future__ import absolute_import
 
 import pytest
 
-from sympy import cos  # noqa
+from sympy import cos, Symbol  # noqa
 
 from devito import Eq  # noqa
-from devito import (Dimension, t, x, y, z, Constant, Function,
-                    FixedDimension, configuration)
+from devito import (Dimension, TimeDimension, SteppingDimension, SpaceDimension,
+                    Constant, Function, configuration)
 from devito.types import Scalar, Array
 from devito.nodes import Iteration
 from devito.tools import as_tuple
@@ -35,22 +35,20 @@ def function(name, shape, dimensions):
 
 @pytest.fixture(scope="session")
 def dims():
-    return {'i': FixedDimension(name='i', size=3),
-            'j': FixedDimension(name='j', size=5),
-            'k': FixedDimension(name='k', size=7),
-            'l': FixedDimension(name='l', size=6),
-            's': FixedDimension(name='s', size=4),
-            'q': FixedDimension(name='q', size=4)}
-
-
-@pytest.fixture(scope="session")
-def dims_open():
     return {'i': Dimension(name='i'),
             'j': Dimension(name='j'),
             'k': Dimension(name='k'),
             'l': Dimension(name='l'),
             's': Dimension(name='s'),
             'q': Dimension(name='q')}
+
+
+# Testing dimensions for space and time
+time = TimeDimension('time', spacing=Constant(name='dt'))
+t = SteppingDimension('t', parent=time)
+x = SpaceDimension('x', spacing=Constant(name='h_x'))
+y = SpaceDimension('y', spacing=Constant(name='h_y'))
+z = SpaceDimension('z', spacing=Constant(name='h_z'))
 
 
 @pytest.fixture(scope="session")

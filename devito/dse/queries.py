@@ -1,4 +1,5 @@
 from sympy import cos, sin
+from devito.dimension import Dimension
 
 
 """
@@ -76,3 +77,7 @@ def iq_timeinvariant(graph):
 
 def iq_timevarying(graph):
     return lambda e: e.is_Number or not graph.time_invariant(e)
+
+
+def q_timedimension(expr):
+    return isinstance(expr, Dimension) and expr.is_Time
