@@ -115,7 +115,7 @@ class ScalarArgument(Argument):
             else:
                 # Either this is the first time we're getting a value (self.value = None)
                 # or this is an enforced value
-                if not self._frozen:
+                if enforce or not self._frozen:
                     # If we're frozen, ignore, else use this value directly
                     self._value = value
                     if enforce:
