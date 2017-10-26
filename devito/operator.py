@@ -16,11 +16,11 @@ from devito.dse import rewrite
 from devito.exceptions import InvalidArgument, InvalidOperator
 from devito.function import Forward, Backward, CompositeFunction
 from devito.logger import bar, error, info
-from devito.ir.analysis import analyze_iterations
 from devito.ir.clusters import clusterize
 from devito.ir.iet import (Element, Expression, Callable, Iteration, List,
                            LocalExpression, FindScopes, ResolveTimeStepping,
-                           SubstituteExpression, Transformer, NestedTransformer)
+                           SubstituteExpression, Transformer, NestedTransformer,
+                           analyze_iterations)
 from devito.parameters import configuration
 from devito.profiling import create_profile
 from devito.stencil import Stencil
